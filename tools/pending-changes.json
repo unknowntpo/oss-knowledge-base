@@ -8363,5 +8363,110 @@
     "toVersion": 556,
     "url": "https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=406620973",
     "observedAt": "2026-08-26T08:52:43Z"
+  },
+  {
+    "kipId": "KIP-906",
+    "fromVersion": 9,
+    "toVersion": 10,
+    "url": "https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=240883967",
+    "observedAt": "2026-09-25T09:01:12Z"
+  },
+  {
+    "kipId": "KIP-909",
+    "fromVersion": 36,
+    "toVersion": 37,
+    "url": "https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=240884528",
+    "observedAt": "2026-09-25T09:01:16Z"
+  },
+  {
+    "kipId": "KIP-927",
+    "fromVersion": 13,
+    "toVersion": 14,
+    "url": "https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=255069912",
+    "observedAt": "2026-09-25T09:01:37Z"
+  },
+  {
+    "kipId": "KIP-1027",
+    "fromVersion": 2,
+    "toVersion": 5,
+    "url": "https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=294816709",
+    "observedAt": "2026-09-25T09:03:22Z"
+  },
+  {
+    "kipId": "KIP-1071",
+    "fromVersion": 112,
+    "toVersion": 113,
+    "url": "https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=311627992",
+    "observedAt": "2026-09-25T09:04:11Z"
+  },
+  {
+    "kipId": "KIP-1192",
+    "fromVersion": 6,
+    "toVersion": 7,
+    "url": "https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=373886012",
+    "observedAt": "2026-09-25T09:06:17Z"
+  },
+  {
+    "kipId": "KIP-1193",
+    "fromVersion": 5,
+    "toVersion": 6,
+    "url": "https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=373886068",
+    "observedAt": "2026-09-25T09:06:19Z"
+  },
+  {
+    "kipId": "KIP-1262",
+    "fromVersion": 35,
+    "toVersion": 39,
+    "url": "https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=406618510",
+    "observedAt": "2026-09-25T09:07:34Z"
+  },
+  {
+    "kipId": "KIP-1279",
+    "fromVersion": 556,
+    "toVersion": 649,
+    "url": "https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=406620973",
+    "observedAt": "2026-09-25T09:07:54Z"
+  },
+  {
+    "kipId": "KIP-1305",
+    "fromVersion": 5,
+    "toVersion": 8,
+    "url": "https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=406623705",
+    "observedAt": "2026-09-25T09:08:21Z"
+  },
+  {
+    "kipId": "KIP-1321",
+    "fromVersion": 17,
+    "toVersion": 18,
+    "url": "https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=421956773",
+    "observedAt": "2026-09-25T09:08:41Z"
+  },
+  {
+    "kipId": "KIP-1342",
+    "fromVersion": 1,
+    "toVersion": 4,
+    "url": "https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=421958795",
+    "observedAt": "2026-09-25T09:09:05Z"
+  },
+  {
+    "kipId": "KIP-1349",
+    "fromVersion": 86,
+    "toVersion": 87,
+    "url": "https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=421958844",
+    "observedAt": "2026-09-25T09:09:13Z"
+  },
+  {
+    "kipId": "KIP-1357",
+    "fromVersion": 59,
+    "toVersion": 63,
+    "url": "https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=430408758",
+    "observedAt": "2026-09-25T09:09:20Z"
+  },
+  {
+    "kipId": "KIP-1368",
+    "fromVersion": 8,
+    "toVersion": 15,
+    "url": "https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=440304679",
+    "observedAt": "2026-09-25T09:09:34Z"
   }
 ]
