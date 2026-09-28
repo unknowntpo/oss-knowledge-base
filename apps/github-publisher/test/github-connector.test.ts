@@ -92,6 +92,41 @@ describe("Spec 004 GitHub connector", () => {
     expect(requested.filter((url) => new URL(url).pathname.endsWith("/issues"))).toHaveLength(3);
   });
 
+  test("bounds a catch-up poll and checkpoints at the last processed issue", async () => {
+    const issuePages: number[] = [];
+    const transport: GitHubJsonTransport = {
+      async getJson<T>(rawUrl: string): Promise<T> {
+        const url = new URL(rawUrl);
+        const page = Number(url.searchParams.get("page"));
+        if (url.pathname.endsWith("/issues")) {
+          issuePages.push(page);
+          return (page === 1 ? [issue(1)] : page === 2 ? [issue(2)] : []) as T;
+        }
+        if (url.pathname.endsWith("/issues/1/comments")) return (page === 1 ? [comment] : []) as T;
+        throw new Error(`Unexpected URL ${rawUrl}`);
+      },
+    };
+    const connector = new GitHubConnector({
+      transport,
+      projectProfiles: [profile],
+      pageSize: 1,
+      initialLookbackDays: 7,
+      maxIssuesPerSource: 1,
+    });
+    const result = await connector.poll(undefined, "2026-08-25T12:00:00Z");
+
+    expect(result.complete).toBe(true);
+    if (!result.complete) return;
+    expect(issuePages).toEqual([1]);
+    expect(result.truncated).toBe(true);
+    expect(result.events.map((event) => event.entityId).sort()).toEqual([
+      "kafka:github:issue:1",
+      "kafka:github:issue:1:comment:900",
+    ]);
+    // The comment is newer than issue 1, but issue 2 is still unread.
+    expect(result.candidateCheckpoint.sources["kafka:github"]?.updatedAt).toBe("2026-08-21T10:00:00Z");
+  });
+
   test("G7: a later page failure returns no partial batch or checkpoint", async () => {
     const transport: GitHubJsonTransport = {
       async getJson<T>(rawUrl: string): Promise<T> {
