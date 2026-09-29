@@ -1,3 +1,4 @@
+import type { ImmutableProjectionObjectV1 } from "@oss-knowledge-base/serving-contract";
 import type { PublicationDestination } from "./pipeline";
 
 export class R2PublicationDestination implements PublicationDestination {
@@ -19,6 +20,16 @@ export class R2PublicationDestination implements PublicationDestination {
       httpMetadata: { cacheControl: "public, max-age=31536000, immutable" },
     }));
     return "created";
+  }
+
+  /** One conditional R2 request per object; R2 rejects bytes that do not match the digest. */
+  async putVerifiedImmutableIfAbsent(object: ImmutableProjectionObjectV1, body: Uint8Array): Promise<"created" | "exists"> {
+    const written = await this.retry(() => this.bucket.put(object.key, body, {
+      sha256: object.sha256.replace(/^sha256:/u, ""),
+      onlyIf: new Headers({ "if-none-match": "*" }),
+      httpMetadata: { cacheControl: "public, max-age=31536000, immutable" },
+    }));
+    return written === null ? "exists" : "created";
   }
 
   async putCurrent(key: string, body: Uint8Array): Promise<void> {

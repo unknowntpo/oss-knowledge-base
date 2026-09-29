@@ -133,6 +133,30 @@ describe("verified publication promotion", () => {
     }
   });
 
+  test("a verified single-request store needs no destination reads for new objects", async () => {
+    const fixture = await publicationFixture();
+    const destination = new VerifiedPublicationStore();
+
+    const result = await promotePublicationSet(fixture.publicationSet, fixture.source, destination);
+
+    expect(result.ok && result.copiedObjectCount).toBe(5);
+    expect(destination.reads.filter((key) => !key.endsWith("current.json"))).toEqual([]);
+    const repeated = await promotePublicationSet(fixture.publicationSet, fixture.source, destination);
+    expect(repeated.ok && repeated.reusedObjectCount).toBe(5);
+  });
+
+  test("a verified store still fails closed when an existing object differs", async () => {
+    const fixture = await publicationFixture();
+    const conflicting = fixture.publicationSet.projections[0]!.immutableObjects[0]!.key;
+    const destination = new VerifiedPublicationStore();
+    destination.seed(conflicting, "different bytes");
+
+    const result = await promotePublicationSet(fixture.publicationSet, fixture.source, destination);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.kind).toBe("destination-conflict");
+  });
+
   test("fails closed on an immutable-key conflict without overwriting or switching that projection", async () => {
     const fixture = await publicationFixture();
     const destination = new MemoryPublicationStore();
@@ -299,6 +323,23 @@ class MemoryPublicationStore implements PublicationObjectStore {
 
   bytes(key: string): Uint8Array | undefined {
     return this.objects.get(key)?.slice();
+  }
+}
+
+class VerifiedPublicationStore extends MemoryPublicationStore {
+  readonly reads: string[] = [];
+
+  override async get(key: string): Promise<Uint8Array | undefined> {
+    this.reads.push(key);
+    return super.get(key);
+  }
+
+  async putVerifiedImmutableIfAbsent(
+    object: { readonly key: string; readonly sha256: string },
+    body: Uint8Array,
+  ): Promise<"created" | "exists"> {
+    if (await sha256Digest(body) !== object.sha256) throw new Error(`checksum mismatch: ${object.key}`);
+    return super.putImmutableIfAbsent(object.key, body);
   }
 }
 
