@@ -53,6 +53,8 @@ export interface GitHubConnectorOptions {
   readonly initialLookbackDays?: number;
   readonly overlapSeconds?: number;
   readonly issueConcurrency?: number;
+  /** Caps issues read per source in one poll so a large backlog is caught up over several polls. */
+  readonly maxIssuesPerSource?: number;
 }
 
 export type GitHubPollResult =
@@ -61,6 +63,7 @@ export type GitHubPollResult =
       readonly events: readonly DomainEventV1[];
       readonly candidateCheckpoint: GitHubCheckpointV1;
       readonly pageCount: number;
+      readonly truncated: boolean;
     }
   | {
       readonly complete: false;
@@ -170,6 +173,7 @@ export class GitHubConnector {
   private readonly initialLookbackDays: number;
   private readonly overlapSeconds: number;
   private readonly issueConcurrency: number;
+  private readonly maxIssuesPerSource: number;
 
   constructor(options: GitHubConnectorOptions = {}) {
     if (options.transport === undefined) {
@@ -182,12 +186,14 @@ export class GitHubConnector {
     this.initialLookbackDays = options.initialLookbackDays ?? 1;
     this.overlapSeconds = options.overlapSeconds ?? 300;
     this.issueConcurrency = options.issueConcurrency ?? 6;
+    this.maxIssuesPerSource = options.maxIssuesPerSource ?? Number.POSITIVE_INFINITY;
   }
 
   async poll(previous: GitHubCheckpointV1 | undefined, observedAt: string): Promise<GitHubPollResult> {
     const events: DomainEventV1[] = [];
     const nextSources: Record<string, { readonly updatedAt: string }> = {};
     let pageCount = 0;
+    let truncated = false;
     try {
       for (const profile of this.profiles) {
         const previousUpdatedAt = previous?.sources[profile.sourceInstanceId]?.updatedAt;
@@ -200,7 +206,7 @@ export class GitHubConnector {
           sort: "updated",
           direction: "asc",
           since,
-        });
+        }, this.maxIssuesPerSource);
         pageCount += issuesResult.pageCount;
         let watermark = previousUpdatedAt ?? since;
 
@@ -268,6 +274,11 @@ export class GitHubConnector {
           pageCount += result.pageCount;
           if (result.watermark > watermark) watermark = result.watermark;
         }
+        if (issuesResult.truncated) {
+          // Unread issues sort after the last read one; a newer comment watermark would skip them.
+          truncated = true;
+          watermark = issuesResult.items.at(-1)!.updated_at;
+        }
         nextSources[profile.sourceInstanceId] = { updatedAt: watermark };
       }
       return {
@@ -279,6 +290,7 @@ export class GitHubConnector {
           sources: nextSources,
         },
         pageCount,
+        truncated,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -296,13 +308,15 @@ export class GitHubConnector {
   private async fetchAllPages<T>(
     baseUrl: string,
     params: Readonly<Record<string, string | number>>,
-  ): Promise<{ readonly items: readonly T[]; readonly pageCount: number }> {
+    maxItems = Number.POSITIVE_INFINITY,
+  ): Promise<{ readonly items: readonly T[]; readonly pageCount: number; readonly truncated: boolean }> {
     const items: T[] = [];
     let page = 1;
     for (;;) {
       const values = await this.transport.getJson<T[]>(urlWith(baseUrl, { ...params, per_page: this.pageSize, page }));
       items.push(...values);
-      if (values.length < this.pageSize) return { items, pageCount: page };
+      if (values.length < this.pageSize) return { items, pageCount: page, truncated: false };
+      if (items.length >= maxItems) return { items: items.slice(0, maxItems), pageCount: page, truncated: true };
       page += 1;
     }
   }

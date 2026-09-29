@@ -25,6 +25,7 @@ export class GitHubFetchTransport implements GitHubJsonTransport {
     }
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const response = await this.fetchImpl(target, {
+        signal: AbortSignal.timeout(30_000),
         headers: {
           Accept: "application/vnd.github.full+json",
           Authorization: `Bearer ${this.token}`,
@@ -33,7 +34,8 @@ export class GitHubFetchTransport implements GitHubJsonTransport {
         },
       });
       if (response.ok) return await response.json() as T;
-      if ([500, 502, 503, 504].includes(response.status) && attempt < 2) {
+      if ([500, 502, 503, 504, 524].includes(response.status) && attempt < 2) {
+        await response.body?.cancel();
         await this.delay(250 * (2 ** attempt));
         continue;
       }

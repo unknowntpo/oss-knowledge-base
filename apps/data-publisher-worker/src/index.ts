@@ -18,6 +18,8 @@ interface Env {
 }
 
 const STATE_OBJECT_NAME = "github-feed-search-pipeline-v1";
+// Keeps one run under the Durable Object memory limit; a larger backlog catches up over later runs.
+const MAX_ISSUES_PER_SOURCE = 200;
 
 export default {
   async scheduled(controller: ScheduledController, env: Env, context: ExecutionContext): Promise<void> {
@@ -81,7 +83,10 @@ export class PipelineState implements DurableObject {
       const status = await runDataPublication({
         environment: this.env.PUBLICATION_ENVIRONMENT,
         materializedAt,
-        connector: new GitHubConnector({ transport: new GitHubFetchTransport(this.env.GITHUB_SOURCE_TOKEN ?? "") }),
+        connector: new GitHubConnector({
+          transport: new GitHubFetchTransport(this.env.GITHUB_SOURCE_TOKEN ?? ""),
+          maxIssuesPerSource: MAX_ISSUES_PER_SOURCE,
+        }),
         state: new DurableObjectPipelineState(this.ctx.storage),
         destination: new R2PublicationDestination(this.env.OSS_KB_BUCKET),
       });

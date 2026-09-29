@@ -18,11 +18,40 @@ import {
 import { GitHubFetchTransport } from "../src/github-transport";
 
 describe("Cloudflare data publication", () => {
-  test("retries transient GitHub gateway failures without calling them rate limits", async () => {
-    const statuses = [500, 503, 200];
-    const delays: number[] = [];
+  test.each([500, 502, 503, 504, 524])("bounds retries for HTTP %s", async (status) => {
+    let attempts = 0;
     const transport = new GitHubFetchTransport("github_pat_test", {
       fetchImpl: async () => {
+        attempts += 1;
+        return new Response("temporary", { status });
+      },
+      delay: async () => undefined,
+    });
+    await expect(transport.getJson("https://api.github.com/repos/apache/kafka/issues"))
+      .rejects.toThrow(`GitHub API ${status}`);
+    expect(attempts).toBe(3);
+  });
+
+  test.each([401, 403, 404, 429])("does not retry HTTP %s", async (status) => {
+    let attempts = 0;
+    const transport = new GitHubFetchTransport("github_pat_test", {
+      fetchImpl: async () => {
+        attempts += 1;
+        return new Response("rejected", { status });
+      },
+      delay: async () => { throw new Error("unexpected retry"); },
+    });
+    await expect(transport.getJson("https://api.github.com/repos/apache/kafka/issues"))
+      .rejects.toThrow(status === 403 || status === 429 ? "GitHub rate limit" : `GitHub API ${status}`);
+    expect(attempts).toBe(1);
+  });
+
+  test("retries transient GitHub gateway failures without calling them rate limits", async () => {
+    const statuses = [524, 503, 200];
+    const delays: number[] = [];
+    const transport = new GitHubFetchTransport("github_pat_test", {
+      fetchImpl: async (_input, init) => {
+        expect(init?.signal).toBeInstanceOf(AbortSignal);
         const status = statuses.shift() ?? 500;
         return Response.json(status === 200 ? [{ id: 1 }] : { error: "temporary" }, { status });
       },
@@ -163,6 +192,7 @@ function connectorSuccess(events: readonly DomainEventV1[]) {
         sources: watermarks,
       },
       pageCount: 4,
+      truncated: false,
     }),
   };
 }
