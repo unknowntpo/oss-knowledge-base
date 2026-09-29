@@ -34,7 +34,7 @@ function checkpoint(updatedAt = "2026-08-25T08:00:00Z"): GitHubCheckpointV1 {
 }
 
 function complete(events: readonly DomainEventV1[], candidate = checkpoint()): GitHubPollResult {
-  return { complete: true, events, candidateCheckpoint: candidate, pageCount: 2 };
+  return { complete: true, events, candidateCheckpoint: candidate, pageCount: 2, truncated: false };
 }
 
 describe("Spec 004 reference pipeline controller", () => {

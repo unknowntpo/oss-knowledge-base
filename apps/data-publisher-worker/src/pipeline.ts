@@ -43,6 +43,7 @@ export type PipelineRunStatus =
       readonly inputEventCount: number;
       readonly logicalEventCount: number;
       readonly pageCount: number;
+      readonly pollTruncated: boolean;
       readonly copiedObjectCount: number;
       readonly reusedObjectCount: number;
     }
@@ -122,6 +123,7 @@ export async function runDataPublication(input: {
       inputEventCount: poll.events.length,
       logicalEventCount: compacted.readEvents().length,
       pageCount: poll.pageCount,
+      pollTruncated: poll.truncated,
       copiedObjectCount: published.copiedObjectCount,
       reusedObjectCount: published.reusedObjectCount,
     });
