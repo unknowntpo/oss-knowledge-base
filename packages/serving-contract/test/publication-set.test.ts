@@ -117,6 +117,22 @@ describe("verified publication promotion", () => {
     );
   });
 
+  test("copies immutable objects concurrently but still switches each pointer after its objects", async () => {
+    const fixture = await publicationFixture();
+    const destination = new SlowPublicationStore();
+
+    const result = await promotePublicationSet(fixture.publicationSet, fixture.source, destination, { concurrency: 4 });
+
+    expect(result.ok && result.copiedObjectCount).toBe(5);
+    expect(destination.maxInFlight).toBeGreaterThan(1);
+    for (const projection of fixture.publicationSet.projections) {
+      const pointer = destination.events.indexOf(`current:${projection.currentKey}`);
+      for (const object of projection.immutableObjects) {
+        expect(destination.events.indexOf(`immutable:${object.key}`)).toBeLessThan(pointer);
+      }
+    }
+  });
+
   test("fails closed on an immutable-key conflict without overwriting or switching that projection", async () => {
     const fixture = await publicationFixture();
     const destination = new MemoryPublicationStore();
@@ -283,6 +299,19 @@ class MemoryPublicationStore implements PublicationObjectStore {
 
   bytes(key: string): Uint8Array | undefined {
     return this.objects.get(key)?.slice();
+  }
+}
+
+class SlowPublicationStore extends MemoryPublicationStore {
+  maxInFlight = 0;
+  private inFlight = 0;
+
+  override async putImmutableIfAbsent(key: string, body: Uint8Array): Promise<"created" | "exists"> {
+    this.inFlight += 1;
+    this.maxInFlight = Math.max(this.maxInFlight, this.inFlight);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    this.inFlight -= 1;
+    return super.putImmutableIfAbsent(key, body);
   }
 }
 

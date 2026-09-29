@@ -227,6 +227,7 @@ export async function promotePublicationSet(
   publicationSet: PublicationSetV1,
   source: Pick<PublicationObjectStore, "get">,
   destination: PublicationObjectStore,
+  options: { readonly concurrency?: number } = {},
 ): Promise<PromotionResult> {
   const sourceVerification = await verifyPublicationSetSource(publicationSet, source);
   if (!sourceVerification.ok) return sourceVerification;
@@ -242,36 +243,15 @@ export async function promotePublicationSet(
   const projectionOrder: readonly ProjectionReleaseDescriptorV1[] = [search, feed];
 
   for (const projection of projectionOrder) {
-    for (const expected of projection.immutableObjects) {
-      try {
-        const existing = await destination.get(expected.key);
-        if (existing !== undefined) {
-          const mismatch = await objectMismatch(expected, existing);
-          if (mismatch !== undefined) {
-            return failure("destination-conflict", mismatch, projection.kind, expected.key);
-          }
-          reusedObjectCount += 1;
-          continue;
-        }
-
-        const sourceBody = await source.get(expected.key);
-        if (sourceBody === undefined) {
-          return failure("source-object-missing", `Source object disappeared: ${expected.key}`, projection.kind, expected.key);
-        }
-        const outcome = await destination.putImmutableIfAbsent(expected.key, sourceBody);
-        const written = await destination.get(expected.key);
-        if (written === undefined) {
-          return failure("store-error", `Destination object was not readable after write: ${expected.key}`, projection.kind, expected.key);
-        }
-        const mismatch = await objectMismatch(expected, written);
-        if (mismatch !== undefined) {
-          return failure("destination-conflict", mismatch, projection.kind, expected.key);
-        }
-        if (outcome === "created") copiedObjectCount += 1;
-        else reusedObjectCount += 1;
-      } catch (error) {
-        return failure("store-error", errorMessage(error), projection.kind, expected.key);
-      }
+    const outcomes = await mapUntilFailure(
+      projection.immutableObjects,
+      options.concurrency ?? 1,
+      (expected) => promoteImmutableObject(expected, projection.kind, source, destination),
+    );
+    for (const outcome of outcomes) {
+      if (typeof outcome !== "string") return outcome;
+      if (outcome === "created") copiedObjectCount += 1;
+      else reusedObjectCount += 1;
     }
 
     const currentBody = encode(JSON.stringify(projection.current));
@@ -295,6 +275,62 @@ export async function promotePublicationSet(
     switchedProjections,
     unchangedProjections,
   };
+}
+
+type ImmutableObject = ProjectionReleaseDescriptorV1["immutableObjects"][number];
+
+async function promoteImmutableObject(
+  expected: ImmutableObject,
+  kind: ProjectionKind,
+  source: Pick<PublicationObjectStore, "get">,
+  destination: PublicationObjectStore,
+): Promise<"created" | "reused" | PublicationFailure> {
+  try {
+    const existing = await destination.get(expected.key);
+    if (existing !== undefined) {
+      const mismatch = await objectMismatch(expected, existing);
+      return mismatch === undefined ? "reused" : failure("destination-conflict", mismatch, kind, expected.key);
+    }
+
+    const sourceBody = await source.get(expected.key);
+    if (sourceBody === undefined) {
+      return failure("source-object-missing", `Source object disappeared: ${expected.key}`, kind, expected.key);
+    }
+    const outcome = await destination.putImmutableIfAbsent(expected.key, sourceBody);
+    const written = await destination.get(expected.key);
+    if (written === undefined) {
+      return failure("store-error", `Destination object was not readable after write: ${expected.key}`, kind, expected.key);
+    }
+    const mismatch = await objectMismatch(expected, written);
+    if (mismatch !== undefined) return failure("destination-conflict", mismatch, kind, expected.key);
+    return outcome === "created" ? "created" : "reused";
+  } catch (error) {
+    return failure("store-error", errorMessage(error), kind, expected.key);
+  }
+}
+
+/** Runs workers in input order with bounded concurrency and stops starting new work after a failure. */
+async function mapUntilFailure<T, R>(
+  values: readonly T[],
+  concurrency: number,
+  worker: (value: T) => Promise<R | PublicationFailure>,
+): Promise<readonly (R | PublicationFailure)[]> {
+  const results: (R | PublicationFailure)[] = [];
+  let next = 0;
+  let failed = false;
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(concurrency, values.length)) }, async () => {
+    while (!failed && next < values.length) {
+      const index = next++;
+      const result = await worker(values[index]!);
+      results[index] = result;
+      if (isFailure(result)) failed = true;
+    }
+  }));
+  return results.filter((result) => result !== undefined);
+}
+
+function isFailure(value: unknown): value is PublicationFailure {
+  return typeof value === "object" && value !== null && (value as { ok?: unknown }).ok === false;
 }
 
 export async function sha256Digest(body: Uint8Array | string): Promise<Sha256Digest> {
