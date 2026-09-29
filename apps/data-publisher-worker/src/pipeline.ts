@@ -56,6 +56,9 @@ export type PipelineRunStatus =
       readonly retryAfterSeconds: number;
     };
 
+// Each release writes about a thousand new objects; serial R2 round trips exceed the Cron wall-time limit.
+const PROMOTION_CONCURRENCY = 16;
+
 export async function runDataPublication(input: {
   readonly environment: "development" | "production";
   readonly materializedAt: string;
@@ -63,6 +66,8 @@ export async function runDataPublication(input: {
   readonly state: PipelineStateRepository;
   readonly destination: PublicationDestination;
 }): Promise<PipelineRunStatus> {
+  const startedAt = Date.now();
+  const phase = (name: string) => console.log(`publication ${name} at ${Date.now() - startedAt}ms`);
   try {
     const persisted = await input.state.read();
     const next = new ReferenceStateStore(persisted);
@@ -78,6 +83,7 @@ export async function runDataPublication(input: {
       });
     }
 
+    phase(`polled ${poll.events.length} events in ${poll.pageCount} pages`);
     next.appendDurably(poll.events);
     const materialized = materializeReferenceFeed(
       next.readEvents(),
@@ -102,9 +108,13 @@ export async function runDataPublication(input: {
       searchObjects,
     });
 
+    phase(`materialized ${feedObjects.length + searchObjects.length} objects`);
     const source = projectionSource([...feedObjects, ...searchObjects]);
-    const published = await promotePublicationSet(publicationSet, source, input.destination);
+    const published = await promotePublicationSet(publicationSet, source, input.destination, {
+      concurrency: PROMOTION_CONCURRENCY,
+    });
     if (!published.ok) throw new Error(`${published.kind}: ${published.message}`);
+    phase("promoted");
 
     await input.destination.putEvidence(
       publicationEvidenceKey(publicationSet),

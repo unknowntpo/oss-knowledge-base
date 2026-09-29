@@ -2,11 +2,11 @@ import { GitHubConnector } from "@oss-knowledge-base/github-publisher/github-con
 import type { DomainEventV1 } from "@oss-knowledge-base/domain";
 import type { SerializedReferenceStateV1 } from "@oss-knowledge-base/reference-pipeline";
 import { GitHubFetchTransport } from "./github-transport";
+import { R2PublicationDestination } from "./r2-destination";
 import {
   runDataPublication,
   type PipelineRunStatus,
   type PipelineStateRepository,
-  type PublicationDestination,
 } from "./pipeline";
 
 interface Env {
@@ -131,36 +131,4 @@ class DurableObjectPipelineState implements PipelineStateRepository {
   async recordStatus(status: PipelineRunStatus): Promise<void> {
     await this.storage.put("status", status);
   }
-}
-
-class R2PublicationDestination implements PublicationDestination {
-  constructor(private readonly bucket: R2Bucket) {}
-
-  async get(key: string): Promise<Uint8Array | undefined> {
-    const object = await this.bucket.get(key);
-    return object === null ? undefined : new Uint8Array(await object.arrayBuffer());
-  }
-
-  async putImmutableIfAbsent(key: string, body: Uint8Array): Promise<"created" | "exists"> {
-    if (await this.bucket.head(key) !== null) return "exists";
-    await this.bucket.put(key, body, { httpMetadata: { cacheControl: "public, max-age=31536000, immutable" } });
-    return "created";
-  }
-
-  async putCurrent(key: string, body: Uint8Array): Promise<void> {
-    await this.bucket.put(key, body, { httpMetadata: { cacheControl: "public, max-age=30, must-revalidate" } });
-  }
-
-  async putEvidence(key: string, body: Uint8Array): Promise<void> {
-    const existing = await this.get(key);
-    if (existing !== undefined) {
-      if (!bytesEqual(existing, body)) throw new Error(`Publication evidence conflict: ${key}`);
-      return;
-    }
-    await this.bucket.put(key, body, { httpMetadata: { cacheControl: "private, max-age=31536000, immutable" } });
-  }
-}
-
-function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
-  return left.byteLength === right.byteLength && left.every((byte, index) => byte === right[index]);
 }
