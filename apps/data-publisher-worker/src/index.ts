@@ -28,7 +28,10 @@ export default {
       method: "POST",
       headers: { "x-scheduled-at": new Date(controller.scheduledTime).toISOString() },
     }).then(async (response) => {
-      if (!response.ok) throw new Error(`Scheduled publication failed: ${await response.text()}`);
+      // 409 means a run is already scheduled or active; the next Cron tick picks up the rest.
+      if (!response.ok && response.status !== 409) {
+        throw new Error(`Scheduling publication failed: ${await response.text()}`);
+      }
     }));
   },
 
@@ -53,6 +56,11 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
+/**
+ * Runs publish from the object's alarm instead of the triggering request. The runtime never runs
+ * two alarms at once and retries one that dies, so no lease is needed, and a run no longer depends
+ * on the Cron invocation or the manual caller staying connected.
+ */
 export class PipelineState implements DurableObject {
   private running = false;
 
@@ -65,22 +73,25 @@ export class PipelineState implements DurableObject {
       return Response.json({
         environment: this.env.PUBLICATION_ENVIRONMENT,
         running: this.running,
+        scheduled: await this.ctx.storage.getAlarm() !== null,
         lastRun: status ?? null,
       });
     }
     if (request.method !== "POST" || path !== "/run") return new Response("Not found", { status: 404 });
-    const now = Date.now();
-    const persistedLease = await this.ctx.storage.get<{ readonly token: string; readonly expiresAt: number }>("run-lease");
-    if (this.running || (persistedLease !== undefined && persistedLease.expiresAt > now)) {
+    if (this.running || await this.ctx.storage.getAlarm() !== null) {
       return Response.json({ ok: false, skipped: "already-running" }, { status: 409 });
     }
+    await this.ctx.storage.put("requested-at", request.headers.get("x-scheduled-at") ?? new Date().toISOString());
+    await this.ctx.storage.delete("run-lease"); // written by the pre-alarm implementation
+    await this.ctx.storage.setAlarm(Date.now());
+    return Response.json({ ok: true, scheduled: true }, { status: 202 });
+  }
 
+  async alarm(): Promise<void> {
     this.running = true;
-    const lease = { token: crypto.randomUUID(), expiresAt: now + 20 * 60_000 };
-    await this.ctx.storage.put("run-lease", lease);
     try {
-      const materializedAt = request.headers.get("x-scheduled-at") ?? new Date().toISOString();
-      const status = await runDataPublication({
+      const materializedAt = await this.ctx.storage.get<string>("requested-at") ?? new Date().toISOString();
+      await runDataPublication({
         environment: this.env.PUBLICATION_ENVIRONMENT,
         materializedAt,
         connector: new GitHubConnector({
@@ -90,11 +101,8 @@ export class PipelineState implements DurableObject {
         state: new DurableObjectPipelineState(this.ctx.storage),
         destination: new R2PublicationDestination(this.env.OSS_KB_BUCKET),
       });
-      return Response.json(status, { status: status.ok ? 200 : 503 });
     } finally {
       this.running = false;
-      const currentLease = await this.ctx.storage.get<typeof lease>("run-lease");
-      if (currentLease?.token === lease.token) await this.ctx.storage.delete("run-lease");
     }
   }
 }
