@@ -31,3 +31,7 @@ This slice intentionally uses Fluss's supported batch `LIMIT` log read. An
 always-running streaming job belongs in a later slice with a standalone Flink
 cluster; the embedded detached MiniCluster is not treated as production
 restart evidence.
+
+The next standalone deployment slice is under [`homelab/`](homelab/README.md).
+It keeps the bounded semantics but submits the materialization through a real
+Flink JobManager/TaskManager session cluster on the disposable homelab VM.

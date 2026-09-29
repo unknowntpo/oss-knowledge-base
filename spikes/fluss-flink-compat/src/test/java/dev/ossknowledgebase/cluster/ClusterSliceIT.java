@@ -73,8 +73,15 @@ class ClusterSliceIT {
 
     private static TableEnvironment environment(String bootstrapServers) {
         TableEnvironment table = TableEnvironment.create(EnvironmentSettings.newInstance().inBatchMode().build());
-        table.getConfig().getConfiguration().setString("parallelism.default", "1");
-        table.getConfig().getConfiguration().setString("table.dml-sync", "true");
+        var configuration = table.getConfig().getConfiguration();
+        configuration.setString("parallelism.default", "1");
+        configuration.setString("table.dml-sync", "true");
+        String restAddress = System.getProperty("flink.rest.address");
+        if (restAddress != null && !restAddress.isBlank()) {
+            configuration.setString("execution.target", "remote");
+            configuration.setString("rest.address", restAddress);
+            configuration.setInteger("rest.port", Integer.getInteger("flink.rest.port", 8081));
+        }
         table.executeSql("CREATE CATALOG fluss_catalog WITH ('type' = 'fluss', 'bootstrap.servers' = '"
                 + sql(bootstrapServers) + "')");
         table.executeSql("USE CATALOG fluss_catalog");

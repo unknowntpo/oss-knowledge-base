@@ -1,0 +1,6 @@
+.git
+.agents
+node_modules
+apps/web/dist
+**/target
+spikes/fluss-flink-compat/homelab/evidence

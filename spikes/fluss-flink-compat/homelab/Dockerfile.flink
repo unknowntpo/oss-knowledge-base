@@ -1,0 +1,11 @@
+FROM maven:3.9.9-eclipse-temurin-17 AS connector
+
+ARG FLUSS_VERSION=0.9.1-incubating
+RUN mvn -B dependency:copy \
+    -Dartifact=org.apache.fluss:fluss-flink-1.20:${FLUSS_VERSION} \
+    -DoutputDirectory=/connector
+
+FROM flink:1.20.3-scala_2.12-java17
+
+ARG FLUSS_VERSION=0.9.1-incubating
+COPY --from=connector /connector/fluss-flink-1.20-${FLUSS_VERSION}.jar /opt/flink/lib/

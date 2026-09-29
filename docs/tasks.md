@@ -156,6 +156,21 @@ substitute for acceptance scenarios or issue history.
       protect `main` with the exact passing check names.
 - [x] Verify `main` deploys only development and release tags deploy only
       production; record both deployment URLs and SHAs.
+- [ ] Release `v0.3.0` only after creating an independent production GitHub
+      read-only PAT, provisioning `GITHUB_SOURCE_TOKEN` and
+      `MANUAL_TRIGGER_TOKEN` on `oss-knowledge-base-data-prod`, and completing
+      the first production Feed/Search publication check. This release is
+      deliberately deferred while the Fluss/Flink homelab slice is completed.
+
+## Fluss/Flink homelab deployment
+
+- [x] Deploy the pinned Fluss 0.9.1-incubating and Flink 1.20.3 standalone
+      session cluster on the disposable `bench-swarm-01a` homelab VM.
+- [x] Submit the accepted bounded materializer through the standalone Flink
+      REST endpoint and retain parity/readiness evidence outside container
+      filesystems.
+- [x] Verify rerun safety, service health, and explicit shutdown without
+      changing the Cloudflare serving path.
 
 ## Frontend polish
 

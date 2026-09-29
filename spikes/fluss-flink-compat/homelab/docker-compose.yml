@@ -1,0 +1,108 @@
+name: osskb-fluss-flink
+
+services:
+  zookeeper:
+    image: zookeeper:3.9.2
+    restart: unless-stopped
+    volumes:
+      - zookeeper-data:/data
+      - zookeeper-log:/datalog
+
+  coordinator-server:
+    image: apache/fluss:0.9.1-incubating
+    command: coordinatorServer
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    environment:
+      - |
+        FLUSS_PROPERTIES=
+        zookeeper.address: zookeeper:2181
+        bind.listeners: INTERNAL://coordinator-server:0, CLIENT://coordinator-server:9123
+        advertised.listeners: CLIENT://coordinator-server:9123
+        internal.listener.name: INTERNAL
+        remote.data.dir: /tmp/fluss/remote-data
+    volumes:
+      - fluss-state:/tmp/fluss
+
+  tablet-server:
+    image: apache/fluss:0.9.1-incubating
+    command: tabletServer
+    restart: unless-stopped
+    depends_on:
+      - coordinator-server
+    environment:
+      - |
+        FLUSS_PROPERTIES=
+        zookeeper.address: zookeeper:2181
+        bind.listeners: INTERNAL://tablet-server:0, CLIENT://tablet-server:9123
+        advertised.listeners: CLIENT://tablet-server:9123
+        internal.listener.name: INTERNAL
+        tablet-server.id: 0
+        kv.snapshot.interval: 0s
+        data.dir: /tmp/fluss/data
+        remote.data.dir: /tmp/fluss/remote-data
+    volumes:
+      - fluss-state:/tmp/fluss
+
+  jobmanager:
+    build:
+      context: ../../..
+      dockerfile: spikes/fluss-flink-compat/homelab/Dockerfile.flink
+    command: jobmanager
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${FLINK_REST_PORT:-8081}:8081"
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        rest.bind-address: 0.0.0.0
+        jobmanager.memory.process.size: 768m
+        taskmanager.numberOfTaskSlots: 1
+        parallelism.default: 1
+
+  taskmanager:
+    build:
+      context: ../../..
+      dockerfile: spikes/fluss-flink-compat/homelab/Dockerfile.flink
+    command: taskmanager
+    restart: unless-stopped
+    depends_on:
+      - jobmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 1
+        taskmanager.memory.process.size: 2048m
+        taskmanager.memory.task.off-heap.size: 512m
+        taskmanager.memory.framework.off-heap.size: 256m
+        taskmanager.memory.managed.size: 256m
+        taskmanager.memory.network.min: 64m
+        taskmanager.memory.network.max: 64m
+        parallelism.default: 1
+
+  validator:
+    profiles: ["validation"]
+    build:
+      context: ../../..
+      dockerfile: spikes/fluss-flink-compat/homelab/Dockerfile.validator
+    depends_on:
+      - coordinator-server
+      - tablet-server
+      - jobmanager
+      - taskmanager
+    environment:
+      FLUSS_BOOTSTRAP_SERVERS: coordinator-server:9123
+      FLINK_REST_ADDRESS: jobmanager
+      FLINK_REST_PORT: "8081"
+      DEPLOYMENT_TARGET: ${DEPLOYMENT_TARGET:-local}
+      EVIDENCE_DIR: /evidence
+    volumes:
+      - ./evidence:/evidence
+
+volumes:
+  zookeeper-data:
+  zookeeper-log:
+  fluss-state:

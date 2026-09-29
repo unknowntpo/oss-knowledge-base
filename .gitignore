@@ -13,6 +13,7 @@ vault/.obsidian/cache
 tools/ingest-cache/
 apps/web/dist/
 apps/web/.wrangler/
+spikes/fluss-flink-compat/homelab/evidence/
 apps/web/r2-seed/
 apps/web/.e2e/
 playwright-report/
