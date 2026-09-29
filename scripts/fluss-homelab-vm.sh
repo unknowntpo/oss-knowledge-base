@@ -2,7 +2,6 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
-infra_root="${OSS_KB_INFRA_ROOT:-$(cd "$repo_root/../.." && pwd)/infra/master}"
 vm_name="${1:-bench-swarm-01a}"
 action="${2:-deploy}"
 remote_dir="/home/ubuntu/oss-knowledge-base-fluss-flink"
@@ -24,12 +23,14 @@ case "$action" in
     ;;
 esac
 
-if [[ ! -f "$infra_root/Justfile" ]]; then
-  echo "infra repository not found at $infra_root; set OSS_KB_INFRA_ROOT" >&2
-  exit 1
-fi
-
-vm_ip="$(cd "$infra_root" && just vm-ip "$vm_name")"
+# Resolve through the jump host so this also works off the home LAN. The ARP
+# source fails on this libvirt host ("wrong nlmsg len"); DHCP leases do not.
+vm_ip="$(
+  ssh -o BatchMode=yes -o ConnectTimeout=10 "$jump_host" \
+    "sudo -n virsh domifaddr '$vm_name' --source lease" \
+    | sed -n '/ipv4/ s/.*ipv4[[:space:]]*\([^[:space:]]*\).*/\1/p' \
+    | cut -d/ -f1 | head -n1
+)"
 if [[ ! "$vm_ip" =~ ^192\.168\.122\.[0-9]+$ ]]; then
   echo "unexpected $vm_name address: $vm_ip" >&2
   exit 1

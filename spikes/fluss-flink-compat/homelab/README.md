@@ -32,9 +32,10 @@ just vm-start bench-swarm-01a
 just vm-ip bench-swarm-01a
 ```
 
-The repository-local wrapper resolves the VM through the infrastructure repo,
-copies the checkout through the `morefinepublic` SSH jump host without deleting
-prior evidence, and runs the deployment:
+The repository-local wrapper resolves the VM address from libvirt DHCP leases
+on the `morefinepublic` SSH jump host, copies the checkout through that host
+without deleting prior evidence, and runs the deployment. The VM needs Docker
+with the Compose plugin (`sudo apt-get install docker-compose-v2` on Ubuntu):
 
 ```bash
 just fluss-homelab-deploy

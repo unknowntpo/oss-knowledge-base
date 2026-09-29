@@ -164,12 +164,12 @@ substitute for acceptance scenarios or issue history.
 
 ## Fluss/Flink homelab deployment
 
-- [ ] Deploy the pinned Fluss 0.9.1-incubating and Flink 1.20.3 standalone
+- [x] Deploy the pinned Fluss 0.9.1-incubating and Flink 1.20.3 standalone
       session cluster on the disposable `bench-swarm-01a` homelab VM.
-- [ ] Submit the accepted bounded materializer through the standalone Flink
+- [x] Submit the accepted bounded materializer through the standalone Flink
       REST endpoint and retain parity/readiness evidence outside container
       filesystems.
-- [ ] Verify rerun safety, service health, and explicit shutdown without
+- [x] Verify rerun safety, service health, and explicit shutdown without
       changing the Cloudflare serving path.
 
 ## Frontend polish
