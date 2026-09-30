@@ -70,6 +70,14 @@ export interface PublicationObjectStore {
     body: Uint8Array,
   ) => Promise<"created" | "exists">;
   readonly putCurrent: (key: string, body: Uint8Array) => Promise<void>;
+  /**
+   * Optional single-request write: creates the object only when the key is absent and
+   * rejects bytes whose SHA-256 differs from `object.sha256`, so no read-back is needed.
+   */
+  readonly putVerifiedImmutableIfAbsent?: (
+    object: ImmutableProjectionObjectV1,
+    body: Uint8Array,
+  ) => Promise<"created" | "exists">;
 }
 
 export type PublicationFailureKind =
@@ -286,6 +294,9 @@ async function promoteImmutableObject(
   destination: PublicationObjectStore,
 ): Promise<"created" | "reused" | PublicationFailure> {
   try {
+    if (destination.putVerifiedImmutableIfAbsent !== undefined) {
+      return await promoteVerified(expected, kind, source, destination);
+    }
     const existing = await destination.get(expected.key);
     if (existing !== undefined) {
       const mismatch = await objectMismatch(expected, existing);
@@ -307,6 +318,25 @@ async function promoteImmutableObject(
   } catch (error) {
     return failure("store-error", errorMessage(error), kind, expected.key);
   }
+}
+
+async function promoteVerified(
+  expected: ImmutableObject,
+  kind: ProjectionKind,
+  source: Pick<PublicationObjectStore, "get">,
+  destination: PublicationObjectStore,
+): Promise<"created" | "reused" | PublicationFailure> {
+  const sourceBody = await source.get(expected.key);
+  if (sourceBody === undefined) {
+    return failure("source-object-missing", `Source object disappeared: ${expected.key}`, kind, expected.key);
+  }
+  if (await destination.putVerifiedImmutableIfAbsent!(expected, sourceBody) === "created") return "created";
+  const existing = await destination.get(expected.key);
+  if (existing === undefined) {
+    return failure("store-error", `Destination object was not readable after write: ${expected.key}`, kind, expected.key);
+  }
+  const mismatch = await objectMismatch(expected, existing);
+  return mismatch === undefined ? "reused" : failure("destination-conflict", mismatch, kind, expected.key);
 }
 
 /** Runs workers in input order with bounded concurrency and stops starting new work after a failure. */

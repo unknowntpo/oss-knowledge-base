@@ -18,11 +18,18 @@ Do not put either value in Wrangler configuration, Git, logs, or Pages.
 
 ## Health and manual run
 
-`GET /health` returns only the environment, whether a run is active, and the
-last bounded status. It never returns credentials or event payloads.
+`GET /health` returns only the environment, whether a run is active or
+scheduled, and the last bounded status. It never returns credentials or event
+payloads.
+
+Both the Cron and `POST /run` only schedule a run on the environment's Durable
+Object and return; the run itself executes in the object's alarm. The runtime
+never runs two alarms at once and retries an alarm that dies, so no lock has to
+expire before the next run. An alarm has a 15-minute wall-time limit.
 
 An authorized manual run calls `POST /run` with
-`Authorization: Bearer <MANUAL_TRIGGER_TOKEN>`. Use it once after initial secret
+`Authorization: Bearer <MANUAL_TRIGGER_TOKEN>`; HTTP 202 means it was scheduled.
+Poll `/health` for the result. Use it once after initial secret
 provisioning, then confirm Feed and Search both changed to complete releases
 before relying on the Cron.
 
@@ -30,8 +37,8 @@ before relying on the Cron.
 
 - A GitHub error, incomplete page sequence, validation error, or R2 error keeps
   the previous complete pointers readable.
-- HTTP 409 from a manual run means the serialized environment-local run is
-  already active; do not start another retry.
+- HTTP 409 from a manual run means a run is already scheduled or active; do not
+  start another retry.
 - To hold a rollback, pause the affected Cron first. Verify every immutable
   object for the chosen release, restore its Feed/Search pointers, and only then
   re-enable the Cron.
