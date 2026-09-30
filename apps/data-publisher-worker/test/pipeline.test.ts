@@ -188,8 +188,8 @@ describe("Cloudflare data publication", () => {
     const events = fixture.events as DomainEventV1[];
     await publishAt(destination, events, fixture.config.materializedAt);
     destination.operations.length = 0;
-    const changed = events.map((event) => event.entityId === "kafka:github:issue:42"
-      ? { ...event, data: { ...event.data, excerpt: "The coordinator recovery path is now bounded." } }
+    const changed = events.map((event): DomainEventV1 => event.entityId === "kafka:github:issue:42"
+      ? { ...event, data: { ...event.data, excerpt: "The coordinator recovery path is now bounded." } } as DomainEventV1
       : event);
 
     const second = await publishAt(destination, changed, laterHour(fixture.config.materializedAt));
@@ -202,7 +202,8 @@ describe("Cloudflare data publication", () => {
 
 async function config(environment: "development" | "production") {
   const file = Bun.file(new URL(`../wrangler.${environment}.jsonc`, import.meta.url));
-  return await file.json() as {
+  // workers-types replaces the global Blob, so BunFile loses json() when both type sets load.
+  return JSON.parse(await file.text()) as {
     readonly name: string;
     readonly vars: { readonly PUBLICATION_ENVIRONMENT: string };
     readonly r2_buckets: readonly { readonly bucket_name: string }[];
