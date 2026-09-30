@@ -1,4 +1,4 @@
-import { detailPoolKey, digestOfPoolKey, sha256Digest, type Sha256Digest } from "./digest";
+import { detailPoolKey, digestOfPoolKey, isSha256Digest, sha256Digest, type Sha256Digest } from "./digest";
 import type { FeedManifest } from "./index";
 import {
   FEED_DETAIL_POOL,
@@ -595,7 +595,7 @@ async function verifySearchManifest(
     for (const group of shard.groups) {
       groupCount += 1;
       const digest = group.detailSha256;
-      const key = digest === undefined ? undefined : detailPoolKey(SEARCH_DETAIL_POOL, digest);
+      const key = isSha256Digest(digest) ? detailPoolKey(SEARCH_DETAIL_POOL, digest) : undefined;
       if (key === undefined || manifest.objectDigests[key] !== digest) {
         return failure("source-manifest-invalid", `Search group ${group.groupRootRecordId} names an undeclared detail`, "search", shardKey);
       }

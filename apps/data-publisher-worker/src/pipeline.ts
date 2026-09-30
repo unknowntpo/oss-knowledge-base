@@ -56,7 +56,7 @@ export type PipelineRunStatus =
       readonly retryAfterSeconds: number;
     };
 
-// Each release writes about a thousand new objects; serial R2 round trips exceed the Cron wall-time limit.
+// A first release, or a large catch-up, writes thousands of new objects; serial R2 round trips are too slow.
 const PROMOTION_CONCURRENCY = 16;
 
 export async function runDataPublication(input: {

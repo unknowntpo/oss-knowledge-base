@@ -127,6 +127,22 @@ describe("content-addressed detail objects", () => {
     await expect(buildSet(forged, searchObjects)).rejects.toThrow("name differs from its sha256");
   });
 
+  test("rejects a Search group whose detail digest is malformed instead of throwing", async () => {
+    const { feedObjects, searchObjects } = await release(feedFixture(), "r1");
+    const manifestObject = searchObjects.find((object) => object.key.endsWith("/manifest.json"))!;
+    const manifest = JSON.parse(manifestObject.body);
+    const shardKey = Object.values(manifest.shardKeys as Record<string, string>)[0]!;
+    const shard = JSON.parse(searchObjects.find((object) => object.key === shardKey)!.body);
+    shard.groups[0].detailSha256 = "not-a-digest";
+    const shardBody = JSON.stringify(shard);
+    manifest.objectDigests[shardKey] = await sha256Digest(shardBody);
+    const edited = searchObjects.map((object) => object.key === shardKey
+      ? { ...object, body: shardBody }
+      : object.key === manifestObject.key ? { ...object, body: JSON.stringify(manifest) } : object);
+
+    await expect(buildSet(feedObjects, edited)).rejects.toThrow("names an undeclared detail");
+  });
+
   test("rejects a Feed detail map whose count or members disagree with the release", async () => {
     const { feedObjects, searchObjects } = await release(feedFixture(), "r1");
     const mapKey = "public/v2/releases/r1/feed/details.json";
