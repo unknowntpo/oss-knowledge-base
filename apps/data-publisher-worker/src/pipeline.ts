@@ -97,7 +97,7 @@ export async function runDataPublication(input: {
       corpusRevision: materialized.digest,
       generatedAt: input.materializedAt,
     });
-    const feedObjects = buildR2Projection(materialized.publication, releaseId);
+    const feedObjects = await buildR2Projection(materialized.publication, releaseId);
     const searchObjects = await buildR2SearchProjection(search);
     const publicationSet = await buildPublicationSetV1({
       id: `github-${releaseId}`,

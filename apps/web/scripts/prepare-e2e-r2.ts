@@ -34,7 +34,7 @@ const fixture = await Bun.file(fixturePath).json() as {
   readonly publication: FeedPublication;
 };
 const objects = [
-  ...buildR2Projection(fixture.publication, "e2e-fixture-v1"),
+  ...await buildR2Projection(fixture.publication, "e2e-fixture-v1"),
   ...await buildR2SearchProjection(await buildGoldenSearchPublication(searchFixturePath)),
 ];
 

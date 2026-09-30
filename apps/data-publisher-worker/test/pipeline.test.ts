@@ -3,8 +3,10 @@ import type { DomainEventV1 } from "@oss-knowledge-base/domain";
 import type { GitHubPollResult } from "@oss-knowledge-base/github-publisher/github-connector";
 import type { SerializedReferenceStateV1 } from "@oss-knowledge-base/reference-pipeline";
 import {
+  FEED_DETAIL_POOL,
   MANIFEST_KEY,
   SEARCH_CURRENT_KEY,
+  SEARCH_DETAIL_POOL,
   type PublicationObjectStore,
 } from "@oss-knowledge-base/serving-contract";
 
@@ -106,10 +108,10 @@ describe("Cloudflare data publication", () => {
     expect(destination.objects.has(SEARCH_CURRENT_KEY)).toBe(true);
     const searchPointer = destination.operations.indexOf(`current:${SEARCH_CURRENT_KEY}`);
     const lastSearchImmutable = destination.operations.findLastIndex((operation) =>
-      operation.startsWith("immutable:public/search/v1/releases/"));
+      operation.startsWith("immutable:public/search/v1/"));
     const feedPointer = destination.operations.indexOf(`current:${MANIFEST_KEY}`);
     const lastFeedImmutable = destination.operations.findLastIndex((operation) =>
-      operation.startsWith("immutable:public/v2/releases/"));
+      operation.startsWith("immutable:public/v2/"));
     expect(searchPointer).toBeGreaterThan(lastSearchImmutable);
     expect(feedPointer).toBeGreaterThan(lastFeedImmutable);
     expect(destination.operations.at(-1)?.startsWith("evidence:")).toBe(true);
@@ -166,6 +168,36 @@ describe("Cloudflare data publication", () => {
     expect(destination.objects.size).toBe(objectCount);
     if (second.ok) expect(second.copiedObjectCount).toBe(0);
   });
+
+  test("C1: a later release of the same content writes no new detail objects", async () => {
+    const destination = new MemoryDestination();
+    const events = fixture.events as DomainEventV1[];
+    const first = await publishAt(destination, events, fixture.config.materializedAt);
+    destination.operations.length = 0;
+
+    const second = await publishAt(destination, events, laterHour(fixture.config.materializedAt));
+
+    expect(first.ok && second.ok).toBe(true);
+    expect(createdDetails(destination, FEED_DETAIL_POOL)).toEqual([]);
+    expect(createdDetails(destination, SEARCH_DETAIL_POOL)).toEqual([]);
+    expect(destination.operations.filter((operation) => operation.startsWith("immutable:")).length).toBeGreaterThan(0);
+  });
+
+  test("C2: one changed thread writes exactly one new Feed and one new Search detail", async () => {
+    const destination = new MemoryDestination();
+    const events = fixture.events as DomainEventV1[];
+    await publishAt(destination, events, fixture.config.materializedAt);
+    destination.operations.length = 0;
+    const changed = events.map((event) => event.entityId === "kafka:github:issue:42"
+      ? { ...event, data: { ...event.data, excerpt: "The coordinator recovery path is now bounded." } }
+      : event);
+
+    const second = await publishAt(destination, changed, laterHour(fixture.config.materializedAt));
+
+    expect(second.ok).toBe(true);
+    expect(createdDetails(destination, FEED_DETAIL_POOL)).toHaveLength(1);
+    expect(createdDetails(destination, SEARCH_DETAIL_POOL)).toHaveLength(1);
+  });
 });
 
 async function config(environment: "development" | "production") {
@@ -176,6 +208,28 @@ async function config(environment: "development" | "production") {
     readonly r2_buckets: readonly { readonly bucket_name: string }[];
     readonly triggers: { readonly crons: readonly string[] };
   };
+}
+
+async function publishAt(
+  destination: MemoryDestination,
+  events: readonly DomainEventV1[],
+  materializedAt: string,
+): Promise<PipelineRunStatus> {
+  return runDataPublication({
+    environment: "development",
+    materializedAt,
+    connector: connectorSuccess(events),
+    state: new MemoryState(),
+    destination,
+  });
+}
+
+function laterHour(timestamp: string): string {
+  return new Date(Date.parse(timestamp) + 3_600_000).toISOString();
+}
+
+function createdDetails(destination: MemoryDestination, pool: string): readonly string[] {
+  return destination.operations.filter((operation) => operation.startsWith(`immutable:${pool}`));
 }
 
 function connectorSuccess(events: readonly DomainEventV1[]) {

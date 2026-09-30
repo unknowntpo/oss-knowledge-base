@@ -8,7 +8,7 @@ import { loadLiveFeed } from "../live-feed";
 const outputRoot = join(import.meta.dir, "..", "..", "web", "r2-seed");
 const publication = await loadLiveFeed();
 const releaseId = publication.index.generatedAt.replace(/[:.]/g, "-");
-const objects = buildR2Projection(publication, releaseId);
+const objects = await buildR2Projection(publication, releaseId);
 
 for (const object of objects) {
   const path = join(outputRoot, object.key);

@@ -8,9 +8,17 @@ import {
 } from "../functions/_shared/r2-projection";
 import {
   buildR2SearchProjection,
+  detailPoolKey,
+  FEED_DETAIL_POOL,
+  feedEntryObjectName,
   SEARCH_CURRENT_KEY,
+  SEARCH_DETAIL_POOL,
+  sha256Digest,
   type FeedPublication,
+  type ProjectionObject,
+  type SearchLexicalShardV1,
 } from "@oss-knowledge-base/serving-contract";
+import { onRequestGet as detailHandler } from "../functions/api/detail/[id]";
 import {
   readSearchDetailProjection,
   searchR2Projection,
@@ -96,14 +104,14 @@ function memoryBucket(objects: readonly { readonly key: string; readonly body: s
 }
 
 describe("versioned R2 feed projection", () => {
-  test("publishes immutable release objects before the mutable manifest", () => {
-    const objects = buildR2Projection(fixture(), "release-1");
+  test("publishes immutable release objects before the mutable manifest", async () => {
+    const objects = await buildR2Projection(fixture(), "release-1");
     expect(objects.at(-1)?.key).toBe(MANIFEST_KEY);
     expect(objects.filter((object) => object.key.includes("/details/"))).toHaveLength(1);
   });
 
   test("hydrates FeedIndex and FeedDetail through the current manifest", async () => {
-    const objects = buildR2Projection(fixture(), "release-1");
+    const objects = await buildR2Projection(fixture(), "release-1");
     const bucket = memoryBucket(objects);
     const feed = await readFeedProjection(bucket);
     const detail = await readDetailProjection(bucket, "feed-entry:kafka:1");
@@ -113,10 +121,54 @@ describe("versioned R2 feed projection", () => {
     expect(detail?.records[0]?.id).toBe("kafka:github:issue:1");
   });
 
-  test("rejects a publication whose index and details disagree", () => {
+  test("rejects a publication whose index and details disagree", async () => {
     const publication = fixture();
-    expect(() => buildR2Projection({ ...publication, details: [] }, "release-1"))
-      .toThrow("membership mismatch");
+    await expect(buildR2Projection({ ...publication, details: [] }, "release-1"))
+      .rejects.toThrow("membership mismatch");
+  });
+
+  test("C4: serves the same FeedDetail body from a v3 release and an older v2 release", async () => {
+    const current = await readDetailProjection(
+      memoryBucket(await buildR2Projection(fixture(), "release-1")),
+      "feed-entry:kafka:1",
+    );
+    const legacy = await readDetailProjection(
+      memoryBucket(legacyFeedObjects(fixture(), "release-0")),
+      "feed-entry:kafka:1",
+    );
+
+    expect(current).toEqual(fixture().details[0]!);
+    expect(legacy).toEqual(current);
+  });
+
+  test("C5: an id absent from the release map is 404 even when its pool object exists", async () => {
+    const publication = fixture();
+    const older = await buildR2Projection(publication, "release-1");
+    const newer = await buildR2Projection({
+      index: { ...publication.index, entries: [] },
+      details: [],
+    }, "release-2");
+    const pooled = older.filter((object) => object.key.startsWith(FEED_DETAIL_POOL));
+    const bucket = memoryBucket([...older.filter((object) => object.key !== MANIFEST_KEY), ...newer]);
+
+    expect(pooled).toHaveLength(1);
+    expect(await readDetailProjection(bucket, "feed-entry:kafka:1")).toBeUndefined();
+    const response = await detailHandler({
+      env: { OSS_KB_BUCKET: bucket },
+      params: { id: "feed-entry:kafka:1" },
+    } as unknown as Parameters<typeof detailHandler>[0]);
+    expect(response.status).toBe(404);
+  });
+
+  test("rejects a v3 detail map outside its release", async () => {
+    const objects = (await buildR2Projection(fixture(), "release-1")).map((object) => {
+      if (object.key !== MANIFEST_KEY) return object;
+      const manifest = JSON.parse(object.body);
+      return { ...object, body: JSON.stringify({ ...manifest, detailMapKey: "public/v2/releases/other/feed/details.json" }) };
+    });
+
+    await expect(readDetailProjection(memoryBucket(objects), "feed-entry:kafka:1"))
+      .rejects.toThrow("detail map escaped its release");
   });
 
   test("fails closed when current manifest is missing", async () => {
@@ -132,7 +184,40 @@ describe("versioned R2 Search projection", () => {
 
     expect(objects.at(-1)?.key).toBe(SEARCH_CURRENT_KEY);
     expect(objects.filter((object) => object.key.includes("/lexical/"))).toHaveLength(2);
-    expect(objects.filter((object) => object.key.includes("/details/"))).not.toHaveLength(0);
+    expect(objects.filter((object) => object.key.startsWith(SEARCH_DETAIL_POOL))).not.toHaveLength(0);
+  });
+
+  test("C4: serves the same Search bodies from a v2 release and an older v1 release", async () => {
+    const objects = await buildR2SearchProjection(await buildGoldenSearchPublication(searchFixturePath));
+    const current = memoryBucket(objects);
+    const legacy = memoryBucket(await legacySearchObjects(objects));
+    const response = await searchR2Projection(current, { query: "KIP-405", limit: 3 });
+
+    expect(await searchR2Projection(legacy, { query: "KIP-405", limit: 3 })).toEqual(response);
+    for (const result of response.results) {
+      const detail = await readSearchDetailProjection(current, result.detailRef);
+      expect(detail).toBeDefined();
+      expect(await readSearchDetailProjection(legacy, result.detailRef)).toEqual(detail);
+    }
+  });
+
+  test("rejects a Search group digest that its release does not declare", async () => {
+    const objects = await buildR2SearchProjection(await buildGoldenSearchPublication(searchFixturePath));
+    const response = await searchR2Projection(memoryBucket(objects), { query: "KIP-405", limit: 1 });
+    const tampered = objects.map((object) => {
+      if (!object.key.includes("/lexical/")) return object;
+      const shard = JSON.parse(object.body) as SearchLexicalShardV1;
+      return {
+        ...object,
+        body: JSON.stringify({
+          ...shard,
+          groups: shard.groups.map((group) => ({ ...group, detailSha256: `sha256:${"c".repeat(64)}` })),
+        }),
+      };
+    });
+
+    await expect(readSearchDetailProjection(memoryBucket(tampered), response.results[0]!.detailRef))
+      .rejects.toThrow("not declared by its release");
   });
 
   test("searches evidence and hydrates the same FeedDetail contract", async () => {
@@ -205,7 +290,7 @@ describe("versioned R2 Search projection", () => {
     );
   });
 
-  test("an immutable detailRef survives a later current release", async () => {
+  test("C6: an immutable detailRef survives a later current release", async () => {
     const firstObjects = await buildR2SearchProjection(
       await buildGoldenSearchPublication(searchFixturePath, "search-release-1"),
     );
@@ -229,9 +314,88 @@ describe("versioned R2 Search projection", () => {
     expect(detail?.entry.reason.kind).toBe("search-match");
   });
 
+  test("C6: a detailRef from an older search-release.v1 resolves after a v2 release switches", async () => {
+    const firstObjects = await legacySearchObjects(await buildR2SearchProjection(
+      await buildGoldenSearchPublication(searchFixturePath, "search-release-1"),
+    ));
+    const firstResponse = await searchR2Projection(memoryBucket(firstObjects), {
+      query: "RecordAccumulator.ready()",
+      limit: 1,
+    });
+    const secondObjects = await buildR2SearchProjection(
+      await buildGoldenSearchPublication(searchFixturePath, "search-release-2"),
+    );
+    const bucket = memoryBucket([
+      ...firstObjects.filter((object) => object.key !== SEARCH_CURRENT_KEY),
+      ...secondObjects,
+    ]);
+
+    const detail = await readSearchDetailProjection(bucket, firstResponse.results[0]!.detailRef);
+    expect(detail?.entry.title).toContain("RecordAccumulator.ready()");
+  });
+
   test("rejects a partial Search publication before the current pointer exists", async () => {
     const publication = await buildGoldenSearchPublication(searchFixturePath);
     await expect(buildR2SearchProjection({ ...publication, details: [] }))
       .rejects.toThrow("membership mismatch");
   });
 });
+
+/** The pre-ADR-0013 Feed layout: feed-manifest.v2 with release-scoped details. */
+function legacyFeedObjects(publication: FeedPublication, releaseId: string): readonly ProjectionObject[] {
+  const prefix = `public/v2/releases/${releaseId}`;
+  const immutable = "public, max-age=31536000, immutable";
+  return [
+    { key: `${prefix}/feed/index.json`, body: JSON.stringify(publication.index), cacheControl: immutable },
+    ...publication.details.map((detail) => ({
+      key: `${prefix}/details/${feedEntryObjectName(detail.entry.id)}.json`,
+      body: JSON.stringify(detail),
+      cacheControl: immutable,
+    })),
+    {
+      key: MANIFEST_KEY,
+      body: JSON.stringify({
+        schema: "osskb.feed-manifest.v2",
+        releaseId,
+        generatedAt: publication.index.generatedAt,
+        feedIndexKey: `${prefix}/feed/index.json`,
+        detailPrefix: `${prefix}/details/`,
+        entryCount: publication.index.entries.length,
+      }),
+      cacheControl: "public, max-age=30, must-revalidate",
+    },
+  ];
+}
+
+/** Rewrites a search-release.v2 projection into the pre-ADR-0013 search-release.v1 layout. */
+async function legacySearchObjects(objects: readonly ProjectionObject[]): Promise<readonly ProjectionObject[]> {
+  const bodies = new Map(objects.map((object) => [object.key, object.body]));
+  const manifestObject = objects.find((object) => object.key.endsWith("/manifest.json"))!;
+  const manifest = JSON.parse(manifestObject.body);
+  const prefix = manifestObject.key.slice(0, -"manifest.json".length);
+  const detailPrefix = `${prefix}details/`;
+  const data: ProjectionObject[] = [];
+  for (const key of Object.values(manifest.shardKeys) as string[]) {
+    const shard = JSON.parse(bodies.get(key)!) as SearchLexicalShardV1;
+    for (const group of shard.groups) {
+      data.push({
+        key: `${detailPrefix}${feedEntryObjectName(group.groupRootRecordId)}.json`,
+        body: bodies.get(detailPoolKey(SEARCH_DETAIL_POOL, group.detailSha256!))!,
+        cacheControl: manifestObject.cacheControl,
+      });
+    }
+    const groups = shard.groups.map(({ detailSha256: _digest, ...group }) => group);
+    data.push({ key, body: JSON.stringify({ ...shard, groups }), cacheControl: manifestObject.cacheControl });
+  }
+  const objectDigests = Object.fromEntries(await Promise.all(data.map(async (object) =>
+    [object.key, await sha256Digest(object.body)] as const)));
+  const { objectDigests: _current, ...rest } = manifest;
+  return [
+    ...data,
+    {
+      ...manifestObject,
+      body: JSON.stringify({ ...rest, schema: "osskb.search-release.v1", detailPrefix, objectDigests }),
+    },
+    objects.find((object) => object.key === SEARCH_CURRENT_KEY)!,
+  ];
+}

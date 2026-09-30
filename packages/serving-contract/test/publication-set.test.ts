@@ -16,7 +16,7 @@ import {
 const generatedAt = "2026-08-26T04:00:00.000Z";
 
 describe("PublicationSetV1", () => {
-  test("builds one release-scoped Feed and Search descriptor and verifies every source byte", async () => {
+  test("builds one legacy release-scoped Feed and Search descriptor and verifies every source byte", async () => {
     const fixture = await publicationFixture();
 
     expect(publicationSetValidationIssues(fixture.publicationSet)).toEqual([]);
@@ -33,7 +33,7 @@ describe("PublicationSetV1", () => {
     invalid.projections[0].immutableObjects[0]!.key = "public/v2/releases/other/feed/index.json";
 
     expect(publicationSetValidationIssues(invalid)).toContain(
-      "feed immutable object key must belong to public/v2/releases/feed-r1/",
+      "feed immutable object key must belong to public/v2/releases/feed-r1/ or public/v2/objects/details/",
     );
   });
 
