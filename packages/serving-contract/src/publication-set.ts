@@ -1,18 +1,23 @@
+import { detailPoolKey, digestOfPoolKey, isSha256Digest, sha256Digest, type Sha256Digest } from "./digest";
 import type { FeedManifest } from "./index";
 import {
+  FEED_DETAIL_POOL,
+  isFeedDetailMap,
   isFeedManifest,
   MANIFEST_KEY,
   type ProjectionObject,
 } from "./r2";
 import {
   isSearchCurrentPointer,
+  isSearchLexicalShard,
   isSearchReleaseManifest,
   SEARCH_CURRENT_KEY,
+  SEARCH_DETAIL_POOL,
+  SEARCH_RELEASE_SCHEMA_V1,
   type SearchCurrentPointerV1,
-  type SearchReleaseManifestV1,
+  type SearchReleaseManifest,
 } from "./search-r2";
 
-export type Sha256Digest = `sha256:${string}`;
 export type PublicationEnvironment = "development" | "production";
 export type ProjectionKind = "feed" | "search";
 
@@ -138,6 +143,10 @@ export async function buildPublicationSetV1(
     projections: [feed, search],
   };
   assertPublicationSetV1(publicationSet);
+  const feedMapFailure = await verifyFeedDetailMap(feed, new Map(input.feedObjects
+    .filter((object) => object.key !== MANIFEST_KEY)
+    .map((object) => [object.key, encode(object.body)])));
+  if (feedMapFailure !== undefined) throw new Error(feedMapFailure.message);
   const searchManifestFailure = await verifySearchManifest(
     search,
     new Map(input.searchObjects
@@ -223,10 +232,10 @@ export async function verifyPublicationSetSource(
       bodies.set(expected.key, body);
       verifiedObjectCount += 1;
     }
-    if (projection.kind === "search") {
-      const manifestFailure = await verifySearchManifest(projection, bodies);
-      if (manifestFailure !== undefined) return manifestFailure;
-    }
+    const manifestFailure = projection.kind === "search"
+      ? await verifySearchManifest(projection, bodies)
+      : await verifyFeedDetailMap(projection, bodies);
+    if (manifestFailure !== undefined) return manifestFailure;
   }
   return { ok: true, verifiedObjectCount };
 }
@@ -252,7 +261,7 @@ export async function promotePublicationSet(
 
   for (const projection of projectionOrder) {
     const outcomes = await mapUntilFailure(
-      projection.immutableObjects,
+      uniqueObjects(projection.immutableObjects),
       options.concurrency ?? 1,
       (expected) => promoteImmutableObject(expected, projection.kind, source, destination),
     );
@@ -297,6 +306,7 @@ async function promoteImmutableObject(
     if (destination.putVerifiedImmutableIfAbsent !== undefined) {
       return await promoteVerified(expected, kind, source, destination);
     }
+    if (isPoolKey(kind, expected.key)) return await promotePoolObject(expected, kind, source, destination);
     const existing = await destination.get(expected.key);
     if (existing !== undefined) {
       const mismatch = await objectMismatch(expected, existing);
@@ -331,12 +341,38 @@ async function promoteVerified(
     return failure("source-object-missing", `Source object disappeared: ${expected.key}`, kind, expected.key);
   }
   if (await destination.putVerifiedImmutableIfAbsent!(expected, sourceBody) === "created") return "created";
+  // A pool key names its digest, and R2 rejected any write whose bytes did not match it.
+  if (isPoolKey(kind, expected.key)) return "reused";
   const existing = await destination.get(expected.key);
   if (existing === undefined) {
     return failure("store-error", `Destination object was not readable after write: ${expected.key}`, kind, expected.key);
   }
   const mismatch = await objectMismatch(expected, existing);
   return mismatch === undefined ? "reused" : failure("destination-conflict", mismatch, kind, expected.key);
+}
+
+/**
+ * Writes a content-addressed detail only when absent. An existing pool key is reused without
+ * a read: validation proved its name equals its digest, and pool keys are never rewritten.
+ */
+async function promotePoolObject(
+  expected: ImmutableObject,
+  kind: ProjectionKind,
+  source: Pick<PublicationObjectStore, "get">,
+  destination: PublicationObjectStore,
+): Promise<"created" | "reused" | PublicationFailure> {
+  const sourceBody = await source.get(expected.key);
+  if (sourceBody === undefined) {
+    return failure("source-object-missing", `Source object disappeared: ${expected.key}`, kind, expected.key);
+  }
+  if (await destination.putImmutableIfAbsent(expected.key, sourceBody) === "exists") return "reused";
+  // This store does not verify checksums on write, so check the first write of each digest.
+  const written = await destination.get(expected.key);
+  if (written === undefined) {
+    return failure("store-error", `Destination object was not readable after write: ${expected.key}`, kind, expected.key);
+  }
+  const mismatch = await objectMismatch(expected, written);
+  return mismatch === undefined ? "created" : failure("destination-conflict", mismatch, kind, expected.key);
 }
 
 /** Runs workers in input order with bounded concurrency and stops starting new work after a failure. */
@@ -361,15 +397,6 @@ async function mapUntilFailure<T, R>(
 
 function isFailure(value: unknown): value is PublicationFailure {
   return typeof value === "object" && value !== null && (value as { ok?: unknown }).ok === false;
-}
-
-export async function sha256Digest(body: Uint8Array | string): Promise<Sha256Digest> {
-  const bytes = typeof body === "string" ? encode(body) : body;
-  const digest = await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes));
-  const hex = [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-  return `sha256:${hex}`;
 }
 
 function buildDescriptor(
@@ -434,39 +461,84 @@ function validateDescriptor(
     return;
   }
   const prefix = releasePrefix(kind, releaseId);
-  const projectionKeys: string[] = [];
+  const pool = detailPool(kind);
+  // Identical details share one pool key, so a repeated key with the same digest is one object.
+  const declared = new Map<string, unknown>();
+  let conflictingKeys = false;
   for (const rawObject of descriptor.immutableObjects) {
     if (!isRecord(rawObject)) {
       issues.push(`${kind} immutable object must be an object`);
       continue;
     }
-    if (typeof rawObject.key !== "string" || !rawObject.key.startsWith(prefix)) {
-      issues.push(`${kind} immutable object key must belong to ${prefix}`);
+    const key = rawObject.key;
+    if (typeof key !== "string" || (!key.startsWith(prefix) && !key.startsWith(pool))) {
+      issues.push(`${kind} immutable object key must belong to ${prefix} or ${pool}`);
       continue;
     }
-    projectionKeys.push(rawObject.key);
-    allKeys.push(rawObject.key);
-    requireDigest(rawObject.sha256, `${rawObject.key} sha256`, issues);
-    if (!Number.isSafeInteger(rawObject.byteLength) || Number(rawObject.byteLength) < 0) {
-      issues.push(`${rawObject.key} byteLength must be a non-negative safe integer`);
+    if (key.startsWith(pool) && digestOfPoolKey(pool, key) !== rawObject.sha256) {
+      issues.push(`${key} is a ${kind} detail pool key whose name differs from its sha256`);
     }
+    requireDigest(rawObject.sha256, `${key} sha256`, issues);
+    if (!Number.isSafeInteger(rawObject.byteLength) || Number(rawObject.byteLength) < 0) {
+      issues.push(`${key} byteLength must be a non-negative safe integer`);
+    }
+    if (declared.has(key)) {
+      if (declared.get(key) !== rawObject.sha256) conflictingKeys = true;
+      continue;
+    }
+    declared.set(key, rawObject.sha256);
+    allKeys.push(key);
   }
-  if (new Set(projectionKeys).size !== projectionKeys.length) {
-    issues.push(`${kind} immutable object keys must be unique`);
-  }
+  if (conflictingKeys) issues.push(`${kind} immutable object keys must be unique`);
+  const projectionKeys = [...declared.keys()];
 
   if (kind === "feed" && isFeedManifest(current)) {
     if (!projectionKeys.includes(current.feedIndexKey)) issues.push("Feed index is not declared as an immutable object");
-    if (!current.feedIndexKey.startsWith(prefix) || !current.detailPrefix.startsWith(prefix)) {
-      issues.push("Feed current pointer crosses its release prefix");
+    if (current.schema === "osskb.feed-manifest.v3") {
+      if (!projectionKeys.includes(current.detailMapKey)) issues.push("Feed detail map is not declared as an immutable object");
+      if (!current.feedIndexKey.startsWith(prefix) || !current.detailMapKey.startsWith(prefix)) {
+        issues.push("Feed current pointer crosses its release prefix");
+      }
+    } else {
+      if (!current.feedIndexKey.startsWith(prefix) || !current.detailPrefix.startsWith(prefix)) {
+        issues.push("Feed current pointer crosses its release prefix");
+      }
+      if (projectionKeys.some((key) => key.startsWith(pool))) issues.push("feed-manifest.v2 cannot reference pooled details");
+      const detailCount = projectionKeys.filter((key) => key.startsWith(current.detailPrefix)).length;
+      if (detailCount !== current.entryCount) issues.push("Feed detail count does not match the current pointer");
     }
-    const detailCount = projectionKeys.filter((key) => key.startsWith(current.detailPrefix)).length;
-    if (detailCount !== current.entryCount) issues.push("Feed detail count does not match the current pointer");
   }
   if (kind === "search" && isSearchCurrentPointer(current)) {
     if (!projectionKeys.includes(current.releaseManifestKey)) issues.push("Search release manifest is not declared as immutable");
     if (!current.releaseManifestKey.startsWith(prefix)) issues.push("Search current pointer crosses its release prefix");
   }
+}
+
+/** A feed-manifest.v3 release must map exactly `entryCount` entries onto its declared pool objects. */
+async function verifyFeedDetailMap(
+  projection: FeedReleaseDescriptorV1,
+  bodies: ReadonlyMap<string, Uint8Array>,
+): Promise<PublicationFailure | undefined> {
+  const current = projection.current;
+  if (current.schema !== "osskb.feed-manifest.v3") return undefined;
+  const invalid = (message: string, key = current.detailMapKey) =>
+    failure("source-manifest-invalid", message, "feed", key);
+  const map = parseBody(bodies.get(current.detailMapKey));
+  if (!isFeedDetailMap(map) || map.releaseId !== projection.releaseId) {
+    return invalid("Feed detail map is missing or invalid");
+  }
+  const digests = Object.values(map.details);
+  if (digests.length !== current.entryCount) return invalid("Feed detail map count does not match entryCount");
+
+  const declared = new Map(projection.immutableObjects.map((object) => [object.key, object.sha256]));
+  const referenced = new Set<string>();
+  for (const digest of digests) {
+    const key = detailPoolKey(FEED_DETAIL_POOL, digest);
+    if (declared.get(key) !== digest) return invalid(`Feed detail map names an undeclared detail ${key}`, key);
+    referenced.add(key);
+  }
+  const orphan = [...declared.keys()].find((key) => key.startsWith(FEED_DETAIL_POOL) && !referenced.has(key));
+  return orphan === undefined ? undefined : invalid(`Feed release declares an unmapped detail ${orphan}`, orphan);
 }
 
 async function verifySearchManifest(
@@ -477,7 +549,7 @@ async function verifySearchManifest(
   if (manifestBody === undefined) {
     return failure("source-manifest-invalid", "Search release manifest is missing", "search", projection.current.releaseManifestKey);
   }
-  let manifest: SearchReleaseManifestV1;
+  let manifest: SearchReleaseManifest;
   try {
     const value = JSON.parse(new TextDecoder().decode(manifestBody)) as unknown;
     if (!isSearchReleaseManifest(value)) throw new Error("schema validation failed");
@@ -485,15 +557,14 @@ async function verifySearchManifest(
   } catch (error) {
     return failure("source-manifest-invalid", `Search release manifest is invalid: ${errorMessage(error)}`, "search", projection.current.releaseManifestKey);
   }
-  if (manifest.indexRevision !== projection.releaseId ||
-      manifest.detailPrefix !== `${releasePrefix("search", projection.releaseId)}details/`) {
+  if (manifest.indexRevision !== projection.releaseId || (manifest.schema === SEARCH_RELEASE_SCHEMA_V1 &&
+      manifest.detailPrefix !== `${releasePrefix("search", projection.releaseId)}details/`)) {
     return failure("source-manifest-invalid", "Search release manifest crosses its declared release", "search", projection.current.releaseManifestKey);
   }
 
   const declared = new Map(projection.immutableObjects.map((object) => [object.key, object]));
-  const dataObjects = projection.immutableObjects.filter((object) => object.key !== projection.current.releaseManifestKey);
+  const dataKeys = [...declared.keys()].filter((key) => key !== projection.current.releaseManifestKey).sort();
   const manifestKeys = Object.keys(manifest.objectDigests).sort();
-  const dataKeys = dataObjects.map((object) => object.key).sort();
   if (JSON.stringify(manifestKeys) !== JSON.stringify(dataKeys)) {
     return failure("source-manifest-invalid", "Search manifest object list is incomplete or contains an orphan", "search", projection.current.releaseManifestKey);
   }
@@ -505,9 +576,38 @@ async function verifySearchManifest(
   if (!Object.values(manifest.shardKeys).every((key) => declared.has(key))) {
     return failure("source-manifest-invalid", "Search manifest names an undeclared shard", "search", projection.current.releaseManifestKey);
   }
-  const detailCount = dataKeys.filter((key) => key.startsWith(manifest.detailPrefix)).length;
-  if (detailCount !== manifest.groupCount) {
-    return failure("source-manifest-invalid", "Search detail count does not match groupCount", "search", projection.current.releaseManifestKey);
+  if (manifest.schema === SEARCH_RELEASE_SCHEMA_V1) {
+    const detailCount = dataKeys.filter((key) => key.startsWith(manifest.detailPrefix)).length;
+    if (detailCount !== manifest.groupCount) {
+      return failure("source-manifest-invalid", "Search detail count does not match groupCount", "search", projection.current.releaseManifestKey);
+    }
+    return undefined;
+  }
+
+  // search-release.v2: every group names a declared pool detail, and every pool detail is named.
+  const referenced = new Set<string>();
+  let groupCount = 0;
+  for (const shardKey of Object.values(manifest.shardKeys)) {
+    const shard = parseBody(bodies.get(shardKey));
+    if (!isSearchLexicalShard(shard)) {
+      return failure("source-manifest-invalid", `Search shard is invalid: ${shardKey}`, "search", shardKey);
+    }
+    for (const group of shard.groups) {
+      groupCount += 1;
+      const digest = group.detailSha256;
+      const key = isSha256Digest(digest) ? detailPoolKey(SEARCH_DETAIL_POOL, digest) : undefined;
+      if (key === undefined || manifest.objectDigests[key] !== digest) {
+        return failure("source-manifest-invalid", `Search group ${group.groupRootRecordId} names an undeclared detail`, "search", shardKey);
+      }
+      referenced.add(key);
+    }
+  }
+  if (groupCount !== manifest.groupCount) {
+    return failure("source-manifest-invalid", "Search group count does not match groupCount", "search", projection.current.releaseManifestKey);
+  }
+  const orphan = dataKeys.find((key) => key.startsWith(SEARCH_DETAIL_POOL) && !referenced.has(key));
+  if (orphan !== undefined) {
+    return failure("source-manifest-invalid", `Search release declares an unreferenced detail ${orphan}`, "search", orphan);
   }
   return undefined;
 }
@@ -524,6 +624,18 @@ async function objectMismatch(
     return `SHA-256 mismatch for ${expected.key}: expected ${expected.sha256}, got ${digest}`;
   }
   return undefined;
+}
+
+function detailPool(kind: ProjectionKind): string {
+  return kind === "feed" ? FEED_DETAIL_POOL : SEARCH_DETAIL_POOL;
+}
+
+function isPoolKey(kind: ProjectionKind, key: string): boolean {
+  return digestOfPoolKey(detailPool(kind), key) !== undefined;
+}
+
+function uniqueObjects(objects: readonly ImmutableProjectionObjectV1[]): readonly ImmutableProjectionObjectV1[] {
+  return [...new Map(objects.map((object) => [object.key, object])).values()];
 }
 
 function releasePrefix(kind: ProjectionKind, releaseId: string): string {
@@ -564,6 +676,15 @@ function parseJson(body: string, label: string): unknown {
     return JSON.parse(body) as unknown;
   } catch {
     throw new Error(`${label} is not valid JSON`);
+  }
+}
+
+function parseBody(body: Uint8Array | undefined): unknown {
+  if (body === undefined) return undefined;
+  try {
+    return JSON.parse(new TextDecoder().decode(body)) as unknown;
+  } catch {
+    return undefined;
   }
 }
 

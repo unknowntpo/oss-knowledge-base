@@ -8,17 +8,22 @@ import {
 } from "@oss-knowledge-base/search";
 import {
   createSearchDetailRef,
+  detailPoolKey,
   feedEntryObjectName,
+  isSha256Digest,
   isSearchCurrentPointer,
   isSearchLexicalShard,
   isSearchReleaseManifest,
   parseSearchDetailRef,
   SEARCH_CURRENT_KEY,
+  SEARCH_DETAIL_POOL,
+  SEARCH_RELEASE_SCHEMA_V1,
   SEARCH_RESPONSE_SCHEMA,
   searchReleaseManifestKey,
   searchReleasePrefix,
   type SearchLexicalShardV1,
-  type SearchReleaseManifestV1,
+  type SearchGroupProjectionV1,
+  type SearchReleaseManifest,
   type SearchResponseV1,
 } from "@oss-knowledge-base/serving-contract";
 
@@ -157,8 +162,7 @@ export async function readSearchDetailProjection(
     candidate.groupRootRecordId === reference.groupRootRecordId);
   if (group === undefined) return undefined;
 
-  const key = `${manifest.detailPrefix}${feedEntryObjectName(reference.groupRootRecordId)}.json`;
-  assertReleaseObjectKey(manifest, key);
+  const key = searchDetailKey(manifest, group);
   const detail = await readJsonObject<FeedDetail>(bucket, key);
   if (detail === undefined) return undefined;
   const recordIds = new Set(detail.records.map((record) => record.id));
@@ -187,7 +191,7 @@ export async function readSearchDetailProjection(
 export async function readSearchManifest(
   bucket: R2Bucket,
   indexRevision?: string,
-): Promise<SearchReleaseManifestV1> {
+): Promise<SearchReleaseManifest> {
   const manifestKey = indexRevision === undefined
     ? await readCurrentManifestKey(bucket)
     : searchReleaseManifestKey(indexRevision);
@@ -198,7 +202,9 @@ export async function readSearchManifest(
   }
   const prefix = `${searchReleasePrefix(value.indexRevision)}/`;
   if (manifestKey !== `${prefix}manifest.json`) throw new Error("R2 Search manifest key escaped its release");
-  if (value.detailPrefix !== `${prefix}details/`) throw new Error("R2 Search detail prefix escaped its release");
+  if (value.schema === SEARCH_RELEASE_SCHEMA_V1 && value.detailPrefix !== `${prefix}details/`) {
+    throw new Error("R2 Search detail prefix escaped its release");
+  }
   for (const key of Object.values(value.shardKeys)) assertReleaseObjectKey(value, key);
   return value;
 }
@@ -213,7 +219,7 @@ async function readCurrentManifestKey(bucket: R2Bucket): Promise<string> {
 
 async function readSearchShard(
   bucket: R2Bucket,
-  manifest: SearchReleaseManifestV1,
+  manifest: SearchReleaseManifest,
   projectId: string,
   key: string,
 ): Promise<SearchLexicalShardV1> {
@@ -229,7 +235,23 @@ async function readSearchShard(
   return value;
 }
 
-function assertReleaseObjectKey(manifest: SearchReleaseManifestV1, key: string): void {
+/**
+ * search-release.v1 keeps details under the release; v2 resolves the pinned shard group's
+ * digest into the Search pool and requires the release to declare that key.
+ */
+function searchDetailKey(manifest: SearchReleaseManifest, group: SearchGroupProjectionV1): string {
+  if (manifest.schema === SEARCH_RELEASE_SCHEMA_V1) {
+    const key = `${manifest.detailPrefix}${feedEntryObjectName(group.groupRootRecordId)}.json`;
+    assertReleaseObjectKey(manifest, key);
+    return key;
+  }
+  if (!isSha256Digest(group.detailSha256)) throw new Error("R2 Search group has no detail digest");
+  const key = detailPoolKey(SEARCH_DETAIL_POOL, group.detailSha256);
+  if (manifest.objectDigests[key] !== group.detailSha256) throw new Error("R2 Search detail is not declared by its release");
+  return key;
+}
+
+function assertReleaseObjectKey(manifest: SearchReleaseManifest, key: string): void {
   const prefix = `${searchReleasePrefix(manifest.indexRevision)}/`;
   if (!key.startsWith(prefix) || key.includes("..")) throw new Error("R2 Search object key escaped its release");
 }

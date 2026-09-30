@@ -56,7 +56,7 @@ export type PipelineRunStatus =
       readonly retryAfterSeconds: number;
     };
 
-// Each release writes about a thousand new objects; serial R2 round trips exceed the Cron wall-time limit.
+// A first release, or a large catch-up, writes thousands of new objects; serial R2 round trips are too slow.
 const PROMOTION_CONCURRENCY = 16;
 
 export async function runDataPublication(input: {
@@ -97,7 +97,7 @@ export async function runDataPublication(input: {
       corpusRevision: materialized.digest,
       generatedAt: input.materializedAt,
     });
-    const feedObjects = buildR2Projection(materialized.publication, releaseId);
+    const feedObjects = await buildR2Projection(materialized.publication, releaseId);
     const searchObjects = await buildR2SearchProjection(search);
     const publicationSet = await buildPublicationSetV1({
       id: `github-${releaseId}`,

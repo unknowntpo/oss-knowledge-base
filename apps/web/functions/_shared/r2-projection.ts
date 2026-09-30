@@ -1,10 +1,15 @@
 import type { FeedDetail } from "@oss-knowledge-base/domain";
 import {
+  detailPoolKey,
+  FEED_DETAIL_POOL,
   feedEntryObjectName,
+  isFeedDetailMap,
   isFeedManifest,
   MANIFEST_KEY,
+  type FeedDetailMapV1,
   type FeedIndex,
   type FeedManifest,
+  type FeedManifestV3,
 } from "@oss-knowledge-base/serving-contract";
 
 export { buildR2Projection, feedEntryObjectName, MANIFEST_KEY } from "@oss-knowledge-base/serving-contract";
@@ -33,7 +38,42 @@ export async function readFeedProjection(bucket: R2Bucket): Promise<FeedIndex> {
 
 export async function readDetailProjection(bucket: R2Bucket, feedEntryId: string): Promise<FeedDetail | undefined> {
   const manifest = await readManifest(bucket);
-  return readJsonObject<FeedDetail>(bucket, `${manifest.detailPrefix}${feedEntryObjectName(feedEntryId)}.json`);
+  if (manifest.schema === "osskb.feed-manifest.v2") {
+    return readJsonObject<FeedDetail>(bucket, `${manifest.detailPrefix}${feedEntryObjectName(feedEntryId)}.json`);
+  }
+  // Only the selected release's map admits an id; a pool object alone is not membership.
+  const map = await readDetailMap(bucket, manifest);
+  const digest = Object.hasOwn(map.details, feedEntryId) ? map.details[feedEntryId] : undefined;
+  return digest === undefined ? undefined : readJsonObject<FeedDetail>(bucket, detailPoolKey(FEED_DETAIL_POOL, digest));
+}
+
+// A detail map is immutable per release, so an isolate may keep the few recent ones it served.
+const detailMapCache = new WeakMap<R2Bucket, Map<string, Promise<FeedDetailMapV1>>>();
+const DETAIL_MAP_CACHE_SIZE = 2;
+
+function readDetailMap(bucket: R2Bucket, manifest: FeedManifestV3): Promise<FeedDetailMapV1> {
+  const prefix = `public/v2/releases/${manifest.releaseId}/`;
+  if (!manifest.detailMapKey.startsWith(prefix) || manifest.detailMapKey.includes("..")) {
+    return Promise.reject(new Error("R2 feed detail map escaped its release"));
+  }
+  const cache = detailMapCache.get(bucket) ?? new Map<string, Promise<FeedDetailMapV1>>();
+  detailMapCache.set(bucket, cache);
+  const cached = cache.get(manifest.detailMapKey);
+  if (cached !== undefined) return cached;
+
+  const pending = readJsonObject<unknown>(bucket, manifest.detailMapKey).then((value) => {
+    if (!isFeedDetailMap(value) || value.releaseId !== manifest.releaseId) {
+      throw new Error(`R2 feed detail map is missing or invalid for release ${manifest.releaseId}`);
+    }
+    return value;
+  });
+  cache.set(manifest.detailMapKey, pending);
+  pending.catch(() => cache.delete(manifest.detailMapKey));
+  for (const key of cache.keys()) {
+    if (cache.size <= DETAIL_MAP_CACHE_SIZE) break;
+    cache.delete(key);
+  }
+  return pending;
 }
 
 export function jsonResponse(value: unknown, init: ResponseInit = {}): Response {

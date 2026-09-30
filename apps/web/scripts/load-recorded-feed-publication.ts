@@ -1,7 +1,10 @@
 import { join } from "node:path";
 
 import {
+  detailPoolKey,
+  FEED_DETAIL_POOL,
   feedEntryObjectName,
+  isFeedDetailMap,
   isFeedManifest,
   MANIFEST_KEY,
   type FeedDetail,
@@ -44,8 +47,21 @@ export async function loadRecordedFeedPublication(
     );
   }
 
+  const detailMap = manifest.schema === "osskb.feed-manifest.v3"
+    ? await readJson(join(seedRoot, manifest.detailMapKey))
+    : undefined;
+  if (manifest.schema === "osskb.feed-manifest.v3" && !isFeedDetailMap(detailMap)) {
+    throw new Error(`Recorded Feed detail map is invalid: ${manifest.detailMapKey}`);
+  }
+  const detailKey = (id: string): string => {
+    if (manifest.schema === "osskb.feed-manifest.v2") return `${manifest.detailPrefix}${feedEntryObjectName(id)}.json`;
+    const digest = isFeedDetailMap(detailMap) ? detailMap.details[id] : undefined;
+    if (digest === undefined) throw new Error(`Recorded Feed detail map omits ${id}`);
+    return detailPoolKey(FEED_DETAIL_POOL, digest);
+  };
+
   const details = await Promise.all(index.entries.map(async ({ entry }) => {
-    const key = `${manifest.detailPrefix}${feedEntryObjectName(entry.id)}.json`;
+    const key = detailKey(entry.id);
     const detail = await readJson(join(seedRoot, key));
     if (!isFeedDetail(detail) || detail.entry.id !== entry.id) {
       throw new Error(`Recorded Feed detail is invalid: ${key}`);

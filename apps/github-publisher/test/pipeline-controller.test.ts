@@ -133,7 +133,7 @@ describe("Spec 004 reference pipeline controller", () => {
 
   test("G11: controller output publishes through unchanged manifest-last R2 contract", async () => {
     const input = await fixture();
-    let objects: ReturnType<typeof buildR2Projection> = [];
+    let objects: Awaited<ReturnType<typeof buildR2Projection>> = [];
     let captured: FeedPublication | undefined;
     const controller = new ReferencePipelineController({
       connector: { poll: async () => complete(input.events) },
@@ -141,7 +141,7 @@ describe("Spec 004 reference pipeline controller", () => {
       publicationSink: {
         publish: async (publication) => {
           captured = publication;
-          objects = buildR2Projection(publication, "fixture-release");
+          objects = await buildR2Projection(publication, "fixture-release");
         },
       },
     });

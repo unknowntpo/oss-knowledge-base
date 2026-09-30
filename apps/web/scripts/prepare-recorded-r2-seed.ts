@@ -7,7 +7,7 @@ import { loadRecordedFeedFixture } from "./load-recorded-feed-publication";
 
 const outputRoot = join(import.meta.dir, "..", "r2-seed");
 const recorded = await loadRecordedFeedFixture();
-const objects = buildR2Projection(recorded.publication, recorded.releaseId);
+const objects = await buildR2Projection(recorded.publication, recorded.releaseId);
 
 await rm(outputRoot, { recursive: true, force: true });
 for (const object of objects) {

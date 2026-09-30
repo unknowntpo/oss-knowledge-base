@@ -1,11 +1,15 @@
 import type { FeedDetail, FeedEntry } from "@oss-knowledge-base/domain";
 import type { SourceRecordChunkV1 } from "@oss-knowledge-base/search";
 
-import { feedEntryObjectName, type ProjectionObject } from "./r2";
+import { detailPoolKey, isSha256Digest, sha256Digest, type Sha256Digest } from "./digest";
+import type { ProjectionObject } from "./r2";
 
 export const SEARCH_CURRENT_KEY = "public/search/v1/current.json";
 export const SEARCH_CURRENT_SCHEMA = "osskb.search-current.v1" as const;
-export const SEARCH_RELEASE_SCHEMA = "osskb.search-release.v1" as const;
+export const SEARCH_RELEASE_SCHEMA = "osskb.search-release.v2" as const;
+export const SEARCH_RELEASE_SCHEMA_V1 = "osskb.search-release.v1" as const;
+/** Shared Search detail objects, keyed by the SHA-256 of their bytes (ADR-0013). */
+export const SEARCH_DETAIL_POOL = "public/search/v1/objects/details/";
 export const SEARCH_LEXICAL_SHARD_SCHEMA = "osskb.search-lexical-shard.v1" as const;
 export const SEARCH_RESPONSE_SCHEMA = "osskb.search-response.v1" as const;
 const SEARCH_DETAIL_REF_SCHEMA = "osskb.search-detail-ref.v1" as const;
@@ -18,8 +22,9 @@ export interface SearchCurrentPointerV1 {
   readonly generatedAt: string;
 }
 
+/** Release-scoped details (ADR-0010). Still read so older detailRefs and rollback work. */
 export interface SearchReleaseManifestV1 {
-  readonly schema: typeof SEARCH_RELEASE_SCHEMA;
+  readonly schema: typeof SEARCH_RELEASE_SCHEMA_V1;
   readonly indexRevision: string;
   readonly corpusRevision: string;
   readonly lexicalRevision: string;
@@ -31,11 +36,31 @@ export interface SearchReleaseManifestV1 {
   readonly objectDigests: Readonly<Record<string, string>>;
 }
 
+/**
+ * Details live in the shared Search pool. Each shard group names its detail by
+ * `detailSha256`, and `objectDigests` lists every key the release references.
+ */
+export interface SearchReleaseManifestV2 {
+  readonly schema: typeof SEARCH_RELEASE_SCHEMA;
+  readonly indexRevision: string;
+  readonly corpusRevision: string;
+  readonly lexicalRevision: string;
+  readonly generatedAt: string;
+  readonly shardKeys: Readonly<Record<string, string>>;
+  readonly chunkCount: number;
+  readonly groupCount: number;
+  readonly objectDigests: Readonly<Record<string, string>>;
+}
+
+export type SearchReleaseManifest = SearchReleaseManifestV1 | SearchReleaseManifestV2;
+
 export interface SearchGroupProjectionV1 {
   readonly groupRootRecordId: string;
   readonly entry: FeedEntry;
   /** Project-local status derived from the group's root SourceRecord. */
   readonly projectStatus?: string;
+  /** Digest of the group's detail in the Search pool; required by `search-release.v2`. */
+  readonly detailSha256?: Sha256Digest;
 }
 
 export interface SearchLexicalShardV1 {
@@ -120,7 +145,6 @@ export async function buildR2SearchProjection(
   requireTimestamp(publication.generatedAt, "generatedAt");
 
   const prefix = searchReleasePrefix(publication.indexRevision);
-  const detailPrefix = `${prefix}/details/`;
   const releaseManifestKey = `${prefix}/manifest.json`;
   const inputShards = [...publication.shards].sort((left, right) =>
     left.projectId.localeCompare(right.projectId));
@@ -141,6 +165,19 @@ export async function buildR2SearchProjection(
     throw new Error(`Search publication membership mismatch: missing=[${missing.join(", ")}], orphan=[${orphan.join(", ")}]`);
   }
 
+  // Byte-identical details share one pool object; each group still names its own digest.
+  const detailObjects = new Map<string, ProjectionObject>();
+  const detailDigests = new Map<string, Sha256Digest>();
+  for (const group of groups) {
+    const detail = details.get(group.groupRootRecordId)!;
+    validateDetail(group.entry, detail, group.groupRootRecordId, group.projectId);
+    const body = JSON.stringify(detail);
+    const digest = await sha256Digest(body);
+    const key = detailPoolKey(SEARCH_DETAIL_POOL, digest);
+    detailDigests.set(group.groupRootRecordId, digest);
+    detailObjects.set(key, immutableObject(key, body));
+  }
+
   const shards = inputShards.map((shard): SearchLexicalShardV1 => ({
     ...shard,
     groups: shard.groups.map((group) => {
@@ -153,6 +190,7 @@ export async function buildR2SearchProjection(
         ...(projectStatus === undefined || projectStatus.length === 0
           ? {}
           : { projectStatus }),
+        detailSha256: detailDigests.get(group.groupRootRecordId)!,
       };
     }),
   }));
@@ -164,25 +202,19 @@ export async function buildR2SearchProjection(
     shardKeys[shard.projectId] = key;
     dataObjects.push(immutableObject(key, JSON.stringify(shard)));
   }
-  for (const group of groups) {
-    const detail = details.get(group.groupRootRecordId)!;
-    validateDetail(group.entry, detail, group.groupRootRecordId, group.projectId);
-    const key = `${detailPrefix}${feedEntryObjectName(group.groupRootRecordId)}.json`;
-    dataObjects.push(immutableObject(key, JSON.stringify(detail)));
-  }
+  dataObjects.push(...detailObjects.values());
 
   const objectDigests = Object.fromEntries(await Promise.all(dataObjects.map(async (object) => [
     object.key,
-    `sha256:${await sha256(object.body)}`,
+    await sha256Digest(object.body),
   ] as const)));
-  const manifest: SearchReleaseManifestV1 = {
+  const manifest: SearchReleaseManifestV2 = {
     schema: SEARCH_RELEASE_SCHEMA,
     indexRevision: publication.indexRevision,
     corpusRevision: publication.corpusRevision,
     lexicalRevision: publication.lexicalRevision,
     generatedAt: publication.generatedAt,
     shardKeys,
-    detailPrefix,
     chunkCount: shards.reduce((total, shard) => total + shard.chunks.length, 0),
     groupCount: groups.length,
     objectDigests,
@@ -246,18 +278,19 @@ export function isSearchCurrentPointer(value: unknown): value is SearchCurrentPo
     isNonEmptyString(value.generatedAt);
 }
 
-export function isSearchReleaseManifest(value: unknown): value is SearchReleaseManifestV1 {
+export function isSearchReleaseManifest(value: unknown): value is SearchReleaseManifest {
   if (!isObject(value) || !isObject(value.shardKeys) || !isObject(value.objectDigests)) return false;
-  return value.schema === SEARCH_RELEASE_SCHEMA &&
+  const versioned = value.schema === SEARCH_RELEASE_SCHEMA ||
+    (value.schema === SEARCH_RELEASE_SCHEMA_V1 && isNonEmptyString(value.detailPrefix));
+  return versioned &&
     isNonEmptyString(value.indexRevision) &&
     isNonEmptyString(value.corpusRevision) &&
     isNonEmptyString(value.lexicalRevision) &&
     isNonEmptyString(value.generatedAt) &&
-    isNonEmptyString(value.detailPrefix) &&
     typeof value.chunkCount === "number" &&
     typeof value.groupCount === "number" &&
     Object.values(value.shardKeys).every(isNonEmptyString) &&
-    Object.values(value.objectDigests).every(isSha256);
+    Object.values(value.objectDigests).every(isSha256Digest);
 }
 
 export function isSearchLexicalShard(value: unknown): value is SearchLexicalShardV1 {
@@ -329,11 +362,6 @@ function immutableObject(key: string, body: string): ProjectionObject {
   return { key, body, cacheControl: "public, max-age=31536000, immutable" };
 }
 
-async function sha256(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
 function requireSegment(value: unknown, label: string): string {
   const result = requireText(value, label);
   if (!/^[A-Za-z0-9._-]+$/u.test(result)) throw new Error(`${label} is not a safe object-key segment`);
@@ -361,8 +389,4 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
-}
-
-function isSha256(value: unknown): value is string {
-  return typeof value === "string" && /^sha256:[0-9a-f]{64}$/u.test(value);
 }
