@@ -78,6 +78,7 @@ export interface FeedDetailMapV1 {
 }
 
 export * from "./digest";
+export * from "./json-bytes";
 export * from "./r2";
 export * from "./publication-set";
 export * from "./search-feed-materializer";

@@ -1,8 +1,9 @@
 import type { FeedDetail, FeedEntry } from "@oss-knowledge-base/domain";
 import type { SourceRecordChunkV1 } from "@oss-knowledge-base/search";
 
-import { detailPoolKey, isSha256Digest, sha256Digest, type Sha256Digest } from "./digest";
-import type { ProjectionObject } from "./r2";
+import { isSha256Digest, type Sha256Digest } from "./digest";
+import type { ImmutableProjectionObjectV1, SearchReleaseDescriptorV1 } from "./publication-set";
+import { decodeBody, encodeProjectionObject, type EncodedProjectionObject, type ProjectionObject } from "./r2";
 
 export const SEARCH_CURRENT_KEY = "public/search/v1/current.json";
 export const SEARCH_CURRENT_SCHEMA = "osskb.search-current.v1" as const;
@@ -136,9 +137,42 @@ export interface SearchDetailRefV1 {
   readonly matchedRecordIds: readonly string[];
 }
 
+/** What a streamed Search release declares once every object has been produced. */
+export interface StreamedSearchRelease {
+  readonly descriptor: SearchReleaseDescriptorV1;
+  readonly manifest: SearchReleaseManifestV2;
+  /** Each shard's groups as written, so cross-object checks need not re-read shard bodies. */
+  readonly shardGroups: ReadonlyMap<string, readonly SearchGroupProjectionV1[]>;
+}
+
 export async function buildR2SearchProjection(
   publication: SearchPublicationV1,
 ): Promise<readonly ProjectionObject[]> {
+  const produced = new Map<string, ProjectionObject>();
+  const stream = searchProjectionObjects(publication);
+  let next = await stream.next();
+  for (; !next.done; next = await stream.next()) {
+    produced.set(next.value.key, immutableObject(next.value.key, decodeBody(next.value.body)));
+  }
+  const { descriptor } = next.value;
+  return [
+    ...descriptor.immutableObjects.map((object) => produced.get(object.key)!),
+    {
+      key: SEARCH_CURRENT_KEY,
+      body: JSON.stringify(descriptor.current),
+      cacheControl: "public, max-age=30, must-revalidate",
+    },
+  ];
+}
+
+/**
+ * Produces a Search release one immutable object at a time (Spec 009). Details come first,
+ * because each shard group names its detail's digest; the descriptor still lists shards,
+ * then details, then the release manifest. Byte-identical details share one pool object.
+ */
+export async function* searchProjectionObjects(
+  publication: SearchPublicationV1,
+): AsyncGenerator<EncodedProjectionObject, StreamedSearchRelease> {
   requireSegment(publication.indexRevision, "indexRevision");
   requireText(publication.corpusRevision, "corpusRevision");
   requireText(publication.lexicalRevision, "lexicalRevision");
@@ -164,50 +198,51 @@ export async function buildR2SearchProjection(
   if (missing.length > 0 || orphan.length > 0) {
     throw new Error(`Search publication membership mismatch: missing=[${missing.join(", ")}], orphan=[${orphan.join(", ")}]`);
   }
+  for (const group of groups) {
+    validateDetail(group.entry, details.get(group.groupRootRecordId)!, group.groupRootRecordId, group.projectId);
+  }
 
-  // Byte-identical details share one pool object; each group still names its own digest.
-  const detailObjects = new Map<string, ProjectionObject>();
+  const detailObjects = new Map<string, ImmutableProjectionObjectV1>();
   const detailDigests = new Map<string, Sha256Digest>();
   for (const group of groups) {
-    const detail = details.get(group.groupRootRecordId)!;
-    validateDetail(group.entry, detail, group.groupRootRecordId, group.projectId);
-    const body = JSON.stringify(detail);
-    const digest = await sha256Digest(body);
-    const key = detailPoolKey(SEARCH_DETAIL_POOL, digest);
-    detailDigests.set(group.groupRootRecordId, digest);
-    detailObjects.set(key, immutableObject(key, body));
+    const object = await encodeProjectionObject(undefined, details.get(group.groupRootRecordId)!, SEARCH_DETAIL_POOL);
+    detailDigests.set(group.groupRootRecordId, object.sha256);
+    if (detailObjects.has(object.key)) continue;
+    detailObjects.set(object.key, describe(object));
+    yield object;
   }
 
-  const shards = inputShards.map((shard): SearchLexicalShardV1 => ({
-    ...shard,
-    groups: shard.groups.map((group) => {
-      const detail = details.get(group.groupRootRecordId)!;
-      const root = detail.records.find((record) => record.id === group.groupRootRecordId);
-      const projectStatus = root?.artifactStatus?.trim();
-      return {
-        groupRootRecordId: group.groupRootRecordId,
-        entry: group.entry,
-        ...(projectStatus === undefined || projectStatus.length === 0
-          ? {}
-          : { projectStatus }),
-        detailSha256: detailDigests.get(group.groupRootRecordId)!,
-      };
-    }),
-  }));
-
-  const dataObjects: ProjectionObject[] = [];
+  const shardObjects: ImmutableProjectionObjectV1[] = [];
   const shardKeys: Record<string, string> = {};
-  for (const shard of shards) {
+  const shardGroups = new Map<string, readonly SearchGroupProjectionV1[]>();
+  let chunkCount = 0;
+  for (const inputShard of inputShards) {
+    const shard: SearchLexicalShardV1 = {
+      ...inputShard,
+      groups: inputShard.groups.map((group) => {
+        const detail = details.get(group.groupRootRecordId)!;
+        const root = detail.records.find((record) => record.id === group.groupRootRecordId);
+        const projectStatus = root?.artifactStatus?.trim();
+        return {
+          groupRootRecordId: group.groupRootRecordId,
+          entry: group.entry,
+          ...(projectStatus === undefined || projectStatus.length === 0
+            ? {}
+            : { projectStatus }),
+          detailSha256: detailDigests.get(group.groupRootRecordId)!,
+        };
+      }),
+    };
     const key = `${prefix}/lexical/${encodeURIComponent(shard.projectId)}.json`;
+    const object = await encodeProjectionObject(key, shard, SEARCH_DETAIL_POOL);
     shardKeys[shard.projectId] = key;
-    dataObjects.push(immutableObject(key, JSON.stringify(shard)));
+    shardGroups.set(key, shard.groups);
+    shardObjects.push(describe(object));
+    chunkCount += shard.chunks.length;
+    yield object;
   }
-  dataObjects.push(...detailObjects.values());
 
-  const objectDigests = Object.fromEntries(await Promise.all(dataObjects.map(async (object) => [
-    object.key,
-    await sha256Digest(object.body),
-  ] as const)));
+  const dataObjects = [...shardObjects, ...detailObjects.values()];
   const manifest: SearchReleaseManifestV2 = {
     schema: SEARCH_RELEASE_SCHEMA,
     indexRevision: publication.indexRevision,
@@ -215,26 +250,33 @@ export async function buildR2SearchProjection(
     lexicalRevision: publication.lexicalRevision,
     generatedAt: publication.generatedAt,
     shardKeys,
-    chunkCount: shards.reduce((total, shard) => total + shard.chunks.length, 0),
+    chunkCount,
     groupCount: groups.length,
-    objectDigests,
+    objectDigests: Object.fromEntries(dataObjects.map((object) => [object.key, object.sha256])),
   };
+  const manifestObject = await encodeProjectionObject(releaseManifestKey, manifest, SEARCH_DETAIL_POOL);
+  yield manifestObject;
   const current: SearchCurrentPointerV1 = {
     schema: SEARCH_CURRENT_SCHEMA,
     indexRevision: publication.indexRevision,
     releaseManifestKey,
     generatedAt: publication.generatedAt,
   };
-
-  return [
-    ...dataObjects,
-    immutableObject(releaseManifestKey, JSON.stringify(manifest)),
-    {
-      key: SEARCH_CURRENT_KEY,
-      body: JSON.stringify(current),
-      cacheControl: "public, max-age=30, must-revalidate",
+  return {
+    descriptor: {
+      kind: "search",
+      releaseId: publication.indexRevision,
+      currentKey: SEARCH_CURRENT_KEY,
+      current,
+      immutableObjects: [...dataObjects, describe(manifestObject)],
     },
-  ];
+    manifest,
+    shardGroups,
+  };
+}
+
+function describe(object: EncodedProjectionObject): ImmutableProjectionObjectV1 {
+  return { key: object.key, sha256: object.sha256, byteLength: object.byteLength };
 }
 
 export function searchReleasePrefix(indexRevision: string): string {
