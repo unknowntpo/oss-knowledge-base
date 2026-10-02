@@ -3,6 +3,7 @@ import type { DomainEventV1 } from "@oss-knowledge-base/domain";
 import type { SerializedReferenceStateV1 } from "@oss-knowledge-base/reference-pipeline";
 import { GitHubFetchTransport } from "./github-transport";
 import { R2PublicationDestination } from "./r2-destination";
+import { runPending } from "./run-schedule";
 import {
   runDataPublication,
   type PipelineRunStatus,
@@ -73,12 +74,13 @@ export class PipelineState implements DurableObject {
       return Response.json({
         environment: this.env.PUBLICATION_ENVIRONMENT,
         running: this.running,
-        scheduled: await this.ctx.storage.getAlarm() !== null,
+        scheduled: runPending(false, await this.ctx.storage.getAlarm(), Date.now()),
         lastRun: status ?? null,
       });
     }
     if (request.method !== "POST" || path !== "/run") return new Response("Not found", { status: 404 });
-    if (this.running || await this.ctx.storage.getAlarm() !== null) {
+    // A stale alarm (its retries exhausted) is overwritten below instead of blocking every trigger.
+    if (runPending(this.running, await this.ctx.storage.getAlarm(), Date.now())) {
       return Response.json({ ok: false, skipped: "already-running" }, { status: 409 });
     }
     await this.ctx.storage.put("requested-at", request.headers.get("x-scheduled-at") ?? new Date().toISOString());
