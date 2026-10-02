@@ -12,6 +12,36 @@ import { STALE_ALARM_MS } from "../src/run-schedule";
 const events = fixture.events as DomainEventV1[];
 
 describe("Durable Object pipeline state", () => {
+  test("M8: a commit that adds and removes one event puts and deletes one key without listing", async () => {
+    const storage = new MemoryStorage();
+    await storage.put(Object.fromEntries(events.map((event) => [`event:${event.id}`, event])));
+    const state = new DurableObjectPipelineState(storage.asDurableObjectStorage());
+    const read = await state.read();
+    storage.operations.length = 0;
+    const [removed, ...kept] = read.events;
+    const added = { ...removed!, id: `sha256:${"f".repeat(64)}` } as DomainEventV1;
+
+    await state.commit({ ...read, events: [...kept, added] });
+
+    expect(storage.operations).toEqual([`delete event:${removed!.id}`, `put event:${added.id}`]);
+    expect([...storage.values.keys()].filter((key) => key.startsWith("event:")).sort())
+      .toEqual([...kept, added].map((event) => `event:${event.id}`).sort());
+  });
+
+  test("M8: a changed event under the same id is put; unchanged events are not", async () => {
+    const storage = new MemoryStorage();
+    await storage.put(Object.fromEntries(events.map((event) => [`event:${event.id}`, event])));
+    const state = new DurableObjectPipelineState(storage.asDurableObjectStorage());
+    const read = await state.read();
+    storage.operations.length = 0;
+    const copies = read.events.map((event) => structuredClone(event));
+    copies[1] = { ...copies[1]!, observedAt: "2026-08-24T00:00:00Z" };
+
+    await state.commit({ ...read, events: copies });
+
+    expect(storage.operations).toEqual([`put event:${copies[1]!.id}`]);
+  });
+
   test("M7: a run killed during promotion leaves its phase on /health until a later run completes", async () => {
     const storage = new MemoryStorage();
     const hung = new HangingDestination(3);
