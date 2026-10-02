@@ -5,7 +5,9 @@ import {
   isFeedDetailMap,
   isFeedManifest,
   MANIFEST_KEY,
+  type EncodedProjectionObject,
   type ProjectionObject,
+  type StreamedFeedRelease,
 } from "./r2";
 import {
   isSearchCurrentPointer,
@@ -15,7 +17,9 @@ import {
   SEARCH_DETAIL_POOL,
   SEARCH_RELEASE_SCHEMA_V1,
   type SearchCurrentPointerV1,
+  type SearchGroupProjectionV1,
   type SearchReleaseManifest,
+  type StreamedSearchRelease,
 } from "./search-r2";
 
 export type PublicationEnvironment = "development" | "production";
@@ -143,11 +147,11 @@ export async function buildPublicationSetV1(
     projections: [feed, search],
   };
   assertPublicationSetV1(publicationSet);
-  const feedMapFailure = await verifyFeedDetailMap(feed, new Map(input.feedObjects
+  const feedMapFailure = verifyFeedDetailMapBodies(feed, new Map(input.feedObjects
     .filter((object) => object.key !== MANIFEST_KEY)
     .map((object) => [object.key, encode(object.body)])));
   if (feedMapFailure !== undefined) throw new Error(feedMapFailure.message);
-  const searchManifestFailure = await verifySearchManifest(
+  const searchManifestFailure = verifySearchManifestBodies(
     search,
     new Map(input.searchObjects
       .filter((object) => object.key !== SEARCH_CURRENT_KEY)
@@ -233,8 +237,8 @@ export async function verifyPublicationSetSource(
       verifiedObjectCount += 1;
     }
     const manifestFailure = projection.kind === "search"
-      ? await verifySearchManifest(projection, bodies)
-      : await verifyFeedDetailMap(projection, bodies);
+      ? verifySearchManifestBodies(projection, bodies)
+      : verifyFeedDetailMapBodies(projection, bodies);
     if (manifestFailure !== undefined) return manifestFailure;
   }
   return { ok: true, verifiedObjectCount };
@@ -263,7 +267,7 @@ export async function promotePublicationSet(
     const outcomes = await mapUntilFailure(
       uniqueObjects(projection.immutableObjects),
       options.concurrency ?? 1,
-      (expected) => promoteImmutableObject(expected, projection.kind, source, destination),
+      (expected) => promoteImmutableObject(expected, projection.kind, () => source.get(expected.key), destination),
     );
     for (const outcome of outcomes) {
       if (typeof outcome !== "string") return outcome;
@@ -271,18 +275,9 @@ export async function promotePublicationSet(
       else reusedObjectCount += 1;
     }
 
-    const currentBody = encode(JSON.stringify(projection.current));
-    try {
-      const existingCurrent = await destination.get(projection.currentKey);
-      if (existingCurrent !== undefined && bytesEqual(existingCurrent, currentBody)) {
-        unchangedProjections.push(projection.kind);
-      } else {
-        await destination.putCurrent(projection.currentKey, currentBody);
-        switchedProjections.push(projection.kind);
-      }
-    } catch (error) {
-      return failure("store-error", errorMessage(error), projection.kind, projection.currentKey);
-    }
+    const pointer = await switchPointer(projection, destination);
+    if (typeof pointer !== "string") return pointer;
+    (pointer === "switched" ? switchedProjections : unchangedProjections).push(projection.kind);
   }
 
   return {
@@ -294,26 +289,182 @@ export async function promotePublicationSet(
   };
 }
 
+export interface ProjectionStreamsInput {
+  readonly id: string;
+  readonly generatedAt: string;
+  readonly inputDigest: Sha256Digest;
+  readonly materializerRevision: string;
+}
+
+/**
+ * The two releases to publish. `publishProjectionStreams` takes ownership and clears each
+ * stream once it is consumed, so the publication it reads can be collected before the next
+ * phase; callers should not keep their own reference to a stream or its publication.
+ */
+export interface ProjectionStreams {
+  search: AsyncGenerator<EncodedProjectionObject, StreamedSearchRelease> | undefined;
+  feed: AsyncGenerator<EncodedProjectionObject, StreamedFeedRelease> | undefined;
+}
+
+export type StreamedPublicationResult =
+  | (PromotionSuccess & { readonly publicationSet: PublicationSetV1 })
+  | PublicationFailure;
+
+export type PublicationStreamPhase = "writing-search" | "writing-feed" | "switching-pointers";
+
+export interface PublicationStreamProgress {
+  readonly copiedObjectCount: number;
+  readonly reusedObjectCount: number;
+}
+
+/**
+ * Publishes a Feed and a Search release whose objects are produced one at a time (Spec 009).
+ * Each body is written as soon as it is produced and released once its write settles, so at
+ * most `concurrency` bodies are held. Cross-object invariants are checked on the resulting
+ * descriptors, never by re-reading bodies, before any pointer switches; Search's pointer
+ * switches before Feed's, and only when its bytes change. A failure leaves both pointers
+ * unchanged, and the objects already written are reused by a rerun.
+ */
+export async function publishProjectionStreams(
+  input: ProjectionStreamsInput,
+  streams: ProjectionStreams,
+  destination: PublicationObjectStore,
+  options: {
+    readonly concurrency?: number;
+    readonly onPhase?: (phase: PublicationStreamPhase, progress: PublicationStreamProgress) => Promise<void>;
+  } = {},
+): Promise<StreamedPublicationResult> {
+  const progress = { copiedObjectCount: 0, reusedObjectCount: 0 };
+  const concurrency = Math.max(1, options.concurrency ?? 1);
+
+  await options.onPhase?.("writing-search", { ...progress });
+  const search = await writeProjectionStream("search", take(streams, "search"), destination, concurrency, progress);
+  if (isFailure(search)) return search;
+  await options.onPhase?.("writing-feed", { ...progress });
+  const feed = await writeProjectionStream("feed", take(streams, "feed"), destination, concurrency, progress);
+  if (isFailure(feed)) return feed;
+
+  const publicationSet: PublicationSetV1 = {
+    schema: "osskb.publication-set.v1",
+    id: input.id,
+    generatedAt: input.generatedAt,
+    inputDigest: input.inputDigest,
+    materializerRevision: input.materializerRevision,
+    projections: [feed.descriptor, search.descriptor],
+  };
+  const issues = publicationSetValidationIssues(publicationSet);
+  if (issues.length > 0) return failure("invalid-publication-set", issues.join("; "));
+  const invalid = verifySearchManifest(search.descriptor, search.manifest, (key) => search.shardGroups.get(key)) ??
+    verifyFeedDetailMap(feed.descriptor, feed.detailMap);
+  if (invalid !== undefined) return invalid;
+
+  await options.onPhase?.("switching-pointers", { ...progress });
+  const switchedProjections: ProjectionKind[] = [];
+  const unchangedProjections: ProjectionKind[] = [];
+  for (const projection of [search.descriptor, feed.descriptor]) {
+    const pointer = await switchPointer(projection, destination);
+    if (typeof pointer !== "string") return pointer;
+    (pointer === "switched" ? switchedProjections : unchangedProjections).push(projection.kind);
+  }
+  return { ok: true, ...progress, switchedProjections, unchangedProjections, publicationSet };
+}
+
+function take<K extends keyof ProjectionStreams>(streams: ProjectionStreams, kind: K): NonNullable<ProjectionStreams[K]> {
+  const stream = streams[kind];
+  if (stream === undefined) throw new Error(`The ${kind} projection stream was already consumed`);
+  streams[kind] = undefined;
+  return stream;
+}
+
+/** Writes each streamed object with bounded concurrency and returns what the stream declared. */
+async function writeProjectionStream<R>(
+  kind: ProjectionKind,
+  stream: AsyncGenerator<EncodedProjectionObject, R>,
+  destination: PublicationObjectStore,
+  concurrency: number,
+  progress: { copiedObjectCount: number; reusedObjectCount: number },
+): Promise<R | PublicationFailure> {
+  const inFlight = new Set<Promise<void>>();
+  let failed: PublicationFailure | undefined;
+  try {
+    for (let next = await stream.next(); ; next = await stream.next()) {
+      if (next.done) {
+        await Promise.all(inFlight);
+        return failed ?? next.value;
+      }
+      const object = next.value;
+      // A pool object is reused by name alone, so a misnamed one must never be written.
+      failed ??= streamedObjectFailure(kind, object);
+      if (failed !== undefined) break;
+      const write: Promise<void> = promoteImmutableObject(object, kind, async () => object.body, destination)
+        .then((outcome) => {
+          if (typeof outcome !== "string") failed ??= outcome;
+          else if (outcome === "created") progress.copiedObjectCount += 1;
+          else progress.reusedObjectCount += 1;
+        })
+        .finally(() => inFlight.delete(write));
+      inFlight.add(write);
+      if (inFlight.size >= concurrency) await Promise.race(inFlight);
+      if (failed !== undefined) break;
+    }
+  } catch (error) {
+    await Promise.allSettled(inFlight);
+    throw error;
+  }
+  await Promise.all(inFlight);
+  await stream.return(undefined as never);
+  return failed!;
+}
+
+function streamedObjectFailure(kind: ProjectionKind, object: EncodedProjectionObject): PublicationFailure | undefined {
+  const pool = detailPool(kind);
+  if (object.key.startsWith(pool) && digestOfPoolKey(pool, object.key) !== object.sha256) {
+    return failure("invalid-publication-set", `${object.key} is a ${kind} detail pool key whose name differs from its sha256`, kind, object.key);
+  }
+  if (object.body.byteLength !== object.byteLength) {
+    return failure("invalid-publication-set", `${object.key} byteLength differs from its body`, kind, object.key);
+  }
+  return undefined;
+}
+
+/** Writes a projection's pointer only when its bytes change. */
+async function switchPointer(
+  projection: ProjectionReleaseDescriptorV1,
+  destination: PublicationObjectStore,
+): Promise<"switched" | "unchanged" | PublicationFailure> {
+  const currentBody = encode(JSON.stringify(projection.current));
+  try {
+    const existingCurrent = await destination.get(projection.currentKey);
+    if (existingCurrent !== undefined && bytesEqual(existingCurrent, currentBody)) return "unchanged";
+    await destination.putCurrent(projection.currentKey, currentBody);
+    return "switched";
+  } catch (error) {
+    return failure("store-error", errorMessage(error), projection.kind, projection.currentKey);
+  }
+}
+
 type ImmutableObject = ProjectionReleaseDescriptorV1["immutableObjects"][number];
+
+type BodyReader = () => Promise<Uint8Array | undefined>;
 
 async function promoteImmutableObject(
   expected: ImmutableObject,
   kind: ProjectionKind,
-  source: Pick<PublicationObjectStore, "get">,
+  readBody: BodyReader,
   destination: PublicationObjectStore,
 ): Promise<"created" | "reused" | PublicationFailure> {
   try {
     if (destination.putVerifiedImmutableIfAbsent !== undefined) {
-      return await promoteVerified(expected, kind, source, destination);
+      return await promoteVerified(expected, kind, readBody, destination);
     }
-    if (isPoolKey(kind, expected.key)) return await promotePoolObject(expected, kind, source, destination);
+    if (isPoolKey(kind, expected.key)) return await promotePoolObject(expected, kind, readBody, destination);
     const existing = await destination.get(expected.key);
     if (existing !== undefined) {
       const mismatch = await objectMismatch(expected, existing);
       return mismatch === undefined ? "reused" : failure("destination-conflict", mismatch, kind, expected.key);
     }
 
-    const sourceBody = await source.get(expected.key);
+    const sourceBody = await readBody();
     if (sourceBody === undefined) {
       return failure("source-object-missing", `Source object disappeared: ${expected.key}`, kind, expected.key);
     }
@@ -333,10 +484,10 @@ async function promoteImmutableObject(
 async function promoteVerified(
   expected: ImmutableObject,
   kind: ProjectionKind,
-  source: Pick<PublicationObjectStore, "get">,
+  readBody: BodyReader,
   destination: PublicationObjectStore,
 ): Promise<"created" | "reused" | PublicationFailure> {
-  const sourceBody = await source.get(expected.key);
+  const sourceBody = await readBody();
   if (sourceBody === undefined) {
     return failure("source-object-missing", `Source object disappeared: ${expected.key}`, kind, expected.key);
   }
@@ -358,10 +509,10 @@ async function promoteVerified(
 async function promotePoolObject(
   expected: ImmutableObject,
   kind: ProjectionKind,
-  source: Pick<PublicationObjectStore, "get">,
+  readBody: BodyReader,
   destination: PublicationObjectStore,
 ): Promise<"created" | "reused" | PublicationFailure> {
-  const sourceBody = await source.get(expected.key);
+  const sourceBody = await readBody();
   if (sourceBody === undefined) {
     return failure("source-object-missing", `Source object disappeared: ${expected.key}`, kind, expected.key);
   }
@@ -515,15 +666,23 @@ function validateDescriptor(
 }
 
 /** A feed-manifest.v3 release must map exactly `entryCount` entries onto its declared pool objects. */
-async function verifyFeedDetailMap(
+function verifyFeedDetailMapBodies(
   projection: FeedReleaseDescriptorV1,
   bodies: ReadonlyMap<string, Uint8Array>,
-): Promise<PublicationFailure | undefined> {
+): PublicationFailure | undefined {
+  const current = projection.current;
+  if (current.schema !== "osskb.feed-manifest.v3") return undefined;
+  return verifyFeedDetailMap(projection, parseBody(bodies.get(current.detailMapKey)));
+}
+
+function verifyFeedDetailMap(
+  projection: FeedReleaseDescriptorV1,
+  map: unknown,
+): PublicationFailure | undefined {
   const current = projection.current;
   if (current.schema !== "osskb.feed-manifest.v3") return undefined;
   const invalid = (message: string, key = current.detailMapKey) =>
     failure("source-manifest-invalid", message, "feed", key);
-  const map = parseBody(bodies.get(current.detailMapKey));
   if (!isFeedDetailMap(map) || map.releaseId !== projection.releaseId) {
     return invalid("Feed detail map is missing or invalid");
   }
@@ -541,22 +700,36 @@ async function verifyFeedDetailMap(
   return orphan === undefined ? undefined : invalid(`Feed release declares an unmapped detail ${orphan}`, orphan);
 }
 
-async function verifySearchManifest(
+function verifySearchManifestBodies(
   projection: SearchReleaseDescriptorV1,
   bodies: ReadonlyMap<string, Uint8Array>,
-): Promise<PublicationFailure | undefined> {
+): PublicationFailure | undefined {
   const manifestBody = bodies.get(projection.current.releaseManifestKey);
   if (manifestBody === undefined) {
     return failure("source-manifest-invalid", "Search release manifest is missing", "search", projection.current.releaseManifestKey);
   }
-  let manifest: SearchReleaseManifest;
+  let manifest: unknown;
   try {
-    const value = JSON.parse(new TextDecoder().decode(manifestBody)) as unknown;
-    if (!isSearchReleaseManifest(value)) throw new Error("schema validation failed");
-    manifest = value;
+    manifest = JSON.parse(new TextDecoder().decode(manifestBody)) as unknown;
   } catch (error) {
     return failure("source-manifest-invalid", `Search release manifest is invalid: ${errorMessage(error)}`, "search", projection.current.releaseManifestKey);
   }
+  return verifySearchManifest(projection, manifest, (key) => {
+    const shard = parseBody(bodies.get(key));
+    return isSearchLexicalShard(shard) ? shard.groups : undefined;
+  });
+}
+
+/** Checks a Search release's manifest and shard groups against its declared objects. */
+function verifySearchManifest(
+  projection: SearchReleaseDescriptorV1,
+  value: unknown,
+  shardGroups: (key: string) => readonly SearchGroupProjectionV1[] | undefined,
+): PublicationFailure | undefined {
+  if (!isSearchReleaseManifest(value)) {
+    return failure("source-manifest-invalid", "Search release manifest is invalid: schema validation failed", "search", projection.current.releaseManifestKey);
+  }
+  const manifest: SearchReleaseManifest = value;
   if (manifest.indexRevision !== projection.releaseId || (manifest.schema === SEARCH_RELEASE_SCHEMA_V1 &&
       manifest.detailPrefix !== `${releasePrefix("search", projection.releaseId)}details/`)) {
     return failure("source-manifest-invalid", "Search release manifest crosses its declared release", "search", projection.current.releaseManifestKey);
@@ -588,11 +761,11 @@ async function verifySearchManifest(
   const referenced = new Set<string>();
   let groupCount = 0;
   for (const shardKey of Object.values(manifest.shardKeys)) {
-    const shard = parseBody(bodies.get(shardKey));
-    if (!isSearchLexicalShard(shard)) {
+    const groups = shardGroups(shardKey);
+    if (groups === undefined) {
       return failure("source-manifest-invalid", `Search shard is invalid: ${shardKey}`, "search", shardKey);
     }
-    for (const group of shard.groups) {
+    for (const group of groups) {
       groupCount += 1;
       const digest = group.detailSha256;
       const key = isSha256Digest(digest) ? detailPoolKey(SEARCH_DETAIL_POOL, digest) : undefined;

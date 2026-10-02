@@ -2,7 +2,9 @@ export type Sha256Digest = `sha256:${string}`;
 
 export async function sha256Digest(body: Uint8Array | string): Promise<Sha256Digest> {
   const bytes = typeof body === "string" ? new TextEncoder().encode(body) : body;
-  const digest = await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes));
+  // Digest the bytes in place; only a view over a shared buffer, which WebCrypto rejects, is copied.
+  const input = bytes.buffer instanceof ArrayBuffer ? bytes as Uint8Array<ArrayBuffer> : Uint8Array.from(bytes);
+  const digest = await crypto.subtle.digest("SHA-256", input);
   const hex = [...new Uint8Array(digest)]
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");

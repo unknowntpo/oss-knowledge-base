@@ -200,6 +200,59 @@ describe("Cloudflare data publication", () => {
   });
 });
 
+describe("Spec 009 bounded-memory publication", () => {
+  test("M4: a failed immutable write keeps both pointers, and a rerun reuses the objects written", async () => {
+    const state = new MemoryState();
+    const destination = new MemoryDestination();
+    const events = fixture.events as DomainEventV1[];
+    const first = await runDataPublication({
+      environment: "development",
+      materializedAt: fixture.config.materializedAt,
+      connector: connectorSuccess(events),
+      state,
+      destination,
+    });
+    expect(first.ok).toBe(true);
+    const pointers = () => [MANIFEST_KEY, SEARCH_CURRENT_KEY].map((key) => new TextDecoder().decode(destination.objects.get(key)));
+    const previousPointers = pointers();
+    const changed = events.map((event): DomainEventV1 => event.entityId === "kafka:github:issue:42"
+      ? { ...event, data: { ...event.data, excerpt: "The coordinator recovery path is now bounded." } } as DomainEventV1
+      : event);
+    const rerun = {
+      environment: "development" as const,
+      materializedAt: laterHour(fixture.config.materializedAt),
+      connector: connectorSuccess(changed),
+      state: new MemoryState(),
+      destination,
+    };
+    destination.operations.length = 0;
+    destination.failOnImmutableWrite = destination.immutableWrites + 3;
+
+    const failed = await runDataPublication(rerun);
+
+    expect(failed).toMatchObject({ ok: false, failureKind: "pipeline" });
+    expect(pointers()).toEqual(previousPointers);
+    expect(rerun.state.value.events).toEqual([]);
+    const writtenBeforeFailure = createdImmutables(destination);
+    expect(writtenBeforeFailure.length).toBeGreaterThan(0);
+
+    destination.operations.length = 0;
+    destination.failOnImmutableWrite = undefined;
+    const completed = await runDataPublication(rerun);
+
+    expect(completed.ok).toBe(true);
+    if (completed.ok) expect(completed.reusedObjectCount).toBeGreaterThanOrEqual(writtenBeforeFailure.length);
+    expect(createdImmutables(destination).filter((key) => writtenBeforeFailure.includes(key))).toEqual([]);
+    expect(pointers()).not.toEqual(previousPointers);
+  });
+});
+
+function createdImmutables(destination: MemoryDestination): readonly string[] {
+  return destination.operations
+    .filter((operation) => operation.startsWith("immutable:"))
+    .map((operation) => operation.slice("immutable:".length));
+}
+
 async function config(environment: "development" | "production") {
   const file = Bun.file(new URL(`../wrangler.${environment}.jsonc`, import.meta.url));
   // workers-types replaces the global Blob, so BunFile loses json() when both type sets load.
@@ -259,6 +312,7 @@ class MemoryState implements PipelineStateRepository {
   async read(): Promise<SerializedReferenceStateV1> { return this.value; }
   async commit(state: SerializedReferenceStateV1): Promise<void> { this.value = state; }
   async recordStatus(status: PipelineRunStatus): Promise<void> { this.statuses.push(status); }
+  async recordPhase(): Promise<void> {}
 }
 
 class MemoryDestination implements PublicationDestination, PublicationObjectStore {
@@ -266,7 +320,12 @@ class MemoryDestination implements PublicationDestination, PublicationObjectStor
   readonly operations: string[] = [];
 
   async get(key: string): Promise<Uint8Array | undefined> { return this.objects.get(key); }
+  failOnImmutableWrite: number | undefined;
+  immutableWrites = 0;
+
   async putImmutableIfAbsent(key: string, body: Uint8Array): Promise<"created" | "exists"> {
+    this.immutableWrites += 1;
+    if (this.immutableWrites === this.failOnImmutableWrite) throw new Error(`injected R2 failure at ${key}`);
     if (this.objects.has(key)) return "exists";
     this.objects.set(key, body);
     this.operations.push(`immutable:${key}`);

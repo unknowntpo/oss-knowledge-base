@@ -8,20 +8,25 @@ import {
   type SerializedReferenceStateV1,
 } from "@oss-knowledge-base/reference-pipeline";
 import {
-  buildPublicationSetV1,
-  buildR2Projection,
-  buildR2SearchProjection,
+  encodeJson,
+  feedProjectionObjects,
   materializeSearchPublicationFromFeed,
-  promotePublicationSet,
-  type ProjectionObject,
+  publishProjectionStreams,
+  searchProjectionObjects,
   type PublicationObjectStore,
   type PublicationSetV1,
+  type ProjectionStreams,
+  type PublicationStreamPhase,
+  type Sha256Digest,
+  type StreamedPublicationResult,
 } from "@oss-knowledge-base/serving-contract";
 
 export interface PipelineStateRepository {
   read(): Promise<SerializedReferenceStateV1>;
   commit(state: SerializedReferenceStateV1): Promise<void>;
+  /** Records a completed run; the run's phase marker is no longer current. */
   recordStatus(status: PipelineRunStatus): Promise<void>;
+  recordPhase(marker: PipelinePhaseMarker): Promise<void>;
 }
 
 export interface PublicationDestination extends PublicationObjectStore {
@@ -56,6 +61,25 @@ export type PipelineRunStatus =
       readonly retryAfterSeconds: number;
     };
 
+export type PipelinePhase =
+  | "reading-state"
+  | "polling"
+  | "materializing"
+  | PublicationStreamPhase
+  | "recording-evidence"
+  | "committing-state";
+
+/**
+ * Persisted before each phase. Workers expose no memory reading, so a run the platform kills
+ * (for example for exceeding memory) is attributed to the last phase it reached (Spec 009).
+ */
+export interface PipelinePhaseMarker {
+  readonly phase: PipelinePhase;
+  readonly startedAt: string;
+  readonly materializedAt: string;
+  readonly counts: Readonly<Record<string, number>>;
+}
+
 // A first release, or a large catch-up, writes thousands of new objects; serial R2 round trips are too slow.
 const PROMOTION_CONCURRENCY = 16;
 
@@ -67,10 +91,21 @@ export async function runDataPublication(input: {
   readonly destination: PublicationDestination;
 }): Promise<PipelineRunStatus> {
   const startedAt = Date.now();
-  const phase = (name: string) => console.log(`publication ${name} at ${Date.now() - startedAt}ms`);
+  const counts: Record<string, number> = {};
+  const phase = async (name: PipelinePhase, update: Readonly<Record<string, number>> = {}) => {
+    Object.assign(counts, update);
+    console.log(`publication ${name} at ${Date.now() - startedAt}ms ${JSON.stringify(counts)}`);
+    await input.state.recordPhase({
+      phase: name,
+      startedAt: new Date().toISOString(),
+      materializedAt: input.materializedAt,
+      counts: { ...counts },
+    });
+  };
   try {
-    const persisted = await input.state.read();
-    const next = new ReferenceStateStore(persisted);
+    await phase("reading-state");
+    const next = new ReferenceStateStore(await input.state.read());
+    await phase("polling", { storedEvents: next.readEvents().length });
     const poll = await input.connector.poll(next.readCheckpoint(), input.materializedAt);
     if (!poll.complete) {
       return await record(input.state, {
@@ -83,43 +118,19 @@ export async function runDataPublication(input: {
       });
     }
 
-    phase(`polled ${poll.events.length} events in ${poll.pageCount} pages`);
     next.appendDurably(poll.events);
-    const materialized = materializeReferenceFeed(
-      next.readEvents(),
-      defaultReferenceConfig(input.materializedAt),
-    );
+    await phase("materializing", { polledEvents: poll.events.length, events: next.readEvents().length });
     const releaseId = releaseIdFor(input.materializedAt);
     const searchRevision = `feed-${releaseId}`;
-    const search = await materializeSearchPublicationFromFeed({
-      feed: materialized.publication,
-      indexRevision: searchRevision,
-      corpusRevision: materialized.digest,
-      generatedAt: input.materializedAt,
-    });
-    const feedObjects = await buildR2Projection(materialized.publication, releaseId);
-    const searchObjects = await buildR2SearchProjection(search);
-    const publicationSet = await buildPublicationSetV1({
-      id: `github-${releaseId}`,
-      generatedAt: input.materializedAt,
-      inputDigest: canonicalDigest(next.readEvents()) as `sha256:${string}`,
-      materializerRevision: defaultReferenceConfig(input.materializedAt).materializerRevision,
-      feedObjects,
-      searchObjects,
-    });
-
-    phase(`materialized ${feedObjects.length + searchObjects.length} objects`);
-    const source = projectionSource([...feedObjects, ...searchObjects]);
-    const published = await promotePublicationSet(publicationSet, source, input.destination, {
-      concurrency: PROMOTION_CONCURRENCY,
-    });
+    const published = await publish(input, next.readEvents(), releaseId, searchRevision, phase);
     if (!published.ok) throw new Error(`${published.kind}: ${published.message}`);
-    phase("promoted");
 
+    await phase("recording-evidence");
     await input.destination.putEvidence(
-      publicationEvidenceKey(publicationSet),
-      new TextEncoder().encode(JSON.stringify(publicationSet)),
+      publicationEvidenceKey(published.publicationSet),
+      encodeJson(published.publicationSet),
     );
+    await phase("committing-state");
     const compacted = compactState(next.readEvents(), input.materializedAt);
     compacted.commitCheckpoint(poll.candidateCheckpoint);
     await input.state.commit(compacted.snapshot());
@@ -127,7 +138,7 @@ export async function runDataPublication(input: {
       ok: true,
       environment: input.environment,
       completedAt: input.materializedAt,
-      publicationSetId: publicationSet.id,
+      publicationSetId: published.publicationSet.id,
       feedReleaseId: releaseId,
       searchRevision,
       inputEventCount: poll.events.length,
@@ -147,6 +158,59 @@ export async function runDataPublication(input: {
       retryAfterSeconds: 300,
     });
   }
+}
+
+/** Materializes Feed and Search, then streams their objects to the destination. */
+async function publish(
+  input: { readonly materializedAt: string; readonly destination: PublicationDestination },
+  events: readonly DomainEventV1[],
+  releaseId: string,
+  searchRevision: string,
+  phase: (name: PipelinePhase, update?: Readonly<Record<string, number>>) => Promise<void>,
+): Promise<StreamedPublicationResult> {
+  const config = defaultReferenceConfig(input.materializedAt);
+  const { streams, counts } = await materializeStreams(events, config, releaseId, searchRevision);
+  return publishProjectionStreams(
+    {
+      id: `github-${releaseId}`,
+      generatedAt: input.materializedAt,
+      inputDigest: canonicalDigest(events) as Sha256Digest,
+      materializerRevision: config.materializerRevision,
+    },
+    streams,
+    input.destination,
+    {
+      concurrency: PROMOTION_CONCURRENCY,
+      onPhase: (name, progress) => phase(name, { ...counts, ...progress }),
+    },
+  );
+}
+
+/**
+ * Only the streams reference the materialized publications once this returns, and the
+ * publisher drops each stream when it is consumed, so Search is collectable while Feed is
+ * written and both are before pointers switch.
+ */
+async function materializeStreams(
+  events: readonly DomainEventV1[],
+  config: ReturnType<typeof defaultReferenceConfig>,
+  releaseId: string,
+  searchRevision: string,
+): Promise<{ readonly streams: ProjectionStreams; readonly counts: Readonly<Record<string, number>> }> {
+  const materialized = materializeReferenceFeed(events, config);
+  const search = await materializeSearchPublicationFromFeed({
+    feed: materialized.publication,
+    indexRevision: searchRevision,
+    corpusRevision: materialized.digest,
+    generatedAt: config.materializedAt,
+  });
+  return {
+    streams: {
+      search: searchProjectionObjects(search),
+      feed: feedProjectionObjects(materialized.publication, releaseId),
+    },
+    counts: { feedEntries: materialized.publication.index.entries.length, searchGroups: search.details.length },
+  };
 }
 
 /** Keep current entities near the activity window; this state is a bounded
@@ -180,11 +244,6 @@ function releaseIdFor(timestamp: string): string {
 
 function publicationEvidenceKey(publicationSet: PublicationSetV1): string {
   return `publication-sets/v1/${publicationSet.id}.json`;
-}
-
-function projectionSource(objects: readonly ProjectionObject[]): Pick<PublicationObjectStore, "get"> {
-  const bodies = new Map(objects.map((object) => [object.key, new TextEncoder().encode(object.body)]));
-  return { get: async (key) => bodies.get(key) };
 }
 
 async function record<T extends PipelineRunStatus>(state: PipelineStateRepository, status: T): Promise<T> {
