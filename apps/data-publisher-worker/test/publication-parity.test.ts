@@ -104,6 +104,7 @@ class MemoryState implements PipelineStateRepository {
   async read(): Promise<SerializedReferenceStateV1> { return structuredClone(this.value); }
   async commit(state: SerializedReferenceStateV1): Promise<void> { this.value = structuredClone(state); }
   async recordStatus(): Promise<void> {}
+  async recordPhase(): Promise<void> {}
 }
 
 /** Stores every body; optionally verifies digests on write like R2's conditional put. */

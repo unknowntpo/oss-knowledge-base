@@ -3,7 +3,7 @@ import { DurableObjectPipelineState } from "./durable-object-state";
 import { GitHubFetchTransport } from "./github-transport";
 import { R2PublicationDestination } from "./r2-destination";
 import { runPending } from "./run-schedule";
-import { runDataPublication, type PipelineRunStatus } from "./pipeline";
+import { runDataPublication, type PipelinePhaseMarker, type PipelineRunStatus } from "./pipeline";
 
 interface Env {
   readonly PUBLICATION_ENVIRONMENT: "development" | "production";
@@ -66,10 +66,13 @@ export class PipelineState implements DurableObject {
     const path = new URL(request.url).pathname;
     if (request.method === "GET" && path === "/status") {
       const status = await this.ctx.storage.get<PipelineRunStatus>("status");
+      const phase = await this.ctx.storage.get<PipelinePhaseMarker>("phase");
       return Response.json({
         environment: this.env.PUBLICATION_ENVIRONMENT,
         running: this.running,
         scheduled: runPending(false, await this.ctx.storage.getAlarm(), Date.now()),
+        // Set while a run is unfinished; left by a run the platform killed until a later run completes.
+        phase: phase ?? null,
         lastRun: status ?? null,
       });
     }

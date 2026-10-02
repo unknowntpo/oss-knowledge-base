@@ -1,6 +1,6 @@
 import type { DomainEventV1 } from "@oss-knowledge-base/domain";
 import type { SerializedReferenceStateV1 } from "@oss-knowledge-base/reference-pipeline";
-import type { PipelineRunStatus, PipelineStateRepository } from "./pipeline";
+import type { PipelinePhaseMarker, PipelineRunStatus, PipelineStateRepository } from "./pipeline";
 
 export class DurableObjectPipelineState implements PipelineStateRepository {
   constructor(private readonly storage: DurableObjectStorage) {}
@@ -33,5 +33,10 @@ export class DurableObjectPipelineState implements PipelineStateRepository {
 
   async recordStatus(status: PipelineRunStatus): Promise<void> {
     await this.storage.put("status", status);
+    await this.storage.delete("phase");
+  }
+
+  async recordPhase(marker: PipelinePhaseMarker): Promise<void> {
+    await this.storage.put("phase", marker);
   }
 }

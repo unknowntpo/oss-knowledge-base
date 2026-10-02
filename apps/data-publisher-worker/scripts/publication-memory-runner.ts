@@ -239,7 +239,9 @@ try {
   console.log = originalLog;
   phase = "done";
   sample();
-  if (process.env.MEMORY_DEBUG === "1") console.error(process.memoryUsage());
+  if (process.env.MEMORY_DEBUG === "1") {
+    console.error([...destination.lengths].filter(([, length]) => length > 1_000_000).map(([key, length]) => `${key} ${MB(length)} MB`));
+  }
 
   const result: MemoryMeasurement = {
     events: count,
