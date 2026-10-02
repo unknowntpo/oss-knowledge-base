@@ -1,10 +1,13 @@
 {
   "name": "oss-knowledge-base",
   "private": true,
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "test": "bun run test:unit && bun run test:integration",
-    "test:unit": "bun run --cwd packages/domain test && bun run --cwd packages/search test && bun run --cwd packages/serving-contract test",
+    "test:unit": "bun run --cwd packages/domain test && bun run --cwd packages/search test && bun run --cwd packages/serving-contract test && bun test scripts/test",
     "test:integration": "bun run --cwd packages/reference-pipeline test && bun run --cwd apps/github-publisher test && bun run --cwd apps/data-publisher-worker test && bun run --cwd apps/web test",
     "test:e2e": "bun run e2e:prepare && playwright test",
     "test:e2e:development": "playwright test -c playwright.development.config.ts",
@@ -17,7 +20,8 @@
     "search:publish": "bun run --cwd apps/web search:publish",
     "dev": "bun apps/web/scripts/dev.ts",
     "e2e:prepare": "bun apps/web/scripts/prepare-e2e-r2.ts",
-    "e2e:server": "bun run --cwd apps/web pages:dev:e2e"
+    "e2e:server": "bun run --cwd apps/web pages:dev:e2e",
+    "check:traceability": "bun scripts/check-spec-traceability.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",
