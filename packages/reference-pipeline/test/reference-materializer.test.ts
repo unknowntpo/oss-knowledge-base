@@ -59,7 +59,8 @@ describe("Spec 004 reference materializer", () => {
     expect(second.exitCode).toBe(0);
     expect(first.stdout.toString()).toBe(second.stdout.toString());
     expect(result.digest).toBe(expected.digest);
-    expect(result.canonicalJson).toBe(canonicalJson(expected.publication));
+    expect(canonicalJson(result.publication)).toBe(canonicalJson(expected.publication));
+    expect(first.stdout.toString()).toBe(`${expected.digest}\n${canonicalJson(expected.publication)}`);
   });
 
   test("G9: provenance and citations survive materialization", async () => {

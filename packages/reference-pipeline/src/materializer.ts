@@ -10,7 +10,7 @@ import {
 } from "@oss-knowledge-base/domain";
 import type { FeedIndexEntry, FeedPublication } from "@oss-knowledge-base/serving-contract";
 
-import { canonicalDigest, canonicalJson } from "./canonical";
+import { canonicalDigest } from "./canonical";
 import type { GitHubProjectProfile, ReferenceMaterializationConfig } from "./config";
 import { parseGitHubEventDataV1, type GitHubDomainEventV1 } from "./event-data";
 import { dedupeDomainEvents } from "./state";
@@ -70,7 +70,7 @@ function profileFor(
 
 export interface MaterializedReferenceResult {
   readonly publication: FeedPublication;
-  readonly canonicalJson: string;
+  /** Canonical-JSON digest of the publication; no serialized copy is retained (Spec 009). */
   readonly digest: string;
 }
 
@@ -252,6 +252,5 @@ export function materializeReferenceFeed(
     },
     details: materialized.map(({ detail }) => detail),
   };
-  const serialized = canonicalJson(publication);
-  return { publication, canonicalJson: serialized, digest: canonicalDigest(publication) };
+  return { publication, digest: canonicalDigest(publication) };
 }
