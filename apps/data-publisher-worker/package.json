@@ -6,7 +6,8 @@
     "test": "bun test",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p test/tsconfig.json --noEmit",
     "deploy:development": "wrangler deploy -c wrangler.development.jsonc",
-    "deploy:production": "wrangler deploy -c wrangler.production.jsonc"
+    "deploy:production": "wrangler deploy -c wrangler.production.jsonc",
+    "measure:memory": "bun scripts/measure-publication-memory.ts"
   },
   "dependencies": {
     "@oss-knowledge-base/domain": "workspace:*",
