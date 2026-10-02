@@ -35,6 +35,8 @@ export interface MemoryMeasurement {
   readonly phases: readonly PhaseMeasurement[];
   readonly writtenObjects: number;
   readonly writtenMB: number;
+  /** Order-independent fingerprint of every written key and its bytes, for before/after parity. */
+  readonly outputFingerprint: string;
   readonly durationMs: number;
 }
 
@@ -109,6 +111,11 @@ class LengthOnlyDestination implements PublicationDestination {
   readonly lengths = new Map<string, number>();
   private readonly pointers = new Map<string, Uint8Array>();
   private writes = 0;
+  private readonly fingerprintBytes = new Uint8Array(32);
+
+  get fingerprint(): string {
+    return Buffer.from(this.fingerprintBytes).toString("hex");
+  }
 
   async get(key: string): Promise<Uint8Array | undefined> {
     return this.pointers.get(key);
@@ -117,7 +124,7 @@ class LengthOnlyDestination implements PublicationDestination {
   async putImmutableIfAbsent(key: string, body: Uint8Array): Promise<"created" | "exists"> {
     this.measureWrite(key, body);
     if (this.lengths.has(key)) return "exists";
-    this.lengths.set(key, body.byteLength);
+    this.record(key, body);
     return "created";
   }
 
@@ -126,7 +133,7 @@ class LengthOnlyDestination implements PublicationDestination {
     if (this.lengths.has(object.key)) return "exists";
     const digest = `sha256:${createHash("sha256").update(body).digest("hex")}`;
     if (digest !== object.sha256) throw new Error(`R2 rejected ${object.key}: checksum mismatch`);
-    this.lengths.set(object.key, body.byteLength);
+    this.record(object.key, body);
     return "created";
   }
 
@@ -134,13 +141,19 @@ class LengthOnlyDestination implements PublicationDestination {
     phase = `pointer ${key.startsWith("public/search/") ? "search" : "feed"}`;
     sample();
     this.pointers.set(key, body);
-    this.lengths.set(key, body.byteLength);
+    this.record(key, body);
   }
 
   async putEvidence(key: string, body: Uint8Array): Promise<void> {
     phase = "evidence";
     sample();
+    this.record(key, body);
+  }
+
+  private record(key: string, body: Uint8Array): void {
     this.lengths.set(key, body.byteLength);
+    const entry = createHash("sha256").update(key).update("\0").update(body).digest();
+    for (let index = 0; index < 32; index += 1) this.fingerprintBytes[index]! ^= entry[index]!;
   }
 
   /** Samples every large body while it is held, plus a regular cadence of small ones. */
@@ -241,6 +254,7 @@ try {
     phases: [...peaks].map(([name, value]) => ({ phase: name, peakMB: MB(value.peak), samples: value.samples })),
     writtenObjects: destination.lengths.size,
     writtenMB: MB([...destination.lengths.values()].reduce((total, length) => total + length, 0)),
+    outputFingerprint: destination.fingerprint,
     durationMs,
   };
   writeFileSync(outputPath, JSON.stringify(result));

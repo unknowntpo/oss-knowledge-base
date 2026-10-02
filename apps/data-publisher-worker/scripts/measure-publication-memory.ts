@@ -51,7 +51,8 @@ try {
     if (!result.ok || (limit !== undefined && result.peakMB > limit.limitMB)) failed = true;
     console.log(`\n${events} events (${result.runtime}, seed ${result.seed}, ${result.polledEvents} polled): ` +
       `peak ${result.peakMB} MB at "${result.peakPhase}", baseline ${result.baselineMB} MB, ` +
-      `${result.writtenObjects} objects / ${result.writtenMB} MB written in ${result.durationMs} ms` +
+      `${result.writtenObjects} objects / ${result.writtenMB} MB written in ${result.durationMs} ms, ` +
+      `output fingerprint ${result.outputFingerprint.slice(0, 16)}` +
       `${result.ok ? "" : `, run FAILED: ${result.error}`}.${verdict}`);
     console.table(result.phases.map((phase) => ({ phase: phase.phase, "peak MB": phase.peakMB, samples: phase.samples })));
   }
