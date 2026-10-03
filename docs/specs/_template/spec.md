@@ -13,9 +13,15 @@ Who has which problem, and what observable outcome solves it.
 
 Measurements or incidents that motivate the change.
 
+## Example
+
+A worked example on real data: actual values from the running system
+(captured at a stated time), the input, and the expected output.
+
 ## Behavior
 
-Numbered rules the implementation must follow.
+Numbered rules the implementation must follow. Each new field or component
+names who needs it; see the simplification review in docs/process/workflow.md.
 
 ## Acceptance
 

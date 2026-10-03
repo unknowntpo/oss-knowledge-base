@@ -25,6 +25,26 @@ failure path.
 When runtime behavior contradicts an assertion, change the spec first, then
 the code.
 
+## Simplification review (stage 2, before any design is accepted)
+
+Apply these in order; a later step never compensates for skipping an earlier
+one. Adapted from Elon Musk's five-step engineering process.
+
+1. **Question every requirement.** Each field, component, and acceptance item
+   names who needs it and why. "The AI added it" is not an owner.
+2. **Delete.** Remove every field, component, or step that cannot justify
+   itself, including ones that already exist upstream (reuse a value already
+   in the response instead of adding a new one). If nothing deleted ever has
+   to be added back, the review was not aggressive enough.
+3. **Simplify.** Only what survived deletion is simplified or optimized.
+4. **Shorten the cycle.** Make the remaining loop faster to verify (smaller
+   tests, faster feedback), not just faster to run.
+5. **Automate last.** Add scripts, gates, or AI automation only for steps that
+   survived 1–4.
+
+Ground every review in a worked example on real data (the spec's `Example`
+section); abstract descriptions hide which values actually exist.
+
 ## Required assertion classes
 
 A spec is incomplete until it states, or explicitly marks not applicable:
