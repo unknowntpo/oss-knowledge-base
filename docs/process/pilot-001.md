@@ -10,7 +10,7 @@ workflow is the subject.
 | --- | --- | --- | --- |
 | H1 | Every assertion traces to a test | `bun run check:traceability` | pending |
 | H2 | Tests catch a broken implementation | mutation run per acceptance item | pending |
-| H3 | Each test is seen failing before the fix | recorded failing run | pending |
+| H3 | Each test is seen failing before the fix | recorded failing run | held, after fixing two vacuous tests (finding 3) |
 | H4 | A deployed deviation is visible | F6 on development | pending |
 
 ## Findings
@@ -36,6 +36,20 @@ acceptance items (503 path, R2 read budget) disappeared with it.
 
 Change: a five-step simplification review (question requirements, delete,
 simplify, shorten the cycle, automate last) runs before a design is accepted.
+
+### 3. Two tests passed against an empty implementation (stage 4)
+
+Run against a stub that returns `undefined`, the unit test and the E2E test
+for F4 ("no age when `generatedAt` is unparsable") both passed: absence of a
+label is also what "feature not built" looks like. Each now first asserts the
+positive case on the same input path (a valid time shows an age), so it fails
+until the feature exists. Final pre-implementation run: unit F1, F2, F4, F5
+fail (4/4); E2E F3, F4 fail (2/2, desktop; mobile skipped because the pill is
+hidden below 420 px).
+
+Change: a test of an absence ("does not show", "is undefined") must include a
+positive control on the same path. Seeing every test fail before the fix is
+what exposed this, so the rule stays mandatory.
 
 ## Process cost so far
 
