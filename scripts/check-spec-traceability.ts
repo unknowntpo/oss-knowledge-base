@@ -36,25 +36,56 @@ export function testTitles(source: string): readonly string[] {
 export function untracedItems(
   items: readonly AcceptanceItem[],
   titles: readonly string[],
+  caseIds: ReadonlySet<string> = new Set(),
 ): readonly AcceptanceItem[] {
-  return items.filter((item) => item.tag === undefined &&
+  return items.filter((item) => item.tag === undefined && !caseIds.has(`${item.spec}#${item.id}`) &&
     !titles.some((title) => new RegExp(`(^|[^A-Za-z0-9])${item.id}:`, "u").test(title)));
+}
+
+/** Case files named by a spec's `<!-- test-plan:start … -->` marker (see render-test-plan.ts). */
+export function testPlanCaseFiles(markdown: string): readonly string[] {
+  return [...markdown.matchAll(/<!-- test-plan:start (\S+) -->/gu)].map((match) => match[1]!);
+}
+
+/** Whether a test source imports the case file and runs it with test.each. */
+export function runsCaseFile(testSource: string, casePath: string): boolean {
+  const module = casePath.split("/").pop()!.replace(/\.ts$/u, "");
+  return new RegExp(`from ["'][^"']*/${module.replaceAll(".", "\\.")}["']`, "u").test(testSource) &&
+    /\btest\.each\(/u.test(testSource);
 }
 
 if (import.meta.main) {
   const items: AcceptanceItem[] = [];
+  const specCaseFiles = new Map<string, readonly string[]>();
   for await (const path of new Bun.Glob("docs/specs/*/spec.md").scan({ cwd: root })) {
     if (path.startsWith("docs/specs/_")) continue; // templates
-    items.push(...acceptanceItems(path, await Bun.file(join(root, path)).text()));
+    const markdown = await Bun.file(join(root, path)).text();
+    items.push(...acceptanceItems(path, markdown));
+    specCaseFiles.set(path, testPlanCaseFiles(markdown));
   }
   const titles: string[] = [];
+  const sourcePaths: string[] = [];
   for (const glob of testGlobs) {
     for await (const path of new Bun.Glob(glob).scan({ cwd: root })) {
       if (path.includes("node_modules")) continue;
+      sourcePaths.push(path);
       titles.push(...testTitles(await Bun.file(join(root, path)).text()));
     }
   }
-  const missing = untracedItems(items, titles);
+  // Rows of a case file count for their spec's IDs only when some test runs that case file.
+  const caseIds = new Set<string>();
+  const testSources = await Promise.all(sourcePaths.map((path) => Bun.file(join(root, path)).text()));
+  for (const [spec, casePaths] of specCaseFiles) {
+    for (const casePath of casePaths) {
+      if (!testSources.some((source) => runsCaseFile(source, casePath))) {
+        console.error(`${spec}: no test runs ${casePath} with test.each`);
+        process.exit(1);
+      }
+      const rows = (await import(join(root, casePath))).testPlanRows as readonly { readonly id: string }[];
+      for (const row of rows) caseIds.add(`${spec}#${row.id}`);
+    }
+  }
+  const missing = untracedItems(items, titles, caseIds);
   for (const item of items.filter((value) => value.tag !== undefined)) {
     console.log(`${item.spec} ${item.id}: proven by [${item.tag}], list it in the PR`);
   }

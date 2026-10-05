@@ -8,3 +8,11 @@ export interface FeedFreshness {
 export function feedFreshness(_generatedAt: unknown, _now: number): FeedFreshness | undefined {
   return undefined;
 }
+
+/** The topbar text for a freshness; stale data names the out-of-date warning instead. */
+export function freshnessText(
+  freshness: FeedFreshness,
+  t: (key: string, variables?: Readonly<Record<string, string | number>>) => string,
+): string {
+  return t(freshness.stale ? "freshness.stale" : freshness.labelKey, { n: freshness.value });
+}

@@ -65,6 +65,14 @@ Acceptance IDs (`M4`, `F2`, …) are the join key:
 spec acceptance ID → test name containing the ID → PR description → runtime check
 ```
 
+A spec's test plan is generated, not hand-written: rows live in a case file
+that the unit tests iterate with `test.each`, and `bun run docs:test-plan`
+renders them between `<!-- test-plan:start <case file> -->` and
+`<!-- test-plan:end -->` in the spec. `bun run check:test-plan` fails when the
+table and the case file disagree, so the table a human reviews is always the
+data the tests run. Step-based scenarios stay as named E2E tests and take
+their expected texts from the same case file.
+
 `bun run check:traceability` fails when an acceptance ID in a spec marked
 `Traceability: enforced` has no test whose name contains it. Items verified
 only by deployment or measurement are tagged `[deploy]` or `[measure]` and are

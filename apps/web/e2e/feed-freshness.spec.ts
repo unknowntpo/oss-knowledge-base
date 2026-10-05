@@ -1,8 +1,13 @@
 import { expect, test } from "@playwright/test";
 
+import { testPlanRows } from "../test/freshness.cases";
+
 // The E2E Feed fixture was generated at this time (packages/reference-pipeline/test/fixtures).
 const generatedAt = Date.parse("2026-08-25T12:00:00Z");
 const hour = 60 * 60_000;
+// Expected texts come from the case file so the E2E and unit plans cannot disagree.
+const freshText = testPlanRows.find((row) => row.id === "F1" && row.en === "Updated 2 h ago")!.en;
+const staleText = testPlanRows.find((row) => row.id === "F2" && row.stale === true)!.en;
 
 test.beforeEach(async ({ page }, testInfo) => {
   // The topbar pill is hidden below 420 px, so freshness is a desktop concern (Spec 010).
@@ -14,11 +19,11 @@ test("F3: an open page turns stale when the three-hour mark passes", async ({ pa
   await page.clock.install({ time: generatedAt + 3 * hour - 30_000 });
   await page.goto("/");
   const pill = page.locator(".demo-pill");
-  await expect(pill).toHaveText("Updated 2 h ago");
+  await expect(pill).toHaveText(freshText);
   await expect(pill).toHaveClass(/is-live/u);
 
   await page.clock.runFor(60_000);
-  await expect(pill).toHaveText("Data may be out of date · 3 h ago");
+  await expect(pill).toHaveText(staleText);
   await expect(pill).toHaveClass(/is-stale/u);
 });
 

@@ -58,6 +58,31 @@ reflects.
    hides the label; a `generatedAt` in the future (clock skew) reads as
    "just now".
 
+## Test plan
+
+Generated from `apps/web/test/freshness.cases.ts` by `bun run docs:test-plan`;
+the unit tests run exactly these rows. Edit the case file, not this table.
+`now` is the browser clock; `—` means no freshness label.
+
+<!-- test-plan:start apps/web/test/freshness.cases.ts -->
+| id | generatedAt | now | en | zh | stale |
+| --- | --- | --- | --- | --- | --- |
+| F1 | 2026-10-03T23:07:13Z | 2026-10-04T01:07:13Z | Updated 2 h ago | 資料更新於 2 小時前 | no |
+| F1 | 2026-10-03T23:07:13Z | 2026-10-03T23:35:37Z | Updated 28 min ago | 資料更新於 28 分鐘前 | no |
+| F1 | 2026-10-03T23:07:13Z | 2026-10-03T23:52:13Z | Updated 45 min ago | 資料更新於 45 分鐘前 | no |
+| F2 | 2026-10-03T23:07:13Z | 2026-10-04T02:07:13Z | Updated 3 h ago | 資料更新於 3 小時前 | no |
+| F2 | 2026-10-03T23:07:13Z | 2026-10-04T02:07:14Z | Data may be out of date · 3 h ago | 資料可能過期 · 3 小時前 | yes |
+| F4 | not-a-time | 2026-10-04T01:07:13Z | — | — | — |
+| F5 | 2026-10-03T23:08:13Z | 2026-10-03T23:07:13Z | Updated just now | 資料剛剛更新 | no |
+<!-- test-plan:end -->
+
+Step-based scenarios run as E2E tests in `apps/web/e2e/feed-freshness.spec.ts`:
+
+| ID | Scenario | Expected |
+| --- | --- | --- |
+| F3 | Page opened 30 s before the three-hour mark, then the clock advances 60 s | "Updated 2 h ago" with live styling becomes "Data may be out of date · 3 h ago" with stale styling, without a reload |
+| F4 | `/api/feed` returns `generatedAt: "not-a-time"` | three Feed cards render; the topbar shows no age |
+
 ## Acceptance
 
 ### Behavior

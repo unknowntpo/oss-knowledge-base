@@ -21,7 +21,9 @@
     "dev": "bun apps/web/scripts/dev.ts",
     "e2e:prepare": "bun apps/web/scripts/prepare-e2e-r2.ts",
     "e2e:server": "bun run --cwd apps/web pages:dev:e2e",
-    "check:traceability": "bun scripts/check-spec-traceability.ts"
+    "check:traceability": "bun scripts/check-spec-traceability.ts",
+    "docs:test-plan": "bun scripts/render-test-plan.ts",
+    "check:test-plan": "bun scripts/render-test-plan.ts --check"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",
