@@ -95,6 +95,28 @@ export class ReferenceStateStore {
     this.events = dedupeDomainEvents([...this.events, ...events]);
   }
 
+  /**
+   * Appends events, keeping a stored event when a new one shares its dedupe identity with
+   * different content (ADR-0014). Returns the rejected new events so a run can count them.
+   */
+  appendKeepingStored(events: readonly unknown[]): readonly DomainEventV1[] {
+    const stored = new Map(this.events.map((event) => [eventDedupeIdentity(event), canonicalJson(logicalEvent(event))]));
+    const accepted: DomainEventV1[] = [];
+    const conflicts: DomainEventV1[] = [];
+    for (const value of events) {
+      const event = parseDomainEventV1(value);
+      const existing = stored.get(eventDedupeIdentity(event));
+      if (existing === undefined) {
+        stored.set(eventDedupeIdentity(event), canonicalJson(logicalEvent(event)));
+        accepted.push(event);
+      } else if (existing !== canonicalJson(logicalEvent(event))) {
+        conflicts.push(event);
+      }
+    }
+    this.events = dedupeDomainEvents([...this.events, ...accepted]);
+    return conflicts;
+  }
+
   commitCheckpoint(checkpoint: GitHubCheckpointV1): void {
     this.checkpoint = parseCheckpoint(checkpoint);
   }

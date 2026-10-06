@@ -1199,7 +1199,7 @@ mark {
   text-align: right;
 }
 
-a.card { color: inherit; text-decoration: none; }
+a.card, a.related-item { color: inherit; text-decoration: none; }
 
 .related-list { display: flex; flex-direction: column; gap: 4px; }
 

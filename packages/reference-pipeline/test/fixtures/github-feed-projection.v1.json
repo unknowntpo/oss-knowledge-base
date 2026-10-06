@@ -1,6 +1,6 @@
 {
   "schema": "osskb.reference-projection.v1",
-  "digest": "sha256:cecea8b974520ab3185e0f3ea944642890d24429601595028fd7bc02eb618c36",
+  "digest": "sha256:61927db16f30342226563e37b634066887907276457cff2538e3d3bde082c78a",
   "publication": {
     "index": {
       "schema": "osskb.feed-index.v2",
@@ -245,6 +245,7 @@
     },
     "details": [
       {
+        "displayId": "DATAFUSION-ISSUE-42",
         "entry": {
           "id": "feed-entry:feed-record-group:datafusion:github:issue:42",
           "projectId": "apache-datafusion",
@@ -350,6 +351,7 @@
         }
       },
       {
+        "displayId": "KAFKA-ISSUE-42",
         "entry": {
           "id": "feed-entry:feed-record-group:kafka:github:issue:42",
           "projectId": "apache-kafka",
@@ -455,6 +457,7 @@
         }
       },
       {
+        "displayId": "KAFKA-PR-43",
         "entry": {
           "id": "feed-entry:feed-record-group:kafka:github:pull:43",
           "projectId": "apache-kafka",

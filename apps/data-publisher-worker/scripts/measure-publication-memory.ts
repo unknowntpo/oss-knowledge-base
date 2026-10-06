@@ -1,7 +1,10 @@
 /**
  * Spec 009 M1/M2: peak `heapUsed + arrayBuffers` of one full publication under Node/V8.
  *
- *   bun run measure:memory [--events 8600,17200] [--seed 9] [--poll 500]
+ *   bun run measure:memory [--events 8600,17200] [--seed 9] [--poll 500] [--kafka 1]
+ *
+ * `--kafka 1` adds Spec 012 dev@ and Jira events at the 2026-10-06 volume, scaled with
+ * `--events` (8,600 → 1×, 17,200 → 2×); Spec 012 K24/K25 use it.
  *
  * Bun bundles the runner for Node, because the reported numbers must come from V8.
  */
@@ -20,12 +23,18 @@ const LIMITS_MB: Readonly<Record<number, { readonly id: string; readonly limitMB
 /** Spec 013 L14: Search working set limit, and its allowed growth from 8,600 to 17,200 events. */
 const SEARCH_WORKING_SET_MB = 16;
 const SEARCH_WORKING_SET_GROWTH_MB = 4;
+/** Spec 012 limits for the same volumes with `--kafka 1`. */
+const KAFKA_LIMITS_MB: typeof LIMITS_MB = {
+  8_600: { id: "K24", limitMB: 96 },
+  17_200: { id: "K25", limitMB: 128 },
+};
 
 const { values } = parseArgs({
   options: {
     events: { type: "string", default: "8600,17200" },
     seed: { type: "string", default: "9" },
     poll: { type: "string", default: "500" },
+    kafka: { type: "string", default: "0" },
   },
 });
 
@@ -44,16 +53,17 @@ try {
 
   for (const events of values.events.split(",").map(Number)) {
     const output = join(directory, `result-${events}.json`);
-    const child = Bun.spawnSync(["node", "--expose-gc", runner, String(events), values.seed, values.poll, output], {
+    const kafkaScale = Number(values.kafka) * events / 8_600;
+    const child = Bun.spawnSync(["node", "--expose-gc", runner, String(events), values.seed, values.poll, output, String(kafkaScale)], {
       stdout: "inherit",
       stderr: "inherit",
     });
     if (child.exitCode !== 0) throw new Error(`Runner failed for ${events} events`);
     const result = JSON.parse(readFileSync(output, "utf8")) as MemoryMeasurement;
-    const limit = LIMITS_MB[events];
+    const limit = (kafkaScale > 0 ? KAFKA_LIMITS_MB : LIMITS_MB)[events];
     const verdict = limit === undefined ? "" : ` ${limit.id} limit ${limit.limitMB} MB: ${result.peakMB <= limit.limitMB ? "PASS" : "FAIL"}`;
     if (!result.ok || (limit !== undefined && result.peakMB > limit.limitMB)) failed = true;
-    console.log(`\n${events} events (${result.runtime}, seed ${result.seed}, ${result.polledEvents} polled): ` +
+    console.log(`\n${events} events + ${result.kafkaEvents} dev@/Jira events (${result.runtime}, seed ${result.seed}, ${result.polledEvents} polled): ` +
       `peak ${result.peakMB} MB at "${result.peakPhase}", baseline ${result.baselineMB} MB, ` +
       `${result.writtenObjects} objects / ${result.writtenMB} MB written in ${result.durationMs} ms, ` +
       `output fingerprint ${result.outputFingerprint.slice(0, 16)}` +

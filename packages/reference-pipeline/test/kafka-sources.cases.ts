@@ -6,13 +6,14 @@
  */
 export const testPlanRows = [
   // K1: a dev@ message becomes one mail record; author is the display name only.
-  { id: "K1", rule: "mail record", input: "mid 15rddlqk42tqsjh5rw2r6so5cgns122f, from \"Federico Valeri <fe...@gmail.com>\", subject \"Re: [VOTE] KIP-1279: Cluster Mirroring\", epoch 2026-09-18T16:06:37Z", expected: "entity kafka:mail:dev:message:15rddlqk42tqsjh5rw2r6so5cgns122f; occurredAt 2026-09-18T16:06:37.000Z; author Federico Valeri; url https://lists.apache.org/thread/15rddlqk42tqsjh5rw2r6so5cgns122f; kips KIP-1279; jiraKeys none" },
+  { id: "K1", rule: "mail record", input: "mid 15rddlqk42tqsjh5rw2r6so5cgns122f, from \"Federico Valeri <fe...@gmail.com>\", subject \"Re: [VOTE] KIP-1279: Cluster Mirroring\", epoch 2026-09-18T16:06:37Z", expected: "entity kafka:mail:dev:message:15rddlqk42tqsjh5rw2r6so5cgns122f; occurredAt 2026-09-18T16:06:37.000Z; author Federico Valeri; url https://lists.apache.org/thread/15rddlqk42tqsjh5rw2r6so5cgns122f; kips KIP-1279; issueKeys none" },
   { id: "K1", rule: "mail record", input: "constructed: from \"Jun Rao via dev <de...@kafka.apache.org>\"", expected: "author Jun Rao" },
   { id: "K1", rule: "mail record", input: "constructed: from \"<an...@outlook.com>\" (no display name)", expected: "author unknown sender (address never stored)" },
   // Key extraction: \b(KIP|KAFKA)-(\d+)\b, case-sensitive.
-  { id: "K1", rule: "keys", input: "[jira] [Created] (KAFKA-21049) Async consumer can busy-loop …", expected: "jiraKeys KAFKA-21049" },
+  { id: "K1", rule: "keys", input: "[jira] [Created] (KAFKA-21049) Async consumer can busy-loop …", expected: "issueKeys KAFKA-21049" },
   { id: "K1", rule: "keys", input: "constructed: [DISCUSS] KIP-13680: …", expected: "kips KIP-13680 (not KIP-1368)" },
-  { id: "K1", rule: "keys", input: "constructed: re: kip-1279 question", expected: "kips none" },
+  { id: "K1", rule: "keys", input: "constructed: re: kip-1279 question", expected: "kips none; issueKeys none" },
+  { id: "K1", rule: "keys", input: "constructed: see KAFKA-20184a", expected: "issueKeys none" },
   // K2: notification mail duplicates a direct source and is not ingested.
   { id: "K2", rule: "mail filter", input: "[jira] [Created] (KAFKA-21049) Async consumer can busy-loop while waiting for fetch progress when retry.backoff.ms is zero", expected: "dropped" },
   { id: "K2", rule: "mail filter", input: "constructed: [PR] MINOR: Fix produce-ack race in ShareConsumerDLQTest multi-topic tests.", expected: "dropped" },
@@ -32,6 +33,7 @@ export const testPlanRows = [
   { id: "K4", rule: "jira record", input: "KAFKA-20184, Patch Available, no KIP in summary or description", expected: "status open; kips none" },
   { id: "K4", rule: "jira time", input: "updated 2026-09-29T20:24:00.702+0000", expected: "cursor and occurredAt 2026-09-29T20:24:00.702Z" },
   { id: "K4", rule: "jira record", input: "KAFKA-20184 comment by loicgreffier, updated 2026-09-29T20:24:00.702+0000", expected: "entity kafka:jira:issue:KAFKA-20184:comment:<id>; url …/browse/KAFKA-20184?focusedCommentId=<id>" },
+  { id: "K4", rule: "jira record", input: "constructed: comment created 2026-09-20T10:00:00.000+0000, edited 2026-09-29T20:24:00.702+0000", expected: "cursor 2026-09-29T20:24:00.702Z; occurredAt 2026-09-20T10:00:00.000Z" },
   { id: "K4", rule: "jira status", input: "Resolved", expected: "resolved" },
   { id: "K4", rule: "jira status", input: "Closed", expected: "resolved" },
   { id: "K4", rule: "jira status", input: "Reopened", expected: "open" },
@@ -62,6 +64,7 @@ export const testPlanRows = [
   { id: "K10", rule: "mail window", input: "cursor exactly 1 d before now", expected: "d=lte=2d; gap capped no" },
   { id: "K10", rule: "mail window", input: "cursor 1 d 1 s before now", expected: "d=lte=3d; gap capped no" },
   { id: "K10", rule: "mail window", input: "cursor 29 d 1 s before now", expected: "d=lte=30d; gap capped no" },
+  { id: "K10", rule: "mail window", input: "cursor exactly 30 d before now", expected: "d=lte=30d; gap capped no" },
   { id: "K10", rule: "mail window", input: "cursor 30 d 1 s before now", expected: "d=lte=30d; gap capped yes" },
   { id: "K10", rule: "mail window", input: "constructed: cursor 1 h after now (misdated mail)", expected: "d=lte=2d; gap capped no" },
   { id: "K10", rule: "mail window", input: "cursor 40 d before now", expected: "d=lte=30d; gap capped yes" },
@@ -79,10 +82,10 @@ export const testPlanRows = [
   { id: "K15", rule: "duplicate", input: "same mid 15rddlqk42tqsjh5rw2r6so5cgns122f in two overlapping windows", expected: "one event" },
   { id: "K15", rule: "conflict", input: "constructed: same mid and epoch, different preview text", expected: "first stored event kept; conflict counted; run not failed" },
   { id: "K20", rule: "truncated mail", input: "constructed: hits 500, emails 499", expected: "source failed (truncated); cursor unchanged" },
-  { id: "K20", rule: "truncated mail", input: "hits 500, emails 500 (captured 28-day window)", expected: "ok, 500 read" },
+  { id: "K20", rule: "truncated mail", input: "constructed: hits 500, emails 500", expected: "ok, 500 read" },
   { id: "K21", rule: "schema", input: "constructed: Pony Mail 200 without emails array", expected: "source failed (schema)" },
   { id: "K21", rule: "schema", input: "constructed: Pony Mail 200 with emails []", expected: "ok, 0 read" },
   { id: "K22", rule: "schema", input: "Jira 200 text/html (login page, as /rest/api/3/search returns)", expected: "source failed (schema)" },
-  { id: "K22", rule: "size", input: "Jira page 671 KB (captured 100 issues, 2026-10-06)", expected: "ok" },
-  { id: "K22", rule: "size", input: "constructed: response body 4 MB + 1 byte", expected: "source failed (too-large); cursor unchanged" },
+  { id: "K22", rule: "size", input: "constructed: Jira page of exactly 4 MiB (captured 100-issue page: 671 KB)", expected: "ok" },
+  { id: "K22", rule: "size", input: "constructed: Jira page of 4 MiB + 1 character", expected: "source failed (too-large); cursor unchanged" },
 ] as const;

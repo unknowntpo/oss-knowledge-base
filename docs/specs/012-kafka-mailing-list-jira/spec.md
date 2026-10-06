@@ -86,7 +86,7 @@ Each in-window message becomes one event:
     "author": "Federico Valeri", "occurredAt": "2026-09-18T16:06:37.000Z",
     "url": "https://lists.apache.org/thread/15rddlqk42tqsjh5rw2r6so5cgns122f",
     "excerpt": "<Pony Mail 200-char preview>",
-    "kips": ["KIP-1279"], "jiraKeys": [] } }
+    "kips": ["KIP-1279"], "issueKeys": [] } }
 ```
 
 The six messages share the thread key `[vote] kip-1279: cluster mirroring`
@@ -204,7 +204,8 @@ KAFKA-21049.
 3. **Threads.** A thread is the set of retained messages with the same
    normalized subject: leading `Re:`, `RE:`, `Fwd:`, `FW:`, `AW:` prefixes
    removed repeatedly, whitespace collapsed, lowercased. One Feed entry per
-   thread; title = the newest subject without reply prefixes; status
+   thread, anchored by its oldest retained message (whose preview is the
+   summary); title = the newest subject without reply prefixes; status
    `discussing`; canonical URL = the newest message's URL (it changes only on
    new activity); display id `KAFKA-MAIL-` plus the first 8 hex characters of
    the SHA-256 of the thread key.
@@ -292,12 +293,13 @@ exactly these rows. Edit the case file, not this table. Rows marked
 <!-- test-plan:start packages/reference-pipeline/test/kafka-sources.cases.ts -->
 | id | rule | input | expected |
 | --- | --- | --- | --- |
-| K1 | mail record | mid 15rddlqk42tqsjh5rw2r6so5cgns122f, from "Federico Valeri <fe...@gmail.com>", subject "Re: [VOTE] KIP-1279: Cluster Mirroring", epoch 2026-09-18T16:06:37Z | entity kafka:mail:dev:message:15rddlqk42tqsjh5rw2r6so5cgns122f; occurredAt 2026-09-18T16:06:37.000Z; author Federico Valeri; url https://lists.apache.org/thread/15rddlqk42tqsjh5rw2r6so5cgns122f; kips KIP-1279; jiraKeys none |
+| K1 | mail record | mid 15rddlqk42tqsjh5rw2r6so5cgns122f, from "Federico Valeri <fe...@gmail.com>", subject "Re: [VOTE] KIP-1279: Cluster Mirroring", epoch 2026-09-18T16:06:37Z | entity kafka:mail:dev:message:15rddlqk42tqsjh5rw2r6so5cgns122f; occurredAt 2026-09-18T16:06:37.000Z; author Federico Valeri; url https://lists.apache.org/thread/15rddlqk42tqsjh5rw2r6so5cgns122f; kips KIP-1279; issueKeys none |
 | K1 | mail record | constructed: from "Jun Rao via dev <de...@kafka.apache.org>" | author Jun Rao |
 | K1 | mail record | constructed: from "<an...@outlook.com>" (no display name) | author unknown sender (address never stored) |
-| K1 | keys | [jira] [Created] (KAFKA-21049) Async consumer can busy-loop … | jiraKeys KAFKA-21049 |
+| K1 | keys | [jira] [Created] (KAFKA-21049) Async consumer can busy-loop … | issueKeys KAFKA-21049 |
 | K1 | keys | constructed: [DISCUSS] KIP-13680: … | kips KIP-13680 (not KIP-1368) |
-| K1 | keys | constructed: re: kip-1279 question | kips none |
+| K1 | keys | constructed: re: kip-1279 question | kips none; issueKeys none |
+| K1 | keys | constructed: see KAFKA-20184a | issueKeys none |
 | K2 | mail filter | [jira] [Created] (KAFKA-21049) Async consumer can busy-loop while waiting for fetch progress when retry.backoff.ms is zero | dropped |
 | K2 | mail filter | constructed: [PR] MINOR: Fix produce-ack race in ShareConsumerDLQTest multi-topic tests. | dropped |
 | K2 | mail filter | [DISCUSS] KIP-1368: Client framework name and version | kept |
@@ -314,6 +316,7 @@ exactly these rows. Edit the case file, not this table. Rows marked
 | K4 | jira record | KAFKA-20184, Patch Available, no KIP in summary or description | status open; kips none |
 | K4 | jira time | updated 2026-09-29T20:24:00.702+0000 | cursor and occurredAt 2026-09-29T20:24:00.702Z |
 | K4 | jira record | KAFKA-20184 comment by loicgreffier, updated 2026-09-29T20:24:00.702+0000 | entity kafka:jira:issue:KAFKA-20184:comment:<id>; url …/browse/KAFKA-20184?focusedCommentId=<id> |
+| K4 | jira record | constructed: comment created 2026-09-20T10:00:00.000+0000, edited 2026-09-29T20:24:00.702+0000 | cursor 2026-09-29T20:24:00.702Z; occurredAt 2026-09-20T10:00:00.000Z |
 | K4 | jira status | Resolved | resolved |
 | K4 | jira status | Closed | resolved |
 | K4 | jira status | Reopened | open |
@@ -341,6 +344,7 @@ exactly these rows. Edit the case file, not this table. Rows marked
 | K10 | mail window | cursor exactly 1 d before now | d=lte=2d; gap capped no |
 | K10 | mail window | cursor 1 d 1 s before now | d=lte=3d; gap capped no |
 | K10 | mail window | cursor 29 d 1 s before now | d=lte=30d; gap capped no |
+| K10 | mail window | cursor exactly 30 d before now | d=lte=30d; gap capped no |
 | K10 | mail window | cursor 30 d 1 s before now | d=lte=30d; gap capped yes |
 | K10 | mail window | constructed: cursor 1 h after now (misdated mail) | d=lte=2d; gap capped no |
 | K10 | mail window | cursor 40 d before now | d=lte=30d; gap capped yes |
@@ -357,12 +361,12 @@ exactly these rows. Edit the case file, not this table. Rows marked
 | K15 | duplicate | same mid 15rddlqk42tqsjh5rw2r6so5cgns122f in two overlapping windows | one event |
 | K15 | conflict | constructed: same mid and epoch, different preview text | first stored event kept; conflict counted; run not failed |
 | K20 | truncated mail | constructed: hits 500, emails 499 | source failed (truncated); cursor unchanged |
-| K20 | truncated mail | hits 500, emails 500 (captured 28-day window) | ok, 500 read |
+| K20 | truncated mail | constructed: hits 500, emails 500 | ok, 500 read |
 | K21 | schema | constructed: Pony Mail 200 without emails array | source failed (schema) |
 | K21 | schema | constructed: Pony Mail 200 with emails [] | ok, 0 read |
 | K22 | schema | Jira 200 text/html (login page, as /rest/api/3/search returns) | source failed (schema) |
-| K22 | size | Jira page 671 KB (captured 100 issues, 2026-10-06) | ok |
-| K22 | size | constructed: response body 4 MB + 1 byte | source failed (too-large); cursor unchanged |
+| K22 | size | constructed: Jira page of exactly 4 MiB (captured 100-issue page: 671 KB) | ok |
+| K22 | size | constructed: Jira page of 4 MiB + 1 character | source failed (too-large); cursor unchanged |
 <!-- test-plan:end -->
 
 Named tests (no table), in
@@ -396,9 +400,10 @@ runs in `packages/reference-pipeline/test/kafka-connectors.test.ts`.
   record has its canonical URL.
 - K7: Detail for KAFKA-20184 links to PR #21518 and back; Detail for the
   KIP-1279 vote thread links to KAFKA-20186 and back; each link names its rule.
-- K8: Search for `KAFKA-20184` returns the Jira entry and PR #21518; Search for
-  `KIP-1279` returns the vote thread, and opening that hit shows Detail
-  `KAFKA-MAIL-…` for the thread.
+- K8: Search for `KAFKA-20184` returns the Jira entry and PR #21518 as its
+  exact matches (ranked first; other entries may follow on shared terms such
+  as "kafka"); Search for `KIP-1279` returns the vote thread as its exact
+  match, and that hit's Detail carries display id `KAFKA-MAIL-…`.
 - K9: the first run ingests mail and Jira updates from the last 30 days and
   nothing older.
 - K10: later runs request the windows in the test plan, overlapping the cursor
@@ -445,16 +450,22 @@ runs in `packages/reference-pipeline/test/kafka-connectors.test.ts`.
 - K24: [measure] at the current volume (8,600 GitHub events plus mail and
   Jira events generated at the measured 35-day shape: about 330 messages, 650
   issues, and their retained comments, with the published share of Jira
-  issues), the `measure:memory` peak is at most 96 MB. Proxy today: +1,200
-  events cost +8.3 MB (63.1 → 71.4 MB).
+  issues), the `measure:memory` peak is at most 96 MB. Command:
+  `bun run --cwd apps/data-publisher-worker measure:memory -- --kafka 1`
+  (`scripts/seeded-kafka-events.ts` builds the events through the connectors'
+  event builders). Measured 2026-10-06 before Spec 013: 67.9 MB at 8,600 +
+  1,250 events (GitHub only: 63.5 MB).
 - K25: [measure] at twice that volume the peak is at most 128 MB. The proxy
   exceeds it (136.6 MB at 19,600 GitHub-shaped events, against 7.2 MB of
   margin at 2x GitHub alone). The seeded generator gains mail and Jira events
   so the command measures this mix. Spec 013 (streamed Search publication
   and finer Search shards) lands first; K24 and K25 are measured again after
-  it, and Spec 012 is not deployed until K25 passes.
+  it, and Spec 012 is not deployed until K25 passes. Measured 2026-10-06
+  before Spec 013, same command: 129.4 MB at 17,200 + 2,500 events, over by
+  1.4 MB (GitHub only: 122.1 MB, within Spec 009 M2).
 - K26: [measure] state growth: mail and Jira add at most 1,300 retained events
-  at the current volume (stored events counted by `measure:memory`).
+  at the current volume (stored events counted by `measure:memory`; measured
+  1,250).
 - K27: [measure] payload: a 30-day Pony Mail response is at most 1 MB
   (captured 699 KB for 520 messages) and a Jira page of 100 issues at most
   1 MB (captured 671 KB); both are parsed and released inside the poll phase.

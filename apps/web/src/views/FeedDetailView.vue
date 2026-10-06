@@ -49,7 +49,8 @@ function searchIndexEntry(value: FeedDetail): FeedIndexEntry {
   )?.projectKey ?? value.entry.projectId;
   const root = records.find((record) => record.id === value.entry.sourceTitleRecordId);
   return {
-    displayId: root?.title.split(":", 1)[0] ?? value.entry.sourceTitleRecordId,
+    // Details published since Spec 012 carry their display id; older ones fall back to the title prefix.
+    displayId: value.displayId ?? root?.title.split(":", 1)[0] ?? value.entry.sourceTitleRecordId,
     projectKey,
     status: root?.artifactStatus ?? "",
     releaseLabel: "Evidence search",
@@ -200,6 +201,14 @@ function jumpToEvidence(id: string) {
               <span class="num">{{ sourceCounts[source] }}</span>
             </div>
           </div></div>
+          <div v-if="detail?.related?.length"><div class="rail-label">{{ t("rail.related") }}</div>
+            <div class="related-list">
+              <RouterLink v-for="link in detail.related" :key="link.displayId" class="related-item" :to="`/feed/${encodeURIComponent(link.displayId)}`">
+                <span class="rid">{{ link.displayId }} · {{ t(`source.${link.source}`) }} · {{ t(`related.${link.rule}`) }}</span>
+                <span class="rtitle">{{ link.title }}</span>
+              </RouterLink>
+            </div>
+          </div>
           <div><div class="rail-label">{{ t("rail.tags") }}</div><div class="tag-chips"><span v-for="tag in item.tags" :key="tag" class="tag-chip">{{ tag }}</span></div></div>
           <p class="rail-note">{{ t("rail.prototype") }}</p>
         </aside>

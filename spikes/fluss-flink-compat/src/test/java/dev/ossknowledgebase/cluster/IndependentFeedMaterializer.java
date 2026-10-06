@@ -114,7 +114,12 @@ final class IndependentFeedMaterializer {
                                     + ": " + reply.required("data").required("excerpt").asText(),
                             "evidenceRecordIds", strings(List.of(reply.required("entityId").asText())))));
 
+            String kind = root.required("data").required("recordKind").asText();
+            // Spec 012 / ADR-0014: a detail carries its entry's display id.
+            String displayId = profile.required("projectKey").asText().toUpperCase() + "-"
+                    + (kind.equals("issue") ? "ISSUE" : "PR") + "-" + root.required("data").required("externalNumber").asInt();
             details.add(object(
+                    "displayId", displayId,
                     "entry", entry.deepCopy(),
                     "records", records,
                     "connections", connections,
@@ -139,7 +144,6 @@ final class IndependentFeedMaterializer {
                 searchParts.add(record.required("excerpt").asText());
                 searchParts.add(record.required("author").asText());
             }
-            String kind = root.required("data").required("recordKind").asText();
             List<String> tags = new ArrayList<>();
             tags.add(kind.equals("issue") ? "Issue" : "Pull Request");
             root.required("data").required("labels").forEach(label -> tags.add(label.asText()));
@@ -150,8 +154,7 @@ final class IndependentFeedMaterializer {
                     .orElseThrow();
 
             entries.add(object(
-                    "displayId", profile.required("projectKey").asText().toUpperCase() + "-"
-                            + (kind.equals("issue") ? "ISSUE" : "PR") + "-" + root.required("data").required("externalNumber").asInt(),
+                    "displayId", displayId,
                     "projectKey", profile.required("projectKey").asText(),
                     "status", status(root),
                     "releaseLabel", "GitHub " + (kind.equals("issue") ? "Issue" : "Pull Request") + " #"

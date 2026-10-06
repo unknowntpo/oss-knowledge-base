@@ -114,19 +114,36 @@ export type FeedDetailKeyPoints =
           };
     };
 
+/**
+ * Another published entry linked by a deterministic key rule (ADR-0014). Unlike a
+ * RecordConnection it names an entry, not a contained record, and never merges entries.
+ */
+export interface FeedRelatedEntry {
+  readonly displayId: string;
+  readonly title: string;
+  readonly source: string;
+  readonly rule: "key-in-title" | "same-kip";
+  readonly ruleRevision: string;
+}
+
 /** The complete read model loaded after a user opens a FeedEntry. */
 export interface FeedDetail {
+  /** The entry's public display id, so a Search hit can show it (ADR-0014). */
+  readonly displayId?: string;
   readonly entry: FeedEntry;
   readonly records: readonly SourceRecordView[];
   readonly connections: readonly RecordConnection[];
   readonly keyPoints: FeedDetailKeyPoints;
+  readonly related?: readonly FeedRelatedEntry[];
 }
 
 export interface BuildFeedDetailInput {
+  readonly displayId?: string;
   readonly entry: FeedEntry;
   readonly records: readonly SourceRecordView[];
   readonly connections?: readonly RecordConnection[];
   readonly keyPoints?: FeedDetailKeyPoints;
+  readonly related?: readonly FeedRelatedEntry[];
 }
 
 function duplicates(values: readonly string[]): readonly string[] {
@@ -188,11 +205,18 @@ export function buildFeedDetail(input: BuildFeedDetailInput): FeedDetail {
     throw new Error("FeedDetail key points must only cite contained records");
   }
 
+  const related = input.related ?? [];
+  if (related.some((link) => link.displayId.length === 0 || link.displayId === input.displayId)) {
+    throw new Error("FeedDetail related entries must name another entry");
+  }
+
   return {
+    ...(input.displayId === undefined ? {} : { displayId: input.displayId }),
     entry: input.entry,
     records: input.records,
     connections,
     keyPoints,
+    ...(related.length === 0 ? {} : { related }),
   };
 }
 
