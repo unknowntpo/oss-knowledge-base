@@ -453,16 +453,18 @@ runs in `packages/reference-pipeline/test/kafka-connectors.test.ts`.
   issues), the `measure:memory` peak is at most 96 MB. Command:
   `bun run --cwd apps/data-publisher-worker measure:memory -- --kafka 1`
   (`scripts/seeded-kafka-events.ts` builds the events through the connectors'
-  event builders). Measured 2026-10-06 before Spec 013: 67.9 MB at 8,600 +
-  1,250 events (GitHub only: 63.5 MB).
+  event builders). Measured 2026-10-06 after Spec 013 (ca7d6e1): 54.0 MB
+  at "write feed", 8,600 + 1,250 events (GitHub only: 50.0 MB). Before
+  Spec 013 it was 67.9 MB.
 - K25: [measure] at twice that volume the peak is at most 128 MB. The proxy
   exceeds it (136.6 MB at 19,600 GitHub-shaped events, against 7.2 MB of
   margin at 2x GitHub alone). The seeded generator gains mail and Jira events
   so the command measures this mix. Spec 013 (streamed Search publication
   and finer Search shards) lands first; K24 and K25 are measured again after
   it, and Spec 012 is not deployed until K25 passes. Measured 2026-10-06
-  before Spec 013, same command: 129.4 MB at 17,200 + 2,500 events, over by
-  1.4 MB (GitHub only: 122.1 MB, within Spec 009 M2).
+  after Spec 013, same command: 102.1 MB at "write feed", 17,200 + 2,500
+  events (pass; GitHub only: 95.2 MB, within Spec 013's 112 MB). Before
+  Spec 013 it was 129.4 MB, over by 1.4 MB.
 - K26: [measure] state growth: mail and Jira add at most 1,300 retained events
   at the current volume (stored events counted by `measure:memory`; measured
   1,250).
