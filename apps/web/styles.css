@@ -1318,7 +1318,9 @@ a.card { color: inherit; text-decoration: none; }
 }
 
 @media (max-width: 420px) {
-  .demo-pill { display: none; }
+  /* Narrow screens show the pill only for a stalled publication (Spec 011), wrapped to fit. */
+  .demo-pill:not(.is-stale) { display: none; }
+  .demo-pill.is-stale { min-width: 0; white-space: normal; }
   .brand-name,
   .brand-scope { display: none; }
   .topbar-right { gap: 6px; }
