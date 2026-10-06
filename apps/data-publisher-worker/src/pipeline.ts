@@ -10,8 +10,8 @@ import {
 import {
   encodeJson,
   feedProjectionObjects,
-  materializeSearchPublicationFromFeed,
   publishProjectionStreams,
+  searchGroupsFromFeed,
   searchProjectionObjects,
   type PublicationObjectStore,
   type PublicationSetV1,
@@ -187,9 +187,9 @@ async function publish(
 }
 
 /**
- * Only the streams reference the materialized publications once this returns, and the
- * publisher drops each stream when it is consumed, so Search is collectable while Feed is
- * written and both are before pointers switch.
+ * Only the streams reference the materialized Feed publication once this returns, and the
+ * publisher drops each stream when it is consumed. Search groups, chunks, and shards are
+ * produced from the Feed one at a time while Search is written (Spec 013).
  */
 async function materializeStreams(
   events: readonly DomainEventV1[],
@@ -198,18 +198,19 @@ async function materializeStreams(
   searchRevision: string,
 ): Promise<{ readonly streams: ProjectionStreams; readonly counts: Readonly<Record<string, number>> }> {
   const materialized = materializeReferenceFeed(events, config);
-  const search = await materializeSearchPublicationFromFeed({
-    feed: materialized.publication,
-    indexRevision: searchRevision,
-    corpusRevision: materialized.digest,
-    generatedAt: config.materializedAt,
-  });
   return {
     streams: {
-      search: searchProjectionObjects(search),
+      search: searchProjectionObjects({
+        indexRevision: searchRevision,
+        corpusRevision: materialized.digest,
+        generatedAt: config.materializedAt,
+      }, searchGroupsFromFeed(materialized.publication)),
       feed: feedProjectionObjects(materialized.publication, releaseId),
     },
-    counts: { feedEntries: materialized.publication.index.entries.length, searchGroups: search.details.length },
+    counts: {
+      feedEntries: materialized.publication.index.entries.length,
+      searchGroups: materialized.publication.details.length,
+    },
   };
 }
 

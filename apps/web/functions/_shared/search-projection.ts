@@ -1,9 +1,14 @@
 import type { FeedDetail } from "@oss-knowledge-base/domain";
 import {
   buildLexicalIndex,
+  DEFAULT_LEXICAL_REVISION,
   facetLexicalIndexByProject,
+  rankLexicalShard,
   searchLexicalIndex,
+  selectLexicalResults,
+  tokenizeLexical,
   validateSearchFilters,
+  type LexicalSearchResultV1,
   type SearchFiltersV1,
 } from "@oss-knowledge-base/search";
 import {
@@ -13,17 +18,24 @@ import {
   isSha256Digest,
   isSearchCurrentPointer,
   isSearchLexicalShard,
+  isSearchLexicalShardV2,
   isSearchReleaseManifest,
+  isSearchTerms,
   parseSearchDetailRef,
   SEARCH_CURRENT_KEY,
   SEARCH_DETAIL_POOL,
+  SEARCH_RELEASE_SCHEMA,
   SEARCH_RELEASE_SCHEMA_V1,
   SEARCH_RESPONSE_SCHEMA,
   searchReleaseManifestKey,
   searchReleasePrefix,
+  searchShardKeys,
+  searchTermsKey,
   type SearchLexicalShardV1,
+  type SearchLexicalShardV2,
   type SearchGroupProjectionV1,
   type SearchReleaseManifest,
+  type SearchReleaseManifestV3,
   type SearchResponseV1,
 } from "@oss-knowledge-base/serving-contract";
 
@@ -49,53 +61,14 @@ export async function searchR2Projection(
     throw new SearchClientError(error instanceof Error ? error.message : "Search filters are invalid");
   }
   const manifest = await readSearchManifest(bucket);
-  const selectedKeys = Object.entries(manifest.shardKeys)
-    .sort(([left], [right]) => left.localeCompare(right));
-  const shards = await Promise.all(selectedKeys.map(async ([projectId, key]) =>
-    readSearchShard(bucket, manifest, projectId, key)));
-  const chunks = shards.flatMap((shard) => shard.chunks);
-  const groups = new Map(shards.flatMap((shard) =>
-    shard.groups.map((group) => [group.groupRootRecordId, group] as const)));
-  const projectStatuses = request.filters?.projectStatuses;
-  const eligibleGroupRootRecordIds = projectStatuses === undefined
-    ? undefined
-    : new Set([...groups.values()]
-        .filter((group) =>
-          group.projectStatus !== undefined && projectStatuses.includes(group.projectStatus))
-        .map((group) => group.groupRootRecordId));
-  const index = buildLexicalIndex({
-    indexRevision: manifest.indexRevision,
-    chunks,
-    config: {
-      revision: manifest.lexicalRevision,
-      k1: 1.2,
-      b: 0.75,
-      titleWeight: 4,
-      tagWeight: 2,
-      exactBoost: 1_000,
-      additionalGroupMatchWeight: 0.25,
-      maxEvidenceMatches: 5,
-      excerptCharacters: 280,
-    },
-  });
-  const ranked = searchLexicalIndex(index, {
-    query,
-    ...(request.filters === undefined ? {} : { filters: request.filters }),
-    ...(eligibleGroupRootRecordIds === undefined ? {} : { eligibleGroupRootRecordIds }),
-    limit: request.limit,
-  });
-  const projectFacetCounts = facetLexicalIndexByProject(index, {
-    query,
-    ...(request.filters === undefined ? {} : { filters: request.filters }),
-    ...(eligibleGroupRootRecordIds === undefined ? {} : { eligibleGroupRootRecordIds }),
-  });
+  const ranked = manifest.schema === SEARCH_RELEASE_SCHEMA
+    ? await rankShardedRelease(bucket, manifest, query, request)
+    : await rankWholeRelease(bucket, manifest, query, request);
 
   return {
     schema: SEARCH_RESPONSE_SCHEMA,
     query,
-    results: ranked.map((result, index) => {
-      const group = groups.get(result.groupRootRecordId);
-      if (group === undefined) throw new Error(`Search result ${result.groupRootRecordId} has no group projection`);
+    results: ranked.results.map(({ result, group, shard }, index) => {
       const matchedRecordIds = [...new Set(result.matches.map((match) => match.recordId))];
       const entry = {
         ...group.entry,
@@ -131,13 +104,14 @@ export async function searchR2Projection(
           groupRootRecordId: result.groupRootRecordId,
           query,
           matchedRecordIds,
+          ...(shard === undefined ? {} : { shard }),
         }),
       };
     }),
     facets: {
-      projects: Object.keys(manifest.shardKeys).sort().map((projectId) => ({
+      projects: ranked.projectIds.map((projectId) => ({
         projectId,
-        count: projectFacetCounts[projectId] ?? 0,
+        count: ranked.projectFacets[projectId] ?? 0,
       })),
     },
     retrieval: {
@@ -149,15 +123,172 @@ export async function searchR2Projection(
   };
 }
 
+interface RankedRelease {
+  readonly results: readonly {
+    readonly result: LexicalSearchResultV1;
+    readonly group: SearchGroupProjectionV1;
+    readonly shard?: number;
+  }[];
+  readonly projectFacets: Readonly<Record<string, number>>;
+  readonly projectIds: readonly string[];
+}
+
+const BM25_REFERENCE_CONFIG = {
+  k1: 1.2,
+  b: 0.75,
+  titleWeight: 4,
+  tagWeight: 2,
+  exactBoost: 1_000,
+  additionalGroupMatchWeight: 0.25,
+  maxEvidenceMatches: 5,
+  excerptCharacters: 280,
+} as const;
+
+/** Shards fetched at once; each is ranked and released before more are read (Spec 013). */
+const SHARD_READ_CONCURRENCY = 4;
+
+/**
+ * search-release.v3: reads only the shards that hold a query term and scores their stored
+ * postings with the release-wide statistics, so results equal the whole-corpus oracle.
+ * Each shard keeps only its facet counts and its best `limit` groups.
+ */
+async function rankShardedRelease(
+  bucket: R2Bucket,
+  manifest: SearchReleaseManifestV3,
+  query: string,
+  request: R2SearchRequestV1,
+): Promise<RankedRelease> {
+  if (manifest.lexicalRevision !== DEFAULT_LEXICAL_REVISION) {
+    throw new Error(`R2 Search release uses unsupported lexical revision ${manifest.lexicalRevision}`);
+  }
+  const projectIds = [...new Set(manifest.shards.map((shard) => shard.projectId))].sort();
+  const terms = await readJsonObject<unknown>(bucket, searchTermsKey(manifest.indexRevision));
+  if (!isSearchTerms(terms) || terms.indexRevision !== manifest.indexRevision) {
+    throw new Error("R2 Search terms object is missing or invalid");
+  }
+  const statistics = (term: string): readonly number[] | undefined => {
+    if (!Object.hasOwn(terms.terms, term)) return undefined;
+    const value = terms.terms[term];
+    if (!Array.isArray(value) || value.length < 2 || !value.every((item) => Number.isSafeInteger(item) && item >= 0)) {
+      throw new Error(`R2 Search terms entry is invalid for ${term}`);
+    }
+    return value;
+  };
+  const selected = new Set<number>();
+  for (const term of new Set(tokenizeLexical(query))) {
+    for (const shard of statistics(term)?.slice(1) ?? []) {
+      if (shard >= manifest.shards.length) throw new Error(`R2 Search terms name an undeclared shard ${shard}`);
+      selected.add(shard);
+    }
+  }
+  const corpus = {
+    chunkCount: manifest.chunkCount,
+    totalChunkLength: manifest.totalChunkLength,
+    documentFrequency: (term: string) => statistics(term)?.[0] ?? 0,
+  };
+  const config = { revision: manifest.lexicalRevision, ...BM25_REFERENCE_CONFIG };
+  const projectStatuses = request.filters?.projectStatuses;
+  const rankRequest = { query, ...(request.filters === undefined ? {} : { filters: request.filters }) };
+
+  const kept: RankedRelease["results"][number][] = [];
+  const projectFacets: Record<string, number> = {};
+  const pending = [...selected].sort((left, right) => left - right);
+  const rankNext = async (): Promise<void> => {
+    for (let shardNumber = pending.shift(); shardNumber !== undefined; shardNumber = pending.shift()) {
+      const shard = await readSearchShardV2(bucket, manifest, shardNumber);
+      const groups = new Map(shard.groups.map((group) => [group.groupRootRecordId, group]));
+      const eligibleGroupRootRecordIds = projectStatuses === undefined
+        ? undefined
+        : new Set(shard.groups
+            .filter((group) => group.projectStatus !== undefined && projectStatuses.includes(group.projectStatus))
+            .map((group) => group.groupRootRecordId));
+      const ranked = selectLexicalResults(rankLexicalShard(shard, corpus, {
+        ...rankRequest,
+        ...(eligibleGroupRootRecordIds === undefined ? {} : { eligibleGroupRootRecordIds }),
+      }, config), request);
+      for (const [projectId, count] of Object.entries(ranked.projectFacets)) {
+        projectFacets[projectId] = (projectFacets[projectId] ?? 0) + count;
+      }
+      for (const result of ranked.results) {
+        const group = groups.get(result.groupRootRecordId);
+        if (group === undefined) throw new Error(`Search result ${result.groupRootRecordId} has no group projection`);
+        kept.push({ result, group, shard: shardNumber });
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(SHARD_READ_CONCURRENCY, pending.length) }, rankNext));
+
+  const byRoot = new Map(kept.map((item) => [item.result.groupRootRecordId, item]));
+  const { results } = selectLexicalResults(kept.map((item) => item.result), request);
+  return { results: results.map((result) => byRoot.get(result.groupRootRecordId)!), projectFacets, projectIds };
+}
+
+/** search-release.v1/v2: one shard per project, indexed in memory per request. */
+async function rankWholeRelease(
+  bucket: R2Bucket,
+  manifest: Exclude<SearchReleaseManifest, SearchReleaseManifestV3>,
+  query: string,
+  request: R2SearchRequestV1,
+): Promise<RankedRelease> {
+  const selectedKeys = Object.entries(manifest.shardKeys)
+    .sort(([left], [right]) => left.localeCompare(right));
+  const shards = await Promise.all(selectedKeys.map(async ([projectId, key]) =>
+    readSearchShard(bucket, manifest, projectId, key)));
+  const chunks = shards.flatMap((shard) => shard.chunks);
+  const groups = new Map(shards.flatMap((shard) =>
+    shard.groups.map((group) => [group.groupRootRecordId, group] as const)));
+  const projectStatuses = request.filters?.projectStatuses;
+  const eligibleGroupRootRecordIds = projectStatuses === undefined
+    ? undefined
+    : new Set([...groups.values()]
+        .filter((group) =>
+          group.projectStatus !== undefined && projectStatuses.includes(group.projectStatus))
+        .map((group) => group.groupRootRecordId));
+  const index = buildLexicalIndex({
+    indexRevision: manifest.indexRevision,
+    chunks,
+    config: { revision: manifest.lexicalRevision, ...BM25_REFERENCE_CONFIG },
+  });
+  const ranked = searchLexicalIndex(index, {
+    query,
+    ...(request.filters === undefined ? {} : { filters: request.filters }),
+    ...(eligibleGroupRootRecordIds === undefined ? {} : { eligibleGroupRootRecordIds }),
+    limit: request.limit,
+  });
+  const projectFacetCounts = facetLexicalIndexByProject(index, {
+    query,
+    ...(request.filters === undefined ? {} : { filters: request.filters }),
+    ...(eligibleGroupRootRecordIds === undefined ? {} : { eligibleGroupRootRecordIds }),
+  });
+
+  return {
+    results: ranked.map((result) => {
+      const group = groups.get(result.groupRootRecordId);
+      if (group === undefined) throw new Error(`Search result ${result.groupRootRecordId} has no group projection`);
+      return { result, group };
+    }),
+    projectFacets: projectFacetCounts,
+    projectIds: Object.keys(manifest.shardKeys).sort(),
+  };
+}
+
 export async function readSearchDetailProjection(
   bucket: R2Bucket,
   encodedRef: string,
 ): Promise<FeedDetail | undefined> {
   const reference = parseSearchDetailRef(encodedRef);
   const manifest = await readSearchManifest(bucket, reference.indexRevision);
-  const shardKey = manifest.shardKeys[reference.projectId];
-  if (shardKey === undefined) return undefined;
-  const shard = await readSearchShard(bucket, manifest, reference.projectId, shardKey);
+  let shard: SearchLexicalShardV1 | SearchLexicalShardV2;
+  if (manifest.schema === SEARCH_RELEASE_SCHEMA) {
+    // A v3 group is found through the shard its detailRef names, never by scanning shards.
+    if (reference.shard === undefined || reference.shard >= manifest.shards.length) return undefined;
+    if (manifest.shards[reference.shard]!.projectId !== reference.projectId) return undefined;
+    shard = await readSearchShardV2(bucket, manifest, reference.shard);
+  } else {
+    const shardKey = Object.hasOwn(manifest.shardKeys, reference.projectId) ? manifest.shardKeys[reference.projectId] : undefined;
+    if (shardKey === undefined) return undefined;
+    shard = await readSearchShard(bucket, manifest, reference.projectId, shardKey);
+  }
   const group = shard.groups.find((candidate) =>
     candidate.groupRootRecordId === reference.groupRootRecordId);
   if (group === undefined) return undefined;
@@ -205,7 +336,7 @@ export async function readSearchManifest(
   if (value.schema === SEARCH_RELEASE_SCHEMA_V1 && value.detailPrefix !== `${prefix}details/`) {
     throw new Error("R2 Search detail prefix escaped its release");
   }
-  for (const key of Object.values(value.shardKeys)) assertReleaseObjectKey(value, key);
+  for (const key of searchShardKeys(value)) assertReleaseObjectKey(value, key);
   return value;
 }
 
@@ -217,9 +348,28 @@ async function readCurrentManifestKey(bucket: R2Bucket): Promise<string> {
   return current.releaseManifestKey;
 }
 
+async function readSearchShardV2(
+  bucket: R2Bucket,
+  manifest: SearchReleaseManifestV3,
+  shardNumber: number,
+): Promise<SearchLexicalShardV2> {
+  const reference = manifest.shards[shardNumber]!;
+  assertReleaseObjectKey(manifest, reference.key);
+  const value = await readJsonObject<unknown>(bucket, reference.key);
+  if (
+    !isSearchLexicalShardV2(value) ||
+    value.indexRevision !== manifest.indexRevision ||
+    value.projectId !== reference.projectId ||
+    value.shard !== shardNumber
+  ) {
+    throw new Error(`R2 Search shard ${shardNumber} is missing or invalid for ${reference.projectId}`);
+  }
+  return value;
+}
+
 async function readSearchShard(
   bucket: R2Bucket,
-  manifest: SearchReleaseManifest,
+  manifest: Exclude<SearchReleaseManifest, SearchReleaseManifestV3>,
   projectId: string,
   key: string,
 ): Promise<SearchLexicalShardV1> {

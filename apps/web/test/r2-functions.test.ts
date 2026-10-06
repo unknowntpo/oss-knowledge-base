@@ -24,6 +24,7 @@ import {
   searchR2Projection,
 } from "../functions/_shared/search-projection";
 import { buildGoldenSearchPublication } from "../scripts/build-search-fixture";
+import { legacyV2SearchObjects } from "./legacy-search-release";
 
 const searchFixturePath = new URL(
   "../../../packages/search/test/fixtures/golden-queries.v1.json",
@@ -188,7 +189,7 @@ describe("versioned R2 Search projection", () => {
   });
 
   test("C4: serves the same Search bodies from a v2 release and an older v1 release", async () => {
-    const objects = await buildR2SearchProjection(await buildGoldenSearchPublication(searchFixturePath));
+    const objects = await legacyV2SearchObjects(await buildR2SearchProjection(await buildGoldenSearchPublication(searchFixturePath)));
     const current = memoryBucket(objects);
     const legacy = memoryBucket(await legacySearchObjects(objects));
     const response = await searchR2Projection(current, { query: "KIP-405", limit: 3 });
@@ -314,10 +315,10 @@ describe("versioned R2 Search projection", () => {
     expect(detail?.entry.reason.kind).toBe("search-match");
   });
 
-  test("C6: a detailRef from an older search-release.v1 resolves after a v2 release switches", async () => {
-    const firstObjects = await legacySearchObjects(await buildR2SearchProjection(
+  test("C6: a detailRef from an older search-release.v1 resolves after a newer release switches", async () => {
+    const firstObjects = await legacySearchObjects(await legacyV2SearchObjects(await buildR2SearchProjection(
       await buildGoldenSearchPublication(searchFixturePath, "search-release-1"),
-    ));
+    )));
     const firstResponse = await searchR2Projection(memoryBucket(firstObjects), {
       query: "RecordAccumulator.ready()",
       limit: 1,

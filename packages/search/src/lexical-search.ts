@@ -147,6 +147,11 @@ function rankLexicalIndex(
   const queryTerms = [...new Set(tokenizeLexical(query))];
   if (queryTerms.length === 0) return [];
 
+  const statistics: CorpusStatistics = {
+    chunkCount: index.documents.length,
+    averageDocumentLength: index.averageDocumentLength,
+    documentFrequency: (term) => index.documentFrequency.get(term) ?? 0,
+  };
   const scored = index.documents
     .filter((document) => matchesFilters(
       document.chunk,
@@ -154,24 +159,144 @@ function rankLexicalIndex(
       request.eligibleGroupRootRecordIds,
       ignoreProjectIds,
     ))
-    .map((document) => scoreDocument(index, document, query, queryTerms))
+    .map((document) => scoreDocument(statistics, index.config, {
+      chunk: document.chunk,
+      length: document.length,
+      frequency: (term) => document.terms.get(term),
+      titleTerms: () => document.titleTerms,
+    }, query, queryTerms))
     .filter((result): result is ScoredDocument => result !== undefined);
 
+  return assembleGroups(index.config, scored).sort(compareLexicalResults);
+}
+
+function assembleGroups(
+  config: LexicalSearchConfigV1,
+  scored: readonly ScoredDocument[],
+): LexicalSearchResultV1[] {
   const byGroup = new Map<string, ScoredDocument[]>();
   for (const result of scored) {
     const group = byGroup.get(result.document.chunk.groupRootRecordId) ?? [];
     group.push(result);
     byGroup.set(result.document.chunk.groupRootRecordId, group);
   }
-
   return [...byGroup.entries()]
-    .map(([groupRootRecordId, documents]) => assembleGroup(index, groupRootRecordId, documents))
-    .sort(
-      (left, right) =>
-        Number(right.exactMatch) - Number(left.exactMatch) ||
-        right.score - left.score ||
-        left.groupRootRecordId.localeCompare(right.groupRootRecordId),
-    );
+    .map(([groupRootRecordId, documents]) => assembleGroup(config, groupRootRecordId, documents));
+}
+
+/** The `bm25-reference@1` result order: exact matches, then score, then group root. */
+export function compareLexicalResults(left: LexicalSearchResultV1, right: LexicalSearchResultV1): number {
+  return Number(right.exactMatch) - Number(left.exactMatch) ||
+    right.score - left.score ||
+    left.groupRootRecordId.localeCompare(right.groupRootRecordId);
+}
+
+/** BM25 inputs stored with a lexical shard so a query need not tokenize the corpus (Spec 013). */
+export interface LexicalShardPostingsV1 {
+  /** Weighted token count of each chunk, in chunk order. */
+  readonly lengths: readonly number[];
+  /** term -> [chunk index, term frequency, chunk index, term frequency, …], chunk indexes ascending. */
+  readonly postings: Readonly<Record<string, readonly number[]>>;
+}
+
+export interface LexicalShardV1 extends LexicalShardPostingsV1 {
+  readonly chunks: readonly SourceRecordChunkV1[];
+}
+
+/** Corpus-wide statistics a shard is scored with; they span every shard of the release. */
+export interface LexicalCorpusStatsV1 {
+  readonly chunkCount: number;
+  readonly totalChunkLength: number;
+  readonly documentFrequency: (term: string) => number;
+}
+
+/** Computes a shard's postings with the same weighted tokens as `buildLexicalIndex`. */
+export function lexicalShardPostings(
+  chunks: readonly SourceRecordChunkV1[],
+  config: LexicalSearchConfigV1 = defaultLexicalSearchConfig,
+): LexicalShardPostingsV1 {
+  validateConfig(config);
+  const lengths: number[] = [];
+  const postings = new Map<string, number[]>();
+  chunks.forEach((chunk, chunkIndex) => {
+    const { terms, length } = chunkTerms(chunk, config);
+    lengths.push(length);
+    for (const [term, frequency] of terms) {
+      const list = postings.get(term);
+      if (list === undefined) postings.set(term, [chunkIndex, frequency]);
+      else list.push(chunkIndex, frequency);
+    }
+  });
+  // fromEntries defines own properties, so "__proto__" stays an ordinary term.
+  return { lengths, postings: Object.fromEntries(postings) };
+}
+
+/**
+ * Ranks one shard's matching groups with corpus-wide statistics. The project filter is not
+ * applied, so the same pass also yields project facets; `selectLexicalResults` applies it.
+ * Every chunk of a group must be in the same shard.
+ */
+export function rankLexicalShard(
+  shard: LexicalShardV1,
+  corpus: LexicalCorpusStatsV1,
+  request: LexicalSearchFacetRequestV1,
+  config: LexicalSearchConfigV1 = defaultLexicalSearchConfig,
+): readonly LexicalSearchResultV1[] {
+  const query = requireText(request.query, "query");
+  validateSearchFilters(request.filters);
+  const queryTerms = [...new Set(tokenizeLexical(query))];
+  if (queryTerms.length === 0) return [];
+
+  const frequencies = new Map<number, Map<string, number>>();
+  for (const term of queryTerms) {
+    if (!Object.hasOwn(shard.postings, term)) continue;
+    const list = shard.postings[term]!;
+    for (let position = 0; position + 1 < list.length; position += 2) {
+      const chunkIndex = list[position]!;
+      const terms = frequencies.get(chunkIndex) ?? new Map<string, number>();
+      terms.set(term, list[position + 1]!);
+      frequencies.set(chunkIndex, terms);
+    }
+  }
+  const statistics: CorpusStatistics = {
+    chunkCount: corpus.chunkCount,
+    averageDocumentLength: corpus.chunkCount === 0 ? 0 : corpus.totalChunkLength / corpus.chunkCount,
+    documentFrequency: corpus.documentFrequency,
+  };
+  const scored: ScoredDocument[] = [];
+  for (const [chunkIndex, terms] of frequencies) {
+    const chunk = shard.chunks[chunkIndex];
+    const length = shard.lengths[chunkIndex];
+    if (chunk === undefined || length === undefined) throw new Error(`Lexical shard has no chunk ${chunkIndex}`);
+    if (!matchesFilters(chunk, request.filters, request.eligibleGroupRootRecordIds, true)) continue;
+    const result = scoreDocument(statistics, config, {
+      chunk,
+      length,
+      frequency: (term) => terms.get(term),
+      titleTerms: () => new Set(tokenizeLexical(chunk.title)),
+    }, query, queryTerms);
+    if (result !== undefined) scored.push(result);
+  }
+  return assembleGroups(config, scored);
+}
+
+/** Applies the project filter and limit to every shard's groups, and counts project facets. */
+export function selectLexicalResults(
+  groups: readonly LexicalSearchResultV1[],
+  request: { readonly filters?: SearchFiltersV1; readonly limit?: number },
+): { readonly results: readonly LexicalSearchResultV1[]; readonly projectFacets: Readonly<Record<string, number>> } {
+  const limit = request.limit ?? 20;
+  if (!Number.isInteger(limit) || limit <= 0 || limit > 100) {
+    throw new Error("Search limit must be an integer between 1 and 100");
+  }
+  const projectFacets: Record<string, number> = {};
+  for (const group of groups) projectFacets[group.projectId] = (projectFacets[group.projectId] ?? 0) + 1;
+  const projectIds = request.filters?.projectIds;
+  const results = groups
+    .filter((group) => projectIds === undefined || projectIds.includes(group.projectId))
+    .sort(compareLexicalResults)
+    .slice(0, limit);
+  return { results, projectFacets };
 }
 
 export function tokenizeLexical(value: string): readonly string[] {
@@ -198,56 +323,71 @@ export function isExactStructuredQuery(query: string): boolean {
     /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+(?:\(\))?$/u.test(trimmed);
 }
 
+interface ScoringDocument {
+  readonly chunk: SourceRecordChunkV1;
+  readonly length: number;
+  readonly frequency: (term: string) => number | undefined;
+  readonly titleTerms: () => ReadonlySet<string>;
+}
+
+/** Corpus-wide BM25 statistics; per-shard values would change IDF and therefore ranking. */
+interface CorpusStatistics {
+  readonly chunkCount: number;
+  readonly averageDocumentLength: number;
+  readonly documentFrequency: (term: string) => number;
+}
+
 interface ScoredDocument {
-  readonly document: IndexedChunk;
+  readonly document: ScoringDocument;
   readonly score: number;
   readonly exactMatch: boolean;
   readonly matchedTerms: readonly string[];
 }
 
 function scoreDocument(
-  index: LexicalIndexV1,
-  document: IndexedChunk,
+  statistics: CorpusStatistics,
+  config: LexicalSearchConfigV1,
+  document: ScoringDocument,
   rawQuery: string,
   queryTerms: readonly string[],
 ): ScoredDocument | undefined {
-  const matchedTerms = queryTerms.filter((term) => document.terms.has(term));
+  const matchedTerms = queryTerms.filter((term) => document.frequency(term) !== undefined);
   if (matchedTerms.length === 0) return undefined;
 
   let score = 0;
   for (const term of matchedTerms) {
-    const frequency = document.terms.get(term) ?? 0;
-    const documentFrequency = index.documentFrequency.get(term) ?? 0;
+    const frequency = document.frequency(term) ?? 0;
+    const documentFrequency = statistics.documentFrequency(term);
     const idf = Math.log(
       1 +
-        (index.documents.length - documentFrequency + 0.5) /
+        (statistics.chunkCount - documentFrequency + 0.5) /
           (documentFrequency + 0.5),
     );
-    const normalization = index.averageDocumentLength === 0
+    const normalization = statistics.averageDocumentLength === 0
       ? 1
-      : 1 - index.config.b +
-        index.config.b * (document.length / index.averageDocumentLength);
-    score += idf * ((frequency * (index.config.k1 + 1)) /
-      (frequency + index.config.k1 * normalization));
+      : 1 - config.b +
+        config.b * (document.length / statistics.averageDocumentLength);
+    score += idf * ((frequency * (config.k1 + 1)) /
+      (frequency + config.k1 * normalization));
   }
 
   const exactMatch = exactStructuredMatch(document, rawQuery);
-  if (exactMatch) score += index.config.exactBoost;
+  if (exactMatch) score += config.exactBoost;
   return { document, score, exactMatch, matchedTerms };
 }
 
-function exactStructuredMatch(document: IndexedChunk, query: string): boolean {
+function exactStructuredMatch(document: ScoringDocument, query: string): boolean {
   if (!isExactStructuredQuery(query)) return false;
   const normalized = query.trim().toLocaleLowerCase("en-US");
   if (/^[a-z][a-z0-9]+-\d+$/u.test(normalized)) {
-    return document.titleTerms.has(normalized);
+    return document.titleTerms().has(normalized);
   }
   return document.chunk.title.toLocaleLowerCase("en-US").includes(normalized) ||
     document.chunk.text.toLocaleLowerCase("en-US").includes(normalized);
 }
 
 function assembleGroup(
-  index: LexicalIndexV1,
+  config: LexicalSearchConfigV1,
   groupRootRecordId: string,
   documents: readonly ScoredDocument[],
 ): LexicalSearchResultV1 {
@@ -261,20 +401,20 @@ function assembleGroup(
   if (best === undefined) throw new Error("Cannot assemble an empty search group");
   const score = best.score +
     additional.reduce((total, result) => total + result.score, 0) *
-      index.config.additionalGroupMatchWeight;
+      config.additionalGroupMatchWeight;
 
   return {
     groupRootRecordId,
     projectId: best.document.chunk.projectId,
     score,
     exactMatch: ordered.some((result) => result.exactMatch),
-    matches: ordered.slice(0, index.config.maxEvidenceMatches).map((result) => ({
+    matches: ordered.slice(0, config.maxEvidenceMatches).map((result) => ({
       chunkId: result.document.chunk.id,
       recordId: result.document.chunk.recordId,
       excerpt: matchedExcerpt(
         result.document.chunk.text,
         result.matchedTerms,
-        index.config.excerptCharacters,
+        config.excerptCharacters,
       ),
       canonicalUrl: result.document.chunk.canonicalUrl,
       author: result.document.chunk.author,
@@ -291,6 +431,14 @@ function indexChunk(
   chunk: SourceRecordChunkV1,
   config: LexicalSearchConfigV1,
 ): IndexedChunk {
+  const { terms, length, titleTokens } = chunkTerms(chunk, config);
+  return { chunk, terms, titleTerms: new Set(titleTokens), length };
+}
+
+function chunkTerms(
+  chunk: SourceRecordChunkV1,
+  config: LexicalSearchConfigV1,
+): { readonly terms: ReadonlyMap<string, number>; readonly length: number; readonly titleTokens: readonly string[] } {
   const titleTokens = tokenizeLexical(chunk.title);
   const bodyTokens = tokenizeLexical(chunk.text);
   const tagTokens = chunk.tags.flatMap(tokenizeLexical);
@@ -303,12 +451,7 @@ function indexChunk(
   ];
   const terms = new Map<string, number>();
   for (const term of weightedTokens) terms.set(term, (terms.get(term) ?? 0) + 1);
-  return {
-    chunk,
-    terms,
-    titleTerms: new Set(titleTokens),
-    length: weightedTokens.length,
-  };
+  return { terms, length: weightedTokens.length, titleTokens };
 }
 
 function repeat(values: readonly string[], weight: number): readonly string[] {

@@ -22,7 +22,7 @@ import { feedFixture, fixtureGeneratedAt } from "./feed-fixture";
 
 // Spec 008 acceptance C1-C3 at the contract and promotion boundary.
 describe("content-addressed detail objects", () => {
-  test("writes feed-manifest.v3 and search-release.v2 whose details are named by their digest", async () => {
+  test("writes feed-manifest.v3 and search-release.v3 whose details are named by their digest", async () => {
     const { feedObjects, searchObjects } = await release(feedFixture(), "r1");
     const manifest = JSON.parse(feedObjects.find((object) => object.key === MANIFEST_KEY)!.body);
     const map = JSON.parse(feedObjects.find((object) => object.key === manifest.detailMapKey)!.body);
@@ -35,7 +35,7 @@ describe("content-addressed detail objects", () => {
       expect(object.key).toBe(`${FEED_DETAIL_POOL}${(await sha256Digest(object.body)).slice(7)}.json`);
     }
     const searchManifest = JSON.parse(searchObjects.find((object) => object.key.endsWith("/manifest.json"))!.body);
-    expect(searchManifest.schema).toBe("osskb.search-release.v2");
+    expect(searchManifest.schema).toBe("osskb.search-release.v3");
     expect(searchManifest.detailPrefix).toBeUndefined();
     for (const object of poolObjects(searchObjects, SEARCH_DETAIL_POOL)) {
       expect(searchManifest.objectDigests[object.key]).toBe(await sha256Digest(object.body));
@@ -52,12 +52,13 @@ describe("content-addressed detail objects", () => {
     destination.created.length = 0;
     const result = await promotePublicationSet(second.publicationSet, second.source, destination);
 
-    expect(result).toMatchObject({ ok: true, copiedObjectCount: 5, reusedObjectCount: 4 });
+    expect(result).toMatchObject({ ok: true, copiedObjectCount: 6, reusedObjectCount: 4 });
     expect(destination.created.filter(isPoolKey)).toEqual([]);
     expect(destination.created.sort()).toEqual([
-      "public/search/v1/releases/search-r2/lexical/apache-datafusion.json",
-      "public/search/v1/releases/search-r2/lexical/apache-kafka.json",
+      "public/search/v1/releases/search-r2/lexical/apache-datafusion/0.json",
+      "public/search/v1/releases/search-r2/lexical/apache-kafka/1.json",
       "public/search/v1/releases/search-r2/manifest.json",
+      "public/search/v1/releases/search-r2/terms.json",
       "public/v2/releases/r2/feed/details.json",
       "public/v2/releases/r2/feed/index.json",
     ]);
@@ -92,7 +93,7 @@ describe("content-addressed detail objects", () => {
 
     const result = await promotePublicationSet(second.publicationSet, second.source, destination);
 
-    expect(result).toMatchObject({ ok: true, copiedObjectCount: 5, reusedObjectCount: 4 });
+    expect(result).toMatchObject({ ok: true, copiedObjectCount: 6, reusedObjectCount: 4 });
     expect(destination.reads.filter(isPoolKey)).toEqual([]);
   });
 
@@ -131,7 +132,7 @@ describe("content-addressed detail objects", () => {
     const { feedObjects, searchObjects } = await release(feedFixture(), "r1");
     const manifestObject = searchObjects.find((object) => object.key.endsWith("/manifest.json"))!;
     const manifest = JSON.parse(manifestObject.body);
-    const shardKey = Object.values(manifest.shardKeys as Record<string, string>)[0]!;
+    const shardKey = (manifest.shards as { key: string }[])[0]!.key;
     const shard = JSON.parse(searchObjects.find((object) => object.key === shardKey)!.body);
     shard.groups[0].detailSha256 = "not-a-digest";
     const shardBody = JSON.stringify(shard);

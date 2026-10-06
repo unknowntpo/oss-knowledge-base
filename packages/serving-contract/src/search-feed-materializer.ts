@@ -13,6 +13,7 @@ import {
 import type { FeedIndexEntry, FeedPublication } from "./index";
 import {
   SEARCH_LEXICAL_SHARD_SCHEMA,
+  type SearchGroupSource,
   type SearchLexicalShardV1,
   type SearchPublicationV1,
 } from "./search-r2";
@@ -28,6 +29,8 @@ export interface MaterializeSearchFromFeedInputV1 {
  * Deterministic POC reference materializer. The input is a completed domain
  * publication, never a GitHub/R2 client, so the same behavior can move behind
  * Flink without changing the Search publication contract.
+ *
+ * Collects `searchGroupsFromFeed`; the publisher streams that generator instead (Spec 013).
  */
 export async function materializeSearchPublicationFromFeed(
   input: MaterializeSearchFromFeedInputV1,
@@ -36,16 +39,44 @@ export async function materializeSearchPublicationFromFeed(
   requireText(input.corpusRevision, "corpusRevision");
   requireTimestamp(input.generatedAt, "generatedAt");
 
-  const entries = uniqueBy(
-    input.feed.index.entries,
-    (item) => item.entry.id,
-    "Feed index entry",
-  ).sort((left, right) => left.entry.id.localeCompare(right.entry.id));
-  const details = uniqueBy(
-    input.feed.details,
-    (detail) => detail.entry.id,
-    "Feed detail",
-  );
+  const shards: SearchLexicalShardV1[] = [];
+  const details: SearchPublicationV1["details"][number][] = [];
+  for await (const group of searchGroupsFromFeed(input.feed)) {
+    let shard = shards.at(-1);
+    if (shard?.projectId !== group.projectId) {
+      shard = {
+        schema: SEARCH_LEXICAL_SHARD_SCHEMA,
+        indexRevision: input.indexRevision,
+        projectId: group.projectId,
+        chunks: [],
+        groups: [],
+      };
+      shards.push(shard);
+    }
+    (shard.chunks as SourceRecordChunkV1[]).push(...group.chunks);
+    (shard.groups as SearchLexicalShardV1["groups"][number][]).push({ groupRootRecordId: group.groupRootRecordId, entry: group.entry });
+    details.push({ groupRootRecordId: group.groupRootRecordId, detail: group.detail });
+  }
+  for (const shard of shards) (shard.chunks as SourceRecordChunkV1[]).sort((left, right) => left.id.localeCompare(right.id));
+
+  return {
+    indexRevision: input.indexRevision,
+    corpusRevision: input.corpusRevision,
+    lexicalRevision: DEFAULT_LEXICAL_REVISION,
+    generatedAt: input.generatedAt,
+    shards,
+    details,
+  };
+}
+
+/**
+ * Yields one Search group per Feed entry, ordered by project and then group root, building
+ * each group's canonical detail and chunks only when it is consumed (Spec 013). Membership is
+ * checked up front from ids; record ownership is checked as groups are produced.
+ */
+export async function* searchGroupsFromFeed(feed: FeedPublication): AsyncGenerator<SearchGroupSource> {
+  const entries = uniqueBy(feed.index.entries, (item) => item.entry.id, "Feed index entry");
+  const details = uniqueBy(feed.details, (detail) => detail.entry.id, "Feed detail");
   const detailsByEntryId = new Map(details.map((detail) => [detail.entry.id, detail]));
   const entryIds = new Set(entries.map((item) => item.entry.id));
   const missing = entries.filter((item) => !detailsByEntryId.has(item.entry.id));
@@ -55,15 +86,13 @@ export async function materializeSearchPublicationFromFeed(
       `Feed snapshot membership mismatch: missing=[${missing.map((item) => item.entry.id).join(", ")}], orphan=[${orphan.map((detail) => detail.entry.id).join(", ")}]`,
     );
   }
+  entries.sort((left, right) =>
+    left.entry.projectId.localeCompare(right.entry.projectId) ||
+    left.entry.sourceTitleRecordId.localeCompare(right.entry.sourceTitleRecordId) ||
+    left.entry.id.localeCompare(right.entry.id));
 
-  const shardValues = new Map<string, {
-    chunks: SourceRecordChunkV1[];
-    groups: SearchLexicalShardV1["groups"][number][];
-  }>();
-  const searchDetails: SearchPublicationV1["details"][number][] = [];
   const recordOwners = new Map<string, string>();
   const groupRoots = new Set<string>();
-
   for (const indexEntry of entries) {
     const rawDetail = detailsByEntryId.get(indexEntry.entry.id)!;
     assertIndexDetailAgreement(indexEntry, rawDetail);
@@ -74,8 +103,7 @@ export async function materializeSearchPublicationFromFeed(
     }
     groupRoots.add(groupRootRecordId);
     const tags = uniqueSorted(indexEntry.tags);
-    const shard = shardValues.get(detail.entry.projectId) ?? { chunks: [], groups: [] };
-
+    const chunks: SourceRecordChunkV1[] = [];
     for (const record of detail.records) {
       const previousOwner = recordOwners.get(record.id);
       if (previousOwner !== undefined && previousOwner !== groupRootRecordId) {
@@ -84,7 +112,7 @@ export async function materializeSearchPublicationFromFeed(
         );
       }
       recordOwners.set(record.id, groupRootRecordId);
-      const chunks = await chunkSourceRecord({
+      chunks.push(...await chunkSourceRecord({
         projectId: record.projectId,
         sourceInstanceId: record.sourceInstanceId,
         recordId: record.id,
@@ -96,34 +124,10 @@ export async function materializeSearchPublicationFromFeed(
         sourceVersion: record.sourceVersion,
         tags,
         parts: [{ key: "excerpt", text: record.excerpt }],
-      });
-      shard.chunks.push(...chunks);
+      }));
     }
-    shard.groups.push({ groupRootRecordId, entry: detail.entry });
-    shardValues.set(detail.entry.projectId, shard);
-    searchDetails.push({ groupRootRecordId, detail });
+    yield { projectId: detail.entry.projectId, groupRootRecordId, entry: detail.entry, detail, chunks };
   }
-
-  const shards: SearchLexicalShardV1[] = [...shardValues.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([projectId, value]) => ({
-      schema: SEARCH_LEXICAL_SHARD_SCHEMA,
-      indexRevision: input.indexRevision,
-      projectId,
-      chunks: value.chunks.sort((left, right) => left.id.localeCompare(right.id)),
-      groups: value.groups.sort((left, right) =>
-        left.groupRootRecordId.localeCompare(right.groupRootRecordId)),
-    }));
-
-  return {
-    indexRevision: input.indexRevision,
-    corpusRevision: input.corpusRevision,
-    lexicalRevision: DEFAULT_LEXICAL_REVISION,
-    generatedAt: input.generatedAt,
-    shards,
-    details: searchDetails.sort((left, right) =>
-      left.groupRootRecordId.localeCompare(right.groupRootRecordId)),
-  };
 }
 
 function assertIndexDetailAgreement(indexEntry: FeedIndexEntry, detail: FeedDetail): void {

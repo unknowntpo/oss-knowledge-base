@@ -8,6 +8,7 @@ import {
   materializeSearchPublicationFromFeed,
   publishProjectionStreams,
   SEARCH_CURRENT_KEY,
+  searchGroupsFromPublication,
   searchProjectionObjects,
   sha256Digest,
   type EncodedProjectionObject,
@@ -131,7 +132,7 @@ async function streams(feed: FeedPublication): Promise<ProjectionStreams> {
     corpusRevision: "feed:r1",
     generatedAt: fixtureGeneratedAt,
   });
-  return { search: searchProjectionObjects(search), feed: feedProjectionObjects(feed, "r1") };
+  return { search: searchProjectionObjects(search, searchGroupsFromPublication(search)), feed: feedProjectionObjects(feed, "r1") };
 }
 
 async function* rename<R>(
