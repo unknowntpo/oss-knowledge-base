@@ -113,7 +113,8 @@ listed in the PR instead.
 
 Agents copy what they see, so trust comes from the environment, not from
 reviewing more output (Lauren Tan, "Run a Michelin kitchen, not a code
-factory"). Layers, strongest first: structure (types, schemas) → static
+factory",
+https://agile3uncles.com/2026/10/05/run-a-michelin-kitchen-not-a-code-factory/). Layers, strongest first: structure (types, schemas) → static
 checks (CI gates) → tests and measurements → rules (this file) → automated
 review (the verifier) → skills → human review.
 
