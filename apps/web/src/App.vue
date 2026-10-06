@@ -50,6 +50,7 @@ const syncLabel = computed(() => {
   if (error.value !== undefined) return "Live error";
   const stale = payload.value?.metadata.stale === true;
   if (payload.value?.metadata.servingMode === "cloudflare-pages-function-r2") {
+    // `t` reads the locale outside Vue, so touch the ref to re-render this label on a locale switch.
     void locale.value;
     if (freshness.value !== undefined) return freshnessText(freshness.value, t);
     return locale.value === "en" ? "Published snapshot" : "已發佈快照";

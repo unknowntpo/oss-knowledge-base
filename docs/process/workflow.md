@@ -23,8 +23,9 @@ Two loops, after Lauren Tan's published agent workflow
 - **Inner loop — a scoped task becomes a verified change (agents).**
   - The **implementer** turns an accepted spec into the smallest change that
     satisfies it, writes tests first, and reviews its own diff line by line.
-  - The **independent verifier** is a different agent, preferably a different
-    model, given only the spec and the commit. It reruns every acceptance item
+  - The **independent verifier** is a different agent — by default a Fable
+    agent that may delegate parts of the work to Opus sub-agents and must check
+    their evidence — given only the spec and the commit. It reruns every acceptance item
     against the running system, attaches evidence (test output, screenshots,
     captured responses), and records pass, fail, or unverifiable per ID in the
     PR. Any new commit invalidates the verdict and requires a rerun.
@@ -32,6 +33,13 @@ Two loops, after Lauren Tan's published agent workflow
   - **Runtime** (health fields, deployed checks) is the final judge.
 
 Keep one intent per PR so a verdict, a revert, or a rollback stays small.
+
+Merge authority: the human aligns on core decisions only — new intent or
+product behavior, ADRs, data formats or contracts read by others, production
+deploys and release tags, credentials, permissions, cost, and irreversible
+operations (when unsure, treat it as core). Other changes merge without a
+human once gates are green and the verifier passed the final commit; each is
+reported afterwards in one line.
 
 ## Stages
 

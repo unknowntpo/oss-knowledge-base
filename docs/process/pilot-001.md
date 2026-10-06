@@ -11,7 +11,7 @@ workflow is the subject.
 | H1 | Every assertion traces to a test | `bun run check:traceability` | held (6 items; F6 by deployment) |
 | H2 | Tests catch a broken implementation | mutation run per acceptance item | held after adding one case (finding 6) |
 | H3 | Each test is seen failing before the fix | recorded failing run | held, after fixing two vacuous tests (finding 3) |
-| H4 | A deployed deviation is visible | F6 on development | pending |
+| H4 | A deployed deviation is visible | F6 on development | pending deployment |
 
 ## Findings
 
@@ -101,11 +101,24 @@ passed F1–F5, and it reported that Behavior 4 said an unparsable
 `generatedAt` "hides the label" while the app keeps the previous "Published
 snapshot" label. The tests only asserted the absence of an age, so they could
 not tell. The spec was corrected to the observed, preferable behavior and the
-F4 E2E now asserts the exact label; the new commit was re-verified.
+F4 E2E now asserts the exact label.
 
 Change: none to the process; this is the verifier doing its job. Independence
 was weaker than intended (same vendor), which is recorded as a limit of this
 pilot.
+
+### 8. The re-verification found two surviving mutants (stage 5)
+
+The user asked that verification run on a Fable agent that may delegate to
+Opus. Fable re-verified commit 7f572a9 (gates, 30 screenshots across both
+locales with a frozen clock, production diff) and passed F1–F5. Its delegated
+Opus mutation run found two mutants the tests did not kill: rounding hours
+instead of flooring (every hour case was a whole hour) and accepting a
+non-string `generatedAt` (the only F4 case was a string). Two case rows
+(1 h 45 min → "1 h ago"; `generatedAt: 0` → no age) now kill both.
+
+Change: the verifier owns an independent mutation pass; the implementer's own
+mutation run (finding 6) had missed these.
 
 ## Process cost so far
 

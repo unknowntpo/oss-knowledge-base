@@ -72,9 +72,11 @@ the unit tests run exactly these rows. Edit the case file, not this table.
 | F1 | 2026-10-03T23:07:13Z | 2026-10-03T23:35:37Z | Updated 28 min ago | 資料更新於 28 分鐘前 | no |
 | F1 | 2026-10-03T23:07:13Z | 2026-10-03T23:52:13Z | Updated 45 min ago | 資料更新於 45 分鐘前 | no |
 | F1 | 2026-10-03T23:07:13Z | 2026-10-04T00:07:13Z | Updated 1 h ago | 資料更新於 1 小時前 | no |
+| F1 | 2026-10-03T23:07:13Z | 2026-10-04T00:52:13Z | Updated 1 h ago | 資料更新於 1 小時前 | no |
 | F2 | 2026-10-03T23:07:13Z | 2026-10-04T02:07:13Z | Updated 3 h ago | 資料更新於 3 小時前 | no |
 | F2 | 2026-10-03T23:07:13Z | 2026-10-04T02:07:14Z | Data may be out of date · 3 h ago | 資料可能過期 · 3 小時前 | yes |
 | F4 | not-a-time | 2026-10-04T01:07:13Z | — | — | — |
+| F4 | 0 | 2026-10-04T01:07:13Z | — | — | — |
 | F5 | 2026-10-03T23:08:13Z | 2026-10-03T23:07:13Z | Updated just now | 資料剛剛更新 | no |
 <!-- test-plan:end -->
 
