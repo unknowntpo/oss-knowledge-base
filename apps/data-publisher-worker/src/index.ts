@@ -94,7 +94,11 @@ export class PipelineState implements DurableObject {
   async alarm(): Promise<void> {
     this.running = true;
     try {
-      const materializedAt = await this.ctx.storage.get<string>("requested-at") ?? new Date().toISOString();
+      // Sources are read live, so a retry of an attempt that died reads different data; it must
+      // publish under its own release id, not rewrite the release-specific keys already written.
+      const requestedAt = await this.ctx.storage.get<string>("requested-at");
+      await this.ctx.storage.delete("requested-at");
+      const materializedAt = requestedAt ?? new Date().toISOString();
       await runDataPublication({
         environment: this.env.PUBLICATION_ENVIRONMENT,
         materializedAt,

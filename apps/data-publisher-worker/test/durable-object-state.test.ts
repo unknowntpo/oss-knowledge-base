@@ -90,6 +90,98 @@ describe("Durable Object pipeline state", () => {
     expect(recentResponse.status).toBe(409);
     expect(recent.alarm).toBe(now - STALE_ALARM_MS + 60_000);
   });
+
+  test("M10: a rerun of a killed attempt's release whose sources changed is a destination conflict on a Search shard", async () => {
+    // The 2026-10-06 12:07 Dev incident: the attempt that died had written this release's shards.
+    const storage = new MemoryStorage();
+    const killed = new KeyHangingDestination((key) => key.includes("/lexical/apache-datafusion/"));
+    void runDataPublication({
+      environment: "development",
+      materializedAt: fixture.config.materializedAt,
+      connector: connector(),
+      state: new DurableObjectPipelineState(storage.asDurableObjectStorage()),
+      destination: killed,
+    });
+    await killed.reached;
+
+    const edited = events.map((event) => event.projectId !== "apache-datafusion" ? event : {
+      ...event,
+      data: { ...(event.data as Record<string, unknown>), excerpt: "Edited on GitHub between the two attempts." },
+    }) as DomainEventV1[];
+    const retried = await runDataPublication({
+      environment: "development",
+      materializedAt: fixture.config.materializedAt,
+      connector: connector(edited),
+      state: new DurableObjectPipelineState(storage.asDurableObjectStorage()),
+      destination: killed.reopened(),
+    });
+    expect(retried).toMatchObject({ ok: false });
+    expect((retried as { readonly error: string }).error)
+      .toMatch(/^destination-conflict: .*\/releases\/feed-2026-08-25T12-00-00-000Z\/lexical\/apache-datafusion\/0\.json/u);
+
+    // Positive control: the same changed sources under a new release id publish.
+    const fresh = await runDataPublication({
+      environment: "development",
+      materializedAt: "2026-08-25T12:05:00.000Z",
+      connector: connector(edited),
+      state: new DurableObjectPipelineState(storage.asDurableObjectStorage()),
+      destination: killed.reopened(),
+    });
+    expect(fresh.ok).toBe(true);
+  });
+
+  test("M10: after an alarm attempt is killed mid-run, the retry publishes under a new materializedAt", async () => {
+    const storage = new MemoryStorage();
+    const requestedAt = "2026-10-06T12:07:37.000Z";
+    await storage.put("requested-at", requestedAt);
+    const realFetch = globalThis.fetch;
+    let reachedFetch!: () => void;
+    const fetched = new Promise<void>((resolve) => { reachedFetch = resolve; });
+    // The first attempt hangs on its first source request and is abandoned, as when the
+    // platform kills the isolate: no catch, finally, or status write of that attempt runs.
+    globalThis.fetch = (() => {
+      reachedFetch();
+      return new Promise<Response>(() => undefined);
+    }) as unknown as typeof fetch;
+    try {
+      void alarmState(storage).alarm();
+      await fetched;
+      expect(await storage.get("status")).toBeUndefined();
+
+      // The runtime retries the alarm in a fresh isolate, without a new POST /run.
+      globalThis.fetch = (async () => new Response("not found", { status: 404 })) as unknown as typeof fetch;
+      await alarmState(storage).alarm();
+      const retry = await storage.get<{ readonly completedAt: string }>("status");
+
+      expect(retry?.completedAt).toBeDefined();
+      expect(retry!.completedAt).not.toBe(requestedAt);
+      expect(Date.parse(retry!.completedAt)).toBeGreaterThan(Date.parse(requestedAt));
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  test("M10: a retried alarm publishes under a new materializedAt, not the release of the attempt that died", async () => {
+    const storage = new MemoryStorage();
+    const requestedAt = "2026-10-06T12:07:37.000Z";
+    await storage.put("requested-at", requestedAt);
+    const realFetch = globalThis.fetch;
+    // Every source fails, so each attempt records a status naming the materializedAt it used.
+    globalThis.fetch = (async () => new Response("not found", { status: 404 })) as unknown as typeof fetch;
+    try {
+      await alarmState(storage).alarm();
+      const first = await storage.get<{ readonly completedAt: string }>("status");
+      // The runtime re-invokes the alarm without a new POST /run.
+      await alarmState(storage).alarm();
+      const retry = await storage.get<{ readonly completedAt: string }>("status");
+
+      expect(first?.completedAt).toBe(requestedAt);
+      expect(retry?.completedAt).not.toBe(requestedAt);
+      expect(Date.parse(retry!.completedAt)).toBeGreaterThan(Date.parse(requestedAt));
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
 });
 
 async function health(storage: MemoryStorage): Promise<{
@@ -108,11 +200,19 @@ function pipelineState(storage: MemoryStorage): PipelineState {
   );
 }
 
-function connector() {
+/** An object whose alarm can run; the token is a placeholder, every fetch is stubbed. */
+function alarmState(storage: MemoryStorage): PipelineState {
+  return new PipelineState(
+    { storage: storage.asDurableObjectStorage() } as unknown as DurableObjectState,
+    { PUBLICATION_ENVIRONMENT: "development", GITHUB_SOURCE_TOKEN: "placeholder" } as never,
+  );
+}
+
+function connector(polled: readonly DomainEventV1[] = events) {
   return {
     poll: async (): Promise<GitHubPollResult> => ({
       complete: true,
-      events,
+      events: polled,
       candidateCheckpoint: {
         schema: "osskb.github-checkpoint.v1",
         connectorRevision: "github@1",
@@ -195,6 +295,43 @@ class HangingDestination implements PublicationDestination {
     }
     if (this.objects.has(object.key)) return "exists";
     this.objects.set(object.key, body);
+    return "created";
+  }
+  async putCurrent(key: string, body: Uint8Array): Promise<void> { this.objects.set(key, body); }
+  async putEvidence(key: string, body: Uint8Array): Promise<void> { this.objects.set(key, body); }
+}
+
+/** Writes until the first key matching `hangOn`, which it writes and then never settles. */
+class KeyHangingDestination implements PublicationDestination {
+  readonly reached: Promise<void>;
+  private resolveReached!: () => void;
+  private hung = false;
+
+  constructor(
+    private readonly hangOn: (key: string) => boolean,
+    private readonly objects = new Map<string, Uint8Array>(),
+  ) {
+    this.reached = new Promise((resolve) => { this.resolveReached = resolve; });
+  }
+
+  /** The same bucket, as seen by the next attempt. */
+  reopened(): KeyHangingDestination {
+    return new KeyHangingDestination(() => false, this.objects);
+  }
+
+  async get(key: string): Promise<Uint8Array | undefined> { return this.objects.get(key); }
+  async putImmutableIfAbsent(key: string, body: Uint8Array): Promise<"created" | "exists"> {
+    return this.putVerifiedImmutableIfAbsent({ key, sha256: "sha256:", byteLength: body.byteLength }, body);
+  }
+  async putVerifiedImmutableIfAbsent(object: ImmutableProjectionObjectV1, body: Uint8Array): Promise<"created" | "exists"> {
+    if (this.hung) return new Promise(() => undefined);
+    if (this.objects.has(object.key)) return "exists";
+    this.objects.set(object.key, body);
+    if (this.hangOn(object.key)) {
+      this.hung = true;
+      this.resolveReached();
+      return new Promise(() => undefined);
+    }
     return "created";
   }
   async putCurrent(key: string, body: Uint8Array): Promise<void> { this.objects.set(key, body); }
