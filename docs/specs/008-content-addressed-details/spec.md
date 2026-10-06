@@ -1,6 +1,6 @@
 # Spec 008: Content-addressed Feed and Search details
 
-Status: Draft
+Status: Implemented (PR #21, merged 2026-09-30)
 Date: 2026-09-30
 Amends: ADR-0004, ADR-0007, ADR-0010 (via ADR-0013); Spec 003 key layout; Spec 006 P3
 

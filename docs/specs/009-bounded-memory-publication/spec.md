@@ -1,6 +1,6 @@
 # Spec 009: Bounded-memory publication
 
-Status: Draft
+Status: Implemented (PR #23, merged 2026-10-02)
 Date: 2026-10-02
 Builds on: Spec 006, Spec 008, ADR-0012, ADR-0013
 
