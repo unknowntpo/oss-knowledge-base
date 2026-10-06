@@ -36,7 +36,7 @@ describe("completed Feed snapshot Search materializer", () => {
 
     const objects = await buildR2SearchProjection(result);
     const kafkaShard = JSON.parse(objects.find((object) =>
-      object.key.endsWith("lexical/apache-kafka.json"))!.body) as {
+      object.key.endsWith("lexical/apache-kafka/1.json"))!.body) as {
       readonly groups: readonly { readonly projectStatus?: string }[];
     };
     expect(kafkaShard.groups[0]?.projectStatus).toBe("open");

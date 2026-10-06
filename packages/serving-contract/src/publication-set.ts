@@ -12,12 +12,16 @@ import {
 import {
   isSearchCurrentPointer,
   isSearchLexicalShard,
+  isSearchLexicalShardV2,
   isSearchReleaseManifest,
   SEARCH_CURRENT_KEY,
   SEARCH_DETAIL_POOL,
+  SEARCH_RELEASE_SCHEMA,
   SEARCH_RELEASE_SCHEMA_V1,
+  searchShardKeys,
+  searchTermsKey,
   type SearchCurrentPointerV1,
-  type SearchGroupProjectionV1,
+  type SearchGroupDetailRef,
   type SearchReleaseManifest,
   type StreamedSearchRelease,
 } from "./search-r2";
@@ -716,7 +720,7 @@ function verifySearchManifestBodies(
   }
   return verifySearchManifest(projection, manifest, (key) => {
     const shard = parseBody(bodies.get(key));
-    return isSearchLexicalShard(shard) ? shard.groups : undefined;
+    return isSearchLexicalShard(shard) || isSearchLexicalShardV2(shard) ? shard.groups : undefined;
   });
 }
 
@@ -724,7 +728,7 @@ function verifySearchManifestBodies(
 function verifySearchManifest(
   projection: SearchReleaseDescriptorV1,
   value: unknown,
-  shardGroups: (key: string) => readonly SearchGroupProjectionV1[] | undefined,
+  shardGroups: (key: string) => readonly SearchGroupDetailRef[] | undefined,
 ): PublicationFailure | undefined {
   if (!isSearchReleaseManifest(value)) {
     return failure("source-manifest-invalid", "Search release manifest is invalid: schema validation failed", "search", projection.current.releaseManifestKey);
@@ -746,8 +750,12 @@ function verifySearchManifest(
       return failure("source-manifest-invalid", `Search manifest digest differs for ${key}`, "search", key);
     }
   }
-  if (!Object.values(manifest.shardKeys).every((key) => declared.has(key))) {
+  const shardKeys = searchShardKeys(manifest);
+  if (!shardKeys.every((key) => declared.has(key)) || new Set(shardKeys).size !== shardKeys.length) {
     return failure("source-manifest-invalid", "Search manifest names an undeclared shard", "search", projection.current.releaseManifestKey);
+  }
+  if (manifest.schema === SEARCH_RELEASE_SCHEMA && !declared.has(searchTermsKey(manifest.indexRevision))) {
+    return failure("source-manifest-invalid", "Search release does not declare its terms object", "search", projection.current.releaseManifestKey);
   }
   if (manifest.schema === SEARCH_RELEASE_SCHEMA_V1) {
     const detailCount = dataKeys.filter((key) => key.startsWith(manifest.detailPrefix)).length;
@@ -757,10 +765,10 @@ function verifySearchManifest(
     return undefined;
   }
 
-  // search-release.v2: every group names a declared pool detail, and every pool detail is named.
+  // search-release.v2/v3: every group names a declared pool detail, and every pool detail is named.
   const referenced = new Set<string>();
   let groupCount = 0;
-  for (const shardKey of Object.values(manifest.shardKeys)) {
+  for (const shardKey of shardKeys) {
     const groups = shardGroups(shardKey);
     if (groups === undefined) {
       return failure("source-manifest-invalid", `Search shard is invalid: ${shardKey}`, "search", shardKey);

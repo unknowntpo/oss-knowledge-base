@@ -19,10 +19,12 @@ import {
 
 /**
  * Spec 009 M3: for the same events and materializedAt, the published objects, evidence, and
- * pointers are byte-identical to the output recorded before the bounded-memory refactor.
- * Regenerate deliberately with UPDATE_PUBLICATION_PARITY=1.
+ * pointers are byte-identical to the recorded output. v1 was recorded before Spec 013 and still
+ * pins every Feed object and Search pool detail (L5); v2 pins the search-release.v3 layout.
+ * Regenerate v2 deliberately with UPDATE_PUBLICATION_PARITY=1.
  */
-const GOLDEN = new URL("./fixtures/publication-parity.v1.json", import.meta.url);
+const PRE_SPEC_013 = new URL("./fixtures/publication-parity.v1.json", import.meta.url);
+const GOLDEN = new URL("./fixtures/publication-parity.v2.json", import.meta.url);
 const FIRST_RUN_AT = "2026-10-02T01:42:16.361Z";
 const SECOND_RUN_AT = "2026-10-02T02:42:16.361Z";
 
@@ -42,6 +44,22 @@ describe("Spec 009 publication parity", () => {
     const expected = JSON.parse(await Bun.file(GOLDEN).text()) as ParityRecord;
     expect(Object.keys(actual.objects).length).toBeGreaterThan(100);
     expect(actual).toEqual(expected);
+  });
+
+  test("L5: Feed objects, the Feed pointer, and Search pool details are unchanged from before Spec 013", async () => {
+    const actual = await publishTwice("verified");
+    const before = JSON.parse(await Bun.file(PRE_SPEC_013).text()) as ParityRecord;
+    const kept = (record: ParityRecord) => Object.fromEntries(Object.entries(record.objects)
+      .filter(([key]) => !key.startsWith("public/search/v1/releases/")));
+    const searchReleaseKeys = (record: ParityRecord) => Object.keys(record.objects)
+      .filter((key) => key.startsWith("public/search/v1/releases/"));
+
+    expect(Object.keys(kept(before)).length).toBeGreaterThan(100);
+    expect(kept(actual)).toEqual(kept(before));
+    expect(actual.pointers[MANIFEST_KEY]).toBe(before.pointers[MANIFEST_KEY]!);
+    // Positive control: the Search release itself did change layout.
+    expect(searchReleaseKeys(actual).some((key) => key.endsWith("/terms.json"))).toBe(true);
+    expect(searchReleaseKeys(before).some((key) => key.endsWith("/terms.json"))).toBe(false);
   });
 });
 

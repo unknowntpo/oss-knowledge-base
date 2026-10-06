@@ -35,6 +35,8 @@ export interface MemoryMeasurement {
   readonly phases: readonly PhaseMeasurement[];
   readonly writtenObjects: number;
   readonly writtenMB: number;
+  readonly searchShards: number;
+  readonly largestSearchShardMB: number;
   /** Order-independent fingerprint of every written key and its bytes, for before/after parity. */
   readonly outputFingerprint: string;
   readonly durationMs: number;
@@ -243,6 +245,9 @@ try {
     console.error([...destination.lengths].filter(([, length]) => length > 1_000_000).map(([key, length]) => `${key} ${MB(length)} MB`));
   }
 
+  const searchShardLengths = [...destination.lengths]
+    .filter(([key]) => key.startsWith("public/search/v1/releases/") && key.includes("/lexical/"))
+    .map(([, length]) => length);
   const result: MemoryMeasurement = {
     events: count,
     polledEvents,
@@ -255,6 +260,8 @@ try {
     peakPhase: peak.phase,
     phases: [...peaks].map(([name, value]) => ({ phase: name, peakMB: MB(value.peak), samples: value.samples })),
     writtenObjects: destination.lengths.size,
+    searchShards: searchShardLengths.length,
+    largestSearchShardMB: MB(Math.max(0, ...searchShardLengths)),
     writtenMB: MB([...destination.lengths.values()].reduce((total, length) => total + length, 0)),
     outputFingerprint: destination.fingerprint,
     durationMs,

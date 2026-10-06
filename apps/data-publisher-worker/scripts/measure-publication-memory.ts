@@ -12,11 +12,14 @@ import { parseArgs } from "node:util";
 
 import type { MemoryMeasurement } from "./publication-memory-runner";
 
-/** Spec 009 acceptance limits by generated event count. */
+/** Spec 009 M1/M2, tightened by Spec 013 L14, by generated event count. */
 const LIMITS_MB: Readonly<Record<number, { readonly id: string; readonly limitMB: number }>> = {
-  8_600: { id: "M1", limitMB: 96 },
-  17_200: { id: "M2", limitMB: 128 },
+  8_600: { id: "M1/L14", limitMB: 96 },
+  17_200: { id: "M2/L14", limitMB: 112 },
 };
+/** Spec 013 L14: Search working set limit, and its allowed growth from 8,600 to 17,200 events. */
+const SEARCH_WORKING_SET_MB = 16;
+const SEARCH_WORKING_SET_GROWTH_MB = 4;
 
 const { values } = parseArgs({
   options: {
@@ -28,6 +31,7 @@ const { values } = parseArgs({
 
 const directory = mkdtempSync(join(tmpdir(), "osskb-measure-"));
 let failed = false;
+const workingSets = new Map<number, number>();
 try {
   const build = await Bun.build({
     entrypoints: [join(import.meta.dir, "publication-memory-runner.ts")],
@@ -55,6 +59,24 @@ try {
       `output fingerprint ${result.outputFingerprint.slice(0, 16)}` +
       `${result.ok ? "" : `, run FAILED: ${result.error}`}.${verdict}`);
     console.table(result.phases.map((phase) => ({ phase: phase.phase, "peak MB": phase.peakMB, samples: phase.samples })));
+    const peakOf = (name: string) => result.phases.find((phase) => phase.phase === name)?.peakMB ?? 0;
+    // Peak while Search objects are written, above the heap when Search writing starts.
+    const workingSet = Math.round((peakOf("write search") - peakOf("phase writing-search")) * 10) / 10;
+    workingSets.set(events, workingSet);
+    const searchPeak = peakOf("write search");
+    const feedPeak = peakOf("write feed");
+    if (workingSet > SEARCH_WORKING_SET_MB || searchPeak >= feedPeak) failed = true;
+    console.log(`Search working set ${workingSet} MB (L14 limit ${SEARCH_WORKING_SET_MB} MB: ` +
+      `${workingSet <= SEARCH_WORKING_SET_MB ? "PASS" : "FAIL"}); write search ${searchPeak} MB vs write feed ${feedPeak} MB ` +
+      `(Search not the peak: ${searchPeak < feedPeak ? "PASS" : "FAIL"}); ${result.searchShards} Search shards, ` +
+      `largest ${result.largestSearchShardMB} MB.`);
+  }
+  const [small, large] = [workingSets.get(8_600), workingSets.get(17_200)];
+  if (small !== undefined && large !== undefined) {
+    const growth = Math.round((large - small) * 10) / 10;
+    if (growth > SEARCH_WORKING_SET_GROWTH_MB) failed = true;
+    console.log(`\nSearch working set growth 8,600 -> 17,200 events: ${growth} MB ` +
+      `(L14 limit ${SEARCH_WORKING_SET_GROWTH_MB} MB: ${growth <= SEARCH_WORKING_SET_GROWTH_MB ? "PASS" : "FAIL"}).`);
   }
 } finally {
   rmSync(directory, { recursive: true, force: true });
