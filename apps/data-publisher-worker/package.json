@@ -17,6 +17,7 @@
     "@oss-knowledge-base/serving-contract": "workspace:*"
   },
   "devDependencies": {
+    "@oss-knowledge-base/search": "workspace:*",
     "@cloudflare/workers-types": "^5.20260820.1",
     "@types/bun": "^1.4.0",
     "typescript": "5.9.3",

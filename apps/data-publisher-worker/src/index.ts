@@ -1,8 +1,10 @@
 import { GitHubConnector } from "@oss-knowledge-base/github-publisher/github-connector";
+import { JiraConnector, PonyMailConnector } from "@oss-knowledge-base/reference-pipeline";
 import { DurableObjectPipelineState } from "./durable-object-state";
 import { GitHubFetchTransport } from "./github-transport";
 import { R2PublicationDestination } from "./r2-destination";
 import { runPending } from "./run-schedule";
+import { healthBody } from "./health";
 import { runDataPublication, type PipelinePhaseMarker, type PipelineRunStatus } from "./pipeline";
 
 interface Env {
@@ -12,6 +14,9 @@ interface Env {
   readonly OSS_KB_BUCKET: R2Bucket;
   readonly PIPELINE_STATE: DurableObjectNamespace;
 }
+
+const sourceFetch = (url: string, init: { readonly headers: Readonly<Record<string, string>> }) =>
+  fetch(url, { headers: init.headers, signal: AbortSignal.timeout(30_000) });
 
 const STATE_OBJECT_NAME = "github-feed-search-pipeline-v1";
 // Keeps one run under the Durable Object memory limit; a larger backlog catches up over later runs.
@@ -67,14 +72,13 @@ export class PipelineState implements DurableObject {
     if (request.method === "GET" && path === "/status") {
       const status = await this.ctx.storage.get<PipelineRunStatus>("status");
       const phase = await this.ctx.storage.get<PipelinePhaseMarker>("phase");
-      return Response.json({
+      return Response.json(healthBody({
         environment: this.env.PUBLICATION_ENVIRONMENT,
         running: this.running,
         scheduled: runPending(false, await this.ctx.storage.getAlarm(), Date.now()),
-        // Set while a run is unfinished; left by a run the platform killed until a later run completes.
-        phase: phase ?? null,
-        lastRun: status ?? null,
-      });
+        phase,
+        status,
+      }));
     }
     if (request.method !== "POST" || path !== "/run") return new Response("Not found", { status: 404 });
     // A stale alarm (its retries exhausted) is overwritten below instead of blocking every trigger.
@@ -98,6 +102,11 @@ export class PipelineState implements DurableObject {
           transport: new GitHubFetchTransport(this.env.GITHUB_SOURCE_TOKEN ?? ""),
           maxIssuesPerSource: MAX_ISSUES_PER_SOURCE,
         }),
+        // Spec 012: public Apache sources, read anonymously; each may fail without stopping the run.
+        sources: [
+          { key: "mail", connector: new PonyMailConnector({ fetch: sourceFetch }) },
+          { key: "jira", connector: new JiraConnector({ fetch: sourceFetch }) },
+        ],
         state: new DurableObjectPipelineState(this.ctx.storage),
         destination: new R2PublicationDestination(this.env.OSS_KB_BUCKET),
       });

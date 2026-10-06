@@ -1,0 +1,78 @@
+{
+  "_note": "trimmed: thread.lua?id=qqq7mwdbyd74337t4ob5fv8yp28pv8sv&find_parent=true (VOTE KIP-1279); bodies cut to 200",
+  "total_messages": 8,
+  "flat": [
+    {
+      "mid": "cjo3555pzzpwtxl9tn3s3hls65y69yk6",
+      "epoch": 1783512922,
+      "from": "Federico Valeri <fe...@gmail.com>",
+      "subject": "[VOTE] KIP-1279: Cluster Mirroring",
+      "message-id": "<CAMeNjW+3FCJucxcK--xL0QWNMUBtuUuLs9-Ec1DjEnpoj62EOg@mail.gmail.com>",
+      "in-reply-to": "",
+      "body": "Hello devs, we would like to start a vote for KIP-1279: Cluster Mirroring.\n\nhttps://cwiki.apache.org/confluence/display/KAFKA/KIP-1279%3A+Cluster+Mirroring\n\nThis KIP proposes natively integrating asyn"
+    },
+    {
+      "mid": "11pz7ssvfj2jqhbyqdblkht40zbfsm7y",
+      "epoch": 1783896994,
+      "from": "vaquar khan <va...@gmail.com>",
+      "subject": "Re: [VOTE] KIP-1279: Cluster Mirroring",
+      "message-id": "<CANF+cmLjbqYZ4t4Ooz0FpaaHsSGzi+5gYA2=QEiafdOrHF1_9Q@mail.gmail.com>",
+      "in-reply-to": null,
+      "body": null
+    },
+    {
+      "mid": "qqq7mwdbyd74337t4ob5fv8yp28pv8sv",
+      "epoch": 1789135335,
+      "from": "Federico Valeri <fe...@gmail.com>",
+      "subject": "Re: [VOTE] KIP-1279: Cluster Mirroring",
+      "message-id": "<CAMeNjWLbkmmZASO+4VWbdKM7chbOwnzGuCE+JFXXhofpky1V5g@mail.gmail.com>",
+      "in-reply-to": null,
+      "body": null
+    },
+    {
+      "mid": "vodqnhfrrmj29sx28f19szhgz8w0c864",
+      "epoch": 1789138204,
+      "from": "vaquar khan <va...@gmail.com>",
+      "subject": "Re: [VOTE] KIP-1279: Cluster Mirroring",
+      "message-id": "<CANF+cmKsngg3Cs_+3bwHMO1TO_E278qivn0Z9-=nzTfzOWK3AQ@mail.gmail.com>",
+      "in-reply-to": null,
+      "body": null
+    },
+    {
+      "mid": "hhtyg6fkj998bj0jb5vm455sj9cyyn3l",
+      "epoch": 1789397219,
+      "from": "Mickael Maison <mi...@gmail.com>",
+      "subject": "Re: [VOTE] KIP-1279: Cluster Mirroring",
+      "message-id": "<CA+OCqnYddgH4DVET0ZLqjMog1yktL9VXkC7O+6Q-4V6C5K26Xg@mail.gmail.com>",
+      "in-reply-to": null,
+      "body": null
+    },
+    {
+      "mid": "3yjrpgvy7rnwps56jr2gr7b8w5oqvlyy",
+      "epoch": 1789468014,
+      "from": "Andrew Schofield <sc...@apache.org>",
+      "subject": "Re: [VOTE] KIP-1279: Cluster Mirroring",
+      "message-id": "<pony-007af116-0a93-468e-8e04-a76bca0cb332-dev@kafka.apache.org>",
+      "in-reply-to": null,
+      "body": null
+    },
+    {
+      "mid": "vwtjsycm3n3xw8p5n5rqn5b2xqnsjvml",
+      "epoch": 1789485461,
+      "from": "Rajini Sivaram <ra...@gmail.com>",
+      "subject": "Re: [VOTE] KIP-1279: Cluster Mirroring",
+      "message-id": "<CAOJcB38iZCkncEBTy3fxrUYp5xzgQgGVk3odamGgPQCskaeT3A@mail.gmail.com>",
+      "in-reply-to": null,
+      "body": null
+    },
+    {
+      "mid": "15rddlqk42tqsjh5rw2r6so5cgns122f",
+      "epoch": 1789747597,
+      "from": "Federico Valeri <fe...@gmail.com>",
+      "subject": "Re: [VOTE] KIP-1279: Cluster Mirroring",
+      "message-id": "<CAMeNjW+AFbSyLusMHg9SyKwCZA-4w2KkQ-HkYLr=JjET2_WURg@mail.gmail.com>",
+      "in-reply-to": null,
+      "body": null
+    }
+  ]
+}

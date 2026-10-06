@@ -47,6 +47,10 @@ export class DurableObjectPipelineState implements PipelineStateRepository {
     this.stored = desired;
   }
 
+  async readStatus(): Promise<PipelineRunStatus | undefined> {
+    return this.storage.get<PipelineRunStatus>("status");
+  }
+
   async recordStatus(status: PipelineRunStatus): Promise<void> {
     await this.storage.put("status", status);
     await this.storage.delete("phase");

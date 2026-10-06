@@ -1,0 +1,95 @@
+{
+  "_note": "trimmed: stats.lua?list=dev&domain=kafka.apache.org&d=lte=28d fetched 2026-10-06",
+  "hits": 500,
+  "no_threads": 336,
+  "numparts": 145,
+  "searchParams": {
+    "list": "dev",
+    "domain": "kafka.apache.org",
+    "d": "lte=28d"
+  },
+  "emails_first3": [
+    {
+      "in-reply-to": "<JIRA.13665416.1788852666000@Atlassian.JIRA>",
+      "private": false,
+      "attachments": [],
+      "subject": "[jira] [Created] (KAFKA-21049) Async consumer can busy-loop while waiting for fetch progress when retry.backoff.ms is zero",
+      "mid": "45rd7y9lsr92snvpphn4o2jt1hb2fjrc",
+      "epoch": 1788852720,
+      "list": "<dev.kafka.apache.org>",
+      "gravatar": "7f51a67b3d24fc200d8e4688829fe24c",
+      "dbid": "86fd7dc133d82c19291497dd91dc0a53960ff7f9179acc21c3e4b067795be044",
+      "message-id": "<JIRA.13665416.1788852666000.55476.1788852720021@Atlassian.JIRA>",
+      "from": "\"Doyeon Kim (Jira)\" <ji...@apache.org>",
+      "list_raw": "<dev.kafka.apache.org>",
+      "id": "45rd7y9lsr92snvpphn4o2jt1hb2fjrc",
+      "body": "Doyeon Kim created KAFKA-21049:\n----------------------------------\n\n             Summary: Async consumer can busy-loop while waiting for fetch progress when ret"
+    },
+    {
+      "in-reply-to": "<JIRA.13662228.1787035894000@Atlassian.JIRA>",
+      "private": false,
+      "attachments": [],
+      "subject": "[jira] [Resolved] (KAFKA-20953) Remove hamcrest from org.apache.kafka.streams.internals package",
+      "mid": "rppm8kxhyhmnoym1ft8x7mwgz3hjfqq1",
+      "epoch": 1788863580,
+      "list": "<dev.kafka.apache.org>",
+      "gravatar": "7f51a67b3d24fc200d8e4688829fe24c",
+      "dbid": "b42c0a1ba5fba9b04201f3da33ab91deb71d1dbdeb1405d67aaabf7c68312ad0",
+      "message-id": "<JIRA.13662228.1787035894000.56162.1788863580261@Atlassian.JIRA>",
+      "from": "\"Chia-Ping Tsai (Jira)\" <ji...@apache.org>",
+      "list_raw": "<dev.kafka.apache.org>",
+      "id": "rppm8kxhyhmnoym1ft8x7mwgz3hjfqq1",
+      "body": "\n     [ https://issues.apache.org/jira/browse/KAFKA-20953?page=com.atlassian.jira.plugin.system.issuetabpanels:all-tabpanel ]\n\nChia-Ping Tsai resolved KAFKA-209"
+    },
+    {
+      "in-reply-to": "<JIRA.13665481.1788869958000@Atlassian.JIRA>",
+      "private": false,
+      "attachments": [],
+      "subject": "[jira] [Created] (KAFKA-21050) Flaky test ConsumerBounceTest#testClassicClose[1]",
+      "mid": "918nmqwd10155y5bq8rfp25vm3v77no8",
+      "epoch": 1788870000,
+      "list": "<dev.kafka.apache.org>",
+      "gravatar": "7f51a67b3d24fc200d8e4688829fe24c",
+      "dbid": "df6a6678eb66ba49e3a11d44fbbc57b7240e5535118bdbde6ac128742254e760",
+      "message-id": "<JIRA.13665481.1788869958000.56403.1788870000085@Atlassian.JIRA>",
+      "from": "\"Andrew Schofield (Jira)\" <ji...@apache.org>",
+      "list_raw": "<dev.kafka.apache.org>",
+      "id": "918nmqwd10155y5bq8rfp25vm3v77no8",
+      "body": "Andrew Schofield created KAFKA-21050:\n----------------------------------------\n\n             Summary: Flaky test ConsumerBounceTest#testClassicClose[1]\n        "
+    }
+  ],
+  "thread_struct_first2": [
+    {
+      "children": [],
+      "tid": "45rd7y9lsr92snvpphn4o2jt1hb2fjrc",
+      "subject": "[jira] [Created] (KAFKA-21049) Async consumer can busy-loop while waiting for fetch progress when retry.backoff.ms is zero",
+      "tsubject": "[jira] [Created] (KAFKA-21049) Async consumer can busy-loop while waiting for fetch progress when retry.backoff.ms is zero_<dev.kafka.apache.org>",
+      "epoch": 1788852720,
+      "nest": 1,
+      "social_upvotes": 0
+    },
+    {
+      "children": [],
+      "tid": "rppm8kxhyhmnoym1ft8x7mwgz3hjfqq1",
+      "subject": "[jira] [Resolved] (KAFKA-20953) Remove hamcrest from org.apache.kafka.streams.internals package",
+      "tsubject": "[jira] [Resolved] (KAFKA-20953) Remove hamcrest from org.apache.kafka.streams.internals package_<dev.kafka.apache.org>",
+      "epoch": 1788863580,
+      "nest": 1,
+      "social_upvotes": 0
+    }
+  ],
+  "participants_first2": [
+    {
+      "email": "ji...@apache.org",
+      "name": "Chia-Ping Tsai (Jira)",
+      "count": 94,
+      "gravatar": "7f51a67b3d24fc200d8e4688829fe24c"
+    },
+    {
+      "email": "sc...@apache.org",
+      "name": "Andrew Schofield",
+      "count": 21,
+      "gravatar": "7e6c3245aae2cfe10d81e388cbe2f3da"
+    }
+  ]
+}

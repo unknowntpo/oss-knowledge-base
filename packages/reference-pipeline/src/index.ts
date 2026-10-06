@@ -4,3 +4,6 @@ export * from "./event-data";
 export * from "./materializer";
 export * from "./parity";
 export * from "./state";
+export * from "./kafka-connectors";
+export * from "./kafka-events";
+export * from "./kafka-rules";

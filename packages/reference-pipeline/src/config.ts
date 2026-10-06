@@ -32,13 +32,53 @@ export const githubProjectProfiles: readonly GitHubProjectProfile[] = [
   },
 ] as const;
 
+/** A non-GitHub source of a project (Spec 012). Keyed by source instance id, not project id. */
+export interface CommunitySourceProfile {
+  readonly key: "mail" | "jira";
+  readonly projectId: string;
+  readonly projectKey: string;
+  readonly sourceInstanceId: string;
+  readonly sourceType: "mailing-list" | "issue-tracker";
+  readonly profileVersion: string;
+  readonly label: string;
+  readonly full: string;
+}
+
+export const kafkaMailSource: CommunitySourceProfile = {
+  key: "mail",
+  projectId: "apache-kafka",
+  projectKey: "kafka",
+  sourceInstanceId: "kafka:mail:dev",
+  sourceType: "mailing-list",
+  profileVersion: "apache-kafka@community-live-1",
+  label: "dev@",
+  full: "dev@kafka.apache.org threads",
+};
+
+export const kafkaJiraSource: CommunitySourceProfile = {
+  key: "jira",
+  projectId: "apache-kafka",
+  projectKey: "kafka",
+  sourceInstanceId: "kafka:jira",
+  sourceType: "issue-tracker",
+  profileVersion: "apache-kafka@community-live-1",
+  label: "Jira",
+  full: "KAFKA Jira issues and comments",
+};
+
+export const communitySourceProfiles: readonly CommunitySourceProfile[] = [kafkaMailSource, kafkaJiraSource];
+
 export interface ReferenceMaterializationConfig {
   readonly materializedAt: string;
   readonly activityWindowDays: number;
   readonly projectProfiles: readonly GitHubProjectProfile[];
+  /** Absent in pre-Spec 012 fixtures; treated as none. */
+  readonly communitySources?: readonly CommunitySourceProfile[];
   readonly materializerRevision: string;
   readonly clusteringRevision: string;
   readonly keyPointRevision: string;
+  /** Revision of the deterministic key rules behind Related links and Jira publication. */
+  readonly linkRevision?: string;
 }
 
 export function defaultReferenceConfig(materializedAt: string): ReferenceMaterializationConfig {
@@ -46,8 +86,10 @@ export function defaultReferenceConfig(materializedAt: string): ReferenceMateria
     materializedAt,
     activityWindowDays: 30,
     projectProfiles: githubProjectProfiles,
-    materializerRevision: "github-reference-materializer@1",
+    communitySources: communitySourceProfiles,
+    materializerRevision: "reference-materializer@2",
     clusteringRevision: "github-thread@1",
     keyPointRevision: "github-source-extract@1",
+    linkRevision: "kafka-key-links@1",
   };
 }

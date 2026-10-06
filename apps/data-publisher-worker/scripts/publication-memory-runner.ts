@@ -15,6 +15,7 @@ import type { ImmutableProjectionObjectV1 } from "@oss-knowledge-base/serving-co
 import { DurableObjectPipelineState } from "../src/durable-object-state";
 import { runDataPublication, type PipelineStateRepository, type PublicationDestination } from "../src/pipeline";
 import { generateSeededGitHubEvents } from "./seeded-github-events";
+import { generateSeededKafkaEvents } from "./seeded-kafka-events";
 
 export interface PhaseMeasurement {
   readonly phase: string;
@@ -23,6 +24,8 @@ export interface PhaseMeasurement {
 }
 
 export interface MemoryMeasurement {
+  /** Spec 012 dev@ and Jira events stored besides the GitHub events. */
+  readonly kafkaEvents: number;
   readonly events: number;
   readonly polledEvents: number;
   readonly seed: number;
@@ -45,10 +48,12 @@ export interface MemoryMeasurement {
 const MATERIALIZED_AT = "2026-10-02T01:42:16.361Z";
 const MB = (bytes: number) => Math.round(bytes / 104_857.6) / 10;
 
-const [countArg, seedArg, pollArg, outputPath] = process.argv.slice(2);
+const [countArg, seedArg, pollArg, outputPath, kafkaArg] = process.argv.slice(2);
 const count = Number(countArg);
 const seed = Number(seedArg ?? 9);
 const polledEvents = Number(pollArg ?? 500);
+const kafkaScale = Number(kafkaArg ?? 0);
+let kafkaEvents = 0;
 const gc = (globalThis as { gc?: () => void }).gc;
 if (gc === undefined) throw new Error("Run with node --expose-gc");
 if (!Number.isInteger(count) || count <= 0 || outputPath === undefined) {
@@ -188,6 +193,12 @@ function instrumentState(state: PipelineStateRepository): PipelineStateRepositor
 
 /** Persists all but the newest events; a separate frame so the generated array is not kept alive. */
 async function seedStorage(storage: DiskDurableObjectStorage): Promise<DomainEventV1[]> {
+  // Spec 012: dev@ and Jira events at `kafkaScale` × the 2026-10-06 volume, already stored.
+  const kafka = kafkaScale > 0 ? generateSeededKafkaEvents({ scale: kafkaScale, seed, materializedAt: MATERIALIZED_AT }) : [];
+  for (let index = 0; index < kafka.length; index += 100) {
+    await storage.put(Object.fromEntries(kafka.slice(index, index + 100).map((event) => [`event:${event.id}`, event])));
+  }
+  kafkaEvents = kafka.length;
   const events = generateSeededGitHubEvents({ count, seed, materializedAt: MATERIALIZED_AT })
     .sort((left, right) => left.sourceTimestamp.localeCompare(right.sourceTimestamp));
   const persisted = events.slice(0, Math.max(0, events.length - polledEvents));
@@ -250,6 +261,7 @@ try {
     .map(([, length]) => length);
   const result: MemoryMeasurement = {
     events: count,
+    kafkaEvents,
     polledEvents,
     seed,
     runtime: `node ${process.version}`,

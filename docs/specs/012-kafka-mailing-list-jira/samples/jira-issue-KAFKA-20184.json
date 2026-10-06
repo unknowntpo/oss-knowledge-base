@@ -1,0 +1,104 @@
+{
+  "_note": "trimmed: GET /rest/api/2/issue/KAFKA-20184?fields=...; description and comment bodies cut",
+  "key": "KAFKA-20184",
+  "id": "13642014",
+  "self": "https://issues.apache.org/jira/rest/api/2/issue/13642014",
+  "fields": {
+    "summary": "jose4j marked as compileOnly in clients module causes ClassNotFoundException at runtime for OAuth authentication",
+    "issuetype": {
+      "self": "https://issues.apache.org/jira/rest/api/2/issuetype/1",
+      "id": "1",
+      "description": "A problem which impairs or prevents the functions of the product.",
+      "iconUrl": "https://issues.apache.org/jira/secure/viewavatar?size=xsmall&avatarId=21133&avatarType=issuetype",
+      "name": "Bug",
+      "subtask": false,
+      "avatarId": 21133
+    },
+    "components": [
+      {
+        "self": "https://issues.apache.org/jira/rest/api/2/component/12315218",
+        "id": "12315218",
+        "name": "clients"
+      }
+    ],
+    "created": "2026-02-13T11:56:00.703+0000",
+    "description": "The `jose4j` library is currently marked as `compileOnly` in the `:clients` module dependency configuration https://github.com/apache/kafka/blob/4.1/build.gradle#L1819, with a comment stating \"only used by broker\". However, this is incorrect and causes runtime issues.\r\n \r\nOAuth implementation classe",
+    "fixVersions": [],
+    "priority": {
+      "self": "https://issues.apache.org/jira/rest/api/2/priority/3",
+      "iconUrl": "https://issues.apache.org/jira/images/icons/priorities/major.svg",
+      "name": "Major",
+      "id": "3"
+    },
+    "resolution": null,
+    "labels": [
+      "build",
+      "client",
+      "dependancy",
+      "oauth"
+    ],
+    "issuelinks": [],
+    "comment": {
+      "comments": [
+        {
+          "id": "18059153",
+          "author": {
+            "name": "kirktrue",
+            "displayName": "Kirk True"
+          },
+          "created": "2026-02-17T19:52:12.704+0000",
+          "updated": "2026-02-17T19:52:12.704+0000",
+          "body": "[~csemaan1a]—are you planning to provide a fix, or no? Thanks"
+        },
+        {
+          "id": "18059701",
+          "author": {
+            "name": "yykkibbb",
+            "displayName": "yookibaek"
+          },
+          "created": "2026-02-19T14:08:37.103+0000",
+          "updated": "2026-02-19T14:08:37.103+0000",
+          "body": "Hi [~kirktrue], [~csemaan1a]! thank you for reporting this issue [~csemaan1a]  — it's an important fix for anyone using OAuth authentication directly with the kafka-clients library.\r\n\r\nIf no one is currently assigned or working on this, I'd like to take it on.\r\n\r\nI've analyzed the codebase and here'"
+        },
+        {
+          "id": "18059833",
+          "author": {
+            "name": "kirktrue",
+            "displayName": "Kirk True"
+          },
+          "created": "2026-02-20T00:30:59.797+0000",
+          "updated": "2026-02-20T00:30:59.797+0000",
+          "body": "While the OAuth code lives in the \"clients\" package, it can be run in three different modes:\r\n # Client mode, in which the {{JwtRetriever}} provides a JWT to the broker\r\n # Server mode, in which a {{JwtValidator}} validates a JWT from a client\r\n # Client/server mode, in which OAuth is used for inter"
+        },
+        {
+          "id": "18120892",
+          "author": {
+            "name": "loicgreffier",
+            "displayName": "Loïc Greffier"
+          },
+          "created": "2026-09-29T20:24:00.702+0000",
+          "updated": "2026-09-29T20:24:00.702+0000",
+          "body": "Hit the same problem recently after upgrading to Kafka Clients 4.3.1. As suggested in the [GitHub Pull Request #21518|https://github.com/apache/kafka/pull/21518], setting:\r\n{code:java}\r\nsasl.oauthbearer.jwt.validator.class=org.apache.kafka.common.security.oauthbearer.ClientJwtValidator{code}\r\nworked"
+        }
+      ],
+      "maxResults": 4,
+      "total": 4,
+      "startAt": 0
+    },
+    "updated": "2026-09-29T20:24:00.702+0000",
+    "status": {
+      "self": "https://issues.apache.org/jira/rest/api/2/status/10002",
+      "description": "A patch for this issue has been uploaded to JIRA by a contributor.",
+      "iconUrl": "https://issues.apache.org/jira/images/icons/statuses/document.png",
+      "name": "Patch Available",
+      "id": "10002",
+      "statusCategory": {
+        "self": "https://issues.apache.org/jira/rest/api/2/statuscategory/4",
+        "id": 4,
+        "key": "indeterminate",
+        "colorName": "yellow",
+        "name": "In Progress"
+      }
+    }
+  }
+}

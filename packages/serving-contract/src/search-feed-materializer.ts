@@ -96,7 +96,7 @@ export async function* searchGroupsFromFeed(feed: FeedPublication): AsyncGenerat
   for (const indexEntry of entries) {
     const rawDetail = detailsByEntryId.get(indexEntry.entry.id)!;
     assertIndexDetailAgreement(indexEntry, rawDetail);
-    const detail = canonicalDetail(rawDetail);
+    const detail = canonicalDetail(rawDetail, indexEntry.displayId);
     const groupRootRecordId = detail.entry.sourceTitleRecordId;
     if (groupRoots.has(groupRootRecordId)) {
       throw new Error(`Search group root ${groupRootRecordId} is duplicated`);
@@ -150,7 +150,7 @@ function assertIndexDetailAgreement(indexEntry: FeedIndexEntry, detail: FeedDeta
   }
 }
 
-function canonicalDetail(detail: FeedDetail): FeedDetail {
+function canonicalDetail(detail: FeedDetail, displayId: string): FeedDetail {
   const recordIds = uniqueSorted(detail.records.map((record) => record.id));
   const entry: FeedEntry = {
     ...detail.entry,
@@ -166,10 +166,12 @@ function canonicalDetail(detail: FeedDetail): FeedDetail {
     },
   };
   return buildFeedDetail({
+    displayId,
     entry,
     records: [...detail.records].sort((left, right) => left.id.localeCompare(right.id)),
     connections: [...detail.connections].sort((left, right) => left.id.localeCompare(right.id)),
     keyPoints: canonicalKeyPoints(detail.keyPoints),
+    ...(detail.related === undefined ? {} : { related: detail.related }),
   });
 }
 
