@@ -142,7 +142,11 @@ describe("Spec 012 Kafka sources in publication", () => {
     expect([byId.get("KAFKA-20186")?.status, byId.get("KAFKA-20184")?.status]).toEqual(["open", "open"]);
     expect(byId.has("KAFKA-21227")).toBe(false);
     expect(byId.get("KAFKA-PR-21518")?.links.github).toBe("https://github.com/apache/kafka/pull/21518");
-    expect(publication.index.projects.find((project) => project.key === "kafka")?.sources).toEqual(["github", "mail", "jira"]);
+    const kafka = publication.index.projects.find((project) => project.key === "kafka");
+    expect(kafka?.sources).toEqual(["github", "mail", "jira"]);
+    expect(kafka?.statuses.map((status) => status.key)).toEqual(["open", "merged", "closed", "discussing", "resolved"]);
+    expect(publication.index.projects.find((project) => project.key === "datafusion")?.statuses.map((status) => status.key))
+      .toEqual(["open", "merged", "closed"]);
     for (const detail of publication.details) {
       for (const record of detail.records) expect(record.canonicalUrl).toMatch(/^https:\/\//u);
     }
@@ -151,6 +155,17 @@ describe("Spec 012 Kafka sources in publication", () => {
   test("K6: the unlinked KAFKA-21227 is published once a PR title cites it (positive control)", async () => {
     const publication = published([...await polledEvents(), githubPull(fixture.githubPulls[1]!)]);
     expect(publication.index.entries.map((item) => item.displayId)).toContain("KAFKA-21227");
+  });
+
+  test("K3: a thread's title is its newest subject without reply prefixes", async () => {
+    const thread = (subjects: readonly [string, number][]) => fixture.ponyStats.emails.slice(0, subjects.length).map((email, index) => ({
+      ...email, subject: subjects[index]![0], epoch: subjects[index]![1], mid: `k3m${index}`,
+    }));
+    const stats = { hits: 2, emails: thread([["Re: [vote] kip-1279: cluster mirroring", 1789135335], ["Re: [VOTE] KIP-1279: Cluster  Mirroring", 1789747597]]) };
+    const polled = await new PonyMailConnector({ fetch: async () => jsonResponse(stats) }).poll(undefined, NOW);
+    if (!polled.complete) throw new Error("poll failed");
+    const titles = published(polled.events).index.entries.map((item) => item.entry.title);
+    expect(titles).toEqual(["[VOTE] KIP-1279: Cluster Mirroring"]);
   });
 
   test("K7: Detail links KAFKA-20184 with PR #21518 and the KIP-1279 vote thread with KAFKA-20186, naming the rule", async () => {
@@ -296,6 +311,29 @@ describe("Spec 012 Kafka sources in publication", () => {
     const allDown = await run(new MemoryState(), githubConnector([], NOW, true), apacheFetch({ down: ["mail", "jira"] }), NOW, empty);
     expect(allDown.ok).toBe(false);
     expect(empty.objects.size).toBe(0);
+  });
+
+  test("K32: after a run that failed while publishing, a failed source still reports its cursor and last success", async () => {
+    const state = new MemoryState();
+    await run(state, githubConnector([]), apacheFetch(), at(-2 * HOUR));
+    const mailCursor = state.value.checkpoint?.sources["kafka:mail:dev"]?.updatedAt;
+    const broken = new MemoryDestination();
+    broken.failOnImmutableWrite = 1;
+    expect((await run(state, githubConnector([]), apacheFetch(), at(-HOUR), broken)).ok).toBe(false);
+    const status = await run(state, githubConnector([]), apacheFetch({ down: ["mail"] }), NOW);
+    const body = healthBody({ environment: "development", running: false, scheduled: false, phase: undefined, status });
+
+    expect(mailCursor).toBeDefined();
+    expect(body.sources?.mail).toMatchObject({ ok: false, cursor: mailCursor, lastSuccessAt: at(-2 * HOUR) });
+    expect(body.sources?.jira).toMatchObject({ ok: true, lastSuccessAt: NOW });
+  });
+
+  test("K32: a failed source reports its stored cursor even when the last status has no per-source fields", async () => {
+    const state = new MemoryState();
+    state.value = { ...state.value, checkpoint: checkpoint({ "kafka:mail:dev": at(-DAY) }) };
+    const status = await run(state, githubConnector([]), apacheFetch({ down: ["mail"] }), NOW);
+    expect(status.sources?.mail).toMatchObject({ ok: false, cursor: at(-DAY), lastSuccessAt: null });
+    expect(status.sources?.jira?.ok).toBe(true);
   });
 
   test("K32: /health lists each source; a failed mail source keeps its previous lastSuccessAt while the run is ok", async () => {

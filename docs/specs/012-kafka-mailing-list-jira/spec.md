@@ -196,7 +196,8 @@ KAFKA-21049.
 2. **Mail records.** Each dev@ message from `stats.lua` becomes one event of
    contract `mail-record@1`: entity `kafka:mail:dev:message:<mid>`, cursor and
    `occurredAt` = message time in UTC with milliseconds, subject, author
-   display name (or "unknown sender"), 200-char preview as excerpt, URL
+   display name (or "unknown sender"; nothing containing `@` is stored as the
+   author), 200-char preview as excerpt, URL
    `https://lists.apache.org/thread/<mid>`, and the keys matching
    `\b(KIP|KAFKA)-(\d+)\b` (case-sensitive) in the subject. A message is
    dropped when its normalized subject (Behavior 3) starts with `[jira]` or
@@ -296,10 +297,12 @@ exactly these rows. Edit the case file, not this table. Rows marked
 | K1 | mail record | mid 15rddlqk42tqsjh5rw2r6so5cgns122f, from "Federico Valeri <fe...@gmail.com>", subject "Re: [VOTE] KIP-1279: Cluster Mirroring", epoch 2026-09-18T16:06:37Z | entity kafka:mail:dev:message:15rddlqk42tqsjh5rw2r6so5cgns122f; occurredAt 2026-09-18T16:06:37.000Z; author Federico Valeri; url https://lists.apache.org/thread/15rddlqk42tqsjh5rw2r6so5cgns122f; kips KIP-1279; issueKeys none |
 | K1 | mail record | constructed: from "Jun Rao via dev <de...@kafka.apache.org>" | author Jun Rao |
 | K1 | mail record | constructed: from "<an...@outlook.com>" (no display name) | author unknown sender (address never stored) |
+| K1 | mail record | constructed: from "o....@gmail.com" (bare address) | author unknown sender (address never stored) |
 | K1 | keys | [jira] [Created] (KAFKA-21049) Async consumer can busy-loop … | issueKeys KAFKA-21049 |
 | K1 | keys | constructed: [DISCUSS] KIP-13680: … | kips KIP-13680 (not KIP-1368) |
 | K1 | keys | constructed: re: kip-1279 question | kips none; issueKeys none |
 | K1 | keys | constructed: see KAFKA-20184a | issueKeys none |
+| K1 | keys | constructed: XKIP-1279 and MYKAFKA-20184 | kips none; issueKeys none |
 | K2 | mail filter | [jira] [Created] (KAFKA-21049) Async consumer can busy-loop while waiting for fetch progress when retry.backoff.ms is zero | dropped |
 | K2 | mail filter | constructed: [PR] MINOR: Fix produce-ack race in ShareConsumerDLQTest multi-topic tests. | dropped |
 | K2 | mail filter | [DISCUSS] KIP-1368: Client framework name and version | kept |
@@ -309,6 +312,7 @@ exactly these rows. Edit the case file, not this table. Rows marked
 | K3 | thread key | [VOTE] KIP-1279: Cluster Mirroring | [vote] kip-1279: cluster mirroring |
 | K3 | thread key | Re: [VOTE] KIP-1279: Cluster Mirroring | [vote] kip-1279: cluster mirroring |
 | K3 | thread key | constructed: RE: Fwd:  Re: [VOTE]  KIP-1279: Cluster Mirroring | [vote] kip-1279: cluster mirroring |
+| K3 | thread key | constructed: AW: [VOTE] KIP-1279: Cluster Mirroring | [vote] kip-1279: cluster mirroring |
 | K3 | thread key | [DISCUSS] KIP-1279: Cluster Mirroring | [discuss] kip-1279: cluster mirroring |
 | K3 | thread key | constructed: [RESULT] [VOTE] KIP-1279: Cluster Mirroring | [result] [vote] kip-1279: cluster mirroring (separate thread) |
 | K4 | jira record | KAFKA-20186 "Cluster Mirroring", In Progress, description "…tracks the development of KIP-1279: …" | title KAFKA-20186: Cluster Mirroring; status open; kips KIP-1279 |
@@ -355,6 +359,9 @@ exactly these rows. Edit the case file, not this table. Rows marked
 | K13 | malformed mail | constructed: message with subject null | skipped, counted |
 | K13 | malformed mail | constructed: message without mid | skipped, counted |
 | K13 | misdated mail | constructed: epoch 2 d after now | skipped, counted; cursor unchanged |
+| K13 | misdated mail | constructed: epoch 61 min after now | skipped, counted; cursor unchanged |
+| K13 | misdated mail | constructed: epoch 119 min after now | skipped, counted; cursor unchanged |
+| K13 | counts | constructed: one [jira] notification, one message without epoch, one human message | read 3; filtered 1; skipped 1; ingested 1 |
 | K13 | misdated mail | constructed: epoch 59 min after now | ingested; cursor = now |
 | K14 | malformed jira | constructed: issue without fields.updated | skipped, counted; cursor = newest valid updated |
 | K14 | malformed jira | constructed: issue without key | skipped, counted |
@@ -365,6 +372,7 @@ exactly these rows. Edit the case file, not this table. Rows marked
 | K21 | schema | constructed: Pony Mail 200 without emails array | source failed (schema) |
 | K21 | schema | constructed: Pony Mail 200 with emails [] | ok, 0 read |
 | K22 | schema | Jira 200 text/html (login page, as /rest/api/3/search returns) | source failed (schema) |
+| K22 | schema | constructed: Jira 200 with total "3" (a string) | source failed (schema) |
 | K22 | size | constructed: Jira page of exactly 4 MiB (captured 100-issue page: 671 KB) | ok |
 | K22 | size | constructed: Jira page of 4 MiB + 1 character | source failed (too-large); cursor unchanged |
 <!-- test-plan:end -->
@@ -373,7 +381,7 @@ Named tests (no table), in
 `apps/data-publisher-worker/test/kafka-sources-pipeline.test.ts` (to be
 written): K6–K8 (publication from captured fixtures), K11, K16–K19, K23
 (pipeline runs with fake sources), K32 (`/health` body); K28 (request count)
-runs in `packages/reference-pipeline/test/kafka-connectors.test.ts`.
+runs in `packages/reference-pipeline/test/kafka-sources.test.ts`.
 
 ## Acceptance
 
@@ -469,8 +477,9 @@ runs in `packages/reference-pipeline/test/kafka-connectors.test.ts`.
   at the current volume (stored events counted by `measure:memory`; measured
   1,250).
 - K27: [measure] payload: a 30-day Pony Mail response is at most 1 MB
-  (captured 699 KB for 520 messages) and a Jira page of 100 issues at most
-  1 MB (captured 671 KB); both are parsed and released inside the poll phase.
+  (captured 699 KB for 520 messages, the September 2026 month in the
+  feasibility spike) and a Jira page of 100 issues at most 1 MB (captured
+  671 KB in the spike); both are parsed and released inside the poll phase.
 - K28: a backfill or steady-state run makes at most 2 Pony Mail requests and 4
   Jira requests including retries; requests to one host are sequential and
   carry the `User-Agent`, and no credentials. The worker's subrequest limit
@@ -490,7 +499,9 @@ runs in `packages/reference-pipeline/test/kafka-connectors.test.ts`.
 - K32: after a run in which the mail source fails and GitHub and Jira
   succeed, `/health` lists each source with `ok` and `lastSuccessAt`: GitHub
   and Jira `ok: true` at this run, mail `ok: false` with its failure kind and
-  the previous run's `lastSuccessAt`; `lastRun.ok` is true.
+  the previous run's `lastSuccessAt`; `lastRun.ok` is true. A failed source's
+  `cursor` comes from the stored checkpoint, and a run that fails while
+  publishing carries every source's last success forward.
 
 ## Non-goals
 

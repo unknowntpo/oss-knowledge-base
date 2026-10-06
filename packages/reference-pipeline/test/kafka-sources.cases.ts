@@ -9,11 +9,13 @@ export const testPlanRows = [
   { id: "K1", rule: "mail record", input: "mid 15rddlqk42tqsjh5rw2r6so5cgns122f, from \"Federico Valeri <fe...@gmail.com>\", subject \"Re: [VOTE] KIP-1279: Cluster Mirroring\", epoch 2026-09-18T16:06:37Z", expected: "entity kafka:mail:dev:message:15rddlqk42tqsjh5rw2r6so5cgns122f; occurredAt 2026-09-18T16:06:37.000Z; author Federico Valeri; url https://lists.apache.org/thread/15rddlqk42tqsjh5rw2r6so5cgns122f; kips KIP-1279; issueKeys none" },
   { id: "K1", rule: "mail record", input: "constructed: from \"Jun Rao via dev <de...@kafka.apache.org>\"", expected: "author Jun Rao" },
   { id: "K1", rule: "mail record", input: "constructed: from \"<an...@outlook.com>\" (no display name)", expected: "author unknown sender (address never stored)" },
+  { id: "K1", rule: "mail record", input: "constructed: from \"o....@gmail.com\" (bare address)", expected: "author unknown sender (address never stored)" },
   // Key extraction: \b(KIP|KAFKA)-(\d+)\b, case-sensitive.
   { id: "K1", rule: "keys", input: "[jira] [Created] (KAFKA-21049) Async consumer can busy-loop …", expected: "issueKeys KAFKA-21049" },
   { id: "K1", rule: "keys", input: "constructed: [DISCUSS] KIP-13680: …", expected: "kips KIP-13680 (not KIP-1368)" },
   { id: "K1", rule: "keys", input: "constructed: re: kip-1279 question", expected: "kips none; issueKeys none" },
   { id: "K1", rule: "keys", input: "constructed: see KAFKA-20184a", expected: "issueKeys none" },
+  { id: "K1", rule: "keys", input: "constructed: XKIP-1279 and MYKAFKA-20184", expected: "kips none; issueKeys none" },
   // K2: notification mail duplicates a direct source and is not ingested.
   { id: "K2", rule: "mail filter", input: "[jira] [Created] (KAFKA-21049) Async consumer can busy-loop while waiting for fetch progress when retry.backoff.ms is zero", expected: "dropped" },
   { id: "K2", rule: "mail filter", input: "constructed: [PR] MINOR: Fix produce-ack race in ShareConsumerDLQTest multi-topic tests.", expected: "dropped" },
@@ -25,6 +27,7 @@ export const testPlanRows = [
   { id: "K3", rule: "thread key", input: "[VOTE] KIP-1279: Cluster Mirroring", expected: "[vote] kip-1279: cluster mirroring" },
   { id: "K3", rule: "thread key", input: "Re: [VOTE] KIP-1279: Cluster Mirroring", expected: "[vote] kip-1279: cluster mirroring" },
   { id: "K3", rule: "thread key", input: "constructed: RE: Fwd:  Re: [VOTE]  KIP-1279: Cluster Mirroring", expected: "[vote] kip-1279: cluster mirroring" },
+  { id: "K3", rule: "thread key", input: "constructed: AW: [VOTE] KIP-1279: Cluster Mirroring", expected: "[vote] kip-1279: cluster mirroring" },
   { id: "K3", rule: "thread key", input: "[DISCUSS] KIP-1279: Cluster Mirroring", expected: "[discuss] kip-1279: cluster mirroring" },
   { id: "K3", rule: "thread key", input: "constructed: [RESULT] [VOTE] KIP-1279: Cluster Mirroring", expected: "[result] [vote] kip-1279: cluster mirroring (separate thread)" },
   // K4: a KAFKA issue becomes one Jira record.
@@ -76,6 +79,9 @@ export const testPlanRows = [
   { id: "K13", rule: "malformed mail", input: "constructed: message with subject null", expected: "skipped, counted" },
   { id: "K13", rule: "malformed mail", input: "constructed: message without mid", expected: "skipped, counted" },
   { id: "K13", rule: "misdated mail", input: "constructed: epoch 2 d after now", expected: "skipped, counted; cursor unchanged" },
+  { id: "K13", rule: "misdated mail", input: "constructed: epoch 61 min after now", expected: "skipped, counted; cursor unchanged" },
+  { id: "K13", rule: "misdated mail", input: "constructed: epoch 119 min after now", expected: "skipped, counted; cursor unchanged" },
+  { id: "K13", rule: "counts", input: "constructed: one [jira] notification, one message without epoch, one human message", expected: "read 3; filtered 1; skipped 1; ingested 1" },
   { id: "K13", rule: "misdated mail", input: "constructed: epoch 59 min after now", expected: "ingested; cursor = now" },
   { id: "K14", rule: "malformed jira", input: "constructed: issue without fields.updated", expected: "skipped, counted; cursor = newest valid updated" },
   { id: "K14", rule: "malformed jira", input: "constructed: issue without key", expected: "skipped, counted" },
@@ -86,6 +92,7 @@ export const testPlanRows = [
   { id: "K21", rule: "schema", input: "constructed: Pony Mail 200 without emails array", expected: "source failed (schema)" },
   { id: "K21", rule: "schema", input: "constructed: Pony Mail 200 with emails []", expected: "ok, 0 read" },
   { id: "K22", rule: "schema", input: "Jira 200 text/html (login page, as /rest/api/3/search returns)", expected: "source failed (schema)" },
+  { id: "K22", rule: "schema", input: "constructed: Jira 200 with total \"3\" (a string)", expected: "source failed (schema)" },
   { id: "K22", rule: "size", input: "constructed: Jira page of exactly 4 MiB (captured 100-issue page: 671 KB)", expected: "ok" },
   { id: "K22", rule: "size", input: "constructed: Jira page of 4 MiB + 1 character", expected: "source failed (too-large); cursor unchanged" },
 ] as const;

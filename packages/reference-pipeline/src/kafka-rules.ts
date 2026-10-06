@@ -48,7 +48,8 @@ export function isNotificationSubject(subject: string): boolean {
 /** Display name of a `From` value; the address is never kept. */
 export function mailAuthor(from: string): string {
   const name = from.replace(/<[^>]*>/gu, "").replace(/["']/gu, "").replace(/\s+via\s+\S+\s*$/iu, "").trim();
-  return name.length === 0 ? "unknown sender" : name;
+  // A bare or obfuscated address (`o....@gmail.com`) is not a name.
+  return name.length === 0 || name.includes("@") ? "unknown sender" : name;
 }
 
 export function jiraStatus(nativeStatus: string): "open" | "resolved" {

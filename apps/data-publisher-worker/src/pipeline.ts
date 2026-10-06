@@ -1,6 +1,8 @@
 import type { DomainEventV1 } from "@oss-knowledge-base/domain";
 import {
   canonicalDigest,
+  communitySourceProfiles,
+  githubProjectProfiles,
   type GitHubCheckpointV1,
   type SourcePollResult,
   defaultReferenceConfig,
@@ -132,12 +134,15 @@ export async function runDataPublication(input: {
       counts: { ...counts },
     });
   };
+  const sourceKeys = ["github", ...(input.sources ?? []).map((source) => source.key)];
+  let previousStatus: PipelineRunStatus | undefined;
+  let previousCheckpoint: GitHubCheckpointV1 | undefined;
   try {
     await phase("reading-state");
+    previousStatus = await input.state.readStatus?.();
     const next = new ReferenceStateStore(await input.state.read());
     await phase("polling", { storedEvents: next.readEvents().length });
-    const previousStatus = await input.state.readStatus?.();
-    const previousCheckpoint = next.readCheckpoint();
+    previousCheckpoint = next.readCheckpoint();
     const polls: { readonly key: string; readonly poll: SourcePollResult; readonly durationMs: number }[] = [];
     for (const source of [{ key: "github", connector: input.connector }, ...(input.sources ?? [])]) {
       const started = Date.now();
@@ -154,7 +159,7 @@ export async function runDataPublication(input: {
         failureKind: first.failureKind,
         error: first.error,
         retryAfterSeconds: first.retryAfterSeconds,
-        ...withSources(sourceStatuses(polls, previousStatus, input.materializedAt, new Map(), new Map())),
+        ...withSources(sourceStatuses(polls, previousStatus, previousCheckpoint, input.materializedAt, new Map(), new Map())),
       });
     }
 
@@ -193,7 +198,7 @@ export async function runDataPublication(input: {
       pollTruncated: succeeded.some((item) => item.poll.complete && item.poll.truncated),
       copiedObjectCount: published.copiedObjectCount,
       reusedObjectCount: published.reusedObjectCount,
-      ...withSources(sourceStatuses(polls, previousStatus, input.materializedAt, conflicts, publishedBySource)),
+      ...withSources(sourceStatuses(polls, previousStatus, previousCheckpoint, input.materializedAt, conflicts, publishedBySource)),
     });
   } catch (error) {
     return await record(input.state, {
@@ -203,6 +208,11 @@ export async function runDataPublication(input: {
       failureKind: "pipeline",
       error: error instanceof Error ? error.message : String(error),
       retryAfterSeconds: 300,
+      // Nothing was committed, so every source keeps its stored cursor and last success.
+      ...withSources(sourceStatuses(
+        sourceKeys.map((key) => ({ key, durationMs: 0, poll: { complete: false, events: [], error: "publication failed", failureKind: "pipeline", retryAfterSeconds: 300 } })),
+        previousStatus, previousCheckpoint, input.materializedAt, new Map(), new Map(),
+      )),
     });
   }
 }
@@ -316,14 +326,25 @@ function mergedCheckpoint(previous: GitHubCheckpointV1 | undefined, polls: reado
   for (const poll of polls) {
     if (!poll.complete) continue;
     Object.assign(sources, poll.candidateCheckpoint.sources);
+    // The v1 field names one revision; the first successful source fills it on a first run.
     connectorRevision ??= poll.candidateCheckpoint.connectorRevision;
   }
   return { schema: "osskb.github-checkpoint.v1", connectorRevision: connectorRevision ?? "github@1", sources };
 }
 
+/** Source instances whose cursors a source key owns. */
+function sourceInstanceIds(key: string): readonly string[] {
+  return key === "github"
+    ? githubProjectProfiles.map((profile) => profile.sourceInstanceId)
+    : communitySourceProfiles.filter((source) => source.key === key).map((source) => source.sourceInstanceId);
+}
+
+type FailedPoll = { readonly complete: false; readonly error: string; readonly failureKind: string; readonly retryAfterSeconds: number };
+
 function sourceStatuses(
-  polls: readonly { readonly key: string; readonly poll: SourcePollResult; readonly durationMs: number }[],
+  polls: readonly { readonly key: string; readonly poll: SourcePollResult | (FailedPoll & { readonly events: readonly [] }); readonly durationMs: number }[],
   previousStatus: PipelineRunStatus | undefined,
+  previousCheckpoint: GitHubCheckpointV1 | undefined,
   completedAt: string,
   conflicts: ReadonlyMap<string, number>,
   published: ReadonlyMap<string, number>,
@@ -349,7 +370,9 @@ function sourceStatuses(
       statuses[key] = {
         ok: false,
         lastSuccessAt,
-        cursor: previousStatus?.sources?.[key]?.cursor ?? null,
+        // The stored checkpoint is the truth; the previous status may come from a failed run.
+        cursor: sourceInstanceIds(key).map((id) => previousCheckpoint?.sources[id]?.updatedAt)
+          .filter((value): value is string => value !== undefined).sort().at(-1) ?? null,
         durationMs,
         read: 0,
         skipped: 0,

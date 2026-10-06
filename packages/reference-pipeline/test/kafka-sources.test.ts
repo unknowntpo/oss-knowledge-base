@@ -147,6 +147,14 @@ const cases: Record<string, Case> = {
     const event = mail({ from: "<an...@outlook.com>" });
     return `author ${data(event).author} (${JSON.stringify(event).includes("outlook") ? "address stored" : "address never stored"})`;
   },
+  "mail record|constructed: from \"o....@gmail.com\" (bare address)": () => {
+    const event = mail({ from: "o....@gmail.com" });
+    return `author ${data(event).author} (${JSON.stringify(event).includes("o....@") ? "address stored" : "address never stored"})`;
+  },
+  "keys|constructed: XKIP-1279 and MYKAFKA-20184": (row) => {
+    const keys = extractKeys(subjectOf(row.input));
+    return `kips ${list(keys.kips)}; issueKeys ${list(keys.issueKeys)}`;
+  },
   "keys|[jira] [Created] (KAFKA-21049) Async consumer can busy-loop …": (row) => `issueKeys ${list(extractKeys(row.input).issueKeys)}`,
   "keys|constructed: [DISCUSS] KIP-13680: …": (row) => {
     const { kips } = extractKeys(subjectOf(row.input));
@@ -172,6 +180,7 @@ const cases: Record<string, Case> = {
     VOTE,
     `Re: ${VOTE}`,
     "constructed: RE: Fwd:  Re: [VOTE]  KIP-1279: Cluster Mirroring",
+    "constructed: AW: [VOTE] KIP-1279: Cluster Mirroring",
     "[DISCUSS] KIP-1279: Cluster Mirroring",
   ].map((input) => [`thread key|${input}`, () => threadKey(subjectOf(input))])),
   "thread key|constructed: [RESULT] [VOTE] KIP-1279: Cluster Mirroring": (row) => {
@@ -284,6 +293,23 @@ const cases: Record<string, Case> = {
     const { result } = await pony({ hits: 2, emails: [email(overrides as Record<string, unknown>), email({ mid: "qqq7mwdbyd74337t4ob5fv8yp28pv8sv" })] });
     return result.complete && result.stats?.skipped === 1 && result.events.length === 1 ? "skipped, counted" : "not skipped";
   }])),
+  ...Object.fromEntries([61, 119].map((minutes) => [`misdated mail|constructed: epoch ${minutes} min after now`, async () => {
+    const previous = before(HOUR);
+    const { result } = await pony({ hits: 1, emails: [email({ epoch: (Date.parse(NOW) + minutes * MIN) / 1000 })] }, previous);
+    return result.complete && result.stats?.skipped === 1 && result.events.length === 0
+      ? `skipped, counted; ${cursorOf(result, "kafka:mail:dev") === previous ? "cursor unchanged" : "cursor moved"}`
+      : "not skipped";
+  }])),
+  "counts|constructed: one [jira] notification, one message without epoch, one human message": async () => {
+    const { result } = await pony({ hits: 3, emails: [
+      email({ mid: "n1", subject: "[jira] [Created] (KAFKA-21049) Async consumer can busy-loop" }),
+      email({ mid: "n2", epoch: undefined }),
+      email(),
+    ] });
+    return result.complete
+      ? `read ${result.stats?.read}; filtered ${result.stats?.filtered}; skipped ${result.stats?.skipped}; ingested ${result.events.length}`
+      : failed(result);
+  },
   "misdated mail|constructed: epoch 2 d after now": async () => {
     const previous = before(HOUR);
     const { result } = await pony({ hits: 1, emails: [email({ epoch: (Date.parse(NOW) + 2 * DAY) / 1000 })] }, previous);
@@ -340,6 +366,8 @@ const cases: Record<string, Case> = {
   },
   "schema|Jira 200 text/html (login page, as /rest/api/3/search returns)": async () =>
     failed((await jira([response(200, "<!DOCTYPE html><html><title>Log in - ASF JIRA</title></html>", { "content-type": "text/html" })])).result),
+  "schema|constructed: Jira 200 with total \"3\" (a string)": async () =>
+    failed((await jira([response(200, JSON.stringify({ startAt: 0, maxResults: 100, total: "3", issues: [] }))])).result),
   "size|constructed: Jira page of exactly 4 MiB (captured 100-issue page: 671 KB)": async () =>
     failed((await jira([response(200, paddedJson(MAX_RESPONSE_CHARS))])).result),
   "size|constructed: Jira page of 4 MiB + 1 character": async () => {
