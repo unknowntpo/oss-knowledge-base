@@ -85,6 +85,11 @@ GitHub data are supporting evidence only.
 - M9: with an alarm registered more than 30 minutes in the past, `POST /run`
   returns 202 and schedules a run; with one registered less than 30 minutes
   ago, it returns 409.
+- M10: sources are read live, so M4's rerun holds only for the same events. A
+  rerun of a killed attempt's release whose sources changed fails with
+  `destination-conflict` on a release-specific Search shard (the 2026-10-06
+  12:07 Dev incident); therefore an alarm the runtime retries publishes under a
+  new `materializedAt`, not the release of the attempt that died.
 
 ## Non-goals
 
