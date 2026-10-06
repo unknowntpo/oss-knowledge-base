@@ -10,8 +10,8 @@ const freshText = testPlanRows.find((row) => row.id === "F1" && row.en === "Upda
 const staleText = testPlanRows.find((row) => row.id === "F2" && row.stale === true)!.en;
 
 test.beforeEach(async ({ page }, testInfo) => {
-  // The topbar pill is hidden below 420 px, so freshness is a desktop concern (Spec 010).
-  test.skip(testInfo.project.name.startsWith("mobile"), "the freshness pill is hidden on narrow screens");
+  // Up to 420 px the pill is hidden while fresh (Spec 011 covers narrow screens), so these run on desktop.
+  test.skip(testInfo.project.name.startsWith("mobile"), "narrow screens are covered by stall-visibility.spec.ts");
   await page.addInitScript(() => window.localStorage.setItem("community-kb-locale", "en"));
 });
 

@@ -51,6 +51,11 @@ async function expectStalePillInside(page: Page, locale: Locale, width: number):
   expect(box.x + box.width).toBeLessThanOrEqual(width);
   const topbar = await page.locator(".topbar").evaluate((element) => [element.scrollWidth, element.clientWidth]);
   expect(topbar[0]).toBeLessThanOrEqual(topbar[1]!);
+  // The full text must be readable: not overflowing the pill, not running under the locale select.
+  const text = await pill.evaluate((element) => [element.scrollWidth, element.clientWidth]);
+  expect(text[0]).toBeLessThanOrEqual(text[1]!);
+  const select = (await page.locator(".locale-control").boundingBox())!;
+  expect(box.x + box.width).toBeLessThanOrEqual(select.x);
 }
 
 for (const width of [320, 375, 420]) {
@@ -102,4 +107,23 @@ test("V4: an unparsable generatedAt shows no stall on a narrow screen", async ({
   await page.reload();
   await expect(page.locator(".card")).toHaveCount(3);
   await expect(page.locator(".demo-pill")).toBeHidden();
+});
+
+test("V6: a cached feed (metadata.stale) shows the stale pill on a narrow screen", async ({ page }) => {
+  // Fresh generatedAt, so only metadata.stale can make the pill stale.
+  await prepare(page, "en", 375, generatedAt + 2 * hour);
+  // Control: without metadata.stale the same page hides the pill.
+  await open(page, "feed");
+  await expect(page.locator(".demo-pill")).toBeHidden();
+
+  await page.route("**/api/feed", async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.metadata.stale = true;
+    await route.fulfill({ response, json: body });
+  });
+  await page.reload();
+  await expect(page.locator(".card")).toHaveCount(3);
+  await expect(page.locator(".demo-pill")).toBeVisible();
+  await expect(page.locator(".demo-pill")).toHaveClass(/is-stale/u);
 });
