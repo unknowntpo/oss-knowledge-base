@@ -102,7 +102,7 @@ describe("clock resolution", () => {
 });
 
 describe("summaries", () => {
-  test("the UI summary prints one line per present element and skips absent ones", () => {
+  test("the UI summary prints one line per present element, flags overflow, and skips absent ones", () => {
     const text = formatUiSummary({
       target: "dev",
       baseUrl: "https://example.test",
@@ -130,6 +130,7 @@ describe("summaries", () => {
               overflowX: false,
             },
             { selector: ".search-card", count: 0, visible: false },
+            { selector: ".topic-wrap", count: 1, visible: false, className: "topic-wrap", overflowX: true },
           ],
         },
       ],
@@ -139,6 +140,7 @@ describe("summaries", () => {
         "dev https://example.test 375x800 en clock=2026-08-25T15:23:00.000Z generatedAt=2026-08-25T12:00:00Z",
         "[feed] https://example.test/#/ lang=en pageOverflowX=false",
         '  .demo-pill x1 visible class="demo-pill is-stale" box=60,10,200x40 "Data may be out of date · 3 h ago"',
+        '  .topic-wrap x1 hidden,overflowX class="topic-wrap"',
       ].join("\n"),
     );
   });
@@ -171,6 +173,16 @@ describe("summaries", () => {
     expect(judgeHealth(report({ now: "2026-08-25T15:00:00.000Z" }), 3 * hour).staleInUi).toBe(false);
     const cached = report({ feed: { url: "https://pages.test", generatedAt: "2026-08-25T12:00:00.000Z", releaseId: "r1", stale: true } });
     expect(judgeHealth(cached, 3 * hour).staleInUi).toBe(true);
+  });
+
+  test("the same time with another release is inconsistent (verify:health exits 1)", () => {
+    const otherRelease = report({ feed: { url: "https://pages.test", generatedAt: "2026-08-25T12:00:00.000Z", releaseId: "r2" } });
+    expect(judgeHealth(otherRelease, 3 * hour).consistent).toBe(false);
+  });
+
+  test("age rounds down to whole minutes and a feed ahead of the clock is age 0", () => {
+    expect(judgeHealth(report({ now: "2026-08-25T12:59:59.000Z" }), 3 * hour).ageMinutes).toBe(59);
+    expect(judgeHealth(report({ now: "2026-08-25T11:00:00.000Z" }), 3 * hour)).toMatchObject({ ageMinutes: 0, staleInUi: false });
   });
 
   test("a target without a publisher reports consistency as n/a", () => {

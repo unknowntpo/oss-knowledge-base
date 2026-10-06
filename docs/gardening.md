@@ -16,10 +16,12 @@ the two `viewer/` items below.
 
 ## Web UI
 
-### G1. `<html lang>` stays `zh-Hant` in the English UI
+### G1. `<html lang>` is not set on first load
 - **Where:** `apps/web/index.html` (`<html lang="zh-Hant">`); `apps/web/i18n.js`
-  sets `document.documentElement.lang` only in `apply()`, which runs on
-  `setLocale`, not on first load.
+  updates `document.documentElement.lang` in `apply()` (line 327), which runs
+  when the user changes the locale select (`setLocale`, line 345) but not
+  when the initial locale is resolved. A page that starts in English keeps
+  `lang="zh-Hant"` until the user switches.
 - **Why:** screen readers and hyphenation use the wrong language for every
   English visitor whose locale came from storage or `navigator.language`.
   Reproduced: `bun run verify:ui -- --target dev --locale en` reports `lang=zh-Hant`.
@@ -92,10 +94,37 @@ the two `viewer/` items below.
   deployed E2E).
 - **Source:** [Spec 012 Non-goals, "Alerting on a failed source"](https://github.com/unknowntpo/oss-knowledge-base/blob/41dc4d39ef0312277349098f76f0e4131c4c01a8/docs/specs/012-kafka-mailing-list-jira/spec.md#non-goals).
 
+### G14. API cache headers: errors are cached, Search detail is not immutable
+- **Where:** `jsonResponse` in `apps/web/functions/_shared/r2-projection.ts`
+  (lines 79–84) always sets `cache-control: public, max-age=30,
+  stale-while-revalidate=120`, overwriting the `no-store` (errors in
+  `feed.ts`, `search.ts`, `detail/[id].ts`, `search-detail/[ref].ts`) and
+  `public, max-age=31536000, immutable` (`search-detail/[ref].ts`) headers the
+  handlers pass.
+- **Why:** a transient 503 or a 404 is cached for 30 s plus 120 s stale, so
+  the page keeps failing after R2 recovers; immutable Search details are
+  re-fetched every 30 s. Observed on Dev: `/api/search-detail/bogus` → 400
+  and `/api/detail/NOPE-1` → 404, both with `max-age=30`.
+- **Fix:** set the default only when `init.headers` has no `cache-control`.
+- **Layer:** test (Functions test asserting the header per status and
+  endpoint).
+- **Source:** [PR #29 verifier, 2a](https://github.com/unknowntpo/oss-knowledge-base/pull/29#issuecomment-6014587324).
+
+### G15. "Relevance" sort is dead code on the Feed
+- **Where:** `apps/web/src/views/FeedView.vue`: `visibleEntries` fixes
+  `normalized = ""` (line 125), so the relevance branch (line 137) never runs;
+  `#sort` is rendered only without a query (line 254).
+- **Why:** choosing "relevance" orders like "hot"; the option and the
+  `searchScore` helper suggest behavior that does not exist.
+- **Fix:** delete the relevance option and `searchScore`, or define what it
+  means without a query.
+- **Layer:** structure (remove the unreachable option) — delete, do not explain.
+- **Source:** [PR #29 verifier, 2d](https://github.com/unknowntpo/oss-knowledge-base/pull/29#issuecomment-6014587324).
+
 ## Publisher and data
 
 ### G8. `isBot` is a substring match on the login
-- **Where:** `apps/github-publisher/github-connector.ts:99` —
+- **Where:** `apps/github-publisher/github-connector.ts:100` —
   `login.toLowerCase().includes("bot")`.
 - **Why:** misses bots without "bot" in the login (`codecov-commenter`) and
   flags humans whose login contains it (`abbott`); bot comments then count
