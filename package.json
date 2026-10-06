@@ -14,7 +14,7 @@
     "test:fluss-flink-compat": "mvn -B verify -f spikes/fluss-flink-compat/pom.xml",
     "test:fluss-flink-cluster": "bun spikes/fluss-flink-compat/scripts/run-cluster-slice.ts",
     "test:ci": "bun run typecheck && bun run build && bun run test:unit && bun run test:integration && bun run test:e2e",
-    "typecheck": "bun run --cwd packages/domain typecheck && bun run --cwd packages/serving-contract typecheck && bun run --cwd packages/search typecheck && bun run --cwd packages/reference-pipeline typecheck && bun run --cwd apps/github-publisher typecheck && bun run --cwd apps/data-publisher-worker typecheck && bun run --cwd apps/web typecheck",
+    "typecheck": "bun run --cwd packages/domain typecheck && bun run --cwd packages/serving-contract typecheck && bun run --cwd packages/search typecheck && bun run --cwd packages/reference-pipeline typecheck && bun run --cwd apps/github-publisher typecheck && bun run --cwd apps/data-publisher-worker typecheck && bun run --cwd apps/web typecheck && tsc -p scripts/verify/tsconfig.json",
     "build": "bun run --cwd apps/web build",
     "measure:search": "bun run --cwd apps/web measure:search",
     "search:publish": "bun run --cwd apps/web search:publish",
@@ -23,7 +23,9 @@
     "e2e:server": "bun run --cwd apps/web pages:dev:e2e",
     "check:traceability": "bun scripts/check-spec-traceability.ts",
     "docs:test-plan": "bun scripts/render-test-plan.ts",
-    "check:test-plan": "bun scripts/render-test-plan.ts --check"
+    "check:test-plan": "bun scripts/render-test-plan.ts --check",
+    "verify:ui": "bun scripts/verify/ui.ts",
+    "verify:health": "bun scripts/verify/health.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",

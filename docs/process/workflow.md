@@ -50,7 +50,7 @@ reported afterwards in one line. A PR that changes only Markdown documentation
 | 2. Assertions | Human; AI expands, human reviews the expansion | Numbered acceptance items in the spec | Every item names precondition, action, observable result, evidence |
 | 3. Decision | Human; AI lists alternatives | ADR when the choice crosses features | Alternatives, consequences, revisit trigger |
 | 4. Slice | AI | Smallest end-to-end change; tests first | Each new test was seen failing before the fix |
-| 5. Gates | Machine | Local checks → CI → Dev → Prod | `bun run check:traceability` and CI green; deployed E2E green |
+| 5. Gates | Machine; verifier with the verification kit | Local checks → CI → Dev → Prod | `bun run check:traceability` and CI green; deployed E2E green |
 | 6. Runtime | Machine; alerts to human | Health fields, freshness, run evidence | A violated assertion is visible without manual tailing |
 
 When runtime behavior contradicts an assertion, change the spec first, then
@@ -108,6 +108,43 @@ their expected texts from the same case file.
 `Traceability: enforced` has no test whose name contains it. Items verified
 only by deployment or measurement are tagged `[deploy]` or `[measure]` and are
 listed in the PR instead.
+
+## Trust layers
+
+Agents copy what they see, so trust comes from the environment, not from
+reviewing more output (Lauren Tan, "Run a Michelin kitchen, not a code
+factory"). Layers, strongest first: structure (types, schemas) → static
+checks (CI gates) → tests and measurements → rules (this file) → automated
+review (the verifier) → skills → human review.
+
+**Move each lesson to the strongest layer that can hold it.** When a
+verifier, an incident, or a human finds a defect, fix the instance, then add
+the type, gate, or test row that stops it recurring, and name that layer in
+the PR. A note in a rule file is the last resort.
+
+## Verification kit
+
+Verifiers do not rebuild a harness per PR. The repository keeps:
+
+- [`docs/feature-map.md`](../feature-map.md): routes, APIs, stable selectors,
+  data sources, environment URLs, and the acceptance IDs covering each.
+  Update it in the PR that changes behavior.
+- `bun run verify:ui` (viewport, locale, controlled clock → screenshots and
+  element states as JSON) and `bun run verify:health` (publisher `/health`
+  against `/api/feed`), for `--target local` or `dev`. Read-only; they never
+  call the publisher's `/run`.
+
+The verifier uses the kit first. When it needs a missing capability, it adds
+the command or map entry and lists it in its report.
+
+## Gardening
+
+Agents replicate existing workarounds, so debt spreads.
+[`docs/gardening.md`](../gardening.md) lists known workarounds, stale copy,
+follow-ups recorded as non-goals, and test gaps, each with its source and the
+trust layer its fix belongs in. No new workaround or follow-up lands without
+an entry. A gardener pass (human or agent) fixes or deletes items and removes
+them from the list; prefer deleting a workaround to explaining it.
 
 ## Evidence rules
 
