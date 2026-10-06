@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, provide, ref } from "vue";
+import { computed, onMounted, onUnmounted, provide, ref } from "vue";
 
 import { fetchFeed } from "./api";
+import { feedFreshness, freshnessText } from "./freshness";
 import { useI18n } from "./i18n";
 import { feedStoreKey } from "./store";
 import type { FeedIndex } from "./types";
@@ -24,7 +25,20 @@ async function refresh() {
 }
 
 provide(feedStoreKey, { payload, loading, error, refresh });
-onMounted(() => void refresh());
+// Freshness is relative to the browser clock, so an open page re-evaluates it every minute (Spec 010).
+const now = ref(Date.now());
+let clock: ReturnType<typeof setInterval> | undefined;
+onMounted(() => {
+  void refresh();
+  clock = setInterval(() => { now.value = Date.now(); }, 60_000);
+});
+onUnmounted(() => clearInterval(clock));
+const freshness = computed(() => {
+  const manifest = payload.value?.metadata.manifest;
+  // feedFreshness validates the value, so an unexpected shape only hides the label.
+  const generatedAt = typeof manifest === "object" && manifest !== null ? (manifest as { generatedAt?: unknown }).generatedAt : undefined;
+  return feedFreshness(generatedAt, now.value);
+});
 
 const recordCount = computed(() => payload.value?.entries.reduce(
   (sum, item) => sum + item.entry.recordIds.length,
@@ -36,6 +50,8 @@ const syncLabel = computed(() => {
   if (error.value !== undefined) return "Live error";
   const stale = payload.value?.metadata.stale === true;
   if (payload.value?.metadata.servingMode === "cloudflare-pages-function-r2") {
+    void locale.value;
+    if (freshness.value !== undefined) return freshnessText(freshness.value, t);
     return locale.value === "en" ? "Published snapshot" : "已發佈快照";
   }
   return stale ? "Cached" : "GitHub live";
@@ -50,7 +66,7 @@ const syncLabel = computed(() => {
       <span class="brand-name">{{ t("brand.name") }}</span>
       <span class="brand-scope">{{ t("brand.scope") }}</span>
     </RouterLink>
-    <span class="demo-pill" :class="payload?.metadata.stale === true ? 'is-stale' : 'is-live'">
+    <span class="demo-pill" :class="payload?.metadata.stale === true || freshness?.stale ? 'is-stale' : 'is-live'">
       {{ syncLabel }}
     </span>
     <div class="topbar-right">

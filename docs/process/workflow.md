@@ -11,6 +11,28 @@ documents as control plane) and in this repository's 2026-09 Dev incidents,
 where every outage came from an unstated platform budget or an unasserted
 failure path.
 
+## Roles and loops
+
+Two loops, after Lauren Tan's published agent workflow
+(https://aiidelist.com/blog/lauren-tan-grok-bot-pstack-workflow):
+
+- **Outer loop — what deserves work (human).** The human owns intent,
+  tradeoffs, and the decision to merge and deploy. The human reviews intent
+  artifacts — the spec's Example, the simplification review, the generated
+  test plan — and the independent verifier's verdict, not diffs line by line.
+- **Inner loop — a scoped task becomes a verified change (agents).**
+  - The **implementer** turns an accepted spec into the smallest change that
+    satisfies it, writes tests first, and reviews its own diff line by line.
+  - The **independent verifier** is a different agent, preferably a different
+    model, given only the spec and the commit. It reruns every acceptance item
+    against the running system, attaches evidence (test output, screenshots,
+    captured responses), and records pass, fail, or unverifiable per ID in the
+    PR. Any new commit invalidates the verdict and requires a rerun.
+  - **Machines** run CI, traceability, test-plan consistency, and measurements.
+  - **Runtime** (health fields, deployed checks) is the final judge.
+
+Keep one intent per PR so a verdict, a revert, or a rollback stays small.
+
 ## Stages
 
 | Stage | Owner | Artifact | Exit check |
@@ -82,7 +104,8 @@ listed in the PR instead.
 
 - A test proves an assertion only after it was observed failing without the
   change (record the failing command or a mutation result).
-- An AI "done" or "LGTM" is not evidence. Line-by-line human review of the
-  diff is required before merge.
+- An AI "done" or "LGTM" is not evidence. A merge needs the implementer's
+  line-by-line self-review, green gates, and the independent verifier's
+  per-ID verdict with evidence on the final commit.
 - Deployment evidence names the environment, the commit, and the observed
   values.

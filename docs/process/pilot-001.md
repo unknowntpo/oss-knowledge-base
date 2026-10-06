@@ -8,8 +8,8 @@ workflow is the subject.
 
 | # | Hypothesis | Evidence | Result |
 | --- | --- | --- | --- |
-| H1 | Every assertion traces to a test | `bun run check:traceability` | pending |
-| H2 | Tests catch a broken implementation | mutation run per acceptance item | pending |
+| H1 | Every assertion traces to a test | `bun run check:traceability` | held (6 items; F6 by deployment) |
+| H2 | Tests catch a broken implementation | mutation run per acceptance item | held after adding one case (finding 6) |
 | H3 | Each test is seen failing before the fix | recorded failing run | held, after fixing two vacuous tests (finding 3) |
 | H4 | A deployed deviation is visible | F6 on development | pending |
 
@@ -71,6 +71,26 @@ Change: the traceability check reads the case file named by a spec's
 test-plan marker and counts its row IDs, but only for that spec and only when
 some test imports the case file and runs it with `test.each`. Each gate is
 exercised by its own tests (`scripts/test/`).
+
+### 6. A boundary the spec named had no case (stage 4)
+
+Seven mutations, one per acceptance behavior: six were caught. Changing
+"minutes below one hour" from `< 60` to `<= 60` passed every test, because no
+case sat exactly at one hour although Behavior 1 names that boundary. Adding
+the row `23:07:13 → 00:07:13 = "Updated 1 h ago"` made the mutation fail.
+
+| Mutation | Failing tests |
+| --- | --- |
+| stale at `>=` instead of `>` 3 h (F2) | 1 |
+| minutes up to and including 60 (F1) | 0 → 1 after the new case |
+| no clamp for a future `generatedAt` (F5) | 1 |
+| no guard for an unparsable `generatedAt` (F4) | 1 |
+| stale text not used (F2) | 1 |
+| refresh every 5 min instead of 1 (F3, E2E) | 1 |
+| stale styling not applied (F3, E2E) | 1 |
+
+Change: every boundary named in a spec's Behavior gets a case on each side,
+and mutation runs stay part of stage 4.
 
 ## Process cost so far
 

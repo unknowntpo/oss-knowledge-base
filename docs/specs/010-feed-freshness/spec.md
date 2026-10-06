@@ -1,6 +1,6 @@
 # Spec 010: Feed freshness
 
-Status: Draft (workflow pilot 001)
+Status: Accepted 2026-10-06 (workflow pilot 001)
 Date: 2026-10-04
 Traceability: enforced
 Builds on: Spec 003, Spec 008
@@ -43,7 +43,8 @@ reflects.
   value needed. Server-computed age or a `stale` flag would be cached for up
   to 150 s (`max-age=30, stale-while-revalidate=120`) and be less accurate
   than computing in the browser.
-- The 3-hour threshold is display policy and lives in the UI.
+- The 3-hour threshold is display policy: one UI constant, not configuration,
+  because development and production both publish hourly.
 - Owner of the live re-render (F3): the maintainer who leaves the page open to
   watch publication.
 
@@ -70,6 +71,7 @@ the unit tests run exactly these rows. Edit the case file, not this table.
 | F1 | 2026-10-03T23:07:13Z | 2026-10-04T01:07:13Z | Updated 2 h ago | 資料更新於 2 小時前 | no |
 | F1 | 2026-10-03T23:07:13Z | 2026-10-03T23:35:37Z | Updated 28 min ago | 資料更新於 28 分鐘前 | no |
 | F1 | 2026-10-03T23:07:13Z | 2026-10-03T23:52:13Z | Updated 45 min ago | 資料更新於 45 分鐘前 | no |
+| F1 | 2026-10-03T23:07:13Z | 2026-10-04T00:07:13Z | Updated 1 h ago | 資料更新於 1 小時前 | no |
 | F2 | 2026-10-03T23:07:13Z | 2026-10-04T02:07:13Z | Updated 3 h ago | 資料更新於 3 小時前 | no |
 | F2 | 2026-10-03T23:07:13Z | 2026-10-04T02:07:14Z | Data may be out of date · 3 h ago | 資料可能過期 · 3 小時前 | yes |
 | F4 | not-a-time | 2026-10-04T01:07:13Z | — | — | — |
@@ -112,3 +114,5 @@ Step-based scenarios run as E2E tests in `apps/web/e2e/feed-freshness.spec.ts`:
 - Alerting or notifications (a later observability spec).
 - Freshness for Search or Detail views.
 - Correcting a wrong browser clock beyond clamping future times.
+- Narrow screens: the topbar pill is hidden below 420 px, and the maintainer
+  who watches publication uses a desktop.
