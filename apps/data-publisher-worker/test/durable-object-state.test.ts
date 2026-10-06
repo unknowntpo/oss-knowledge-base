@@ -130,6 +130,37 @@ describe("Durable Object pipeline state", () => {
     expect(fresh.ok).toBe(true);
   });
 
+  test("M10: after an alarm attempt is killed mid-run, the retry publishes under a new materializedAt", async () => {
+    const storage = new MemoryStorage();
+    const requestedAt = "2026-10-06T12:07:37.000Z";
+    await storage.put("requested-at", requestedAt);
+    const realFetch = globalThis.fetch;
+    let reachedFetch!: () => void;
+    const fetched = new Promise<void>((resolve) => { reachedFetch = resolve; });
+    // The first attempt hangs on its first source request and is abandoned, as when the
+    // platform kills the isolate: no catch, finally, or status write of that attempt runs.
+    globalThis.fetch = (() => {
+      reachedFetch();
+      return new Promise<Response>(() => undefined);
+    }) as unknown as typeof fetch;
+    try {
+      void alarmState(storage).alarm();
+      await fetched;
+      expect(await storage.get("status")).toBeUndefined();
+
+      // The runtime retries the alarm in a fresh isolate, without a new POST /run.
+      globalThis.fetch = (async () => new Response("not found", { status: 404 })) as unknown as typeof fetch;
+      await alarmState(storage).alarm();
+      const retry = await storage.get<{ readonly completedAt: string }>("status");
+
+      expect(retry?.completedAt).toBeDefined();
+      expect(retry!.completedAt).not.toBe(requestedAt);
+      expect(Date.parse(retry!.completedAt)).toBeGreaterThan(Date.parse(requestedAt));
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
   test("M10: a retried alarm publishes under a new materializedAt, not the release of the attempt that died", async () => {
     const storage = new MemoryStorage();
     const requestedAt = "2026-10-06T12:07:37.000Z";
