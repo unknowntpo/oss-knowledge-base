@@ -56,8 +56,8 @@ reflects.
    data may be out of date.
 3. The label is recomputed every minute while the page is open.
 4. Freshness never blocks the Feed: an unparsable or missing `generatedAt`
-   hides the label; a `generatedAt` in the future (clock skew) reads as
-   "just now".
+   shows no age, and the topbar keeps its previous "Published snapshot"
+   label; a `generatedAt` in the future (clock skew) reads as "just now".
 
 ## Test plan
 
@@ -83,7 +83,7 @@ Step-based scenarios run as E2E tests in `apps/web/e2e/feed-freshness.spec.ts`:
 | ID | Scenario | Expected |
 | --- | --- | --- |
 | F3 | Page opened 30 s before the three-hour mark, then the clock advances 60 s | "Updated 2 h ago" with live styling becomes "Data may be out of date · 3 h ago" with stale styling, without a reload |
-| F4 | `/api/feed` returns `generatedAt: "not-a-time"` | three Feed cards render; the topbar shows no age |
+| F4 | `/api/feed` returns `generatedAt: "not-a-time"` | three Feed cards render; the topbar shows no age and keeps "Published snapshot" |
 
 ## Acceptance
 

@@ -92,6 +92,21 @@ the row `23:07:13 → 00:07:13 = "Updated 1 h ago"` made the mutation fail.
 Change: every boundary named in a spec's Behavior gets a case on each side,
 and mutation runs stay part of stage 4.
 
+### 7. The independent verifier found a spec/behavior mismatch (stage 5)
+
+Codex could not run (its default model is not available to this account), so
+a different Claude model verified commit 4d10c4e with only the spec and the
+code. It drove the running app in both locales with a controlled clock and
+passed F1–F5, and it reported that Behavior 4 said an unparsable
+`generatedAt` "hides the label" while the app keeps the previous "Published
+snapshot" label. The tests only asserted the absence of an age, so they could
+not tell. The spec was corrected to the observed, preferable behavior and the
+F4 E2E now asserts the exact label; the new commit was re-verified.
+
+Change: none to the process; this is the verifier doing its job. Independence
+was weaker than intended (same vendor), which is recorded as a limit of this
+pilot.
+
 ## Process cost so far
 
 - Two review rounds before any code; both changes came from the human.

@@ -41,5 +41,5 @@ test("F4: an unparsable generatedAt hides the age and keeps the Feed", async ({ 
   });
   await page.reload();
   await expect(page.locator(".card")).toHaveCount(3);
-  await expect(page.locator(".demo-pill")).not.toContainText("ago");
+  await expect(page.locator(".demo-pill")).toHaveText("Published snapshot");
 });
