@@ -39,7 +39,8 @@ product behavior, ADRs, data formats or contracts read by others, production
 deploys and release tags, credentials, permissions, cost, and irreversible
 operations (when unsure, treat it as core). Other changes merge without a
 human once gates are green and the verifier passed the final commit; each is
-reported afterwards in one line.
+reported afterwards in one line. A PR that changes only Markdown documentation
+(`docs/**`, `*.md`) needs green gates but no independent verifier.
 
 ## Stages
 

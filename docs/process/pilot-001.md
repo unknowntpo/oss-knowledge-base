@@ -11,7 +11,7 @@ workflow is the subject.
 | H1 | Every assertion traces to a test | `bun run check:traceability` | held (6 items; F6 by deployment) |
 | H2 | Tests catch a broken implementation | mutation run per acceptance item | held after adding one case (finding 6) |
 | H3 | Each test is seen failing before the fix | recorded failing run | held, after fixing two vacuous tests (finding 3) |
-| H4 | A deployed deviation is visible | F6 on development | pending deployment |
+| H4 | A deployed deviation is visible | F6 on development | held: deployed page agreed with `/health` and showed the stale warning at last run + 3 h 1 s |
 
 ## Findings
 
@@ -119,6 +119,27 @@ non-string `generatedAt` (the only F4 case was a string). Two case rows
 
 Change: the verifier owns an independent mutation pass; the implementer's own
 mutation run (finding 6) had missed these.
+
+## Conclusion
+
+All four hypotheses held, but only after the process corrected itself eight
+times. Each correction came from a different layer:
+
+| Layer | Caught |
+| --- | --- |
+| Human intent review | abstract spec (1), over-designed API (2), table/test drift risk (4) |
+| Machine gates and fail-first | vacuous tests (3), a missing named boundary (6), a gate broken by another gate (5) |
+| Independent verifier | spec/behavior mismatch (7), mutants the implementer's own run missed (8) |
+
+No layer would have caught the others' findings, so all three stay. Kept from
+the pilot: real-data examples, the five-step simplification review, generated
+test plans, traceability, fail-first with positive controls, verifier-owned
+mutation runs, and per-ID verdicts on the final commit. Added after it: the
+merge-authority rule and the documentation-only exemption.
+
+Open limits: the verifier was another Claude model (the configured Codex model
+was unavailable), so independence is weaker than cross-vendor review; and
+runtime freshness is visible but not yet alerted.
 
 ## Process cost so far
 
