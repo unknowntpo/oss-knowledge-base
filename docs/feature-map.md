@@ -28,7 +28,7 @@ parameters: search text, filters and sort live in component state.
 | Feed | `/#/` | `apps/web/src/views/FeedView.vue` (`#view-feed`) | open `/` | 002 F10–F11, 003 R2/R5, 010 F1–F5, 011 V1–V6 |
 | Search | `/#/` with text in `#q` | same view; cards become `SearchResultCard` | type into `#q` (180 ms debounce) | 005 S1–S15 |
 | Feed detail | `/#/feed/:id` (the entry's `displayId`) | `apps/web/src/views/FeedDetailView.vue` (`#view-topic`) | click a `.card` | 001 A1–A12, 002 F6–F8, 003 R3, 008 C4–C5, 011 V1/V5 |
-| Search detail | `/#/search/:detailRef` (`sdr1.…`) | same component, `detailRef` prop | click a `.search-card` | 005 S4/S12, 008 C4/C6, 011 V1/V5 |
+| Search detail | `/#/search/:detailRef` (`sdr1.…`) | same component, `detailRef` prop | click a `.search-card` | 005 S4, 008 C4/C6, 011 V1/V5 |
 
 App shell (`apps/web/src/App.vue`) fetches `/api/feed` once and shares it via
 `apps/web/src/store.ts`; the topbar is on every view.
@@ -40,10 +40,10 @@ No `data-testid` attributes; tests select by class, id, and role.
 | Selector | Meaning and states | Covered by |
 | --- | --- | --- |
 | `.topbar` | Header row; must not scroll sideways (`scrollWidth <= clientWidth`) | 011 V1 |
-| `.brand`, `.brand-mark`, `.brand-name`, `.brand-scope` | Home link "K"; name and scope hidden at ≤420 px | 011 V1 |
+| `.brand`, `.brand-mark`, `.brand-name`, `.brand-scope` | Home link "K"; scope hidden at ≤768 px, name hidden at ≤420 px | 011 V1 |
 | `.demo-pill` | Freshness pill, text from `syncLabel` in `apps/web/src/App.vue`. Class: `is-stale` when `metadata.stale === true` or age > 3 h (`STALE_AFTER_MS` in `apps/web/src/freshness.ts`), else `is-live`. Text, first match wins: "Loading"/"載入中" while the feed loads; "Live error" after a failed load; in R2 serving mode (`metadata.servingMode === "cloudflare-pages-function-r2"`) the freshness text — "Updated just now / {n} min ago / {n} h ago", or "Data may be out of date · {n} h ago" past 3 h — or "Published snapshot"/"已發佈快照" when `generatedAt` is unparsable; in any other mode "Cached" (`metadata.stale`) or "GitHub live". `metadata.stale` alone changes the class, not the R2-mode text. At ≤420 px hidden unless `is-stale`, then wraps (`apps/web/styles.css`). Clock: browser `Date.now()`, re-read every 60 s | 010 F1–F6, 011 V1–V6 |
 | `.locale-control` | Locale `<select>`: `zh-Hant` or `en`. Initial locale (`apps/web/i18n.js`; `apps/web/src/i18n.ts` only wraps it): `localStorage["community-kb-locale"]` if valid, else `navigator.language` (`zh*` → zh-Hant, anything else → en). `<html lang>` is `zh-Hant` in `index.html` and is updated only when the select changes, not on first load (gardening G1) | 010 F1, 011 V1 |
-| `.topbar-stat` | Topic and record counts | — |
+| `.topbar-stat` | Topic and record counts; hidden at ≤768 px | — |
 | `#q` | Search input; examples and clear button beside it. Text here switches the Feed view to Search | 005 S11, S14 |
 | `#filters`, `.filters-toggle` | Facet sidebar (`apps/web/src/views/FeedView.vue`). `.filter-row[aria-pressed]` groups: project (always), source (no query only), status (only with a project selected), time window (query only). Tags are `.tag-chip[aria-pressed]` (no query only) | 005 S6, S14 |
 | `#sort` | hot / recent / relevance; the control renders only without a query, and without a query "relevance" orders like hot (`visibleEntries` uses an empty query; gardening G15) | 002 F10 |
@@ -63,8 +63,8 @@ All GET, R2 binding `OSS_KB_BUCKET`. Every response, including errors, carries
 | --- | --- | --- | --- |
 | `/api/feed` | Feed index: `generatedAt`, `projects[]`, `entries[]`, `metadata` with `servingMode`, `stale?`, `manifest {schema, releaseId, generatedAt, feedIndexKey, detailMapKey, entryCount}`; 503 on error | `public/v2/current.json` → `manifest.feedIndexKey` | 003 R1/R2/R4, 006 P1/P4, 010 F4/F6 |
 | `/api/detail/:id` | `FeedDetail {entry, records[], keyPoints}`; 400 (no id), 404, 503 | detail map → `public/v2/objects/details/<sha256>.json` | 003 R3, 008 C1–C5 |
-| `/api/search?q=` | `SearchResponseV1 {schema, query, results[] (detailRef, entry, matches, shard?), facets.projects[], retrieval {indexRevision, lexicalRevision, generatedAt, stale}}`. `q` 1–500 chars; `limit` 1–50 (default 20); repeatable `projectId`, `sourceInstanceId`, `projectStatus`, `tag`; `occurredAfter`, `occurredBefore`. 400 for a client error, 503 otherwise | `public/search/v1/current.json` → `releases/<indexRevision>/manifest.json`. Release v3 (Spec 013): `terms.json` (term → document frequency and shard numbers) selects which `lexical/<projectId>/<n>.json` shards to read; v1/v2 read one shard per project | 005 S1–S15, 006 P10, 013 L1–L3, L8 |
-| `/api/search-detail/:ref` | `FeedDetail`; 400 (missing or invalid ref), 404 (not found, or a v3 ref whose shard is out of range or of another project), 503 | ref (`sdr1.…`, base64url JSON) names project, group and, for v3, its shard; the group's digest → `public/search/v1/objects/details/<hex>.json` | 005 S4/S12, 008 C4/C6, 013 L4/L9 |
+| `/api/search?q=` | `SearchResponseV1 {schema, query, results[] (entry, projectStatus?, matches, detailRef), facets.projects[], retrieval {indexRevision, lexicalRevision, generatedAt, stale}}`. `q` 1–500 chars; `limit` 1–50 (default 20); repeatable `projectId`, `sourceInstanceId`, `projectStatus`, `tag`; `occurredAfter`, `occurredBefore`. 400 for a client error, 503 otherwise | `public/search/v1/current.json` → `releases/<indexRevision>/manifest.json`. Release v3 (Spec 013): `terms.json` (term → document frequency and shard numbers) selects which `lexical/<projectId>/<n>.json` shards to read; v1/v2 read one shard per project | 005 S1–S15, 006 P10, 013 L1–L3, L8 |
+| `/api/search-detail/:ref` | `FeedDetail`; 400 (missing or invalid ref), 404 (not found; for a v3 ref also a shard that is absent, out of range or of another project, or a group not in the shard), 503 (any other error, including a malformed `%` escape or a detail mismatch) | ref (`sdr1.…`, base64url JSON) carries `indexRevision`, project, group, `query`, `matchedRecordIds` and, for v3, its shard; v2/v3 details → `public/search/v1/objects/details/<hex>.json`, v1 details → `releases/<rev>/details/<name>.json` | 005 S4/S12, 008 C4/C6, 013 L4/L9 |
 
 ## Publisher API (`apps/data-publisher-worker/src/index.ts`)
 
