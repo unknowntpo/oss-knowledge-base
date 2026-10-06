@@ -112,7 +112,7 @@ the two `viewer/` items below.
 
 ### G15. "Relevance" sort is dead code on the Feed
 - **Where:** `apps/web/src/views/FeedView.vue`: `visibleEntries` fixes
-  `normalized = ""` (line 125), so the relevance branch (line 137) never runs;
+  `normalized = ""` (line 126), so the relevance branch (line 137) never runs;
   `#sort` is rendered only without a query (line 254).
 - **Why:** choosing "relevance" orders like "hot"; the option and the
   `searchScore` helper suggest behavior that does not exist.
