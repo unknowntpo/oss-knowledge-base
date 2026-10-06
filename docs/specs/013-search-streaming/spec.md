@@ -305,7 +305,8 @@ scan of the shards' postings and against the exact list of R2 reads.
   while Search objects are written minus the sample when Search writing starts)
   is at most 16 MB at 8,600 and 17,200 events and grows by at most 4 MB between
   them; Search is not the peak phase; the run peak is at most 96 MB at 8,600 and
-  112 MB at 17,200 events. Measured: see Results.
+  112 MB at 17,200 events (tightening Spec 009 M2's 128 MB, which the same
+  command enforced). Measured: see Results.
 - L15: [measure] local query cost, `bun run --cwd apps/data-publisher-worker
   measure:search-latency`: p50 at most 150 ms at 8,600 and 300 ms at 17,200
   events for every query, including the all-shards worst case; R2 reads per
@@ -372,6 +373,25 @@ Independent review (Fable, spec and workflow only), 2026-10-06:
 | Manifest `objectDigests` on the query path | Rebutted for now with the measured 0.41 MB; revisit trigger in Results |
 | Shard count and size in `/health` | Rebutted: publication-set evidence already records them |
 | Project encoded twice in shard keys | Kept for readable keys |
+
+## Verification record
+
+The independent verifier passed commit 51eeed3 (L1–L15, L17; ranking identical
+on 48 golden and 96 seeded requests) and its mutation pass found seven test
+gaps with correct code. Each now has a test, and each mutant was confirmed to
+fail:
+
+| Mutant | Test |
+| --- | --- |
+| a repeated group accepted (`<= 0` → `< 0`) | L1 repeated group |
+| shard read concurrency 8 or 1 instead of 4 | L3 peak in-flight reads is exactly 4 |
+| duplicate shard key in a v3 manifest accepted | L10 "a shard key is listed twice" |
+| shard `lengths`/`chunks` length check removed | L8 "lengths do not match" |
+| `detailRef` shard accepts -1, 1.5, "1" | L9 invalid shard numbers |
+| corrupt `terms.json` entry (short, negative, fractional, non-array) accepted | L8 terms entry rows |
+| `maxShardChunks` guard removed | L1 rejected limits |
+| df overwritten or not accumulated across shards | L2 published statistics score like the whole-corpus index (scores compared, limits 1, 2, 3, 1,000) |
+| per-shard chunk sort removed | L1 shard bytes independent of chunk order |
 
 ## Non-goals
 

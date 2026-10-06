@@ -1,7 +1,14 @@
 import { describe, expect, test } from "bun:test";
 
 import { buildFeedDetail, type FeedEntry, type SourceRecordView } from "@oss-knowledge-base/domain";
-import type { SourceRecordChunkV1 } from "@oss-knowledge-base/search";
+import {
+  buildLexicalIndex,
+  parseSearchGoldenFixture,
+  rankLexicalShard,
+  searchLexicalIndex,
+  selectLexicalResults,
+  type SourceRecordChunkV1,
+} from "@oss-knowledge-base/search";
 
 import {
   feedProjectionObjects,
@@ -24,6 +31,8 @@ import {
 } from "../src";
 import { feedFixture, fixtureGeneratedAt } from "./feed-fixture";
 import { testPlanRows } from "./search-shards.cases";
+
+const goldenPath = new URL("../../search/test/fixtures/golden-queries.v1.json", import.meta.url).pathname;
 
 const release = {
   indexRevision: "search-r1",
@@ -74,6 +83,55 @@ describe("Spec 013 lexical shard layout", () => {
     expect(Object.keys(value.manifest.objectDigests).sort()).toEqual(
       [...objects.keys()].filter((key) => !key.endsWith("/manifest.json")).sort(),
     );
+  });
+
+  test("L1: a repeated group is rejected", async () => {
+    await expect(drain(searchProjectionObjects(release, [groupSource("kafka", "a", 1), groupSource("kafka", "a", 1)])))
+      .rejects.toThrow("without repeats: a");
+    await drain(searchProjectionObjects(release, [groupSource("kafka", "a", 1), groupSource("kafka", "b", 1)]));
+  });
+
+  test.each([0, -1, 1.5, Number.NaN])("L1: maxShardChunks %p is rejected", async (maxShardChunks) => {
+    await expect(drain(searchProjectionObjects(release, [groupSource("kafka", "a", 1)], { maxShardChunks })))
+      .rejects.toThrow("maxShardChunks must be a positive integer");
+  });
+
+  test("L1: a shard's bytes do not depend on the order of a group's chunks", async () => {
+    const group = groupSource("kafka", "a", 3);
+    const forward = await drain(searchProjectionObjects(release, [group]));
+    const reversed = await drain(searchProjectionObjects(release, [{ ...group, chunks: [...group.chunks].reverse() }]));
+    const shardKey = forward.value.manifest.shards[0]!.key;
+    expect(reversed.objects.get(shardKey)).toBe(forward.objects.get(shardKey)!);
+    const shard = JSON.parse(forward.objects.get(shardKey)!) as SearchLexicalShardV2;
+    expect(shard.chunks.map((chunk) => chunk.id)).toEqual(["a#0", "a#1", "a#2"]);
+  });
+
+  test.each([1, 2, 3, 1_000])("L2: published statistics and shard postings score like the whole-corpus index (maxShardChunks %p)", async (maxShardChunks) => {
+    const golden = parseSearchGoldenFixture(await Bun.file(goldenPath).json());
+    const { objects, value } = await drain(searchProjectionObjects(release, goldenGroups(golden.chunks), { maxShardChunks }));
+    const terms = JSON.parse(objects.get(searchTermsKey(release.indexRevision))!) as SearchTermsV1;
+    const shards = value.manifest.shards.map((shard) => JSON.parse(objects.get(shard.key)!) as SearchLexicalShardV2);
+    const index = buildLexicalIndex({ indexRevision: "golden", chunks: golden.chunks });
+    if (maxShardChunks <= 2) expect(shards.length).toBeGreaterThan(3);
+
+    expect(value.manifest.chunkCount).toBe(index.documents.length);
+    expect(value.manifest.totalChunkLength).toBe(index.documents.reduce((total, document) => total + document.length, 0));
+    expect(Object.fromEntries(Object.entries(terms.terms).map(([term, entry]) => [term, entry[0]])))
+      .toEqual(Object.fromEntries(index.documentFrequency));
+    for (const [term, entry] of Object.entries(terms.terms)) {
+      expect(entry.slice(1)).toEqual(shards.flatMap((shard, number) => Object.hasOwn(shard.postings, term) ? [number] : []));
+    }
+    const corpus = {
+      chunkCount: value.manifest.chunkCount,
+      totalChunkLength: value.manifest.totalChunkLength,
+      documentFrequency: (term: string) => Object.hasOwn(terms.terms, term) ? terms.terms[term]![0]! : 0,
+    };
+    for (const query of ["storage broker latency", "KIP-405", "aggregate optimizer schema", "the"]) {
+      const request = { query, limit: 100 };
+      const actual = selectLexicalResults(shards.flatMap((shard) => rankLexicalShard(shard, corpus, { query })), request);
+      // Scores included: a wrong df, N, or length changes them even when the order survives.
+      expect(actual.results).toEqual(searchLexicalIndex(index, request));
+    }
   });
 
   test("L1: groups out of project and root order are rejected", async () => {
@@ -129,27 +187,31 @@ describe("Spec 013 failure and retry", () => {
     expect(retried.ok && retried.reusedObjectCount).toBe(failAt - 1);
   });
 
-  const edits: readonly [string, (release: StreamedSearchRelease) => StreamedSearchRelease][] = [
+  const edits: readonly [string, (release: StreamedSearchRelease) => StreamedSearchRelease, string][] = [
     ["the manifest omits the terms object", (value) => ({
       ...value,
       manifest: { ...value.manifest, objectDigests: withoutKey(value.manifest.objectDigests, searchTermsKey(value.manifest.indexRevision)) },
       descriptor: { ...value.descriptor, immutableObjects: value.descriptor.immutableObjects.filter((object) => !object.key.endsWith("/terms.json")) },
-    })],
+    }), "does not declare its terms object"],
     ["a group names an undeclared detail", (value) => ({
       ...value,
       shardGroups: new Map([...value.shardGroups].map(([key, groups]) => [key, groups.map((group) => ({
         ...group,
         detailSha256: `sha256:${"c".repeat(64)}` as const,
       }))])),
-    })],
-    ["the group count disagrees", (value) => ({ ...value, manifest: { ...value.manifest, groupCount: value.manifest.groupCount + 1 } })],
+    }), "names an undeclared detail"],
+    ["the group count disagrees", (value) => ({ ...value, manifest: { ...value.manifest, groupCount: value.manifest.groupCount + 1 } }), "group count does not match"],
     ["a shard is not declared", (value) => ({
       ...value,
       manifest: { ...value.manifest, shards: [...value.manifest.shards, { projectId: "apache-kafka", key: `${value.manifest.shards[0]!.key}.extra` }] },
-    })],
+    }), "names an undeclared shard"],
+    ["a shard key is listed twice", (value) => ({
+      ...value,
+      manifest: { ...value.manifest, shards: [...value.manifest.shards, value.manifest.shards[0]!] },
+    }), "names an undeclared shard"],
   ];
 
-  test.each(edits)("L10: publication fails before any pointer switch when %s", async (_label, edit) => {
+  test.each(edits)("L10: publication fails before any pointer switch when %s", async (_label, edit, message) => {
     const destination = new MemoryStore();
     destination.seedPointers();
     const input = await streams(feedFixture());
@@ -157,6 +219,7 @@ describe("Spec 013 failure and retry", () => {
     const result = await publishProjectionStreams(setInput(), input, destination);
 
     expect(result).toMatchObject({ ok: false, kind: "source-manifest-invalid" });
+    expect(result.ok === false && result.message).toContain(message);
     expect(destination.pointers()).toEqual(["old-search", "old-feed"]);
   });
 
@@ -179,6 +242,49 @@ describe("Spec 013 failure and retry", () => {
     expect(terms.terms).toEqual({});
   });
 });
+
+/** The golden chunks as ordered Search groups, one SourceRecord per chunk record. */
+function goldenGroups(chunks: readonly SourceRecordChunkV1[]): SearchGroupSource[] {
+  const byRoot = new Map<string, SourceRecordChunkV1[]>();
+  for (const chunk of chunks) byRoot.set(chunk.groupRootRecordId, [...byRoot.get(chunk.groupRootRecordId) ?? [], chunk]);
+  return [...byRoot.values()]
+    .sort((left, right) => left[0]!.projectId.localeCompare(right[0]!.projectId) ||
+      left[0]!.groupRootRecordId.localeCompare(right[0]!.groupRootRecordId))
+    .map((groupChunks) => {
+      const root = groupChunks[0]!.groupRootRecordId;
+      const projectId = groupChunks[0]!.projectId;
+      const records: SourceRecordView[] = [...new Map(groupChunks.map((chunk) => [chunk.recordId, chunk])).values()]
+        .map((chunk) => ({
+          id: chunk.recordId,
+          projectId,
+          sourceInstanceId: chunk.sourceInstanceId,
+          source: "github",
+          sourceType: "code-host",
+          kind: "record",
+          role: "Community contributor",
+          title: chunk.title,
+          excerpt: chunk.text,
+          author: chunk.author,
+          occurredAt: chunk.occurredAt,
+          canonicalUrl: chunk.canonicalUrl,
+          sourceVersion: chunk.sourceVersion,
+        }));
+      if (!records.some((record) => record.id === root)) records.push({ ...records[0]!, id: root });
+      const entry: FeedEntry = {
+        id: `feed-entry:${root}`,
+        projectId,
+        title: root,
+        summary: root,
+        sourceTitleRecordId: root,
+        recordIds: records.map((record) => record.id),
+        highlightedRecordIds: [root],
+        reason: { kind: "trending", label: "fixture", evidenceEventIds: [] },
+        activity: { score: 1, evidenceEventIds: [] },
+        grouping: { relationshipIds: [], clusteringRevision: "fixture@1" },
+      };
+      return { projectId, groupRootRecordId: root, entry, detail: buildFeedDetail({ entry, records }), chunks: groupChunks };
+    });
+}
 
 function groupSource(projectId: string, root: string, chunkCount: number): SearchGroupSource {
   const record: SourceRecordView = {

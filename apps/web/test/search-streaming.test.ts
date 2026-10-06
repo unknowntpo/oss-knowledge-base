@@ -25,6 +25,8 @@ const fixturePath = new URL("../../../packages/search/test/fixtures/golden-queri
 
 class CountingBucket {
   readonly reads: string[] = [];
+  inFlight = 0;
+  peakInFlight = 0;
   private readonly values: Map<string, string>;
 
   constructor(objects: readonly { readonly key: string; readonly body: string }[]) {
@@ -33,6 +35,10 @@ class CountingBucket {
 
   get = async (key: string) => {
     this.reads.push(key);
+    this.inFlight += 1;
+    this.peakInFlight = Math.max(this.peakInFlight, this.inFlight);
+    await new Promise((resolve) => setTimeout(resolve, 1));
+    this.inFlight -= 1;
     const body = this.values.get(key);
     return body === undefined ? null : { json: async <T>() => JSON.parse(body) as T };
   };
@@ -156,6 +162,11 @@ describe("Spec 013 sharded Search reader", () => {
     ["a shard names another shard number", (objects, manifest) => editShard(objects, manifest.shards[4]!.key, (shard) => ({ ...shard, shard: 3 })), "shard 4 is missing or invalid"],
     ["a shard belongs to another project", (objects, manifest) => editShard(objects, manifest.shards[4]!.key, (shard) => ({ ...shard, projectId: "apache-datafusion" })), "shard 4 is missing or invalid"],
     ["the terms object is missing", (objects) => objects.filter((object) => !object.key.endsWith("/terms.json")), "terms object is missing or invalid"],
+    ["a shard's lengths do not match its chunks", (objects, manifest) => editShard(objects, manifest.shards[4]!.key, (shard) => ({ ...shard, lengths: shard.lengths.slice(1) })), "shard 4 is missing or invalid"],
+    ["a terms entry has no shard", (objects) => editTerms(objects, (terms) => ({ ...terms, terms: { ...terms.terms, "kip-405": [1] } })), "terms entry is invalid for kip-405"],
+    ["a terms entry is negative", (objects) => editTerms(objects, (terms) => ({ ...terms, terms: { ...terms.terms, "kip-405": [-1, 4] } })), "terms entry is invalid for kip-405"],
+    ["a terms entry is fractional", (objects) => editTerms(objects, (terms) => ({ ...terms, terms: { ...terms.terms, "kip-405": [1, 3.5] } })), "terms entry is invalid for kip-405"],
+    ["a terms entry is not an array", (objects) => editTerms(objects, (terms) => ({ ...terms, terms: { ...terms.terms, "kip-405": "40" } })), "terms entry is invalid for kip-405"],
     ["the terms object has another revision", (objects) => editTerms(objects, (terms) => ({ ...terms, indexRevision: "other" })), "terms object is missing or invalid"],
     ["a term names an undeclared shard", (objects) => editTerms(objects, (terms) => ({ ...terms, terms: { ...terms.terms, "kip-405": [1, 9] } })), "undeclared shard 9"],
   ];
@@ -168,6 +179,23 @@ describe("Spec 013 sharded Search reader", () => {
 
     const broken = new CountingBucket(breakage(objects, manifestOf(objects))).asR2();
     await expect(searchR2Projection(broken, { query: "KIP-405", limit: 3 })).rejects.toThrow(message);
+  });
+
+  test("L3: a query reads at most four shards at once, and does read them concurrently", async () => {
+    const bucket = new CountingBucket(await buildR2SearchProjection(await golden(), { maxShardChunks: 1 }));
+    const response = await searchR2Projection(bucket.asR2(), { query: "the", limit: 5 });
+    expect(response.results.length).toBeGreaterThan(0);
+    expect(bucket.reads.length).toBeGreaterThan(3 + 4);
+    expect(bucket.peakInFlight).toBe(4);
+  });
+
+  test.each([-1, 1.5, "1"])("L9: a detailRef shard of %p is invalid", async (shard) => {
+    const valid = { indexRevision: "r", projectId: "apache-kafka", groupRootRecordId: "g", query: "q", matchedRecordIds: ["g"] };
+    expect(parseSearchDetailRef(createSearchDetailRef({ ...valid, shard: 2 })).shard).toBe(2);
+    expect(() => createSearchDetailRef({ ...valid, shard: shard as number })).toThrow("Search detailRef shard is invalid");
+    const forged = `sdr1.${btoa(JSON.stringify({ schema: "osskb.search-detail-ref.v1", ...valid, shard }))
+      .replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/u, "")}`;
+    expect(() => parseSearchDetailRef(forged)).toThrow("Search detailRef is invalid");
   });
 
   test("L9: a v3 detailRef with a wrong, foreign, or missing shard is not found", async () => {

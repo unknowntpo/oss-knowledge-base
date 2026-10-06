@@ -66,6 +66,7 @@ GitHub data are supporting evidence only.
 
 - M1: with 8,600 generated events, the reported peak is at most 96 MB.
 - M2: with 17,200 generated events, the reported peak is at most 128 MB.
+  Spec 013 L14 tightens this to 112 MB; `measure:memory` enforces 112 MB.
 - M3: for the same events and `materializedAt`, the published R2 objects
   (keys and bytes), publication-set evidence, and pointers are identical to
   the current implementation's output.
