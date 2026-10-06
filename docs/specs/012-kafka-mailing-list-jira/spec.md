@@ -1,6 +1,6 @@
 # Spec 012: Kafka dev mailing list and Jira sources
 
-Status: Draft (for intent review)
+Status: Accepted 2026-10-06
 Date: 2026-10-06
 Traceability: enforced
 Builds on: Spec 004, Spec 005, Spec 008, Spec 009; `docs/domain/community-model.md`
@@ -18,7 +18,13 @@ Detail shows deterministic links between a KIP thread, its Jira issue, and the
 pull request. AI topic summaries are a later spec.
 
 Human decisions (2026-10-06): dev@ only; 30-day backfill; Jira issues linked
-to GitHub or to a KIP thread are shown.
+to GitHub or to a KIP thread are shown. At acceptance (2026-10-06) the human
+also decided: unlinked Jira issues are stored, not published; a Jira issue
+naming a KIP is published only when a retained dev@ thread names the same KIP;
+entries stay separate and are joined by Related links; the contract changes
+below are approved, with each source's status reported separately in
+`/health`; K25 stays, and Spec 013 (streamed Search publication) lands first;
+mail stays at 200-character previews.
 
 ## Evidence
 
@@ -257,19 +263,22 @@ KAFKA-21049.
 
 ## Contract changes and decision
 
-These are read by other components and need human alignment (stage 3). One
-ADR (ADR-0014, written before implementation) records 1–2:
+Approved 2026-10-06 and recorded in
+`docs/architecture/decisions/0014-publish-per-source-with-independent-cursors.md`:
 
-1. Checkpoint schema v2 with one cursor per source instance, and partial
+1. One cursor per source instance in the existing checkpoint (its `sources`
+   map is already keyed by source instance id, so no schema bump), and partial
    publication (a run is `ok` with failed sources). Revisit if a source's
    staleness hides a failure for more than 3 hours (Spec 011 can alert on it).
 2. A `related` list on Feed Detail (entries, not records, with rule and
    revision), distinct from grouping relationships, which would merge entries.
-3. Search records carry the entry display id, so a hit opens Detail without
-   parsing the title.
+3. Feed Detail carries its entry's display id, so a Search hit (which opens
+   the Detail) shows it without parsing the title. Adding the field changes
+   every Detail's bytes once, so the first run after deploy writes every
+   Detail again (Spec 008 content addressing).
 4. New source keys `mail` and `jira`, statuses `discussing` and `resolved`,
-   and per-source `/health` fields (Behavior 9, K30). The web app already has
-   `mail`/`jira` labels and styles.
+   and per-source `/health` fields (Behavior 9, K30, K32). The web app already
+   has `mail`/`jira` labels and styles.
 
 ## Test plan
 
@@ -359,7 +368,8 @@ exactly these rows. Edit the case file, not this table. Rows marked
 Named tests (no table), in
 `apps/data-publisher-worker/test/kafka-sources-pipeline.test.ts` (to be
 written): K6–K8 (publication from captured fixtures), K11, K16–K19, K23
-(pipeline runs with fake sources), K28 (request count).
+(pipeline runs with fake sources), K32 (`/health` body); K28 (request count)
+runs in `packages/reference-pipeline/test/kafka-connectors.test.ts`.
 
 ## Acceptance
 
@@ -440,9 +450,9 @@ written): K6–K8 (publication from captured fixtures), K11, K16–K19, K23
 - K25: [measure] at twice that volume the peak is at most 128 MB. The proxy
   exceeds it (136.6 MB at 19,600 GitHub-shaped events, against 7.2 MB of
   margin at 2x GitHub alone). The seeded generator gains mail and Jira events
-  so the command measures this mix. If K25 fails, a separate memory slice
-  (its own spec, cutting the "write search" peak) lands first; Spec 012 is not
-  deployed until K25 passes.
+  so the command measures this mix. Spec 013 (streamed Search publication
+  and finer Search shards) lands first; K24 and K25 are measured again after
+  it, and Spec 012 is not deployed until K25 passes.
 - K26: [measure] state growth: mail and Jira add at most 1,300 retained events
   at the current volume (stored events counted by `measure:memory`).
 - K27: [measure] payload: a 30-day Pony Mail response is at most 1 MB
@@ -464,12 +474,17 @@ written): K6–K8 (publication from captured fixtures), K11, K16–K19, K23
 - K31: [deploy] on development after the backfill, Feed shows dev@ threads and
   linked Jira entries for Kafka, and Detail for a live Jira issue cited by a PR
   title links to that PR.
+- K32: after a run in which the mail source fails and GitHub and Jira
+  succeed, `/health` lists each source with `ok` and `lastSuccessAt`: GitHub
+  and Jira `ok: true` at this run, mail `ok: false` with its failure kind and
+  the previous run's `lastSuccessAt`; `lastRun.ok` is true.
 
 ## Non-goals
 
 - AI topic summaries, KIP status (accepted, adopted), vote tallies.
 - users@, commits@, jira@, and other projects' lists or trackers.
-- Full mail bodies and attachments; Confluence (KIP wiki) pages.
+- Full mail bodies and attachments (full bodies of non-notification mail are
+  deferred to the AI-summary spec); Confluence (KIP wiki) pages.
 - Merging a KIP's threads, issues, and PRs into one Feed entry.
 - Alerting on a failed source (Spec 011 may read the per-source fields).
 - Identity merge of people across mail, Jira, and GitHub.
