@@ -1,0 +1,38 @@
+[
+  {
+    "number": 23720,
+    "title": "KAFKA-21227: Speed up ColdStartStickinessIntegrationTest",
+    "state": "open",
+    "html_url": "https://github.com/apache/kafka/pull/23720",
+    "created_at": "2026-10-06T07:29:06Z",
+    "updated_at": "2026-10-06T07:29:06Z",
+    "merged_at": null,
+    "user": "sunm2n",
+    "head": "speed-up-ColdStartStickinessIntegrationTest",
+    "body": "The classic protocol case of ColdStartStickinessIntegrationTest takes about\r\n73 seconds locally, while the streams protocol case takes about 23 seconds.\r\nAfter the first phase, the test closes both in"
+  },
+  {
+    "number": 23719,
+    "title": "KAFKA-21210 Complete rebalance listener integration test coverage",
+    "state": "open",
+    "html_url": "https://github.com/apache/kafka/pull/23719",
+    "created_at": "2026-10-06T02:17:18Z",
+    "updated_at": "2026-10-06T02:20:18Z",
+    "merged_at": null,
+    "user": "andyhuangdev",
+    "head": "KAFKA-21210",
+    "body": "`PlaintextConsumerCallbackTest` currently covers revocation through `close()`, but lacks partition-loss callbacks, other revocation triggers, and empty assignments.\r\n\r\nAdd coverage across Classic eage"
+  },
+  {
+    "number": 23718,
+    "title": "MINOR: Fix produce-ack race in ShareConsumerDLQTest multi-topic tests.",
+    "state": "open",
+    "html_url": "https://github.com/apache/kafka/pull/23718",
+    "created_at": "2026-10-05T22:28:15Z",
+    "updated_at": "2026-10-05T22:39:05Z",
+    "merged_at": null,
+    "user": "bbejeck",
+    "head": "MINOR_race_in_share_consumer_system_test",
+    "body": "`test_multi_topic_dlq_reject` and `test_multi_topic_dlq_release` start\nproducer_a and producer_b back to back, then call\nawait_produced_messages on each in turn. await_produced_messages records\nproduc"
+  }
+]

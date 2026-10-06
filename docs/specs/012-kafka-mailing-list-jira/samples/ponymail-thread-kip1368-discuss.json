@@ -1,0 +1,86 @@
+{
+  "_note": "trimmed: thread.lua?id=bkclscbzgokzo4djf91vc298o7hbr24h&find_parent=true; children flattened to mid/epoch/from/subject; bodies cut",
+  "total_messages": 38,
+  "root": {
+    "from": "Andrew Schofield <an...@outlook.com>",
+    "gravatar": "b63115adad47ec83a88a4fb39f873801",
+    "subject": "[DISCUSS] KIP-1368: Client framework name and version",
+    "message-id": "<AS8P251MB0806493DD07CACF21F80CE1282C62@AS8P251MB0806.EURP251.PROD.OUTLOOK.COM>",
+    "mid": "7fjz97f99hm0nhjoj03wd557wwqwjs80",
+    "dbid": "008b6635b9efcf7d707d11fddc05a111e8c5f671ce877c745e788190bb442a88",
+    "epoch": 1784314382,
+    "list": "<dev.kafka.apache.org>",
+    "list_raw": "<dev.kafka.apache.org>",
+    "private": false,
+    "in-reply-to": "",
+    "body": "Hi,\nI'd like to open discussion on KIP-1368: Client framework name and version.\n\nApplications often use application frameworks such as Spring to connect to Kafka. To assist with problem diagnosis, this KIP introduces a way to provide the framework name and version as part of the metadata the client ",
+    "attachments": [],
+    "id": "7fjz97f99hm0nhjoj03wd557wwqwjs80"
+  },
+  "flat": [
+    {
+      "mid": "7fjz97f99hm0nhjoj03wd557wwqwjs80",
+      "epoch": 1784314382,
+      "from": "Andrew Schofield <an...@outlook.com>",
+      "subject": "[DISCUSS] KIP-1368: Client framework name and version",
+      "in-reply-to": "",
+      "nchildren": 2
+    },
+    {
+      "mid": "7qnslggb0xnblf8zy5vpo62or72s2q64",
+      "epoch": 1784552619,
+      "from": "Alieh Saeedi via dev <de...@kafka.apache.org>",
+      "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version",
+      "in-reply-to": null,
+      "nchildren": 1
+    },
+    {
+      "mid": "b1nwtwj05xfxbhw3no88vkc2o0qg98yl",
+      "epoch": 1784705289,
+      "from": "Andrew Schofield <sc...@apache.org>",
+      "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version",
+      "in-reply-to": null,
+      "nchildren": 0
+    },
+    {
+      "mid": "9fsyro07ooh5dt9swsj4xfyz4s7w8rtx",
+      "epoch": 1785052100,
+      "from": "Aditya Kousik <ad...@icloud.com>",
+      "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version",
+      "in-reply-to": null,
+      "nchildren": 1
+    },
+    {
+      "mid": "os5s0d4qj58p5qwcnpq70k4rrl8nd69t",
+      "epoch": 1785185532,
+      "from": "Andrew Schofield <sc...@apache.org>",
+      "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version",
+      "in-reply-to": null,
+      "nchildren": 1
+    },
+    {
+      "mid": "s22wthfg6f2gvolx7gq5c7p2vjl0r6dw",
+      "epoch": 1785219989,
+      "from": "Aditya Kousik <ad...@icloud.com>",
+      "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version",
+      "in-reply-to": null,
+      "nchildren": 1
+    },
+    {
+      "mid": "mfhlp2go67m863xv62onokg5szh5rg27",
+      "epoch": 1785487811,
+      "from": "Federico Valeri <fe...@gmail.com>",
+      "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version",
+      "in-reply-to": null,
+      "nchildren": 1
+    },
+    {
+      "mid": "v6dn3780rovhkw2yh4rspqlo454666sf",
+      "epoch": 1785489457,
+      "from": "Andrew Schofield <sc...@apache.org>",
+      "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version",
+      "in-reply-to": null,
+      "nchildren": 1
+    }
+  ]
+}

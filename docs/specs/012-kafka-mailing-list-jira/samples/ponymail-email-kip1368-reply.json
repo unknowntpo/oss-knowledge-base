@@ -1,0 +1,29 @@
+{
+  "from_raw": "Alieh Saeedi via dev <dev@kafka.apache.org>",
+  "from": "Alieh Saeedi via dev <de...@kafka.apache.org>",
+  "gravatar": "36930621c83d6c467a9d0b836d36b887",
+  "to": "de...@kafka.apache.org",
+  "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version",
+  "message-id": "<CAO11b17PtCFUjzcu1F_qskcwVEicgcmu3h+6Grow07dSas8Myw@mail.gmail.com>",
+  "mid": "7qnslggb0xnblf8zy5vpo62or72s2q64",
+  "permalinks": [
+    "7qnslggb0xnblf8zy5vpo62or72s2q64",
+    "r2276507874366dcda9885634b13e2eee1289f4a388c83669e56206d1@<dev.kafka.apache.org>"
+  ],
+  "dbid": "ab790ecf06cd704d7bc6f9fc0d68ff6f76c8d97d5798c8d4549fd24980f8ada7",
+  "cc": "Alieh Saeedi <as...@confluent.io>",
+  "epoch": 1784552619,
+  "list": "<dev.kafka.apache.org>",
+  "list_raw": "<dev.kafka.apache.org>",
+  "date": "2026/07/20 13:03:39",
+  "private": false,
+  "references": "<AS8P251MB0806493DD07CACF21F80CE1282C62@AS8P251MB0806.EURP251.PROD.OUTLOOK.COM>",
+  "in-reply-to": "<AS8P251MB0806493DD07CACF21F80CE1282C62@AS8P251MB0806.EURP251.PROD.OUTLOOK.COM>",
+  "body": "Thanks Andrew for the KIP. Nice to solve a long standing gap.\n\nI had a couple of questions/concerns:\n\nAS01: What does the broker do with the info it receives? Are they\nrepresented as JMX metrics, or do they appear in the logs somewhere?\nAS02: I don't understand why we moved to v6 while the new confi",
+  "body_short": null,
+  "html_source_only": false,
+  "attachments": [],
+  "forum": "dev@kafka.apache.org",
+  "size": 11839,
+  "id": "7qnslggb0xnblf8zy5vpo62or72s2q64"
+}

@@ -1,0 +1,49 @@
+# trimmed first 3KB of mbox.lua?list=dev@kafka.apache.org&date=2026-09 (4.37 MB, 520 msgs). Addresses redacted here by spike; raw mbox shows FULL unobfuscated addresses.
+From dev-return-165568-archive-asf-public=cu...@kafka.apache.org  Tue Sep  1 00:30:00 2026
+Return-Path: <dev-return-165568-archive-asf-public=cu...@kafka.apache.org>
+X-Original-To: ar...@cust-asf.ponee.io
+Delivered-To: ar...@cust-asf.ponee.io
+Received: from mxout2-ec2-or.apache.org (mxout2-ec2-or.apache.org [44.241.252.67])
+	by mx-eu-03.ponee.io (Postfix) with ESMTPS id 80DCC3E6B7
+	for <ar...@cust-asf.ponee.io>; Tue,  1 Sep 2026 00:30:00 +0000 (UTC)
+Received: from mail.apache.org (mailgw-he-de.apache.org [116.203.246.181])
+	(using TLSv1.3 with cipher TLS_AES_256_GCM_SHA384 (256/256 bits)
+	 key-exchange X25519 server-signature RSA-PSS (4096 bits) server-digest SHA256)
+	(No client certificate requested)
+	by mxout2-ec2-or.apache.org (ASF Mail Server at mxout2-ec2-or.apache.org) with ESMTPS id C396886640
+	for <ar...@cust-asf.ponee.io>; Tue,  1 Sep 2026 00:29:58 +0000 (UTC)
+Received: (qmail 736579 invoked by uid 998); 1 Sep 2026 00:29:55 -0000
+Mailing-List: contact de...@kafka.apache.org; run by ezmlm
+List-ID: <dev.kafka.apache.org>
+precedence: bulk
+list-help: <mailto:de...@kafka.apache.org>
+list-unsubscribe: <mailto:de...@kafka.apache.org>
+list-post: <mailto:de...@kafka.apache.org>
+Delivered-To: mailing list de...@kafka.apache.org
+Received: (qmail 736553 invoked by uid 116); 1 Sep 2026 00:29:53 -0000
+Received: from spamproc1-he-de.apache.org (HELO spamproc1-he-de.apache.org) (116.203.196.100)
+ by apache.org (qpsmtpd/0.94) with ESMTP; Tue, 01 Sep 2026 00:29:53 +0000
+Authentication-Results: apache.org; auth=none
+Received: from localhost (localhost [127.0.0.1])
+	by spamproc1-he-de.apache.org (ASF Mail Server at spamproc1-he-de.apache.org) with ESMTP id E8BAE2014D9
+	for <de...@kafka.apache.org>; Tue,  1 Sep 2026 00:29:53 +0000 (UTC)
+X-Virus-Scanned: Debian amavisd-new at spamproc1-he-de.apache.org
+X-Spam-Flag: NO
+X-Spam-Score: -0.198
+X-Spam-Level:
+X-Spam-Status: No, score=-0.198 tagged_above=-999 required=6.31
+	tests=[DKIM_SIGNED=0.1, DKIM_VALID=-0.1, DKIM_VALID_AU=-0.1,
+	DKIM_VALID_EF=-0.1, RCVD_IN_DNSWL_BLOCKED=0.001,
+	RCVD_IN_MSPIKE_H3=0.001, RCVD_IN_MSPIKE_WL=0.001, SPF_PASS=-0.001]
+	autolearn=disabled
+Authentication-Results: spamproc1-he-de.apache.org (amavisd-new);
+	dkim=pass (2048-bit key) header.d=gmail.com
+Received: from mx2-ec2-de.apache.org ([116.203.227.195])
+	by localhost (spamproc1-he-de.apache.org [116.203.196.100]) (amavisd-new, port 10024)
+	with ESMTP id 502-gZFiApmY for <de...@kafka.apache.org>;
+	Tue,  1 Sep 2026 00:29:53 +0000 (UTC)
+Received-SPF: Pass (mailfrom) identity=mailfrom; client-ip=209.85.215.177; helo=mail-pg1-f177.google.com; envelope-from=ya...@gmail.com; receiver=<UNKNOWN> 
+Received: from mail-pg1-f177.google.com (mail-pg1-f177.google.com [209.85.215.177])
+	by mx2-ec2-de.apache.org (ASF Mail Server at mx2-ec2-de.apache.org) with ESMTPS id 351B480071
+	for <de...@kafka.apache.org>; Tue,  1 Sep 2026 00:29:53 +0000 (UTC)
+Received: by mail-pg1-
