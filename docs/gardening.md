@@ -158,6 +158,30 @@ the two `viewer/` items below.
 - **Layer:** measurement (`bun run --cwd apps/data-publisher-worker measure:memory` budget row at 3x).
 - **Source:** [PR #28 body](https://github.com/unknowntpo/oss-knowledge-base/pull/28).
 
+### G16. The 4 MiB response limit is checked after the whole body is read
+- **Where:** `getText` in `packages/reference-pipeline/src/kafka-connectors.ts`
+  reads `response.text()` and only then compares its length with
+  `MAX_RESPONSE_CHARS`.
+- **Why:** an oversized Pony Mail or Jira response is fully buffered in the
+  128 MB Durable Object before it is rejected; the length is in UTF-16 code
+  units, not bytes.
+- **Fix:** check `content-length` first and stop reading the stream past the
+  limit.
+- **Layer:** test (a streamed body larger than the limit is cancelled).
+- **Source:** Spec 012 implementation (PR #27).
+
+### G17. dev@ notification filter is a subject-prefix rule
+- **Where:** `isNotificationSubject` in
+  `packages/reference-pipeline/src/kafka-rules.ts`.
+- **Why:** Jira and GitHub notification mail is recognised only by a
+  `[jira]`/`[PR]` subject prefix; a renamed bot prefix would publish
+  notification mail as threads.
+- **Fix:** also match the sender (`… (Jira)`, GitHub bot) if Pony Mail keeps
+  it stable; count `filtered` in `/health` (already reported) and alert on a
+  sudden drop.
+- **Layer:** test plus runtime (`sources.mail.filtered` on Dev).
+- **Source:** Spec 012 implementation (PR #27).
+
 ## Process and docs
 
 ### G11. Spec status lines drift from reality
