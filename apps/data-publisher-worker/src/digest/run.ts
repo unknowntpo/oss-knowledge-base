@@ -360,6 +360,8 @@ async function compose(
   const chosen = chooseHighlights(valid, { proposals, cards, titles });
   const threads = Object.fromEntries(candidates.map((thread) => [thread.displayId, {
     title: thread.title, source: thread.source, status: thread.status, url: thread.url, score: thread.score,
+    excerpt: thread.rootExcerpt.slice(0, 280), lastActivityAt: thread.lastActivityAt,
+    ...(thread.records.at(-1)!.author === "unknown sender" ? {} : { author: thread.records.at(-1)!.author }),
   }]));
   const digest: DigestV1 = {
     schema: "osskb.digest.v1",

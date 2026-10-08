@@ -33,9 +33,25 @@ const stateRoot = join(webRoot, ".wrangler", "e2e-state");
 const fixture = await Bun.file(fixturePath).json() as {
   readonly publication: FeedPublication;
 };
+// Spec 014: the weekly digest fixtures (built by apps/data-publisher-worker/scripts/build-digest-fixture.ts).
+const digestRoot = "public/digest/v1/apache-kafka/2026-10-06T13-07-37-000Z/e2e/fixture/";
+const digestObjects = await Promise.all(["en", "zh-Hant"].map(async (locale) => ({
+  key: `${digestRoot}${locale === "en" ? "en.json" : "zh-Hant.0000000000000000.json"}`,
+  body: new TextEncoder().encode(await Bun.file(join(webRoot, "test", "fixtures", "digest", `apache-kafka.${locale}.json`)).text()),
+})));
+const digestPointer = {
+  key: "public/digest/v1/apache-kafka/current.json",
+  body: new TextEncoder().encode(JSON.stringify({
+    schema: "osskb.digest-pointer.v1",
+    objectKeys: { en: digestObjects[0]!.key, "zh-Hant": digestObjects[1]!.key },
+    sourceReleaseId: "2026-10-06T13-07-37-000Z",
+  })),
+};
 const objects = [
   ...await buildR2Projection(fixture.publication, "e2e-fixture-v1"),
   ...await buildR2SearchProjection(await buildGoldenSearchPublication(searchFixturePath)),
+  ...digestObjects,
+  digestPointer,
 ];
 
 // Stable paths are safe because every run recreates both the input and R2 state.

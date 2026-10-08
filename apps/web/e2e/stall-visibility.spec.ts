@@ -28,8 +28,8 @@ async function prepare(page: Page, locale: Locale, width: number, time: number, 
 }
 
 async function open(page: Page, view: View): Promise<void> {
-  await page.goto("/");
-  await expect(page.locator(".card")).toHaveCount(3);
+  await page.goto("/#/kafka/threads");
+  await expect(page.locator(".card")).toHaveCount(2);
   if (view === "feed detail") {
     await page.locator(".card").first().click();
     await expect(page).toHaveURL(/#\/feed\//u);
@@ -56,6 +56,11 @@ async function expectStalePillInside(page: Page, locale: Locale, width: number):
   expect(text[0]).toBeLessThanOrEqual(text[1]!);
   const select = (await page.locator(".locale-control").boundingBox())!;
   expect(box.x + box.width).toBeLessThanOrEqual(select.x);
+  // Not drawn over the brand mark, and not clipped vertically (former gardening G2/G12).
+  const mark = (await page.locator(".brand-mark").boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(mark.x + mark.width);
+  const height = await pill.evaluate((element) => [element.scrollHeight, element.clientHeight]);
+  expect(height[0]).toBeLessThanOrEqual(height[1]!);
 }
 
 for (const width of [320, 375, 420]) {
@@ -105,7 +110,7 @@ test("V4: an unparsable generatedAt shows no stall on a narrow screen", async ({
     await route.fulfill({ response, json: body });
   });
   await page.reload();
-  await expect(page.locator(".card")).toHaveCount(3);
+  await expect(page.locator(".card")).toHaveCount(2);
   await expect(page.locator(".demo-pill")).toBeHidden();
 });
 
@@ -123,7 +128,7 @@ test("V6: a cached feed (metadata.stale) shows the stale pill on a narrow screen
     await route.fulfill({ response, json: body });
   });
   await page.reload();
-  await expect(page.locator(".card")).toHaveCount(3);
+  await expect(page.locator(".card")).toHaveCount(2);
   await expect(page.locator(".demo-pill")).toBeVisible();
   await expect(page.locator(".demo-pill")).toHaveClass(/is-stale/u);
 });

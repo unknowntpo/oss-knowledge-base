@@ -8,10 +8,14 @@ import { useI18n } from "../i18n";
 import { useFeedStore } from "../store";
 import type { FeedIndexEntry, SearchResponseV1 } from "../types";
 
-const { payload } = useFeedStore();
+// Spec 014: All threads is this Feed for the route's project (`/#/<projectKey>/threads`). A typed
+// query searches every project (Spec 005), so the route project applies to the list only.
+const props = defineProps<{ readonly projectKey?: string }>();
+const { payload, searchQuery } = useFeedStore();
 const { t } = useI18n();
-const query = ref("");
-const project = ref("");
+const query = ref(searchQuery.value);
+const project = ref(searchQuery.value.trim() === "" ? props.projectKey ?? "" : "");
+searchQuery.value = "";
 const source = ref("");
 const status = ref("");
 const timeWindow = ref<"" | "7d" | "30d" | "365d">("");
@@ -40,11 +44,17 @@ watch(project, () => {
   tags.value = new Set();
 });
 
-watch(query, (value) => {
+watch(() => props.projectKey, (value) => {
+  if (query.value.trim() === "") project.value = value ?? "";
+});
+
+watch(query, (value, previous) => {
   if (value.trim() === "") {
     timeWindow.value = "";
+    if (previous.trim() !== "" && project.value === "") project.value = props.projectKey ?? "";
     return;
   }
+  if (previous.trim() === "" && project.value === (props.projectKey ?? "")) project.value = "";
   source.value = "";
   tags.value = new Set();
 });

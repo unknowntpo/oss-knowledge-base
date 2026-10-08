@@ -30,16 +30,6 @@ the two `viewer/` items below.
 - **Source:** [PR #26 verifier, note 3](https://github.com/unknowntpo/oss-knowledge-base/pull/26#issuecomment-6012144497).
   `apps/web/i18n.js` is changed by open PR #27; fix after it merges.
 
-### G2. Stale pill touches the brand mark at 320 px, English
-- **Where:** `apps/web/styles.css`, `.brand` (flex item with `min-width: 0`).
-- **Why:** `.brand` shrinks to 16 px, narrower than its 26 px `.brand-mark`,
-  so the topbar gap collapses. Reproduced locally: `.brand` width 16 with
-  `overflowX`, `.brand-mark` right edge 42, `.demo-pill` x 42.
-- **Fix:** `flex-shrink: 0` on `.brand`.
-- **Layer:** test (extend Spec 011 V1: `pill.x >= brand-mark.right + gap`).
-- **Source:** [PR #26 verifier, note 1](https://github.com/unknowntpo/oss-knowledge-base/pull/26#issuecomment-6012144497).
-  `apps/web/styles.css` is changed by open PR #27.
-
 ### G3. `metadata.stale` shows stale styling with fresh text
 - **Where:** `apps/web/src/App.vue` (pill class uses `metadata.stale`, text
   uses `freshness` only).
@@ -235,6 +225,29 @@ the two `viewer/` items below.
 - **Layer:** runtime (D35 calibration on Dev).
 - **Source:** Spec 014 slice 2.
 
+### G23. Proposal titles taken from PR titles keep noise
+- **Where:** `proposalTitle` in `apps/web/src/digest-view.ts`.
+- **Why:** when a KIP has no tagged dev@ subject, the title comes from a PR
+  title, which keeps prefixes and phrasing such as "MINOR: Clarify KIP-1331
+  …", "[DRAFT] KIP-1289 — …", or "Implement compression support for
+  KIP-1332". A row without a generated line also repeats its subject as the
+  fallback line (KIP-1163).
+- **Fix:** strip `MINOR:`, bracket tags, and the KIP key from PR-derived
+  titles. Show chips only when the fallback line equals the title.
+- **Layer:** test (case rows on the captured week's titles).
+- **Source:** [PR #36 verifier, N3](https://github.com/unknowntpo/oss-knowledge-base/pull/36#issuecomment-6054011406).
+
+### G24. Thread excerpts include PR-body trailers
+- **Where:** the root excerpt (`selectCandidates` in
+  `packages/reference-pipeline/src/digest/candidates.ts`), shown on topic-page
+  thread cards.
+- **Why:** PR descriptions end with "Reviewers: … <redacted>" trailers, which
+  fill the 280-character excerpt with noise.
+- **Fix:** drop trailer lines (`Reviewers:`, `Co-authored-by:`) before
+  truncating.
+- **Layer:** test (a case row with a captured PR body).
+- **Source:** [PR #36 verifier, N4](https://github.com/unknowntpo/oss-knowledge-base/pull/36#issuecomment-6054011406).
+
 ## Process and docs
 
 ### G11. Spec status lines drift from reality
@@ -248,14 +261,6 @@ the two `viewer/` items below.
 - **Layer:** static check (extend `check:traceability` to require a valid
   `Status:` line in every spec).
 - **Source:** gardener pass 2026-10-06.
-
-### G12. Spec 011 test gaps that mutations survived
-- **Where:** `apps/web/e2e/stall-visibility.spec.ts`.
-- **Why:** a stale pill clipped vertically (`max-height: 16px; overflow:
-  hidden`) or drawn over the brand mark (`margin-left: -34px`) still passes V1.
-- **Fix:** assert `scrollHeight <= clientHeight` and `pill.x >= brand-mark.right`.
-- **Layer:** test.
-- **Source:** [PR #26 verifier mutation run](https://github.com/unknowntpo/oss-knowledge-base/pull/26#issuecomment-6012144497).
 
 ### G13. `viewer/` placeholders
 - **Where:** `viewer/src/components/AskView.tsx:5` ("deferred for now"),

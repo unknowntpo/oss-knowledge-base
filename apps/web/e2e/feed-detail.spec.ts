@@ -22,13 +22,14 @@ test("evidence search opens its immutable FeedDetail timeline", async ({ page })
   const browserProblems = collectBrowserProblems(page);
   const feedResponse = page.waitForResponse((response) => response.url().endsWith("/api/feed"));
 
-  await page.goto("/");
+  await page.goto("/#/kafka/threads");
   expect((await feedResponse).status()).toBe(200);
   await expect(page.locator("#view-feed")).toBeVisible();
-  await expect(page.locator(".card")).toHaveCount(3);
+  await expect(page.locator(".card")).toHaveCount(2);
+  // Spec 014: All threads is the Feed for the route project.
   await expect(page.locator(".card-project")).toContainText([
     "Apache Kafka",
-    "Apache DataFusion",
+    "Apache Kafka",
   ]);
 
   const searchResponse = page.waitForResponse((response) =>
@@ -61,7 +62,7 @@ test("evidence search opens its immutable FeedDetail timeline", async ({ page })
 
 test("project facets shrink with the query and stay consistent when selected", async ({ page }) => {
   const browserProblems = collectBrowserProblems(page);
-  await page.goto("/");
+  await page.goto("/#/kafka/threads");
   await expect(page.locator("#view-feed")).toBeVisible();
 
   const initialResponse = page.waitForResponse((response) =>

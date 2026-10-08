@@ -13,7 +13,7 @@ Commands: `bun run verify:ui`, `bun run verify:health` (see
 | Dev | https://oss-knowledge-base-dev.pages.dev | https://oss-knowledge-base-data-dev.unknowntpo.workers.dev (Cron `7 * * * *`) | `oss-knowledge-base-dev` |
 | Prod | not live (https://oss-knowledge-base.pages.dev deploys on a `v*` tag) | `oss-knowledge-base-data-prod`; URL unknown (no `workers.dev` URL is recorded in the repo) (Cron `37 * * * *`) | `oss-knowledge-base-prod` |
 
-Local fixture: `packages/reference-pipeline/test/fixtures/github-feed-projection.v1.json`,
+Local fixture: `packages/reference-pipeline/test/fixtures/github-feed-projection.v1.json`, plus the Spec 014 digest fixtures `apps/web/test/fixtures/digest/apache-kafka.{en,zh-Hant}.json` (regenerate with `bun apps/data-publisher-worker/scripts/build-digest-fixture.ts`; zh-Hant uses hand translations),
 3 Feed cards (Kafka, DataFusion), `generatedAt` `2026-08-25T12:00:00Z`; search
 fixture from `packages/search/test/fixtures/golden-queries.v1.json` (`KIP-405`
 returns results). Config: `apps/web/wrangler*.jsonc`, `playwright*.config.ts`.
@@ -45,8 +45,12 @@ parameters: search text, filters and sort live in component state.
 
 | View | Route | Component | Reach it | Covered by |
 | --- | --- | --- | --- | --- |
-| Feed | `/#/` | `apps/web/src/views/FeedView.vue` (`#view-feed`) | open `/` | 002 F10–F11, 003 R2/R5, 010 F1–F5, 011 V1–V6 |
-| Search | `/#/` with text in `#q` | same view; cards become `SearchResultCard` | type into `#q` (180 ms debounce) | 005 S1–S15 |
+| Home | `/#/` | redirect | open `/` → `/#/<last project>/` (`localStorage["community-kb-project"]`, try/catch), else `/#/kafka/` | 014 D62 |
+| This week | `/#/<projectKey>/` (`kafka`, `datafusion`) | `apps/web/src/views/WeekView.vue` (`#view-week`, `#digest`) → `components/digest/DigestWeek.vue` | brand link, tab "This week", switcher | 014 D12, D17, D18, D23, D30, D44 |
+| Proposals | `/#/<projectKey>/proposals` | `views/ProposalsView.vue` (`#view-proposals`, `.proposals-tab`) | tab "Proposals"; `kind: null` redirects to This week | 014 D36, D42 |
+| Topic page | `/#/<projectKey>/topic/<topicKey>` | `views/TopicView.vue` → `components/digest/TopicPage.vue` (`#view-topic-page`) | click a `.topic-card-title a` | 014 D43, D53, D54 |
+| Feed (All threads) | `/#/<projectKey>/threads` | `apps/web/src/views/FeedView.vue` (`#view-feed`), list filtered to the route project; a typed query searches all projects | tab "All threads" | 002 F10–F11, 003 R2/R5, 010 F1–F5, 011 V1–V6, 014 D62 |
+| Search | `/#/<projectKey>/threads` with text in `#q` (or Enter in the top bar `#topbar-q`) | same view; cards become `SearchResultCard` | type into `#q` (180 ms debounce) | 005 S1–S15 |
 | Feed detail | `/#/feed/:id` (the entry's `displayId`: `KAFKA-PR-<n>`, `KAFKA-ISSUE-<n>`, `KAFKA-<n>` for Jira, `KAFKA-MAIL-<8 hex>` for a dev@ thread, `DATAFUSION-…`) | `apps/web/src/views/FeedDetailView.vue` (`#view-topic`) | click a `.card` or a `.related-item` | 001 A1–A12, 002 F6–F8, 003 R3, 008 C4–C5, 011 V1/V5, 012 K6–K7 |
 | Search detail | `/#/search/:detailRef` (`sdr1.…`) | same component, `detailRef` prop; `.topic-id` shows the Detail's `displayId` (falls back to the root title's prefix for older details) | click a `.search-card` | 005 S4, 008 C4/C6, 011 V1/V5, 012 K8 |
 
@@ -71,6 +75,16 @@ No `data-testid` attributes; tests select by class, id, and role.
 | `.search-card` (`SearchResultCard.vue`) | Search result linking to `/search/<detailRef>`; `.search-match-badge`, `.evidence`, `.exact-match` | 005 S1–S5, S12 |
 | `.topic-wrap` | Loaded detail: `h1#topic-title`, `.status-badge`, `.source-links`, `.ai-card` / `.key-points-state`, `.tl-filter`, `ol.timeline > li.tl-item` (`.tl-link`), `.rail` | 001 A1–A9, 002 F6–F8 |
 | `.rail .related-list > a.related-item` | Detail "Related topics"/"相關主題", only when the Detail has `related[]`. Each links to `/feed/<displayId>`; `.rid` = "<displayId> · <source label> · <rule label>", `.rtitle` = the entry title. Rules: `key-in-title` "Title cites the issue key"/"標題引用議題編號" (a GitHub title or dev@ subject cites `KAFKA-<n>` ↔ that Jira entry); `same-kip` "Same KIP"/"同一個 KIP" (dev@ threads and Jira issues naming the same `KIP-<n>`). Source labels: `github` "GitHub", `mail` "Mailing list"/"郵件論壇", `jira` "Jira" | 012 K7 |
+| `.community-switcher` | Top bar project `<select>`; lists projects in the published Feed; navigates to `/#/<key>/` | 014 D62 |
+| `.top-tabs` `.top-tab.is-active`, `#topbar-q` | Tabs This week / Proposals (hidden for `proposal.kind: null`) / All threads; top bar search (not on All threads) hands its query to All threads | 014 D43, D62 |
+| `#digest` `.digest-window-range` `.digest-freshness.is-live\|is-stale` | Window label (`formatRange`) and digest age; stale after 36 h | 014 D18, D30, D39 |
+| `.digest-headline`, `.digest-stats`, `.digest-lag`, `.ai-label` | Headline with chips; stats from `digestCounts`; lagging sources; model label (both models on zh-Hant) | 014 D12, D21, D30, D39 |
+| `.digest-highlight` | Up to 3 highlights, each with chips | 014 D37, D44, D55 |
+| `.digest-kips .stage-column[data-stage] .kip-row[data-stage]`, `.stage-badge.stage-<key>`, `.vote-link`, `.stage-more` | Proposal columns in process order; badges for every stage; ≤ 6 rows per column on This week, then "+n more" | 014 D5, D36, D42 |
+| `.topic-card[data-topic]`, `.keyword`, `a.cite` | Topic cards with generated sentences or "AI summary unavailable"; citation chips link to `#/feed/<id>` or, when the thread is not in the current Feed, its source URL | 014 D7, D18, D44 |
+| `details.digest-routine` | Collapsed routine list | 014 D7, D12 |
+| `.no-digest-notice`, `.digest-unavailable`, `.not-found`, `.digest-empty` | No digest (404 / `digest: false`), failed read (503), unknown project or topic, empty week | 014 D17, D23, D53 |
+| `.thread-filter[data-filter][aria-pressed]`, `.thread-card`, `.thread-title` | Topic page filters All / PR / dev@ / JIRA with counts; thread cards link to the source URL, the id to Detail | 014 D43, D54 |
 | `.load-error` | App shell: feed load failure with a Retry button. Detail view: "Loading detail…" and detail errors, without Retry (gardening G5) | 003 R4 |
 
 ## Web API (Pages Functions, `apps/web/functions`)
@@ -84,6 +98,7 @@ All GET, R2 binding `OSS_KB_BUCKET`. Every response, including errors, carries
 | --- | --- | --- | --- |
 | `/api/feed` | Feed index: `generatedAt`, `projects[]`, `entries[]`, `metadata` with `servingMode`, `stale?`, `manifest {schema, releaseId, generatedAt, feedIndexKey, detailMapKey, entryCount}`; 503 on error | `public/v2/current.json` → `manifest.feedIndexKey` | 003 R1/R2/R4, 006 P1/P4, 010 F4/F6 |
 | `/api/detail/:id` | `FeedDetail {displayId?, entry, records[], connections[], keyPoints, related?[]}` (`related[]`: `{displayId, title, source, rule, ruleRevision}`, Spec 012/ADR-0014; `records[].source` is `github`, `mail` or `jira`); 400 (no id), 404, 503 | detail map → `public/v2/objects/details/<sha256>.json` | 003 R3, 008 C1–C5 |
+| `/api/digest?projectId=&locale=` | The current digest object for that locale without `features`/`translations`, plus `localeFallback`; 400 unknown project or locale (not `en`/`zh-Hant`), 404 project without a digest or no pointer yet, 503 otherwise (including a pointer outside the project prefix) | `public/digest/v1/<projectId>/current.json` → `objectKeys[locale]` (Spec 014) | 014 D12, D58 |
 | `/api/search?q=` | `SearchResponseV1 {schema, query, results[] (entry, projectStatus?, matches, detailRef), facets.projects[], retrieval {indexRevision, lexicalRevision, generatedAt, stale}}`. `q` 1–500 chars; `limit` 1–50 (default 20); repeatable `projectId`, `sourceInstanceId`, `projectStatus`, `tag`; `occurredAfter`, `occurredBefore`. 400 for a client error, 503 otherwise | `public/search/v1/current.json` → `releases/<indexRevision>/manifest.json`. Release v3 (Spec 013): `terms.json` (term → document frequency and shard numbers) selects which `lexical/<projectId>/<n>.json` shards to read; v1/v2 read one shard per project | 005 S1–S15, 006 P10, 013 L1–L3, L8 |
 | `/api/search-detail/:ref` | `FeedDetail`; 400 (missing or invalid ref), 404 (not found; for a v3 ref also a shard that is absent, out of range or of another project, or a group not in the shard), 503 (any other error, including a malformed `%` escape or a detail mismatch) | ref (`sdr1.…`, base64url JSON) carries `indexRevision`, project, group, `query`, `matchedRecordIds` and, for v3, its shard; v2/v3 details → `public/search/v1/objects/details/<hex>.json`, v1 details → `releases/<rev>/details/<name>.json` | 005 S4/S12, 008 C4/C6, 013 L4/L9 |
 
@@ -128,7 +143,7 @@ There is no public `/status`: it exists only inside the Durable Object, and
 | `bun run verify:health` | Prints `/health` `lastRun` and `/api/feed` generatedAt/releaseId, whether they agree, the age, and whether the UI would show stale; exits 1 when they disagree | `bun run verify:health -- --target dev` |
 | `bun run digest -- eval\|measure` | Spec 014 offline digest replay on the committed Kafka fixture with recorded (hand-authored) responses: `eval` prints counts, cards, sentence drops by rule, error-class results and recall (pending labels); `measure` prints cold/steady neurons, model calls and R2 reads and exits 1 over the D25/D26 limits. No network | `bun run digest -- measure` |
 
-`verify:ui` options: `--target local|dev`, `--view feed|feed-detail|search|search-detail`
+`verify:ui` options: `--target local|dev`, `--view feed|feed-detail|search|search-detail|week|proposals|topic` (Feed views open `/#/kafka/threads`; `week`, `proposals`, `topic` open the Spec 014 pages for `kafka`)
 (comma list), `--route /feed/<id>` (open a hash route directly), `--query`
 (default `KIP-405`), `--width` (375), `--height` (800), `--locale en|zh-Hant`,
 `--at now|<ISO with zone>|±<offset from generatedAt>` (e.g. `+3h1s`, `-30s`),
