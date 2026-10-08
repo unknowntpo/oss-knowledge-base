@@ -25,6 +25,14 @@ export const CLASSIFY_IN_FLIGHT = 4;
 export const TRANSLATE_BATCH = 60;
 /** Headline plus 3 highlight titles and bodies: translation items the highlights call can add. */
 const HIGHLIGHT_ITEMS = 7;
+
+/**
+ * Behavior 15 (slice 2c): calls kept back before each card: 1 highlights call, the translation
+ * batches for the items so far plus 3 more card sentences and the highlights items, and 1 retry.
+ */
+export function reserveCalls(itemsSoFar: number): number {
+  return 1 + Math.ceil((itemsSoFar + 3 + HIGHLIGHT_ITEMS) / TRANSLATE_BATCH) + 1;
+}
 export const HIGHLIGHT_TITLE_CHARS = 80;
 
 export type DigestFailureKind = "source-read" | "pointer-missing" | "write" | "internal";
@@ -416,18 +424,17 @@ async function compose(
     return { sentences: kept, provenance };
   };
 
-  // Value order (Behavior 15, slice 2c): proposal rows, then cards by score within a reserve.
+  // Value order (Behavior 15, slice 2c): proposal rows, then cards by score, both within a reserve.
   const proposals: ProposalRow[] = [];
-  for (const row of proposalRows(candidates, profile)) {
-    const result = await generate(row.cites.map((id) => byId.get(id)).filter((thread) => thread !== undefined), 1, row.key);
-    proposals.push({ ...row, line: result.sentences[0] ?? null, ...(result.provenance === undefined ? {} : { provenance: result.provenance }) });
-  }
   const cards: TopicCard[] = [];
   const itemsSoFar = () => proposals.filter((row) => row.line !== null).length + cards.reduce((sum, card) => sum + card.sentences.length, 0);
-  // Reserve: 1 highlights call, translation batches for the items so far plus 3 more, and 1 retry.
-  const reserve = () => 1 + Math.ceil((itemsSoFar() + 3 + HIGHLIGHT_ITEMS) / TRANSLATE_BATCH) + 1;
+  const withinReserve = () => calls.remaining > reserveCalls(itemsSoFar());
+  for (const row of proposalRows(candidates, profile)) {
+    const result = await generate(row.cites.map((id) => byId.get(id)).filter((thread) => thread !== undefined), 1, row.key, withinReserve);
+    proposals.push({ ...row, line: result.sentences[0] ?? null, ...(result.provenance === undefined ? {} : { provenance: result.provenance }) });
+  }
   for (const card of mixed.cards) {
-    const result = await generate(card.threads.map((id) => byId.get(id)!), 3, undefined, () => calls.remaining > reserve());
+    const result = await generate(card.threads.map((id) => byId.get(id)!), 3, undefined, withinReserve);
     cards.push({
       ...card, sentences: result.sentences, status: result.sentences.length > 0 ? "generated" : "fallback",
       ...(result.provenance === undefined ? {} : { provenance: result.provenance }),
@@ -444,13 +451,33 @@ async function compose(
     const inputText = JSON.stringify(kept);
     const output = await calls.call(MODELS.summarizer, `${HIGHLIGHTS_PROMPT}\n<sentences>\n${inputText}\n</sentences>`, MAX_TOKENS.highlights);
     const parsed = parseJson(output) as { headline?: unknown; highlights?: unknown } | undefined;
-    if (output !== undefined && parsed === undefined) reject("unparsable");
     const context = { inputs: new Set(kept.flatMap((sentence) => sentence.cites)), threads: states, profile };
-    if (isSentence(parsed?.headline) && rejectSentence(parsed.headline, context) === null) headline = parsed.headline;
-    valid = (Array.isArray(parsed?.highlights) ? parsed.highlights : []).filter((item): item is Highlight =>
-      item !== null && typeof item === "object" && typeof (item as Highlight).title === "string"
-      && [...(item as Highlight).title].length >= 1 && [...(item as Highlight).title].length <= HIGHLIGHT_TITLE_CHARS
-      && isSentence((item as Highlight).body) && rejectSentence((item as Highlight).body, context) === null).slice(0, 3);
+    const items = Array.isArray(parsed?.highlights) ? parsed.highlights : [];
+    if (output !== undefined && parsed === undefined) reject("unparsable");
+    else if (parsed !== undefined && !isSentence(parsed.headline) && items.length === 0) reject("empty");
+    if (isSentence(parsed?.headline)) {
+      const reason = rejectSentence(parsed.headline, context);
+      if (reason === null) headline = parsed.headline;
+      else reject(reason);
+    }
+    // D80: every dropped highlight is counted by its reason.
+    valid = items.filter((item): item is Highlight => {
+      if (item === null || typeof item !== "object" || !isSentence((item as Highlight).body)) {
+        reject("empty");
+        return false;
+      }
+      const reason = rejectSentence((item as Highlight).body, context);
+      if (reason !== null) {
+        reject(reason);
+        return false;
+      }
+      const title = (item as Highlight).title;
+      if (typeof title !== "string" || [...title].length < 1 || [...title].length > HIGHLIGHT_TITLE_CHARS) {
+        reject("title");
+        return false;
+      }
+      return true;
+    }).slice(0, 3);
     if (output === undefined || (valid.length === 0 && headline === null)) fallbacks += 1;
     if (valid.length > 0 || headline !== null) {
       highlightsProvenance = {

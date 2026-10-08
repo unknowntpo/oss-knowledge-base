@@ -11,8 +11,9 @@
  * it (CLEF_STATE_TOKENS); the questions are billed but not part of `state`.
  * Truncation check (slice 2c): Clef-flash returned no `usage` on Dev, so every request ends `state`
  * with a canary `{ref: "end", word}` and asks question `end` for that word among 4. A cut `state`
- * loses the canary; a canary probability below 0.5 (or reported prompt tokens under 80% of the
- * estimate, when `usage` exists) makes the whole batch unseen: rules features.
+ * loses the canary. A canary probability below 0.5, or under 0.25 above the best decoy, or (when
+ * `usage` exists) reported prompt tokens under 80% of the estimate make the whole batch unseen:
+ * rules features. The canary only detects a cut at the end of `state` (D35 probes it).
  * One choice question per thread: the taxonomy topics plus `routine`, described by the profile's
  * `taxonomy.descriptions`. A thread is routine when that option's probability is at
  * least 0.5, and goes to the routine section at 0.6 or more (`placement`, Behavior 6); its topic is
@@ -39,6 +40,8 @@ export const CANARY_REF = "end";
 export const CANARY_WORDS = ["amber", "falcon", "glacier", "lantern"] as const;
 /** A canary probability below this means the model did not see the end of `state`. */
 export const CANARY_SEEN = 0.5;
+/** The canary must also beat the most probable decoy by this much (a word-biased blind model fails). */
+export const CANARY_MARGIN = 0.25;
 export const CLEF_EXCERPT_CHARS = 120;
 export const ROUTINE_OPTION = "routine";
 
@@ -145,7 +148,10 @@ export function clefFeatures(
   let fallbacks = 0;
   const reported = response?.usage?.prompt_tokens;
   const canary = response?.answers?.[CANARY_REF] as { probabilities?: Record<string, unknown> } | undefined;
-  const canarySeen = (probability(canary?.probabilities?.[canaryWord(batch.length)]) ?? 0) >= CANARY_SEEN;
+  const word = canaryWord(batch.length);
+  const canaryP = probability(canary?.probabilities?.[word]) ?? 0;
+  const decoyP = Math.max(0, ...CANARY_WORDS.filter((option) => option !== word).map((option) => probability(canary?.probabilities?.[option]) ?? 0));
+  const canarySeen = canaryP >= CANARY_SEEN && canaryP - decoyP >= CANARY_MARGIN;
   const truncated = typeof reported === "number" && estimatedTokens !== undefined && reported < CLEF_SEEN_RATIO * estimatedTokens;
   if (response !== undefined && (!canarySeen || truncated)) {
     for (const thread of batch) features.set(thread.displayId, rulesClassify(thread, profile));

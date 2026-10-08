@@ -91,6 +91,8 @@ export const testPlanRows = [
   { id: "D72", rule: "canary", input: "constructed: Clef answers the canary word with probability 0.3", expected: "the whole batch is unseen: rules features, counted as a fallback" },
   { id: "D72", rule: "canary", input: "constructed: Clef answers the canary word with probability 0.9", expected: "model features" },
   { id: "D72", rule: "canary", input: "constructed: a whole run where every Clef response omits the canary answer", expected: "every thread gets rules features; clefCanaryMisses equals clefCalls" },
+  { id: "D72", rule: "canary", input: "constructed: canary word 0.45, every decoy 0.01", expected: "the whole batch is unseen: rules features, counted as a fallback" },
+  { id: "D72", rule: "canary", input: "constructed: canary word 0.6, decoy falcon 0.55", expected: "the whole batch is unseen: rules features, counted as a fallback" },
   { id: "D73", rule: "clef", input: "constructed: the Clef request criteria for the Kafka profile", expected: "every topic option's criterion is the profile description; revision digest-clef@2" },
   { id: "D74", rule: "call order", input: "captured week, cold run with Clef", expected: "classify, then proposal rows, then cards by score, then highlights, then translation" },
   { id: "D74", rule: "call order", input: "constructed: captured week with a 30-request ceiling", expected: "every proposal line, the highlights call, and translation ran; the lowest-score cards fall back; limited true; no item Not translated" },
@@ -103,4 +105,9 @@ export const testPlanRows = [
   { id: "D79", rule: "coverage", input: "constructed: a complete en with an incomplete zh-Hant, retried", expected: "a new pair with identical coverage; the pointer names both new objects" },
   { id: "D80", rule: "rejections", input: "constructed: a proposal call returns JSON cut off mid-string", expected: "rejections.unparsable 1; that line null" },
   { id: "D80", rule: "rejections", input: "constructed: a card sentence says merged while its cited PR is open", expected: "rejections[\"status:merged\"] 1" },
+  { id: "D80", rule: "rejections", input: "constructed: the highlights call returns a headline citing a thread outside its inputs and a highlight body with \"objected\"", expected: "rejections[\"cite-outside-inputs\"] 1, rejections[\"stance:objected\"] 1; headline null" },
+  { id: "D80", rule: "rejections", input: "constructed: the highlights call returns {}", expected: "rejections.empty 1; headline null" },
+  { id: "D76", rule: "uncategorized", input: "captured week, cold run with Clef", expected: "en.uncategorized lists every non-routine thread placed in other, by score; not empty" },
+  { id: "D74", rule: "call order", input: "constructed: captured week at every ceiling from 20 to 35 requests", expected: "at least 3 requests remain at the highlights call (highlights, 1 translation, 1 retry)" },
+  { id: "D74", rule: "call order", input: "constructed: the reserve for 50 and for 51 items so far", expected: "3 and 4" },
 ] as const;

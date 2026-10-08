@@ -572,7 +572,8 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
      - **Truncation check (canary).** Every request also asks question
        `end`: which of 4 words is the canary's `word`. The canary is the
        last state item, so a cut `state` loses it. A batch is unseen when
-       the canary word's probability is below 0.5, or when a response
+       the canary word's probability is below 0.5 or less than 0.25 above
+       the most probable decoy, or when a response
        reports `usage.prompt_tokens` below 80% of the job's estimate. An
        unseen batch gets rules features, counts as a fallback, and adds 1
        to `calibration.clefCanaryMisses`. Clef-flash returned no `usage` on
@@ -739,10 +740,11 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
         hour, which leaves 10 for a D35 probe in the same hour.
     - **Call order** (slice 2c): classification, proposal rows (vote, then
       discuss, then implementing), cards by score, the highlights call,
-      translation. Before each card, the job keeps a reserve of calls for
-      what follows: 1 highlights call, the translation batches for every
-      item so far plus 3 more card sentences, and 1 retry. A card that would
-      use the reserve is skipped as `fallback` and the run is `limited`.
+      translation. Before each proposal row and card, the job keeps a
+      reserve of calls for what follows: 1 highlights call, the translation
+      batches for every item so far plus 3 more sentences and the 7
+      highlights items, and 1 retry. A row or card that would use the
+      reserve is skipped as `fallback` and the run is `limited`.
       On the first Dev dry run (318 candidates, 45-request ceiling), 17 Clef
       requests and 26 summarizer calls left room for 2 translation calls,
       and 20 items stayed "Not translated".
@@ -1309,6 +1311,8 @@ synthetic; the others use values captured from Dev.
 | D72 | canary | constructed: Clef answers the canary word with probability 0.3 | the whole batch is unseen: rules features, counted as a fallback |
 | D72 | canary | constructed: Clef answers the canary word with probability 0.9 | model features |
 | D72 | canary | constructed: a whole run where every Clef response omits the canary answer | every thread gets rules features; clefCanaryMisses equals clefCalls |
+| D72 | canary | constructed: canary word 0.45, every decoy 0.01 | the whole batch is unseen: rules features, counted as a fallback |
+| D72 | canary | constructed: canary word 0.6, decoy falcon 0.55 | the whole batch is unseen: rules features, counted as a fallback |
 | D73 | clef | constructed: the Clef request criteria for the Kafka profile | every topic option's criterion is the profile description; revision digest-clef@2 |
 | D74 | call order | captured week, cold run with Clef | classify, then proposal rows, then cards by score, then highlights, then translation |
 | D74 | call order | constructed: captured week with a 30-request ceiling | every proposal line, the highlights call, and translation ran; the lowest-score cards fall back; limited true; no item Not translated |
@@ -1321,6 +1325,11 @@ synthetic; the others use values captured from Dev.
 | D79 | coverage | constructed: a complete en with an incomplete zh-Hant, retried | a new pair with identical coverage; the pointer names both new objects |
 | D80 | rejections | constructed: a proposal call returns JSON cut off mid-string | rejections.unparsable 1; that line null |
 | D80 | rejections | constructed: a card sentence says merged while its cited PR is open | rejections["status:merged"] 1 |
+| D80 | rejections | constructed: the highlights call returns a headline citing a thread outside its inputs and a highlight body with "objected" | rejections["cite-outside-inputs"] 1, rejections["stance:objected"] 1; headline null |
+| D80 | rejections | constructed: the highlights call returns {} | rejections.empty 1; headline null |
+| D76 | uncategorized | captured week, cold run with Clef | en.uncategorized lists every non-routine thread placed in other, by score; not empty |
+| D74 | call order | constructed: captured week at every ceiling from 20 to 35 requests | at least 3 requests remain at the highlights call (highlights, 1 translation, 1 retry) |
+| D74 | call order | constructed: the reserve for 50 and for 51 items so far | 3 and 4 |
 <!-- test-plan:end -->
 
 **Slice 3: browser.** Case file
@@ -1497,9 +1506,9 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   binding, every call passes `{gateway: {id, skipCache: true}}`. If any of
   the three is missing, the run is rules-only.
 - D72: every Clef request ends `state` with the canary and asks question
-  `end`. A canary probability below 0.5 gives the whole batch rules
-  features, counts a fallback, and adds 1 to `clefCanaryMisses`; a correct
-  canary gives model features.
+  `end`. A canary probability below 0.5, or less than 0.25 above the best
+  decoy, gives the whole batch rules features, counts a fallback, and adds
+  1 to `clefCanaryMisses`; a clear correct canary gives model features.
 - D73: Clef option descriptions come from the profile's
   `taxonomy.descriptions` (at most 8 words each), and the classifier
   revision is `digest-clef@2`.
@@ -1521,7 +1530,9 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   writes a new pair.
 - D80: a run's result reports `rejections`: for every card, proposal row
   and highlights call, `unparsable` (no JSON), `empty` (JSON without
-  sentences) or each dropped sentence's Behavior 9/30 reason.
+  sentences) or each dropped sentence's Behavior 9/30 reason. For the
+  highlights call this covers the headline and each highlight body; a
+  highlight whose title is missing or over 80 characters counts `title`.
 
 ### Failure and retry
 - D13: a binding error, 5xx, 3040, or unidentified error is retried once
@@ -1691,10 +1702,16 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   - Precondition for adding `DIGEST_CRON` (revised in slice 2c, because
     Clef-flash returns no `usage`): a Dev dry run shows
     `calibration.clefCanaryMisses` equal to 0 with `clefCalls` above 0, and
-    one probe shows the canary works: a single Clef request whose `state`
-    is about 4,000 estimated tokens must miss the canary. If the probe
-    answers the canary, the truncation limit is above 4,000 tokens; record
-    that and raise the packing budget.
+    a probe shows the canary works: four Clef requests whose `state` is
+    about 4,000 estimated tokens, one per canary word (thread counts with
+    each remainder mod 4), must all miss the canary. A model that leans to
+    one word would pass about 1 batch size in 4; the four probes rule that
+    out. If a probe answers the canary, the truncation limit is above 4,000
+    tokens or truncation is not at the end; record which and revise.
+  - The canary detects only truncation that drops the end of `state`.
+    Cloudflare's docs say only that long input is "truncated to fit". A cut
+    in the middle of `state`, or of the questions, would not be detected;
+    the end-of-state direction is an assumption the probe settles.
   - They record the exception shapes of `env.AI.run` for a malformed request
     and for a gateway rate limit, using a test gateway limited to 1
     request/min. Error 3036 is not provoked.
