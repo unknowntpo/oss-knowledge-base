@@ -13,6 +13,40 @@ Commands: `bun run verify:ui`, `bun run verify:health` (see
 | Dev | https://oss-knowledge-base-dev.pages.dev | https://oss-knowledge-base-data-dev.unknowntpo.workers.dev (Cron `7 * * * *`) | `oss-knowledge-base-dev` |
 | Prod | not live (https://oss-knowledge-base.pages.dev deploys on a `v*` tag) | `oss-knowledge-base-data-prod`; URL unknown (no `workers.dev` URL is recorded in the repo) (Cron `37 * * * *`) | `oss-knowledge-base-prod` |
 
+### Dev access (Cloudflare Access)
+
+Dev Pages (https://oss-knowledge-base-dev.pages.dev and its preview subdomains
+`*.oss-knowledge-base-dev.pages.dev`) is meant to sit behind Cloudflare Access.
+The publisher worker on `workers.dev` and Prod are not behind Access.
+
+- Automated clients authenticate with a service token: `CF_ACCESS_CLIENT_ID`
+  and `CF_ACCESS_CLIENT_SECRET`, sent as `CF-Access-Client-Id` /
+  `CF-Access-Client-Secret` headers. Both unset means no headers (the behavior
+  before Access existed); only one set is an error.
+- The headers go only to https URLs on the Dev Pages host or its subdomains
+  (`isAccessProtected` in `scripts/verify/access.ts`), never to the publisher,
+  Prod, local, or third-party origins.
+- CI: the `E2E — deployed development` job reads both from GitHub Actions
+  secrets. `apps/web/deployed-e2e/fixtures.ts` gives the browser a route that
+  adds them to Dev Pages requests, gives `request` a Pages-only context, and
+  calls the publisher through a separate `publisherRequest` context without
+  them. With a token set, `playwright.development.config.ts` turns tracing off,
+  because traces record request headers and are uploaded as a public artifact.
+- `verify:ui` and `verify:health --target dev` read the same variables. Without
+  them, an Access login redirect (to `*.cloudflareaccess.com`) fails with a
+  message telling you to set them; with a rejected token, the message says so.
+  Neither command prints the values.
+- Local use: keep the token in the macOS Keychain and export it only for the
+  command, never echo it:
+
+  ```sh
+  security add-generic-password -s oss-kb-cf-access-id -a "$USER" -w      # prompts for the value
+  security add-generic-password -s oss-kb-cf-access-secret -a "$USER" -w
+  export CF_ACCESS_CLIENT_ID=$(security find-generic-password -s oss-kb-cf-access-id -w)
+  export CF_ACCESS_CLIENT_SECRET=$(security find-generic-password -s oss-kb-cf-access-secret -w)
+  bun run verify:health -- --target dev
+  ```
+
 Local fixture: `packages/reference-pipeline/test/fixtures/github-feed-projection.v1.json`, plus the Spec 014 digest fixtures `apps/web/test/fixtures/digest/apache-kafka.{en,zh-Hant}.json` (regenerate with `bun apps/data-publisher-worker/scripts/build-digest-fixture.ts`; zh-Hant uses hand translations),
 3 Feed cards (Kafka, DataFusion), `generatedAt` `2026-08-25T12:00:00Z`; search
 fixture from `packages/search/test/fixtures/golden-queries.v1.json` (`KIP-405`

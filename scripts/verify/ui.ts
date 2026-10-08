@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 
 import { chromium, type Page } from "playwright";
 
+import { accessHeadersFor, getWithAccess, isAccessProtected, readAccessHeaders, type AccessHeaders } from "./access";
 import {
   formatUiSummary,
   parseAt,
@@ -23,8 +24,8 @@ import {
 // The same key the app reads (apps/web/src/i18n.ts).
 const localeStorageKey = "community-kb-locale";
 
-async function feedGeneratedAt(baseUrl: string): Promise<string | undefined> {
-  const response = await fetch(`${baseUrl}/api/feed`);
+async function feedGeneratedAt(baseUrl: string, access: AccessHeaders | undefined): Promise<string | undefined> {
+  const response = await getWithAccess(`${baseUrl}/api/feed`, access);
   if (!response.ok) throw new Error(`GET ${baseUrl}/api/feed -> ${response.status}`);
   const body = (await response.json()) as { metadata?: { manifest?: { generatedAt?: string } } };
   return body.metadata?.manifest?.generatedAt;
@@ -100,7 +101,8 @@ async function capture(page: Page, baseUrl: string, options: UiOptions, view: Vi
 async function main(): Promise<void> {
   const options = parseUiArgs(process.argv.slice(2));
   const baseUrl = targets[options.target].pages;
-  const generatedAt = await feedGeneratedAt(baseUrl).catch((error: unknown) => {
+  const access = readAccessHeaders(process.env);
+  const generatedAt = await feedGeneratedAt(baseUrl, access).catch((error: unknown) => {
     if (options.target === "local") {
       throw new Error(`${String(error)}\nStart the fixture server first: bun run e2e:prepare && bun run e2e:server`);
     }
@@ -112,6 +114,7 @@ async function main(): Promise<void> {
 
   const browser = await chromium.launch();
   try {
+    // /api/feed above already failed fast on an Access challenge, so the browser only needs the token.
     const context = await browser.newContext({ viewport: { width: options.width, height: options.height } });
     await context.addInitScript(
       ([key, value]) => window.localStorage.setItem(key!, value!),
@@ -120,6 +123,13 @@ async function main(): Promise<void> {
     if (time !== undefined) {
       if (options.frozen) await context.clock.setFixedTime(time);
       else await context.clock.install({ time });
+    }
+    if (access !== undefined) {
+      // Not extraHTTPHeaders: those go to every origin the page loads. Only Dev Pages requests get the token.
+      await context.route(
+        (url) => isAccessProtected(url),
+        (route) => route.continue({ headers: { ...route.request().headers(), ...accessHeadersFor(route.request().url(), access) } }),
+      );
     }
     const page = await context.newPage();
     const captures = [];
