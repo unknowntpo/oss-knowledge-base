@@ -7,7 +7,7 @@
 import {
   cardInput, CLASSIFY_PROMPT, chooseHighlights, HIGHLIGHTS_PROMPT, MAX_TOKENS, mix,
   MODELS, parseClassification, PROMPT_REVISION, proposalRows, protect, rejectSentence, restore,
-  CLEF_EXCERPT_CHARS, CLEF_MODELS, CLEF_REVISION, clefFeatures, clefRequest, packClefBatches,
+  CLEF_EXCERPT_CHARS, CLEF_MODELS, CLEF_REVISION, clefFeatures, clefRequest, clefRequestTokens, packClefBatches,
   RULES_REVISION, rulesClassify, SCORING_REVISION, selectCandidates, sourceCoverage, SUMMARIZE_PROMPT,
   threadText, TRANSLATE_PROMPT, validateSentences, digestWindowStart,
   type CitedThread, type DigestProfile, type DigestV1, type Highlight, type ProposalRow, type Provenance,
@@ -292,8 +292,9 @@ async function compose(
     const batches = packClefBatches(pending.map((item) => item.thread), profile);
     for (let index = 0; index < batches.length; index += CLASSIFY_IN_FLIGHT) {
       await Promise.all(batches.slice(index, index + CLASSIFY_IN_FLIGHT).map(async (batch) => {
-        const response = await calls.decide(CLEF_MODELS.flash, clefRequest(batch, profile));
-        const parsed = clefFeatures(response, batch, profile, model);
+        const request = clefRequest(batch, profile);
+        const response = await calls.decide(CLEF_MODELS.flash, request);
+        const parsed = clefFeatures(response, batch, profile, model, clefRequestTokens(request));
         if (response === undefined || parsed.fallbacks > 0) fallbacks += 1;
         for (const thread of batch) record(byId.get(thread.displayId)!, parsed.features.get(thread.displayId)!);
       }));

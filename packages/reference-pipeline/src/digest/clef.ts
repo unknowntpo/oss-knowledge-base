@@ -7,10 +7,13 @@
  *                                         | { type: "noul", instructions } } }   (1–64 questions)
  *   response { model, answers: { <id>: { choice, probabilities } | { probability } }, usage }
  * Workers AI truncates long `state` text (about 2K tokens), so `state` carries only threads' titles
- * and short excerpts and is packed to stay under CLEF_STATE_TOKENS; the questions are billed but not
- * part of `state` (confirmed or corrected on Dev by D35). One choice question per thread:
- * the taxonomy topics plus `routine`, so a thread is routine when that option's probability is at
- * least 0.6 (Behavior 6), and its topic is the most probable non-routine option.
+ * and short excerpts and is packed to stay well under it (CLEF_STATE_TOKENS); the questions are
+ * billed but not part of `state`. Fail safe: when Clef reports fewer prompt tokens than 80% of what
+ * the job estimated it sent, part of the request went unseen, so the whole batch gets rules
+ * features (D35 checks the real limit and field names on Dev). One choice question per thread:
+ * the taxonomy topics plus `routine`. A thread is routine when that option's probability is at
+ * least 0.5, and goes to the routine section at 0.6 or more (`placement`, Behavior 6); its topic is
+ * the most probable topic option.
  */
 import { rulesClassify } from "./classify";
 import { estimateTokens } from "./estimate";
@@ -20,7 +23,9 @@ export const CLEF_MODELS = { flash: "@cf/cloudflare/clef-flash", full: "@cf/clou
 export type ClefModel = (typeof CLEF_MODELS)[keyof typeof CLEF_MODELS];
 export const CLEF_REVISION = "digest-clef@1";
 /** Head room under Workers AI's ~2K-token truncation of `state`. */
-export const CLEF_STATE_TOKENS = 1_800;
+export const CLEF_STATE_TOKENS = 1_200;
+/** Reported prompt tokens below this share of the estimate mean truncation (fail safe). */
+export const CLEF_SEEN_RATIO = 0.8;
 export const CLEF_MAX_QUESTIONS = 64;
 export const CLEF_EXCERPT_CHARS = 120;
 export const ROUTINE_OPTION = "routine";
@@ -121,9 +126,15 @@ export function clefFeatures(
   batch: readonly Thread[],
   profile: DigestProfile,
   model: { model: string; prompt: string; generatedAt: string },
+  estimatedTokens?: number,
 ): { features: Map<string, ThreadFeatures>; fallbacks: number } {
   const features = new Map<string, ThreadFeatures>();
   let fallbacks = 0;
+  const reported = response?.usage?.prompt_tokens;
+  if (typeof reported === "number" && estimatedTokens !== undefined && reported < CLEF_SEEN_RATIO * estimatedTokens) {
+    for (const thread of batch) features.set(thread.displayId, rulesClassify(thread, profile));
+    return { features, fallbacks: batch.length };
+  }
   batch.forEach((thread, index) => {
     const answer = response?.answers?.[`t${index + 1}`] as { probabilities?: Record<string, unknown> } | undefined;
     const options = [...profile.taxonomy.topics, ROUTINE_OPTION];

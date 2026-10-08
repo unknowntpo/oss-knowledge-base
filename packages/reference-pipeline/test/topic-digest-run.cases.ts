@@ -56,8 +56,9 @@ export const testPlanRows = [
   { id: "D59", rule: "deferral", input: "constructed: 2 deferrals recorded, then POST /digest/run", expected: "counter cleared; the new alarm can defer 4 times" },
   // Slice 2b: Clef-flash classification, Workers AI through AI Gateway, and the Dev/Prod switches.
   { id: "D63", rule: "clef", input: "constructed: answer t1 security 0.7, clients 0.2, other 0.1, routine 0.1", expected: "topic security, topicConfidence 0.70, routine false (0.90)" },
-  { id: "D63", rule: "clef", input: "constructed: answer t1 routine 0.6, other 0.4", expected: "routine section (routineConfidence 0.60)" },
-  { id: "D63", rule: "clef", input: "captured week, cold run with Clef", expected: "8 Clef requests; every state at most 1,800 tokens; at most 64 questions; excerpts at most 120 chars" },
+  { id: "D63", rule: "clef", input: "constructed: answer t1 routine 0.6, other 0.4", expected: "routine section by placement() (routineConfidence 0.60)" },
+  { id: "D63", rule: "clef", input: "constructed: answer t1 routine 0.55, other 0.45", expected: "routine true (0.55) but a card by placement(): below the 0.6 section gate" },
+  { id: "D63", rule: "clef", input: "captured week, cold run with Clef", expected: "12 Clef requests; every state at most 1,200 tokens; at most 64 questions; excerpts at most 120 chars" },
   { id: "D63", rule: "clef", input: "constructed: the request body for one batch", expected: "model clef-flash; state [{ref, title, excerpt}]; one choice question per thread with 13 options (12 topics + routine)" },
   { id: "D63", rule: "clef", input: "constructed: a new comment on a thread whose title and root excerpt are unchanged", expected: "Clef features reused from cache; 0 Clef requests for it" },
   { id: "D67", rule: "clef", input: "constructed: answer for t2 missing, t3 probability 1.4", expected: "t2 and t3 get rules features; the rest model; batch counted as a fallback" },
@@ -77,4 +78,12 @@ export const testPlanRows = [
   { id: "D63", rule: "clef", input: "constructed: answer t1 routine 0.45, other 0.55", expected: "topic other, topicConfidence 1.00, routine false (0.55)" },
   { id: "D63", rule: "clef", input: "constructed: answer t1 routine 0.5, other 0.25, security 0.25", expected: "topic other, topicConfidence 0.50, routine true (0.50)" },
   { id: "D63", rule: "clef", input: "constructed: 70 threads with one-letter titles and no excerpt", expected: "2 requests: 64 + 6 questions" },
+  // Rows from the PR #40 verifier (fail-safe truncation, cap, request body, provenance, calibration).
+  { id: "D67", rule: "clef", input: "constructed: Clef reports 1,000 prompt tokens for a request the job estimated at 1,500", expected: "the whole batch is treated as unseen: rules features, counted as a fallback" },
+  { id: "D67", rule: "clef", input: "constructed: a whole run where every Clef response reports 1 prompt token", expected: "every thread gets rules features; every batch counted as a fallback" },
+  { id: "D67", rule: "clef", input: "constructed: Clef reports 1,400 prompt tokens for a request estimated at 1,500", expected: "model features (reported is at least 80% of the estimate)" },
+  { id: "D71", rule: "spend", input: "constructed: a Clef decide with today's spend exactly at the cap", expected: "skipped; limited true; the pre-call estimate is at least 1 neuron" },
+  { id: "D70", rule: "gateway", input: "constructed: a text-generation request through WorkersAiModel", expected: "body has messages, max_tokens, temperature 0" },
+  { id: "D63", rule: "clef", input: "constructed: a run with the Clef decider", expected: "revisions.classifier is @cf/cloudflare/clef-flash with digest-clef@1" },
+  { id: "D66", rule: "dry run", input: "constructed: the model reports twice the estimated input tokens", expected: "calibration ratio 2" },
 ] as const;

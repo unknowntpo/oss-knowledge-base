@@ -559,8 +559,12 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
      - The topic is the most probable topic option. `topicConfidence` is
        that option's probability renormalised over the topics.
      - Workers AI truncates long `state` (about 2K tokens), so requests are
-       packed until `state` reaches 1,800 estimated tokens or 64 questions.
-       The captured week needs 8 requests, with 4 in flight.
+       packed until `state` reaches 1,200 estimated tokens or 64 questions.
+       The captured week needs 12 requests, with 4 in flight.
+     - Fail-safe: when a response reports `usage.prompt_tokens` below 80%
+       of the job's estimate for that request, the model saw a truncated
+       request. The whole batch then gets rules features and counts as a
+       fallback. A response without `usage` is accepted; D35 checks it.
      - The cache key is the Clef input itself (title and excerpt), so a new
        comment does not reclassify a thread.
 7. **Mixing.**
@@ -1217,8 +1221,9 @@ synthetic; the others use values captured from Dev.
 | D59 | deferral | constructed: a deferred run completes, then the publisher runs at the next alarm | the counter restarted: the alarm defers again |
 | D59 | deferral | constructed: 2 deferrals recorded, then POST /digest/run | counter cleared; the new alarm can defer 4 times |
 | D63 | clef | constructed: answer t1 security 0.7, clients 0.2, other 0.1, routine 0.1 | topic security, topicConfidence 0.70, routine false (0.90) |
-| D63 | clef | constructed: answer t1 routine 0.6, other 0.4 | routine section (routineConfidence 0.60) |
-| D63 | clef | captured week, cold run with Clef | 8 Clef requests; every state at most 1,800 tokens; at most 64 questions; excerpts at most 120 chars |
+| D63 | clef | constructed: answer t1 routine 0.6, other 0.4 | routine section by placement() (routineConfidence 0.60) |
+| D63 | clef | constructed: answer t1 routine 0.55, other 0.45 | routine true (0.55) but a card by placement(): below the 0.6 section gate |
+| D63 | clef | captured week, cold run with Clef | 12 Clef requests; every state at most 1,200 tokens; at most 64 questions; excerpts at most 120 chars |
 | D63 | clef | constructed: the request body for one batch | model clef-flash; state [{ref, title, excerpt}]; one choice question per thread with 13 options (12 topics + routine) |
 | D63 | clef | constructed: a new comment on a thread whose title and root excerpt are unchanged | Clef features reused from cache; 0 Clef requests for it |
 | D67 | clef | constructed: answer for t2 missing, t3 probability 1.4 | t2 and t3 get rules features; the rest model; batch counted as a fallback |
@@ -1237,6 +1242,13 @@ synthetic; the others use values captured from Dev.
 | D63 | clef | constructed: answer t1 routine 0.45, other 0.55 | topic other, topicConfidence 1.00, routine false (0.55) |
 | D63 | clef | constructed: answer t1 routine 0.5, other 0.25, security 0.25 | topic other, topicConfidence 0.50, routine true (0.50) |
 | D63 | clef | constructed: 70 threads with one-letter titles and no excerpt | 2 requests: 64 + 6 questions |
+| D67 | clef | constructed: Clef reports 1,000 prompt tokens for a request the job estimated at 1,500 | the whole batch is treated as unseen: rules features, counted as a fallback |
+| D67 | clef | constructed: a whole run where every Clef response reports 1 prompt token | every thread gets rules features; every batch counted as a fallback |
+| D67 | clef | constructed: Clef reports 1,400 prompt tokens for a request estimated at 1,500 | model features (reported is at least 80% of the estimate) |
+| D71 | spend | constructed: a Clef decide with today's spend exactly at the cap | skipped; limited true; the pre-call estimate is at least 1 neuron |
+| D70 | gateway | constructed: a text-generation request through WorkersAiModel | body has messages, max_tokens, temperature 0 |
+| D63 | clef | constructed: a run with the Clef decider | revisions.classifier is @cf/cloudflare/clef-flash with digest-clef@1 |
+| D66 | dry run | constructed: the model reports twice the estimated input tokens | calibration ratio 2 |
 <!-- test-plan:end -->
 
 **Slice 3: browser.** Case file
@@ -1386,10 +1398,13 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
 
 - D63: Clef-flash classification (slice 2b):
   - one choice question per thread (12 topics plus `routine`);
-  - state `{ref, title, excerpt ≤ 120}`, packed to at most 1,800 state
-    tokens and 64 questions (8 requests on the captured week);
-  - routine at a `routine` probability of 0.6 or more; topic and confidence
+  - state `{ref, title, excerpt ≤ 120}`, packed to at most 1,200 state
+    tokens and 64 questions (12 requests on the captured week);
+  - `routine` true at a `routine` probability of 0.5 or more; the routine
+    section still needs 0.6 (`placement`, Behavior 6); topic and confidence
     renormalised over the topics;
+  - a response reporting under 80% of the estimated prompt tokens gives the
+    whole batch rules features (truncation fail-safe);
   - the request names the model `clef-flash`;
   - the cache is keyed by the Clef input.
 - D64: with `DIGEST_ENABLED` unset (Prod), `POST /digest/run` returns 403
@@ -1510,7 +1525,7 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   4,500 neurons and a steady daily run at most 2,000.
   - Measured 2026-10-08 with Clef-flash classification (slice 2b): cold
     **1,310**, steady **1,056**.
-  - The cold run breaks down as: classification on Clef-flash 351 (8
+  - The cold run breaks down as: classification on Clef-flash 351 (12
     requests); cards 610, proposal lines 236, and highlights 71 on
     llama-3.3-70b; translation 42 on qwen3-30b-a3b.
   - Before 2b, with llama classification, the cold run was 3,531.
@@ -1521,7 +1536,7 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
     committed fixture and applies the pinned price table and the Behavior
     15 token estimate.
 - D26: [measure] the same command prints call and read counters:
-  - model calls per cold run: at most 45. Measured 35: 8 Clef requests, 12
+  - model calls per cold run: at most 45. Measured 39: 12 Clef requests, 12
     cards, 12 proposal rows, 1 highlights call, and 2 translation batches.
     This stays under the Dev gateway's 60 requests per hour;
   - R2 reads: at most 300 (pointer, manifest, feed index, detail map, 234
@@ -1567,6 +1582,23 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
     in AI Gateway's logs. If they differ by more than 25%, the estimate's
     characters-per-token ratios are recalibrated and recorded in this
     spec.
+  - They confirm two Clef assumptions, which constructed tests cannot:
+    - response field names: answers at `answers.<question id>.probabilities`
+      and input tokens at `usage.prompt_tokens`. If `usage` is missing, the
+      truncation fail-safe is off; record that here.
+    - truncation scope and limit: which part of the request Workers AI
+      truncates and at how many tokens. The 1,200-token packing budget and
+      the 80% fail-safe ratio assume `state` is cut near 2K tokens.
+  - Known limits to watch in the dry-run result:
+    - The daily cap is checked per call before it starts. With 4 Clef
+      requests in flight, up to 3 more pre-call estimates can pass the cap
+      in one wave (about 30 neurons each on the captured week: 351 over 12
+      requests). This overshoot is accepted; the gateway's $2/month spend
+      limit is the hard stop.
+    - qwen3's `<think>` block consumes `max_tokens`. An unterminated block
+      leaves no translation, so the sentence shows "Not translated". Watch
+      `notTranslated` in the result; raise the translator's `max_tokens` if
+      it is above 0.
 - D56: `digest -- eval` reports counts per error class and the share of
   sentences dropped by each Behavior 30 rule. The five recorded negative
   fixtures are in the labels fixture, and Behavior 30 rejects the status

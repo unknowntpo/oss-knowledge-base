@@ -127,10 +127,12 @@ export class ModelCalls {
 
   async decide(model: ClefModel, request: ClefRequest): Promise<ClefResponse | undefined> {
     const inputTokens = clefRequestTokens(request);
-    return this.attempt(model, neurons(model, inputTokens, 0), inputTokens, async () => {
+    // Rounding can make a small request cost 0; every request costs at least 1 so the cap gates it.
+    const estimate = Math.max(1, neurons(model, inputTokens, 0));
+    return this.attempt(model, estimate, inputTokens, async () => {
       const response = await this.model!.decide!(model, request);
       return { value: response, usage: response.usage as ModelUsage | undefined };
-    }, () => neurons(model, inputTokens, 0));
+    }, () => estimate);
   }
 
   private async attempt<T>(

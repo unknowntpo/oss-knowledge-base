@@ -13,7 +13,8 @@ import { detailPoolKey, FEED_DETAIL_POOL, MANIFEST_KEY, sha256Digest } from "@os
 import fixtureJson from "../../../packages/reference-pipeline/test/fixtures/topic-digest-kafka-2026-10-06.json";
 import { testPlanRows } from "../../../packages/reference-pipeline/test/topic-digest-run.cases";
 import {
-  callEstimate, CLEF_EXCERPT_CHARS, clefStateTokens, type ClefModel, type ClefRequest, type ClefResponse,
+  estimateTokens,
+  callEstimate, CLEF_EXCERPT_CHARS, placement, clefStateTokens, type ClefModel, type ClefRequest, type ClefResponse,
 } from "@oss-knowledge-base/reference-pipeline";
 import { ModelCallError, ModelCalls, RETRY_DELAY_MS, type DigestModel } from "../src/digest/model";
 import { DIGEST_ROOT, runDigest, type DigestRunInput, type DigestRunResult } from "../src/digest/run";
@@ -665,6 +666,51 @@ const cases: Record<string, () => Promise<string>> = {
     const response = await instance.request(false);
     return response.status === 202 && !storage.values.has("deferrals") ? "counter cleared; the new alarm can defer 4 times" : `${storage.values.get("deferrals")}`;
   },
+  // PR #40 verifier rows.
+  "clef|constructed: Clef reports 1,000 prompt tokens for a request the job estimated at 1,500": async () => clefWithUsage(1_000, 1_500),
+  "clef|constructed: a whole run where every Clef response reports 1 prompt token": async () => {
+    const truncated = new FakeDecider();
+    const original = truncated.decide.bind(truncated);
+    truncated.decide = async (model, request) => ({ ...(await original(model, request)), usage: { prompt_tokens: 1 } });
+    const { bucket, result } = await published(truncated);
+    const { en } = await objects(bucket, result);
+    const sources = new Set(Object.values(en.features).map((item) => item.source));
+    return sources.size === 1 && sources.has("rules") && en.coverage.fallbacks >= truncated.requests.length && truncated.requests.length > 0
+      ? "every thread gets rules features; every batch counted as a fallback" : `${[...sources]} ${en.coverage.fallbacks}/${truncated.requests.length}`;
+  },
+  "clef|constructed: Clef reports 1,400 prompt tokens for a request estimated at 1,500": async () => clefWithUsage(1_400, 1_500),
+  "spend|constructed: a Clef decide with today's spend exactly at the cap": async () => {
+    const { clefRequest, neurons: price } = await import("@oss-knowledge-base/reference-pipeline");
+    const thread = { displayId: "KAFKA-PR-1", entryId: "e", title: "t", source: "github" as const, status: "open", url: null, rootExcerpt: "", records: [], score: 1, lastActivityAt: NOW.toISOString() };
+    const request = clefRequest([thread], KAFKA_DIGEST_PROFILE);
+    const decider = new FakeDecider();
+    const calls = new ModelCalls(decider, { spent: 4_500, cap: 4_500 }, noDelay);
+    const roomy = new ModelCalls(new FakeDecider(), { spent: 0, cap: 4_500 }, noDelay);
+    const answered = await roomy.decide("@cf/cloudflare/clef-flash", request);
+    // A request small enough that its raw price rounds to 0 neurons must still be gated.
+    const tiny = clefRequest([], KAFKA_DIGEST_PROFILE);
+    const result = await calls.decide("@cf/cloudflare/clef-flash", tiny);
+    const raw = price("@cf/cloudflare/clef-flash", 50, 0);
+    return result === undefined && calls.limited && decider.requests.length === 0 && answered !== undefined && roomy.spentToday >= 1 && raw === 0
+      ? "skipped; limited true; the pre-call estimate is at least 1 neuron" : `${calls.limited} ${roomy.spentToday} ${raw}`;
+  },
+  "gateway|constructed: a text-generation request through WorkersAiModel": async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const ai: AiBinding = { run: async (_model, inputs) => { bodies.push(inputs); return { response: "ok" }; } };
+    await new WorkersAiModel(ai, "osskb-digest-dev").run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", "p", 300);
+    const body = bodies[0]!;
+    return Array.isArray(body.messages) && body.max_tokens === 300 && body.temperature === 0 ? "body has messages, max_tokens, temperature 0" : JSON.stringify(body);
+  },
+  "clef|constructed: a run with the Clef decider": async () => {
+    const { bucket, result } = await published(new FakeDecider());
+    const { en } = await objects(bucket, result);
+    return `revisions.classifier is ${en.revisions.classifier.model} with ${en.revisions.classifier.prompt}`;
+  },
+  "dry run|constructed: the model reports twice the estimated input tokens": async () => {
+    const calls = new ModelCalls({ run: async (_model, prompt) => ({ text: "ok", usage: { prompt_tokens: 2 * estimateTokens(prompt) } }) }, { spent: 0, cap: 4_500 }, noDelay);
+    await calls.call("@cf/qwen/qwen3-30b-a3b-fp8", "x".repeat(400), 10);
+    return `calibration ratio ${calls.calibration().ratio}`;
+  },
   // Slice 2b.
   "clef|constructed: answer t1 security 0.7, clients 0.2, other 0.1, routine 0.1": async () => {
     const feature = await oneClef({ security: 0.7, clients: 0.2, other: 0.1, routine: 0.1 });
@@ -686,7 +732,12 @@ const cases: Record<string, () => Promise<string>> = {
   },
   "clef|constructed: answer t1 routine 0.6, other 0.4": async () => {
     const feature = await oneClef({ routine: 0.6, other: 0.4 });
-    return placementOf(feature) === "routine" ? `routine section (routineConfidence ${feature.routineConfidence.toFixed(2)})` : "card";
+    return placement(feature).routine ? `routine section by placement() (routineConfidence ${feature.routineConfidence.toFixed(2)})` : "card";
+  },
+  "clef|constructed: answer t1 routine 0.55, other 0.45": async () => {
+    const feature = await oneClef({ routine: 0.55, other: 0.45 });
+    return feature.routine && !placement(feature).routine
+      ? `routine true (${feature.routineConfidence.toFixed(2)}) but a card by placement(): below the 0.6 section gate` : `${feature.routine} ${placement(feature).routine}`;
   },
   "clef|captured week, cold run with Clef": async () => {
     const model = new FakeDecider();
@@ -694,7 +745,7 @@ const cases: Record<string, () => Promise<string>> = {
     const states = model.requests.map((request) => clefStateTokens(request));
     const questions = model.requests.map((request) => Object.keys(request.questions).length);
     const excerpts = model.requests.flatMap((request) => request.state.map((item) => item.excerpt.length));
-    return `${model.requests.length} Clef requests; every state at most ${Math.max(...states) <= 1_800 ? "1,800" : Math.max(...states)} tokens; at most ${Math.max(...questions) <= 64 ? 64 : Math.max(...questions)} questions; excerpts at most ${Math.max(...excerpts) <= CLEF_EXCERPT_CHARS ? CLEF_EXCERPT_CHARS : Math.max(...excerpts)} chars`;
+    return `${model.requests.length} Clef requests; every state at most ${Math.max(...states) <= 1_200 ? "1,200" : Math.max(...states)} tokens; at most ${Math.max(...questions) <= 64 ? 64 : Math.max(...questions)} questions; excerpts at most ${Math.max(...excerpts) <= CLEF_EXCERPT_CHARS ? CLEF_EXCERPT_CHARS : Math.max(...excerpts)} chars`;
   },
   "clef|constructed: the request body for one batch": async () => {
     const seen: { model: string; inputs: Record<string, unknown>; options?: Record<string, unknown> }[] = [];
@@ -827,6 +878,20 @@ const cases: Record<string, () => Promise<string>> = {
   },
 };
 
+/** One-thread Clef answer with reported prompt tokens against a forced estimate. */
+async function clefWithUsage(reported: number, estimated: number): Promise<string> {
+  const { clefFeatures } = await import("@oss-knowledge-base/reference-pipeline");
+  const thread = { displayId: "KAFKA-PR-1", entryId: "e", title: "t", source: "github" as const, status: "open", url: null, rootExcerpt: "", records: [], score: 1, lastActivityAt: NOW.toISOString() };
+  const options = [...KAFKA_DIGEST_PROFILE.taxonomy.topics, "routine"];
+  const probabilities = Object.fromEntries(options.map((option) => [option, option === "security" ? 0.9 : 0.01]));
+  const parsed = clefFeatures({ answers: { t1: { probabilities } }, usage: { prompt_tokens: reported } }, [thread], KAFKA_DIGEST_PROFILE,
+    { model: "m", prompt: "p", generatedAt: "g" }, estimated);
+  const feature = parsed.features.get("KAFKA-PR-1")!;
+  return feature.source === "rules" && parsed.fallbacks === 1
+    ? "the whole batch is treated as unseen: rules features, counted as a fallback"
+    : feature.source === "model" ? "model features (reported is at least 80% of the estimate)" : feature.source;
+}
+
 async function oneClef(probabilities: Record<string, number>) {
   const options = [...KAFKA_DIGEST_PROFILE.taxonomy.topics, "routine"];
   const full = Object.fromEntries(options.map((option) => [option, probabilities[option] ?? 0]));
@@ -835,9 +900,6 @@ async function oneClef(probabilities: Record<string, number>) {
   return clefFeatures({ answers: { t1: { probabilities: full } } }, [thread], KAFKA_DIGEST_PROFILE, { model: "m", prompt: "p", generatedAt: "g" }).features.get("KAFKA-PR-1")!;
 }
 
-function placementOf(feature: { routine: boolean; routineConfidence: number }): "routine" | "card" {
-  return feature.routine && feature.routineConfidence >= 0.6 ? "routine" : "card";
-}
 
 describe("Spec 014 slice 2 test plan", () => {
   test.each([...testPlanRows] as CaseRow[])("$id: $rule — $input", async (row) => {
