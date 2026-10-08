@@ -8,7 +8,10 @@ import {
   getWithAccess,
   isAccessChallenge,
   isAccessProtected,
+  accessRouteHandler,
   readAccessHeaders,
+  redactSecrets,
+  scopeAccessRequest,
 } from "../verify/access";
 
 const id = "test-id.access";
@@ -20,9 +23,16 @@ describe("readAccessHeaders", () => {
     expect(readAccessHeaders({ CF_ACCESS_CLIENT_ID: id, CF_ACCESS_CLIENT_SECRET: secret })).toEqual(headers);
   });
 
-  test("neither set (or blank): no headers, so runs before Access exists are unchanged", () => {
+  test("neither set (or empty, as GitHub passes a missing secret): no headers, so runs before Access exists are unchanged", () => {
     expect(readAccessHeaders({})).toBeUndefined();
-    expect(readAccessHeaders({ CF_ACCESS_CLIENT_ID: " ", CF_ACCESS_CLIENT_SECRET: "" })).toBeUndefined();
+    expect(readAccessHeaders({ CF_ACCESS_CLIENT_ID: "", CF_ACCESS_CLIENT_SECRET: "" })).toBeUndefined();
+  });
+
+  test("values are used verbatim, not trimmed, so they still match GitHub's log masking", () => {
+    expect(readAccessHeaders({ CF_ACCESS_CLIENT_ID: ` ${id}`, CF_ACCESS_CLIENT_SECRET: `${secret}\n` })).toEqual({
+      "CF-Access-Client-Id": ` ${id}`,
+      "CF-Access-Client-Secret": `${secret}\n`,
+    });
   });
 
   test("only one set: a configuration error that does not print the value", () => {
@@ -70,7 +80,13 @@ describe("isAccessChallenge", () => {
     [{ status: 200, url: login }, true],
     [{ status: 302, location: "https://oss-knowledge-base-dev.pages.dev/#/kafka/" }, false],
     [{ status: 302, location: "/login" }, false],
-    [{ status: 403, url: "https://oss-knowledge-base-dev.pages.dev/" }, false],
+    // Access answers a missing or rejected service token on the protected host with 401/403 and no Location.
+    [{ status: 403, url: "https://oss-knowledge-base-dev.pages.dev/" }, true],
+    [{ status: 401, url: "https://abc123.oss-knowledge-base-dev.pages.dev/api/feed" }, true],
+    [{ status: 403, url: "https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/health" }, false],
+    // Status matters: a non-redirect, non-denial with an Access Location is not a challenge.
+    [{ status: 200, url: "https://oss-knowledge-base-dev.pages.dev/", location: login }, false],
+    [{ status: 500, url: "https://oss-knowledge-base-dev.pages.dev/", location: login }, false],
     [{ status: 200, url: "https://oss-knowledge-base-dev.pages.dev/api/feed", location: null }, false],
     [{ status: 302, location: "https://cloudflareaccess.com.evil.example/" }, false],
   ])("%j -> %p", (response, expected) => {
@@ -108,10 +124,119 @@ describe("getWithAccess", () => {
     await expect(call).rejects.toThrow(/Set CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET/u);
   });
 
+  test("token sent and a bare 403 from Dev Pages: says the token was rejected, with the status", async () => {
+    const { impl } = fakeFetch(new Response("Forbidden", { status: 403 }));
+    const call = getWithAccess("https://oss-knowledge-base-dev.pages.dev/api/feed", headers, impl);
+    await expect(call).rejects.toThrow(/rejected the service token .*HTTP 403/u);
+  });
+
   test("token sent but still challenged: says the token was rejected, without its value", async () => {
     const { impl } = fakeFetch(new Response(null, { status: 403, headers: { location: login } }));
     const call = getWithAccess("https://oss-knowledge-base-dev.pages.dev/api/feed", headers, impl);
     await expect(call).rejects.toThrow(/rejected the service token/u);
     expect(accessChallengeMessage("https://oss-knowledge-base-dev.pages.dev", true)).not.toContain(secret);
+  });
+});
+
+describe("redactSecrets", () => {
+  test("replaces every occurrence of each value", () => {
+    expect(redactSecrets(`CF-Access-Client-Id: ${id}\nCF-Access-Client-Secret: ${secret} ${secret}`, [id, secret]))
+      .toBe("CF-Access-Client-Id: ***\nCF-Access-Client-Secret: *** ***");
+  });
+
+  test("empty values are ignored", () => {
+    expect(redactSecrets("abc", ["", secret])).toBe("abc");
+  });
+});
+
+describe("scopeAccessRequest", () => {
+  function fakeContext(behavior: "ok" | "reject" | "throw") {
+    const calls: unknown[][] = [];
+    const leak = new Error(`apiRequestContext.get: connect ECONNREFUSED\nCall log:\n  - CF-Access-Client-Secret: ${secret}`);
+    const context = {
+      label: "pages",
+      get(...args: unknown[]) {
+        calls.push(args);
+        if (behavior === "throw") throw leak;
+        return behavior === "reject" ? Promise.reject(leak) : Promise.resolve({ status: () => 200 });
+      },
+    };
+    return { calls, context };
+  }
+
+  test("a rejected call is rethrown without the token values", async () => {
+    const { context } = fakeContext("reject");
+    const error = await scopeAccessRequest(context, headers).get("/api/feed").catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(Error);
+    expect(String((error as Error).message)).not.toContain(secret);
+    expect(String((error as Error).stack)).not.toContain(secret);
+    expect(String((error as Error).message)).toContain("CF-Access-Client-Secret: ***");
+  });
+
+  test("a synchronous throw is redacted too", () => {
+    const { context } = fakeContext("throw");
+    expect(() => scopeAccessRequest(context, headers).get("/")).toThrow(/CF-Access-Client-Secret: \*\*\*/u);
+  });
+
+  test("relative paths and Dev Pages URLs pass through; other properties are untouched", async () => {
+    const { calls, context } = fakeContext("ok");
+    const scoped = scopeAccessRequest(context, headers);
+    await scoped.get("/api/feed");
+    await scoped.get("https://abc123.oss-knowledge-base-dev.pages.dev/api/feed");
+    expect(calls.map((call) => call[0])).toEqual(["/api/feed", "https://abc123.oss-knowledge-base-dev.pages.dev/api/feed"]);
+    expect(scoped.label).toBe("pages");
+  });
+
+  test.each([
+    "https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/health",
+    "https://evil-oss-knowledge-base-dev.pages.dev/",
+    "http://oss-knowledge-base-dev.pages.dev/",
+  ])("refuses an absolute URL off the Dev Pages host: %s", async (url) => {
+    const { calls, context } = fakeContext("ok");
+    await expect(scopeAccessRequest(context, headers).get(url)).rejects.toThrow(/only for the Dev Pages origin/u);
+    expect(calls).toEqual([]);
+  });
+});
+
+describe("accessRouteHandler", () => {
+  function fakeRoute(url: string, fetchBehavior: "ok" | "fail" = "ok") {
+    const events: { action: string; options?: unknown }[] = [];
+    const response = { status: () => 302 };
+    const route = {
+      request: () => ({ url: () => url, headers: () => ({ accept: "*/*" }) }),
+      fetch: async (options?: unknown) => {
+        events.push({ action: "fetch", options });
+        if (fetchBehavior === "fail") throw new Error(`route.fetch: ECONNRESET CF-Access-Client-Secret: ${secret}`);
+        return response;
+      },
+      fulfill: async (options?: unknown) => { events.push({ action: "fulfill", options }); },
+      continue: async (options?: unknown) => { events.push({ action: "continue", options }); },
+      abort: async (options?: unknown) => { events.push({ action: "abort", options }); },
+    };
+    return { events, response, route };
+  }
+
+  test("Dev Pages: fetched with the token and no redirects, then the 3xx goes back to the browser", async () => {
+    const { events, response, route } = fakeRoute("https://oss-knowledge-base-dev.pages.dev/");
+    await accessRouteHandler(headers)(route);
+    expect(events).toEqual([
+      { action: "fetch", options: { headers: { accept: "*/*", ...headers }, maxRedirects: 0 } },
+      { action: "fulfill", options: { response } },
+    ]);
+  });
+
+  test("any other host (e.g. a redirect target): continued untouched", async () => {
+    const { events, route } = fakeRoute("https://evil-oss-knowledge-base-dev.pages.dev/after");
+    await accessRouteHandler(headers)(route);
+    expect(events).toEqual([{ action: "continue", options: undefined }]);
+  });
+
+  test("a failed fetch aborts the request and logs without the token", async () => {
+    const { events, route } = fakeRoute("https://oss-knowledge-base-dev.pages.dev/", "fail");
+    const logged: string[] = [];
+    await accessRouteHandler(headers, (line) => logged.push(line))(route);
+    expect(events.at(-1)).toEqual({ action: "abort", options: "failed" });
+    expect(logged.join("\n")).not.toContain(secret);
+    expect(logged.join("\n")).toContain("ECONNRESET");
   });
 });

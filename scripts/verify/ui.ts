@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 
 import { chromium, type Page } from "playwright";
 
-import { accessHeadersFor, getWithAccess, isAccessProtected, readAccessHeaders, type AccessHeaders } from "./access";
+import { accessRouteHandler, getWithAccess, isAccessProtected, readAccessHeaders, type AccessHeaders } from "./access";
 import {
   formatUiSummary,
   parseAt,
@@ -125,11 +125,9 @@ async function main(): Promise<void> {
       else await context.clock.install({ time });
     }
     if (access !== undefined) {
-      // Not extraHTTPHeaders: those go to every origin the page loads. Only Dev Pages requests get the token.
-      await context.route(
-        (url) => isAccessProtected(url),
-        (route) => route.continue({ headers: { ...route.request().headers(), ...accessHeadersFor(route.request().url(), access) } }),
-      );
+      // Not extraHTTPHeaders: those go to every origin the page loads (and follow redirects).
+      // Only Dev Pages requests get the token, fetched without following redirects.
+      await context.route((url) => isAccessProtected(url), accessRouteHandler(access));
     }
     const page = await context.newPage();
     const captures = [];

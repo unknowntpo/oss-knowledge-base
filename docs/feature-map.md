@@ -26,15 +26,31 @@ The publisher worker on `workers.dev` and Prod are not behind Access.
 - The headers go only to https URLs on the Dev Pages host or its subdomains
   (`isAccessProtected` in `scripts/verify/access.ts`), never to the publisher,
   Prod, local, or third-party origins.
+- Redirects never carry the token: the browser fetches Dev Pages requests with
+  `maxRedirects: 0` and hands any 3xx back to the browser, which follows it as
+  a fresh request the host check sees again (`accessRouteHandler`); the
+  token-bearing `request` context has `maxRedirects: 0`.
 - CI: the `E2E — deployed development` job reads both from GitHub Actions
-  secrets. `apps/web/deployed-e2e/fixtures.ts` gives the browser a route that
-  adds them to Dev Pages requests, gives `request` a Pages-only context, and
-  calls the publisher through a separate `publisherRequest` context without
-  them. With a token set, `playwright.development.config.ts` turns tracing off,
-  because traces record request headers and are uploaded as a public artifact.
+  secrets. `apps/web/deployed-e2e/fixtures.ts` routes Dev Pages browser
+  requests through `accessRouteHandler`, gives `request` a Pages-only context
+  (errors rethrown with the values replaced by `***`, absolute URLs to other
+  origins refused), and calls the publisher through a separate
+  `publisherRequest` context without the token.
+- Evidence is public, so before upload `scripts/verify/redact-artifacts.ts`
+  replaces both values in every file of the report and test results (inside
+  trace zips and the report's embedded zip too), then fails the job, and skips
+  the upload, if any copy is left. Playwright's HTML report records request
+  headers of a failed API call even when the error is redacted, so this step is
+  required. Tracing also stays off while a token is set.
+- `bun run test:e2e:access` (part of `test:e2e`) checks the scoping on the
+  wire with a dummy token through a local proxy (`apps/web/access-e2e`); the
+  unit suite forces a connection failure and checks that no evidence file keeps
+  the dummy value after redaction (`scripts/test/access-leak.test.ts`).
 - `verify:ui` and `verify:health --target dev` read the same variables. Without
-  them, an Access login redirect (to `*.cloudflareaccess.com`) fails with a
-  message telling you to set them; with a rejected token, the message says so.
+  them, an Access login redirect (to `*.cloudflareaccess.com`) or a 401/403
+  from Dev Pages fails with a message telling you to set them; with a token
+  sent, the message says it was rejected. Values are used exactly as set (not
+  trimmed).
   Neither command prints the values.
 - Local use: keep the token in the macOS Keychain and export it only for the
   command, never echo it:
