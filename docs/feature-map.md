@@ -93,6 +93,9 @@ All GET, R2 binding `OSS_KB_BUCKET`. Every response, including errors, carries
 | --- | --- | --- | --- |
 | `GET /health` | none | `environment`, `running`, `scheduled`, `phase` (null or `{phase, startedAt, materializedAt, counts}`), `lastRun` (null; success: `ok, environment, completedAt, publicationSetId, feedReleaseId, searchRevision, inputEventCount, logicalEventCount, pageCount, pollTruncated, copiedObjectCount, reusedObjectCount, sources`; failure: `ok:false, environment, completedAt, failureKind, error, retryAfterSeconds, sources`), `sources` (same as `lastRun.sources`, or null): per key `github`, `mail`, `jira` → `{ok, lastSuccessAt, cursor, durationMs, read, skipped, filtered, conflicts, published, gapCapped, failureKind?, error?}`. A run is `ok` when at least one source polled and publication succeeded (ADR-0014); a failed source keeps its checkpoint cursor and its previous `lastSuccessAt`; a publication failure records every source as failed (`failureKind: "pipeline"`) with both carried forward | 009 M6/M7, 010 F6, 011 V5, 013 L18, 012 K11, K23, K30, K32 |
 | `POST /run` | `Bearer MANUAL_TRIGGER_TOKEN` | 202 `{ok, scheduled}`, 409 `{ok:false, skipped:"already-running"}`, 401 without the token. Verifiers never call it | 009 M9 |
+| `POST /digest/run[?dryRun=1]` | `Bearer MANUAL_TRIGGER_TOKEN` | Spec 014 digest (Durable Object `DigestRun`, binding `DIGEST_RUN`). 202 `{ok, scheduled}` (alarm), 409 `{ok:false, skipped:"already-running"}`, 401 without the token. `?dryRun=1` runs inline and returns the run result with `objects {en, "zh-Hant"}`; it writes nothing to R2 but its spend counts toward `today`. No cron starts it yet (`DIGEST_CRON` unset); no `AI` binding, so runs are rules-only. Verifiers do not call it on Prod | 014 D22, D59–D61 |
+
+`/health` also carries `digest` (Spec 014 D31): `{running, scheduled, today {date, estimatedNeurons, cap}, lastRun}`, or `null` when the digest object does not answer; the publisher fields are unchanged.
 
 There is no public `/status`: it exists only inside the Durable Object, and
 `/health` proxies to it. Freshness reference: `lastRun.completedAt` equals
@@ -115,7 +118,7 @@ There is no public `/status`: it exists only inside the Durable Object, and
 | [011](specs/011-stall-visibility/spec.md) | V1–V6 | `.demo-pill` at ≤420 px on Feed, Feed detail, Search detail |
 | [012](specs/012-kafka-mailing-list-jira/spec.md) | K1–K32 | dev@ and Jira connectors (K1–K5, K9–K10, K12–K14, K20–K22, K28), Feed entries and statuses (K6, K16–K17), Detail `.related-item` (K7), Search hit display id (K8), per-source run and `/health` (K11, K15, K18–K19, K23, K30, K32), memory and payload (K24–K27, `measure:memory -- --kafka 1`), deployed checks (K29–K31) |
 | [013](specs/013-search-streaming/spec.md) | L1–L18 | Search v3 shards and `terms.json`, `/api/search*`, publisher memory |
-| [014](specs/014-topic-digest/spec.md) | D1–D62 (D41, D51, D52 withdrawn) | Slice 1: deterministic digest core in `packages/reference-pipeline/src/digest/` and `bun run digest -- eval\|measure`; slices 2 (DigestRun) and 3 (web) pending |
+| [014](specs/014-topic-digest/spec.md) | D1–D62 (D41, D51, D52 withdrawn) | Slice 1: deterministic core (`packages/reference-pipeline/src/digest/`, `bun run digest -- eval\|measure`). Slice 2: `DigestRun` (`apps/data-publisher-worker/src/digest/`), `POST /digest/run`, `/health.digest`, R2 `public/digest/v1/`. Slice 3 (web) pending |
 
 ## Verification kit
 

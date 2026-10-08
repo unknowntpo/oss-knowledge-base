@@ -44,6 +44,8 @@ export function restore(translated: string, spans: readonly string[]): string | 
   for (let index = 0; index < spans.length; index += 1) {
     if (translated.split(`⟦${index}⟧`).length !== 2) return null;
   }
+  // Placeholder-like junk (⟦1e0⟧, ⟦⟧, ⟦-1⟧) is not a placeholder and would be left verbatim.
+  if (/[⟦⟧]/u.test(translated.replace(/⟦\d+⟧/gu, ""))) return null;
   // Only canonical, in-range placeholders: `⟦03⟧` or `⟦7⟧` (of 2) would restore a span twice or as undefined.
   for (const match of translated.matchAll(/⟦(\d+)⟧/gu)) {
     if (match[1] !== String(Number(match[1])) || Number(match[1]) >= spans.length) return null;

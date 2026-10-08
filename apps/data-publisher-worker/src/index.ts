@@ -1,5 +1,7 @@
 import { GitHubConnector } from "@oss-knowledge-base/github-publisher/github-connector";
-import { JiraConnector, PonyMailConnector } from "@oss-knowledge-base/reference-pipeline";
+import { JiraConnector, KAFKA_DIGEST_PROFILE, PonyMailConnector } from "@oss-knowledge-base/reference-pipeline";
+import { DigestRunner } from "./digest/runner";
+import { R2DigestBucket } from "./digest/store";
 import { DurableObjectPipelineState } from "./durable-object-state";
 import { GitHubFetchTransport } from "./github-transport";
 import { R2PublicationDestination } from "./r2-destination";
@@ -13,17 +15,43 @@ interface Env {
   readonly MANUAL_TRIGGER_TOKEN?: string;
   readonly OSS_KB_BUCKET: R2Bucket;
   readonly PIPELINE_STATE: DurableObjectNamespace;
+  readonly DIGEST_RUN: DurableObjectNamespace;
+  /** Spec 014: the digest's cron expression. Unset in this slice, so no cron starts a digest. */
+  readonly DIGEST_CRON?: string;
 }
 
 const sourceFetch = (url: string, init: { readonly headers: Readonly<Record<string, string>> }) =>
   fetch(url, { headers: init.headers, signal: AbortSignal.timeout(30_000) });
 
 const STATE_OBJECT_NAME = "github-feed-search-pipeline-v1";
+const DIGEST_OBJECT_NAME = "topic-digest-apache-kafka-v1";
+
+/** Behavior 21: a cron tick starts the digest only when it is the digest's cron; any other tick publishes. */
+export function cronTarget(cron: string, digestCron: string | undefined): "digest" | "publisher" {
+  return digestCron !== undefined && digestCron.trim() !== "" && cron === digestCron ? "digest" : "publisher";
+}
+
+/** `/health`: the publisher's body, unchanged, plus `digest` (null when the digest object fails). */
+export function mergeHealth(publisher: unknown, digest: unknown): unknown {
+  return { ...(publisher as Record<string, unknown>), digest: digest ?? null };
+}
+
+function authorized(request: Request, env: Env): boolean {
+  const manualToken = env.MANUAL_TRIGGER_TOKEN?.trim() ?? "";
+  return manualToken.length > 0 && request.headers.get("authorization") === `Bearer ${manualToken}`;
+}
 // Keeps one run under the Durable Object memory limit; a larger backlog catches up over later runs.
 const MAX_ISSUES_PER_SOURCE = 200;
 
 export default {
   async scheduled(controller: ScheduledController, env: Env, context: ExecutionContext): Promise<void> {
+    if (cronTarget(controller.cron, env.DIGEST_CRON) === "digest") {
+      const digest = env.DIGEST_RUN.get(env.DIGEST_RUN.idFromName(DIGEST_OBJECT_NAME));
+      context.waitUntil(digest.fetch("https://digest.internal/run", { method: "POST" }).then(async (response) => {
+        if (!response.ok && response.status !== 409) throw new Error(`Scheduling the digest failed: ${await response.text()}`);
+      }));
+      return;
+    }
     const stub = env.PIPELINE_STATE.get(env.PIPELINE_STATE.idFromName(STATE_OBJECT_NAME));
     context.waitUntil(stub.fetch("https://pipeline.internal/run", {
       method: "POST",
@@ -39,13 +67,22 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const stub = env.PIPELINE_STATE.get(env.PIPELINE_STATE.idFromName(STATE_OBJECT_NAME));
     const url = new URL(request.url);
+    const digest = env.DIGEST_RUN.get(env.DIGEST_RUN.idFromName(DIGEST_OBJECT_NAME));
     if (request.method === "GET" && url.pathname === "/health") {
-      return stub.fetch("https://pipeline.internal/status");
+      const publisher = await stub.fetch("https://pipeline.internal/status");
+      if (!publisher.ok) return publisher;
+      const digestHealth = await digest.fetch("https://digest.internal/status")
+        .then((response) => (response.ok ? response.json() : null))
+        .catch(() => null);
+      return Response.json(mergeHealth(await publisher.json(), digestHealth));
+    }
+    if (request.method === "POST" && url.pathname === "/digest/run") {
+      if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
+      const dryRun = url.searchParams.get("dryRun") === "1";
+      return digest.fetch(`https://digest.internal/run${dryRun ? "?dryRun=1" : ""}`, { method: "POST" });
     }
     if (request.method === "POST" && url.pathname === "/run") {
-      const authorization = request.headers.get("authorization");
-      const manualToken = env.MANUAL_TRIGGER_TOKEN?.trim() ?? "";
-      if (manualToken.length === 0 || authorization !== `Bearer ${manualToken}`) {
+      if (!authorized(request, env)) {
         return new Response("Unauthorized", { status: 401 });
       }
       return stub.fetch("https://pipeline.internal/run", {
@@ -117,5 +154,49 @@ export class PipelineState implements DurableObject {
     } finally {
       this.running = false;
     }
+  }
+}
+
+/**
+ * Spec 014: the weekly digest. Its own object, isolate, memory, and alarm; slice 2 runs the rules
+ * classifier with no model (no `AI` binding), so it generates no text.
+ */
+export class DigestRun implements DurableObject {
+  private readonly runner: DigestRunner;
+
+  constructor(private readonly ctx: DurableObjectState, private readonly env: Env) {
+    this.runner = new DigestRunner({
+      storage: {
+        get: (key) => ctx.storage.get(key),
+        put: (key, value) => ctx.storage.put(key, value),
+        delete: (key) => ctx.storage.delete(key),
+        getAlarm: () => ctx.storage.getAlarm(),
+        setAlarm: (time) => ctx.storage.setAlarm(time),
+      },
+      bucket: new R2DigestBucket(env.OSS_KB_BUCKET),
+      profile: KAFKA_DIGEST_PROFILE,
+      environment: env.PUBLICATION_ENVIRONMENT,
+      now: () => new Date(),
+      delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      publisherRunning: async () => {
+        const publisher = env.PIPELINE_STATE.get(env.PIPELINE_STATE.idFromName(STATE_OBJECT_NAME));
+        const status = await publisher.fetch("https://pipeline.internal/status").then((response) => response.json() as Promise<{ running?: boolean }>);
+        return status.running === true;
+      },
+    });
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    if (request.method === "GET" && url.pathname === "/status") return Response.json(await this.runner.health());
+    if (request.method === "POST" && url.pathname === "/run") {
+      const result = await this.runner.request(url.searchParams.get("dryRun") === "1");
+      return Response.json(result.body, { status: result.status });
+    }
+    return new Response("Not found", { status: 404 });
+  }
+
+  async alarm(): Promise<void> {
+    await this.runner.alarm();
   }
 }

@@ -99,6 +99,21 @@ export interface ThreadFeatures {
 export interface Sentence {
   readonly text: string;
   readonly cites: readonly string[];
+  /** zh-Hant only: the translation failed verification, so `text` is the English source. */
+  readonly notTranslated?: true;
+}
+
+/** Behavior 9: provenance of one generated card, proposal line, or headline-and-highlights call. */
+export interface Provenance {
+  readonly source: "model" | "cache";
+  readonly model: string;
+  readonly prompt: string;
+  /** Record ids whose text the model was given. */
+  readonly inputRecordIds: readonly string[];
+  /** Hash of the exact model input and revision (the cache key, Behavior 11). */
+  readonly inputHash: string;
+  readonly generatedAt: string;
+  readonly reviewStatus: "unreviewed";
 }
 
 export interface ProposalRow {
@@ -111,6 +126,7 @@ export interface ProposalRow {
   readonly cites: readonly string[];
   readonly newestActivityAt: string;
   readonly line: Sentence | null;
+  readonly provenance?: Provenance;
 }
 
 export interface TopicCard {
@@ -122,11 +138,14 @@ export interface TopicCard {
   readonly keywords: readonly string[];
   readonly sentences: readonly Sentence[];
   readonly status: "generated" | "fallback";
+  readonly provenance?: Provenance;
 }
 
 export interface Highlight {
   readonly title: string;
   readonly body: Sentence;
+  /** zh-Hant only: the title's translation failed verification. */
+  readonly titleNotTranslated?: true;
 }
 
 export interface SourceCoverage {
@@ -154,6 +173,7 @@ export interface DigestV1 {
     readonly cached: number;
     readonly fallbacks: number;
     readonly notTranslated: number;
+    readonly modelCalls: number;
     readonly limited: boolean;
     readonly estimatedNeurons: number;
     readonly sources: Readonly<Record<string, SourceCoverage>>;
@@ -161,6 +181,8 @@ export interface DigestV1 {
   readonly empty: boolean;
   readonly headline: Sentence | null;
   readonly highlights: readonly Highlight[];
+  /** Provenance of the headline-and-highlights call; null for the fallback. */
+  readonly highlightsProvenance: Provenance | null;
   readonly proposals: readonly ProposalRow[];
   readonly cards: readonly TopicCard[];
   readonly routine: { readonly threads: readonly string[] };
@@ -171,5 +193,8 @@ export interface DigestV1 {
     readonly url: string | null;
     readonly score: number;
   }>>;
-  readonly features: Readonly<Record<string, ThreadFeatures>>;
+  /** Behavior 11: thread features keyed by hash(model input, classifier revision). */
+  readonly features: Readonly<Record<string, ThreadFeatures & { readonly displayId: string }>>;
+  /** zh-Hant only: translations keyed by hash(English text, translator revision). */
+  readonly translations?: Readonly<Record<string, string>>;
 }

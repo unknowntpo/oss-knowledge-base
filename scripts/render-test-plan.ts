@@ -35,8 +35,8 @@ export async function renderSpec(
 ): Promise<string> {
   // A marker the block pattern does not match would be skipped silently (verifier F2).
   for (const line of markdown.split("\n")) {
-    if (line.includes("test-plan:start") && !/^<!-- test-plan:start \S+( \[pending\])? -->$/u.test(line.trim())) {
-      throw new Error(`malformed test-plan marker: ${line.trim()}`);
+    if (line.includes("test-plan:start") && !/^<!-- test-plan:start \S+( \[pending\])? -->$/u.test(line)) {
+      throw new Error(`malformed test-plan marker: ${JSON.stringify(line)}`);
     }
   }
   let rendered = markdown;

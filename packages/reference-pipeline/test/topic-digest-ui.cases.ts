@@ -10,4 +10,5 @@ export const testPlanRows = [
   { id: "D39", rule: "window label", input: "zh-Hant, same window", expected: "過去 7 天 · Intl.DateTimeFormat(\"zh-Hant\", …).formatRange output; no 週/week number" },
   { id: "D36", rule: "proposals tab", input: "/#/datafusion/proposals", expected: "redirects to /#/datafusion/" },
   { id: "D36", rule: "proposals tab", input: "/#/kafka/proposals, en", expected: "every row grouped by stage; quorum note \"3 binding +1 votes\"" },
+  { id: "D17", rule: "empty", input: "constructed: digest with empty true", expected: "This week shows \"No activity in the past 7 days\"" },
 ] as const;

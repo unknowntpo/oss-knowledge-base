@@ -221,6 +221,20 @@ the two `viewer/` items below.
 - **Layer:** test (a case row once decided).
 - **Source:** [PR #33 verifier, F3](https://github.com/unknowntpo/oss-knowledge-base/pull/33#issuecomment-6052403167).
 
+### G21. Digest spend after a failed model call is the full estimate
+- **Where:** `ModelCalls.call` in
+  `apps/data-publisher-worker/src/digest/model.ts`.
+- **Why:** a call that throws adds its pre-call bound (input + `max_tokens`)
+  to today's spend, because the real usage of a failed call is unknown. That
+  is conservative: repeated failures can reach the daily cap early.
+- **Decision (PR #35 review):** keep the conservative rule for now; it is
+  asserted by a D14 row ("a call that fails twice": both attempts add the
+  pre-call estimate).
+- **Fix:** replace it with gateway-reported usage once D35 shows the error
+  shapes.
+- **Layer:** runtime (D35 calibration on Dev).
+- **Source:** Spec 014 slice 2.
+
 ## Process and docs
 
 ### G11. Spec status lines drift from reality

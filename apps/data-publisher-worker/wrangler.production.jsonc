@@ -25,6 +25,10 @@
       {
         "name": "PIPELINE_STATE",
         "class_name": "PipelineState"
+      },
+      {
+        "name": "DIGEST_RUN",
+        "class_name": "DigestRun"
       }
     ]
   },
@@ -32,6 +36,10 @@
     {
       "tag": "v1",
       "new_sqlite_classes": ["PipelineState"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["DigestRun"]
     }
   ]
 }

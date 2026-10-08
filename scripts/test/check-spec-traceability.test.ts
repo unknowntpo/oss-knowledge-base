@@ -132,10 +132,10 @@ Traceability: enforced
 
   describe("fail-closed parsing (verifier F2, F4)", () => {
     test("a malformed test-plan marker is an error, a well-formed one is not", () => {
-      expect(markerErrors("<!-- test-plan:start a/x.cases.ts [Pending] -->")).toEqual(["malformed test-plan marker: <!-- test-plan:start a/x.cases.ts [Pending] -->"]);
+      expect(markerErrors("<!-- test-plan:start a/x.cases.ts [Pending] -->")).toEqual(["malformed test-plan marker: \"<!-- test-plan:start a/x.cases.ts [Pending] -->\""]);
       expect(markerErrors("<!-- test-plan:start a/x.cases.ts  [pending] -->")).toHaveLength(1);
       expect(markerErrors("<!-- test-plan:start a/x.cases.ts [pending]-->")).toHaveLength(1);
-      expect(markerErrors("<!-- test-plan:start a/x.cases.ts [pending] -->\n<!-- test-plan:start a/y.cases.ts -->")).toEqual([]);
+      expect(markerErrors("<!-- test-plan:start a/x.cases.ts [pending] -->\n<!-- test-plan:end -->\n<!-- test-plan:start a/y.cases.ts -->\n<!-- test-plan:end -->")).toEqual([]);
     });
 
     test("combined, unknown, or misplaced tags and malformed bullets are errors", () => {
@@ -163,7 +163,7 @@ Traceability: enforced
     test("the gate reports parse errors", async () => {
       const markdown = `${spec}\n<!-- test-plan:start a/x.cases.ts [Pending] -->\n`;
       const result = await checkTraceability({ specs: [{ path: "s.md", markdown }], tests: [{ path: "t.ts", source: 'test("F1: x", () => {});' }], rows: () => [] });
-      expect(result.errors).toContain("s.md: malformed test-plan marker: <!-- test-plan:start a/x.cases.ts [Pending] -->");
+      expect(result.errors).toContain("s.md: malformed test-plan marker: \"<!-- test-plan:start a/x.cases.ts [Pending] -->\"");
       const combined = spec.replace("- F2: [deploy] visible on Dev", "- F2: [deploy] [pending] visible on Dev");
       const tagged = await checkTraceability({ specs: [{ path: "s.md", markdown: combined }], tests: [{ path: "t.ts", source: 'test("F1: x", () => {});' }], rows: () => [] });
       expect(tagged.errors).toContain("s.md F2: more than one tag ([deploy] [pending]); use one of [deploy], [measure], [pending]");
@@ -178,4 +178,56 @@ Traceability: enforced
       expect(runsCaseFile(`import { parseFilters, testPlanRows } from "./freshness.cases";\ntest.each([...testPlanRows] as Row[])("$id", () => {});`, path)).toBe(true);
     });
   });
+
+  describe("fail-closed parsing, round 2 (PR #33 carry-overs N1–N3)", () => {
+    test("N1: a marker with trailing whitespace, a tab, or CRLF is malformed", () => {
+      expect(markerErrors("<!-- test-plan:start a/x.cases.ts --> ")).toHaveLength(1);
+      expect(markerErrors("<!-- test-plan:start a/x.cases.ts -->\t")).toHaveLength(1);
+      expect(markerErrors("<!-- test-plan:start a/x.cases.ts -->\r\n<!-- test-plan:end -->")).toHaveLength(1);
+      expect(markerErrors("<!-- test-plan:start a/x.cases.ts -->\n<!-- test-plan:end -->")).toEqual([]);
+    });
+
+    test("N2: near-miss acceptance bullets are errors", () => {
+      const near = "Traceability: enforced\n\n## Acceptance\n- D1 : spaced\n- d2: lowercase\n- **D3**: bold\n- D4: fine\n";
+      expect(acceptanceErrors("s.md", near)).toEqual([
+        "s.md: malformed acceptance bullet: \"- D1 : spaced\"",
+        "s.md: malformed acceptance bullet: \"- d2: lowercase\"",
+        "s.md: malformed acceptance bullet: \"- **D3**: bold\"",
+      ]);
+    });
+
+    test("N3: only running the whole case file counts, from the case file's own path", () => {
+      const casePath = "apps/web/test/freshness.cases.ts";
+      const testPath = "apps/web/test/freshness.test.ts";
+      const whole = `import { testPlanRows } from "./freshness.cases";\ntest.each(testPlanRows)("$id", () => {});`;
+      expect(runsCaseFile(whole, casePath, testPath)).toBe(true);
+      expect(runsCaseFile(`import { testPlanRows } from "./freshness.cases";\ntest.each([...testPlanRows] as Row[])("$id", () => {});`, casePath, testPath)).toBe(true);
+      expect(runsCaseFile(`import { testPlanRows } from "./freshness.cases";\ntest.each(testPlanRows.filter((row) => row.id === "F1"))("$id", () => {});`, casePath, testPath)).toBe(false);
+      expect(runsCaseFile(`import { testPlanRows } from "./freshness.cases";\ntest.each(testPlanRows.slice(0, 1))("$id", () => {});`, casePath, testPath)).toBe(false);
+      expect(runsCaseFile("const note = `import { testPlanRows } from './freshness.cases'`;\ntest.each(testPlanRows)(\"$id\", () => {});", casePath, testPath)).toBe(false);
+      expect(runsCaseFile(whole, casePath, "packages/other/test/freshness.test.ts")).toBe(false);
+      expect(runsCaseFile(`import { testPlanRows } from "../test/freshness.cases";\ntest.each(testPlanRows)("$id", () => {});`, casePath, "apps/web/e2e/x.spec.ts")).toBe(true);
+    });
+  });
+
+  describe("PR #35 verifier: accepted forms and silent gaps", () => {
+    const casePath = "apps/web/test/freshness.cases.ts";
+    const testPath = "apps/web/test/freshness.test.ts";
+
+    test("a .js specifier and `testPlanRows as readonly Row[]` run the whole file", () => {
+      expect(runsCaseFile(`import { testPlanRows } from "./freshness.cases.js";\ntest.each(testPlanRows)("$id", () => {});`, casePath, testPath)).toBe(true);
+      expect(runsCaseFile(`import { testPlanRows } from "./freshness.cases";\ntest.each(testPlanRows as readonly Row[])("$id", () => {});`, casePath, testPath)).toBe(true);
+      // Positive control: a cast does not hide a filter.
+      expect(runsCaseFile(`import { testPlanRows } from "./freshness.cases";\ntest.each(testPlanRows.filter(keep) as readonly Row[])("$id", () => {});`, casePath, testPath)).toBe(false);
+    });
+
+    test("a marker inside a fenced code block, or a start marker without an end, is an error", () => {
+      const fenced = "```text\n<!-- test-plan:start a/x.cases.ts -->\n<!-- test-plan:end -->\n```\n";
+      expect(markerErrors(fenced)).toEqual(["test-plan marker inside a fenced code block: \"<!-- test-plan:start a/x.cases.ts -->\""]);
+      expect(markerErrors("<!-- test-plan:start a/x.cases.ts -->\nno end\n")).toEqual(["test-plan:start without test-plan:end: \"<!-- test-plan:start a/x.cases.ts -->\""]);
+      expect(markerErrors("<!-- test-plan:start a/x.cases.ts -->\n<!-- test-plan:start a/y.cases.ts -->\n<!-- test-plan:end -->\n")).toHaveLength(1);
+      expect(markerErrors("<!-- test-plan:start a/x.cases.ts -->\n| t |\n<!-- test-plan:end -->\n")).toEqual([]);
+    });
+  });
 });
+

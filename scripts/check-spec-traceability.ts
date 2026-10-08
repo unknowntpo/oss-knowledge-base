@@ -6,7 +6,7 @@
  * spec whose Status starts with "Implemented" may not keep anything pending.
  * See docs/process/workflow.md.
  */
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 
 const root = join(import.meta.dir, "..");
 const testGlobs = ["apps/**/*.test.ts", "apps/**/*.spec.ts", "packages/**/*.test.ts"];
@@ -87,7 +87,7 @@ export async function checkTraceability(input: TraceabilityInput): Promise<Trace
     const implemented = /^Status:\s*Implemented/mu.test(markdown);
     // Rows of a case file count for their spec's IDs only when some test runs that case file.
     for (const caseFile of testPlanCaseFiles(markdown)) {
-      const run = input.tests.some((test) => runsCaseFile(test.source, caseFile.path));
+      const run = input.tests.some((test) => runsCaseFile(test.source, caseFile.path, test.path));
       if (caseFile.pending) {
         pendingFiles.push(`${spec} ${caseFile.path}: [pending] case file`);
         if (run) errors.push(`${spec}: ${caseFile.path} is marked [pending] but a test runs it`);
@@ -116,20 +116,52 @@ export async function checkTraceability(input: TraceabilityInput): Promise<Trace
   };
 }
 
-/** Whether a test source value-imports `testPlanRows` from the case file and runs it with test.each. */
-export function runsCaseFile(testSource: string, casePath: string): boolean {
+/**
+ * Whether a test source runs the whole case file: a top-level value import of `testPlanRows`
+ * whose specifier resolves (from `testPath`, when given) to `casePath`, and
+ * `test.each(testPlanRows)` or `test.each([...testPlanRows] …)` outside comments. A filtered or
+ * sliced call runs only some rows, so it does not count.
+ */
+export function runsCaseFile(testSource: string, casePath: string, testPath?: string): boolean {
   const code = testSource.replace(/\/\*[\s\S]*?\*\//gu, " ").replace(/(^|[^:"'`])\/\/.*$/gmu, "$1");
-  const module = casePath.split("/").pop()!.replace(/\.ts$/u, "").replaceAll(".", "\\.");
-  const imports = new RegExp(`import\\s+\\{[^}]*(?<!type\\s)\\btestPlanRows\\b[^}]*\\}\\s+from\\s+["'][^"']*/${module}["']`, "u");
-  return imports.test(code) && /\btest\.each\(\s*(?:\[\s*\.\.\.)?testPlanRows\b/u.test(code);
+  const module = casePath.split("/").pop()!.replace(/\.ts$/u, "");
+  const imports = [...code.matchAll(/^import\s+\{([^}]*)\}\s+from\s+["']([^"']+)["'];?\s*$/gmu)].filter((match) =>
+    /(?<!type\s)\btestPlanRows\b/u.test(match[1]!) &&
+    (testPath === undefined
+      ? match[2]!.replace(/\.js$/u, "").endsWith(`/${module}`)
+      : join(dirname(testPath), match[2]!).replace(/\.[jt]s$/u, "") === casePath.replace(/\.ts$/u, "")));
+  // The whole array, optionally spread into a copy, optionally cast; never filtered or sliced.
+  const runsAll = /\btest\.each\(\s*(?:testPlanRows|\[\s*\.\.\.testPlanRows\s*\])(?:\s+as\s+[^()]*)?\s*\)/u;
+  return imports.length > 0 && runsAll.test(code);
 }
 
 const MARKER = /^<!-- test-plan:start \S+( \[pending\])? -->$/u;
 
 /** Every line that mentions `test-plan:start` must be a well-formed marker (verifier F2). */
 export function markerErrors(markdown: string): readonly string[] {
-  return markdown.split("\n").filter((line) => line.includes("test-plan:start") && !MARKER.test(line.trim()))
-    .map((line) => `malformed test-plan marker: ${line.trim()}`);
+  // No trimming: trailing whitespace or a CR would make the renderer skip the table (N1).
+  const errors: string[] = [];
+  let fenced = false;
+  let open: string | undefined;
+  for (const line of markdown.split("\n")) {
+    if (/^\s*(```|~~~)/u.test(line)) fenced = !fenced;
+    if (line.includes("test-plan:start")) {
+      if (!MARKER.test(line)) {
+        errors.push(`malformed test-plan marker: ${JSON.stringify(line)}`);
+        continue;
+      }
+      if (fenced) {
+        errors.push(`test-plan marker inside a fenced code block: ${JSON.stringify(line)}`);
+        continue;
+      }
+      if (open !== undefined) errors.push(`test-plan:start without test-plan:end: ${JSON.stringify(open)}`);
+      open = line;
+    } else if (line.includes("test-plan:end") && !fenced) {
+      open = undefined;
+    }
+  }
+  if (open !== undefined) errors.push(`test-plan:start without test-plan:end: ${JSON.stringify(open)}`);
+  return errors;
 }
 
 const TAGS = ["deploy", "measure", "pending"];
@@ -151,7 +183,8 @@ export function acceptanceErrors(spec: string, markdown: string): readonly strin
       else if (tags.length > 1) errors.push(`${spec} ${item[1]}: more than one tag (${tags.map((tag) => `[${tag}]`).join(" ")}); use one of [deploy], [measure], [pending]`);
       continue;
     }
-    if (/^\s*[-*+]\s*[A-Z]+\d+:/u.test(line)) errors.push(`${spec}: malformed acceptance bullet: "${line}"`);
+    // Near misses the item parser would drop: indent, `*`/`+`, bold, lowercase, space before the colon (N2).
+    if (/^\s*[-*+]\s*\**\s*[A-Za-z]+\d+\s*\**\s*:/u.test(line)) errors.push(`${spec}: malformed acceptance bullet: "${line}"`);
   }
   return errors;
 }
