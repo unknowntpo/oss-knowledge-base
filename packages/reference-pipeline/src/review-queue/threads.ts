@@ -3,6 +3,7 @@ import { isMachineAuthor } from "../digest/candidates";
 import { proposalKeys, subjectHasTag } from "../digest/proposals";
 import { mailAuthor } from "../kafka-rules";
 import type { ReviewProfile } from "./governance";
+import type { VoteLines } from "./votes";
 
 /** A Feed index entry reduced to what candidate selection reads. */
 export interface FeedMailEntry {
@@ -19,6 +20,8 @@ export interface ThreadMessage {
   readonly subject: string;
   /** Full body for vote threads (Behavior 11); null when not read. */
   readonly body: string | null;
+  /** Parsed vote lines cached from an earlier run (Behavior 14 `voteLines`); used instead of `body`. */
+  readonly lines?: VoteLines;
 }
 
 export type KipStage = "vote" | "discuss";
@@ -78,20 +81,23 @@ export function proposalNumber(key: string): number {
   return Number(key.match(/\d+/u)?.[0] ?? Number.NaN);
 }
 
+/** A `thread.lua` response that is not the expected shape (Q28). */
+export class ThreadParseError extends Error {}
+
 /** Behavior 9: a Pony Mail `thread.lua` response, flattened; anything else is a parse failure (Q28). */
 export function parsePonyThread(body: unknown): ThreadMessage[] {
   const root = (typeof body === "object" && body !== null ? (body as { thread?: unknown }).thread : undefined);
-  if (typeof root !== "object" || root === null) throw new Error("Pony Mail thread response has no thread");
+  if (typeof root !== "object" || root === null) throw new ThreadParseError("Pony Mail thread response has no thread");
   const messages: ThreadMessage[] = [];
   const stack: unknown[] = [root];
   while (stack.length > 0) {
     const node = stack.pop() as { mid?: unknown; from?: unknown; subject?: unknown; epoch?: unknown; children?: unknown };
     if (typeof node.mid !== "string" || typeof node.from !== "string" || typeof node.subject !== "string" || typeof node.epoch !== "number") {
-      throw new Error("Pony Mail thread node is malformed");
+      throw new ThreadParseError("Pony Mail thread node is malformed");
     }
     messages.push({ mid: node.mid, author: mailAuthor(node.from), at: new Date(node.epoch * 1000).toISOString(), subject: node.subject, body: null });
     if (node.children !== undefined) {
-      if (!Array.isArray(node.children)) throw new Error("Pony Mail thread children is not a list");
+      if (!Array.isArray(node.children)) throw new ThreadParseError("Pony Mail thread children is not a list");
       stack.push(...node.children);
     }
   }
@@ -115,8 +121,14 @@ export function memberKey(subject: string): string {
   }
 }
 
+/** A reply or forward prefix after any gateway tags; a gateway-tagged root is still a root. */
 function isReply(subject: string): boolean {
-  return memberKey(subject) !== subject.replace(/\s+/gu, " ").trim().toLowerCase();
+  let current = subject;
+  for (;;) {
+    const next = current.replace(GATEWAY_TAG, "");
+    if (next === current) return REPLY.test(current);
+    current = next;
+  }
 }
 
 export interface ThreadStats {

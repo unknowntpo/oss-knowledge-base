@@ -667,8 +667,8 @@ describe("Spec 014 slice 2 named tests", () => {
     expect(lastRun.ok).toBe(true);
     expect(lastRun.candidates).toBe(234);
     const publisher = { environment: "development", running: false, scheduled: false, phase: null, lastRun: { ok: true }, sources: null };
-    expect(mergeHealth(publisher, digest)).toEqual({ ...publisher, digest });
-    expect(mergeHealth(publisher, null)).toEqual({ ...publisher, digest: null });
+    expect(mergeHealth(publisher, digest)).toEqual({ ...publisher, digest, reviewQueue: null });
+    expect(mergeHealth(publisher, null)).toEqual({ ...publisher, digest: null, reviewQueue: null });
   });
 
   test("D31: a missing Feed manifest fails the run as source-read without writing", async () => {

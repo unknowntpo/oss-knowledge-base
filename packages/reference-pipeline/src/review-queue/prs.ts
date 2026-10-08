@@ -31,6 +31,25 @@ export interface PrNode {
   };
 }
 
+/** Behavior 1: the measured query (`samples/github-open-prs.graphql`), with the repository as variables. */
+export const OPEN_PRS_QUERY = `query($owner: String!, $repo: String!, $cursor: String, $n: Int!) {
+  rateLimit { cost remaining }
+  repository(owner: $owner, name: $repo) {
+    pullRequests(states: OPEN, first: $n, after: $cursor) {
+      totalCount
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        number title isDraft createdAt
+        author { login __typename }
+        reviewDecision
+        reviewRequests(first: 10) { totalCount nodes { requestedReviewer { __typename ... on User { login } ... on Bot { login } ... on Team { slug } } } }
+        latestReviews(first: 20) { totalCount nodes { author { login __typename } state submittedAt } }
+        timelineItems(last: 1, itemTypes: [PULL_REQUEST_COMMIT, HEAD_REF_FORCE_PUSHED_EVENT, READY_FOR_REVIEW_EVENT, REOPENED_EVENT]) { nodes { __typename ... on PullRequestCommit { commit { committedDate } } ... on HeadRefForcePushedEvent { createdAt } ... on ReadyForReviewEvent { createdAt } ... on ReopenedEvent { createdAt } } }
+      }
+    }
+  }
+}`;
+
 export type PrPage =
   | { readonly ok: true; readonly totalCount: number; readonly hasNextPage: boolean; readonly endCursor: string | null; readonly nodes: readonly PrNode[]; readonly droppedNodes: number }
   | { readonly ok: false; readonly failureKind: "schema"; readonly error: string };

@@ -9,6 +9,7 @@ import {
   parseHealthArgs,
   parseUiArgs,
   resolveAt,
+  reviewQueueLine,
   UsageError,
   type HealthReport,
 } from "../verify/args";
@@ -190,5 +191,24 @@ describe("summaries", () => {
     const verdict = judgeHealth(local, 3 * hour);
     expect(verdict.consistent).toBeUndefined();
     expect(formatHealth(local, verdict)).toContain("publisher (none for this target)");
+  });
+});
+
+describe("Spec 015 review-queue line", () => {
+  const at = "2026-10-08T10:00:00.000Z";
+  const run = (completedAt: string, extra: Record<string, unknown> = {}) => ({
+    ok: true, completedAt, sources: { github: { ok: true }, mail: { ok: true }, roster: { ok: true } }, ...extra,
+  });
+
+  test("Q40: verify:health prints the review queue's last-run age and failures", () => {
+    expect(reviewQueueLine(null, at)).toBe("reviewQueue no run yet");
+    expect(reviewQueueLine(run("2026-10-08T09:23:00.000Z"), at)).toBe("reviewQueue ok=true age=37m failures=none");
+    expect(reviewQueueLine(run("2026-10-08T09:23:00.000Z", { ok: false, failureKind: "write", sources: { github: { ok: false, failureKind: "rate-limit" }, mail: null, roster: { ok: true } } }), at))
+      .toBe("reviewQueue ok=false age=37m failures=run:write,github:rate-limit");
+  });
+
+  test("Q44: verify:health flags a last-run older than 2 h as a missing run", () => {
+    expect(reviewQueueLine(run("2026-10-08T08:00:00.000Z"), at)).toBe("reviewQueue ok=true age=120m failures=none");
+    expect(reviewQueueLine(run("2026-10-08T07:59:59.000Z"), at)).toBe("reviewQueue ok=true age=120m failures=none MISSING RUN (last-run older than 2 h)");
   });
 });

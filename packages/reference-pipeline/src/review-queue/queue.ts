@@ -84,8 +84,18 @@ export interface ReviewQueueCounts {
   readonly unavailable: number;
 }
 
+/** What `reviewQueueCounts` reads: built queues and the stored `osskb.review-queue.v1` object both fit. */
+export interface CountableQueue {
+  readonly prs: { readonly noReviewer: readonly unknown[]; readonly waiting: readonly unknown[]; readonly approved: readonly unknown[] };
+  readonly kips: {
+    readonly vote: readonly { readonly queued: boolean }[];
+    readonly discuss: readonly { readonly queued: boolean }[];
+    readonly unavailable: number;
+  };
+}
+
 /** Behavior 15: the only function that counts. */
-export function reviewQueueCounts(queue: ReviewQueue): ReviewQueueCounts {
+export function reviewQueueCounts(queue: CountableQueue): ReviewQueueCounts {
   const noReviewer = queue.prs.noReviewer.length;
   const waiting = queue.prs.waiting.length;
   const approved = queue.prs.approved.length;
@@ -98,7 +108,7 @@ export function reviewQueueCounts(queue: ReviewQueue): ReviewQueueCounts {
 }
 
 /** Behavior 15: a queue whose stored counts differ from its arrays is not published. */
-export function checkStoredCounts(queue: ReviewQueue, stored: ReviewQueueCounts): boolean {
+export function checkStoredCounts(queue: CountableQueue, stored: ReviewQueueCounts): boolean {
   const actual = reviewQueueCounts(queue);
   return (Object.keys(actual) as (keyof ReviewQueueCounts)[]).every((key) => actual[key] === stored[key]) &&
     Object.keys(stored).length === Object.keys(actual).length;

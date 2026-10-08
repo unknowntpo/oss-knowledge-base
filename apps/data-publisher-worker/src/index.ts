@@ -1,7 +1,9 @@
 import { GitHubConnector } from "@oss-knowledge-base/github-publisher/github-connector";
-import { JiraConnector, KAFKA_DIGEST_PROFILE, PonyMailConnector } from "@oss-knowledge-base/reference-pipeline";
+import { asfRosterAdapter, JiraConnector, KAFKA_DIGEST_PROFILE, KAFKA_REVIEW_PROFILE, PonyMailConnector } from "@oss-knowledge-base/reference-pipeline";
 import { DigestRunner } from "./digest/runner";
 import { R2DigestBucket } from "./digest/store";
+import { runReviewQueue } from "./review-queue/run";
+import { R2ReviewQueueBucket, reviewQueueLastRunKey } from "./review-queue/store";
 import { DurableObjectPipelineState } from "./durable-object-state";
 import { GitHubFetchTransport } from "./github-transport";
 import { R2PublicationDestination } from "./r2-destination";
@@ -18,6 +20,8 @@ interface Env {
   readonly DIGEST_RUN: DurableObjectNamespace;
   /** Spec 014: the digest's cron expression. Unset in this slice, so no cron starts a digest. */
   readonly DIGEST_CRON?: string;
+  /** Spec 015: the review queue's cron expression. Unset until a Dev dry run is measured. */
+  readonly REVIEW_QUEUE_CRON?: string;
 }
 
 const sourceFetch = (url: string, init: { readonly headers: Readonly<Record<string, string>> }) =>
@@ -26,14 +30,38 @@ const sourceFetch = (url: string, init: { readonly headers: Readonly<Record<stri
 const STATE_OBJECT_NAME = "github-feed-search-pipeline-v1";
 const DIGEST_OBJECT_NAME = "topic-digest-apache-kafka-v1";
 
-/** Behavior 21: a cron tick starts the digest only when it is the digest's cron; any other tick publishes. */
-export function cronTarget(cron: string, digestCron: string | undefined): "digest" | "publisher" {
-  return digestCron !== undefined && digestCron.trim() !== "" && cron === digestCron ? "digest" : "publisher";
+const matches = (cron: string, configured: string | undefined) => configured !== undefined && configured.trim() !== "" && cron === configured;
+
+/**
+ * Spec 014 Behavior 21 and Spec 015 Q57: a tick starts the digest or the review queue only when it
+ * is that job's configured cron; any other tick publishes.
+ */
+export function cronTarget(cron: string, digestCron: string | undefined, reviewQueueCron?: string): "digest" | "review-queue" | "publisher" {
+  if (matches(cron, digestCron)) return "digest";
+  if (matches(cron, reviewQueueCron)) return "review-queue";
+  return "publisher";
 }
 
-/** `/health`: the publisher's body, unchanged, plus `digest` (null when the digest object fails). */
-export function mergeHealth(publisher: unknown, digest: unknown): unknown {
-  return { ...(publisher as Record<string, unknown>), digest: digest ?? null };
+/**
+ * `/health`: the publisher's body, unchanged, plus `digest` (null when the digest object fails) and
+ * `reviewQueue`, the review queue's `last-run.json` (null before the first run or on a read error).
+ */
+export function mergeHealth(publisher: unknown, digest: unknown, reviewQueue: unknown = null): unknown {
+  return { ...(publisher as Record<string, unknown>), digest: digest ?? null, reviewQueue: reviewQueue ?? null };
+}
+
+function reviewQueueRun(env: Env, dryRun: boolean) {
+  return runReviewQueue({
+    bucket: new R2ReviewQueueBucket(env.OSS_KB_BUCKET),
+    profile: KAFKA_REVIEW_PROFILE,
+    githubToken: env.GITHUB_SOURCE_TOKEN ?? "",
+    githubFetch: (url, init) => fetch(url, init),
+    apacheFetch: (url, init) => fetch(url, init),
+    rosterAdapter: asfRosterAdapter,
+    now: () => Date.now(),
+    delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    dryRun,
+  });
 }
 
 function authorized(request: Request, env: Env): boolean {
@@ -45,7 +73,12 @@ const MAX_ISSUES_PER_SOURCE = 200;
 
 export default {
   async scheduled(controller: ScheduledController, env: Env, context: ExecutionContext): Promise<void> {
-    if (cronTarget(controller.cron, env.DIGEST_CRON) === "digest") {
+    const target = cronTarget(controller.cron, env.DIGEST_CRON, env.REVIEW_QUEUE_CRON);
+    if (target === "review-queue") {
+      context.waitUntil(reviewQueueRun(env, false).then(() => undefined));
+      return;
+    }
+    if (target === "digest") {
       const digest = env.DIGEST_RUN.get(env.DIGEST_RUN.idFromName(DIGEST_OBJECT_NAME));
       context.waitUntil(digest.fetch("https://digest.internal/run", { method: "POST" }).then(async (response) => {
         if (!response.ok && response.status !== 409) throw new Error(`Scheduling the digest failed: ${await response.text()}`);
@@ -74,12 +107,21 @@ export default {
       const digestHealth = await digest.fetch("https://digest.internal/status")
         .then((response) => (response.ok ? response.json() : null))
         .catch(() => null);
-      return Response.json(mergeHealth(await publisher.json(), digestHealth));
+      const reviewQueue = await env.OSS_KB_BUCKET.get(reviewQueueLastRunKey(KAFKA_REVIEW_PROFILE.projectId))
+        .then((object) => (object === null ? null : object.json()))
+        .catch(() => null);
+      return Response.json(mergeHealth(await publisher.json(), digestHealth, reviewQueue));
     }
     if (request.method === "POST" && url.pathname === "/digest/run") {
       if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
       const dryRun = url.searchParams.get("dryRun") === "1";
       return digest.fetch(`https://digest.internal/run${dryRun ? "?dryRun=1" : ""}`, { method: "POST" });
+    }
+    if (request.method === "POST" && url.pathname === "/review-queue/run") {
+      if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
+      // Runs while the caller waits (about 1–3 min): no Durable Object holds this job (ADR-0016).
+      const { lastRun } = await reviewQueueRun(env, url.searchParams.get("dryRun") === "1");
+      return Response.json(lastRun, { status: lastRun.ok ? 200 : 502 });
     }
     if (request.method === "POST" && url.pathname === "/run") {
       if (!authorized(request, env)) {

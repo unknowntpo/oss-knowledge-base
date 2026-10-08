@@ -207,8 +207,17 @@ KIP tally options (the Spec 014 review found preview tallies undercount):
 Placement of the job:
 
 - A third cron entry on the existing data Worker, dispatched by
-  `controller.cron`. Spec 014 also adds cron dispatch; whichever lands first
-  adds `dispatchScheduled(cron)` and the other adds one case.
+  `controller.cron` through Spec 014's `cronTarget`, which now returns
+  `digest`, `review-queue`, or `publisher`. A tick that is neither job's
+  configured cron publishes, as before (Q57).
+- The cron is configured by the variable `REVIEW_QUEUE_CRON`. Slice 2 ships
+  it unset and adds no cron trigger, so a deploy changes nothing for the
+  publisher. A follow-up sets it, and adds the trigger, after a Dev dry run.
+- `POST /review-queue/run` (bearer `MANUAL_TRIGGER_TOKEN`, the publisher's
+  manual token) runs the job while the caller waits and returns
+  `last-run`; `?dryRun=1` computes and returns it without any R2 write
+  (Q58).
+- `/health` gains `reviewQueue`: the `last-run.json` object, or null.
 - No Durable Object. The run is short (≈ 1–3 min) and hourly, so runs do not
   overlap in practice; the pointer write is conditional (Behavior 17) for the
   case where they do. Run status is an R2 object, not DO storage.
@@ -374,7 +383,8 @@ Ties are broken by PR number or proposal number, ascending (numeric).
      contains the proposal key and every bracket tag of the candidate's
      subject (for example "Re: [VOTE] KIP-9 (was: x)") is counted as
      unattributed. Its vote is not read, and the tally is not complete.
-   - Root = the oldest member without a gateway tag or reply prefix. When
+   - Root = the oldest member with no reply prefix once gateway tags are
+     removed, so "[EXTERNAL] [VOTE] KIP-9: x" is a root. When
      every member is a reply, the root is not archived in this tree
      (KIP-785): repliers and the tally use the "seen" wording and the row
      shows the oldest member's date.
@@ -409,8 +419,12 @@ Ties are broken by PR number or proposal number, ascending (numeric).
       **unclear** ("+1 to Chris's suggestion", "+1: looks good", "+1
       (non-binding): Vaquar Khan", "+1 (binding) - Mickael Maison"). Unclear
       lines are never counted as votes, and they make the tally not complete.
-    - "biding" is accepted as "binding" (seen in KIP-1357).
+    - "biding" is accepted as "binding" (seen in KIP-1357), and a comma may
+      precede the marker ("-1, binding, see below").
 13. **Tally (`tallyVote`).**
+    - Vote lines parsed in an earlier run are cached by message id with
+      `VOTE_REGEX_VERSION` (now 2, after the comma rule); a version change
+      rereads every body.
     - `tallyVote(thread, rule, roster, now)`: one vote per voter (`mailAuthor`
       name); the voter's latest vote counts, and within one body the last
       vote line.
@@ -427,7 +441,8 @@ Ties are broken by PR number or proposal number, ascending (numeric).
       is archived, the roster was read, and there are no unclear lines,
       ambiguous messages, or unattributed replies.
     - Text: "+1 × n · binding m of q", then "(k via roster)", "· binding -1
-      × j", "· j unmarked -1", "· k unmarked" when non-zero. When not
+      × j", "· j unmarked -1", "· j non-binding -1", "· k unmarked" when
+      non-zero. When not
       complete, the text starts with "seen", every binding count gets "≥",
       and the reasons follow after "; ": unread messages, thread start not
       archived, roster unavailable, unclear lines, messages with a vote after
@@ -448,7 +463,7 @@ Ties are broken by PR number or proposal number, ascending (numeric).
     - `projectId`, `generatedAt`, `profile {reviewWaitDays, fewRepliers, votes}`
       (the governance vote rules used), `roster {adapter, fetchedAt, entries}`
       (`entries` = count only; names stay in the internal roster object);
-    - `sources.github {ok, fetchedAt, failureKind?}`, `sources.mail {ok, fetchedAt, feedReleaseId, failureKind?}`;
+    - `sources.github {ok, fetchedAt, failureKind?}`, `sources.mail {ok, fetchedAt, feedReleaseId, failureKind?}` (`feedReleaseId` is the Feed release the candidates came from; a failed mail source keeps the previous one);
     - `prs {noReviewer[], waiting[], approved[]}`, each row `{number, title, url, author, reviewers, waitingSince, waitDays}`;
     - `reviewState {<prNumber>: reviewerCount}` for every queued and
       not-queued open non-draft PR (for Behavior 7);
@@ -465,16 +480,26 @@ Ties are broken by PR number or proposal number, ascending (numeric).
     it. An object whose stored counts differ is not published.
 16. **Sources fail independently.** A failed source keeps the previous
     object's section and its `fetchedAt`; the other section is updated.
-    `sources.mail.ok` is true when the Feed release was read, even if some
-    threads were unavailable. On the first run there is no previous section:
+    `sources.mail.ok` is true when the Feed release was read and at least one
+    candidate thread was read; when every candidate thread fails, the mail
+    source failed (Q43). On the first run there is no previous section:
     a failed source's section is empty and its column says the data is
-    unavailable.
+    unavailable. The run as a whole is `ok` when at least one source
+    succeeded and the object was published.
+    - **No source succeeded:** nothing is written but `last-run.json`
+      (`ok: false`, `failureKind: no-source`). The previous pointer and
+      object stay, so the UI keeps the last queue with its as-of times; with
+      no previous object nothing is published and the UI shows the queue as
+      unavailable, never as an empty queue.
 17. **Pointer.** `current.json` is replaced with a conditional put on the ETag
     read at the start of the run. A refused write is not retried: a newer run
     has written. The content object is written first, so a crash leaves at
     most an unreferenced content object and an unchanged pointer;
-    `last-run.json` is written in a `finally` block, so a crash after the
-    start shows as a failed or missing run.
+    `last-run.json` is written after every run, failed ones included: the run
+    catches its own errors first, so this equals a `finally`, except that a
+    failed `last-run` write fails the invocation. A crash that kills the
+    invocation leaves the old `last-run.json`, which `verify:health` reports
+    as a missing run after 2 h.
 18. **Freshness in the UI.** Each column shows "as of <time>" from its
     source's `fetchedAt`, stale after `STALE_AFTER_MS` (3 h).
 19. **Citations.** A PR row links to its GitHub URL. A KIP row links to
@@ -639,6 +664,9 @@ Slice 1, deterministic core:
 | Q8 | repliers | constructed: two replies from "unknown sender" | 1 replier |
 | Q8 | repliers | constructed: replies from Alice and "CI Bot", profile machineUsers ["CI Bot"] | 1 replier |
 | Q8 | members | constructed: reply "[EXTERNAL] RE: [VOTE] KIP-9: x" and "SV: [VOTE] KIP-9: x" | both members |
+| Q8 | members | constructed: reply "Fw: Re: [VOTE] KIP-9: x" (stacked prefixes) | member |
+| Q8 | members | constructed: "Re: [DISCUSS] KIP-9: x" in a [VOTE] KIP-9 tree | not unattributed (no [VOTE] tag); tally complete |
+| Q8 | members | constructed: root subject "[EXTERNAL] [VOTE] KIP-9: x" | root archived |
 | Q8 | members | constructed: reply "Re: [VOTE] KIP-9 (was: x)" in the tree, subject key differs | not a member; tally incomplete: 1 reply not attributed |
 | Q8 | members | KAFKA-MAIL-0b57fb00 KIP-785: only message "Re: [DISCUSS] KIP-785 …" by Manan Gupta 2026-09-17, no parent | root not archived; "seen ≥ 1 replier"; queued |
 | Q8 | members | constructed: [VOTE] KIP-9 started as a reply inside the [DISCUSS] KIP-9 tree | vote row uses only the [VOTE] messages; root = oldest [VOTE] message without a reply prefix |
@@ -658,6 +686,8 @@ Slice 1, deterministic core:
 | Q9 | vote line | constructed: "-1: the upgrade path is missing" | -1, unmarked |
 | Q9 | vote line | constructed: "+1: looks good" | unclear |
 | Q9 | vote line | constructed: "+1;" | +1, unmarked |
+| Q9 | vote line | constructed: "-1, binding, see below" | -1, declared binding |
+| Q9 | vote line | constructed: "+1, non-binding" | +1, declared non-binding |
 | Q9 | vote line | constructed: "Thanks", "From: Bob", then an unquoted "+1 (binding)" | no vote; message ambiguous (vote-like line after a quoted header) |
 | Q9 | vote line | constructed: "On Mon, … wrote:", "> Please vote", then "+1 (binding)" (bottom-posted) | +1, declared binding |
 | Q9 | vote line | constructed: "-----Original Message-----" then "+1 (binding)" | no vote (quoted message) |
@@ -687,6 +717,8 @@ Slice 1, deterministic core:
 | Q16 | wording | KIP-1349, all 6 bodies read, root archived, roster read | "+1 × 2 · binding 2 of 3 (1 via roster)" |
 | Q16 | wording | constructed: KIP-1349 with Andrew Schofield's message unread | "seen +1 × 1 · binding ≥ 1 of 3 (1 via roster); 1 message unread"; short |
 | Q16 | wording | KIP-1279 with 1 unclear line | "seen +1 × 4 · binding ≥ 3 of 3 · 1 unmarked; 1 unclear line" |
+| Q16 | wording | constructed: one "+1 (binding)" and one reply under "Re: [VOTE] KIP-9 (was: x)" | "seen +1 × 1 · binding ≥ 1 of 3; 1 reply not attributed" |
+| Q16 | wording | constructed: complete tally with A "+1 (binding)" and B "-1 (non-binding)" | "+1 × 1 · binding 1 of 3 · 1 non-binding -1" |
 | Q16 | wording | constructed: 3 declared binding +1 and a reply with an unquoted "+1 (binding)" below a "From:" header, open 100 h | "seen +1 × 3 · binding ≥ 3 of 3; 1 message with a vote after a quoted header"; unresolved |
 | Q16 | wording | constructed: vote thread whose members are all replies, one "+1 (binding)" | "seen +1 × 1 · binding ≥ 1 of 3; thread start not archived" |
 | Q19 | graphql errors | constructed: HTTP 200, data null, errors[0] "Something went wrong" (no path) | failureKind schema |
@@ -732,7 +764,7 @@ Slice 1, deterministic core:
 
 Slice 2, the job in the data Worker:
 
-<!-- test-plan:start packages/reference-pipeline/test/review-queue-run.cases.ts [pending] -->
+<!-- test-plan:start packages/reference-pipeline/test/review-queue-run.cases.ts -->
 | id | rule | input | expected |
 | --- | --- | --- | --- |
 | Q17 | rate limit | constructed: GraphQL HTTP 403 "secondary rate limit", Retry-After 120 | no retry; PR section keeps the previous snapshot; github failureKind rate-limit |
@@ -740,18 +772,21 @@ Slice 2, the job in the data Worker:
 | Q17 | rate limit | constructed: HTTP 429 with Retry-After 60, then 200 | one retry; published |
 | Q17 | rate limit | constructed: HTTP 429 with Retry-After 61 | no retry; previous kept; rate-limit |
 | Q17 | rate limit | constructed: HTTP 200 with errors[0].type RATE_LIMITED | rate-limit; previous snapshot kept |
-| Q18 | partial pages | constructed: page 3 of 7 returns 502 twice | no PR snapshot published; previous kept; failureKind transport |
+| Q18 | partial pages | constructed: page 3 of 7 returns 502 twice | no PR snapshot published; previous kept; failureKind transport; page 3 tried twice |
+| Q19 | graphql errors | constructed: page 2 of 7 has data null and an error without a path | failureKind schema; previous kept |
 | Q25 | thread fetch | constructed: thread.lua 503 twice for KIP-1376, previous row exists | previous row kept with its fetchedAt |
 | Q25 | thread fetch | constructed: thread.lua 503 twice for a new thread | row omitted; unavailable 1 shown |
 | Q26 | email fetch | constructed: email.lua 404 for one KIP-1349 message | row shows seen wording (Q16); message counted unread |
 | Q27 | cache | constructed: second run, KIP-1349 thread unchanged | 0 email.lua requests for KIP-1349 |
 | Q27 | cache | constructed: previous object regexVersion 1, current 2 | 6 email.lua requests for KIP-1349 |
-| Q30 | feed release | constructed: public/v2/current.json missing | KIP section keeps previous; PR section updated; mail failureKind pointer-missing |
-| Q32 | overlap | constructed: run B (started later) wrote pointer; run A finishes after | A's pointer write refused (older generatedAt); B stays |
+| Q30 | feed release | constructed: public/v2/current.json missing | KIP section keeps previous; mail fetchedAt and feedReleaseId kept; PR section updated; mail failureKind pointer-missing |
+| Q32 | overlap | constructed: run B (started later) wrote pointer; run A finishes after | A's pointer write refused (ETag changed), not retried; B stays |
 | Q33 | too large | constructed: GraphQL page body 4 MiB + 1 byte | failureKind too-large; previous kept |
 | Q33 | too large | constructed: GraphQL page body exactly 4 MiB | accepted |
 | Q42 | auth | constructed: GraphQL HTTP 401 | failureKind auth; no retry; KIP section updated |
-| Q43 | first run | constructed: no previous object; Pony Mail down; GitHub ok | published; PR column filled; KIP column unavailable; mail ok false |
+| Q43 | first run | constructed: no previous object; Pony Mail down; GitHub ok | published; PR column filled; KIP column unavailable; mail ok false; last-run ok true |
+| Q43 | no source | constructed: previous object exists; GitHub 401 and the Feed pointer missing | pointer unchanged; no new object; last-run ok false, failureKind no-source |
+| Q43 | no source | constructed: no previous object; GitHub 401 and the Feed pointer missing | nothing published (no pointer); last-run ok false, failureKind no-source |
 | Q44 | crash | constructed: run killed after the content object write | pointer unchanged; next run publishes; verify:health flags last-run older than 2 h |
 | Q45 | write | constructed: R2 put of the content object throws | pointer and previous object unchanged; last-run failureKind write |
 | Q48 | mail retry | constructed: thread.lua 503 with Retry-After 5, then 200 | one retry after 5 s; row updated |
@@ -760,6 +795,15 @@ Slice 2, the job in the data Worker:
 | Q52 | roster cache | constructed: stored roster fetched exactly 24 h ago | refetched; 2 roster requests |
 | Q52 | roster cache | constructed: stored roster 30 h old, refetch fails | stored roster and its fetchedAt kept |
 | Q52 | roster cache | constructed: no stored roster, refetch fails | no roster; tallies use the seen wording (Q29) |
+| Q57 | cron | constructed: REVIEW_QUEUE_CRON unset; cron 7 * * * * fires | publisher |
+| Q57 | cron | constructed: REVIEW_QUEUE_CRON 27 * * * * set; it fires | review-queue |
+| Q57 | cron | constructed: REVIEW_QUEUE_CRON 27 * * * * set; the publisher cron 7 * * * * fires | publisher |
+| Q57 | cron | constructed: DIGEST_CRON 37 1 * * * and REVIEW_QUEUE_CRON 27 * * * * set; 37 1 * * * fires | digest |
+| Q57 | cron | constructed: DIGEST_CRON and REVIEW_QUEUE_CRON both 27 * * * * (misconfigured); it fires | digest |
+| Q58 | manual run | constructed: run with dryRun | counts returned; 0 R2 writes |
+| Q40 | run record | captured samples: a full run | last-run ok; github 7 requests; mail 17 thread + 34 email requests; roster 2 requests; counts noReviewer 310, waiting 61, approved 22, vote 5, discuss 9 |
+| Q40 | run record | constructed: GET /health with last-run.json in R2 | reviewQueue is the last-run object |
+| Q40 | run record | constructed: /health merge with no last-run object | reviewQueue null |
 <!-- test-plan:end -->
 
 Slice 3, web:
@@ -777,7 +821,7 @@ Slice 3, web:
 
 ## Acceptance
 
-Items tagged `[pending]` belong to slices 2 and 3 (see Slices). The
+Items tagged `[pending]` belong to slice 3 (see Slices). The
 traceability gate lists them without failing and blocks Status: Implemented
 until they are done.
 
@@ -839,52 +883,55 @@ until they are done.
   (KIP-1262: 2 of 3, 1 via roster).
 
 ### Failure and retry
-- Q17: [pending] GitHub rate limit (403/429, or `RATE_LIMITED` in `errors`):
+- Q17: GitHub rate limit (403/429, or `RATE_LIMITED` in `errors`):
   one retry only when `Retry-After` ≤ 60 s (60 retries, 61 does not);
   otherwise the PR section keeps the previous snapshot and `last-run.json`
   records `rate-limit`.
-- Q18: [pending] a page that fails after the retry discards the whole
+- Q18: a page that fails after the retry discards the whole
   snapshot; no partial PR list is published.
 - Q19: a GraphQL error without a node `path`, or with `data` null, makes page
   parsing fail with `schema`.
 - Q20: an empty page that claims a next page fails parsing as `schema`.
-- Q25: [pending] a thread that fails keeps its previous row and `fetchedAt`;
+- Q25: a thread that fails keeps its previous row and `fetchedAt`;
   a new thread that fails is omitted and counted in `kips.unavailable`.
-- Q26: [pending] a body that fails to download is counted as unread, so the
+- Q26: a body that fails to download is counted as unread, so the
   tally uses the "seen" wording (Q16).
-- Q27: [pending] a second run with an unchanged vote thread makes no
+- Q27: a second run with an unchanged vote thread makes no
   `email.lua` requests for it; a changed `regexVersion` refetches its bodies.
 - Q28: a non-JSON or malformed Pony Mail thread is a parse failure, not
   "0 repliers".
 - Q29: without a roster, unmarked votes' binding is unknown ("≥" wording) and
   the row stays queued.
-- Q30: [pending] a missing Feed pointer or release keeps the previous KIP
-  section; the PR section is still updated.
+- Q30: a missing Feed pointer or release keeps the previous KIP
+  section, its `fetchedAt`, and its `feedReleaseId`; the PR section is still
+  updated.
 - Q31: [pending] a column older than 3 h, or whose source failed, shows its
   own as-of time and the stale style (E2E, controlled clock, both sides of
   3 h).
-- Q32: [pending] a run that finishes after a newer run does not replace the
+- Q32: a run that finishes after a newer run does not replace the
   pointer and does not retry.
-- Q33: [pending] a response over 4 MiB fails that source as `too-large`
+- Q33: a response over 4 MiB fails that source as `too-large`
   (exactly 4 MiB passes).
-- Q42: [pending] GitHub 401 fails the PR source as `auth`, with no retry; the
+- Q42: GitHub 401 fails the PR source as `auth`, with no retry; the
   KIP section is still updated.
-- Q43: [pending] the first run with a failed source publishes the other
-  section, marks the failed column unavailable, and records `ok: false` for
-  that source.
-- Q44: [pending] a crash after the content object write leaves the pointer
+- Q43: the first run with a failed source publishes the other
+  section, marks the failed column unavailable, records `ok: false` for
+  that source, and the run is `ok`; a run where no source succeeded publishes
+  nothing new (failureKind `no-source`), keeping the previous pointer or, on
+  a first run, publishing nothing.
+- Q44: a crash after the content object write leaves the pointer
   unchanged; `verify:health` reports `last-run.json` older than 2 h as a
   missing run.
-- Q45: [pending] a failed R2 write of the content object leaves the pointer
+- Q45: a failed R2 write of the content object leaves the pointer
   and the previous object unchanged and records `write`.
 - Q46: a GraphQL error whose `path` points into one PR node drops that PR and
   counts it in `droppedNodes`; the page still parses.
 - Q47: a PR whose `reviewRequests` or `latestReviews` `totalCount` exceeds the
   nodes read shows "≥ n reviewers" and is never `noReviewer`.
-- Q48: [pending] Pony Mail and roster requests are sequential, at least 1 s
+- Q48: Pony Mail and roster requests are sequential, at least 1 s
   apart, with one retry after a 5xx, 429, or network error when
   `Retry-After` ≤ 60 s.
-- Q52: [pending] a stored roster younger than 24 h is reused without
+- Q52: a stored roster younger than 24 h is reused without
   requests; an older one is refetched; a failed refetch keeps the stored
   roster and its `fetchedAt`; with none, Q29 applies.
 - Q54: a roster id without a name in the people file is kept with `name: null`
@@ -896,28 +943,39 @@ until they are done.
 
 ### Budget
 - Q34: [measure] GitHub per run: 7 requests, 306 KB, 41.9 s sequential, 21
-  GraphQL points (limit 5,000/h). Command: `bun run measure:review-queue`
-  (committed in slice 2).
-- Q35: [measure] Pony Mail per run: cold 21 `thread.lua` + 34 `email.lua`
-  ≈ 625 KB; warm 21 + new vote messages. Roster: 2 requests, 1.8 MB, at most
-  once a day. Command: `bun run measure:review-queue`.
-- Q36: [measure] memory: heap growth while parsing the Feed index is 36.3 MB
-  at 11.04 MB (1x) and must stay at most 80 MB at 2x; the roster refresh
-  parses 1.8 MB. The cron invocation has its own isolate; the publisher
+  GraphQL points (limit 5,000/h). Measured again by the job itself
+  2026-10-08T07:27Z: 7 requests, 298 KB, 46.5 s (cold) and 40.6 s (warm).
+  Command: `bun run measure:review-queue -- --warm`.
+- Q35: [measure] Pony Mail per run: cold 17 `thread.lua` (one per
+  candidate) + 34 `email.lua`, 51 requests, 248 KB, 52.2 s; warm 17
+  requests, 159 KB, 16.9 s. Roster: 2 requests, 1.76 MB, 1.5 s, at most once
+  a day. A cold run took 100.2 s and a warm one 57.5 s. Command:
+  `bun run measure:review-queue -- --warm`.
+- Q36: [measure] memory: heap growth of the parsed Feed index (10.5 MB of
+  JSON) is 22.6 MB at 1x and 45.2 MB at 2x, within 80 MB at 2x (JSC heap
+  size; Bun's `heapUsed` does not move with `JSON.parse`); the roster
+  refresh parses 1.8 MB. The cron invocation has its own isolate; the publisher
   alarm (Dev :07, ≤ 15 min) has ended before :27. Command:
   `bun run measure:review-queue -- --scale 2`.
 - Q37: [deploy] Dev wall time of the run at most 5 min (15-min cron limit),
   and the publisher alarm's wall time unchanged within run-to-run noise
   (Cloudflare analytics).
-- Q38: [measure] at most 100 subrequests per run (limit 20,000).
+- Q38: [measure] at most 100 subrequests per run (limit 20,000). Measured:
+  cold 60 upstream + 8 R2 operations = 68; warm 24 + 8 = 32.
 
 ### Observability
-- Q40: [pending] `last-run.json` records `ok`, `completedAt`, `durationMs`,
-  per source `{ok, requests, bytes, failureKind?}`, the roster's
+- Q40: `last-run.json` records `ok`, `completedAt`, `durationMs`,
+  per source `{ok, requests, bytes, durationMs, failureKind?}`, the roster's
   `fetchedAt`, `droppedNodes`, `unavailable`, and `counts`;
   `bun run verify:health` prints its age and failures.
 - Q41: [deploy] on Dev after the first run, the block's counts equal the list
   page's and the object's, and 3 sampled PRs match GitHub's review state.
+
+- Q57: a cron tick runs the review queue only when it equals
+  `REVIEW_QUEUE_CRON`; with it unset, or for any other cron, the publisher
+  runs as before; the digest cron still runs the digest.
+- Q58: `POST /review-queue/run?dryRun=1` returns the run record with counts
+  and writes nothing to R2, the roster cache included.
 
 (Q39 was removed in review as a duplicate of Q31.)
 
@@ -991,3 +1049,5 @@ until they are done.
 | V2 | Verifier: replies with `[EXTERNAL]`, `RE:`, `AW:`, `SV:`, `Fwd:` prefixes were not members, so their votes vanished from a "complete" tally | Applied: `memberKey` (Behavior 9); replies naming the proposal and stage under another subject are unattributed and make the tally incomplete; a vote-like line after an Outlook header marks the message ambiguous (Q8, Q9, Q16 rows) |
 | V3 | Verifier survivors V9, P3, P16, T2, T4, R4 | Applied: one row each (Q11, Q23 ×2, Q8, Q7, Q50); all killed |
 | V4 | Verifier doc drift: shared-code claims, G8/G9 promises, Behavior 12 first sentence, Behavior 13 names, silent drop when no proposal vote rule | Applied: code now reuses Spec 014's `isMachineAuthor`, `proposalKeys`, and `subjectHasTag` (signatures widened to the fields they read); `threadKey` is explicitly not shared; G8 note added, G9 moved to slice 2; Behavior 12–13 rewritten; a missing proposal vote rule is an error (Q49 row) |
+| S2 | Slice 2 coordinator notes: memberKey single pass, unattributed without the tag condition, `isReply` on gateway-tagged roots, the "reply not attributed" text, a declared non-binding -1 missing from the text, "-1, binding, see below" read as unmarked | Applied: rows for each (Q8 ×3, Q16 ×2, Q9 ×2); `isReply` strips gateway tags first; the text shows "non-binding -1"; a comma may precede the marker; `VOTE_REGEX_VERSION` 2 |
+| S3 | Slice 2 verifier: every source failing still published an object (empty on a first run); mail `fetchedAt` kept but untested (V23); `/health` read untested (V39); run `ok` with one failed source unpinned (V21); `feedReleaseId` in the text but not the object; `finally` wording | Applied: `no-source` skips the content and pointer writes (Behavior 16, Q43 rows); Q30 row asserts `fetchedAt` and `feedReleaseId`; a handler test reads `/health`; Q43 row asserts the run is `ok`; `sources.mail.feedReleaseId` added; Behavior 17 states why the run record is written after the run, not in `finally` |
