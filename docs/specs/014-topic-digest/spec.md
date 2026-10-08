@@ -558,7 +558,8 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
        least 0.5, and goes to the routine section at 0.6 or more.
      - The topic is the most probable topic option. `topicConfidence` is
        that option's probability renormalised over the topics.
-     - Workers AI truncates long `state` (about 2K tokens), so requests are
+     - Assumption, to be confirmed by the D35 Dev dry run: Workers AI truncates
+       long `state` near 2K tokens. So requests are
        packed until `state` reaches 1,200 estimated tokens or 64 questions.
        The captured week needs 12 requests, with 4 in flight.
      - Fail-safe: when a response reports `usage.prompt_tokens` below 80%
@@ -1574,7 +1575,13 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
 - D34: [measure] before Prod shows the digest, `digest -- eval` on the
   human's labels meets the thresholds the human sets (pending labels).
 - D35: [deploy] before the daily cron is enabled, Dev dry runs
-  (`POST /digest/run?dryRun=1`) cover two things:
+  (`POST /digest/run?dryRun=1`) cover the checks below.
+  - Precondition for adding `DIGEST_CRON`: a Dev dry run shows that every
+    Clef response carried `usage`, so the truncation fail-safe was on.
+    `calibration.callsWithUsage` counts every model call with `usage`, Clef
+    and text alike. It must therefore be at least the number of Clef
+    requests, and equal the run's model calls when text calls report
+    `usage` too.
   - They record the exception shapes of `env.AI.run` for a malformed request
     and for a gateway rate limit, using a test gateway limited to 1
     request/min. Error 3036 is not provoked.
