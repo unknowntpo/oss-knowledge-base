@@ -293,6 +293,25 @@ the two `viewer/` items below.
 - **Layer:** test row, once a real case exists.
 - **Source:** Spec 015 review finding 16.
 
+## CI evidence
+
+### G29. The evidence redaction gate does not decode every encoding
+- **Where:** `scripts/verify/redact-artifacts.ts` (the "Redact the Access
+  token from the evidence" step before the deployed E2E upload).
+- **Why:** it rewrites plain copies of the Cloudflare Access token (also
+  inside zips and the HTML report's embedded zip) and blocks the upload on
+  base64/base64url copies, but does not detect gzip, hex, `\u`-escaped JSON,
+  UTF-16, a value split across lines, or a reversed value. Playwright writes
+  none of these for header values today (traces are zipped NDJSON, the report
+  an embedded zip, `error-context.md` plain text), so the risk is theoretical
+  until a reporter or trace format changes.
+- **Fix:** if Playwright's output format changes, add the new encoding to
+  `findSecrets` with a row in `scripts/test/redact-artifacts.test.ts`; or stop
+  uploading evidence from runs that carry the token.
+- **Layer:** test (`scripts/test/access-leak.test.ts` fails if real Playwright
+  output keeps the value after redaction).
+- **Source:** [PR #42 verifier, round 2](https://github.com/unknowntpo/oss-knowledge-base/pull/42#issuecomment-6056529926).
+
 ## Process and docs
 
 ### G11. Spec status lines drift from reality

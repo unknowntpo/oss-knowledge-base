@@ -36,6 +36,15 @@ function respond(scheme: Seen["scheme"], seen: Seen[]) {
       ...(typeof id === "string" ? { id } : {}),
       ...(typeof secret === "string" ? { secret } : {}),
     });
+    // Stand-ins for Access in front of a host: a login redirect, and a bare 403 for a bad token.
+    if (url.hostname.startsWith("challenged.")) {
+      response.writeHead(302, { location: "https://unknowntpo.cloudflareaccess.com/cdn-cgi/access/login/x" }).end();
+      return;
+    }
+    if (url.hostname.startsWith("rejected.")) {
+      response.writeHead(403, { "content-type": "text/plain" }).end("Forbidden");
+      return;
+    }
     const to = url.searchParams.get("to");
     if (url.pathname === "/redirect" && to !== null) {
       response.writeHead(302, { location: to }).end();

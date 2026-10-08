@@ -1,6 +1,6 @@
 // Header scoping on the wire: the real deployed-E2E fixtures, driven through a local
 // proxy that stands in for every host (harness.ts). Dummy token only.
-import { expect, test } from "../deployed-e2e/fixtures";
+import { expect, pagesRequest, test } from "../deployed-e2e/fixtures";
 import { startHarness, type Harness, type Seen } from "./harness";
 
 // Set by playwright.access.config.ts (dummy-token.ts), never a real token.
@@ -62,6 +62,14 @@ for (const [name, target] of [["a look-alike host", `${lookAlike}/after`], ["the
   });
 }
 
+test("browser: a same-site redirect hop is not routed again, so it arrives without the token", async ({ page }) => {
+  // Documents the design: safety comes from the browser following the fulfilled 3xx with its own
+  // headers, not from a re-check. Once Access is on, such a hop would be challenged (none exist today).
+  await page.goto(`${dev}/redirect?to=${encodeURIComponent("https://pr1.oss-knowledge-base-dev.pages.dev/same-site")}`);
+  expect(tokenOn("oss-knowledge-base-dev.pages.dev", "/redirect")).toBe("token");
+  expect(tokenOn("pr1.oss-knowledge-base-dev.pages.dev", "/same-site")).toBe("none");
+});
+
 test("request: Dev Pages gets the token, a redirect is returned instead of followed, other origins are refused", async ({ request }) => {
   const feed = await request.get("/api/feed");
   expect(feed.status()).toBe(200);
@@ -72,6 +80,11 @@ test("request: Dev Pages gets the token, a redirect is returned instead of follo
   expect(tokenOn("evil-oss-knowledge-base-dev.pages.dev", "/from-request")).toBe("not contacted");
 
   await expect(request.get(`${lookAlike}/absolute`)).rejects.toThrow(/only for the Dev Pages origin/u);
+  // Forms that resolve against the baseURL to another host.
+  for (const form of ["//evil-oss-knowledge-base-dev.pages.dev/relative", "\\\\evil-oss-knowledge-base-dev.pages.dev/relative", "hTtPs://evil-oss-knowledge-base-dev.pages.dev/relative"]) {
+    await expect(request.get(form)).rejects.toThrow(/only for the Dev Pages origin/u);
+  }
+  expect(tokenOn("evil-oss-knowledge-base-dev.pages.dev", "/relative")).toBe("not contacted");
   await expect(request.get("https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/health")).rejects.toThrow(/only for the Dev Pages origin/u);
   expect(tokenOn("evil-oss-knowledge-base-dev.pages.dev", "/absolute")).toBe("not contacted");
 });
@@ -81,3 +94,24 @@ test("publisherRequest: the publisher never receives the token", async ({ publis
   expect(health.status()).toBe(200);
   expect(tokenOn("oss-knowledge-base-data-dev.unknowntpo.workers.dev", "/health")).toBe("none");
 });
+
+for (const [host, message] of [
+  ["challenged", /rejected the service token .*HTTP 302/u],
+  ["rejected", /rejected the service token .*HTTP 403/u],
+] as const) {
+  test(`request: the probe fails fast with a clear message when Access answers (${host})`, async ({ playwright }) => {
+    let used = false;
+    const setup = pagesRequest(
+      {
+        playwright,
+        baseURL: `https://${host}.oss-knowledge-base-dev.pages.dev`,
+        proxy: { server: `http://127.0.0.1:${port}` },
+        ignoreHTTPSErrors: true,
+      },
+      async () => { used = true; },
+    );
+    await expect(setup).rejects.toThrow(message);
+    expect(used).toBe(false);
+    expect(seenAt(`${host}.oss-knowledge-base-dev.pages.dev`, "/")).toHaveLength(1);
+  });
+}

@@ -166,7 +166,7 @@ describe("scopeAccessRequest", () => {
 
   test("a rejected call is rethrown without the token values", async () => {
     const { context } = fakeContext("reject");
-    const error = await scopeAccessRequest(context, headers).get("/api/feed").catch((caught: unknown) => caught);
+    const error = await scopeAccessRequest(context, headers, "https://oss-knowledge-base-dev.pages.dev").get("/api/feed").catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(Error);
     expect(String((error as Error).message)).not.toContain(secret);
     expect(String((error as Error).stack)).not.toContain(secret);
@@ -175,26 +175,57 @@ describe("scopeAccessRequest", () => {
 
   test("a synchronous throw is redacted too", () => {
     const { context } = fakeContext("throw");
-    expect(() => scopeAccessRequest(context, headers).get("/")).toThrow(/CF-Access-Client-Secret: \*\*\*/u);
+    expect(() => scopeAccessRequest(context, headers, "https://oss-knowledge-base-dev.pages.dev").get("/")).toThrow(/CF-Access-Client-Secret: \*\*\*/u);
   });
+
+  const base = "https://oss-knowledge-base-dev.pages.dev";
 
   test("relative paths and Dev Pages URLs pass through; other properties are untouched", async () => {
     const { calls, context } = fakeContext("ok");
-    const scoped = scopeAccessRequest(context, headers);
+    const scoped = scopeAccessRequest(context, headers, base);
     await scoped.get("/api/feed");
     await scoped.get("https://abc123.oss-knowledge-base-dev.pages.dev/api/feed");
-    expect(calls.map((call) => call[0])).toEqual(["/api/feed", "https://abc123.oss-knowledge-base-dev.pages.dev/api/feed"]);
+    await scoped.get("//abc123.oss-knowledge-base-dev.pages.dev/api/feed");
+    await scoped.get("HTTPS://OSS-KNOWLEDGE-BASE-DEV.pages.dev/x");
+    expect(calls.map((call) => call[0])).toEqual([
+      "/api/feed",
+      "https://abc123.oss-knowledge-base-dev.pages.dev/api/feed",
+      "//abc123.oss-knowledge-base-dev.pages.dev/api/feed",
+      "HTTPS://OSS-KNOWLEDGE-BASE-DEV.pages.dev/x",
+    ]);
     expect(scoped.label).toBe("pages");
   });
 
+  // Every target is resolved against the baseURL first, the way the request is actually sent.
   test.each([
-    "https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/health",
-    "https://evil-oss-knowledge-base-dev.pages.dev/",
-    "http://oss-knowledge-base-dev.pages.dev/",
-  ])("refuses an absolute URL off the Dev Pages host: %s", async (url) => {
+    ["absolute publisher URL", "https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/health"],
+    ["absolute look-alike", "https://evil-oss-knowledge-base-dev.pages.dev/"],
+    ["http Dev host", "http://oss-knowledge-base-dev.pages.dev/"],
+    ["protocol-relative look-alike", "//evil-oss-knowledge-base-dev.pages.dev/x"],
+    ["backslash look-alike", "\\\\evil-oss-knowledge-base-dev.pages.dev/x"],
+    ["slash-backslash look-alike", "/\\evil-oss-knowledge-base-dev.pages.dev/x"],
+    ["mixed-case scheme look-alike", "hTtPs://evil-oss-knowledge-base-dev.pages.dev/x"],
+    ["mixed-case http Dev host", "HtTp://oss-knowledge-base-dev.pages.dev/"],
+    ["leading-space look-alike", " https://evil-oss-knowledge-base-dev.pages.dev/x"],
+  ])("refuses a target off the Dev Pages host: %s", async (_name, url) => {
     const { calls, context } = fakeContext("ok");
-    await expect(scopeAccessRequest(context, headers).get(url)).rejects.toThrow(/only for the Dev Pages origin/u);
+    await expect(scopeAccessRequest(context, headers, base).get(url)).rejects.toThrow(/only for the Dev Pages origin/u);
     expect(calls).toEqual([]);
+  });
+
+  test("refuses a Request object whose URL is off the Dev Pages host (fetch)", async () => {
+    const calls: unknown[] = [];
+    const context = { fetch: async (input: unknown) => { calls.push(input); return {}; } };
+    const scoped = scopeAccessRequest(context, headers, base);
+    await expect(scoped.fetch({ url: () => "https://evil-oss-knowledge-base-dev.pages.dev/x" })).rejects.toThrow(/only for the Dev Pages origin/u);
+    await scoped.fetch({ url: () => `${base}/api/feed` });
+    expect(calls).toHaveLength(1);
+  });
+
+  test("without a token nothing is refused (nothing to leak)", async () => {
+    const { calls, context } = fakeContext("ok");
+    await scopeAccessRequest(context, undefined, "http://127.0.0.1:8788").get("https://example.com/");
+    expect(calls).toHaveLength(1);
   });
 });
 

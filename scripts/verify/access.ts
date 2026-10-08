@@ -103,21 +103,40 @@ function redactError(error: unknown, values: readonly string[]): unknown {
 
 const requestMethods = new Set(["get", "head", "post", "put", "patch", "delete", "fetch"]);
 
+/** The URL a request method will actually hit: a string resolved against baseURL, or a Request's url(). */
+function requestTarget(input: unknown, baseURL: string): URL | undefined {
+  const raw = typeof input === "string" ? input
+    : typeof input === "object" && input !== null && typeof (input as { url?: unknown }).url === "function"
+      ? String((input as { url(): unknown }).url())
+      : undefined;
+  if (raw === undefined) return undefined;
+  try {
+    return new URL(raw, baseURL);
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Wraps the token-bearing APIRequestContext: errors are rethrown with the token values
- * replaced by ***, and absolute URLs off the Dev Pages host are refused before any request,
- * because the context's extraHTTPHeaders would otherwise go to them.
+ * replaced by ***, and any target that does not resolve (against `baseURL`, as the request
+ * would) to the Dev Pages host is refused before it is sent, because the context's
+ * extraHTTPHeaders would otherwise go to it. This covers absolute, protocol-relative ("//host"),
+ * backslash and mixed-case-scheme forms, and Request objects passed to fetch.
  */
-export function scopeAccessRequest<T extends object>(context: T, headers: AccessHeaders | undefined): T {
+export function scopeAccessRequest<T extends object>(context: T, headers: AccessHeaders | undefined, baseURL: string): T {
   const values = headers === undefined ? [] : Object.values(headers);
   return new Proxy(context, {
     get(target, property, receiver) {
       const value: unknown = Reflect.get(target, property, receiver);
       if (typeof value !== "function") return value;
       return (...args: unknown[]) => {
-        const first = args[0];
-        if (requestMethods.has(String(property)) && typeof first === "string" && URL.canParse(first) && !isAccessProtected(first)) {
-          return Promise.reject(new Error(`the token-bearing request context is only for the Dev Pages origin, not ${new URL(first).origin}`));
+        if (headers !== undefined && requestMethods.has(String(property))) {
+          const resolved = requestTarget(args[0], baseURL);
+          if (resolved === undefined || !isAccessProtected(resolved)) {
+            const where = resolved === undefined ? "an unparsable target" : resolved.origin;
+            return Promise.reject(new Error(`the token-bearing request context is only for the Dev Pages origin, not ${where}`));
+          }
         }
         try {
           const result: unknown = value.apply(target, args);
@@ -135,10 +154,13 @@ type AccessRoute = Pick<Route, "fetch" | "fulfill" | "continue" | "abort"> & {
 };
 
 /**
- * Browser route handler for Dev Pages requests. The request is fetched with the token and
- * without following redirects, and the response (a 3xx included) goes back to the browser.
- * The browser then follows a redirect as a fresh request that this host check sees again,
- * so the token never rides a redirect to another host.
+ * Browser route handler for Dev Pages requests. The request is fetched (Node side) with the
+ * token and without following redirects, and the response, a 3xx included, is fulfilled to
+ * the browser. The browser follows a fulfilled redirect itself, with only its own headers,
+ * which never contain the token; Playwright does not route that redirected hop, so it is
+ * not re-checked here. Consequence: the token is never sent on any redirect, including a
+ * same-site one (Dev to Dev, or to a preview subdomain), which Access would therefore
+ * challenge once it is on. Dev Pages has no such redirects today.
  */
 export function accessRouteHandler(
   headers: AccessHeaders | undefined,

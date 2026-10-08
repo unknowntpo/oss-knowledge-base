@@ -26,20 +26,27 @@ The publisher worker on `workers.dev` and Prod are not behind Access.
 - The headers go only to https URLs on the Dev Pages host or its subdomains
   (`isAccessProtected` in `scripts/verify/access.ts`), never to the publisher,
   Prod, local, or third-party origins.
-- Redirects never carry the token: the browser fetches Dev Pages requests with
-  `maxRedirects: 0` and hands any 3xx back to the browser, which follows it as
-  a fresh request the host check sees again (`accessRouteHandler`); the
-  token-bearing `request` context has `maxRedirects: 0`.
+- Redirects never carry the token. In the browser, `accessRouteHandler`
+  fetches Dev Pages requests with `maxRedirects: 0` and fulfils the response,
+  a 3xx included; the browser follows that redirect itself with only its own
+  headers. Playwright does not route the redirected hop, so it is not
+  re-checked: a same-site redirect (Dev to Dev or to a preview subdomain) also
+  arrives without the token and would be challenged once Access is on (Dev
+  Pages has none today). The token-bearing `request` context has
+  `maxRedirects: 0`.
 - CI: the `E2E — deployed development` job reads both from GitHub Actions
   secrets. `apps/web/deployed-e2e/fixtures.ts` routes Dev Pages browser
   requests through `accessRouteHandler`, gives `request` a Pages-only context
-  (errors rethrown with the values replaced by `***`, absolute URLs to other
-  origins refused), and calls the publisher through a separate
+  (errors rethrown with the values replaced by `***`; every target, including
+  protocol-relative, backslash and mixed-case-scheme forms and `Request`
+  objects, is resolved against `baseURL` and refused unless it is on the Dev
+  Pages host), and calls the publisher through a separate
   `publisherRequest` context without the token.
 - Evidence is public, so before upload `scripts/verify/redact-artifacts.ts`
   replaces both values in every file of the report and test results (inside
   trace zips and the report's embedded zip too), then fails the job, and skips
-  the upload, if any copy is left. Playwright's HTML report records request
+  the upload, if any copy (plain or base64) is left. Known limit: see
+  [gardening G29](gardening.md#g29-the-evidence-redaction-gate-does-not-decode-every-encoding). Playwright's HTML report records request
   headers of a failed API call even when the error is redacted, so this step is
   required. Tracing also stays off while a token is set.
 - `bun run test:e2e:access` (part of `test:e2e`) checks the scoping on the
