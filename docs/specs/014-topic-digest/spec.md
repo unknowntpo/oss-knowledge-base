@@ -1326,6 +1326,7 @@ synthetic; the others use values captured from Dev.
 | D80 | rejections | constructed: a proposal call returns JSON cut off mid-string | rejections.unparsable 1; that line null |
 | D80 | rejections | constructed: a card sentence says merged while its cited PR is open | rejections["status:merged"] 1 |
 | D80 | rejections | constructed: the highlights call returns a headline citing a thread outside its inputs and a highlight body with "objected" | rejections["cite-outside-inputs"] 1, rejections["stance:objected"] 1; headline null |
+| D80 | rejections | constructed: the highlights call returns no headline and 4 items: an 81-character title, a title without a body, "junk", and one valid item | rejections.title 1, rejections.empty 2; 1 highlight kept; headline null |
 | D80 | rejections | constructed: the highlights call returns {} | rejections.empty 1; headline null |
 | D76 | uncategorized | captured week, cold run with Clef | en.uncategorized lists every non-routine thread placed in other, by score; not empty |
 | D74 | call order | constructed: captured week at every ceiling from 20 to 35 requests | at least 3 requests remain at the highlights call (highlights, 1 translation, 1 retry) |
@@ -1531,7 +1532,9 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
 - D80: a run's result reports `rejections`: for every card, proposal row
   and highlights call, `unparsable` (no JSON), `empty` (JSON without
   sentences) or each dropped sentence's Behavior 9/30 reason. For the
-  highlights call this covers the headline and each highlight body; a
+  highlights call this covers the headline and each highlight body.
+  `empty` counts once per call with no headline and no highlight items,
+  and once per highlight item that is not an object with a valid body. A
   highlight whose title is missing or over 80 characters counts `title`.
 
 ### Failure and retry

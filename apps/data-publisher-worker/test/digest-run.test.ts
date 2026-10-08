@@ -1052,6 +1052,19 @@ const cases: Record<string, () => Promise<string>> = {
     const { en } = await objects(bucket, result);
     return `rejections["cite-outside-inputs"] ${result.rejections["cite-outside-inputs"]}, rejections["stance:objected"] ${result.rejections["stance:objected"]}; headline ${en.headline === null ? "null" : "kept"}`;
   },
+  "rejections|constructed: the highlights call returns no headline and 4 items: an 81-character title, a title without a body, \"junk\", and one valid item": async () => {
+    const model = new FakeDecider((kind, _index, prompt) => {
+      if (kind !== "highlights") return undefined;
+      const body = prompt.slice(prompt.indexOf("\n<"));
+      const cite = (JSON.parse(body.slice(body.indexOf("["), body.lastIndexOf("]") + 1)) as { cites: string[] }[])[0]!.cites[0]!;
+      const valid = { text: "Snapshot frequency moves to bytes.", cites: [cite] };
+      return JSON.stringify({ highlights: [{ title: "t".repeat(81), body: valid }, { title: "No body" }, "junk", { title: "Kept", body: valid }] });
+    });
+    const { bucket, result } = await published(model);
+    const { en } = await objects(bucket, result);
+    const kept = en.highlightsProvenance === null ? 0 : en.highlights.length;
+    return `rejections.title ${result.rejections.title}, rejections.empty ${result.rejections.empty}; ${kept} highlight kept; headline ${en.headline === null ? "null" : "kept"}`;
+  },
   "rejections|constructed: the highlights call returns {}": async () => {
     const model = new FakeDecider((kind) => (kind === "highlights" ? "{}" : undefined));
     const { bucket, result } = await published(model);

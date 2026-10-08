@@ -106,6 +106,7 @@ export const testPlanRows = [
   { id: "D80", rule: "rejections", input: "constructed: a proposal call returns JSON cut off mid-string", expected: "rejections.unparsable 1; that line null" },
   { id: "D80", rule: "rejections", input: "constructed: a card sentence says merged while its cited PR is open", expected: "rejections[\"status:merged\"] 1" },
   { id: "D80", rule: "rejections", input: "constructed: the highlights call returns a headline citing a thread outside its inputs and a highlight body with \"objected\"", expected: "rejections[\"cite-outside-inputs\"] 1, rejections[\"stance:objected\"] 1; headline null" },
+  { id: "D80", rule: "rejections", input: "constructed: the highlights call returns no headline and 4 items: an 81-character title, a title without a body, \"junk\", and one valid item", expected: "rejections.title 1, rejections.empty 2; 1 highlight kept; headline null" },
   { id: "D80", rule: "rejections", input: "constructed: the highlights call returns {}", expected: "rejections.empty 1; headline null" },
   { id: "D76", rule: "uncategorized", input: "captured week, cold run with Clef", expected: "en.uncategorized lists every non-routine thread placed in other, by score; not empty" },
   { id: "D74", rule: "call order", input: "constructed: captured week at every ceiling from 20 to 35 requests", expected: "at least 3 requests remain at the highlights call (highlights, 1 translation, 1 retry)" },
