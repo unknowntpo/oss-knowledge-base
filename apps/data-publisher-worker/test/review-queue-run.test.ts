@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { MANIFEST_KEY } from "@oss-knowledge-base/serving-contract";
 import { asfRosterAdapter, KAFKA_REVIEW_PROFILE, MAX_RESPONSE_CHARS, type PrNode, type Roster } from "@oss-knowledge-base/reference-pipeline";
 import { testPlanRows } from "../../../packages/reference-pipeline/test/review-queue-run.cases";
-import { cronTarget, mergeHealth } from "../src/index";
+import worker, { cronTarget, mergeHealth } from "../src/index";
 import { ASF_LDAP_PEOPLE_URL, ASF_LDAP_PROJECTS_URL } from "@oss-knowledge-base/reference-pipeline";
 import { runReviewQueue, type ReviewQueueLastRun, type ReviewQueueObject } from "../src/review-queue/run";
 import { reviewQueueLastRunKey, reviewQueuePointerKey, rosterKey, type ReviewQueueBucket } from "../src/review-queue/store";
@@ -304,7 +304,9 @@ const cases: Record<string, () => Promise<string>> = {
     const { lastRun } = await run(w);
     const after = await current(w.bucket);
     const keptKips = JSON.stringify(after?.kips) === JSON.stringify(before?.kips);
-    return `${keptKips ? "KIP section keeps previous" : "KIP changed"}; ${after?.sources.github.fetchedAt !== before?.sources.github.fetchedAt ? "PR section updated" : "PR not updated"}; mail failureKind ${lastRun.sources.mail?.failureKind}`;
+    const keptMail = after?.sources.mail?.fetchedAt === before?.sources.mail?.fetchedAt && after?.sources.mail?.feedReleaseId === before?.sources.mail?.feedReleaseId &&
+      before?.sources.mail?.feedReleaseId === "2026-10-08T03-07-37-000Z";
+    return `${keptKips ? "KIP section keeps previous" : "KIP changed"}; ${keptMail ? "mail fetchedAt and feedReleaseId kept" : "mail status changed"}; ${after?.sources.github.fetchedAt !== before?.sources.github.fetchedAt ? "PR section updated" : "PR not updated"}; mail failureKind ${lastRun.sources.mail?.failureKind}`;
   },
   // Q32
   "overlap|constructed: run B (started later) wrote pointer; run A finishes after": async () => {
@@ -351,7 +353,24 @@ const cases: Record<string, () => Promise<string>> = {
     const { lastRun } = await run(w);
     const object = await current(w.bucket);
     return `${lastRun.pointerUpdated ? "published" : "not published"}; ${object!.prs.noReviewer.length > 0 ? "PR column filled" : "PR empty"}; ` +
-      `${object!.kips.vote.length + object!.kips.discuss.length === 0 && object!.sources.mail?.ok === false ? "KIP column unavailable" : "KIP shown"}; mail ok ${object!.sources.mail?.ok}`;
+      `${object!.kips.vote.length + object!.kips.discuss.length === 0 && object!.sources.mail?.ok === false ? "KIP column unavailable" : "KIP shown"}; mail ok ${object!.sources.mail?.ok}; last-run ok ${lastRun.ok}`;
+  },
+  "no source|constructed: previous object exists; GitHub 401 and the Feed pointer missing": async () => {
+    const w = await afterGoodRun();
+    const pointer = JSON.stringify(await w.bucket.getJson(POINTER));
+    const objects = w.bucket.objects.size;
+    w.github = () => json({}, 401);
+    w.bucket.objects.delete(MANIFEST_KEY);
+    const { lastRun } = await run(w);
+    const unchanged = JSON.stringify(await w.bucket.getJson(POINTER)) === pointer;
+    return `${unchanged ? "pointer unchanged" : "pointer moved"}; ${w.bucket.objects.size === objects - 1 ? "no new object" : "new object"}; last-run ok ${lastRun.ok}, failureKind ${lastRun.failureKind}`;
+  },
+  "no source|constructed: no previous object; GitHub 401 and the Feed pointer missing": async () => {
+    const w = world({ github: () => json({}, 401) });
+    w.bucket.objects.delete(MANIFEST_KEY);
+    const { lastRun } = await run(w);
+    const published = [...w.bucket.objects.keys()].some((key) => key.startsWith("public/review-queue/") && key !== LAST_RUN);
+    return `${published ? "published" : "nothing published (no pointer)"}; last-run ok ${lastRun.ok}, failureKind ${lastRun.failureKind}`;
   },
   // Q44
   "crash|constructed: run killed after the content object write": async () => {
@@ -439,6 +458,19 @@ const cases: Record<string, () => Promise<string>> = {
     const c = record.counts!;
     return `last-run ${record.ok ? "ok" : "failed"}; github ${record.sources.github.requests} requests; mail ${count(w, "thread.lua")} thread + ${count(w, "email.lua")} email requests; ` +
       `roster ${record.sources.roster.requests} requests; counts noReviewer ${c.noReviewer}, waiting ${c.waiting}, approved ${c.approved}, vote ${c.vote}, discuss ${c.discuss}`;
+  },
+  "run record|constructed: GET /health with last-run.json in R2": async () => {
+    const record = { ok: true, completedAt: "2026-10-08T05:00:00.000Z" };
+    const stub = (body: unknown) => ({ get: () => ({ fetch: async () => Response.json(body) }), idFromName: (name: string) => name });
+    const env = {
+      PUBLICATION_ENVIRONMENT: "development",
+      PIPELINE_STATE: stub({ environment: "development", running: false }),
+      DIGEST_RUN: stub({ running: false }),
+      OSS_KB_BUCKET: { get: async (key: string) => (key === LAST_RUN ? { json: async () => record } : null) },
+    };
+    const response = await worker.fetch(new Request("https://data.example/health"), env as never);
+    const body = await response.json() as { reviewQueue: unknown };
+    return JSON.stringify(body.reviewQueue) === JSON.stringify(record) ? "reviewQueue is the last-run object" : JSON.stringify(body.reviewQueue);
   },
   "run record|constructed: /health merge with no last-run object": async () => {
     const merged = mergeHealth({ environment: "development" }, null, null) as { reviewQueue: unknown };

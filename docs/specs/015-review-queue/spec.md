@@ -463,7 +463,7 @@ Ties are broken by PR number or proposal number, ascending (numeric).
     - `projectId`, `generatedAt`, `profile {reviewWaitDays, fewRepliers, votes}`
       (the governance vote rules used), `roster {adapter, fetchedAt, entries}`
       (`entries` = count only; names stay in the internal roster object);
-    - `sources.github {ok, fetchedAt, failureKind?}`, `sources.mail {ok, fetchedAt, feedReleaseId, failureKind?}`;
+    - `sources.github {ok, fetchedAt, failureKind?}`, `sources.mail {ok, fetchedAt, feedReleaseId, failureKind?}` (`feedReleaseId` is the Feed release the candidates came from; a failed mail source keeps the previous one);
     - `prs {noReviewer[], waiting[], approved[]}`, each row `{number, title, url, author, reviewers, waitingSince, waitDays}`;
     - `reviewState {<prNumber>: reviewerCount}` for every queued and
       not-queued open non-draft PR (for Behavior 7);
@@ -484,13 +484,22 @@ Ties are broken by PR number or proposal number, ascending (numeric).
     candidate thread was read; when every candidate thread fails, the mail
     source failed (Q43). On the first run there is no previous section:
     a failed source's section is empty and its column says the data is
-    unavailable.
+    unavailable. The run as a whole is `ok` when at least one source
+    succeeded and the object was published.
+    - **No source succeeded:** nothing is written but `last-run.json`
+      (`ok: false`, `failureKind: no-source`). The previous pointer and
+      object stay, so the UI keeps the last queue with its as-of times; with
+      no previous object nothing is published and the UI shows the queue as
+      unavailable, never as an empty queue.
 17. **Pointer.** `current.json` is replaced with a conditional put on the ETag
     read at the start of the run. A refused write is not retried: a newer run
     has written. The content object is written first, so a crash leaves at
     most an unreferenced content object and an unchanged pointer;
-    `last-run.json` is written in a `finally` block, so a crash after the
-    start shows as a failed or missing run.
+    `last-run.json` is written after every run, failed ones included: the run
+    catches its own errors first, so this equals a `finally`, except that a
+    failed `last-run` write fails the invocation. A crash that kills the
+    invocation leaves the old `last-run.json`, which `verify:health` reports
+    as a missing run after 2 h.
 18. **Freshness in the UI.** Each column shows "as of <time>" from its
     source's `fetchedAt`, stale after `STALE_AFTER_MS` (3 h).
 19. **Citations.** A PR row links to its GitHub URL. A KIP row links to
@@ -770,12 +779,14 @@ Slice 2, the job in the data Worker:
 | Q26 | email fetch | constructed: email.lua 404 for one KIP-1349 message | row shows seen wording (Q16); message counted unread |
 | Q27 | cache | constructed: second run, KIP-1349 thread unchanged | 0 email.lua requests for KIP-1349 |
 | Q27 | cache | constructed: previous object regexVersion 1, current 2 | 6 email.lua requests for KIP-1349 |
-| Q30 | feed release | constructed: public/v2/current.json missing | KIP section keeps previous; PR section updated; mail failureKind pointer-missing |
+| Q30 | feed release | constructed: public/v2/current.json missing | KIP section keeps previous; mail fetchedAt and feedReleaseId kept; PR section updated; mail failureKind pointer-missing |
 | Q32 | overlap | constructed: run B (started later) wrote pointer; run A finishes after | A's pointer write refused (ETag changed), not retried; B stays |
 | Q33 | too large | constructed: GraphQL page body 4 MiB + 1 byte | failureKind too-large; previous kept |
 | Q33 | too large | constructed: GraphQL page body exactly 4 MiB | accepted |
 | Q42 | auth | constructed: GraphQL HTTP 401 | failureKind auth; no retry; KIP section updated |
-| Q43 | first run | constructed: no previous object; Pony Mail down; GitHub ok | published; PR column filled; KIP column unavailable; mail ok false |
+| Q43 | first run | constructed: no previous object; Pony Mail down; GitHub ok | published; PR column filled; KIP column unavailable; mail ok false; last-run ok true |
+| Q43 | no source | constructed: previous object exists; GitHub 401 and the Feed pointer missing | pointer unchanged; no new object; last-run ok false, failureKind no-source |
+| Q43 | no source | constructed: no previous object; GitHub 401 and the Feed pointer missing | nothing published (no pointer); last-run ok false, failureKind no-source |
 | Q44 | crash | constructed: run killed after the content object write | pointer unchanged; next run publishes; verify:health flags last-run older than 2 h |
 | Q45 | write | constructed: R2 put of the content object throws | pointer and previous object unchanged; last-run failureKind write |
 | Q48 | mail retry | constructed: thread.lua 503 with Retry-After 5, then 200 | one retry after 5 s; row updated |
@@ -791,6 +802,7 @@ Slice 2, the job in the data Worker:
 | Q57 | cron | constructed: DIGEST_CRON and REVIEW_QUEUE_CRON both 27 * * * * (misconfigured); it fires | digest |
 | Q58 | manual run | constructed: run with dryRun | counts returned; 0 R2 writes |
 | Q40 | run record | captured samples: a full run | last-run ok; github 7 requests; mail 17 thread + 34 email requests; roster 2 requests; counts noReviewer 310, waiting 61, approved 22, vote 5, discuss 9 |
+| Q40 | run record | constructed: GET /health with last-run.json in R2 | reviewQueue is the last-run object |
 | Q40 | run record | constructed: /health merge with no last-run object | reviewQueue null |
 <!-- test-plan:end -->
 
@@ -891,7 +903,8 @@ until they are done.
 - Q29: without a roster, unmarked votes' binding is unknown ("≥" wording) and
   the row stays queued.
 - Q30: a missing Feed pointer or release keeps the previous KIP
-  section; the PR section is still updated.
+  section, its `fetchedAt`, and its `feedReleaseId`; the PR section is still
+  updated.
 - Q31: [pending] a column older than 3 h, or whose source failed, shows its
   own as-of time and the stale style (E2E, controlled clock, both sides of
   3 h).
@@ -902,8 +915,10 @@ until they are done.
 - Q42: GitHub 401 fails the PR source as `auth`, with no retry; the
   KIP section is still updated.
 - Q43: the first run with a failed source publishes the other
-  section, marks the failed column unavailable, and records `ok: false` for
-  that source.
+  section, marks the failed column unavailable, records `ok: false` for
+  that source, and the run is `ok`; a run where no source succeeded publishes
+  nothing new (failureKind `no-source`), keeping the previous pointer or, on
+  a first run, publishing nothing.
 - Q44: a crash after the content object write leaves the pointer
   unchanged; `verify:health` reports `last-run.json` older than 2 h as a
   missing run.
@@ -1035,3 +1050,4 @@ until they are done.
 | V3 | Verifier survivors V9, P3, P16, T2, T4, R4 | Applied: one row each (Q11, Q23 ×2, Q8, Q7, Q50); all killed |
 | V4 | Verifier doc drift: shared-code claims, G8/G9 promises, Behavior 12 first sentence, Behavior 13 names, silent drop when no proposal vote rule | Applied: code now reuses Spec 014's `isMachineAuthor`, `proposalKeys`, and `subjectHasTag` (signatures widened to the fields they read); `threadKey` is explicitly not shared; G8 note added, G9 moved to slice 2; Behavior 12–13 rewritten; a missing proposal vote rule is an error (Q49 row) |
 | S2 | Slice 2 coordinator notes: memberKey single pass, unattributed without the tag condition, `isReply` on gateway-tagged roots, the "reply not attributed" text, a declared non-binding -1 missing from the text, "-1, binding, see below" read as unmarked | Applied: rows for each (Q8 ×3, Q16 ×2, Q9 ×2); `isReply` strips gateway tags first; the text shows "non-binding -1"; a comma may precede the marker; `VOTE_REGEX_VERSION` 2 |
+| S3 | Slice 2 verifier: every source failing still published an object (empty on a first run); mail `fetchedAt` kept but untested (V23); `/health` read untested (V39); run `ok` with one failed source unpinned (V21); `feedReleaseId` in the text but not the object; `finally` wording | Applied: `no-source` skips the content and pointer writes (Behavior 16, Q43 rows); Q30 row asserts `fetchedAt` and `feedReleaseId`; a handler test reads `/health`; Q43 row asserts the run is `ok`; `sources.mail.feedReleaseId` added; Behavior 17 states why the run record is written after the run, not in `finally` |

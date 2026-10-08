@@ -59,6 +59,8 @@ type MailFailureKind = SourceFailureKind | "pointer-missing" | "source-read";
 export interface SourceStatus {
   readonly ok: boolean;
   readonly fetchedAt: string | null;
+  /** Mail only: the Feed release the KIP candidates came from. */
+  readonly feedReleaseId?: string | null;
   readonly failureKind?: string;
 }
 
@@ -113,7 +115,7 @@ export interface ReviewQueueLastRun {
   readonly droppedNodes: number;
   readonly unavailable: number;
   readonly counts: ReviewQueueCounts | null;
-  readonly failureKind?: "write" | "pointer-conflict" | "counts-mismatch" | "internal";
+  readonly failureKind?: "no-source" | "write" | "pointer-conflict" | "counts-mismatch" | "internal";
   readonly error?: string;
 }
 
@@ -268,7 +270,7 @@ async function buildMailSection(deps: ReviewQueueDeps, client: PoliteJsonClient,
     if (kept === undefined) unavailable += 1;
     else (candidate.stage === "vote" ? vote : discuss).push(kept);
   }
-  return { kips: { vote, discuss, unavailable }, voteLines: { regexVersion: VOTE_REGEX_VERSION, byMid } };
+  return { kips: { vote, discuss, unavailable }, voteLines: { regexVersion: VOTE_REGEX_VERSION, byMid }, releaseId: release.releaseId };
 }
 
 /** One run. Returns the run record (also written to `last-run.json` unless dry) and the object. */
@@ -340,11 +342,14 @@ export async function runReviewQueue(deps: ReviewQueueDeps): Promise<{ readonly 
         const section = await buildMailSection(deps, client, previous, nowIso, rosterResult);
         kips = section.kips;
         voteLines = section.voteLines;
-        mailStatus = { ok: true, fetchedAt: nowIso };
+        mailStatus = { ok: true, fetchedAt: nowIso, feedReleaseId: section.releaseId };
         mailRun = { ok: true, ...mailCounter, durationMs: deps.now() - mailStarted };
       } catch (error) {
         if (!(error instanceof MailSourceError)) throw error;
-        mailStatus = { ok: false, fetchedAt: previous?.sources.mail?.fetchedAt ?? null, failureKind: error.failureKind };
+        mailStatus = {
+          ok: false, fetchedAt: previous?.sources.mail?.fetchedAt ?? null,
+          feedReleaseId: previous?.sources.mail?.feedReleaseId ?? null, failureKind: error.failureKind,
+        };
         mailRun = { ok: false, ...mailCounter, durationMs: deps.now() - mailStarted, failureKind: error.failureKind };
       }
     }
@@ -359,7 +364,11 @@ export async function runReviewQueue(deps: ReviewQueueDeps): Promise<{ readonly 
       sources: { github: githubStatus, mail: mailStatus },
       prs, reviewState, kips, voteLines, droppedNodes, counts,
     };
-    if (!checkStoredCounts(object, object.counts)) {
+    if (!githubStatus.ok && mailStatus?.ok !== true) {
+      // Behavior 16: with no source read, a new object would only repeat (or, on a first run, empty)
+      // the queue; keep the previous pointer and record the failure.
+      failure = { failureKind: "no-source" };
+    } else if (!checkStoredCounts(object, object.counts)) {
       failure = { failureKind: "counts-mismatch" };
       object = null;
     } else if (deps.dryRun !== true) {
