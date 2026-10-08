@@ -8,3 +8,4 @@ export * from "./kafka-connectors";
 export * from "./kafka-events";
 export * from "./kafka-rules";
 export * from "./digest";
+export * from "./review-queue";

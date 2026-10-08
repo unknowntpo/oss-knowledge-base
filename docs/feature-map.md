@@ -134,6 +134,7 @@ There is no public `/status`: it exists only inside the Durable Object, and
 | [012](specs/012-kafka-mailing-list-jira/spec.md) | K1–K32 | dev@ and Jira connectors (K1–K5, K9–K10, K12–K14, K20–K22, K28), Feed entries and statuses (K6, K16–K17), Detail `.related-item` (K7), Search hit display id (K8), per-source run and `/health` (K11, K15, K18–K19, K23, K30, K32), memory and payload (K24–K27, `measure:memory -- --kafka 1`), deployed checks (K29–K31) |
 | [013](specs/013-search-streaming/spec.md) | L1–L18 | Search v3 shards and `terms.json`, `/api/search*`, publisher memory |
 | [014](specs/014-topic-digest/spec.md) | D1–D62 (D41, D51, D52 withdrawn) | Slice 1: deterministic core (`packages/reference-pipeline/src/digest/`, `bun run digest -- eval\|measure`). Slice 2: `DigestRun` (`apps/data-publisher-worker/src/digest/`), `POST /digest/run`, `/health.digest`, R2 `public/digest/v1/`. Slice 3 (web) pending |
+| [015](specs/015-review-queue/spec.md) | Q1–Q56 (Q39 removed) | Slice 1: deterministic core (`packages/reference-pipeline/src/review-queue/`: PR buckets, KIP candidates and threads, vote lines, `tallyVote`, governance profiles and ASF preset, ASF roster parsing, `reviewQueueCounts`). Slices 2 (job, R2 `public/review-queue/v1/`) and 3 (web) pending |
 
 ## Verification kit
 

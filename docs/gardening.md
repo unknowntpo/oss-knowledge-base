@@ -132,6 +132,9 @@ the two `viewer/` items below.
   `packages/reference-pipeline/src/digest/candidates.ts`; the publisher fix
   should reuse it. That fix changes Feed authors and signals, so it rewrites
   Details and needs a full-scale rehearsal (Spec 012 incident).
+- **Progress:** Spec 015 slice 1 classifies GitHub reviewers and authors
+  with `isMachineAuthor` plus GitHub's `Bot` type (`isMachineActor`); the
+  publisher's `isBot` still uses the substring rule.
 
 ### G9. No R2 retention or garbage collection
 - **Where:** `public/v2/releases/*`, `public/v2/objects/details/*`,
@@ -247,6 +250,45 @@ the two `viewer/` items below.
   truncating.
 - **Layer:** test (a case row with a captured PR body).
 - **Source:** [PR #36 verifier, N4](https://github.com/unknowntpo/oss-knowledge-base/pull/36#issuecomment-6054011406).
+
+### G25. Review-queue voter identity is a display name
+- **Where:** `matchesRosterName` and `tallyVote` in
+  `packages/reference-pipeline/src/review-queue/`.
+- **Why:** votes are matched to the ASF roster by exact display name
+  (Spec 015 Behavior 23). A person who mails under two names counts twice;
+  two people with one name count once; a misspelled committer counts as
+  "unmarked". The roster is today's, not the one at the vote's date.
+- **Fix:** none until a wrong count is seen; then add an alias list to the
+  roster object (data, not a rule).
+- **Layer:** test rows (Q10, Q11) plus the visible "via roster" and
+  "unmarked" parts of the tally.
+- **Source:** Spec 015 governance review (2026-10-08).
+
+### G26. Emeritus committers count as binding via the roster
+- **Where:** `parseAsfRoster` (`packages/reference-pipeline/src/review-queue/roster.ts`).
+- **Why:** no public ASF source marks emeritus committers; the LDAP group
+  still holds 5 incubator-era mentors. Their unmarked +1 would count as
+  binding, so a vote can look passing when it is not.
+- **Fix:** intersect with the kafka-site committer list once its 7 spelling
+  differences are resolved (ADR-0016 revisit trigger).
+- **Layer:** structure (roster entries) plus the "via roster" label.
+- **Source:** Spec 015 Evidence.
+
+### G27. A rebase-only force-push counts as an author update
+- **Where:** `classifyPr` (`packages/reference-pipeline/src/review-queue/prs.ts`).
+- **Why:** GitHub's timeline does not say whether a force-push changed the
+  code, so a rebase moves a PR from "author's turn" to "waiting".
+- **Fix:** none intended; documented in Spec 015 Behavior 4.
+- **Layer:** test row (Q22).
+- **Source:** Spec 015.
+
+### G28. A `[RESULT]` older than the Feed window re-queues a closed vote
+- **Where:** `kipCandidates` (`packages/reference-pipeline/src/review-queue/threads.ts`).
+- **Why:** the `[RESULT]` check sees only the pinned Feed release (about 30
+  days). A late reply to an old vote thread makes it a candidate again.
+- **Fix:** when seen, look up `[RESULT]` subjects for the key in Pony Mail.
+- **Layer:** test row, once a real case exists.
+- **Source:** Spec 015 review finding 16.
 
 ## Process and docs
 

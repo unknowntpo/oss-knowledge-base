@@ -5,7 +5,7 @@ function keys(text: string, pattern: string): string[] {
   return [...new Set(text.match(new RegExp(pattern, "gu")) ?? [])].sort();
 }
 
-export function proposalKeys(title: string, profile: DigestProfile): string[] {
+export function proposalKeys(title: string, profile: Pick<DigestProfile, "proposal">): string[] {
   return keys(title, profile.proposal.keyPattern);
 }
 
@@ -17,8 +17,13 @@ function isPullRequest(thread: Thread): boolean {
   return thread.source === "github" && thread.displayId.includes("-PR-");
 }
 
+/** A dev@ subject tag such as `[VOTE]`, case-insensitive (shared with Spec 015). */
+export function subjectHasTag(title: string, tag: string): boolean {
+  return title.toLowerCase().includes(`[${tag.toLowerCase()}]`);
+}
+
 function hasSubjectTag(thread: Thread, tag: string): boolean {
-  return thread.source === "mail" && thread.title.toLowerCase().includes(`[${tag.toLowerCase()}]`);
+  return thread.source === "mail" && subjectHasTag(thread.title, tag);
 }
 
 interface Accumulator {

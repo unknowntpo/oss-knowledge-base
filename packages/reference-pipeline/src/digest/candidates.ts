@@ -9,7 +9,7 @@ export const SCORING_REVISION = "digest-score@1";
 export const ANONYMOUS_AUTHOR = "unknown sender";
 
 /** Behavior 2: a `[bot]` login or a profile machine user; never a substring match. */
-export function isMachineAuthor(author: string, profile: DigestProfile): boolean {
+export function isMachineAuthor(author: string, profile: Pick<DigestProfile, "machineUsers">): boolean {
   return author.endsWith("[bot]") || profile.machineUsers.includes(author);
 }
 
