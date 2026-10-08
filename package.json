@@ -25,7 +25,8 @@
     "docs:test-plan": "bun scripts/render-test-plan.ts",
     "check:test-plan": "bun scripts/render-test-plan.ts --check",
     "verify:ui": "bun scripts/verify/ui.ts",
-    "verify:health": "bun scripts/verify/health.ts"
+    "verify:health": "bun scripts/verify/health.ts",
+    "digest": "bun packages/reference-pipeline/scripts/digest.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",

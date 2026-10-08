@@ -137,6 +137,11 @@ the two `viewer/` items below.
 - **Layer:** structure (classification from a typed field, not a name) plus
   case rows.
 - **Source:** reported by the human, 2026-10-06 (verification-kit brief).
+- **Note (Spec 014):** the digest already classifies authors with
+  `isMachineAuthor` (`[bot]` suffix plus the profile's `machineUsers`) in
+  `packages/reference-pipeline/src/digest/candidates.ts`; the publisher fix
+  should reuse it. That fix changes Feed authors and signals, so it rewrites
+  Details and needs a full-scale rehearsal (Spec 012 incident).
 
 ### G9. No R2 retention or garbage collection
 - **Where:** `public/v2/releases/*`, `public/v2/objects/details/*`,
@@ -181,6 +186,29 @@ the two `viewer/` items below.
   sudden drop.
 - **Layer:** test plus runtime (`sources.mail.filtered` on Dev).
 - **Source:** Spec 012 implementation (PR #27).
+
+### G18. Digest rules classifier leaves many threads in `other`
+- **Where:** `rulesClassify` in `packages/reference-pipeline/src/digest/classify.ts`.
+- **Why:** it is the deterministic fallback behind the model classifier
+  (Spec 014 Behavior 6). On the captured week it put 45 of 172 non-routine
+  Kafka threads in `other`, and it misfiles build tooling (for example
+  `KAFKA-PR-23691`). More regexes would hide the model's job; the golden set
+  decides the model instead.
+- **Fix:** none intended. Revisit only if the model is unavailable often
+  enough that fallback digests become common (`/health.digest.lastRun.fallbacks`).
+- **Layer:** measurement (`bun run digest -- eval` share of `other`).
+- **Source:** Spec 014 slice 1.
+
+### G19. Workers AI price table is copied into code
+- **Where:** `PRICES` in `packages/reference-pipeline/src/digest/estimate.ts`.
+- **Why:** the daily spend cap (Spec 014 Behavior 15) and `bun run digest --
+  measure` use these numbers; a Cloudflare price change makes the cap wrong
+  silently.
+- **Fix:** recalibrate against AI Gateway logs (Spec 014 D35) and update the
+  table with its source URL and date.
+- **Layer:** runtime (D35 calibration on Dev), then test (the table's date is
+  checked in review).
+- **Source:** Spec 014 slice 1.
 
 ## Process and docs
 

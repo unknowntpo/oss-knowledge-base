@@ -115,6 +115,7 @@ There is no public `/status`: it exists only inside the Durable Object, and
 | [011](specs/011-stall-visibility/spec.md) | V1–V6 | `.demo-pill` at ≤420 px on Feed, Feed detail, Search detail |
 | [012](specs/012-kafka-mailing-list-jira/spec.md) | K1–K32 | dev@ and Jira connectors (K1–K5, K9–K10, K12–K14, K20–K22, K28), Feed entries and statuses (K6, K16–K17), Detail `.related-item` (K7), Search hit display id (K8), per-source run and `/health` (K11, K15, K18–K19, K23, K30, K32), memory and payload (K24–K27, `measure:memory -- --kafka 1`), deployed checks (K29–K31) |
 | [013](specs/013-search-streaming/spec.md) | L1–L18 | Search v3 shards and `terms.json`, `/api/search*`, publisher memory |
+| [014](specs/014-topic-digest/spec.md) | D1–D62 (D41, D51, D52 withdrawn) | Slice 1: deterministic digest core in `packages/reference-pipeline/src/digest/` and `bun run digest -- eval\|measure`; slices 2 (DigestRun) and 3 (web) pending |
 
 ## Verification kit
 
@@ -122,6 +123,7 @@ There is no public `/status`: it exists only inside the Durable Object, and
 | --- | --- | --- |
 | `bun run verify:ui` | Opens views in Chromium with a viewport, locale and clock; writes `<view>.png` and `summary.json` (per selector: count, visible, class, text, box, `overflowX`; per view: URL, `<html lang>`, page horizontal overflow) | `bun run verify:ui -- --target dev --view feed,feed-detail,search-detail --width 375 --locale en --at +3h23m --out evidence/v5` |
 | `bun run verify:health` | Prints `/health` `lastRun` and `/api/feed` generatedAt/releaseId, whether they agree, the age, and whether the UI would show stale; exits 1 when they disagree | `bun run verify:health -- --target dev` |
+| `bun run digest -- eval\|measure` | Spec 014 offline digest replay on the committed Kafka fixture with recorded (hand-authored) responses: `eval` prints counts, cards, sentence drops by rule, error-class results and recall (pending labels); `measure` prints cold/steady neurons, model calls and R2 reads and exits 1 over the D25/D26 limits. No network | `bun run digest -- measure` |
 
 `verify:ui` options: `--target local|dev`, `--view feed|feed-detail|search|search-detail`
 (comma list), `--route /feed/<id>` (open a hash route directly), `--query`
