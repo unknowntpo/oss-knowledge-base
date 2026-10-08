@@ -38,4 +38,10 @@ describe("test-plan rendering", () => {
     await expect(renderSpec("<!-- test-plan:start later.cases.ts [Pending] -->\nold\n<!-- test-plan:end -->\n", async () => rows))
       .rejects.toThrow("malformed test-plan marker");
   });
+
+  test("N1: a marker with trailing whitespace or CRLF fails rendering", async () => {
+    await expect(renderSpec("<!-- test-plan:start a.cases.ts --> \nold\n<!-- test-plan:end -->\n", async () => rows)).rejects.toThrow("malformed test-plan marker");
+    await expect(renderSpec("<!-- test-plan:start a.cases.ts -->\r\nold\r\n<!-- test-plan:end -->\r\n", async () => rows)).rejects.toThrow("malformed test-plan marker");
+  });
 });
+

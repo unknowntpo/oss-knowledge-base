@@ -596,6 +596,35 @@ const cases: Record<string, Case> = {
       [`T${index}`, { title: "t", source, status: null, url: null, score: 1 }]));
     return `mailThreads ${digestCounts({ proposals: [], cards: [], routine: { threads: [] }, threads }).mailThreads}`;
   },
+  // PR #33 verifier carry-overs.
+  "summary|constructed: empty sentence text with cites": () => (rejectSentence({ text: "", cites: cite }, ctx) === null ? "kept" : "dropped"),
+  "summary|constructed: whitespace-only sentence text with cites": () => (rejectSentence({ text: "   ", cites: cite }, ctx) === null ? "kept" : "dropped"),
+  "status words|constructed: \"KIP-1 was accepted\" citing only a [DISCUSS] thread": () => status("KIP-1 was accepted", { title: "[DISCUSS] KIP-1: x", source: "mail", status: "discussing" }),
+  "status words|constructed: \"KIP-1 was verified\" citing a [RESULT] KIP-1 thread (no [VOTE])": () => status("KIP-1 was verified", { title: "[RESULT] KIP-1: x", source: "mail", status: "discussing" }),
+  "translate|constructed: name \"Rao\" and text \"MacRao and Jun Rao\"": () => {
+    const { spans } = protect("MacRao and Jun Rao", ["Rao"]);
+    return spans.length === 1 && spans[0] === "Rao" && protect("MacRao", ["Rao"]).spans.length === 0 ? "one name span: Rao (not inside MacRao)" : spans.join("|");
+  },
+  "translate|constructed: translation contains junk placeholder-like text ⟦1e0⟧, ⟦⟧, or ⟦-1⟧": () => {
+    const results = ["⟦1e0⟧", "⟦⟧", "⟦-1⟧"].map((junk) => translated("KIP-1 by Andrew Schofield.", ["Andrew Schofield"], (masked) => `${masked} ${junk}`));
+    return results.every((result) => result === "English text kept, label Not translated") ? "English text kept, label Not translated (all three)" : results.join("|");
+  },
+  "window|constructed: entry with sourceCounts github and jira": () => {
+    const entry = { id: "e1", displayId: "KAFKA-PR-1", projectKey: "kafka", status: "open", title: "t", lastActivityAt: END, sourceCounts: { github: 2, jira: 1 } };
+    const [only] = selectCandidates([entry], { "KAFKA-PR-1": { displayId: "KAFKA-PR-1", title: "t", records: [record("a", END)] } }, KAFKA, END);
+    return `source ${only!.source}`;
+  },
+  "kip block|constructed: two discuss rows, KIP-1 newest 10-05 and KIP-2 newest 10-06": () => {
+    const rows = proposalRows([
+      made("KAFKA-MAIL-11111111", "[DISCUSS] KIP-1: a", { source: "mail", lastActivityAt: "2026-10-05T00:00:00.000Z" }),
+      made("KAFKA-MAIL-22222222", "[DISCUSS] KIP-2: b", { source: "mail", lastActivityAt: "2026-10-06T00:00:00.000Z" }),
+    ], KAFKA);
+    return rows.map((row) => row.key).join(" then ");
+  },
+  "taxonomy|constructed: \"Please add the ci-approved label to the docs PR\"": () => {
+    const feature = rulesClassify({ title: "Please add the ci-approved label to the docs PR" }, KAFKA);
+    return `${placed(feature)}${placement(feature).routine ? "" : ", not routine"}`;
+  },
 };
 
 describe("Spec 014 slice 1 test plan", () => {

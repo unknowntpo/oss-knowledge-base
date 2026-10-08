@@ -47,7 +47,7 @@ export interface SentenceContext {
 export function rejectSentence(sentence: Sentence, context: SentenceContext): Rejection | null {
   const text = sentence.text;
   const length = [...text].length; // characters (code points), not UTF-16 units
-  if (length < 1 || length > MAX_SENTENCE_CHARS) return "length";
+  if (text.trim().length === 0 || length > MAX_SENTENCE_CHARS) return "length";
   if (sentence.cites.length === 0) return "no-cites";
   if (sentence.cites.some((cite) => !context.inputs.has(cite))) return "cite-outside-inputs";
   const cited = sentence.cites.map((cite) => context.threads.get(cite)).filter((thread) => thread !== undefined);

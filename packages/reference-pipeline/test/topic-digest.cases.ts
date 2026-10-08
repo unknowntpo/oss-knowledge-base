@@ -151,4 +151,14 @@ export const testPlanRows = [
   { id: "D55", rule: "highlights", input: "constructed: fallback where the top proposal row's newest thread is also the top card's top thread", expected: "3 distinct threads" },
   { id: "D39", rule: "counts", input: "constructed: threads from mail, jira, and github", expected: "mailThreads 1" },
   { id: "D46", rule: "status words", input: "constructed: \"The pre_merged branch is ready\" citing an open PR", expected: "kept (identifier, not the word merged)" },
+  // Rows from the PR #33 verifier carry-overs (slice 2).
+  { id: "D9", rule: "summary", input: "constructed: empty sentence text with cites", expected: "dropped" },
+  { id: "D9", rule: "summary", input: "constructed: whitespace-only sentence text with cites", expected: "dropped" },
+  { id: "D46", rule: "status words", input: "constructed: \"KIP-1 was accepted\" citing only a [DISCUSS] thread", expected: "dropped" },
+  { id: "D46", rule: "status words", input: "constructed: \"KIP-1 was verified\" citing a [RESULT] KIP-1 thread (no [VOTE])", expected: "kept" },
+  { id: "D38", rule: "translate", input: "constructed: name \"Rao\" and text \"MacRao and Jun Rao\"", expected: "one name span: Rao (not inside MacRao)" },
+  { id: "D49", rule: "translate", input: "constructed: translation contains junk placeholder-like text ⟦1e0⟧, ⟦⟧, or ⟦-1⟧", expected: "English text kept, label Not translated (all three)" },
+  { id: "D1", rule: "window", input: "constructed: entry with sourceCounts github and jira", expected: "source github" },
+  { id: "D5", rule: "kip block", input: "constructed: two discuss rows, KIP-1 newest 10-05 and KIP-2 newest 10-06", expected: "KIP-2 then KIP-1" },
+  { id: "D40", rule: "taxonomy", input: "constructed: \"Please add the ci-approved label to the docs PR\"", expected: "community card, not routine" },
 ] as const;

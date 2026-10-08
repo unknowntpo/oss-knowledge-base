@@ -1,0 +1,502 @@
+/**
+ * Spec 014 slice 2: one digest run. Pins a Feed release, classifies, mixes, generates (when a
+ * model is configured), translates, and publishes `en`, then `zh-Hant`, then the pointer
+ * (Behavior 12). Complete objects for the same release and revisions are reused; a missing or
+ * incomplete `zh-Hant` is retried by translation only (B2).
+ */
+import {
+  cardInput, CLASSIFY_PROMPT, chooseHighlights, HIGHLIGHTS_PROMPT, MAX_TOKENS, mix,
+  MODELS, parseClassification, PROMPT_REVISION, proposalRows, protect, rejectSentence, restore,
+  RULES_REVISION, rulesClassify, SCORING_REVISION, selectCandidates, sourceCoverage, SUMMARIZE_PROMPT,
+  threadText, TRANSLATE_PROMPT, validateSentences, digestWindowStart,
+  type CitedThread, type DigestProfile, type DigestV1, type Highlight, type ProposalRow, type Provenance,
+  type Sentence, type Thread, type ThreadFeatures, type TopicCard,
+} from "@oss-knowledge-base/reference-pipeline";
+import { sha256Digest } from "@oss-knowledge-base/serving-contract";
+import { ModelCalls, type DigestModel } from "./model";
+import { DigestSourceError, readPinnedRelease, type DigestBucket } from "./store";
+
+export const DIGEST_ROOT = "public/digest/v1/";
+export const CLASSIFY_BATCH = 20;
+export const CLASSIFY_IN_FLIGHT = 4;
+export const TRANSLATE_BATCH = 25;
+export const HIGHLIGHT_TITLE_CHARS = 80;
+
+export type DigestFailureKind = "source-read" | "pointer-missing" | "write" | "internal";
+
+export interface DigestRunInput {
+  readonly bucket: DigestBucket;
+  readonly profile: DigestProfile;
+  readonly now: () => Date;
+  readonly model?: DigestModel;
+  readonly delay: (ms: number) => Promise<void>;
+  /** Estimated neurons already spent today and the environment's daily cap (Behavior 15). */
+  readonly spentToday: number;
+  readonly cap: number;
+  readonly dryRun: boolean;
+  readonly deferred?: number;
+}
+
+export interface DigestRunResult {
+  readonly ok: boolean;
+  readonly failureKind?: DigestFailureKind;
+  readonly error?: string;
+  readonly completedAt: string;
+  readonly durationMs: number;
+  readonly sourceReleaseId: string | null;
+  readonly objectKeys: { readonly en: string; readonly "zh-Hant": string } | null;
+  readonly reused: "pair" | "en" | "none";
+  readonly candidates: number;
+  readonly cached: number;
+  readonly modelCalls: number;
+  readonly fallbacks: number;
+  readonly limited: boolean;
+  readonly deferred: number;
+  /** Estimated neurons spent by this run, and today's total after it. */
+  readonly estimatedNeurons: number;
+  readonly spentToday: number;
+  readonly dryRun: boolean;
+  /** Dry runs return both objects instead of writing them (D60). */
+  readonly objects?: { readonly en: DigestV1; readonly "zh-Hant": DigestV1 };
+}
+
+type Revisions = DigestV1["revisions"];
+
+async function hash(text: string): Promise<string> {
+  return (await sha256Digest(text)).slice("sha256:".length);
+}
+
+function revisionsFor(profile: DigestProfile, model: DigestModel | undefined): Revisions {
+  const none = { model: "none", prompt: "none" };
+  return {
+    scoring: SCORING_REVISION,
+    taxonomy: profile.taxonomy.revision,
+    classifier: model === undefined ? { model: RULES_REVISION, prompt: "none" } : { model: MODELS.summarizer, prompt: PROMPT_REVISION },
+    summarizer: model === undefined ? none : { model: MODELS.summarizer, prompt: PROMPT_REVISION },
+    translator: model === undefined ? none : { model: MODELS.translator, prompt: PROMPT_REVISION },
+  };
+}
+
+/** `en` is complete with no model limit and no fallback; `zh-Hant` with no "Not translated" item. */
+export function isComplete(digest: DigestV1): boolean {
+  if (digest.coverage.limited || digest.coverage.fallbacks > 0) return false;
+  return digest.locale === "en" || digest.coverage.notTranslated === 0;
+}
+
+function parseJson(text: string | undefined): unknown {
+  if (text === undefined) return undefined;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
+interface Caches {
+  readonly features: Map<string, ThreadFeatures & { readonly displayId: string }>;
+  readonly generated: Map<string, { readonly sentences: readonly Sentence[]; readonly provenance: Provenance }>;
+  readonly translations: Map<string, string>;
+}
+
+async function loadCaches(bucket: DigestBucket, keys: readonly string[]): Promise<Caches> {
+  const caches: Caches = { features: new Map(), generated: new Map(), translations: new Map() };
+  for (const key of keys) {
+    const digest = await bucket.getJson(key) as DigestV1 | undefined;
+    if (digest?.schema !== "osskb.digest.v1") continue;
+    for (const [inputHash, feature] of Object.entries(digest.features ?? {})) {
+      if (feature.source !== "rules") caches.features.set(inputHash, feature);
+    }
+    for (const card of digest.cards ?? []) {
+      if (card.provenance !== undefined && card.status === "generated") {
+        caches.generated.set(card.provenance.inputHash, { sentences: card.sentences, provenance: card.provenance });
+      }
+    }
+    for (const row of digest.proposals ?? []) {
+      if (row.provenance !== undefined && row.line !== null) {
+        caches.generated.set(row.provenance.inputHash, { sentences: [row.line], provenance: row.provenance });
+      }
+    }
+    for (const [textHash, text] of Object.entries(digest.translations ?? {})) caches.translations.set(textHash, text);
+  }
+  return caches;
+}
+
+/** Objects already under this release and revisions, grouped by English content hash. */
+async function existingPairs(bucket: DigestBucket, prefix: string) {
+  const pairs = new Map<string, { en?: string; zh: string[] }>();
+  for (const key of await bucket.list(prefix)) {
+    const match = /^([0-9a-f]{64})\/(en\.json|zh-Hant\.[0-9a-f]{16}\.json)$/u.exec(key.slice(prefix.length));
+    if (match === null) continue;
+    const pair = pairs.get(match[1]!) ?? { zh: [] };
+    if (match[2] === "en.json") pair.en = key;
+    else pair.zh.push(key);
+    pairs.set(match[1]!, pair);
+  }
+  return pairs;
+}
+
+export async function runDigest(input: DigestRunInput): Promise<DigestRunResult> {
+  const started = input.now();
+  const calls = new ModelCalls(input.model, { spent: input.spentToday, cap: input.cap }, input.delay);
+  const base = {
+    dryRun: input.dryRun,
+    deferred: input.deferred ?? 0,
+  };
+  const finish = (fields: Partial<DigestRunResult> & Pick<DigestRunResult, "ok" | "reused">): DigestRunResult => {
+    const completed = input.now();
+    return {
+      sourceReleaseId: null, objectKeys: null, candidates: 0, cached: 0, fallbacks: 0,
+      ...base,
+      ...fields,
+      completedAt: completed.toISOString(),
+      durationMs: completed.getTime() - started.getTime(),
+      modelCalls: calls.calls,
+      limited: calls.limited,
+      estimatedNeurons: calls.spentToday - input.spentToday,
+      spentToday: calls.spentToday,
+    };
+  };
+
+  let pinned;
+  try {
+    pinned = await readPinnedRelease(input.bucket, input.profile.projectKey);
+  } catch (error) {
+    if (error instanceof DigestSourceError) return finish({ ok: false, reused: "none", failureKind: "source-read", error: error.message });
+    return finish({ ok: false, reused: "none", failureKind: "internal", error: String(error) });
+  }
+
+  try {
+    const revisions = revisionsFor(input.profile, input.model);
+    const revisionHash = (await hash(JSON.stringify(revisions))).slice(0, 16);
+    const prefix = `${DIGEST_ROOT}${input.profile.projectId}/${pinned.release.releaseId}/${revisionHash}/`;
+    const pointerKey = `${DIGEST_ROOT}${input.profile.projectId}/current.json`;
+    const pairs = await existingPairs(input.bucket, prefix);
+    const pointer = await input.bucket.getJson(pointerKey) as { objectKeys?: { en?: string; "zh-Hant"?: string } } | undefined;
+
+    // Reuse a complete English object for this release and revisions (Behavior 12).
+    for (const [contentHash, pair] of pairs) {
+      if (pair.en === undefined) continue;
+      const en = await input.bucket.getJson(pair.en) as DigestV1;
+      if (!isComplete(en)) continue;
+      for (const zhKey of pair.zh) {
+        const zh = await input.bucket.getJson(zhKey) as DigestV1;
+        if (isComplete(zh)) {
+          if (!input.dryRun) await input.bucket.putPointer(pointerKey, pointerBody(pair.en, zhKey, pinned.release.releaseId));
+          return finish({ ok: true, reused: "pair", sourceReleaseId: pinned.release.releaseId, objectKeys: { en: pair.en, "zh-Hant": zhKey }, candidates: en.coverage.candidates });
+        }
+      }
+      // Complete English, missing or incomplete zh-Hant: translation only (B2, D61).
+      const caches = await loadCaches(input.bucket, [...pair.zh, ...(pointer?.objectKeys?.["zh-Hant"] === undefined ? [] : [pointer.objectKeys["zh-Hant"]])]);
+      const zh = await translate(en, caches, calls, selectCandidates(pinned.entries, pinned.details, input.profile, pinned.release.generatedAt), revisions);
+      const zhKey = `${prefix}${contentHash}/zh-Hant.${(await hash(JSON.stringify(zh))).slice(0, 16)}.json`;
+      if (!input.dryRun) {
+        await input.bucket.putIfAbsent(zhKey, JSON.stringify(zh));
+        await input.bucket.putPointer(pointerKey, pointerBody(pair.en, zhKey, pinned.release.releaseId));
+      }
+      return finish({
+        ok: true, reused: "en", sourceReleaseId: pinned.release.releaseId, objectKeys: { en: pair.en, "zh-Hant": zhKey },
+        candidates: en.coverage.candidates, ...(input.dryRun ? { objects: { en, "zh-Hant": zh } } : {}),
+      });
+    }
+
+    const cacheKeys = [
+      ...[...pairs.values()].flatMap((pair) => [...(pair.en === undefined ? [] : [pair.en]), ...pair.zh]),
+      ...Object.values(pointer?.objectKeys ?? {}).filter((key): key is string => typeof key === "string"),
+    ];
+    const caches = await loadCaches(input.bucket, cacheKeys);
+    const en = await compose(pinned, caches, calls, revisions, input);
+    const contentHash = await hash(JSON.stringify(en));
+    const zh = await translate(en, caches, calls, selectCandidates(pinned.entries, pinned.details, input.profile, pinned.release.generatedAt), revisions);
+    const enKey = `${prefix}${contentHash}/en.json`;
+    const zhKey = `${prefix}${contentHash}/zh-Hant.${(await hash(JSON.stringify(zh))).slice(0, 16)}.json`;
+    if (!input.dryRun) {
+      // Order matters: en, then zh-Hant, then the pointer; a crash between them serves the previous digest.
+      await input.bucket.putIfAbsent(enKey, JSON.stringify(en));
+      await input.bucket.putIfAbsent(zhKey, JSON.stringify(zh));
+      await input.bucket.putPointer(pointerKey, pointerBody(enKey, zhKey, pinned.release.releaseId));
+    }
+    return finish({
+      ok: true, reused: "none", sourceReleaseId: pinned.release.releaseId, objectKeys: { en: enKey, "zh-Hant": zhKey },
+      candidates: en.coverage.candidates, cached: en.coverage.cached, fallbacks: en.coverage.fallbacks,
+      ...(input.dryRun ? { objects: { en, "zh-Hant": zh } } : {}),
+    });
+  } catch (error) {
+    return finish({ ok: false, reused: "none", sourceReleaseId: pinned.release.releaseId, failureKind: "write", error: String(error) });
+  }
+}
+
+function pointerBody(en: string, zh: string, sourceReleaseId: string): string {
+  return JSON.stringify({ schema: "osskb.digest-pointer.v1", objectKeys: { en, "zh-Hant": zh }, sourceReleaseId });
+}
+
+async function compose(
+  pinned: Awaited<ReturnType<typeof readPinnedRelease>>,
+  caches: Caches,
+  calls: ModelCalls,
+  revisions: Revisions,
+  input: DigestRunInput,
+): Promise<DigestV1> {
+  const { profile } = input;
+  const windowEnd = pinned.release.generatedAt;
+  const generatedAt = input.now().toISOString();
+  const candidates = selectCandidates(pinned.entries, pinned.details, profile, windowEnd);
+  const byId = new Map(candidates.map((thread) => [thread.displayId, thread]));
+  const states = new Map<string, CitedThread>(candidates.map((thread) => [thread.displayId, thread]));
+  const modelConfigured = input.model !== undefined;
+  let fallbacks = 0;
+  let cached = 0;
+  let classifiedByModel = 0;
+
+  // Stage 2: features, cached by hash(model input, classifier revision) (Behavior 11).
+  const classifierRevision = `${revisions.classifier.model}|${revisions.classifier.prompt}`;
+  const features = new Map<string, ThreadFeatures>();
+  const stored: Record<string, ThreadFeatures & { displayId: string }> = {};
+  const pending: { thread: Thread; inputHash: string }[] = [];
+  for (const thread of candidates) {
+    const inputHash = await hash(`${threadText(thread, { maxExcerpts: 3 })}\n${classifierRevision}`);
+    const hit = caches.features.get(inputHash);
+    if (hit !== undefined && modelConfigured) {
+      const feature = { ...hit, source: "cache" as const };
+      features.set(thread.displayId, feature);
+      stored[inputHash] = { ...feature, displayId: thread.displayId };
+      cached += 1;
+    } else if (!modelConfigured) {
+      const feature = rulesClassify(thread, profile);
+      features.set(thread.displayId, feature);
+      stored[inputHash] = { ...feature, displayId: thread.displayId };
+    } else {
+      pending.push({ thread, inputHash });
+    }
+  }
+  const batches: { thread: Thread; inputHash: string }[][] = [];
+  for (let index = 0; index < pending.length; index += CLASSIFY_BATCH) batches.push(pending.slice(index, index + CLASSIFY_BATCH));
+  const prompt = CLASSIFY_PROMPT.replace("{topics}", profile.taxonomy.topics.join(", "));
+  for (let index = 0; index < batches.length; index += CLASSIFY_IN_FLIGHT) {
+    await Promise.all(batches.slice(index, index + CLASSIFY_IN_FLIGHT).map(async (batch) => {
+      const threads = batch.map((item) => item.thread);
+      const text = `${prompt}\n<threads>\n${threads.map((thread) => threadText(thread, { maxExcerpts: 3 })).join("\n\n")}\n</threads>`;
+      const output = await calls.call(MODELS.summarizer, text, MAX_TOKENS.classify);
+      const parsed = parseClassification(output ?? "", threads, profile, { model: revisions.classifier.model, prompt: revisions.classifier.prompt, generatedAt });
+      if (output === undefined) fallbacks += 1;
+      for (const item of batch) {
+        const feature = parsed.features.get(item.thread.displayId)!;
+        if (feature.source === "model") classifiedByModel += 1;
+        features.set(item.thread.displayId, feature);
+        stored[item.inputHash] = { ...feature, displayId: item.thread.displayId };
+      }
+    }));
+  }
+
+  // Stages 3–5.
+  const mixed = mix(candidates, features, profile);
+  const summarizerRevision = `${revisions.summarizer.model}|${revisions.summarizer.prompt}`;
+  const generate = async (threads: readonly Thread[], limit: number, ownProposal?: string) => {
+    const inputText = cardInput(threads);
+    const inputHash = await hash(`${inputText.text}\n${limit}\n${summarizerRevision}`);
+    const included = inputText.threads.map((id) => byId.get(id)!);
+    const recordIds = included.flatMap((thread) => thread.records.map((record) => record.id));
+    const context = { inputs: new Set(inputText.threads), threads: states, profile, ...(ownProposal === undefined ? {} : { ownProposal }) };
+    const hit = caches.generated.get(inputHash);
+    if (hit !== undefined) {
+      cached += 1;
+      return { sentences: validateSentences(hit.sentences, context, limit).kept, provenance: { ...hit.provenance, source: "cache" as const } };
+    }
+    if (!modelConfigured) return { sentences: [] as Sentence[], provenance: undefined };
+    const max = String(limit);
+    const output = await calls.call(MODELS.summarizer,
+      `${SUMMARIZE_PROMPT.replace("{max}", max)}\n<threads>\n${inputText.text}\n</threads>`, limit === 1 ? MAX_TOKENS.proposal : MAX_TOKENS.card);
+    const parsed = parseJson(output) as { sentences?: unknown } | undefined;
+    const raw = Array.isArray(parsed?.sentences) ? parsed.sentences.filter(isSentence) : [];
+    const kept = validateSentences(raw, context, limit).kept;
+    if (kept.length === 0) {
+      fallbacks += 1;
+      return { sentences: [] as Sentence[], provenance: undefined };
+    }
+    const provenance: Provenance = {
+      source: "model", model: revisions.summarizer.model, prompt: revisions.summarizer.prompt,
+      inputRecordIds: recordIds, inputHash, generatedAt, reviewStatus: "unreviewed",
+    };
+    return { sentences: kept, provenance };
+  };
+
+  const cards: TopicCard[] = [];
+  for (const card of mixed.cards) {
+    const result = await generate(card.threads.map((id) => byId.get(id)!), 3);
+    cards.push({
+      ...card, sentences: result.sentences, status: result.sentences.length > 0 ? "generated" : "fallback",
+      ...(result.provenance === undefined ? {} : { provenance: result.provenance }),
+    });
+  }
+  const proposals: ProposalRow[] = [];
+  for (const row of proposalRows(candidates, profile)) {
+    const result = await generate(row.cites.map((id) => byId.get(id)).filter((thread) => thread !== undefined), 1, row.key);
+    proposals.push({ ...row, line: result.sentences[0] ?? null, ...(result.provenance === undefined ? {} : { provenance: result.provenance }) });
+  }
+
+  // Headline and highlights (Behavior 24).
+  const kept = [...cards.flatMap((card) => card.sentences), ...proposals.flatMap((row) => (row.line === null ? [] : [row.line]))];
+  const titles = new Map(candidates.map((thread) => [thread.displayId, { title: thread.title, lastActivityAt: thread.lastActivityAt }]));
+  let headline: Sentence | null = null;
+  let valid: Highlight[] = [];
+  let highlightsProvenance: Provenance | null = null;
+  if (kept.length > 0 && modelConfigured) {
+    const inputText = JSON.stringify(kept);
+    const output = await calls.call(MODELS.summarizer, `${HIGHLIGHTS_PROMPT}\n<sentences>\n${inputText}\n</sentences>`, MAX_TOKENS.highlights);
+    const parsed = parseJson(output) as { headline?: unknown; highlights?: unknown } | undefined;
+    const context = { inputs: new Set(kept.flatMap((sentence) => sentence.cites)), threads: states, profile };
+    if (isSentence(parsed?.headline) && rejectSentence(parsed.headline, context) === null) headline = parsed.headline;
+    valid = (Array.isArray(parsed?.highlights) ? parsed.highlights : []).filter((item): item is Highlight =>
+      item !== null && typeof item === "object" && typeof (item as Highlight).title === "string"
+      && [...(item as Highlight).title].length >= 1 && [...(item as Highlight).title].length <= HIGHLIGHT_TITLE_CHARS
+      && isSentence((item as Highlight).body) && rejectSentence((item as Highlight).body, context) === null).slice(0, 3);
+    if (output === undefined || (valid.length === 0 && headline === null)) fallbacks += 1;
+    if (valid.length > 0 || headline !== null) {
+      highlightsProvenance = {
+        source: "model", model: revisions.summarizer.model, prompt: revisions.summarizer.prompt,
+        inputRecordIds: [], inputHash: await hash(`${inputText}\n${summarizerRevision}`), generatedAt, reviewStatus: "unreviewed",
+      };
+    }
+  }
+  const chosen = chooseHighlights(valid, { proposals, cards, titles });
+  const threads = Object.fromEntries(candidates.map((thread) => [thread.displayId, {
+    title: thread.title, source: thread.source, status: thread.status, url: thread.url, score: thread.score,
+  }]));
+  const digest: DigestV1 = {
+    schema: "osskb.digest.v1",
+    projectId: profile.projectId,
+    locale: "en",
+    window: { start: digestWindowStart(windowEnd), end: windowEnd },
+    generatedAt,
+    sourceRelease: pinned.release,
+    revisions,
+    coverage: {
+      candidates: candidates.length,
+      classifiedByModel,
+      cached,
+      fallbacks,
+      notTranslated: 0,
+      modelCalls: calls.calls,
+      limited: calls.limited,
+      estimatedNeurons: calls.spentToday - input.spentToday,
+      sources: sourceCoverage(pinned.entries, profile, windowEnd),
+    },
+    empty: candidates.length === 0,
+    headline,
+    highlights: chosen.highlights,
+    highlightsProvenance,
+    proposals,
+    cards,
+    routine: { threads: mixed.routine },
+    threads,
+    features: stored,
+  };
+  return digest;
+}
+
+function isSentence(value: unknown): value is Sentence {
+  return value !== null && typeof value === "object" && typeof (value as Sentence).text === "string"
+    && Array.isArray((value as Sentence).cites) && (value as Sentence).cites.every((cite) => typeof cite === "string");
+}
+
+interface Item {
+  readonly id: string;
+  readonly text: string;
+  readonly names: readonly string[];
+}
+
+/** Behavior 25: translate every generated English text; failures keep English, marked. */
+async function translate(
+  en: DigestV1,
+  caches: Caches,
+  calls: ModelCalls,
+  candidates: readonly Thread[],
+  revisions: Revisions,
+): Promise<DigestV1> {
+  const translatorRevision = `${revisions.translator.model}|${revisions.translator.prompt}`;
+  // Names to protect: for a card or row, the authors of the records given to the model; for the
+  // highlights call, candidate authors that appear in its input sentences (Behavior 25).
+  const authorOf = new Map(candidates.flatMap((thread) => thread.records.map((record) => [record.id, record.author] as const)));
+  const inputNames = (provenance: Provenance | undefined) => [...new Set((provenance?.inputRecordIds ?? [])
+    .map((id) => authorOf.get(id)).filter((name): name is string => name !== undefined && name !== "unknown sender"))];
+  const keptText = [...en.cards.flatMap((card) => card.sentences.map((sentence) => sentence.text)),
+    ...en.proposals.flatMap((row) => (row.line === null ? [] : [row.line.text]))].join("\n");
+  const highlightNames = [...new Set(authorOf.values())].filter((name) => name !== "unknown sender" && keptText.includes(name));
+  const items: Item[] = [];
+  for (const card of en.cards) {
+    card.sentences.forEach((sentence, index) => items.push({ id: `card:${card.topic}:${index}`, text: sentence.text, names: inputNames(card.provenance) }));
+  }
+  for (const row of en.proposals) if (row.line !== null) items.push({ id: `proposal:${row.key}`, text: row.line.text, names: inputNames(row.provenance) });
+  if (en.headline !== null) items.push({ id: "headline", text: en.headline.text, names: highlightNames });
+  if (en.highlightsProvenance !== null) {
+    en.highlights.forEach((highlight, index) => {
+      items.push({ id: `highlight:${index}:title`, text: highlight.title, names: highlightNames });
+      items.push({ id: `highlight:${index}:body`, text: highlight.body.text, names: highlightNames });
+    });
+  }
+  const translations: Record<string, string> = {};
+  const result = new Map<string, string | null>();
+  const todo: { item: Item; textHash: string; spans: readonly string[]; masked: string }[] = [];
+  for (const item of items) {
+    const textHash = await hash(`${item.text}\n${translatorRevision}`);
+    const hit = caches.translations.get(textHash);
+    if (hit !== undefined) {
+      result.set(item.id, hit);
+      translations[textHash] = hit;
+      continue;
+    }
+    const masked = protect(item.text, item.names);
+    todo.push({ item, textHash, spans: masked.spans, masked: masked.masked });
+  }
+  for (let index = 0; index < todo.length; index += TRANSLATE_BATCH) {
+    const batch = todo.slice(index, index + TRANSLATE_BATCH);
+    const prompt = `${TRANSLATE_PROMPT}\n<items>\n${JSON.stringify(batch.map((entry) => ({ id: entry.item.id, text: entry.masked })))}\n</items>`;
+    let parsed: unknown;
+    for (let attempt = 0; attempt < 2 && calls.enabled; attempt += 1) {
+      parsed = parseJson(await calls.call(MODELS.translator, prompt, MAX_TOKENS.translation));
+      if (Array.isArray(parsed)) break;
+    }
+    const byId = new Map<string, string>();
+    if (Array.isArray(parsed)) {
+      for (const entry of parsed) {
+        if (entry !== null && typeof entry === "object" && typeof entry.id === "string" && typeof entry.text === "string") byId.set(entry.id, entry.text);
+      }
+    }
+    for (const entry of batch) {
+      const translatedText = byId.get(entry.item.id);
+      const restored = translatedText === undefined ? null : restore(translatedText, entry.spans);
+      result.set(entry.item.id, restored);
+      if (restored !== null) translations[entry.textHash] = restored;
+    }
+  }
+  let notTranslated = 0;
+  const pick = (id: string, sentence: Sentence): Sentence => {
+    const text = result.get(id);
+    if (text === undefined || text === null) {
+      notTranslated += 1;
+      return { ...sentence, notTranslated: true };
+    }
+    return { ...sentence, text };
+  };
+  const cards = en.cards.map((card) => ({ ...card, sentences: card.sentences.map((sentence, index) => pick(`card:${card.topic}:${index}`, sentence)) }));
+  const proposals = en.proposals.map((row) => (row.line === null ? row : { ...row, line: pick(`proposal:${row.key}`, row.line) }));
+  const headline = en.headline === null ? null : pick("headline", en.headline);
+  const highlights = en.highlightsProvenance === null ? en.highlights : en.highlights.map((highlight, index) => {
+    const title = result.get(`highlight:${index}:title`);
+    const titleFailed = title === undefined || title === null;
+    if (titleFailed) notTranslated += 1;
+    return {
+      ...(titleFailed ? { title: highlight.title, titleNotTranslated: true as const } : { title }),
+      body: pick(`highlight:${index}:body`, highlight.body),
+    };
+  });
+  return {
+    ...en,
+    locale: "zh-Hant",
+    cards,
+    proposals,
+    headline,
+    highlights,
+    coverage: { ...en.coverage, notTranslated, modelCalls: calls.calls, limited: en.coverage.limited || calls.limited },
+    translations,
+  };
+}

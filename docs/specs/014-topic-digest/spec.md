@@ -595,8 +595,12 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
       the model produced for identical input. The window sliding changes the
       input and so misses the cache.
 12. **Publication.**
-    - **Objects.** One object per locale, `en` and `zh-Hant`, at
-      `public/digest/v1/<projectId>/<sourceReleaseId>/<revisionHash>/<contentHash>/<locale>.json`.
+    - **Objects.** One object per locale under
+      `public/digest/v1/<projectId>/<sourceReleaseId>/<revisionHash>/<contentHash>/`:
+      `en.json`, and `zh-Hant.<zhHash>.json`, where `zhHash` is the first 16
+      hex characters of the SHA-256 of the zh-Hant object. Content addressing
+      keeps every object immutable: a retried translation writes a new
+      zh-Hant object rather than replacing one.
       - `revisionHash` covers `revisions`: scoring, taxonomy, classifier,
         summarizer, and translator (each `{model, prompt}` where it applies).
       - `contentHash` is the hash of the English object.
@@ -605,7 +609,9 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
       `{schema: "osskb.digest-pointer.v1", objectKeys: {en, "zh-Hant"}, sourceReleaseId}`.
     - **Complete.** A digest is complete only when both locale objects
       exist and validate.
-      - `en` must have no `limited` and no fallback items.
+      - `en` must have no `limited` and no fallback items. A fallback is a
+        model call that failed or was skipped. A run with no model configured
+        (slice 2) has none, so its rules-only digest is complete.
       - `zh-Hant` must have no "Not translated" item.
     - **Before computing,** the job lists `<sourceReleaseId>/<revisionHash>/`:
       - A complete pair is reused: only the pointer is written, with zero
@@ -1105,12 +1111,21 @@ synthetic; the others use values captured from Dev.
 | D55 | highlights | constructed: fallback where the top proposal row's newest thread is also the top card's top thread | 3 distinct threads |
 | D39 | counts | constructed: threads from mail, jira, and github | mailThreads 1 |
 | D46 | status words | constructed: "The pre_merged branch is ready" citing an open PR | kept (identifier, not the word merged) |
+| D9 | summary | constructed: empty sentence text with cites | dropped |
+| D9 | summary | constructed: whitespace-only sentence text with cites | dropped |
+| D46 | status words | constructed: "KIP-1 was accepted" citing only a [DISCUSS] thread | dropped |
+| D46 | status words | constructed: "KIP-1 was verified" citing a [RESULT] KIP-1 thread (no [VOTE]) | kept |
+| D38 | translate | constructed: name "Rao" and text "MacRao and Jun Rao" | one name span: Rao (not inside MacRao) |
+| D49 | translate | constructed: translation contains junk placeholder-like text ⟦1e0⟧, ⟦⟧, or ⟦-1⟧ | English text kept, label Not translated (all three) |
+| D1 | window | constructed: entry with sourceCounts github and jira | source github |
+| D5 | kip block | constructed: two discuss rows, KIP-1 newest 10-05 and KIP-2 newest 10-06 | KIP-2 then KIP-1 |
+| D40 | taxonomy | constructed: "Please add the ci-approved label to the docs PR" | community card, not routine |
 <!-- test-plan:end -->
 
 **Slice 2: run loop, model clients, and cache.** Case file
 `packages/reference-pipeline/test/topic-digest-run.cases.ts`.
 
-<!-- test-plan:start packages/reference-pipeline/test/topic-digest-run.cases.ts [pending] -->
+<!-- test-plan:start packages/reference-pipeline/test/topic-digest-run.cases.ts -->
 | id | rule | input | expected |
 | --- | --- | --- | --- |
 | D10 | cache | constructed: previous digest has KAFKA-PR-23426 with the same model-input hash and classifier revision | features reused, 0 model calls for it |
@@ -1119,13 +1134,33 @@ synthetic; the others use values captured from Dev.
 | D10 | cache | constructed: card input set and summarizer revision unchanged | summary reused, 0 model calls |
 | D13 | model down | constructed: binding throws (network) twice for a classify batch | 1 retry after 5 s; batch gets rules features; fallbacks +20 |
 | D13 | model down | constructed: summary call returns 3040 (capacity) then succeeds | 1 retry; generated |
-| D13 | model down | constructed: binding throws an error with no recognizable code, twice | 1 retry; failureKind model-unknown on that call; fallback |
+| D13 | model down | constructed: binding throws an error with no recognizable code, twice | 1 retry; batch gets rules features (unidentified errors are retried like 3040) |
 | D13 | model down | constructed: every call fails | digest published; all cards fallback (keywords + threads); KIP block unchanged |
 | D14 | rate limit | constructed: error 3036 (daily free allocation used) | no retry; remaining calls skipped; limited true; fallback |
 | D14 | rate limit | constructed: AI Gateway 429 (gateway rate limit) | no retry; remaining calls skipped; limited true; fallback |
-| D17 | empty | constructed: 0 candidates | digest published, empty true, 0 model calls; UI "No Kafka activity in the last 7 days" |
+| D17 | empty | constructed: 0 candidates | digest published, empty true, 0 model calls |
 | D9 | provenance | constructed: a generated card, a proposal line, and a model feature | each records model, prompt revision, input record ids (cards and rows), generatedAt; cards and rows reviewStatus unreviewed |
 | D55 | highlights call | constructed: the headline-and-highlights call fails twice | fallback highlights, no headline; run continues |
+| D50 | translate | constructed: the translation batch returns non-JSON twice | 1 retry of that batch only; every item in it Not translated; zh-Hant published |
+| D50 | translate | constructed: the translation omits one item and adds an unknown id | that item Not translated; unknown id ignored; the rest translated |
+| D61 | recovery | constructed: en written, crash before zh-Hant | retry writes zh-Hant then the pointer; 0 classify or summary calls |
+| D61 | recovery | constructed: published zh-Hant has a Not translated item | next run translates only the Not translated items; new zh-Hant has 0 Not translated |
+| D19 | recovery | constructed: en and zh-Hant written, crash before the pointer | previous pointer served until the retry; retry writes only the pointer, 0 model calls |
+| D19 | recovery | constructed: a limited en for the same release | next run publishes a new pair; the limited en is used as a cache |
+| D11 | publication | constructed: a run with a fake model | writes en, then zh-Hant, then the pointer {schema, objectKeys, sourceReleaseId} |
+| D20 | publication | constructed: a new Feed release is published while the run reads Details | digest names the pinned release; no object from the new release is read |
+| D37 | highlights | constructed: the fake model returns a headline and 3 highlights citing kept sentences | headline and 3 highlights published, each validated |
+| D59 | deferral | constructed: publisher running at 4 consecutive alarms | re-armed 15 min later each time; no run |
+| D59 | deferral | constructed: publisher still running at the 5th alarm | runs; lastRun.deferred 4 |
+| D22 | run control | constructed: POST /digest/run while an alarm is pending | 409 already-running |
+| D22 | run control | constructed: digest cron unset; cron 7 * * * * fires | publisher |
+| D22 | run control | constructed: digest cron 37 1 * * * set; it fires | digest |
+| D60 | dry run | constructed: POST /digest/run?dryRun=1 | returns en and zh-Hant; 0 R2 writes; spend added to today; lastRun.dryRun true |
+| D14 | rate limit | constructed: today's estimated spend already at the Dev cap (4,500) | no model call; limited true; rules features and fallback cards |
+| D19 | recovery | constructed: an en with a model fallback (a card's summary failed) for the same release | next run is not a reuse; it publishes a new pair |
+| D50 | translate | constructed: the translation drops one item's placeholder | that item Not translated (English kept); no placeholder text in zh-Hant |
+| D37 | highlights | constructed: one highlight cites a thread that no kept sentence cites | that highlight dropped; the other 2 shown |
+| D20 | publication | constructed: the detail map names a different release than the manifest | source-read failure; nothing written |
 <!-- test-plan:end -->
 
 **Slice 3: browser.** Case file
@@ -1141,6 +1176,7 @@ synthetic; the others use values captured from Dev.
 | D39 | window label | zh-Hant, same window | 過去 7 天 · Intl.DateTimeFormat("zh-Hant", …).formatRange output; no 週/week number |
 | D36 | proposals tab | /#/datafusion/proposals | redirects to /#/datafusion/ |
 | D36 | proposals tab | /#/kafka/proposals, en | every row grouped by stage; quorum note "3 binding +1 votes" |
+| D17 | empty | constructed: digest with empty true | This week shows "No activity in the past 7 days" |
 <!-- test-plan:end -->
 
 Named tests, to be written:
@@ -1209,10 +1245,10 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   - 1–240 characters, with non-empty cites within the call's inputs;
   - at most 3 per card and 1 per proposal row;
   - summarizer input follows the 12-thread and 6,000-character budget.
-- D10: [pending] identical model input and revision reuse cached features, sentences,
+- D10: identical model input and revision reuse cached features, sentences,
   and translations with zero model calls; a changed input or revision
   triggers a call.
-- D11: [pending] a run writes `en`, then `zh-Hant`, then the pointer `{schema,
+- D11: a run writes `en`, then `zh-Hant`, then the pointer `{schema,
   objectKeys, sourceReleaseId}`, with the `osskb.digest.v1` fields in
   Contract changes. A complete pair for the same release and revisions is
   reused with zero model calls.
@@ -1229,7 +1265,7 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   `kind: null` (DataFusion) renders no proposal section, anchor, stat, or
   Proposals tab, and `/#/datafusion/proposals` redirects to
   `/#/datafusion/`.
-- D37: [pending] one call writes a headline and up to 3 highlights from validated card
+- D37: one call writes a headline and up to 3 highlights from validated card
   and proposal sentences, each with cites that pass Behavior 9.
 - D38: every generated English item is translated to zh-Hant with protected
   spans, matched in the Behavior 25 order, preserved exactly. `cites` are
@@ -1268,7 +1304,7 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   - `/#/feed/<displayId>` still opens Detail.
 
 ### Failure and retry
-- D13: [pending] a binding error, 5xx, 3040, or unidentified error is retried once
+- D13: a binding error, 5xx, 3040, or unidentified error is retried once
   after 5 s.
   - Then the batch uses rules features, the card or row falls back, or the
     translation items are "Not translated".
@@ -1283,25 +1319,25 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   no retry.
 - D16: a sentence citing a thread outside the call's inputs, citing nothing,
   or longer than 240 characters is dropped; a card left empty falls back.
-- D17: [pending] a week with no candidates publishes `empty: true` with zero model
+- D17: a week with no candidates publishes `empty: true` with zero model
   calls, and This week shows the empty-week text instead of a previous
   digest.
 - D18: [pending] the freshness line uses the case-file strings and turns stale only
   after 36 h (boundary rows). A cited thread missing from the current Feed
   links to its canonical source URL.
-- D19: [pending] a crash between writes is recovered:
+- D19: a crash between writes is recovered:
   - After a crash between the `en` write and the pointer write, the
     previous digest is served.
   - The retry writes only what is missing, with zero summarizer or
     classifier calls.
   - A degraded (`limited`) `en` does not block a later run for the same
     release; that run uses it as a cache and publishes a new pair.
-- D20: [pending] a Feed release published mid-run does not change the run's inputs;
+- D20: a Feed release published mid-run does not change the run's inputs;
   the digest names the release it pinned.
 - D21: a source whose newest single-source entry precedes window start is
   `lagging` in `coverage.sources` (today: Jira, 2026-09-19) and is shown
   next to the stats.
-- D22: [pending] run control:
+- D22: run control:
   - `POST /digest/run` returns 409 while a digest alarm is pending or
     running;
   - a digest cron tick does not start a publication, and a publisher cron
@@ -1330,7 +1366,7 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   - loses or duplicates a placeholder; or
   - after the placeholders are restored, contains a protected-span match
     that was not restored.
-- D50: [pending] the translator can fail without blocking zh-Hant publication.
+- D50: the translator can fail without blocking zh-Hant publication.
   - A non-JSON translation batch (after one retry) marks every item in it
     "Not translated".
   - A missing item is "Not translated"; an unknown id is ignored.
@@ -1347,10 +1383,10 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   - an invalid headline is omitted.
 - D58: [pending] a missing locale object makes `/api/digest` return `en` with
   `localeFallback: true`; an unsupported locale returns 400.
-- D59: [pending] when the digest alarm fires while the publisher reports `running`,
+- D59: when the digest alarm fires while the publisher reports `running`,
   it re-arms 15 min later, at most 4 times. Then it runs and records
   `deferred: 4` in `/health.digest.lastRun`.
-- D61: [pending] a crash after the `en` write and before the `zh-Hant` write leads to
+- D61: a crash after the `en` write and before the `zh-Hant` write leads to
   a retry that translates and writes `zh-Hant`, then the pointer, with no
   classification or summary calls. A `zh-Hant` object with a "Not
   translated" item is not complete, and the next run retranslates only
@@ -1390,12 +1426,13 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
 - D30: [pending] at a controlled clock (E2E), the freshness line shows the case-file
   string for the digest's age, lagging sources, and the model label or "AI
   summary unavailable".
-- D31: [pending] `/health.digest` reports:
+- D31: `/health.digest` reports:
   - `running`;
   - `today {date, estimatedNeurons, cap}`;
   - `lastRun` (`ok`, `completedAt`, `durationMs`, `sourceReleaseId`,
-    `objectKeys`, `candidates`, `cached`, `modelCalls`, `fallbacks`,
-    `limited`, `deferred`, `estimatedNeurons`, `dryRun`, `failureKind?`).
+    `objectKeys`, `reused`, `candidates`, `cached`, `modelCalls`,
+    `fallbacks`, `limited`, `deferred`, `estimatedNeurons`, `spentToday`,
+    `dryRun`, `failureKind?`, `error?`).
 - D32: [deploy] on Dev after the first daily run:
   - AI Gateway's log count for the run equals `modelCalls`;
   - `bun run verify:health` prints the digest age;
@@ -1421,7 +1458,7 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
 - D57: [deploy] on Dev, the zh-Hant This week page shows translated
   sentences with citation chips, the window label with no week number, and
   "JIRA through …" next to the stats while Jira lags.
-- D60: [pending] `POST /digest/run?dryRun=1` (bearer) writes nothing to R2, returns
+- D60: `POST /digest/run?dryRun=1` (bearer) writes nothing to R2, returns
   both locale objects, adds its spend to `today.estimatedNeurons`, and
   records `dryRun: true`.
 
@@ -1442,8 +1479,13 @@ A slice removes the `[pending]` tags of the IDs it implements, and the
    - `digest -- eval|measure` on the committed fixture with recorded
      responses.
    No Worker or web change.
-2. **`DigestRun` in the data Worker:** model clients, cache, publication,
-   deferral, dry run, and `/health.digest`.
+2. **`DigestRun` in the data Worker:** cache, publication, deferral, dry run,
+   and `/health.digest`. There is no `AI` binding and no digest cron yet:
+   production runs rules-only and only by `POST /digest/run`. A fake model
+   tests every model path.
+   - **2b**, after the human's Cloudflare setup: the Workers AI client behind
+     the same `DigestModel` interface, the gateway option, D35 on Dev, and
+     the `DIGEST_CRON` variable plus cron entry.
 3. **Web:** routes, tabs, This week, Proposals, topic page, i18n, and
    `/api/digest`. The E2E moves are part of this slice.
 
