@@ -225,7 +225,7 @@ the two `viewer/` items below.
 - **Layer:** runtime (D35 calibration on Dev).
 - **Source:** Spec 014 slice 2.
 
-### G22. Proposal titles taken from PR titles keep noise
+### G23. Proposal titles taken from PR titles keep noise
 - **Where:** `proposalTitle` in `apps/web/src/digest-view.ts`.
 - **Why:** when a KIP has no tagged dev@ subject, the title comes from a PR
   title, which keeps prefixes and phrasing such as "MINOR: Clarify KIP-1331
@@ -237,7 +237,7 @@ the two `viewer/` items below.
 - **Layer:** test (case rows on the captured week's titles).
 - **Source:** [PR #36 verifier, N3](https://github.com/unknowntpo/oss-knowledge-base/pull/36#issuecomment-6054011406).
 
-### G23. Thread excerpts include PR-body trailers
+### G24. Thread excerpts include PR-body trailers
 - **Where:** the root excerpt (`selectCandidates` in
   `packages/reference-pipeline/src/digest/candidates.ts`), shown on topic-page
   thread cards.
