@@ -104,24 +104,18 @@ export const testPlanRows = [
   { id: "D49", rule: "translate", input: "constructed: translation drops placeholder ⟦2⟧ (a person's name)", expected: "English text kept, label Not translated" },
   { id: "D49", rule: "translate", input: "constructed: translation repeats ⟦0⟧ twice", expected: "English text kept, label Not translated" },
   { id: "D49", rule: "translate", input: "constructed: translation adds KIP-1165 not in the source", expected: "English text kept, label Not translated" },
-  // D39 / D52: one source for counts; window label.
-  { id: "D39", rule: "counts", input: "captured week draft: 12 proposal rows (vote 1, discuss 6, implementing 5), 8 cards, routine list", expected: "anchor Proposals · 12 = stat 12 = 1 + 6 + 5; Topics · 8; Routine · routine.length" },
+  // D39: one function for counts; window label. D21: lagging source.
+  { id: "D39", rule: "counts", input: "captured week draft: 12 proposal rows (vote 1, discuss 6, implementing 5), 8 cards, routine list", expected: "computed, never stored: anchor Proposals · 12 = stat 12 = 1 + 6 + 5; Topics · 8; Routine · routine.length" },
   { id: "D39", rule: "window label", input: "en, 2026-09-29T13:07:37Z – 2026-10-06T13:07:37Z", expected: "Past 7 days · Sep 29 – Oct 6, 2026" },
   { id: "D39", rule: "window label", input: "zh-Hant, same window", expected: "過去 7 天 · Intl.DateTimeFormat(\"zh-Hant\", …).formatRange output; no 週/week number" },
   { id: "D39", rule: "window label", input: "en, 2026-12-29 – 2027-01-05 (year boundary)", expected: "Past 7 days · Dec 29, 2026 – Jan 5, 2027" },
-  { id: "D39", rule: "lag", input: "jira newest single-source entry 2026-09-19T03:20:38Z, window start 2026-09-29T13:07:37Z", expected: "\"JIRA through Sep 19\" next to the stats" },
-  { id: "D52", rule: "counts", input: "constructed: stored stats.proposals 11, kips array length 12", expected: "not published; previous pointer kept" },
+  { id: "D21", rule: "lag", input: "jira newest single-source entry 2026-09-19T03:20:38Z, window start 2026-09-29T13:07:37Z", expected: "\"JIRA through Sep 19\" next to the stats" },
   // D40: taxonomy covers community/governance and streams.
   { id: "D40", rule: "taxonomy", input: "KAFKA-MAIL-2dc19c3f \"Pending Jira account request\"", expected: "community card, not routine" },
   { id: "D40", rule: "taxonomy", input: "KAFKA-MAIL-55bead25 \"Cruise Control … moves to the Linux Foundation\"", expected: "community card" },
   { id: "D40", rule: "taxonomy", input: "constructed: 9 non-empty topics", expected: "9 cards (no cap at 6)" },
-  // D41 / D51: vote tally.
-  { id: "D51", rule: "tally", input: "KAFKA-MAIL-82e0d5b3 [VOTE] KIP-1349: oldest retained message is \"Re:\" (2026-09-18); Andrew Schofield \"+1 (binding)\", Sushant Mahajan \"+1\"", expected: "no tally (root not retained)" },
-  { id: "D41", rule: "tally", input: "constructed: root retained; A \"+1 (binding)\", B \"+1\", C \"+1 (binding)\"", expected: "+1 × 3 (binding 2)" },
-  { id: "D41", rule: "tally", input: "constructed: root retained; B votes \"+1\" twice", expected: "+1 × 1 (binding 0)" },
-  { id: "D51", rule: "tally", input: "constructed: root retained; reply preview \"On … wrote: > +1 (binding)\" (quote only)", expected: "not counted" },
-  { id: "D51", rule: "tally", input: "constructed: root retained; \"+1 non-binding from me\" (4.3.2 RC0 style)", expected: "counted, not binding" },
-  { id: "D51", rule: "tally", input: "constructed: root retained; no parseable +1", expected: "no tally" },
+  // Vote tallies (D41, D51) were withdrawn 2026-10-08; counts belong to Spec 015.
+  { id: "D5", rule: "kip block", input: "KAFKA-MAIL-82e0d5b3 [VOTE] KIP-1349 with Andrew Schofield \"+1 (binding)\" and Sushant Mahajan \"+1\" in previews", expected: "VOTE badge and link to the vote thread; no count" },
   // D42 / D48: overflow and one proposal per line.
   { id: "D42", rule: "overflow", input: "captured week discuss group: 6 rows", expected: "6 rows, no \"+n more\"" },
   { id: "D42", rule: "overflow", input: "constructed: discuss group with 7 rows", expected: "6 rows and \"+1 more\" linking to Proposals" },
@@ -135,4 +129,16 @@ export const testPlanRows = [
   { id: "D46", rule: "status words", input: "\"Apache Kafka 4.2.2 was announced\" cites KAFKA-MAIL-d7907ec4 ([ANNOUNCE])", expected: "kept" },
   { id: "D47", rule: "stance", input: "\"Chris Egerton objected on 10-05 to packing connector type and version into one field\" cites KAFKA-MAIL-fd63cd54", expected: "dropped" },
   { id: "D47", rule: "stance", input: "\"Chris Egerton questioned using the instance ID to report connector type and version\"", expected: "kept" },
+  // Amendment review rows (2026-10-08).
+  { id: "D42", rule: "proposals tab", input: "constructed: discuss group with 9 rows", expected: "This week: 6 rows and \"+3 more\"; Proposals tab: all 9" },
+  { id: "D46", rule: "status words", input: "constructed: \"An unmerged PR …\" citing an open PR", expected: "kept (word boundary: unmerged is not merged)" },
+  { id: "D46", rule: "status words", input: "constructed: \"Merged: the KAFKA-1 fix\" citing an open PR", expected: "dropped (case-insensitive)" },
+  { id: "D46", rule: "status words", input: "constructed: \"It merges the builders\" citing an open PR", expected: "kept (no stemming)" },
+  { id: "D49", rule: "translate", input: "constructed: placeholders intact, but the restored text also contains KAFKA-99999 not in the English", expected: "English text kept, label Not translated" },
+  { id: "D38", rule: "translate", input: "\"Andrew Schofield voted +1 (binding) on 10-01\"", expected: "+1 (binding) is one placeholder, matched before +1; Andrew Schofield protected" },
+  { id: "D38", rule: "translate", input: "highlights call input sentence names Chris Egerton and squah-confluent", expected: "both protected as names in the highlights translation" },
+  { id: "D14", rule: "estimate", input: "constructed: two display ids KAFKA-PR-23622 and KAFKA-PR-23623 (28 chars) + 40 other ASCII chars", expected: "14 + 10 = 24 tokens" },
+  { id: "D14", rule: "estimate", input: "constructed: 12 CJK characters", expected: "12 tokens" },
+  { id: "D55", rule: "highlights", input: "constructed: 2 of 3 highlights valid", expected: "2 shown, no padding" },
+  { id: "D55", rule: "highlights", input: "constructed: 0 valid highlights", expected: "fallback: top proposal row's newest thread title + top two cards' top thread titles" },
 ] as const;
