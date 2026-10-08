@@ -15,4 +15,6 @@ export const testPlanRows = [
   { id: "D14", rule: "rate limit", input: "constructed: error 3036 (daily free allocation used)", expected: "no retry; remaining calls skipped; limited true; fallback" },
   { id: "D14", rule: "rate limit", input: "constructed: AI Gateway 429 (gateway rate limit)", expected: "no retry; remaining calls skipped; limited true; fallback" },
   { id: "D17", rule: "empty", input: "constructed: 0 candidates", expected: "digest published, empty true, 0 model calls; UI \"No Kafka activity in the last 7 days\"" },
+  { id: "D9", rule: "provenance", input: "constructed: a generated card, a proposal line, and a model feature", expected: "each records model, prompt revision, input record ids (cards and rows), generatedAt; cards and rows reviewStatus unreviewed" },
+  { id: "D55", rule: "highlights call", input: "constructed: the headline-and-highlights call fails twice", expected: "fallback highlights, no headline; run continues" },
 ] as const;

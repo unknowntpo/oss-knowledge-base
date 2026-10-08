@@ -25,4 +25,12 @@ describe("test-plan rendering", () => {
     expect(once).toEndWith("<!-- test-plan:end -->\noutro\n");
     expect(await renderSpec(once, async () => rows)).toBe(once);
   });
+
+  test("renders a case file marked [pending] and keeps the marker", async () => {
+    const spec = "<!-- test-plan:start later.cases.ts [pending] -->\nold\n<!-- test-plan:end -->\n";
+    const seen: string[] = [];
+    const once = await renderSpec(spec, async (path) => (seen.push(path), rows));
+    expect(seen).toEqual(["later.cases.ts"]);
+    expect(once).toStartWith("<!-- test-plan:start later.cases.ts [pending] -->\n| id |");
+  });
 });

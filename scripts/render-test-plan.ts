@@ -6,11 +6,14 @@
  *   <!-- test-plan:start apps/web/test/freshness.cases.ts -->
  *   …generated table…
  *   <!-- test-plan:end -->
+ *
+ * A marker may end with ` [pending]` (`<!-- test-plan:start <case file> [pending] -->`) for a case
+ * file of a planned later slice; it is rendered the same way (see check-spec-traceability.ts).
  */
 import { join } from "node:path";
 
 const root = join(import.meta.dir, "..");
-const block = /(<!-- test-plan:start (\S+) -->\n)[\s\S]*?(<!-- test-plan:end -->)/gu;
+const block = /(<!-- test-plan:start (\S+)(?: \[pending\])? -->\n)[\s\S]*?(<!-- test-plan:end -->)/gu;
 
 type Cell = string | number | boolean | null;
 
