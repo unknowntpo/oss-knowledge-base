@@ -58,6 +58,9 @@ test("D43: every view, including a topic page, has the top bar; filters match th
   const prCount = Number((await pr.innerText()).replace(/\D+/gu, ""));
   await pr.click();
   await expect(page.locator(".thread-card")).toHaveCount(prCount);
+  // Counts come from the whole card, not the filtered list: All still shows every thread.
+  await expect(page.locator('.thread-filter[data-filter="all"]')).toContainText(String(all));
+  await expect(pr).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".thread-card .thread-title").first()).toHaveAttribute("href", /^https:\/\/github\.com\//u);
   await noHorizontalOverflow(page);
 });
@@ -99,3 +102,15 @@ test("D58: /api/digest falls back and rejects bad parameters", async ({ request 
   expect((await request.get("/api/digest?projectId=apache-nope")).status()).toBe(400);
   expect((await request.get("/api/digest?projectId=apache-datafusion")).status()).toBe(404);
 });
+
+test("D62: the top-bar search hands its query to All threads", async ({ page }) => {
+  await open(page, "/kafka/");
+  const search = page.waitForResponse((response) => response.url().includes("/api/search?") && response.url().includes("KIP-405"));
+  await page.locator("#topbar-q").fill("KIP-405");
+  await page.locator("#topbar-q").press("Enter");
+  await expect(page).toHaveURL(/#\/kafka\/threads$/u);
+  expect((await search).status()).toBe(200);
+  await expect(page.locator("#q")).toHaveValue("KIP-405");
+  await expect(page.locator(".search-card").first()).toBeVisible();
+});
+

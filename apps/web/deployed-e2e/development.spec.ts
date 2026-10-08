@@ -75,7 +75,8 @@ test("development cron data reaches Feed, Search, facets, and immutable detail",
   const browserProblems = collectBrowserProblems(page);
   await page.addInitScript(() => localStorage.setItem("community-kb-locale", "en"));
   const feedResponsePromise = page.waitForResponse((response) => response.url().endsWith("/api/feed"));
-  await page.goto("/", { waitUntil: "networkidle" });
+  // Spec 014: the Feed is All threads at /#/<project>/threads; / opens This week.
+  await page.goto("/#/kafka/threads", { waitUntil: "networkidle" });
   const feedResponse = await feedResponsePromise;
   expect(feedResponse.status()).toBe(200);
   // /api/feed exceeds Chromium's inspector body cache (~10 MB), so read it outside the page.
@@ -123,4 +124,20 @@ test("development cron data reaches Feed, Search, facets, and immutable detail",
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   expect(await page.locator(".timeline .tl-item").count()).toBeGreaterThan(0);
   expect(browserProblems).toEqual([]);
+});
+
+test("This week renders the digest, or the no-digest notice while Dev has no digest pointer", async ({ page, request }) => {
+  const api = await request.get("/api/digest?projectId=apache-kafka&locale=en");
+  // 404 until the digest job publishes on Dev (Spec 014 slice 2b); never a 5xx.
+  expect([200, 404]).toContain(api.status());
+  await page.addInitScript(() => localStorage.setItem("community-kb-locale", "en"));
+  await page.goto("/#/kafka/");
+  await expect(page.locator(".top-tabs")).toBeVisible();
+  if (api.status() === 200) {
+    await expect(page.locator("#digest")).toBeVisible();
+    await expect(page.locator(".digest-freshness")).toBeVisible();
+  } else {
+    await expect(page.locator(".no-digest-notice")).toContainText("No weekly digest for this community yet");
+    await expect(page.locator(".no-digest-notice a")).toHaveAttribute("href", "#/kafka/threads");
+  }
 });

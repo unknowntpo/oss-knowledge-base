@@ -161,7 +161,8 @@ export interface CiteTarget {
 export function citeTarget(id: string, digest: Pick<DigestV1, "threads">, feedIds: ReadonlySet<string> | undefined): CiteTarget {
   const thread = digest.threads[id];
   const title = thread?.title ?? id;
-  if (feedIds === undefined || feedIds.has(id) || thread?.url === null || thread?.url === undefined) {
+  // Only https source links leave the app; anything else (javascript:, http:, data:) opens Detail.
+  if (feedIds === undefined || feedIds.has(id) || thread?.url === null || thread?.url === undefined || !thread.url.startsWith("https://")) {
     return { href: `#/feed/${encodeURIComponent(id)}`, external: false, title };
   }
   return { href: thread.url, external: true, title };

@@ -250,6 +250,64 @@ describe("Spec 014 slice 3 named tests", () => {
     expect(view.proposalTitle({ key: "KIP-1", cites: [] }, en.threads)).toBe("KIP-1");
   });
 
+  test("D18: only https source URLs become external links", () => {
+    const thread = en.threads["KAFKA-PR-23426"]!;
+    for (const url of ["javascript:alert(1)", "http://example.com/x", "data:text/html,x"]) {
+      const target = view.citeTarget("KAFKA-PR-23426", { threads: { "KAFKA-PR-23426": { ...thread, url } } }, new Set());
+      expect(target).toMatchObject({ href: "#/feed/KAFKA-PR-23426", external: false });
+    }
+    // Positive control: the real https URL is external.
+    expect(view.citeTarget("KAFKA-PR-23426", en, new Set()).external).toBe(true);
+  });
+
+  test("D12: the stats row and section anchors use the counts function; DataFusion has no proposals stat", async () => {
+    const counts = view.digestCounts(en);
+    const html = await render(components.DigestWeek, { digest: en, profile: kafka().profile, projectName: "Apache Kafka", now: NOW });
+    expect(html).toContain(`<strong>${counts.proposals}</strong> proposals with activity`);
+    expect(html).toContain(`<strong>${counts.threads}</strong> threads`);
+    expect(html).toContain(`<strong>${counts.mailThreads}</strong> dev@ threads`);
+    expect(html).toContain(`<strong>${counts.routine}</strong> maintenance items`);
+    expect(html).toContain(`Proposals · ${counts.proposals}`);
+    expect(html).toContain(`Development · ${counts.topics}`);
+    expect(html).toContain(`Maintenance · ${counts.routine}`);
+    const datafusion = view.projectByKey("datafusion")!;
+    const noProposals = await render(components.DigestWeek, { digest: en, profile: datafusion.profile, projectName: datafusion.name, now: NOW });
+    expect(noProposals).not.toContain("proposals with activity");
+    expect(noProposals).not.toContain("Proposals ·");
+  });
+
+  test("D23: the store maps 404 to the no-digest state, 503 to unavailable, 200 to the digest", async () => {
+    const { effectScope, nextTick, ref } = await import("vue");
+    const { useDigest } = await import("../src/digest-store");
+    const original = globalThis.fetch;
+    const stateFor = async (status: number) => {
+      globalThis.fetch = (async () => new Response(JSON.stringify(status === 200 ? en : { error: "x" }), { status })) as unknown as typeof fetch;
+      const scope = effectScope();
+      const state = scope.run(() => useDigest(ref("kafka")))!;
+      for (let tries = 0; tries < 20 && state.value.kind === "loading"; tries += 1) await new Promise((resolve) => setTimeout(resolve, 5));
+      await nextTick();
+      scope.stop();
+      return state.value.kind;
+    };
+    try {
+      expect(await stateFor(404)).toBe("none");
+      expect(await stateFor(503)).toBe("error");
+      expect(await stateFor(200)).toBe("ok");
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
+  test("D45: i18n.js defines each key once per locale (a later duplicate would silently win)", async () => {
+    const source = await Bun.file(new URL("../i18n.js", import.meta.url)).text();
+    const blocks = source.split(/^\s{4}(?:"zh-Hant"|en): \{$/mu).slice(1);
+    expect(blocks).toHaveLength(2);
+    for (const block of blocks) {
+      const keys = [...block.matchAll(/^\s{6}"([^"]+)":/gmu)].map((match) => match[1]!);
+      expect(keys.filter((key, index) => keys.indexOf(key) !== index)).toEqual([]);
+    }
+  });
+
   test("D45: every taxonomy, stage, and quorum key exists in both locales", () => {
     const missing: string[] = [];
     for (const project of view.PROJECTS) {
