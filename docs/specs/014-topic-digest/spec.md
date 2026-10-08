@@ -25,6 +25,8 @@ days. From top to bottom it shows:
    citing source threads. It opens a topic page with filterable thread cards.
 4. **Routine maintenance** (dependency bumps, build, test speed-ups,
    backports, docs), collapsed at the bottom and never hidden.
+5. **Uncategorized** (slice 2c): threads whose topic is `other`, collapsed
+   with their count. `other` never gets a card.
 
 Navigation:
 - The top bar has a community switcher, the tabs This week / Proposals /
@@ -549,34 +551,50 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
      - up to 3 newest in-window human excerpts (≤ 200 chars each).
    - With the text model (tests, fallback comparison), threads are
      classified in batches of 20, with 4 batches in flight at a time.
-   - **With Clef-flash** (slice 2b):
+   - **With Clef-flash** (slice 2b, revised in 2c):
      - Each request's `state` carries only `{ref, title, excerpt}` per
-       thread, with the excerpt cut to 120 characters.
+       thread, with the excerpt cut to 120 characters. The last state item
+       is a canary `{ref: "end", word}`.
      - Each thread gets one `choice` question. Its options are the taxonomy
-       topics plus `routine`.
+       topics plus `routine`. Each option's description comes from the
+       profile (`taxonomy.descriptions`, at most 8 words) and says what
+       belongs there. Kafka's descriptions are in `profiles.ts`.
      - A thread is routine when the `routine` option's probability is at
        least 0.5, and goes to the routine section at 0.6 or more.
      - The topic is the most probable topic option. `topicConfidence` is
        that option's probability renormalised over the topics.
      - Assumption, to be confirmed by the D35 Dev dry run: Workers AI truncates
-       long `state` near 2K tokens. So requests are
-       packed until `state` reaches 1,200 estimated tokens or 64 questions.
-       The captured week needs 12 requests, with 4 in flight.
-     - Fail-safe: when a response reports `usage.prompt_tokens` below 80%
-       of the job's estimate for that request, the model saw a truncated
-       request. The whole batch then gets rules features and counts as a
-       fallback. A response without `usage` is accepted; D35 checks it.
+       long `state` near 2K tokens. So requests are packed until `state`
+       reaches 1,800 estimated tokens (canary included) or 63 thread
+       questions plus the canary question. At most 20 requests run, 4 in
+       flight. Threads beyond them get rules features and the run is
+       `limited`.
+     - **Truncation check (canary).** Every request also asks question
+       `end`: which of 4 words is the canary's `word`. The canary is the
+       last state item, so a cut `state` loses it. A batch is unseen when
+       the canary word's probability is below 0.5, or when a response
+       reports `usage.prompt_tokens` below 80% of the job's estimate. An
+       unseen batch gets rules features, counts as a fallback, and adds 1
+       to `calibration.clefCanaryMisses`. Clef-flash returned no `usage` on
+       the first Dev dry run (2026-10-08: 0 of 17 requests), so the canary
+       is the check that runs.
      - The cache key is the Clef input itself (title and excerpt), so a new
        comment does not reclassify a thread.
 7. **Mixing.**
-   - Each candidate appears exactly once: in one card's thread list, or in
-     the routine section.
+   - Each candidate appears exactly once: in one card's thread list, in the
+     routine section, or in Uncategorized.
+   - Uncategorized (slice 2c) holds the non-routine threads whose effective
+     topic is `other`: the model chose `other`, or `topicConfidence` was
+     below 0.6. It is collapsed, shows its count, and is ordered by score.
+     `other` never gets a card. On the first Dev dry run, `other` was the
+     second-largest card (131 of 318 threads): 119 of them had a non-other
+     best topic below the 0.6 gate, and 12 had `other` as the best topic.
    - Cards are ordered by the sum of their top-3 thread scores.
    - A card shows its 5 highest-scoring threads and "n more".
    - The routine section is collapsed, shows its count, and is ordered by
      score.
-   - Every non-empty taxonomy topic has a card. Empty topics have none.
-     There is no fixed card count.
+   - Every non-empty taxonomy topic except `other` has a card. Empty topics
+     have none. There is no fixed card count.
 8. **Keywords.**
    - A card's keywords are its top 5 title terms by tf-idf: term frequency
      within the card, document frequency across all candidates. Ties are
@@ -591,6 +609,19 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
    - **Proposal-row input:** the row's cited threads, under the same budget.
    - **Output:** JSON `{sentences: [{text, cites: [displayId]}]}`, with at
      most 3 sentences for a card and 1 for a proposal row.
+   - **Style** (slice 2c, prompt `digest-prompts@2`): each sentence states
+     a development or an outcome: what changed, what is proposed, or what
+     is being decided. Its subject is the work (the KIP, bug, feature, or
+     release), not the speaker. A person is named only when the role
+     matters: a proposal's author, a release manager, a binding voter, or
+     a new committer. Before 2c, sentences read as a transcript ("X said
+     …", "X proposed …").
+     - Measure: a sentence is **person-led** when a reporting verb (said,
+       asked, proposed, questioned, discussed, suggested, noted, argued,
+       requested, introduced, congratulated) appears within its first 6
+       words, or it ends with ", said <name>". A run's result reports
+       `style {sentences, personLed}` over the English card sentences and
+       proposal lines. This is a measure, not a validation rule.
    - **Validation, per sentence.** A sentence is kept only when all of
      these hold; otherwise it is dropped:
      - `text` has 1–240 characters;
@@ -650,7 +681,8 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
         model calls.
       - A complete `en` with a missing or fallback `zh-Hant` is reused. Only
         translation runs: the missing items, with the previous `zh-Hant` as
-        the cache. Then `zh-Hant` and the pointer are written.
+        the cache. Then a new pair is written (the reused `en` carrying
+        this run's coverage, then `zh-Hant`), then the pointer.
       - Anything else is used as the cache source, and the run computes the
         rest.
     - `generatedAt` is when the English digest was computed. `windowEnd` is
@@ -685,8 +717,10 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
     - The running total is kept per UTC day in `DigestRun` storage.
     - **Before each call,** the job estimates the call's neurons: input
       tokens × input price + `max_tokens` × output price.
-      Bounds: classify 800, card 300, proposal row 80, highlights 400,
-      translation 2,000 per batch.
+      Bounds (raised in slice 2c; the first Dev dry run produced 8 empty
+      proposal lines and no headline, consistent with JSON cut at 80 and
+      400 tokens): classify 800, card 500, proposal row 160, highlights
+      800, translation 4,000 per batch.
     - Estimates are rounded to the nearest neuron, and the cap check is
       `running total + estimate > cap`.
     - **After each call,** that estimate is replaced with the estimated
@@ -701,8 +735,17 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
       - AI Gateway returns 429, or refuses for its spend limit. The Dev
         gateway's own limit of $2 per month is a hard stop independent of
         the job's cap.
-      - the run reaches 45 model requests. The Dev gateway allows 60 per
-        hour.
+      - the run reaches 50 model requests. The Dev gateway allows 60 per
+        hour, which leaves 10 for a D35 probe in the same hour.
+    - **Call order** (slice 2c): classification, proposal rows (vote, then
+      discuss, then implementing), cards by score, the highlights call,
+      translation. Before each card, the job keeps a reserve of calls for
+      what follows: 1 highlights call, the translation batches for every
+      item so far plus 3 more card sentences, and 1 retry. A card that would
+      use the reserve is skipped as `fallback` and the run is `limited`.
+      On the first Dev dry run (318 candidates, 45-request ceiling), 17 Clef
+      requests and 26 summarizer calls left room for 2 translation calls,
+      and 20 items stayed "Not translated".
     - **Dry runs** (Behavior 22) count against the same cap.
 16. **Malformed output.**
     - **Classification.** No retry.
@@ -712,7 +755,9 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
         [0, 1], or a missing field.
       - A thread missing from the response also gets rules features.
       - Unknown ids are ignored.
-    - **Translation.** Batches of 25 items.
+    - **Translation.** Batches of 60 items, so a week's items fit in one
+      or two calls. The prompt ends with `/no_think`, qwen3's switch that
+      skips its thinking block.
       - Output that is not JSON is retried once (Behavior 14). Then every
         item in the batch is "Not translated".
       - A missing item is "Not translated". An unknown id is ignored.
@@ -724,6 +769,10 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
       pinned release's single-source entries for the project. Every Kafka
       entry today has exactly one source.
     - A source whose newest time is before window start is `lagging`.
+    - Both locale objects of a pair carry the same `coverage`, computed
+      after translation: `notTranslated`, `modelCalls`, `limited`, and
+      `estimatedNeurons` cover the whole run (slice 2c). Before 2c the
+      English object said `notTranslated: 0` while zh-Hant said 20.
 19. **Freshness.**
     - Strings come from the case file (D18 rows) and the i18n bundle:
       - fresh: "Digest updated {age} ago";
@@ -1067,7 +1116,7 @@ synthetic; the others use values captured from Dev.
 | D6 | features | hand label: KAFKA-PR-23609 "Update lz4 to 1.11.4" for three GHSA advisories {topic: security, topicConfidence 0.8, routine: false, routineConfidence 0.7} | security card, not routine |
 | D6 | features | constructed: topic group-coordination, topicConfidence 0.40 | other card |
 | D6 | features | constructed: topic group-coordination, topicConfidence 0.60 | group-coordination card |
-| D7 | mixing | captured week, rules classifier | every one of 234 candidates appears once: in a card's thread list or in routine |
+| D7 | mixing | captured week, rules classifier | every one of 234 candidates appears once: in a card's thread list, in routine, or in Uncategorized |
 | D7 | mixing | constructed: topic with 7 threads | card shows the 5 highest-scoring threads and "2 more" |
 | D7 | mixing | constructed: topics A (top-3 scores 2.5, 0.2, 0.1) and B (1.0, 1.0, 1.0) | B first (3.0 > 2.8) |
 | D7 | mixing | constructed: routine threads with scores 0.3 and 1.47 | routine section collapsed, count 2, ordered 1.47 then 0.3 |
@@ -1166,6 +1215,12 @@ synthetic; the others use values captured from Dev.
 | D1 | window | constructed: entry with sourceCounts github and jira | source github |
 | D5 | kip block | constructed: two discuss rows, KIP-1 newest 10-05 and KIP-2 newest 10-06 | KIP-2 then KIP-1 |
 | D40 | taxonomy | constructed: "Please add the ci-approved label to the docs PR" | community card, not routine |
+| D76 | uncategorized | constructed: threads with best topic other (score 1.0), security at topicConfidence 0.4 (score 2.0), and security at 0.9 | Uncategorized [score 2.0, score 1.0]; one security card; no card has topic other |
+| D73 | descriptions | Kafka profile taxonomy | every topic and routine has a description of 1–8 words |
+| D78 | style | Omnia Ibrahim proposed Apache Kafka 4.4.0 RC4. (first Dev dry run) | person-led |
+| D78 | style | Apache Kafka 4.3.2 RC0 is open, said 黃竣陽. (first Dev dry run) | person-led |
+| D78 | style | Sushant Mahajan was announced as a new Kafka committer. (first Dev dry run) | not person-led |
+| D78 | style | constructed: KIP-1349 moves share-group snapshot frequency from record counts to bytes. | not person-led |
 <!-- test-plan:end -->
 
 **Slice 2: run loop, model clients, and cache.** Case file
@@ -1224,8 +1279,8 @@ synthetic; the others use values captured from Dev.
 | D63 | clef | constructed: answer t1 security 0.7, clients 0.2, other 0.1, routine 0.1 | topic security, topicConfidence 0.70, routine false (0.90) |
 | D63 | clef | constructed: answer t1 routine 0.6, other 0.4 | routine section by placement() (routineConfidence 0.60) |
 | D63 | clef | constructed: answer t1 routine 0.55, other 0.45 | routine true (0.55) but a card by placement(): below the 0.6 section gate |
-| D63 | clef | captured week, cold run with Clef | 12 Clef requests; every state at most 1,200 tokens; at most 64 questions; excerpts at most 120 chars |
-| D63 | clef | constructed: the request body for one batch | model clef-flash; state [{ref, title, excerpt}]; one choice question per thread with 13 options (12 topics + routine) |
+| D63 | clef | captured week, cold run with Clef | 8 Clef requests; every state at most 1,800 tokens; at most 64 questions; excerpts at most 120 chars |
+| D63 | clef | constructed: the request body for one batch | model clef-flash; state [{ref, title, excerpt}] then the canary; one choice question per thread with 13 options (12 topics + routine) described by the profile, plus question end |
 | D63 | clef | constructed: a new comment on a thread whose title and root excerpt are unchanged | Clef features reused from cache; 0 Clef requests for it |
 | D67 | clef | constructed: answer for t2 missing, t3 probability 1.4 | t2 and t3 get rules features; the rest model; batch counted as a fallback |
 | D67 | clef | constructed: the Clef request fails twice | 1 retry; the batch gets rules features |
@@ -1237,20 +1292,35 @@ synthetic; the others use values captured from Dev.
 | D69 | text response | Workers AI returns {response: {sentences: []}} (JSON mode object) | text {"sentences":[]} |
 | D70 | gateway | DIGEST_MODEL workers-ai, DIGEST_GATEWAY_ID osskb-digest-dev, AI binding | every call passes {gateway: {id: osskb-digest-dev, skipCache: true}} |
 | D70 | gateway | AI binding without DIGEST_GATEWAY_ID (or DIGEST_MODEL unset) | no model: rules only |
-| D71 | spend | constructed: the 46th model request of one run | skipped; limited true |
+| D71 | spend | constructed: the 51st model request of one run | skipped; limited true |
 | D64 | run control | DIGEST_ENABLED unset (Prod) | POST /digest/run 403 disabled; an alarm runs nothing |
 | D66 | dry run | constructed: a dry run where the model reports usage and one call fails | result lists the error shape and a calibration ratio of reported to estimated input tokens |
 | D63 | clef | constructed: answer t1 routine 0.45, other 0.55 | topic other, topicConfidence 1.00, routine false (0.55) |
 | D63 | clef | constructed: answer t1 routine 0.5, other 0.25, security 0.25 | topic other, topicConfidence 0.50, routine true (0.50) |
-| D63 | clef | constructed: 70 threads with one-letter titles and no excerpt | 2 requests: 64 + 6 questions |
+| D63 | clef | constructed: 70 threads with one-letter titles and no excerpt | 2 requests: 63 + 7 thread questions, each plus the canary |
 | D67 | clef | constructed: Clef reports 1,000 prompt tokens for a request the job estimated at 1,500 | the whole batch is treated as unseen: rules features, counted as a fallback |
 | D67 | clef | constructed: a whole run where every Clef response reports 1 prompt token | every thread gets rules features; every batch counted as a fallback |
 | D67 | clef | constructed: Clef reports 1,400 prompt tokens for a request estimated at 1,500 | model features (reported is at least 80% of the estimate) |
 | D71 | spend | constructed: a Clef decide with today's spend exactly at the cap | skipped; limited true; the pre-call estimate is at least 1 neuron |
 | D70 | gateway | constructed: a text-generation request through WorkersAiModel | body has messages, max_tokens, temperature 0 |
-| D63 | clef | constructed: a run with the Clef decider | revisions.classifier is @cf/cloudflare/clef-flash with digest-clef@1 |
+| D63 | clef | constructed: a run with the Clef decider | revisions.classifier is @cf/cloudflare/clef-flash with digest-clef@2 |
 | D66 | dry run | constructed: the model reports twice the estimated input tokens | calibration ratio 2 |
 | D66 | dry run | constructed: 2 text calls with usage, then 2 Clef requests of which 1 reports usage | calls 4, callsWithUsage 3, clefCalls 2, clefCallsWithUsage 1 |
+| D72 | canary | constructed: Clef answers the canary word with probability 0.3 | the whole batch is unseen: rules features, counted as a fallback |
+| D72 | canary | constructed: Clef answers the canary word with probability 0.9 | model features |
+| D72 | canary | constructed: a whole run where every Clef response omits the canary answer | every thread gets rules features; clefCanaryMisses equals clefCalls |
+| D73 | clef | constructed: the Clef request criteria for the Kafka profile | every topic option's criterion is the profile description; revision digest-clef@2 |
+| D74 | call order | captured week, cold run with Clef | classify, then proposal rows, then cards by score, then highlights, then translation |
+| D74 | call order | constructed: captured week with a 30-request ceiling | every proposal line, the highlights call, and translation ran; the lowest-score cards fall back; limited true; no item Not translated |
+| D74 | call order | constructed: a ModelCalls ceiling of 3 requests | the 4th request is skipped; limited true |
+| D74 | call order | constructed: captured week with a Clef cap of 3 requests | 3 Clef requests; the other threads get rules features; limited true |
+| D75 | bounds | constructed: the max_tokens of each call kind in a cold run | card 500, proposal 160, highlights 800, translation 4000 |
+| D75 | bounds | captured week, cold run with Clef | 1 translation call for every item; its prompt ends with /no_think |
+| D78 | style | constructed: card sentences "Omnia Ibrahim proposed Apache Kafka 4.4.0 RC4." and "KIP-1349 moves snapshot frequency to bytes." | style {sentences 2, personLed 1}; summarizer prompt digest-prompts@2 |
+| D79 | coverage | constructed: the translation batch returns non-JSON twice | en and zh-Hant coverage identical; notTranslated equals the zh-Hant items marked Not translated |
+| D79 | coverage | constructed: a complete en with an incomplete zh-Hant, retried | a new pair with identical coverage; the pointer names both new objects |
+| D80 | rejections | constructed: a proposal call returns JSON cut off mid-string | rejections.unparsable 1; that line null |
+| D80 | rejections | constructed: a card sentence says merged while its cited PR is open | rejections["status:merged"] 1 |
 <!-- test-plan:end -->
 
 **Slice 3: browser.** Case file
@@ -1267,6 +1337,8 @@ synthetic; the others use values captured from Dev.
 | D36 | proposals tab | /#/datafusion/proposals | redirects to /#/datafusion/ |
 | D36 | proposals tab | /#/kafka/proposals, en | every row grouped by stage; quorum note "3 binding +1 votes" |
 | D17 | empty | constructed: digest with empty true | This week shows "No activity in the past 7 days" |
+| D77 | uncategorized | constructed: digest with uncategorized threads KAFKA-PR-23426 and KAFKA-MAIL-85a6bd91 | collapsed section after the topic cards: "Uncategorized", "Show list · 2 items" |
+| D77 | uncategorized | constructed: digest object without the uncategorized field | no Uncategorized section |
 <!-- test-plan:end -->
 
 Named tests, to be written:
@@ -1333,7 +1405,8 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   - the lz4 advisory bump with `routine: false` lands in the security card.
 - D7: every candidate appears exactly once (proposal cites excluded). Cards
   are ordered by top-3 score sum and show 5 threads plus "n more"; routine
-  is collapsed with its count.
+  is collapsed with its count. Threads whose effective topic is `other` go
+  to Uncategorized, never to a card (D76).
 - D8: keywords are the deterministic top-5 tf-idf title terms, with
   alphabetical ties, without stopwords, `MINOR`, keys, or part markers.
 - D9: generated sentences pass Behavior 9 validation and carry provenance:
@@ -1400,8 +1473,9 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
 
 - D63: Clef-flash classification (slice 2b):
   - one choice question per thread (12 topics plus `routine`);
-  - state `{ref, title, excerpt ≤ 120}`, packed to at most 1,200 state
-    tokens and 64 questions (12 requests on the captured week);
+  - state `{ref, title, excerpt ≤ 120}`, packed to at most 1,800 state
+    tokens and 63 thread questions plus the canary (slice 2c; 1,200 and 64
+    in 2b);
   - `routine` true at a `routine` probability of 0.5 or more; the routine
     section still needs 0.6 (`placement`, Behavior 6); topic and confidence
     renormalised over the topics;
@@ -1422,6 +1496,32 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
 - D70: with `DIGEST_MODEL=workers-ai`, `DIGEST_GATEWAY_ID`, and the `AI`
   binding, every call passes `{gateway: {id, skipCache: true}}`. If any of
   the three is missing, the run is rules-only.
+- D72: every Clef request ends `state` with the canary and asks question
+  `end`. A canary probability below 0.5 gives the whole batch rules
+  features, counts a fallback, and adds 1 to `clefCanaryMisses`; a correct
+  canary gives model features.
+- D73: Clef option descriptions come from the profile's
+  `taxonomy.descriptions` (at most 8 words each), and the classifier
+  revision is `digest-clef@2`.
+- D74: calls follow the Behavior 15 order. With too few calls left, the
+  lowest-score cards are skipped while proposal lines, the highlights call
+  and translation still run; at most 20 Clef requests run.
+- D75: the bounds are card 500, proposal row 160, highlights 800 and
+  translation 4,000 tokens; translation sends up to 60 items per call and
+  its prompt ends with `/no_think`.
+- D76: Uncategorized holds the non-routine threads whose effective topic is
+  `other`, ordered by score; no card has topic `other`.
+- D77: This week shows Uncategorized as a collapsed section with its count,
+  after the topic cards; a digest without the field shows none.
+- D78: the summarizer prompt is `digest-prompts@2` and asks for
+  development-first sentences; a run's result reports
+  `style {sentences, personLed}` per Behavior 9.
+- D79: both locale objects of a pair carry identical `coverage`, including
+  `notTranslated`, `modelCalls` and `limited`; a translation-only retry
+  writes a new pair.
+- D80: a run's result reports `rejections`: for every card, proposal row
+  and highlights call, `unparsable` (no JSON), `empty` (JSON without
+  sentences) or each dropped sentence's Behavior 9/30 reason.
 
 ### Failure and retry
 - D13: a binding error, 5xx, 3040, or unidentified error is retried once
@@ -1521,14 +1621,20 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   retried once.
 - D69: text responses with `<think>` blocks or JSON-mode objects become
   plain JSON text, and the reported usage is kept.
-- D71: the 46th model request of a run is skipped and the run is
-  `limited`.
+- D71: the 51st model request of a run is skipped and the run is
+  `limited` (45th before slice 2c).
 
 ### Budget
 - D25: [measure] on the captured week, a cold Kafka run estimates at most
   4,500 neurons and a steady daily run at most 2,000.
   - Measured 2026-10-08 with Clef-flash classification (slice 2b): cold
     **1,310**, steady **1,056**.
+  - Slice 2c (option descriptions, canary, no `other` card): cold
+    **1,474**, steady **1,101**. Classification 514 (8 requests; the
+    descriptions add 163), cards 587 (11), proposal lines 260, highlights
+    71, translation 42 (1 call). On the live week of the first Dev dry run
+    (318 candidates) the packing gives 12 Clef requests and about 706
+    classification neurons.
   - The cold run breaks down as: classification on Clef-flash 351 (12
     requests); cards 610, proposal lines 236, and highlights 71 on
     llama-3.3-70b; translation 42 on qwen3-30b-a3b.
@@ -1540,8 +1646,11 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
     committed fixture and applies the pinned price table and the Behavior
     15 token estimate.
 - D26: [measure] the same command prints call and read counters:
-  - model calls per cold run: at most 45. Measured 39: 12 Clef requests, 12
-    cards, 12 proposal rows, 1 highlights call, and 2 translation batches.
+  - model calls per cold run: at most 50. Measured 39 in slice 2b: 12 Clef
+    requests, 12 cards, 12 proposal rows, 1 highlights call, and 2
+    translation batches. Slice 2c: 33 (8 Clef requests, 11 cards, 12
+    proposal rows, 1 highlights call, 1 translation call); on the live
+    318-candidate week about 38 (12 + 11 + 13 + 1 + 1).
     This stays under the Dev gateway's 60 requests per hour;
   - R2 reads: at most 300 (pointer, manifest, feed index, detail map, 234
     Details, two previous objects, one list);
@@ -1579,10 +1688,13 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   human's labels meets the thresholds the human sets (pending labels).
 - D35: [deploy] before the daily cron is enabled, Dev dry runs
   (`POST /digest/run?dryRun=1`) cover the checks below.
-  - Precondition for adding `DIGEST_CRON`: a Dev dry run shows
-    `calibration.clefCallsWithUsage` equal to `calibration.clefCalls`
-    (above 0). Every Clef response then carried `usage`, so the truncation
-    fail-safe was on.
+  - Precondition for adding `DIGEST_CRON` (revised in slice 2c, because
+    Clef-flash returns no `usage`): a Dev dry run shows
+    `calibration.clefCanaryMisses` equal to 0 with `clefCalls` above 0, and
+    one probe shows the canary works: a single Clef request whose `state`
+    is about 4,000 estimated tokens must miss the canary. If the probe
+    answers the canary, the truncation limit is above 4,000 tokens; record
+    that and raise the packing budget.
   - They record the exception shapes of `env.AI.run` for a malformed request
     and for a gateway rate limit, using a test gateway limited to 1
     request/min. Error 3036 is not provoked.
@@ -1592,11 +1704,12 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
     spec.
   - They confirm two Clef assumptions, which constructed tests cannot:
     - response field names: answers at `answers.<question id>.probabilities`
-      and input tokens at `usage.prompt_tokens`. If `usage` is missing, the
-      truncation fail-safe is off; record that here.
+      and input tokens at `usage.prompt_tokens`. Recorded 2026-10-08:
+      answers present, `usage` absent on all 17 requests.
     - truncation scope and limit: which part of the request Workers AI
-      truncates and at how many tokens. The 1,200-token packing budget and
-      the 80% fail-safe ratio assume `state` is cut near 2K tokens.
+      truncates and at how many tokens. The 1,800-token packing budget
+      assumes `state` is cut near 2K tokens; the canary detects a lower
+      limit.
   - Known limits to watch in the dry-run result:
     - The daily cap is checked per call before it starts. With 4 Clef
       requests in flight, up to 3 more pre-call estimates can pass the cap
@@ -1606,7 +1719,10 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
     - qwen3's `<think>` block consumes `max_tokens`. An unterminated block
       leaves no translation, so the sentence shows "Not translated". Watch
       `notTranslated` in the result; raise the translator's `max_tokens` if
-      it is above 0.
+      it is above 0. Slice 2c adds `/no_think` and 4,000 tokens.
+    - Slice 2c: `style.personLed` should fall well below the first dry
+      run's share, and `rejections` explains any empty card, proposal line,
+      or headline.
 - D56: `digest -- eval` reports counts per error class and the share of
   sentences dropped by each Behavior 30 rule. The five recorded negative
   fixtures are in the labels fixture, and Behavior 30 rejects the status
@@ -1659,6 +1775,12 @@ built yet; the command rejects the flag.
      - The digest cron ships **disabled**: no `DIGEST_CRON` and no cron
        entry. Both are added together once the human has reviewed a Dev dry
        run.
+   - **2c** (after the first Dev dry run, 2026-10-08): the Clef canary and
+     profile descriptions (D72, D73), the call order and reserve (D74), the
+     raised bounds and one-call translation (D75), Uncategorized (D76,
+     D77), development-first sentences (D78), one coverage per pair (D79),
+     and rejection counts (D80). The cron stays off; a second Dev dry run
+     follows the merge.
 3. **Web:** routes, tabs, This week, Proposals, topic page, i18n, and
    `/api/digest`. The E2E moves are part of this slice.
 

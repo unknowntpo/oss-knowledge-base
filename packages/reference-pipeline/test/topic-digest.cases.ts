@@ -49,7 +49,7 @@ export const testPlanRows = [
   { id: "D6", rule: "features", input: "constructed: topic group-coordination, topicConfidence 0.40", expected: "other card" },
   { id: "D6", rule: "features", input: "constructed: topic group-coordination, topicConfidence 0.60", expected: "group-coordination card" },
   // D7: mixing places every candidate exactly once.
-  { id: "D7", rule: "mixing", input: "captured week, rules classifier", expected: "every one of 234 candidates appears once: in a card's thread list or in routine" },
+  { id: "D7", rule: "mixing", input: "captured week, rules classifier", expected: "every one of 234 candidates appears once: in a card's thread list, in routine, or in Uncategorized" },
   { id: "D7", rule: "mixing", input: "constructed: topic with 7 threads", expected: "card shows the 5 highest-scoring threads and \"2 more\"" },
   { id: "D7", rule: "mixing", input: "constructed: topics A (top-3 scores 2.5, 0.2, 0.1) and B (1.0, 1.0, 1.0)", expected: "B first (3.0 > 2.8)" },
   { id: "D7", rule: "mixing", input: "constructed: routine threads with scores 0.3 and 1.47", expected: "routine section collapsed, count 2, ordered 1.47 then 0.3" },
@@ -161,4 +161,10 @@ export const testPlanRows = [
   { id: "D1", rule: "window", input: "constructed: entry with sourceCounts github and jira", expected: "source github" },
   { id: "D5", rule: "kip block", input: "constructed: two discuss rows, KIP-1 newest 10-05 and KIP-2 newest 10-06", expected: "KIP-2 then KIP-1" },
   { id: "D40", rule: "taxonomy", input: "constructed: \"Please add the ci-approved label to the docs PR\"", expected: "community card, not routine" },
+  { id: "D76", rule: "uncategorized", input: "constructed: threads with best topic other (score 1.0), security at topicConfidence 0.4 (score 2.0), and security at 0.9", expected: "Uncategorized [score 2.0, score 1.0]; one security card; no card has topic other" },
+  { id: "D73", rule: "descriptions", input: "Kafka profile taxonomy", expected: "every topic and routine has a description of 1–8 words" },
+  { id: "D78", rule: "style", input: "Omnia Ibrahim proposed Apache Kafka 4.4.0 RC4. (first Dev dry run)", expected: "person-led" },
+  { id: "D78", rule: "style", input: "Apache Kafka 4.3.2 RC0 is open, said 黃竣陽. (first Dev dry run)", expected: "person-led" },
+  { id: "D78", rule: "style", input: "Sushant Mahajan was announced as a new Kafka committer. (first Dev dry run)", expected: "not person-led" },
+  { id: "D78", rule: "style", input: "constructed: KIP-1349 moves share-group snapshot frequency from record counts to bytes.", expected: "not person-led" },
 ] as const;

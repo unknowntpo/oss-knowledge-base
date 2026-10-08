@@ -22,6 +22,7 @@ import {
   mix,
   neurons,
   parseClassification,
+  personLed,
   placement,
   planCalls,
   proposalKeys,
@@ -263,10 +264,28 @@ const cases: Record<string, Case> = {
   // D7
   "mixing|captured week, rules classifier": () => {
     const result = mix(candidates, new Map(candidates.map((item) => [item.displayId, rulesClassify(item, KAFKA)])), KAFKA);
-    const placedIds = [...result.cards.flatMap((card) => card.threads), ...result.routine];
+    const placedIds = [...result.cards.flatMap((card) => card.threads), ...result.routine, ...result.uncategorized];
     const once = placedIds.length === candidates.length && new Set(placedIds).size === candidates.length;
-    return once ? `every one of ${candidates.length} candidates appears once: in a card's thread list or in routine` : "duplicated or missing";
+    return once ? `every one of ${candidates.length} candidates appears once: in a card's thread list, in routine, or in Uncategorized` : "duplicated or missing";
   },
+  "uncategorized|constructed: threads with best topic other (score 1.0), security at topicConfidence 0.4 (score 2.0), and security at 0.9": () => {
+    const threads = [made("KAFKA-PR-1", "a", { score: 1 }), made("KAFKA-PR-2", "b", { score: 2 }), made("KAFKA-PR-3", "c", { score: 3 })];
+    const feats = new Map([["KAFKA-PR-1", features("other", 0.9, false, 0.9)], ["KAFKA-PR-2", features("security", 0.4, false, 0.9)],
+      ["KAFKA-PR-3", features("security", 0.9, false, 0.9)]] as const);
+    const result = mix(threads, feats, KAFKA);
+    const scores = result.uncategorized.map((id) => threads.find((item) => item.displayId === id)!.score.toFixed(1));
+    return `Uncategorized [${scores.map((score) => `score ${score}`).join(", ")}]; ${result.cards.length === 1 && result.cards[0]!.topic === "security" ? "one security card" : result.cards.map((card) => card.topic).join()}; ${result.cards.some((card) => card.topic === "other") ? "an other card" : "no card has topic other"}`;
+  },
+  "descriptions|Kafka profile taxonomy": () => {
+    const descriptions = KAFKA.taxonomy.descriptions ?? {};
+    const options = [...KAFKA.taxonomy.topics, "routine"];
+    const ok = options.every((option) => { const words = (descriptions[option] ?? "").trim().split(/\s+/u).filter(Boolean).length; return words >= 1 && words <= 8; });
+    return ok ? "every topic and routine has a description of 1–8 words" : options.filter((option) => !descriptions[option]).join();
+  },
+  "style|Omnia Ibrahim proposed Apache Kafka 4.4.0 RC4. (first Dev dry run)": () => (personLed("Omnia Ibrahim proposed Apache Kafka 4.4.0 RC4.") ? "person-led" : "not person-led"),
+  "style|Apache Kafka 4.3.2 RC0 is open, said 黃竣陽. (first Dev dry run)": () => (personLed("Apache Kafka 4.3.2 RC0 is open, said 黃竣陽.") ? "person-led" : "not person-led"),
+  "style|Sushant Mahajan was announced as a new Kafka committer. (first Dev dry run)": () => (personLed("Sushant Mahajan was announced as a new Kafka committer.") ? "person-led" : "not person-led"),
+  "style|constructed: KIP-1349 moves share-group snapshot frequency from record counts to bytes.": () => (personLed("KIP-1349 moves share-group snapshot frequency from record counts to bytes.") ? "person-led" : "not person-led"),
   "mixing|constructed: topic with 7 threads": () => {
     const threads = Array.from({ length: 7 }, (_, index) => made(`KAFKA-PR-${index + 1}`, `t${index}`, { score: index + 1 }));
     const card = mix(threads, new Map(threads.map((item) => [item.displayId, features("clients", 1, false, 0)])), KAFKA).cards[0]!;

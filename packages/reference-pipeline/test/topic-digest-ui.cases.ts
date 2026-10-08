@@ -11,4 +11,6 @@ export const testPlanRows = [
   { id: "D36", rule: "proposals tab", input: "/#/datafusion/proposals", expected: "redirects to /#/datafusion/" },
   { id: "D36", rule: "proposals tab", input: "/#/kafka/proposals, en", expected: "every row grouped by stage; quorum note \"3 binding +1 votes\"" },
   { id: "D17", rule: "empty", input: "constructed: digest with empty true", expected: "This week shows \"No activity in the past 7 days\"" },
+  { id: "D77", rule: "uncategorized", input: "constructed: digest with uncategorized threads KAFKA-PR-23426 and KAFKA-MAIL-85a6bd91", expected: "collapsed section after the topic cards: \"Uncategorized\", \"Show list · 2 items\"" },
+  { id: "D77", rule: "uncategorized", input: "constructed: digest object without the uncategorized field", expected: "no Uncategorized section" },
 ] as const;
