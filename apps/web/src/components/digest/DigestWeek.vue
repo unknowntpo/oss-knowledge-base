@@ -108,6 +108,14 @@ const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ b
         </div>
       </section>
 
+      <section v-if="counts.uncategorized > 0" id="digest-uncategorized" class="digest-routine-section digest-uncategorized-section">
+        <h2 class="digest-section-title">{{ t("digest.uncategorized") }}</h2>
+        <details class="digest-routine digest-uncategorized">
+          <summary>{{ t("digest.routineShow", { n: counts.uncategorized }) }}</summary>
+          <CiteChips :cites="digest.uncategorized!.threads" :digest="digest" :feed-ids="feedIds" />
+        </details>
+      </section>
+
       <section id="digest-routine" class="digest-routine-section">
         <h2 class="digest-section-title">{{ t("digest.routine") }}</h2>
         <details class="digest-routine">

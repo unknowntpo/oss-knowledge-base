@@ -36,8 +36,8 @@ export function modelErrorKind(error: unknown): "limit" | "retry" {
 }
 
 export const RETRY_DELAY_MS = 5_000;
-/** At most this many model requests per run; the Dev gateway allows 60 per hour (D26). */
-export const MAX_CALLS_PER_RUN = 45;
+/** At most this many model requests per run; the Dev gateway allows 60 per hour, leaving 10 (D26). */
+export const MAX_CALLS_PER_RUN = 50;
 const MAX_RECORDED_ERRORS = 10;
 
 export interface SpendLedger {
@@ -71,6 +71,8 @@ export interface Calibration {
   /** Successful Clef requests, and those that reported `usage` (the truncation fail-safe needs it; D35). */
   readonly clefCalls: number;
   readonly clefCallsWithUsage: number;
+  /** Slice 2c: Clef batches whose canary was missed (or usage showed truncation); D35 needs 0. */
+  readonly clefCanaryMisses: number;
   readonly estimatedInputTokens: number;
   readonly reportedInputTokens: number;
   /** reported / estimated over calls that reported usage; null without usage. */
@@ -87,14 +89,23 @@ export class ModelCalls {
   failures = 0;
   readonly errors: ModelErrorShape[] = [];
   readonly records: CallRecord[] = [];
+  canaryMisses = 0;
+  /** Slice 2c: work skipped to keep the call budget (Clef overflow, cards past the reserve). */
+  partial = false;
   private total: number;
 
   constructor(
     private readonly model: DigestModel | undefined,
     private readonly ledger: SpendLedger,
     private readonly delay: (ms: number) => Promise<void>,
+    readonly maxCalls: number = MAX_CALLS_PER_RUN,
   ) {
     this.total = ledger.spent;
+  }
+
+  /** Requests this run may still make under the per-run ceiling. */
+  get remaining(): number {
+    return Math.max(0, this.maxCalls - this.calls);
   }
 
   get spentToday(): number {
@@ -118,6 +129,7 @@ export class ModelCalls {
       callsWithUsage: withUsage.length,
       clefCalls: this.records.filter((record) => record.clef).length,
       clefCallsWithUsage: withUsage.filter((record) => record.clef).length,
+      clefCanaryMisses: this.canaryMisses,
       estimatedInputTokens: this.records.reduce((sum, record) => sum + record.estimatedInputTokens, 0),
       reportedInputTokens: reported,
       ratio: estimated > 0 ? Math.round((reported / estimated) * 100) / 100 : null,
@@ -156,7 +168,7 @@ export class ModelCalls {
       return undefined;
     }
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      if (this.calls >= MAX_CALLS_PER_RUN) {
+      if (this.calls >= this.maxCalls) {
         this.limited = true;
         return undefined;
       }

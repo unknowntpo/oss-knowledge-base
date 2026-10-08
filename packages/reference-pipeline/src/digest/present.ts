@@ -8,10 +8,11 @@ export interface DigestCounts {
   readonly stages: Readonly<Record<string, number>>;
   readonly topics: number;
   readonly routine: number;
+  readonly uncategorized: number;
 }
 
 /** The one function behind stats, anchors, stage counts (Behavior 26); never stored. */
-export function digestCounts(digest: Pick<DigestV1, "proposals" | "cards" | "routine" | "threads">): DigestCounts {
+export function digestCounts(digest: Pick<DigestV1, "proposals" | "cards" | "routine" | "threads" | "uncategorized">): DigestCounts {
   const stages: Record<string, number> = {};
   for (const row of digest.proposals) stages[row.group] = (stages[row.group] ?? 0) + 1;
   const threads = Object.values(digest.threads);
@@ -22,6 +23,7 @@ export function digestCounts(digest: Pick<DigestV1, "proposals" | "cards" | "rou
     stages,
     topics: digest.cards.length,
     routine: digest.routine.threads.length,
+    uncategorized: digest.uncategorized?.threads.length ?? 0,
   };
 }
 

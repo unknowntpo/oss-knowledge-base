@@ -10,9 +10,16 @@ export const CARD_INPUT_CHARS = 6_000;
 export interface Mix {
   readonly cards: TopicCard[];
   readonly routine: string[];
+  /** Slice 2c: non-routine threads whose effective topic is `other`; never a card. */
+  readonly uncategorized: string[];
 }
 
-/** Behavior 7: each candidate exactly once, in a card or in routine; cards by top-3 score sum. */
+export const UNCATEGORIZED_TOPIC = "other";
+
+/**
+ * Behavior 7: each candidate exactly once, in a card, in routine, or in Uncategorized (effective
+ * topic `other`); cards by top-3 score sum.
+ */
 export function mix(threads: readonly Thread[], features: ReadonlyMap<string, ThreadFeatures>, profile: DigestProfile): Mix {
   const byTopic = new Map<string, Thread[]>();
   const routine: Thread[] = [];
@@ -25,6 +32,7 @@ export function mix(threads: readonly Thread[], features: ReadonlyMap<string, Th
   }
   const cards: TopicCard[] = [];
   for (const topic of profile.taxonomy.topics) {
+    if (topic === UNCATEGORIZED_TOPIC) continue;
     const members = (byTopic.get(topic) ?? []).sort(byScore);
     if (members.length === 0) continue;
     cards.push({
@@ -37,7 +45,11 @@ export function mix(threads: readonly Thread[], features: ReadonlyMap<string, Th
     });
   }
   cards.sort((a, b) => b.score - a.score || (a.topic < b.topic ? -1 : 1));
-  return { cards, routine: routine.sort(byScore).map((thread) => thread.displayId) };
+  return {
+    cards,
+    routine: routine.sort(byScore).map((thread) => thread.displayId),
+    uncategorized: (byTopic.get(UNCATEGORIZED_TOPIC) ?? []).sort(byScore).map((thread) => thread.displayId),
+  };
 }
 
 /** A card shows its first 5 threads and "n more" (Behavior 7). */
