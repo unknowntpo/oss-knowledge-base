@@ -40,7 +40,7 @@ export const testPlanRows = [
   { id: "D5", rule: "kip block", input: "KIP-1368: [DISCUSS] active this week; its [VOTE] thread KAFKA-MAIL-86ae8b63 has no record in the window", expected: "discuss" },
   { id: "D5", rule: "kip block", input: "constructed: KIP-9999 [VOTE] thread active and a PR title naming KIP-9999", expected: "vote group, badges vote + implementing" },
   { id: "D5", rule: "kip block", input: "KIP-1306: dev@ subject cites KAFKA-20684; routine-looking PRs KAFKA-20684 [4/N]…[9/N]", expected: "cites the thread and 6 PRs; the PRs still appear once in a card or routine" },
-  { id: "D5", rule: "kip block", input: "captured week", expected: "vote: KIP-1349; discuss: KIP-1368, KIP-1379, KIP-1376, KIP-1342, KIP-1165, KIP-1163; implementing: KIP-1306, KIP-1332, KIP-1289, KIP-1331, KIP-909" },
+  { id: "D5", rule: "kip block", input: "captured week", expected: "badges KIP-1349 vote+discuss; groups vote: KIP-1349; discuss: KIP-1368, KIP-1379, KIP-1376, KIP-1342, KIP-1165, KIP-1163; implementing: KIP-1306, KIP-1332, KIP-1289, KIP-1331, KIP-909" },
   // D6: model features are typed and gated by confidence; low confidence never hides a thread.
   { id: "D6", rule: "features", input: "hand label: KAFKA-PR-23426 {topic: other, topicConfidence 0.9, routine: true, routineConfidence 0.95}", expected: "routine section" },
   { id: "D6", rule: "features", input: "constructed: routine true, routineConfidence 0.59", expected: "topic card (routine needs >= 0.6)" },
@@ -94,4 +94,45 @@ export const testPlanRows = [
   { id: "D18", rule: "freshness", input: "digest generatedAt 2026-10-07T01:37:00Z, now 2026-10-08T13:37:00Z (36 h)", expected: "Digest updated 36 h ago; not stale" },
   { id: "D18", rule: "freshness", input: "digest generatedAt 2026-10-07T01:37:00Z, now 2026-10-08T13:37:01Z", expected: "Digest may be out of date · 36 h ago; stale" },
   { id: "D18", rule: "freshness", input: "constructed: cited KAFKA-PR-23426 absent from the current feed", expected: "title from the digest, link to https://github.com/apache/kafka/pull/23426" },
+  // D36: proposal section is profile-driven.
+  { id: "D36", rule: "profile", input: "apache-kafka profile proposal {kind KIP, stages vote/discuss/implementing, quorumNote proposal.apache-kafka.quorumNote}", expected: "Proposals section, anchor, stat and tab shown; quorum note \"3 binding +1 votes\"" },
+  { id: "D36", rule: "profile", input: "apache-datafusion profile proposal {kind null}", expected: "no Proposals section, anchor, stat or tab" },
+  // D38 / D49: translation keeps protected spans; cites are copied.
+  { id: "D38", rule: "translate", input: "\"KIP-1349 received a +1 (binding) and a +1 this week, and Chia-Ping Tsai asked whether a bytes-based trigger is better than a count.\" cites KAFKA-MAIL-82e0d5b3, KAFKA-MAIL-4bc41094", expected: "placeholders for KIP-1349, +1 (binding), +1, Chia-Ping Tsai; zh-Hant text keeps each exactly once; cites copied unchanged" },
+  { id: "D38", rule: "translate", input: "\"KAFKA-20292 merged parts 9–13 …\" with `group.consumer.assignor.offload.enable`", expected: "KAFKA-20292 and the backticked key kept verbatim" },
+  { id: "D38", rule: "translate", input: "\"4.4.0 RC3 will be replaced by RC4 …\"", expected: "4.4.0, RC3, RC4 kept verbatim" },
+  { id: "D49", rule: "translate", input: "constructed: translation drops placeholder ⟦2⟧ (a person's name)", expected: "English text kept, label Not translated" },
+  { id: "D49", rule: "translate", input: "constructed: translation repeats ⟦0⟧ twice", expected: "English text kept, label Not translated" },
+  { id: "D49", rule: "translate", input: "constructed: translation adds KIP-1165 not in the source", expected: "English text kept, label Not translated" },
+  // D39 / D52: one source for counts; window label.
+  { id: "D39", rule: "counts", input: "captured week draft: 12 proposal rows (vote 1, discuss 6, implementing 5), 8 cards, routine list", expected: "anchor Proposals · 12 = stat 12 = 1 + 6 + 5; Topics · 8; Routine · routine.length" },
+  { id: "D39", rule: "window label", input: "en, 2026-09-29T13:07:37Z – 2026-10-06T13:07:37Z", expected: "Past 7 days · Sep 29 – Oct 6, 2026" },
+  { id: "D39", rule: "window label", input: "zh-Hant, same window", expected: "過去 7 天 · Intl.DateTimeFormat(\"zh-Hant\", …).formatRange output; no 週/week number" },
+  { id: "D39", rule: "window label", input: "en, 2026-12-29 – 2027-01-05 (year boundary)", expected: "Past 7 days · Dec 29, 2026 – Jan 5, 2027" },
+  { id: "D39", rule: "lag", input: "jira newest single-source entry 2026-09-19T03:20:38Z, window start 2026-09-29T13:07:37Z", expected: "\"JIRA through Sep 19\" next to the stats" },
+  { id: "D52", rule: "counts", input: "constructed: stored stats.proposals 11, kips array length 12", expected: "not published; previous pointer kept" },
+  // D40: taxonomy covers community/governance and streams.
+  { id: "D40", rule: "taxonomy", input: "KAFKA-MAIL-2dc19c3f \"Pending Jira account request\"", expected: "community card, not routine" },
+  { id: "D40", rule: "taxonomy", input: "KAFKA-MAIL-55bead25 \"Cruise Control … moves to the Linux Foundation\"", expected: "community card" },
+  { id: "D40", rule: "taxonomy", input: "constructed: 9 non-empty topics", expected: "9 cards (no cap at 6)" },
+  // D41 / D51: vote tally.
+  { id: "D51", rule: "tally", input: "KAFKA-MAIL-82e0d5b3 [VOTE] KIP-1349: oldest retained message is \"Re:\" (2026-09-18); Andrew Schofield \"+1 (binding)\", Sushant Mahajan \"+1\"", expected: "no tally (root not retained)" },
+  { id: "D41", rule: "tally", input: "constructed: root retained; A \"+1 (binding)\", B \"+1\", C \"+1 (binding)\"", expected: "+1 × 3 (binding 2)" },
+  { id: "D41", rule: "tally", input: "constructed: root retained; B votes \"+1\" twice", expected: "+1 × 1 (binding 0)" },
+  { id: "D51", rule: "tally", input: "constructed: root retained; reply preview \"On … wrote: > +1 (binding)\" (quote only)", expected: "not counted" },
+  { id: "D51", rule: "tally", input: "constructed: root retained; \"+1 non-binding from me\" (4.3.2 RC0 style)", expected: "counted, not binding" },
+  { id: "D51", rule: "tally", input: "constructed: root retained; no parseable +1", expected: "no tally" },
+  // D42 / D48: overflow and one proposal per line.
+  { id: "D42", rule: "overflow", input: "captured week discuss group: 6 rows", expected: "6 rows, no \"+n more\"" },
+  { id: "D42", rule: "overflow", input: "constructed: discuss group with 7 rows", expected: "6 rows and \"+1 more\" linking to Proposals" },
+  { id: "D48", rule: "one proposal", input: "KIP-1163 line \"Pointer to the KIP-1165 update\" (earlier draft)", expected: "dropped (names KIP-1165)" },
+  { id: "D48", rule: "one proposal", input: "mock KIP-1376 note \"同期：KIP-1342 棄用 aclCount …\" as English \"Also KIP-1342 deprecates aclCount\"", expected: "dropped" },
+  // D46 / D47: accuracy rules (negative fixtures from the 2026-10-08 review).
+  { id: "D46", rule: "status words", input: "\"4.3.2 RC0 was verified by Bill Bejeck, Jakub Scholz and Chia-Ping Tsai\" cites KAFKA-MAIL-8849f679 (no [RESULT])", expected: "dropped" },
+  { id: "D46", rule: "status words", input: "recorded error (mock \"DLQ 紀錄保留原始 header\"), in English \"DLQ header preservation was merged\", cites KAFKA-PR-23659 (open)", expected: "dropped" },
+  { id: "D46", rule: "status words", input: "\"KAFKA-20292 merged parts 9–13 …\" cites KAFKA-PR-23622 (merged) … KAFKA-PR-23688 (open)", expected: "kept (a merged PR is cited)" },
+  { id: "D46", rule: "status words", input: "\"An open PR would keep the original headers …\" cites KAFKA-PR-23659 (open)", expected: "kept (modal, no status claim)" },
+  { id: "D46", rule: "status words", input: "\"Apache Kafka 4.2.2 was announced\" cites KAFKA-MAIL-d7907ec4 ([ANNOUNCE])", expected: "kept" },
+  { id: "D47", rule: "stance", input: "\"Chris Egerton objected on 10-05 to packing connector type and version into one field\" cites KAFKA-MAIL-fd63cd54", expected: "dropped" },
+  { id: "D47", rule: "stance", input: "\"Chris Egerton questioned using the instance ID to report connector type and version\"", expected: "kept" },
 ] as const;

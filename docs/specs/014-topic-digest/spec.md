@@ -1,7 +1,7 @@
 # Spec 014: Kafka topic digest
 
 Status: Draft (for intent review)
-Date: 2026-10-06
+Date: 2026-10-06 (amended 2026-10-08 after design review)
 Traceability: enforced
 Builds on: Spec 002, Spec 005, Spec 008 (ADR-0013), Spec 010, Spec 011, Spec 012 (ADR-0014), Spec 013
 
@@ -13,19 +13,27 @@ activity counts, so a DataFusion "playground" PR full of benchmark-bot output is
 first, most cards are DataFusion, and routine dependency bumps outrank KIP
 discussions.
 
-Outcome: the home page starts with a Kafka digest for the last 7 days:
+Outcome: the home page ("This week" tab) is a Kafka digest of the past 7
+days. From top to bottom it shows:
 
-1. **KIP 動態** at the top: each KIP active this week, once, at its stage
-   (VOTE, DISCUSS, implementing), citing its dev@ threads, PRs, and Jira issues.
-2. **Topic cards**: one card per topic from a fixed Kafka taxonomy, with
-   deterministic keywords, up to 3 AI-written sentences that each cite source
-   threads, and the card's representative threads.
-3. **Routine maintenance** (dependency bumps, build, test speed-ups, backports,
-   docs, admin requests) collapsed at the bottom, never hidden.
+1. **A headline**, the window and stats, and **3 highlights**.
+2. **Proposals (KIP)**: each KIP active this week appears once, with a badge
+   for every stage it has (VOTE, DISCUSS, implementing). Each row cites its
+   dev@ threads, PRs, and Jira issues.
+3. **Topic cards**: one card per non-empty topic of the project's taxonomy.
+   A card has deterministic keywords and up to 3 AI-written sentences, each
+   citing source threads. It opens a topic page with filterable thread cards.
+4. **Routine maintenance** (dependency bumps, build, test speed-ups,
+   backports, docs), collapsed at the bottom and never hidden.
 
-The existing Feed list stays below as "All threads". The digest is built once a
-day outside the hourly publication run. If the model is unavailable, the
-digest still appears, with keywords and threads instead of sentences.
+Navigation:
+- The top bar has a community switcher, the tabs This week / Proposals /
+  All threads, global search, and the locale switch. "All threads" is today's
+  Feed.
+- Generated text is written in English and translated to zh-Hant.
+- The digest is built once a day, outside the hourly publication run.
+- If the model is unavailable, the digest still appears, with keywords and
+  threads instead of sentences.
 
 Human decisions (2026-10-06): layout per the mock
 (https://claude.ai/artifact/9FvrMr8Q9LWaSf242TCMTc, answers 1A 2A 3A). The
@@ -34,6 +42,27 @@ pipeline follows X Home Mixer stages (candidates → feature hydration → scori
 Workers AI through the `AI` binding behind AI Gateway, with no API key.
 Deterministic ranking fixes choose each topic's representative threads. A
 golden set will be labeled by the human after seeing the draft in the Example.
+
+Human decisions (2026-10-08, design review):
+- **Translation.** Generate in English once, then translate to zh-Hant. The
+  translation must keep a do-not-translate list. Citations stay structured
+  fields.
+- **i18n.** UI chrome and taxonomy labels come from `apps/web/i18n.js`. The
+  locale switch stays in the top bar.
+- **Information architecture.** Follows the canvas mock
+  (`scratchpad/kafka-weekly-canvas/project/`: `Main.dc.html`,
+  `Main.en.dc.html`, `Topic.dc.html`).
+- **Citations.** Every generated item carries citation chips.
+- **Counts.** All counts come from one data source, and source lag is shown.
+- **Window label.** "Past 7 days" with a date range, never a week number.
+- **Taxonomy.** It includes Community & governance and Streams. The number
+  of cards follows the taxonomy.
+- **Proposals.** Proposals show all their stage badges and a deterministic
+  vote tally, with overflow as "+n more". The section is profile-driven, and
+  `kind: null` hides it.
+- **Topic page.** It has the full top bar.
+- **Deferred.** "Affects users" badges, a release tracker, and For You (a
+  future "Following" tab).
 
 ## Evidence
 
@@ -84,9 +113,32 @@ not committed. The derived candidate list is in
     `/ai-gateway/integrations/aig-workers-ai-binding/`,
     `/ai-gateway/get-started/`, `/ai-gateway/configuration/rate-limiting/`.
 
+- **Accuracy lesson** (design review, 2026-10-08). The hand-written target
+  and the canvas mock built from it had five errors when checked against Dev
+  data:
+  1. **Status mismatch.** 4.3.2 RC0 was called "verified" while its vote was
+     open: `KAFKA-MAIL-8849f679` has no `[RESULT]`.
+  2. **Status mismatch.** An open PR was described as done: DLQ headers,
+     `KAFKA-PR-23659`, is open.
+  3. **Misattribution.** A Streams fix (`KAFKA-PR-23712`,
+     `StreamsMembershipManager`) was attributed to the consumer.
+  4. **Invented claim.** The mock said the review discussion of
+     `KAFKA-PR-23688` "focuses on whether the default should be
+     conservative". No record says so.
+  5. **Overbroad stance.** The draft said "Chris Egerton objected", but he
+     wrote "I'm not sure about using the instance ID…"
+     (`KAFKA-MAIL-fd63cd54`).
+
+  The lesson moves down the trust layers:
+  - Errors 1 and 2 become a deterministic rule (Behavior 30, D46).
+  - Error 5 becomes the stance-verb rule (D47).
+  - Errors 3 and 4 become golden-set error classes (Behavior 31, D56).
+  - All five are recorded as negative fixtures.
+
 ## Example
 
-**Input.** Window end = the source release's `generatedAt`,
+**Input.** Data captured 2026-10-06. The draft was rechecked against the
+same captured Details on 2026-10-08. Window end = the source release's `generatedAt`,
 2026-10-06T13:07:37Z. Window start = end − 7 d, 2026-09-29T13:07:37Z. 234 Kafka
 entries have a human record in the window: 210 GitHub, 24 dev@, 0 Jira (lagging).
 Scores use Behavior 3. Examples:
@@ -103,124 +155,150 @@ Scores use Behavior 3. Examples:
 **Output.** The draft below was **hand-written by the implementer from the
 captured data, as the target the model should reach**. No hosted model was
 called. Topic assignment is the implementer's judgment, standing in for the
-classifier. Citations are entry display ids (`/#/feed/<displayId>`). This is
-the draft the human labels for the golden set.
+classifier. Every generated item has citation chips: `[…]` holds entry display
+ids, linking to `/#/feed/<displayId>`. This is the English source; the zh-Hant
+page is its translation (Behavior 25). It was rechecked against Dev on
+2026-10-08 after the design review found accuracy errors (Evidence, "Accuracy
+lesson").
 
-> **Apache Kafka · 2026-09-29 → 2026-10-06** · 234 active threads ·
-> data through release 2026-10-06 13:07 UTC · Jira data through 2026-09-19
-> (catching up) · AI summary: unreviewed
+> **Apache Kafka · Past 7 days · Sep 29 – Oct 6, 2026** · updated Oct 6 13:07 UTC
+>
+> **Headline:** 4.4.0 gets an RC4 after a signature problem in RC3, and
+> KIP-1349 is being voted on. [KAFKA-MAIL-6c38f1a7, KAFKA-MAIL-82e0d5b3]
+>
+> **Stats:** 234 threads · 24 dev@ threads · 12 proposals with activity ·
+> about 64 routine (rules prototype). Next to the stats: "JIRA through Sep 19"
+> (lagging).
 
-**KIP 動態**
+**Highlights** (3, generated, each cited)
 
-| Stages | KIP | This week | Cites |
-| --- | --- | --- | --- |
-| VOTE · DISCUSS | KIP-1349 Bytes-based configurable snapshot frequency for share groups | +1 (binding) from Andrew Schofield on 10-01 and +1 from Sushant Mahajan on 10-05. On 10-06 Chia-Ping Tsai reopened the discuss thread to ask whether bytes beat a count. | KAFKA-MAIL-82e0d5b3, KAFKA-MAIL-4bc41094 |
-| DISCUSS | KIP-1368 Client framework name and version | 10-05: Andrew Schofield added a third config, `client.framework.id`, after Lianet Magrans' feedback. Its VOTE thread had no activity this week. | KAFKA-MAIL-fd63cd54 |
-| DISCUSS | KIP-1379 Make server-side rack-aware assignment opt-in | Proposed by David Jacot on 10-02. On 10-05 Lucas Brutschy asked about upgrade and downgrade. | KAFKA-MAIL-7eb8eba3 |
-| DISCUSS | KIP-1376 Support setting TLS named groups | Opened by Mickael Maison on 10-06. | KAFKA-MAIL-3bc971ac |
-| DISCUSS | KIP-1342 Deprecate Authorizer#aclCount | Ming-Yen Chung updated it on 10-06 after Chia-Ping Tsai's review. | KAFKA-MAIL-3bff04e6 |
-| DISCUSS | KIP-1165 Object Consolidation for Diskless | Reopened by Viktor Somogyi-Vass with a fuller merge design on 10-05. | KAFKA-MAIL-f93938c0 |
-| DISCUSS | KIP-1163 Diskless Core | Pointer to the KIP-1165 update, 10-05. | KAFKA-MAIL-a9696e08 |
-| implementing | KIP-1306 (via KAFKA-20684) | PRs [4/N]–[9/N] migrate to `RebalanceListener` and deprecate `ConsumerRebalanceListener`. Andrew Schofield took the review on 10-06. | KAFKA-MAIL-f09ac41a, KAFKA-PR-23105, KAFKA-PR-23106, KAFKA-PR-23107, KAFKA-PR-23108, KAFKA-PR-23109, KAFKA-PR-23115 |
-| implementing | KIP-1332 | Compression support for the incremental producer allocation. | KAFKA-PR-23483 |
-| implementing | KIP-1289 | Draft: transactional acknowledgements for share groups. | KAFKA-PR-22357 |
-| implementing | KIP-1331 | Topology-description docs follow-up. | KAFKA-PR-23412 |
-| implementing | KIP-909 | Draft: Streams DNS resolution config. | KAFKA-PR-23685 |
+1. **4.4.0 RC3 will be replaced by RC4.** David Jacot found a problem with
+   the Maven artifact signatures, and Omnia Ibrahim said she will raise RC4.
+   [KAFKA-MAIL-6c38f1a7]
+2. **KIP-1349 is in its vote.** Andrew Schofield voted +1 (binding) and
+   Sushant Mahajan voted +1 this week. Chia-Ping Tsai asked on the discuss
+   thread whether bytes are better than a count. [KAFKA-MAIL-82e0d5b3,
+   KAFKA-MAIL-4bc41094]
+3. **KAFKA-20292 merged parts 9–13 of assignor offloading.** Part 14, still
+   open, would turn the new config on by default. [KAFKA-PR-23622,
+   KAFKA-PR-23623, KAFKA-PR-23624, KAFKA-PR-23666, KAFKA-PR-23667,
+   KAFKA-PR-23688]
 
-Stages and cites are deterministic (Behavior 4–5). Rows are grouped by the
-most attention-worthy stage present (vote, then discuss, then implementing),
-and every stage present is shown as a badge. The "This week" text is generated
-in production. Here it is hand-written.
+**Proposals (KIP)** · quorum note from the profile: "3 binding +1 votes".
+Stage counts: vote 1 · discuss 6 · implementing 5, which is 12 rows.
 
-**Topic cards** (in score order. In production the heading is the taxonomy
-label, the keywords are computed, and the sentences are generated.)
+| Stages | KIP | This week | Tally | Cites |
+| --- | --- | --- | --- | --- |
+| VOTE · DISCUSS | KIP-1349 Bytes-based configurable snapshot frequency for share groups | Andrew Schofield voted +1 (binding) on 10-01 and Sushant Mahajan voted +1 on 10-05; Chia-Ping Tsai asked on 10-06 whether bytes beat a count. | omitted: the vote's first message (before 2026-09-06) is not retained, so a count would be partial | KAFKA-MAIL-82e0d5b3, KAFKA-MAIL-4bc41094 |
+| DISCUSS | KIP-1368 Client framework name and version | On 10-05 Andrew Schofield added a third config, `client.framework.id`, after Lianet Magrans' feedback. | — | KAFKA-MAIL-fd63cd54 |
+| DISCUSS | KIP-1379 Make server-side rack-aware assignment opt-in | Proposed by David Jacot on 10-02; Lucas Brutschy asked about upgrade and downgrade on 10-05. | — | KAFKA-MAIL-7eb8eba3 |
+| DISCUSS | KIP-1376 Support setting TLS named groups | Opened by Mickael Maison on 10-06. | — | KAFKA-MAIL-3bc971ac |
+| DISCUSS | KIP-1342 Deprecate Authorizer#aclCount | Ming-Yen Chung updated it on 10-06 after Chia-Ping Tsai's review. | — | KAFKA-MAIL-3bff04e6 |
+| DISCUSS | KIP-1165 Object Consolidation for Diskless | Viktor Somogyi-Vass posted a fuller object-merging design on 10-05. | — | KAFKA-MAIL-f93938c0 |
+| … | | **+1 more** (discuss: KIP-1163) | | |
+| implementing | KIP-1306 (via KAFKA-20684) | Six open PRs, [4/N]–[9/N], migrate to `RebalanceListener`; Andrew Schofield said he will review them. | — | KAFKA-MAIL-f09ac41a, KAFKA-PR-23105, KAFKA-PR-23106, KAFKA-PR-23107, KAFKA-PR-23108, KAFKA-PR-23109, KAFKA-PR-23115 |
+| implementing | KIP-1332 | An open PR adds compression support. | — | KAFKA-PR-23483 |
+| implementing | KIP-1289 | A draft PR for transactional acknowledgements in share groups. | — | KAFKA-PR-22357 |
+| implementing | KIP-1331 | An open docs follow-up PR. | — | KAFKA-PR-23412 |
+| implementing | KIP-909 | A draft PR for the Streams DNS resolution config. | — | KAFKA-PR-23685 |
+
+Stages, tallies, and cites are deterministic (Behavior 4–5). Each stage group
+shows at most 6 rows, then "+n more". Each "this week" line is about its own
+KIP only. It is generated in production; here it is hand-written.
+
+**Topic cards** (in score order). Every non-empty taxonomy topic gets a card,
+so the number of cards is not fixed. In production the heading is the
+taxonomy label (`taxonomy.kafka.<key>` in the i18n bundle), the keywords are
+computed, and the sentences are generated. Each card opens a topic page
+(Behavior 27).
 
 1. **Releases & release process.** Keywords: RC3, 4.4.0, 4.3.2, release
    plan, checksums.
-   - The 4.4.0 RC3 vote stopped on a Maven-artifact signature problem found by
-     David Jacot; Omnia Ibrahim will cut RC4. [KAFKA-MAIL-6c38f1a7]
-   - 4.3.2 RC0 was verified by Bill Bejeck, Jakub Scholz (+1) and Chia-Ping Tsai,
-     and 4.2.2 was announced. [KAFKA-MAIL-8849f679, KAFKA-MAIL-d7907ec4]
-   - Andrew Schofield posted the 4.5.0 release plan: KIP freeze on 2027-01-13.
-     [KAFKA-MAIL-6f627126]
-   - Threads: KAFKA-MAIL-6c38f1a7, KAFKA-MAIL-8849f679, KAFKA-PR-23660 (drop
-     MD5/SHA-1 checksums, merged), KAFKA-MAIL-6f627126, KAFKA-MAIL-f7a35fa2;
-     +4 more.
+   - 4.4.0 RC3 will be replaced by RC4 after David Jacot found a Maven
+     signature problem. [KAFKA-MAIL-6c38f1a7]
+   - The 4.3.2 RC0 vote is still open. Jakub Scholz voted +1 (non-binding),
+     and Bill Bejeck and Chia-Ping Tsai posted their verification steps.
+     [KAFKA-MAIL-8849f679]
+   - Apache Kafka 4.2.2 was announced, and Andrew Schofield posted the 4.5.0
+     release plan, with KIP freeze on 2027-01-13. [KAFKA-MAIL-d7907ec4,
+     KAFKA-MAIL-6f627126]
 2. **Group coordination & assignment.** Keywords: assignor, offloading,
    uniform2, REMAIN_IN_GROUP, rack-aware.
-   - The KAFKA-20292 assignor-offloading series merged parts 9–13. Part 14
-     would run the consumer-group assignor on a coordinator background thread,
-     under a new config that defaults to true. [KAFKA-PR-23622, KAFKA-PR-23623,
-     KAFKA-PR-23624, KAFKA-PR-23666, KAFKA-PR-23667, KAFKA-PR-23688]
-   - David Jacot started a uniform2 consumer assignor (KAFKA-21214) and
-     proposed KIP-1379. [KAFKA-PR-23722, KAFKA-PR-23723, KAFKA-PR-23724,
-     KAFKA-MAIL-7eb8eba3]
-   - Two fixes target consumers and Streams members that stall when closing
-     with REMAIN_IN_GROUP after a poll timeout. [KAFKA-PR-23712, KAFKA-PR-23714]
-   - Threads: KAFKA-PR-23688, KAFKA-PR-23722, KAFKA-PR-23712, KAFKA-PR-22593
-     (static-member subscription change; David Jacot objects to breaking
-     classic-protocol encapsulation), KAFKA-PR-23674 (coordinator executor
-     memory leak, merged; backports open); +about 40 more.
+   - KAFKA-20292 merged parts 9–13 of assignor offloading. The open part 14
+     would run the consumer-group assignor on a coordinator background
+     thread, with the new config defaulting to true. [KAFKA-PR-23622,
+     KAFKA-PR-23623, KAFKA-PR-23624, KAFKA-PR-23666, KAFKA-PR-23667,
+     KAFKA-PR-23688]
+   - David Jacot opened three PRs for a uniform2 consumer assignor
+     (KAFKA-21214) and proposed KIP-1379. [KAFKA-PR-23722, KAFKA-PR-23723,
+     KAFKA-PR-23724, KAFKA-MAIL-7eb8eba3]
+   - Two open PRs address members that stall when closing with
+     REMAIN_IN_GROUP after a poll timeout: one for the Streams group
+     protocol and one for the consumer group protocol. [KAFKA-PR-23712,
+     KAFKA-PR-23714]
 3. **Producer & consumer clients.** Keywords: RebalanceListener, client
    framework, fetchBuffer, telemetry.
-   - KIP-1306's move from `ConsumerRebalanceListener` to `RebalanceListener`
-     is up for review as six PRs; Andrew Schofield noted that a lot of PRs are
-     waiting for review. [KAFKA-MAIL-f09ac41a, KAFKA-PR-23105, KAFKA-PR-23115]
-   - KIP-1368 added `client.framework.id` after Lianet Magrans' review, and
-     Chris Egerton objected on 10-05 to packing connector type and version
-     into one field. [KAFKA-MAIL-fd63cd54]
-   - Lianet Magrans asked for care on an async-consumer fetch-buffer fix,
-     because recent busy-loop fixes are tuning the same path. [KAFKA-PR-21991]
+   - The KIP-1306 author asked on dev@ for reviews of six PRs. Andrew
+     Schofield said he will review them and noted many PRs are waiting.
+     [KAFKA-MAIL-f09ac41a, KAFKA-PR-23105, KAFKA-PR-23115]
+   - KIP-1368 added `client.framework.id`. On 10-05 Chris Egerton questioned
+     using the instance ID to report connector type and version.
+     [KAFKA-MAIL-fd63cd54]
+   - Lianet Magrans asked for care on an open async-consumer fetch-buffer PR,
+     because recent busy-loop fixes touch the same path. [KAFKA-PR-21991]
 4. **Share groups.** Keywords: snapshot frequency, DLQ, transactional
    acknowledgements.
-   - KIP-1349's vote has two +1s, while Chia-Ping Tsai questions whether a
-     bytes-based trigger is better than a count. [KAFKA-MAIL-82e0d5b3,
-     KAFKA-MAIL-4bc41094]
-   - A draft for KIP-1289 would let share-group acknowledgements join a
+   - KIP-1349 received a +1 (binding) and a +1 this week, and Chia-Ping Tsai
+     asked whether a bytes-based trigger is better than a count.
+     [KAFKA-MAIL-82e0d5b3, KAFKA-MAIL-4bc41094]
+   - A draft PR for KIP-1289 would let share-group acknowledgements join a
      producer transaction. [KAFKA-PR-22357]
-   - Threads: KAFKA-PR-23659 (DLQ keeps original headers), KAFKA-PR-23656.
-5. **Security & dependencies with advisories.** Keywords: snappy-java, lz4,
-   CVE, TLS named groups, aclCount.
+   - An open PR would keep the original headers in share-group DLQ records.
+     [KAFKA-PR-23659]
+5. **Security.** Keywords: snappy-java, lz4, CVE, TLS named groups,
+   aclCount.
    - On the snappy-java CVE thread, Martin Andersson said lz4-java, not
-     snappy-java, is the unmaintained library. lz4-java went to 1.11.4 for
-     three advisories, with 1.12.0 as a follow-up. [KAFKA-MAIL-e0d9d8c1,
+     snappy-java, is the problem. The merged lz4-java 1.11.4 bump fixes three
+     advisories, and a 1.12.0 bump is open. [KAFKA-MAIL-e0d9d8c1,
      KAFKA-PR-23609, KAFKA-PR-23637]
-   - A new broker config would let operators reject client writes that use
-     chosen compression types. [KAFKA-PR-23698]
-   - New KIPs: TLS named groups (KIP-1376) and deprecating
-     `Authorizer#aclCount` (KIP-1342). [KAFKA-MAIL-3bc971ac, KAFKA-MAIL-3bff04e6]
+   - An open PR adds a broker config to reject client writes that use chosen
+     compression types. [KAFKA-PR-23698]
+   - KIP-1376 (TLS named groups) and KIP-1342 (deprecate
+     `Authorizer#aclCount`) are under discussion. [KAFKA-MAIL-3bc971ac,
+     KAFKA-MAIL-3bff04e6]
 6. **Storage: tiered & diskless.** Keywords: remote fetch, aux state,
    diskless, object consolidation.
-   - A dev@ question about KIP-1023 became KAFKA-21190 and a fix that skips the
-     remote aux-state rebuild when the fetch offset equals the log start offset.
-     [KAFKA-MAIL-61bf4c33, KAFKA-PR-23650]
-   - Per-client-id remote fetch metrics were sent back to go through a KIP.
-     [KAFKA-PR-23463]
+   - A dev@ question about KIP-1023 led to KAFKA-21190 and an open PR that
+     skips the remote aux-state rebuild when the fetch offset equals the log
+     start offset. [KAFKA-MAIL-61bf4c33, KAFKA-PR-23650]
+   - A reviewer said per-client-id remote fetch metrics need a KIP, and the
+     author agreed to write one. [KAFKA-PR-23463]
    - KIP-1165 was reopened with a fuller object-consolidation design.
      [KAFKA-MAIL-f93938c0, KAFKA-MAIL-a9696e08]
-7. **Kafka Streams.** Keywords: standby, rack-aware, deadlock, iterators.
-   - Rack-aware standby task assignment (KAFKA-20999) is in review with
-     fuzz-testbed and JMH results. [KAFKA-PR-23588]
-   - Threads: KAFKA-PR-23588, KAFKA-PR-21830, KAFKA-PR-23495 (4.2
-     cherry-pick of a deadlock fix; a backport, so routine by Behavior 6).
-8. **Community & project.**
-   - Sushant Mahajan became a committer; congratulations kept arriving all
-     week. [KAFKA-MAIL-85a6bd91]
+7. **Kafka Streams.** Keywords: standby, rack-aware, iterators.
+   - An open PR adds rack-aware standby task assignment (KAFKA-20999) and
+     posts fuzz-testbed and JMH results. [KAFKA-PR-23588]
+   - The KAFKA-20224 iterator-adapter refactor was merged. [KAFKA-PR-21830]
+8. **Community & governance.** Keywords: committer, Linux Foundation,
+   ci-approved, Jira account.
+   - Sushant Mahajan became a committer. [KAFKA-MAIL-85a6bd91]
    - Cruise Control moved to the Linux Foundation. [KAFKA-MAIL-55bead25]
+   - Contributors asked committers to approve CI runs, and two newcomers
+     asked about pending Jira accounts. [KAFKA-MAIL-b6d05376,
+     KAFKA-MAIL-b7e5a84f, KAFKA-MAIL-2dc19c3f, KAFKA-MAIL-750d8124]
 
-**Routine maintenance · about 70 threads (collapsed).** By the rules
-prototype: dependency/build 10, tests 35, docs 12, backports 11, plus admin
-mail.
+**Routine maintenance · about 64 threads (collapsed).** By the rules
+prototype: dependency/build 10, tests 35, docs 12, backports 11. Some
+overlap with cards is possible until the model decides. Admin mail moved to
+Community.
 
 - Build and dependencies: KAFKA-PR-23426 (16 signals, the most active Kafka
   GitHub thread), KAFKA-PR-23424, KAFKA-PR-23450, KAFKA-PR-23169,
   KAFKA-PR-23167, KAFKA-PR-23711, KAFKA-PR-23691.
 - Test speed-ups and migrations: KAFKA-PR-23600, KAFKA-PR-23602,
   KAFKA-PR-23655, KAFKA-PR-23720, KAFKA-PR-23392.
-- Backports: 9 closed "Validate client quota values … (3.6–4.4)" PRs,
-  KAFKA-PR-23640 to KAFKA-PR-23648.
-- Admin mail: "ci-approved" and Jira-account requests: KAFKA-MAIL-b6d05376,
-  KAFKA-MAIL-b7e5a84f, KAFKA-MAIL-2dc19c3f, KAFKA-MAIL-750d8124.
+- Backports: 9 closed "Validate client quota values … (3.6–4.4)" PRs
+  (KAFKA-PR-23640 to KAFKA-PR-23648), and KAFKA-PR-23495, a 4.2 cherry-pick.
 
 **Cases worth labeling.**
 
@@ -231,10 +309,13 @@ mail.
 - The KIP-1023 question thread has no stage. It shows up only in the Storage
   card.
 - KIP-1331's "implementing" badge comes from a docs follow-up PR
-  (`KAFKA-PR-23412`, "MINOR: Clarify KIP-1331 …"), which is routine. KIP-1289
-  and KIP-909 come from draft PRs.
+  (`KAFKA-PR-23412`, "MINOR: Clarify KIP-1331 …"), which is routine.
+  KIP-1289 and KIP-909 come from draft PRs.
 - `KAFKA-MAIL-6c38f1a7` has one in-window message from "unknown sender"
   (Behavior 2).
+- KIP-1349's vote tally is omitted. The oldest retained message is a
+  2026-09-18 "Re:" bump, and the vote started before the retention window, so
+  a "+1 × 2" count could understate it.
 
 ## Architecture
 
@@ -254,10 +335,14 @@ daily 01:37 UTC Dev / 02:07 UTC Prod (after that hour's publication)
     3 scoring      deterministic thread score (Behavior 3)
     4 filtering    routine confidence ≥ 0.6 → routine section
     5 mixing       KIP block; topic cards; routine; every candidate placed once
-    6 summarize    TopicSummarizer per card and per KIP row, validate, else fallback
-  write public/digest/v1/<projectId>/<sourceReleaseId>/<revisionHash>/<contentHash>.json
+    6 summarize    TopicSummarizer per card and per KIP row, then headline +
+                   highlights; validate (Behavior 9, 30), else fallback
+    7 translate    en → zh-Hant with protected spans; validate, else English
+  write public/digest/v1/<projectId>/<sourceReleaseId>/<revisionHash>/<contentHash>/<locale>.json
+        (en and zh-Hant; contentHash is of the English digest)
   then  public/digest/v1/<projectId>/current.json  (pointer, last)
-web: GET /api/digest?projectId=apache-kafka → home page sections above "All threads"
+web: GET /api/digest?projectId=apache-kafka&locale=zh-Hant → "This week" tab,
+     /#/topic/<projectId>/<topicKey> topic pages; "All threads" = today's Feed
 ```
 
 - **Placement.**
@@ -309,9 +394,10 @@ web: GET /api/digest?projectId=apache-kafka → home page sections above "All th
      already mark decisions. Without labels, no consumer can show the feature
      changes what a reader sees. It comes back if the golden set shows
      decision threads missing from cards. This needs the human's agreement.
-   - **A separate "noise" class.** Admin mail and CI requests go into the
-     routine section, so nothing is hidden (decision 2A). Bot records are
-     dropped deterministically per record, not per thread.
+   - **A separate "noise" class.** Admin mail and CI requests go to the
+     Community & governance card (human decision 2026-10-08), so nothing is
+     hidden. Bot records are dropped deterministically per record, not per
+     thread.
    - **Per-project fairness.** Each digest covers one project, so fairness is
      structural.
    - **Model-written keywords and card headlines.** Keywords are computed
@@ -340,11 +426,15 @@ web: GET /api/digest?projectId=apache-kafka → home page sections above "All th
    - **DataFusion in v1.** It has 2,048 threads a week, 9x Kafka, and would
      exceed the free neurons with the 70B model. It is added after Kafka
      passes its golden set.
-   - **zh-Hant summaries.** Sentences stay in the source language, English;
-     UI labels are localized (open question 4).
+   - **zh-Hant summaries.** This deletion **came back** by human decision
+     (2026-10-08). It returns as one translation step of the English output
+     rather than a second generation per locale.
    - **A labeling UI.** Labels are a JSON file in the repo (Golden set).
-   - Nothing deleted so far has come back. The review log will list any that
-     does.
+   - **Came back on 2026-10-08:** zh-Hant output (as translation), and a
+     headline with highlights (from the design review). Both are additions
+     the human owns.
+   - **Still deleted:** model-written card headings. A highlight title is
+     the only generated title.
 3. **Simplified.**
    - Two model call types: batched classification (20 threads a call) and one
      summary per card.
@@ -408,17 +498,25 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
      linked through `KAFKA-N`. These cites do not count toward the
      place-once rule (Behavior 7).
    - The row's "this week" line is one generated sentence (Behavior 9) from
-     those threads. In the fallback it is the newest thread's title.
+     those threads, about this KIP only (Behavior 30). In the fallback it is
+     the newest thread's title.
+   - Vote rows show a tally (Behavior 32).
+   - Each stage group shows at most 6 rows, then "+n more", which links to
+     the Proposals tab.
+   - Stage names and the detection rules come from the profile
+     (Behavior 23).
 6. **Classification.**
    - Output per thread:
      `{id, topic, topicConfidence, routine, routineConfidence}`.
-     - `topic` is from `kafka-topics@1`: releases, group-coordination,
-       clients, share-groups, streams, connect, storage, kraft, security,
-       observability, community, other.
+     - `topic` is from the profile taxonomy. For Kafka that is
+       `kafka-topics@1`: releases, group-coordination, clients, share-groups,
+       streams, connect, storage, kraft, security, observability, community
+       (governance: committers, PMC and foundation news, admin threads such
+       as Jira account and "ci-approved" requests), other.
      - Confidences are in [0, 1].
-     - Routine means dependency, build, test, docs, backport, or admin work.
-       A routine thread's topic is still one of the ids above, usually
-       `other`.
+     - Routine means dependency, build, test, docs, or backport work. Admin
+       threads are `community`, not routine. A routine thread's topic is
+       still one of the ids above, usually `other`.
    - `routineConfidence` ≥ 0.6 sends the thread to the routine section.
    - `topicConfidence` < 0.6 maps the topic to `other`.
    - A low-confidence label never hides a thread.
@@ -434,7 +532,8 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
    - A card shows its 5 highest-scoring threads and "n more".
    - The routine section is collapsed, shows its count, and is ordered by
      score.
-   - Empty topics have no card.
+   - Empty topics have no card. Every non-empty taxonomy topic has a card;
+     there is no fixed card count.
 8. **Keywords.**
    - A card's keywords are its top 5 title terms by tf-idf: term frequency
      within the card, document frequency across all candidates. Ties are
@@ -448,8 +547,9 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
    - **Output:** JSON `{sentences: [{text, cites: [displayId]}]}`, with at
      most 3 sentences for a card and 1 for a KIP row.
    - **Validation, per sentence:**
-     - Kept only when `text` has 1–240 characters, `cites` is non-empty, and
-       every cite is one of that call's input threads.
+     - Kept only when `text` has 1–240 characters, `cites` is non-empty,
+       every cite is one of that call's input threads, and the accuracy
+       rules in Behavior 30 pass.
      - Otherwise the sentence is dropped. Extra sentences are also dropped.
    - A card or row with no sentence left is `fallback`.
    - **Rendering:**
@@ -478,10 +578,10 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
       input and so misses the cache.
 12. **Publication.**
     - The object is written at
-      `public/digest/v1/<projectId>/<sourceReleaseId>/<revisionHash>/<contentHash>.json`.
-      Then the pointer
+      `public/digest/v1/<projectId>/<sourceReleaseId>/<revisionHash>/<contentHash>/<locale>.json`,
+      one object per locale (`en`, `zh-Hant`). Then the pointer
       `public/digest/v1/<projectId>/current.json` is written:
-      `{schema: "osskb.digest-pointer.v1", objectKey, sourceReleaseId}`.
+      `{schema: "osskb.digest-pointer.v1", objectKeys: {en, "zh-Hant"}, sourceReleaseId}`.
     - Before computing, the job lists `<sourceReleaseId>/<revisionHash>/`.
       - A complete object there (not `limited` and no fallbacks) is reused.
         Only the pointer is written, with zero model calls.
@@ -490,12 +590,9 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
     - `generatedAt` is when the digest was computed, before writing.
       `windowEnd` is the source release's `generatedAt`. Both live in the
       object.
-13. **Home page.** When `/api/digest` returns a digest, the Feed view without a
-    query shows, above "All threads":
-    - the freshness line (Behavior 19);
-    - the KIP block;
-    - the cards;
-    - the collapsed routine section.
+13. **Home page.** When `/api/digest` returns a digest, the "This week" tab
+    shows the sections listed in Behavior 27, with the freshness line
+    (Behavior 19) beside the window label.
     Generated text carries "AI summary · unreviewed · <model>"; fallback items
     say "AI summary unavailable".
     `GET /api/digest?projectId=` accepts only enabled project ids and returns
@@ -510,11 +607,14 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
       (D35).
 15. **Spend and limits.**
     - Each environment has a daily cap of estimated neurons: Prod 5,000, Dev
-      4,000. The sum stays under the account's 10,000 free neurons.
+      4,500. The sum stays under the account's 10,000 free neurons.
+    - Tokens are estimated as ASCII characters / 4, plus one token per CJK
+      character.
     - The running total is kept per UTC day in `DigestRun` storage.
     - Before each call, the job estimates the call's neurons:
       input characters / 4 × input price + `max_tokens` × output price.
-      Bounds: classify 800, card 300, KIP row 80.
+      Bounds: classify 800, card 300, KIP row 80, highlights 400,
+      translation 2,000 per batch.
     - After each call, that estimate is replaced with input / 4 and output
       characters / 4 at the pinned prices, or the reported usage when the
       binding returns it.
@@ -565,6 +665,138 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
     `failureKind` is one of: `source-read`, `pointer-missing`, `write`,
     `internal`. Model failures never fail the run.
 
+23. **Project profile drives the page.**
+    - The profile owns `sources`, `taxonomy` (topic keys), `machineUsers`,
+      and `proposal`.
+    - `proposal`:
+      - `kind`: `KIP`, `FLIP`, `PEP`, `RFC`, or `null`.
+      - `keyPattern`: Kafka uses `\bKIP-\d+\b`.
+      - `stages[]`, each `{key, badgeColor, detect}`. `detect` is one of
+        `subject-tag:<TAG>`, `pr-title-key`, or `linked-issue-key`.
+      - Optional `quorumNote`: an i18n key. Kafka's reads "3 binding +1
+        votes".
+    - Kafka declares the stages `vote` (`subject-tag:VOTE`,
+      `subject-tag:RESULT`), `discuss` (`subject-tag:DISCUSS`), and
+      `implementing` (`pr-title-key`, `linked-issue-key`). Behavior 4 is that
+      profile, applied.
+    - `kind: null` hides the Proposals section, its anchor, its stat, and the
+      Proposals tab. DataFusion has `kind: null` today.
+24. **Headline and highlights.**
+    - After cards and KIP rows are generated, one call writes a headline and
+      3 highlights. The input is the validated card sentences and KIP lines.
+      - Headline: 1 sentence.
+      - Highlight: a title of at most 80 characters and a 1-sentence body.
+    - Each item cites, and is validated by Behavior 9. A cite must be a
+      thread cited by an input sentence.
+    - Fallback: no headline. The highlights are the top KIP row's newest
+      thread title and the top two cards' top thread titles.
+25. **Translation** (human decision 2026-10-08).
+    - Every generated text is produced once in English and then translated
+      to zh-Hant. Generated texts are card sentences, KIP lines, the
+      headline, and highlights.
+    - `cites` are copied from the English item and are never parsed from
+      text.
+    - Before translation, protected spans are replaced by placeholders
+      `⟦n⟧`. Protected spans are:
+      - KIP-n, KAFKA-n, PR numbers (`#n`);
+      - `RC`/`RCn`;
+      - `+1 (binding)` and `+1`;
+      - backticked config keys and class names;
+      - people's names (the in-window authors of the input threads);
+      - version numbers (`\d+\.\d+(\.\d+)?`).
+    - A translation is kept only when every placeholder appears exactly once
+      and nothing else was added. Otherwise that item shows the English text
+      with the label "Not translated".
+    - Translation runs in batches. It is cached by hash(English text,
+      translator revision, locale). The translator model is set
+      independently of the summarizer (open question 2).
+    - Each locale is its own object (Behavior 12), so the cache key includes
+      the locale.
+26. **One source for counts; window label.**
+    - The stats, the section anchors ("Proposals · n", "Topics · n",
+      "Routine · n"), the stage counts, and the topic-page filter counts all
+      come from one function over the digest object's arrays. A digest whose
+      stored counts differ from its arrays is not published.
+    - Lagging sources (Behavior 18) are shown next to the stats, for example
+      "JIRA through Sep 19".
+    - The window label is "Past 7 days ·" followed by
+      `Intl.DateTimeFormat(locale, {year, month: "short", day, timeZone:
+      "UTC"}).formatRange(start, end)`. No ISO week number is shown.
+27. **Navigation and topic page.**
+    - The top bar is on every view: community switcher (enabled projects),
+      tabs This week / Proposals / All threads, global search (Spec 005
+      `#q`), and the locale switcher.
+    - "All threads" is today's Feed list. "This week" shows, in order:
+      headline, window label and stats, 3 highlights, proposals by stage,
+      topic cards, routine (collapsed).
+    - A card opens `/#/topic/<projectId>/<topicKey>`. The topic page shows
+      the full top bar, the card's sentences with chips, its keywords, and
+      filter chips All / PR / dev@ / JIRA with counts. It lists every thread
+      of the card as a thread card.
+    - A thread card shows the display id, the source state (`merged`, `open`,
+      `closed`, `discussing`, `resolved`), the title, the root excerpt,
+      source, author, and date. It links to the canonical source URL
+      (GitHub, lists.apache.org, or JIRA). Its display id links to the
+      Detail view.
+    - "Awaiting reviewer" vs "in review" is omitted. The connector does not
+      read GitHub PR `requested_reviewers` or `pulls/<n>/reviews`; adding
+      them costs one request per PR per run (Non-goals).
+    - An unknown project or topic key shows a not-found state with the top
+      bar.
+28. **Citation chips everywhere.**
+    - Every generated item shows one chip per cite, linking to
+      `/#/feed/<displayId>`. Generated items are headline, highlights, card
+      sentences, KIP lines, and topic-page sentences.
+    - An item with no valid cite is not shown (Behavior 9).
+29. **i18n.**
+    - UI chrome, stage labels, the quorum note, and taxonomy labels
+      (`taxonomy.<projectId>.<key>`) come from `apps/web/i18n.js`, in both
+      `en` and `zh-Hant`.
+    - `GET /api/digest?projectId=&locale=` returns that locale's object.
+      Without one it returns `en` and marks the response `localeFallback:
+      true`.
+30. **Accuracy rules** (deterministic, on the English text before
+    translation).
+    - **Status words.** A sentence using one of these words must cite a
+      thread in the matching state, or it is dropped:
+      - `merged`, `landed`, `fixed`, `was fixed`: a merged PR or a resolved
+        JIRA issue;
+      - `released`, `announced`, `shipped`: an `[ANNOUNCE]` thread;
+      - `verified`, `passed`, `approved`, `accepted`, `adopted`: a
+        `[RESULT]` or `[ANNOUNCE]` thread.
+      Future and modal forms ("would", "will", "proposes") are not status
+      claims.
+    - **Stance verbs.** `objected`, `opposed`, `rejected`, `refused`,
+      `disagreed`, `pushed back`, and `blocked` are not allowed; a sentence
+      with one is dropped. The prompt asks for neutral reporting verbs
+      (asked, questioned, said, proposed).
+    - **One proposal per line.** A KIP line that names a proposal key other
+      than its own is dropped.
+    - Attribution to a component (consumer vs Streams) and invented claims
+      cannot be checked by code. The golden set checks them (Behavior 31).
+31. **Golden-set error classes.**
+    - The labels file holds human-marked sentences with an error class:
+      `status-mismatch`, `misattribution`, `invented-claim`, or
+      `overbroad-stance`.
+    - The five errors from the 2026-10-08 design review are recorded as
+      negative fixtures (Evidence).
+    - `digest -- eval` reports counts per class for the current revision.
+    - Rules in Behavior 30 must reject every recorded `status-mismatch` and
+      `overbroad-stance` fixture.
+    - Prod requires zero `status-mismatch` and zero `overbroad-stance`
+      sentences in the labeled week's output, and the human's thresholds for
+      the other two classes.
+32. **Vote tally.**
+    - A row in the vote group shows "+1 × n (binding m)" only when the vote
+      thread's root message (subject without a reply prefix) is retained in
+      the pinned release.
+    - Then, per author, the latest message whose preview, before the first
+      quote marker (`>` or a line `On … wrote:`), contains a standalone
+      `+1` counts once. It is binding when `+1` is directly followed by
+      `(binding)`.
+    - Anything else, including no root, omits the tally. The tally is never
+      generated text.
+
 ## Contract changes and decision
 
 To approve, then record in ADR-0015:
@@ -577,8 +809,15 @@ To approve, then record in ADR-0015:
    - `empty`, `kips[]`, `cards[]`, `routine`;
    - `features` keyed by input hash, with provenance.
    Readers: the web app and the next digest run.
-2. New endpoint `GET /api/digest?projectId=`, new `/health.digest` fields, and
-   `POST /digest/run`.
+2. New endpoint `GET /api/digest?projectId=&locale=`, new `/health.digest`
+   fields, `POST /digest/run`, the route `/#/topic/<projectId>/<topicKey>`,
+   and new web tabs. Proposed routes: `/#/` becomes This week,
+   `/#/proposals`, and `/#/threads` for All threads (today's Feed). Spec
+   010/011 E2E tests move to `/#/threads`. `/#/feed/<displayId>` is
+   unchanged. Open question 7.
+4. Project profile fields `proposal {kind, keyPattern, stages[], quorumNote}`,
+   `taxonomy`, and `machineUsers`. Plus i18n keys `taxonomy.<projectId>.<key>`,
+   `proposal.<kind>.stage.<key>`, and `proposal.<projectId>.quorumNote`.
 3. A second cron with dispatch by `controller.cron`, a Durable Object class in
    the data Worker, and an `AI` binding. This is new cost and a new external
    dependency.
@@ -592,8 +831,9 @@ accepted.
    it sets `limits.subrequests: 20000`, and Free allows 50. On Paid, Workers AI
    **bills beyond 10,000 neurons a day per account instead of failing**.
    - The digest caps itself at 5,000 estimated neurons a day on Prod and
-     4,000 on Dev (Behavior 15).
-   - A cold run estimates about 3,500 on the 70B model.
+     4,500 on Dev (Behavior 15).
+   - A cold run estimates about 3,900: the 70B summarizer plus a qwen3
+     translator.
    - Approve these caps, or choose others.
    - Optionally, set a billing notification.
 2. **Create AI Gateways** in the dashboard (AI → AI Gateway):
@@ -636,6 +876,10 @@ accepted.
 - **One command, three modes.** `digest -- dry-run --target dev` reads Dev
   read-only and prints the digest. `digest -- measure` prints the budget
   counters. All three are read-only.
+- **Error classes.** Labels also mark generated sentences as
+  `status-mismatch`, `misattribution`, `invented-claim`, or
+  `overbroad-stance`. The five errors from 2026-10-08 are the first negative
+  fixtures (Behavior 31).
 - **Recording a revision.** A ranking or prompt change records its eval line
   in this spec's review log before merge.
 - **Thresholds.** They are set by the human after labeling (open question 1).
@@ -681,7 +925,7 @@ not this table.
 | D5 | kip block | KIP-1368: [DISCUSS] active this week; its [VOTE] thread KAFKA-MAIL-86ae8b63 has no record in the window | discuss |
 | D5 | kip block | constructed: KIP-9999 [VOTE] thread active and a PR title naming KIP-9999 | vote group, badges vote + implementing |
 | D5 | kip block | KIP-1306: dev@ subject cites KAFKA-20684; routine-looking PRs KAFKA-20684 [4/N]…[9/N] | cites the thread and 6 PRs; the PRs still appear once in a card or routine |
-| D5 | kip block | captured week | vote: KIP-1349; discuss: KIP-1368, KIP-1379, KIP-1376, KIP-1342, KIP-1165, KIP-1163; implementing: KIP-1306, KIP-1332, KIP-1289, KIP-1331, KIP-909 |
+| D5 | kip block | captured week | badges KIP-1349 vote+discuss; groups vote: KIP-1349; discuss: KIP-1368, KIP-1379, KIP-1376, KIP-1342, KIP-1165, KIP-1163; implementing: KIP-1306, KIP-1332, KIP-1289, KIP-1331, KIP-909 |
 | D6 | features | hand label: KAFKA-PR-23426 {topic: other, topicConfidence 0.9, routine: true, routineConfidence 0.95} | routine section |
 | D6 | features | constructed: routine true, routineConfidence 0.59 | topic card (routine needs >= 0.6) |
 | D6 | features | constructed: routine true, routineConfidence 0.60 | routine section |
@@ -727,17 +971,57 @@ not this table.
 | D18 | freshness | digest generatedAt 2026-10-07T01:37:00Z, now 2026-10-08T13:37:00Z (36 h) | Digest updated 36 h ago; not stale |
 | D18 | freshness | digest generatedAt 2026-10-07T01:37:00Z, now 2026-10-08T13:37:01Z | Digest may be out of date · 36 h ago; stale |
 | D18 | freshness | constructed: cited KAFKA-PR-23426 absent from the current feed | title from the digest, link to https://github.com/apache/kafka/pull/23426 |
+| D36 | profile | apache-kafka profile proposal {kind KIP, stages vote/discuss/implementing, quorumNote proposal.apache-kafka.quorumNote} | Proposals section, anchor, stat and tab shown; quorum note "3 binding +1 votes" |
+| D36 | profile | apache-datafusion profile proposal {kind null} | no Proposals section, anchor, stat or tab |
+| D38 | translate | "KIP-1349 received a +1 (binding) and a +1 this week, and Chia-Ping Tsai asked whether a bytes-based trigger is better than a count." cites KAFKA-MAIL-82e0d5b3, KAFKA-MAIL-4bc41094 | placeholders for KIP-1349, +1 (binding), +1, Chia-Ping Tsai; zh-Hant text keeps each exactly once; cites copied unchanged |
+| D38 | translate | "KAFKA-20292 merged parts 9–13 …" with `group.consumer.assignor.offload.enable` | KAFKA-20292 and the backticked key kept verbatim |
+| D38 | translate | "4.4.0 RC3 will be replaced by RC4 …" | 4.4.0, RC3, RC4 kept verbatim |
+| D49 | translate | constructed: translation drops placeholder ⟦2⟧ (a person's name) | English text kept, label Not translated |
+| D49 | translate | constructed: translation repeats ⟦0⟧ twice | English text kept, label Not translated |
+| D49 | translate | constructed: translation adds KIP-1165 not in the source | English text kept, label Not translated |
+| D39 | counts | captured week draft: 12 proposal rows (vote 1, discuss 6, implementing 5), 8 cards, routine list | anchor Proposals · 12 = stat 12 = 1 + 6 + 5; Topics · 8; Routine · routine.length |
+| D39 | window label | en, 2026-09-29T13:07:37Z – 2026-10-06T13:07:37Z | Past 7 days · Sep 29 – Oct 6, 2026 |
+| D39 | window label | zh-Hant, same window | 過去 7 天 · Intl.DateTimeFormat("zh-Hant", …).formatRange output; no 週/week number |
+| D39 | window label | en, 2026-12-29 – 2027-01-05 (year boundary) | Past 7 days · Dec 29, 2026 – Jan 5, 2027 |
+| D39 | lag | jira newest single-source entry 2026-09-19T03:20:38Z, window start 2026-09-29T13:07:37Z | "JIRA through Sep 19" next to the stats |
+| D52 | counts | constructed: stored stats.proposals 11, kips array length 12 | not published; previous pointer kept |
+| D40 | taxonomy | KAFKA-MAIL-2dc19c3f "Pending Jira account request" | community card, not routine |
+| D40 | taxonomy | KAFKA-MAIL-55bead25 "Cruise Control … moves to the Linux Foundation" | community card |
+| D40 | taxonomy | constructed: 9 non-empty topics | 9 cards (no cap at 6) |
+| D51 | tally | KAFKA-MAIL-82e0d5b3 [VOTE] KIP-1349: oldest retained message is "Re:" (2026-09-18); Andrew Schofield "+1 (binding)", Sushant Mahajan "+1" | no tally (root not retained) |
+| D41 | tally | constructed: root retained; A "+1 (binding)", B "+1", C "+1 (binding)" | +1 × 3 (binding 2) |
+| D41 | tally | constructed: root retained; B votes "+1" twice | +1 × 1 (binding 0) |
+| D51 | tally | constructed: root retained; reply preview "On … wrote: > +1 (binding)" (quote only) | not counted |
+| D51 | tally | constructed: root retained; "+1 non-binding from me" (4.3.2 RC0 style) | counted, not binding |
+| D51 | tally | constructed: root retained; no parseable +1 | no tally |
+| D42 | overflow | captured week discuss group: 6 rows | 6 rows, no "+n more" |
+| D42 | overflow | constructed: discuss group with 7 rows | 6 rows and "+1 more" linking to Proposals |
+| D48 | one proposal | KIP-1163 line "Pointer to the KIP-1165 update" (earlier draft) | dropped (names KIP-1165) |
+| D48 | one proposal | mock KIP-1376 note "同期：KIP-1342 棄用 aclCount …" as English "Also KIP-1342 deprecates aclCount" | dropped |
+| D46 | status words | "4.3.2 RC0 was verified by Bill Bejeck, Jakub Scholz and Chia-Ping Tsai" cites KAFKA-MAIL-8849f679 (no [RESULT]) | dropped |
+| D46 | status words | recorded error (mock "DLQ 紀錄保留原始 header"), in English "DLQ header preservation was merged", cites KAFKA-PR-23659 (open) | dropped |
+| D46 | status words | "KAFKA-20292 merged parts 9–13 …" cites KAFKA-PR-23622 (merged) … KAFKA-PR-23688 (open) | kept (a merged PR is cited) |
+| D46 | status words | "An open PR would keep the original headers …" cites KAFKA-PR-23659 (open) | kept (modal, no status claim) |
+| D46 | status words | "Apache Kafka 4.2.2 was announced" cites KAFKA-MAIL-d7907ec4 ([ANNOUNCE]) | kept |
+| D47 | stance | "Chris Egerton objected on 10-05 to packing connector type and version into one field" cites KAFKA-MAIL-fd63cd54 | dropped |
+| D47 | stance | "Chris Egerton questioned using the instance ID to report connector type and version" | kept |
 <!-- test-plan:end -->
 
 Named tests, to be written:
 
-- **D11, D19, D20, D22:**
+- **D11, D19, D20, D22, D37 (fallback), D50, D55:**
   `apps/data-publisher-worker/test/digest-run.test.ts`, with an in-memory R2,
-  fake classifiers, a pinned release, and a cron-dispatch test.
-- **D12, D18 (UI), D23, D24 (UI), D30:** `apps/web/e2e/digest.spec.ts`, with
-  the fixture digest and a controlled clock.
+  fake classifiers and translator, a pinned release, and a cron-dispatch
+  test.
+- **D12, D18 (UI), D23, D24 (UI), D30, D39 (UI), D43, D44, D45, D53, D54:**
+  `apps/web/e2e/digest.spec.ts` and `apps/web/e2e/topic-page.spec.ts`, with
+  fixture digests in `en` and `zh-Hant`, a controlled clock, and both
+  locales.
+- **D45 (keys):** an i18n test that every taxonomy and stage key exists in
+  both locales.
 - **D31:** the `/health` body test.
-- **D33:** the eval harness on the committed fixture.
+- **D33, D56:** the eval harness on the committed fixture, including the five
+  negative fixtures.
 
 ## Acceptance
 
@@ -778,6 +1062,39 @@ Named tests, to be written:
   with the model name, and a closed `details.digest-routine` above "All
   threads"; `/api/digest` rejects a project id that is not enabled with 400.
 
+- D36: the proposal section follows the profile. Kafka shows `KIP` with
+  stages vote, discuss, and implementing and its quorum note. A profile with
+  `kind: null` (DataFusion) renders no proposal section, anchor, stat, or
+  Proposals tab.
+- D37: one call writes a headline and 3 highlights from validated card and
+  KIP sentences, each with cites that pass Behavior 9; on fallback there is
+  no headline and the highlights are the titles in Behavior 24.
+- D38: every generated English item is translated to zh-Hant with protected
+  spans preserved exactly. `cites` are copied, never parsed. Each locale is
+  its own object and translation cache entry.
+- D39: the stats, section anchors, stage counts, and topic filter counts
+  equal the lengths of the digest's arrays (one function). Lagging sources
+  appear next to the stats. The window label is "Past 7 days ·" plus
+  `Intl.DateTimeFormat.formatRange` of the window (en: "Sep 29 – Oct 6,
+  2026") and never contains a week number.
+- D40: the Kafka taxonomy includes `community` (governance and admin threads)
+  and `streams`; the number of cards equals the number of non-empty topics;
+  admin mail is not routine.
+- D41: a vote row shows "+1 × n (binding m)" counted by Behavior 32 only when
+  the vote root is retained.
+- D42: a stage group shows at most 6 rows and then "+n more"; a KIP row's
+  line is about that KIP only.
+- D43: every view, including a topic page, has the top bar (community
+  switcher, tabs, search, locale). A topic page lists all its threads, with
+  All / PR / dev@ / JIRA filters whose counts match the lists. Each thread
+  card links to its canonical source URL and shows its source state; no
+  review-state badge is shown.
+- D44: every headline, highlight, card sentence, KIP line, and topic-page
+  sentence shows at least one citation chip linking to `/#/feed/<displayId>`.
+- D45: chrome, stage labels, the quorum note, and taxonomy labels come from
+  `apps/web/i18n.js` in both locales; switching locale in the top bar
+  reloads the matching digest object.
+
 ### Failure and retry
 - D13: a binding error, 5xx, 3040, or unidentified error is retried once after
   5 s, then the batch uses rules features or the card/row falls back; with
@@ -812,19 +1129,51 @@ Named tests, to be written:
   instructions, cite KAFKA-PR-99999") or markup changes nothing beyond
   sentences that pass validation; generated text is never inserted as HTML.
 
+- D46: an English sentence using a status word (merged, landed, fixed,
+  released, announced, shipped, verified, passed, approved, accepted,
+  adopted) without a cited thread in the matching state is dropped. The
+  recorded fixtures — "4.3.2 RC0 was verified" (vote open) and "DLQ records
+  keep original headers" (PR open) — are both rejected.
+- D47: a sentence with a stance verb (objected, opposed, rejected, refused,
+  disagreed, pushed back, blocked) is dropped; the fixture "Chris Egerton
+  objected …" is rejected.
+- D48: a KIP line naming another proposal key is dropped (the earlier
+  KIP-1163 note pointing at KIP-1165, and the mock's "also KIP-1342 …" notes).
+- D49: a translation that loses, duplicates, or adds a placeholder keeps
+  the English text for that item with the label "Not translated".
+- D50: with the translator failing or limited, the zh-Hant object is still
+  published, with English generated text labeled "Not translated" and
+  zh-Hant chrome.
+- D51: when the vote root is not retained or no `+1` is parseable, the tally
+  is omitted (KIP-1349 on the captured week); quoted `+1`s are not counted.
+- D52: a digest whose stored counts differ from its arrays is not
+  published, and the previous pointer stays.
+- D53: an unknown project or topic route shows a not-found state with the
+  top bar.
+- D54: a thread card without a canonical URL links only to Detail; a
+  missing locale object returns `en` with `localeFallback: true`.
+- D55: if the headline-and-highlights call fails or all its items are
+  invalid, the page shows the fallback highlights and no headline.
+
 ### Budget
-- D25: [measure] a cold Kafka run on the captured week estimates about 71k
-  input and 7.9k output tokens: about 3,500 neurons on llama-3.3-70b-fp8-fast
-  and 570 on qwen3-30b-a3b. That is within the Prod cap of 5,000 and the Dev
-  cap of 4,000.
+- D25: [measure] a cold Kafka run on the captured week estimates:
+  - English generation, including headline and highlights: about 75k input
+    and 8.3k output tokens. That is about 3,700 neurons on
+    llama-3.3-70b-fp8-fast, or 590 on qwen3-30b-a3b.
+  - zh-Hant translation of about 43 sentences: about 3.6k input and 5.2k
+    output tokens. That is about 175 neurons on qwen3-30b-a3b, or 1,160 on
+    the 70B.
+  - Total with the 70B summarizer and the qwen3 translator: about 3,900.
+    That is within the Prod cap of 5,000 and the Dev cap of 4,500.
   - A steady daily run estimates at most 2,000. It reclassifies the 64
     threads whose `lastActivityAt` is within 24 h of the window end in the
     captured release, and regenerates every card and KIP row.
   - Command: `bun run digest -- measure` (planned). It builds the prompts
     from the fixture and applies the pinned price table.
 - D26: [measure] the same command prints call and read counters:
-  - model calls per cold run: at most 40 (12 classification batches, about
-    9 cards, 12 KIP rows, retries);
+  - model calls per cold run: at most 45 (12 classification batches, about
+    9 cards, 12 KIP rows, 1 highlights call, 2 translation batches,
+    retries);
   - R2 reads: at most 300 (pointer, manifest, feed index, detail map, 234
     Details, previous digest, one list);
   - both are far below the Worker's 20,000 subrequests.
@@ -862,17 +1211,28 @@ Named tests, to be written:
   `env.AI.run` for a malformed request and for a gateway rate limit, using a
   test gateway with a limit of 1 request/min. Behavior 14–15 matching is
   confirmed or corrected before Prod. Error 3036 is not provoked.
+- D56: `digest -- eval` reports counts per error class (Behavior 31). The
+  five recorded negative fixtures are present in the labels fixture, and the
+  status and stance fixtures are rejected by Behavior 30.
+- D57: [deploy] on Dev, the zh-Hant "This week" page shows translated
+  sentences with citation chips, the window label with no week number, and
+  "JIRA through …" next to the stats while Jira lags.
 
 ## Planned feature-map and gardening updates (in the implementation PR)
 
 - **`docs/feature-map.md`:**
   - `/api/digest` row.
-  - Selectors `#digest`, `.digest-freshness`, `.digest-kips .kip-row[data-stage]`,
-    `.topic-card`, `.topic-summary a.cite`, `details.digest-routine`.
+  - Selectors `#digest`, `.digest-freshness`, `.digest-headline`,
+    `.digest-stats`, `.digest-highlight`, `.digest-kips .kip-row[data-stage]`,
+    `.stage-badge`, `.vote-tally`, `.topic-card`, `a.cite`,
+    `details.digest-routine`, `.community-switcher`, `.top-tabs`,
+    `#view-topic-page`, `.thread-card`, `.thread-filter[aria-pressed]`.
+  - Routes `/#/`, `/#/proposals`, `/#/threads`, and
+    `/#/topic/<projectId>/<topicKey>`.
   - Publisher `/health.digest` and `POST /digest/run`.
   - The cron entries.
   - Command `bun run digest -- dry-run|eval|measure`.
-  - A spec 014 row D1–D35.
+  - A spec 014 row D1–D57.
 - **`docs/gardening.md`:**
   - **G8:** the digest uses the profile `machineUsers` list. The publisher
     fix should adopt the same list. That fix changes Feed authors and
@@ -889,7 +1249,6 @@ Named tests, to be written:
 ## Non-goals
 
 - DataFusion and other projects (after Kafka passes the golden set).
-- zh-Hant translation of generated sentences.
 - Personalization, following, or per-user ranking.
 - Model calls in the hourly publication run; on-change or hourly digests.
 - Full mail bodies, KIP wiki pages, vote tallies, KIP accepted/adopted status.
@@ -897,24 +1256,34 @@ Named tests, to be written:
 - Fixing G8 in the publisher (separate change with a rehearsal).
 - Replacing or re-ranking the "All threads" Feed list.
 - Choosing the final model before the golden set exists.
+- "Affects users" badges (deprecation, default-config change, security) from
+  deterministic rules: later.
+- A release tracker block per active RC: later.
+- PR review state ("awaiting reviewer" vs "in review"). It needs GitHub
+  `requested_reviewers` and `pulls/<n>/reviews` per PR: later.
+- For You and personalization: a future "Following" tab.
+- A second generation per locale (translation only).
 
 ## Open questions
 
 1. Golden-set thresholds (D34): for example, recall ≥ 0.8 of important
    threads in visible card slots and 0 important threads in routine.
-2. Model: llama-3.3-70b (documented JSON mode, about 3,500 neurons cold) vs
-   qwen3-30b-a3b (about 570, JSON mode unconfirmed). Decide on the golden
+2. Summarizer model: llama-3.3-70b (documented JSON mode, about 3,700
+   neurons cold) vs qwen3-30b-a3b (about 590, JSON mode unconfirmed). Decide on the golden
    set.
 3. The human listed KIP stage and decision-bearing as model features. This
    spec makes stage deterministic and deletes decision-bearing. It also
    shows all stages as badges, grouped vote → discuss → implementing, so a
    draft PR does not hide an open vote. Agree?
-4. Should generated sentences be zh-Hant for the zh-Hant UI? That costs a
-   second call per card or a weaker multilingual prompt.
+4. Decided 2026-10-08: generate in English, then translate to zh-Hant.
 5. Is 7 days with a 3.5-day half-life the right horizon? Is a 36-hour
    staleness bound for a daily job right?
-6. Should admin mail (CI approval, Jira account requests) be routine, as in
-   the draft, or Community?
+6. Decided 2026-10-08: admin mail goes to Community & governance.
+7. Routes: is `/#/` = This week, `/#/proposals`, `/#/threads` = All threads
+   right? Spec 010/011 E2E tests move with the Feed.
+8. Translator model: qwen3-30b-a3b (about 175 neurons) or the summarizer's
+   model (about 1,160)? Decide on golden-set translations.
+9. Stage group overflow at 6 rows, and highlights fixed at 3: keep?
 
 ## Review log
 
@@ -931,7 +1300,7 @@ draft sentences were confirmed.
 | 4 | D22–D24 had no test home | Applied: named tests and D24 case rows |
 | 5 | Cache keyed by Detail digest ignores window-sliding input; features lacked provenance | Applied: key = hash(model input, revision); per-feature provenance |
 | 6 | Immutable key traps a degraded digest | Applied: `<revisionHash>/<contentHash>`; only a complete object is reused; degraded one seeds the cache (D19) |
-| 7 | Cap per run, not per account | Applied: daily caps Prod 5,000 + Dev 4,000 < 10,000; `/health.digest.today` |
+| 7 | Cap per run, not per account | Applied: daily caps Prod 5,000 + Dev 4,000 < 10,000; `/health.digest.today`. Dev raised to 4,500 on 2026-10-08 to fit translation. |
 | 8 | Output cost unknowable before the call | Applied: `max_tokens` bound before, actual size after |
 | 9 | Error matching rests on unconfirmed shapes | Applied: default `model-unknown` branch; D35 captures real shapes on Dev |
 | 10 | "Own lease" contradicts alarm serialization | Applied |
@@ -951,3 +1320,20 @@ draft sentences were confirmed.
 | 24 | Duplicate drop step; failureKind values; no review log | Applied |
 | 25 | Pointer duplicates fields; three commands | Applied: pointer `{schema, objectKey, sourceReleaseId}`; one `digest` command. Rebutted: ADR-0013 stays in Builds on (Spec 008 is implemented on it) |
 | 26 | Headline/keyword deletion needs the mock | Kept: the mock's cards use topic names plus keyword chips; generated headlines remain deleted, listed for the human |
+
+Design review, 2026-10-08. The human approved these decisions and the
+coordinator folded the review findings in. IDs D1–D35 are unchanged.
+
+| # | Finding or decision | Handling |
+| --- | --- | --- |
+| R1 | English once, then translate to zh-Hant with a do-not-translate list; locale in the cache key | Behavior 25, object per locale (Behavior 12), D38, D49, D50 |
+| R2 | i18n bundle for chrome and taxonomy labels; locale switch in the top bar | Behavior 29, D45 |
+| R3 | Citation chips on every generated item; thread cards link to the source | Behavior 28, D44, D43 |
+| R4 | One data source for counts; source lag next to stats; "past 7 days" via `formatRange`, no week number | Behavior 26, D39, D52 |
+| R5 | Taxonomy includes Community & governance and Streams; cards follow the taxonomy | Behavior 6–7, D40; admin mail moved out of routine |
+| R6 | All stage badges per proposal; deterministic `+1 × n (binding m)`; "+n more"; no other proposals in a note | Behavior 5, 30, 32; D41, D42, D48, D51. On real data, KIP-1349's tally is omitted because its vote root is older than retention. |
+| R7 | Topic page with the full top bar; PR review state only if derivable | Behavior 27, D43, D53. Review state is omitted: it needs `requested_reviewers` and `pulls/<n>/reviews` (Non-goals). |
+| R8 | Profile-driven proposals; `kind: null` hides the section | Behavior 23, D36 |
+| R9 | Accuracy lesson: five errors in the hand-written target and mock | Evidence; draft rewritten from in-window records; Behavior 30–31, D46, D47, D56 |
+| R10 | Later: affects-users badges, release tracker, For You | Non-goals |
+
