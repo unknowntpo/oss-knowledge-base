@@ -277,6 +277,12 @@ const cases: Record<string, () => string> = {
     const before = kipCandidates(feedSample.entries, P).candidates.some((row) => row.key === "KIP-1279");
     return before && !kipCandidates(entries, P).candidates.some((row) => row.key === "KIP-1279") ? "KIP-1279 vote row removed" : "kept";
   },
+  "kip candidates|constructed: two [VOTE] KIP-9 threads, last activity 09-01 and 10-01": () => {
+    const entries = [{ displayId: "KAFKA-MAIL-0000000a", title: "[VOTE] KIP-9: x", lastActivityAt: "2026-09-01T00:00:00.000Z" },
+      { displayId: "KAFKA-MAIL-0000000b", title: "[VOTE] KIP-9: x", lastActivityAt: "2026-10-01T00:00:00.000Z" }];
+    const pick = (list: typeof entries) => kipCandidates(list, P).candidates[0]?.displayId;
+    return pick(entries) === "KAFKA-MAIL-0000000b" && pick([...entries].reverse()) === "KAFKA-MAIL-0000000b" ? "the 10-01 thread" : String(pick(entries));
+  },
   "kip candidates|constructed: profile apache-datafusion proposal.kind null": () =>
     kipCandidates(feedSample.entries, DATAFUSION_REVIEW_PROFILE).candidates.length === 0 ? "no KIP candidates" : "candidates",
   "kip candidates|constructed: the Kafka profile and entries with proposal.kind set to null": () =>
@@ -295,6 +301,23 @@ const cases: Record<string, () => string> = {
     const stats = threadStats([message("Root", "2026-10-01T00:00:00Z", subject, null, "r"),
       message("unknown sender", "2026-10-02T00:00:00Z", `Re: ${subject}`, null, "a"), message("unknown sender", "2026-10-03T00:00:00Z", `Re: ${subject}`, null, "b")]);
     return `${stats.repliers} replier`;
+  },
+  "repliers|constructed: replies from Alice and \"CI Bot\", profile machineUsers [\"CI Bot\"]": () => {
+    const subject = "[DISCUSS] KIP-9: x";
+    const stats = threadStats([message("Root", "2026-10-01T00:00:00Z", subject, null, "r"),
+      message("Alice", "2026-10-02T00:00:00Z", `Re: ${subject}`, null, "a"), message("CI Bot", "2026-10-03T00:00:00Z", `Re: ${subject}`, null, "b")], subject, ["CI Bot"]);
+    return `${stats.repliers} replier`;
+  },
+  "members|constructed: reply \"[EXTERNAL] RE: [VOTE] KIP-9: x\" and \"SV: [VOTE] KIP-9: x\"": () => {
+    const stats = threadStats([message("Root", "2026-10-01T00:00:00Z", VOTE_SUBJECT, null, "r"),
+      message("A", "2026-10-02T00:00:00Z", "[EXTERNAL] RE: [VOTE] KIP-9: x", null, "a"), message("B", "2026-10-03T00:00:00Z", "SV: [VOTE] KIP-9: x", null, "b")], VOTE_SUBJECT);
+    return stats.members.length === 3 ? "both members" : `${stats.members.length - 1} members`;
+  },
+  "members|constructed: reply \"Re: [VOTE] KIP-9 (was: x)\" in the tree, subject key differs": () => {
+    const stats = threadStats([message("Root", iso(KIP_NOW, -100 * HOUR), VOTE_SUBJECT, "Please vote.", "r"),
+      message("A", iso(KIP_NOW, -90 * HOUR), "Re: [VOTE] KIP-9 (was: x)", "-1 (binding)", "a")], VOTE_SUBJECT, [], "KIP-9");
+    const tally = tallyVote(stats, proposalRule, roster, KIP_NOW);
+    return `${stats.members.some((member) => member.mid === "a") ? "member" : "not a member"}; ${tally.complete ? "tally complete" : `tally incomplete: ${stats.unattributed} reply not attributed`}`;
   },
   "members|KAFKA-MAIL-0b57fb00 KIP-785: only message \"Re: [DISCUSS] KIP-785 …\" by Manan Gupta 2026-09-17, no parent": () => {
     const row = discussRow("KIP-785");
@@ -326,6 +349,13 @@ const cases: Record<string, () => string> = {
   "vote line|constructed: \"-1 (binding) until the upgrade path is documented\"": () => vote("-1 (binding) until the upgrade path is documented"),
   "vote line|constructed: \"On Mon, … wrote:\", \"> Please vote\", then \"+1 (binding)\" (bottom-posted)": () =>
     vote("On Mon, Oct 5, 2026 at 10:00 AM Alice <al...@apache.org>\nwrote:\n> Please vote\n\n+1 (binding)"),
+  "vote line|constructed: \"-1: the upgrade path is missing\"": () => vote("-1: the upgrade path is missing"),
+  "vote line|constructed: \"+1: looks good\"": () => vote("+1: looks good"),
+  "vote line|constructed: \"+1;\"": () => vote("+1;"),
+  "vote line|constructed: \"Thanks\", \"From: Bob\", then an unquoted \"+1 (binding)\"": () => {
+    const parsed = parseVoteLines("Thanks\nFrom: Bob <b@x>\nSent: Monday\n+1 (binding)");
+    return `${parsed.votes.length === 0 ? "no vote" : "vote"}; ${parsed.ambiguous ? "message ambiguous (vote-like line after a quoted header)" : "clear"}`;
+  },
   "vote line|constructed: \"-----Original Message-----\" then \"+1 (binding)\"": () => {
     const result = vote("Thanks\n-----Original Message-----\n+1 (binding)");
     return result === "no vote" ? "no vote (quoted message)" : result;
@@ -362,6 +392,10 @@ const cases: Record<string, () => string> = {
     const tally = constructedTally([{ author: "A", body: "+1 (binding)" }, { author: "A", body: "-1 (binding)" }]);
     return tally.minusBinding === 1 && tally.plus === 0 ? "A counts -1 binding" : `${tally.plus}/${tally.minusBinding}`;
   },
+  "voter|constructed: one body with \"+1 (binding)\" then \"-1 (binding)\" lines": () => {
+    const tally = constructedTally([{ author: "A", body: "+1 (binding)\n-1 (binding)" }]);
+    return tally.minusBinding === 1 && tally.plus === 0 ? "counts -1 binding (last line in the body)" : `${tally.plus}/${tally.minusBinding}`;
+  },
   // Q12
   "vote row|KAFKA-MAIL-82e0d5b3 KIP-1349: full thread 6 messages, root 2026-08-19": () => voteResult(voteRow("KIP-1349")),
   "vote row|KAFKA-MAIL-e903d023 KIP-1262: Luke Chen declared, Sancio via roster": () => voteResult(voteRow("KIP-1262")),
@@ -381,10 +415,10 @@ const cases: Record<string, () => string> = {
     return `${queued.length} queued (${zero.join(", ")} with 0; ${seen.map((key) => `${key} seen ≥ 1`).join(", ")}; ${one.join(", ")} with 1); ${not.join(" and ")} not`;
   },
   // Q13
-  "counts|queue object with stored counts {noReviewer 310, waiting 61, approved 22, vote 4, discuss 9}": () => {
+  "counts|queue object with stored counts {noReviewer 310, waiting 61, approved 22, vote 5, discuss 9}": () => {
     const stored = reviewQueueCounts(queue);
     const named = `{noReviewer ${stored.noReviewer}, waiting ${stored.waiting}, approved ${stored.approved}, vote ${stored.vote}, discuss ${stored.discuss}}`;
-    if (named !== "{noReviewer 310, waiting 61, approved 22, vote 4, discuss 9}") return named;
+    if (named !== "{noReviewer 310, waiting 61, approved 22, vote 5, discuss 9}") return named;
     return checkStoredCounts(queue, stored) ? "accepted; counts equal the arrays" : "rejected: counts-mismatch";
   },
   "counts|constructed: stored noReviewer 309 with 310 rows": () =>
@@ -398,6 +432,11 @@ const cases: Record<string, () => string> = {
     const members = threadMessages("KAFKA-MAIL-82e0d5b3").map((item) => (item.author === "Andrew Schofield" ? { ...item, body: null } : item));
     const tally = tallyVote(threadStats(members), proposalRule, roster, KIP_NOW);
     return `"${tallyText(tally, proposalRule.quorum)}"; ${tally.state}`;
+  },
+  "wording|constructed: 3 declared binding +1 and a reply with an unquoted \"+1 (binding)\" below a \"From:\" header, open 100 h": () => {
+    const tally = constructedTally([{ author: "A", body: "+1 (binding)" }, { author: "B", body: "+1 (binding)" }, { author: "C", body: "+1 (binding)" },
+      { author: "D", body: "Agreed.\nFrom: E <e@x>\nSent: Monday\n+1 (binding)" }]);
+    return `"${tallyText(tally, 3)}"; ${tally.state}`;
   },
   "wording|KIP-1279 with 1 unclear line": () => `"${tallyText(voteRow("KIP-1279").tally, proposalRule.quorum)}"`,
   "wording|constructed: vote thread whose members are all replies, one \"+1 (binding)\"": () =>
@@ -427,6 +466,12 @@ const cases: Record<string, () => string> = {
   "bot reviewer|#23724 only review by copilot-pull-request-reviewer": () => `${state(23724).reviewers} reviewers`,
   "bot reviewer|constructed: only requested reviewer is a Bot": () =>
     `${classifyPr(pr({ reviewRequests: { totalCount: 1, nodes: [{ requestedReviewer: { __typename: "Bot", login: "helper" } }] } }), PR_NOW, P).reviewers} reviewers`,
+  "reviewers|constructed: only review is the PR author's own COMMENTED review": () =>
+    `${classifyPr(pr({ latestReviews: { totalCount: 1, nodes: [review("alice", "2026-09-01T00:00:00Z")] } }), PR_NOW, P).reviewers} reviewers`,
+  "reviewers|constructed: requested team apache/kafka-committers, no review": () => {
+    const value = classifyPr(pr({ reviewRequests: { totalCount: 1, nodes: [{ requestedReviewer: { __typename: "Team", slug: "kafka-committers" } }] } }), PR_NOW, P);
+    return `${value.reviewers} reviewer (team)`;
+  },
   "no decision|constructed: reviewDecision null, one human APPROVED review": () => {
     const value = classifyPr(pr({ reviewDecision: null, latestReviews: { totalCount: 1, nodes: [review("bob", "2026-09-01T00:00:00Z", "APPROVED")] } }), PR_NOW, P);
     return value.bucket === "approved" ? "approved" : "not approved; bucket by reviewers";
@@ -460,6 +505,10 @@ const cases: Record<string, () => string> = {
     return `${fromPreset ? "asfPreset(kafka, dev) + overrides" : "not from the preset"}; roster {${P.governance.roster?.adapter}, ${P.governance.roster?.project}}; ` +
       `proposal ${rule(proposalRule)}; release ${rule(releaseRule)}; reviewWaitDays ${P.reviewWaitDays}; fewRepliers ${P.fewRepliers}`;
   },
+  "governance|constructed: proposal.kind KIP and no proposal vote rule": () => {
+    const profile = { ...P, governance: { ...P.governance, votes: P.governance.votes.filter((rule) => rule.kind !== "proposal") } };
+    try { buildKipRows({ entries: feedSample.entries, threads, roster, profile, now: KIP_NOW }); return "built"; } catch (error) { return `error: ${(error as Error).message}`; }
+  },
   "governance|DataFusion profile": () => {
     const preset = asfPreset({ project: "datafusion", devList: "dev" });
     const fromPreset = JSON.stringify(DATAFUSION_REVIEW_PROFILE.governance) === JSON.stringify(preset.governance);
@@ -480,6 +529,10 @@ const cases: Record<string, () => string> = {
     const projects = { projects: { kafka: { members: ["a"], owners: [] }, flink: { members: ["b"], owners: ["b"] } } };
     const parsedRoster = parseAsfRoster(projects, { people: { a: { name: "A" }, b: { name: "B" } } }, "kafka", KIP_NOW);
     return parsedRoster.entries.map((item) => item.id).join() === "a" ? "only kafka entries kept" : parsedRoster.entries.map((item) => item.id).join();
+  },
+  "roster|constructed: owners [\"p\"], members [\"c\"]": () => {
+    const parsedRoster = parseAsfRoster({ projects: { kafka: { members: ["c"], owners: ["p"] } } }, { people: {} }, "kafka", KIP_NOW);
+    return parsedRoster.entries.map((entry) => `${entry.id} [${entry.roles.join(", ")}]`).join("; ");
   },
   "roster|constructed: members has id \"ghostid\" with no people entry": () => {
     const parsedRoster = parseAsfRoster({ projects: { kafka: { members: ["ghostid"], owners: [] } } }, { people: {} }, "kafka", KIP_NOW);
@@ -506,12 +559,21 @@ const cases: Record<string, () => string> = {
     const tally = stateFor(4, 1, 100);
     return `${tally.state}; ${tallyText(tally, 3).includes("binding -1 × 1") ? "shows binding -1 × 1" : tallyText(tally, 3)}`;
   },
-  "vote state|constructed: binding +1 × 3, an unclear \"-1 (binding) until …\" line, open 100 h": () => {
+  "vote state|constructed: binding +1 × 3 and \"-1 (binding) until …\", open 100 h": () => {
     const tally = stateFor(3, 0, 100, ["-1 (binding) until the upgrade path is documented"]);
-    return `${tally.state}; ${queuedText(tally.queued)}`;
+    return `${tally.state}; ${tallyText(tally, 3).includes("binding -1 × 1") ? "shows binding -1 × 1" : tallyText(tally, 3)}`;
   },
-  "vote state|KIP-1279: binding +1 × 3 and an unclear +1 summary line": () =>
-    voteRow("KIP-1279").tally.state === "passing" && voteRow("KIP-1279").tally.unclear === 1 ? "passing (an unclear +1 line does not block)" : voteRow("KIP-1279").tally.state,
+  "vote state|constructed: binding +1 × 3 and \"-1: no\" from a roster committer, open 100 h": () => {
+    const members = [message("Starter", iso(KIP_NOW, -100 * HOUR), VOTE_SUBJECT, "Please vote.", "root"),
+      ...["A", "B", "C"].map((author, index) => message(author, iso(KIP_NOW, -90 * HOUR + index), `Re: ${VOTE_SUBJECT}`, "+1 (binding)")),
+      message("Sushant Mahajan", iso(KIP_NOW, -80 * HOUR), `Re: ${VOTE_SUBJECT}`, "-1: no")];
+    const tally = tallyVote(threadStats(members), proposalRule, roster, KIP_NOW);
+    return `${tally.state}; ${tallyText(tally, 3).includes("binding -1 × 1") ? "shows binding -1 × 1" : tallyText(tally, 3)}`;
+  },
+  "vote state|KIP-1279: binding +1 × 3 and an unclear +1 summary line": () => {
+    const tally = voteRow("KIP-1279").tally;
+    return tally.unclear === 1 ? `${tally.state}; ${queuedText(tally.queued)} (an unclear line makes the tally a lower bound)` : tally.state;
+  },
   "vote state|constructed: binding +1 × 3 declared, 1 body unread, open 100 h": () => {
     const members = [message("Starter", iso(KIP_NOW, -100 * HOUR), VOTE_SUBJECT, "Please vote.", "root"),
       ...["A", "B", "C"].map((author, index) => message(author, iso(KIP_NOW, -90 * HOUR + index), `Re: ${VOTE_SUBJECT}`, "+1 (binding)")),

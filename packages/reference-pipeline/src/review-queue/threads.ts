@@ -1,5 +1,7 @@
 /** Spec 015 Behavior 8–10: KIP candidates from the Feed, Pony Mail threads, and repliers. */
-import { mailAuthor, threadKey } from "../kafka-rules";
+import { isMachineAuthor } from "../digest/candidates";
+import { proposalKeys, subjectHasTag } from "../digest/proposals";
+import { mailAuthor } from "../kafka-rules";
 import type { ReviewProfile } from "./governance";
 
 /** A Feed index entry reduced to what candidate selection reads. */
@@ -28,16 +30,8 @@ export interface KipCandidate {
   readonly title: string;
 }
 
-function hasTag(title: string, tag: string): boolean {
-  return title.toLowerCase().includes(`[${tag.toLowerCase()}]`);
-}
-
 function isMail(entry: FeedMailEntry, profile: ReviewProfile): boolean {
   return entry.displayId.startsWith(`${profile.projectKey.toUpperCase()}-MAIL-`);
-}
-
-function proposalKeys(title: string, profile: ReviewProfile): string[] {
-  return [...new Set(title.match(new RegExp(profile.proposal.keyPattern, "gu")) ?? [])];
 }
 
 /**
@@ -59,7 +53,7 @@ export function kipCandidates(entries: readonly FeedMailEntry[], profile: Review
     if (!isMail(entry, profile)) continue;
     const keys = proposalKeys(entry.title, profile);
     if (keys.length === 0) continue;
-    const stage = hasTag(entry.title, result) ? "result" : hasTag(entry.title, vote) ? "vote" : hasTag(entry.title, discuss) ? "discuss" : null;
+    const stage = subjectHasTag(entry.title, result) ? "result" : subjectHasTag(entry.title, vote) ? "vote" : subjectHasTag(entry.title, discuss) ? "discuss" : null;
     if (stage === null) continue;
     tagged[stage] += 1;
     for (const key of keys) {
@@ -104,7 +98,26 @@ export function parsePonyThread(body: unknown): ThreadMessage[] {
   return messages;
 }
 
-const REPLY = /^\s*(?:re|fwd?|fw|aw)\s*:/iu;
+const REPLY = /^\s*(?:re|fwd?|fw|aw|sv|vs|wg|antw|rif|tr)\s*:/iu;
+const GATEWAY_TAG = /^\s*\[(?:external|ext|external email|external sender|caution)\]\s*/iu;
+
+/**
+ * Behavior 9: the subject without leading mail-gateway tags (`[EXTERNAL]`) and reply or forward
+ * prefixes in several languages, whitespace collapsed, lowercased. Spec 012's `threadKey` is not
+ * changed, because the Feed's grouping depends on it.
+ */
+export function memberKey(subject: string): string {
+  let current = subject.replace(/\s+/gu, " ").trim();
+  for (;;) {
+    const next = current.replace(GATEWAY_TAG, "").replace(REPLY, "").trim();
+    if (next === current) return current.toLowerCase();
+    current = next;
+  }
+}
+
+function isReply(subject: string): boolean {
+  return memberKey(subject) !== subject.replace(/\s+/gu, " ").trim().toLowerCase();
+}
 
 export interface ThreadStats {
   readonly members: readonly ThreadMessage[];
@@ -116,25 +129,38 @@ export interface ThreadStats {
   /** Distinct authors other than the root's; a lower bound when the root is not archived. */
   readonly repliers: number;
   readonly lastReplyAt: string | null;
+  /** Messages in the tree that name the proposal key and the stage tags but have another key. */
+  readonly unattributed: number;
 }
 
 /**
- * Behavior 9–10. Members share the candidate's thread key (the oldest message's subject when no
- * subject is given), ordered by time then message id.
+ * Behavior 9–10. Members share the candidate's `memberKey` (the oldest message's subject when no
+ * subject is given), ordered by time then message id. With a proposal key, other messages that
+ * name the key and every bracket tag of the subject are counted as unattributed.
  */
-export function threadStats(messages: readonly ThreadMessage[], subject?: string, machineUsers: readonly string[] = []): ThreadStats {
+export function threadStats(
+  messages: readonly ThreadMessage[],
+  subject?: string,
+  machineUsers: readonly string[] = [],
+  proposalKey?: string,
+): ThreadStats {
   const ordered = [...messages].sort((a, b) => a.at.localeCompare(b.at) || a.mid.localeCompare(b.mid));
   if (ordered.length === 0) throw new Error("A thread needs at least one message");
-  const key = threadKey(subject ?? ordered[0]!.subject);
-  const members = ordered.filter((message) => threadKey(message.subject) === key);
+  const key = memberKey(subject ?? ordered[0]!.subject);
+  const members = ordered.filter((message) => memberKey(message.subject) === key);
   if (members.length === 0) throw new Error(`No message has the thread key ${key}`);
-  const root = members.find((message) => !REPLY.test(message.subject)) ?? null;
+  const tags = key.match(/\[[^\]]+\]/gu) ?? [];
+  const unattributed = proposalKey === undefined ? 0 : ordered.filter((message) => {
+    const other = memberKey(message.subject);
+    return other !== key && other.includes(proposalKey.toLowerCase()) && tags.every((tag) => other.includes(tag));
+  }).length;
+  const root = members.find((message) => !isReply(message.subject)) ?? null;
   const replies = members.filter((message) => message !== root);
   const repliers = new Set(replies.map((message) => message.author)
-    .filter((author) => author !== root?.author && !machineUsers.includes(author)));
+    .filter((author) => author !== root?.author && !isMachineAuthor(author, { machineUsers })));
   return {
     members, root, rootArchived: root !== null, openedAt: (root ?? members[0]!).at,
-    repliers: repliers.size, lastReplyAt: replies.at(-1)?.at ?? null,
+    repliers: repliers.size, lastReplyAt: replies.at(-1)?.at ?? null, unattributed,
   };
 }
 

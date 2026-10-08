@@ -1,4 +1,5 @@
 /** Spec 015 Behavior 1–7: open-PR snapshot pages, the wait clock, buckets, and card labels. */
+import { isMachineAuthor } from "../digest/candidates";
 import type { ReviewProfile } from "./governance";
 
 export interface GitHubActor {
@@ -103,10 +104,9 @@ export interface PrState {
   readonly reason: NotQueuedReason | null;
 }
 
-/** Behavior 2. */
+/** Behavior 2: GitHub's `Bot` type, or Spec 014's `isMachineAuthor` (`[bot]` suffix, profile list). */
 export function isMachineActor(actor: { readonly login?: string; readonly __typename: string }, profile: ReviewProfile): boolean {
-  const login = actor.login ?? "";
-  return actor.__typename === "Bot" || login.endsWith("[bot]") || profile.machineUsers.includes(login);
+  return actor.__typename === "Bot" || isMachineAuthor(actor.login ?? "", profile);
 }
 
 function later(a: string, b: string | null | undefined): string {

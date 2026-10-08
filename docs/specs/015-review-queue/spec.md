@@ -143,7 +143,7 @@ unmarked vote from a name in the ASF `kafka` committer roster ("via roster");
 | KIP-1349 | KAFKA-MAIL-82e0d5b3 | Muralidhar Basani 2026-08-19 (not retained in our data) | 2: Andrew Schofield (declared), Sushant Mahajan (committer, via roster) | 2 of 3 (1 via roster) / 0 | short | yes, last reply 2 d |
 | KIP-1262 | KAFKA-MAIL-e903d023 | Kevin Wu 2026-03-04 | 2: Luke Chen (declared), José Armando García Sancio (via roster) | 2 of 3 (1 via roster) / 0 | short | yes, last reply 15 d |
 | KIP-1357 | KAFKA-MAIL-75914579 | Gabriella Fu 2026-06-25 | 4 (Alieh Saeedi declared non-binding) | 3 (Lucas Brutschy, Matthias J. Sax, Bill Bejeck "(biding)") / 0 | passing (open 104 d ≥ 72 h) | no |
-| KIP-1279 | KAFKA-MAIL-ff6d44a5 | Federico Valeri 2026-07-08 | 4 (vaquar khan unmarked, not a committer), plus 1 unclear "+1 (non-binding): Vaquar Khan" (a summary line) | 3 · 1 unmarked / 0 | passing (open 91 d) | no |
+| KIP-1279 | KAFKA-MAIL-ff6d44a5 | Federico Valeri 2026-07-08 | 4 (vaquar khan unmarked, not a committer), plus 1 unclear "+1 (non-binding): Vaquar Khan" (a summary line) | ≥ 3 · 1 unmarked / 0 | unresolved (the unclear line makes the count a lower bound) | yes, last reply 19 d |
 
 Under the earlier PMC-roster draft KIP-1349 showed "1 of 3 · 1 unmarked";
 Sushant Mahajan is a committer, so his unmarked +1 is binding for a KIP.
@@ -169,7 +169,7 @@ membership = messages with the candidate's normalized subject):
 | KIP-1153 | KAFKA-MAIL-0635ac57 | pritam kumar | 2 | 9 d | no |
 | KIP-1163 | KAFKA-MAIL-a9696e08 | Ivan Yurchenko 2025-04-23 | 5 | 2 d | no |
 
-The block's KIP column shows 13 = 4 votes + 9 discussions.
+The block's KIP column shows 14 = 5 votes + 9 discussions.
 
 ## Decisions (human, 2026-10-08)
 
@@ -237,9 +237,17 @@ web: GET /api/review-queue?projectId=apache-kafka → home "Awaiting review" blo
 Shared code (named so Spec 014 and this spec do not duplicate it):
 
 - `mailAuthor(from)` (Spec 012, `packages/reference-pipeline/src/kafka-rules.ts`): voter and replier identity.
-- `detectProposalStages(subject, profile)` (Spec 014 Behavior 4/23): vote and discuss tags.
-- `isMachineAuthor(login, typename, profile)` (Spec 014 Behavior 2, gardening G8): bots.
-- `tallyVote(messages, roster, profile)`: new, owned by this spec (Spec 014 dropped its tally on 2026-10-08).
+- `subjectHasTag(title, tag)` and `proposalKeys(title, profile)` (Spec 014,
+  `packages/reference-pipeline/src/digest/proposals.ts`): subject tags and
+  proposal keys.
+- `isMachineAuthor(author, profile)` (Spec 014 Behavior 2, gardening G8):
+  `[bot]` logins and profile machine users; this spec adds GitHub's `Bot`
+  type (`isMachineActor`).
+- Not shared: Spec 012's `threadKey`. Thread members use this spec's
+  `memberKey` (Behavior 9), because changing `threadKey` would regroup the
+  Feed.
+- `tallyVote(thread, rule, roster, now)`: new, owned by this spec (Spec 014
+  dropped its tally on 2026-10-08); it returns the state too.
 - `reviewQueueCounts(queue)`: new, the only counting function.
 - The connector fetch policy (Spec 012): `SOURCE_USER_AGENT`, one retry when
   `Retry-After` ≤ 60 s, 4 MiB response limit.
@@ -354,13 +362,22 @@ Ties are broken by PR number or proposal number, ascending (numeric).
      discuss row.
    - A key with a `[RESULT]` thread in the release has no vote row.
 9. **Thread read.** For each candidate, one `thread.lua?id=<a retained mid>&find_parent=true`.
-   - Members = messages in the returned tree whose subject has the
-     candidate's thread key (Spec 012 `threadKey`). A `[VOTE]` started as a
-     reply inside the `[DISCUSS]` tree therefore keeps only `[VOTE]`
-     messages.
-   - Root = the oldest member without a reply prefix. When every member is a
-     reply, the root is not archived in this tree (KIP-785): repliers and the
-     tally use the "seen" wording and the row shows the oldest member's date.
+   - `memberKey(subject)` strips leading mail-gateway tags (`[EXTERNAL]`,
+     `[EXT]`, `[External Email]`, `[External Sender]`, `[CAUTION]`) and reply
+     or forward prefixes (`Re:`, `RE:`, `Fwd:`, `Fw:`, `AW:`, `SV:`, `VS:`,
+     `WG:`, `Antw:`, `R:`-style `Rif:`, `TR:`), repeatedly, then collapses
+     whitespace and lowercases.
+   - Members = messages in the returned tree with the candidate's
+     `memberKey`. A `[VOTE]` started as a reply inside the `[DISCUSS]` tree
+     therefore keeps only `[VOTE]` messages.
+   - **Unattributed replies:** a non-member message whose `memberKey`
+     contains the proposal key and every bracket tag of the candidate's
+     subject (for example "Re: [VOTE] KIP-9 (was: x)") is counted as
+     unattributed. Its vote is not read, and the tally is not complete.
+   - Root = the oldest member without a gateway tag or reply prefix. When
+     every member is a reply, the root is not archived in this tree
+     (KIP-785): repliers and the tally use the "seen" wording and the row
+     shows the oldest member's date.
    - A response that is not the expected JSON shape is a thread failure.
 10. **Repliers and last reply.**
     - Repliers = distinct `mailAuthor(from)` of non-root messages, other than
@@ -371,54 +388,61 @@ Ties are broken by PR number or proposal number, ascending (numeric).
 11. **Vote bodies.** For a vote thread, the full body of every message, from
     `email.lua?id=<mid>`. A body already in the previous queue object (by mid)
     is not fetched again.
-12. **Vote lines.** In each body, only the lines before the first quote line
-    Lines starting with `>` are skipped. Reading stops at a line matching
-    `^\s*-{2,}\s*Original Message` or `^\s*From:\s` (an Outlook-style quoted
-    message). An attribution line ("On … wrote:") is skipped, not a stop, so
-    a vote written below the quote (bottom-posting) still counts. A vote line
-    matches
+12. **Vote lines.** A vote line matches
 
     ```text
-    ^\s*(?<vote>[+-]1)(?=$|[\s(,.!])\s*(?<binding>\(\s*(?:non[-\s]?)?bin?ding\s*\)|(?:non[-\s]?)?bin?ding\b)?\s*(?<rest>.*)$   (case-insensitive)
+    ^\s*(?<vote>[+-]1)(?=$|[\s(,.!:;])\s*(?<binding>\(\s*(?:non[-\s]?)?bin?ding\s*\)|(?:non[-\s]?)?bin?ding\b)?\s*(?<rest>.*)$   (case-insensitive)
     ```
 
-    - It is a vote when `rest` matches `^(?:$|[.!,;)]|from me\b|thanks?\b|lgtm\b)`.
-    - Otherwise it is **unclear** ("+1 to Chris's suggestion", "+1
-      (non-binding): Vaquar Khan", "+1 (binding) - Mickael Maison", "-1
-      (binding) until …"). Unclear lines are counted and shown, never counted
-      as votes. Because most -1 votes carry a reason on the same line, a -1 is
-      usually unclear; the row then shows "1 unclear" with the link.
+    - Lines quoted with `>` never match, because a vote line starts with +1
+      or -1. An attribution line ("On … wrote:") does not stop reading, so a
+      vote written below a `>` quote (bottom-posting) counts.
+    - Reading stops at an Outlook-style quoted message (`^\s*-{2,}\s*Original
+      Message` or `^\s*From:\s`). A vote bottom-posted below such a header
+      cannot be told from a quoted vote, so it is not counted. If any
+      vote-like line follows the header, the message is **ambiguous** and the
+      tally is not complete.
+    - A **-1** line is a vote whatever follows ("-1 (binding) until …", "-1:
+      reason"). Counting a -1 never overstates passing.
+    - A **+1** line is a vote when `rest` matches
+      `^(?:$|[.!,;)]|from me\b|thanks?\b|lgtm\b)`. Otherwise it is
+      **unclear** ("+1 to Chris's suggestion", "+1: looks good", "+1
+      (non-binding): Vaquar Khan", "+1 (binding) - Mickael Maison"). Unclear
+      lines are never counted as votes, and they make the tally not complete.
     - "biding" is accepted as "binding" (seen in KIP-1357).
 13. **Tally (`tallyVote`).**
-    - One vote per voter (`mailAuthor` name); the voter's latest vote counts.
+    - `tallyVote(thread, rule, roster, now)`: one vote per voter (`mailAuthor`
+      name); the voter's latest vote counts, and within one body the last
+      vote line.
     - Binding (Behavior 21): a declared marker wins ("non-binding" → no,
       "binding" → yes). An unmarked vote is binding when the voter's name is
       exactly the name of a roster entry holding the vote kind's
       `bindingRole`. Without a roster, only declared markers count.
     - Result: `{plus, plusBinding, plusBindingViaRoster, minus,
-      minusBinding, minusUnmarked, unmarked, unclear, unclearMinus, unread,
-      rootArchived, rosterRead, openedAt, complete}`. `unmarked` = unmarked
-      +1s not matched as binding (not in the roster, or in it without the
-      vote kind's `bindingRole`); `minusUnmarked` likewise for -1s.
-      `unclearMinus` = unclear lines that start with -1. `complete` =
-      `unread` = 0, the root is archived, and the roster was read.
+      minusBinding, minusUnmarked, unmarked, unclear, unread, ambiguous,
+      unattributed, rootArchived, rosterRead, openedAt, complete, state,
+      queued}`. `unmarked` = unmarked +1s not matched as binding (not in the
+      roster, or in it without the vote kind's `bindingRole`);
+      `minusUnmarked` likewise for -1s. `complete` = no unread body, the root
+      is archived, the roster was read, and there are no unclear lines,
+      ambiguous messages, or unattributed replies.
     - Text: "+1 × n · binding m of q", then "(k via roster)", "· binding -1
-      × j", "· j unmarked -1", "· k unmarked", "· j unclear" when non-zero.
-      When not complete, the text starts with "seen", every binding count
-      gets "≥", and the reasons follow after "; " (unread messages, thread
-      start not archived, roster unavailable). Binding is never shown as a
+      × j", "· j unmarked -1", "· k unmarked" when non-zero. When not
+      complete, the text starts with "seen", every binding count gets "≥",
+      and the reasons follow after "; ": unread messages, thread start not
+      archived, roster unavailable, unclear lines, messages with a vote after
+      a quoted header, replies not attributed. Binding is never shown as a
       bare number while a vote of unknown standing exists.
-    - **State** (`voteState`), for `rule: "lazy-majority"`:
+    - **State** (`Tally.state`), for `rule: "lazy-majority"`:
       - `short`: binding +1 < quorum (for a "seen" tally, the lower bound);
       - `unresolved`: otherwise, when the tally is not complete (lower
         bounds never assert contested, pending-close, or passing);
       - `contested`: otherwise, when binding +1 ≤ binding -1;
-      - `unclear`: otherwise, when `unclearMinus` > 0;
       - `pending-close`: otherwise, when the vote has been open less than
         `minOpenHours` since the root;
       - `passing`: otherwise.
-    - A vote row is queued when its state is `short`, `unresolved`,
-      `contested`, or `unclear`. The object keeps every vote row with its state; the list
+    - A vote row is queued when its state is `short`, `unresolved`, or
+      `contested`. The object keeps every vote row with its state; the list
       page shows the others under "Not queued".
 14. **Output object** `osskb.review-queue.v1`:
     - `projectId`, `generatedAt`, `profile {reviewWaitDays, fewRepliers, votes}`
@@ -596,7 +620,7 @@ Slice 1, deterministic core:
 | Q4 | bucket | constructed: no reviewer, wait 14 d + 1 ms | noReviewer |
 | Q5 | order | no-reviewer bucket of the captured snapshot | first three #18706 620 d, #18715 618 d, #18808 608 d |
 | Q5 | order | constructed: #100 and #99 both 30 d | #99 before #100 |
-| Q5 | home block | column summaries of the captured snapshot and KIP rows | PR column 393 (310 / 61 / 22), rows #18706 620 d, #18715 618 d, #18808 608 d; KIP column 13 (4 votes / 9 discussions), rows KIP-1375 30 d, KIP-785 20 d, KIP-1377 20 d (tie broken by proposal number) |
+| Q5 | home block | column summaries of the captured snapshot and KIP rows | PR column 393 (310 / 61 / 22), rows #18706 620 d, #18715 618 d, #18808 608 d; KIP column 14 (5 votes / 9 discussions), rows KIP-1375 30 d, KIP-785 20 d, KIP-1377 20 d (tie broken by proposal number) |
 | Q6 | card label | #23724 in the snapshot, Copilot review only | Awaiting reviewer |
 | Q6 | card label | #23739 in the snapshot, 4 human reviewers | In review · 4 reviewers |
 | Q6 | card label | #16808 in the snapshot, 1 requested reviewer, no review | In review · 1 reviewer |
@@ -606,12 +630,16 @@ Slice 1, deterministic core:
 | Q7 | kip candidates | KIP-1349 has [VOTE] KAFKA-MAIL-82e0d5b3 and [DISCUSS] KAFKA-MAIL-4bc41094 | vote row only |
 | Q7 | kip candidates | DISCUSS: KIP-1378 … (no brackets) | not a candidate (profile tag is [DISCUSS]) |
 | Q7 | kip candidates | constructed: [RESULT][VOTE] KIP-1279 thread in the release | KIP-1279 vote row removed |
+| Q7 | kip candidates | constructed: two [VOTE] KIP-9 threads, last activity 09-01 and 10-01 | the 10-01 thread |
 | Q7 | kip candidates | constructed: profile apache-datafusion proposal.kind null | no KIP candidates |
 | Q7 | kip candidates | constructed: the Kafka profile and entries with proposal.kind set to null | no KIP candidates |
 | Q8 | repliers | KAFKA-MAIL-a9696e08 KIP-1163: release has 1 message; full thread 22 messages, root Ivan Yurchenko 2025-04-23 | 5 repliers; not few |
 | Q8 | repliers | KAFKA-MAIL-3bc971ac KIP-1376: root Mickael Maison, replies Paolo Patierno and Mickael Maison | 1 replier; last reply 2026-10-07T13:07:14Z |
 | Q8 | repliers | KAFKA-MAIL-dd798156 KIP-1375: root only, 2026-09-08T03:17:45Z | 0 repliers; no replies · opened 30 d ago |
 | Q8 | repliers | constructed: two replies from "unknown sender" | 1 replier |
+| Q8 | repliers | constructed: replies from Alice and "CI Bot", profile machineUsers ["CI Bot"] | 1 replier |
+| Q8 | members | constructed: reply "[EXTERNAL] RE: [VOTE] KIP-9: x" and "SV: [VOTE] KIP-9: x" | both members |
+| Q8 | members | constructed: reply "Re: [VOTE] KIP-9 (was: x)" in the tree, subject key differs | not a member; tally incomplete: 1 reply not attributed |
 | Q8 | members | KAFKA-MAIL-0b57fb00 KIP-785: only message "Re: [DISCUSS] KIP-785 …" by Manan Gupta 2026-09-17, no parent | root not archived; "seen ≥ 1 replier"; queued |
 | Q8 | members | constructed: [VOTE] KIP-9 started as a reply inside the [DISCUSS] KIP-9 tree | vote row uses only the [VOTE] messages; root = oldest [VOTE] message without a reply prefix |
 | Q9 | vote line | Andrew Schofield: "+1 (binding)" | +1, declared binding |
@@ -626,7 +654,11 @@ Slice 1, deterministic core:
 | Q9 | vote line | constructed: "I am +1 on this" (not at line start) | no vote |
 | Q9 | vote line | constructed: "+1 (binding) - Mickael Maison" (vote summary) | unclear |
 | Q9 | vote line | constructed: "+1 (binding)." | +1, declared binding |
-| Q9 | vote line | constructed: "-1 (binding) until the upgrade path is documented" | unclear |
+| Q9 | vote line | constructed: "-1 (binding) until the upgrade path is documented" | -1, declared binding |
+| Q9 | vote line | constructed: "-1: the upgrade path is missing" | -1, unmarked |
+| Q9 | vote line | constructed: "+1: looks good" | unclear |
+| Q9 | vote line | constructed: "+1;" | +1, unmarked |
+| Q9 | vote line | constructed: "Thanks", "From: Bob", then an unquoted "+1 (binding)" | no vote; message ambiguous (vote-like line after a quoted header) |
 | Q9 | vote line | constructed: "On Mon, … wrote:", "> Please vote", then "+1 (binding)" (bottom-posted) | +1, declared binding |
 | Q9 | vote line | constructed: "-----Original Message-----" then "+1 (binding)" | no vote (quoted message) |
 | Q10 | binding | José Armando García Sancio unmarked +1; name in the ASF kafka committer roster (roles committer, pmc) | binding via roster |
@@ -638,22 +670,24 @@ Slice 1, deterministic core:
 | Q10 | binding | constructed: voter "jose armando garcia sancio" | no match (no case folding or transliteration) |
 | Q11 | voter | KIP-1349: Sushant Mahajan from su…@gmail.com "+1" 17:38:50Z, from sm…@apache.org empty reply 18:05:01Z | 1 voter, +1 |
 | Q11 | voter | constructed: A "+1 (binding)" then later "-1 (binding)" | A counts -1 binding |
+| Q11 | voter | constructed: one body with "+1 (binding)" then "-1 (binding)" lines | counts -1 binding (last line in the body) |
 | Q12 | vote row | KAFKA-MAIL-82e0d5b3 KIP-1349: full thread 6 messages, root 2026-08-19 | +1 × 2 · binding 2 of 3 (1 via roster); short; queued |
 | Q12 | vote row | KAFKA-MAIL-e903d023 KIP-1262: Luke Chen declared, Sancio via roster | +1 × 2 · binding 2 of 3 (1 via roster); short; queued |
 | Q12 | vote row | KAFKA-MAIL-86ae8b63 KIP-1368: root only | +1 × 0 · binding 0 of 3; short; queued |
 | Q12 | vote row | KAFKA-MAIL-a614bccc KIP-1097: 3 messages, no vote line | +1 × 0 · binding 0 of 3; short; queued |
 | Q12 | vote row | KAFKA-MAIL-75914579 KIP-1357: Lucas Brutschy, Matthias J. Sax, Bill Bejeck declared binding, root 2026-06-25 | +1 × 4 · binding 3 of 3; passing; not queued |
-| Q12 | vote row | KAFKA-MAIL-ff6d44a5 KIP-1279: Mickael Maison, Andrew Schofield, Rajini Sivaram binding; vaquar khan unmarked (not a committer); 1 unclear +1 line | +1 × 4 · binding 3 of 3 · 1 unmarked · 1 unclear; passing; not queued |
+| Q12 | vote row | KAFKA-MAIL-ff6d44a5 KIP-1279: Mickael Maison, Andrew Schofield, Rajini Sivaram binding; vaquar khan unmarked (not a committer); 1 unclear +1 line | seen +1 × 4 · binding ≥ 3 of 3 · 1 unmarked; 1 unclear line; unresolved; queued |
 | Q12 | discuss row | KIP-1153: 2 repliers | not queued (2 is not fewer than 2) |
 | Q12 | discuss row | KIP-1379: 1 replier | queued |
 | Q12 | discuss row | 11 discuss threads without a vote thread | 9 queued (KIP-1375, KIP-1377, KIP-1165 with 0; KIP-785 seen ≥ 1; KIP-1371, KIP-1365, KIP-1379, KIP-1342, KIP-1376 with 1); KIP-1153 and KIP-1163 not |
-| Q13 | counts | queue object with stored counts {noReviewer 310, waiting 61, approved 22, vote 4, discuss 9} | accepted; counts equal the arrays |
+| Q13 | counts | queue object with stored counts {noReviewer 310, waiting 61, approved 22, vote 5, discuss 9} | accepted; counts equal the arrays |
 | Q13 | counts | constructed: stored noReviewer 309 with 310 rows | rejected: counts-mismatch |
 | Q14 | cite | #18706 | https://github.com/apache/kafka/pull/18706 |
 | Q14 | cite | KIP-1349 vote row | https://lists.apache.org/thread/ow8p1n05rob9n3k4b7xw8m8zqx4molbl and /#/feed/KAFKA-MAIL-82e0d5b3 |
 | Q16 | wording | KIP-1349, all 6 bodies read, root archived, roster read | "+1 × 2 · binding 2 of 3 (1 via roster)" |
 | Q16 | wording | constructed: KIP-1349 with Andrew Schofield's message unread | "seen +1 × 1 · binding ≥ 1 of 3 (1 via roster); 1 message unread"; short |
-| Q16 | wording | KIP-1279 with 1 unclear line | "+1 × 4 · binding 3 of 3 · 1 unmarked · 1 unclear" |
+| Q16 | wording | KIP-1279 with 1 unclear line | "seen +1 × 4 · binding ≥ 3 of 3 · 1 unmarked; 1 unclear line" |
+| Q16 | wording | constructed: 3 declared binding +1 and a reply with an unquoted "+1 (binding)" below a "From:" header, open 100 h | "seen +1 × 3 · binding ≥ 3 of 3; 1 message with a vote after a quoted header"; unresolved |
 | Q16 | wording | constructed: vote thread whose members are all replies, one "+1 (binding)" | "seen +1 × 1 · binding ≥ 1 of 3; thread start not archived" |
 | Q19 | graphql errors | constructed: HTTP 200, data null, errors[0] "Something went wrong" (no path) | failureKind schema |
 | Q19 | graphql errors | constructed: HTTP 200, data present, errors[0] path ["repository"] (not a PR node) | failureKind schema |
@@ -662,6 +696,8 @@ Slice 1, deterministic core:
 | Q22 | force-push | #21333 CHANGES_REQUESTED 2026-08-14, force-push 2026-09-02T10:01:16Z | waiting; 35 d |
 | Q23 | bot reviewer | #23724 only review by copilot-pull-request-reviewer | 0 reviewers |
 | Q23 | bot reviewer | constructed: only requested reviewer is a Bot | 0 reviewers |
+| Q23 | reviewers | constructed: only review is the PR author's own COMMENTED review | 0 reviewers |
+| Q23 | reviewers | constructed: requested team apache/kafka-committers, no review | 1 reviewer (team) |
 | Q24 | no decision | constructed: reviewDecision null, one human APPROVED review | not approved; bucket by reviewers |
 | Q28 | unparsable | constructed: thread.lua returns HTML | parse failure, not 0 repliers |
 | Q28 | unparsable | constructed: thread.lua JSON without thread.epoch | parse failure, not 0 repliers |
@@ -673,14 +709,17 @@ Slice 1, deterministic core:
 | Q49 | governance | Kafka profile | asfPreset(kafka, dev) + overrides; roster {asf, kafka}; proposal {quorum 3, lazy-majority, 72 h, committer}; release {quorum 3, lazy-majority, 72 h, pmc}; reviewWaitDays 14; fewRepliers 2 |
 | Q49 | governance | DataFusion profile | asfPreset(datafusion, dev) with proposal.kind null; no KIP candidates |
 | Q49 | governance | asfPreset({project: "kafka", devList: "dev"}) | mail list dev@kafka.apache.org; tags VOTE, DISCUSS, RESULT; roster adapter asf |
+| Q49 | governance | constructed: proposal.kind KIP and no proposal vote rule | error: governance has no proposal vote rule |
 | Q50 | roster | samples/asf-roster-kafka.json | 73 entries; 44 with pmc; smjn Sushant Mahajan [committer]; jsancio José Armando García Sancio [committer, pmc] |
 | Q50 | roster | constructed: LDAP file also has projects.flink | only kafka entries kept |
+| Q50 | roster | constructed: owners ["p"], members ["c"] | c [committer]; p [committer, pmc] |
 | Q51 | vote state | constructed: binding +1 × 3, binding -1 × 0, open exactly 72 h | passing; not queued |
 | Q51 | vote state | constructed: binding +1 × 3, open 71 h 59 min | pending-close; not queued |
 | Q51 | vote state | constructed: binding +1 × 3, binding -1 × 3, open 100 h | contested; queued |
 | Q51 | vote state | constructed: binding +1 × 4, binding -1 × 1, open 100 h | passing; shows binding -1 × 1 |
-| Q51 | vote state | constructed: binding +1 × 3, an unclear "-1 (binding) until …" line, open 100 h | unclear; queued |
-| Q51 | vote state | KIP-1279: binding +1 × 3 and an unclear +1 summary line | passing (an unclear +1 line does not block) |
+| Q51 | vote state | constructed: binding +1 × 3 and "-1 (binding) until …", open 100 h | passing; shows binding -1 × 1 |
+| Q51 | vote state | KIP-1279: binding +1 × 3 and an unclear +1 summary line | unresolved; queued (an unclear line makes the tally a lower bound) |
+| Q51 | vote state | constructed: binding +1 × 3 and "-1: no" from a roster committer, open 100 h | passing; shows binding -1 × 1 |
 | Q51 | vote state | constructed: binding +1 × 3 declared, 1 body unread, open 100 h | unresolved; queued |
 | Q51 | vote state | constructed: no roster; binding +1 × 3 declared and an unmarked "-1.", open 100 h | unresolved; queued; "seen +1 × 3 · binding ≥ 3 of 3 · 1 unmarked -1; roster unavailable" |
 | Q53 | via roster | KIP-1262 | binding 2 of 3 (1 via roster) |
@@ -761,37 +800,41 @@ until they are done.
 - Q7: KIP candidates come from Feed entries via the profile's tags; a vote
   supersedes discuss; `[RESULT]` removes the vote row; `kind: null` gives no
   candidates.
-- Q8: thread members share the candidate's thread key; repliers and last
-  reply come from the full thread (KIP-1163: 5, not 1); a thread without an
-  archived root uses the "seen" wording (KIP-785).
+- Q8: thread members share the candidate's `memberKey` (gateway tags and
+  reply prefixes stripped); other replies naming the proposal and stage are
+  unattributed and make the tally incomplete; repliers exclude the root's
+  author and machines and come from the full thread (KIP-1163: 5, not 1); a
+  thread without an archived root uses the "seen" wording (KIP-785).
 - Q9: vote lines follow the regex in Behavior 12; `>` lines never count;
-  bottom-posted votes count; "+1 to …", "+1 (binding) - Name", and summary
-  lines are unclear.
+  bottom-posted votes below a `>` quote count; every -1 line is a vote;
+  "+1 to …", "+1: …", "+1 (binding) - Name", and summary lines are unclear;
+  a vote-like line after an Outlook header makes the message ambiguous.
 - Q10: binding = declared marker, else an exact name match against roster
   entries holding the vote kind's `bindingRole` (committer for KIPs).
 - Q11: one vote per voter name; the latest vote counts.
-- Q12: discuss rows queue when repliers < 2; on the captured data 4 vote and
+- Q12: discuss rows queue when repliers < 2; on the captured data 5 vote and
   9 discuss rows are queued.
 - Q13: every count comes from `reviewQueueCounts`; a queue whose stored counts
   differ is rejected.
 - Q14: every row links to its GitHub or lists.apache.org source.
 - Q15: [pending] every `review.*` key exists in en and zh-Hant.
-- Q16: a tally is a plain count only when every body, the root, and the roster
-  were read; roster, unmarked, minus, and unclear parts are shown next to it;
-  otherwise the "seen … ≥" wording with the reason.
+- Q16: a tally is a plain count only when it is complete (Behavior 13); roster,
+  unmarked, and minus parts are shown next to it; otherwise the "seen … ≥"
+  wording with every reason.
 - Q21: a reopened PR waits from the reopen (#16808: 42 d).
 - Q22: a force-push after a review is an author update (#21333: waiting, 35 d).
 - Q23: bot reviews and bot review requests do not make a reviewer (#23724).
 - Q24: `reviewDecision` null is never approved.
 - Q49: the Kafka profile is `asfPreset` plus overrides, with proposal votes
   `{quorum 3, lazy-majority, 72 h, committer}` and release votes `{…, pmc}`;
-  DataFusion from the same preset has no proposal kind.
+  DataFusion from the same preset has no proposal kind; a profile with a
+  proposal kind but no proposal vote rule is an error, not a hidden column.
 - Q50: the ASF roster adapter keeps only the project's entries with ids,
   names, and roles (Kafka: 73 entries, 44 pmc).
 - Q51: vote state follows lazy majority: `short`, `unresolved` (a "seen"
   tally at or above quorum), `contested` (binding +1 not more than binding
-  -1), `unclear` (an unclear -1 line), `pending-close` (open < 72 h),
-  `passing`; `short`, `unresolved`, `contested`, and `unclear` are queued.
+  -1), `pending-close` (open < 72 h), `passing`; `short`, `unresolved`, and
+  `contested` are queued.
 - Q53: binding votes counted through the roster are reported as "via roster"
   (KIP-1262: 2 of 3, 1 via roster).
 
@@ -886,8 +929,10 @@ until they are done.
   sources (GraphQL, `thread.lua`, `email.lua`, ASF LDAP roster), and a Spec
   015 row Q1–Q56.
 - `docs/gardening.md`:
-  - G8: this spec uses `isMachineAuthor` with the profile list.
-  - G9: add `public/review-queue/v1/` to the retention scope.
+  - G8: done in slice 1 (the review queue uses `isMachineAuthor` plus GitHub's
+    `Bot` type).
+  - G9: add `public/review-queue/v1/` and `internal/rosters/v1/` to the
+    retention scope, in slice 2, which writes them.
   - New: voter identity is the display name; a person who mails under two
     names counts twice, and two people with one name count once.
   - New: a rebase-only force-push counts as an author update.
@@ -942,3 +987,7 @@ until they are done.
 | G8 | Minor: emeritus degradation direction unstated | Applied: overstated, never understated, visible as "via roster"; the 5 inactive mentors match the kafka-site gap, recorded as the ADR revisit option |
 | G9 | Minor: open days used calendar dates | Applied: floor of elapsed days (104 d, 91 d); also #18808 is 608 d, not 609 |
 | G10 | Minor: ADR binding bullet | Applied |
+| V1 | Verifier on 3491c2f (all slice 1 IDs pass): "-1: reason", "+1:", "+1;" were dropped silently by the lookahead | Applied: `:` and `;` allowed; every -1 line is a vote; an unclear +1 makes the tally incomplete (Behavior 12–13, Q9, Q51 rows). On real data KIP-1279's summary line now makes its tally "seen … ≥ 3" and the row `unresolved`, queued (KIP column 13 → 14) |
+| V2 | Verifier: replies with `[EXTERNAL]`, `RE:`, `AW:`, `SV:`, `Fwd:` prefixes were not members, so their votes vanished from a "complete" tally | Applied: `memberKey` (Behavior 9); replies naming the proposal and stage under another subject are unattributed and make the tally incomplete; a vote-like line after an Outlook header marks the message ambiguous (Q8, Q9, Q16 rows) |
+| V3 | Verifier survivors V9, P3, P16, T2, T4, R4 | Applied: one row each (Q11, Q23 ×2, Q8, Q7, Q50); all killed |
+| V4 | Verifier doc drift: shared-code claims, G8/G9 promises, Behavior 12 first sentence, Behavior 13 names, silent drop when no proposal vote rule | Applied: code now reuses Spec 014's `isMachineAuthor`, `proposalKeys`, and `subjectHasTag` (signatures widened to the fields they read); `threadKey` is explicitly not shared; G8 note added, G9 moved to slice 2; Behavior 12–13 rewritten; a missing proposal vote rule is an error (Q49 row) |

@@ -44,6 +44,7 @@ export function buildKipRows(input: {
   readonly now: string;
 }): KipRows {
   const rule = voteRule(input.profile, "proposal");
+  if (input.profile.proposal.kind !== null && rule === undefined) throw new Error("governance has no proposal vote rule");
   const vote: VoteRow[] = [];
   const discuss: DiscussRow[] = [];
   let unavailable = 0;
@@ -53,17 +54,17 @@ export function buildKipRows(input: {
       unavailable += 1;
       continue;
     }
-    const stats = threadStats(messages, candidate.title, input.profile.machineUsers);
+    const stats = threadStats(messages, candidate.title, input.profile.machineUsers, candidate.key);
     const since = stats.lastReplyAt ?? stats.openedAt;
     const base = {
       key: candidate.key, displayId: candidate.displayId, title: candidate.title,
       rootMid: (stats.root ?? stats.members[0]!).mid, stats,
       waitDays: Math.floor((Date.parse(input.now) - Date.parse(since)) / DAY_MS),
     };
-    if (candidate.stage === "vote" && rule !== undefined) {
-      const tally = tallyVote(stats, rule, input.roster, input.now);
+    if (candidate.stage === "vote") {
+      const tally = tallyVote(stats, rule!, input.roster, input.now);
       vote.push({ ...base, tally, queued: tally.queued });
-    } else if (candidate.stage === "discuss") {
+    } else {
       discuss.push({ ...base, queued: stats.repliers < input.profile.fewRepliers });
     }
   }

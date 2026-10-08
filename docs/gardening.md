@@ -132,6 +132,9 @@ the two `viewer/` items below.
   `packages/reference-pipeline/src/digest/candidates.ts`; the publisher fix
   should reuse it. That fix changes Feed authors and signals, so it rewrites
   Details and needs a full-scale rehearsal (Spec 012 incident).
+- **Progress:** Spec 015 slice 1 classifies GitHub reviewers and authors
+  with `isMachineAuthor` plus GitHub's `Bot` type (`isMachineActor`); the
+  publisher's `isBot` still uses the substring rule.
 
 ### G9. No R2 retention or garbage collection
 - **Where:** `public/v2/releases/*`, `public/v2/objects/details/*`,
