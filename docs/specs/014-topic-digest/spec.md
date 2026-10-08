@@ -1250,6 +1250,7 @@ synthetic; the others use values captured from Dev.
 | D70 | gateway | constructed: a text-generation request through WorkersAiModel | body has messages, max_tokens, temperature 0 |
 | D63 | clef | constructed: a run with the Clef decider | revisions.classifier is @cf/cloudflare/clef-flash with digest-clef@1 |
 | D66 | dry run | constructed: the model reports twice the estimated input tokens | calibration ratio 2 |
+| D66 | dry run | constructed: 2 text calls with usage, then 2 Clef requests of which 1 reports usage | calls 4, callsWithUsage 3, clefCalls 2, clefCallsWithUsage 1 |
 <!-- test-plan:end -->
 
 **Slice 3: browser.** Case file
@@ -1415,7 +1416,9 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   - Dev has the `ai` binding and `osskb-digest-dev`, with no digest cron.
   - Prod has no `ai` binding and no digest variables.
 - D66: a dry run returns `modelErrors` (the shape of each failed call, at
-  most 10) and `calibration` (estimated against reported input tokens).
+  most 10) and `calibration` (estimated against reported input tokens,
+  plus `clefCalls` and `clefCallsWithUsage`, counted over Clef requests
+  only).
 - D70: with `DIGEST_MODEL=workers-ai`, `DIGEST_GATEWAY_ID`, and the `AI`
   binding, every call passes `{gateway: {id, skipCache: true}}`. If any of
   the three is missing, the run is rules-only.
@@ -1576,12 +1579,10 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   human's labels meets the thresholds the human sets (pending labels).
 - D35: [deploy] before the daily cron is enabled, Dev dry runs
   (`POST /digest/run?dryRun=1`) cover the checks below.
-  - Precondition for adding `DIGEST_CRON`: a Dev dry run shows that every
-    Clef response carried `usage`, so the truncation fail-safe was on.
-    `calibration.callsWithUsage` counts every model call with `usage`, Clef
-    and text alike. It must therefore be at least the number of Clef
-    requests, and equal the run's model calls when text calls report
-    `usage` too.
+  - Precondition for adding `DIGEST_CRON`: a Dev dry run shows
+    `calibration.clefCallsWithUsage` equal to `calibration.clefCalls`
+    (above 0). Every Clef response then carried `usage`, so the truncation
+    fail-safe was on.
   - They record the exception shapes of `env.AI.run` for a malformed request
     and for a gateway rate limit, using a test gateway limited to 1
     request/min. Error 3036 is not provoked.

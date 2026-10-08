@@ -86,4 +86,5 @@ export const testPlanRows = [
   { id: "D70", rule: "gateway", input: "constructed: a text-generation request through WorkersAiModel", expected: "body has messages, max_tokens, temperature 0" },
   { id: "D63", rule: "clef", input: "constructed: a run with the Clef decider", expected: "revisions.classifier is @cf/cloudflare/clef-flash with digest-clef@1" },
   { id: "D66", rule: "dry run", input: "constructed: the model reports twice the estimated input tokens", expected: "calibration ratio 2" },
+  { id: "D66", rule: "dry run", input: "constructed: 2 text calls with usage, then 2 Clef requests of which 1 reports usage", expected: "calls 4, callsWithUsage 3, clefCalls 2, clefCallsWithUsage 1" },
 ] as const;

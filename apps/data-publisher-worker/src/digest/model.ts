@@ -61,11 +61,16 @@ export interface CallRecord {
   readonly model: string;
   readonly estimatedInputTokens: number;
   readonly reportedInputTokens?: number;
+  /** True for a Clef `decide` request; false for a text call. */
+  readonly clef: boolean;
 }
 
 export interface Calibration {
   readonly calls: number;
   readonly callsWithUsage: number;
+  /** Successful Clef requests, and those that reported `usage` (the truncation fail-safe needs it; D35). */
+  readonly clefCalls: number;
+  readonly clefCallsWithUsage: number;
   readonly estimatedInputTokens: number;
   readonly reportedInputTokens: number;
   /** reported / estimated over calls that reported usage; null without usage. */
@@ -111,6 +116,8 @@ export class ModelCalls {
     return {
       calls: this.records.length,
       callsWithUsage: withUsage.length,
+      clefCalls: this.records.filter((record) => record.clef).length,
+      clefCallsWithUsage: withUsage.filter((record) => record.clef).length,
       estimatedInputTokens: this.records.reduce((sum, record) => sum + record.estimatedInputTokens, 0),
       reportedInputTokens: reported,
       ratio: estimated > 0 ? Math.round((reported / estimated) * 100) / 100 : null,
@@ -121,7 +128,7 @@ export class ModelCalls {
     const output = await this.attempt(model, callEstimate(model, prompt, maxTokens), estimateTokens(prompt), async () => {
       const result = await this.model!.run(model, prompt, maxTokens);
       return typeof result === "string" ? { value: result, usage: undefined } : { value: result.text, usage: result.usage };
-    }, (text) => settledNeurons(model, prompt, text));
+    }, (text) => settledNeurons(model, prompt, text), false);
     return output;
   }
 
@@ -132,7 +139,7 @@ export class ModelCalls {
     return this.attempt(model, estimate, inputTokens, async () => {
       const response = await this.model!.decide!(model, request);
       return { value: response, usage: response.usage as ModelUsage | undefined };
-    }, () => estimate);
+    }, () => estimate, true);
   }
 
   private async attempt<T>(
@@ -141,6 +148,7 @@ export class ModelCalls {
     estimatedInputTokens: number,
     invoke: () => Promise<{ value: T; usage: ModelUsage | undefined }>,
     settle: (value: T) => number,
+    clef: boolean,
   ): Promise<T | undefined> {
     if (this.model === undefined || this.limited) return undefined;
     if (this.total + estimate > this.ledger.cap) {
@@ -157,7 +165,7 @@ export class ModelCalls {
         const { value, usage } = await invoke();
         const reported = typeof usage?.prompt_tokens === "number" ? usage.prompt_tokens : undefined;
         this.total += settle(value);
-        this.records.push({ model, estimatedInputTokens, ...(reported === undefined ? {} : { reportedInputTokens: reported }) });
+        this.records.push({ model, estimatedInputTokens, clef, ...(reported === undefined ? {} : { reportedInputTokens: reported }) });
         return value;
       } catch (error) {
         // Gardening G21: a failed call is charged its pre-call estimate.

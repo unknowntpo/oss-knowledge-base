@@ -711,6 +711,21 @@ const cases: Record<string, () => Promise<string>> = {
     await calls.call("@cf/qwen/qwen3-30b-a3b-fp8", "x".repeat(400), 10);
     return `calibration ratio ${calls.calibration().ratio}`;
   },
+  "dry run|constructed: 2 text calls with usage, then 2 Clef requests of which 1 reports usage": async () => {
+    let clef = 0;
+    const calls = new ModelCalls({
+      run: async () => ({ text: "ok", usage: { prompt_tokens: 10 } }),
+      decide: async () => (clef++ === 0 ? { answers: {}, usage: { prompt_tokens: 10 } } : { answers: {} }),
+    }, { spent: 0, cap: 4_500 }, noDelay);
+    await calls.call("@cf/qwen/qwen3-30b-a3b-fp8", "x".repeat(40), 10);
+    await calls.call("@cf/qwen/qwen3-30b-a3b-fp8", "x".repeat(40), 10);
+    const { clefRequest } = await import("@oss-knowledge-base/reference-pipeline");
+    const request = clefRequest([], KAFKA_DIGEST_PROFILE);
+    await calls.decide("@cf/cloudflare/clef-flash", request);
+    await calls.decide("@cf/cloudflare/clef-flash", request);
+    const c = calls.calibration();
+    return `calls ${c.calls}, callsWithUsage ${c.callsWithUsage}, clefCalls ${c.clefCalls}, clefCallsWithUsage ${c.clefCallsWithUsage}`;
+  },
   // Slice 2b.
   "clef|constructed: answer t1 security 0.7, clients 0.2, other 0.1, routine 0.1": async () => {
     const feature = await oneClef({ security: 0.7, clients: 0.2, other: 0.1, routine: 0.1 });
