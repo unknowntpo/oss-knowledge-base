@@ -1,0 +1,17 @@
+query($cursor: String, $n: Int!) {
+  rateLimit { cost remaining }
+  repository(owner: "apache", name: "kafka") {
+    pullRequests(states: OPEN, first: $n, after: $cursor) {
+      totalCount
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        number title isDraft createdAt
+        author { login __typename }
+        reviewDecision
+        reviewRequests(first: 10) { totalCount nodes { requestedReviewer { __typename ... on User { login } ... on Bot { login } ... on Team { slug } } } }
+        latestReviews(first: 20) { totalCount nodes { author { login __typename } state submittedAt } }
+        timelineItems(last: 1, itemTypes: [PULL_REQUEST_COMMIT, HEAD_REF_FORCE_PUSHED_EVENT, READY_FOR_REVIEW_EVENT, REOPENED_EVENT]) { nodes { __typename ... on PullRequestCommit { commit { committedDate } } ... on HeadRefForcePushedEvent { createdAt } ... on ReadyForReviewEvent { createdAt } ... on ReopenedEvent { createdAt } } }
+      }
+    }
+  }
+}

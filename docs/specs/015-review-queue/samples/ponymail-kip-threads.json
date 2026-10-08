@@ -1,0 +1,1542 @@
+{
+ "capturedAt": "2026-10-08T04:10:00Z",
+ "source": "thread list: samples/feed-kip-mail-entries.json (Dev release 2026-10-08T03-07-37-000Z); threads: lists.apache.org api/thread.lua?id=<mid>&find_parent=true; [VOTE] bodies: api/email.lua?id=<mid>, keeping only unquoted lines that start with +1/-1 (before an Original Message or From: block)",
+ "threads": [
+  {
+   "displayId": "KAFKA-MAIL-fd63cd54",
+   "subject": "[DISCUSS] KIP-1368: Client framework name and version",
+   "messages": [
+    {
+     "mid": "7fjz97f99hm0nhjoj03wd557wwqwjs80",
+     "author": "Andrew Schofield",
+     "at": "2026-07-17T18:53:02Z",
+     "subject": "[DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "7qnslggb0xnblf8zy5vpo62or72s2q64",
+     "author": "Alieh Saeedi",
+     "at": "2026-07-20T13:03:39Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "b1nwtwj05xfxbhw3no88vkc2o0qg98yl",
+     "author": "Andrew Schofield",
+     "at": "2026-07-22T07:28:09Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "9fsyro07ooh5dt9swsj4xfyz4s7w8rtx",
+     "author": "Aditya Kousik",
+     "at": "2026-07-26T07:48:20Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "os5s0d4qj58p5qwcnpq70k4rrl8nd69t",
+     "author": "Andrew Schofield",
+     "at": "2026-07-27T20:52:12Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "s22wthfg6f2gvolx7gq5c7p2vjl0r6dw",
+     "author": "Aditya Kousik",
+     "at": "2026-07-28T06:26:29Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "mfhlp2go67m863xv62onokg5szh5rg27",
+     "author": "Federico Valeri",
+     "at": "2026-07-31T08:50:11Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "v6dn3780rovhkw2yh4rspqlo454666sf",
+     "author": "Andrew Schofield",
+     "at": "2026-07-31T09:17:37Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "lz933sowzmtcgrwgszo6zj3k63tqf016",
+     "author": "Federico Valeri",
+     "at": "2026-07-31T14:56:39Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "yny8k138lmqd26vc5kz2no4vwjxs6ryn",
+     "author": "Matthias J. Sax",
+     "at": "2026-07-31T17:22:53Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "77x2gvlp8hhvl2v2vodmsoswsx36bcz9",
+     "author": "Jun Rao",
+     "at": "2026-08-03T21:39:06Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "q6p6bn24zx8mxfxjlo9p5m8q46yvy7yf",
+     "author": "Andrew Schofield",
+     "at": "2026-08-04T12:52:26Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "noqk84fnn7wd2mdgj73lfrqn2jnwttod",
+     "author": "Andrew Schofield",
+     "at": "2026-08-04T13:03:53Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "bogldzhyz5o0kbhj0294h305oj2b6x0t",
+     "author": "Jun Rao",
+     "at": "2026-08-04T18:38:40Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "zjy2xxqx8c8655cj8q6o83zr976xqc3b",
+     "author": "Andrew Schofield",
+     "at": "2026-08-04T20:29:19Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "bkclscbzgokzo4djf91vc298o7hbr24h",
+     "author": "Andrew Schofield",
+     "at": "2026-09-11T19:47:09Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "z94oqvbt6pctc5nrvmo4snjj2bbf2k3p",
+     "author": "Jun Rao",
+     "at": "2026-09-15T20:44:06Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "ho03bs67xc5q4qzx413mj3vkm9jjy2dp",
+     "author": "Andrew Schofield",
+     "at": "2026-09-21T13:41:52Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "k768qkfftm0714b5ntjypbsqc0zlv5jq",
+     "author": "Jun Rao",
+     "at": "2026-09-21T17:54:38Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "2cjkd8jh93rkh589c7d5sl2bgt4ns1r7",
+     "author": "Andrew Schofield",
+     "at": "2026-09-23T13:41:52Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "8b24vg3qhkj1x3fkjhfwm8ls0vm36tb5",
+     "author": "Jun Rao",
+     "at": "2026-09-24T00:08:16Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "2t0942rp2n0kbjcwssc5d6n22l9qsct1",
+     "author": "Andrew Schofield",
+     "at": "2026-09-24T14:32:35Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "rmqqfok40t33wjqrvcfkn13b7vtzr3z8",
+     "author": "Jun Rao",
+     "at": "2026-09-24T16:20:08Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "96kphyfj9jx0hdr1vsocnowb2fb3q5c7",
+     "author": "Andrew Schofield",
+     "at": "2026-09-24T17:58:00Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "8lpkoblqq6pzfmtkjdsco6rlchj81m5z",
+     "author": "Jun Rao",
+     "at": "2026-09-24T18:45:03Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "xfvnctngfx400o6o4jt6n2kp9brhf2gd",
+     "author": "Lianet Magrans",
+     "at": "2026-09-28T17:38:12Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "d86tdgypxfoq9zmlhkcmbcmfj7fltkof",
+     "author": "Andrew Schofield",
+     "at": "2026-09-28T18:17:38Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "0bxwf48v9g1fx6gtrfz425fbfs6yl6v8",
+     "author": "Lianet Magrans",
+     "at": "2026-09-28T21:32:46Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "xlh04ct0r0x8pn6wdxmy2zk4k1wmxm36",
+     "author": "Chris Egerton",
+     "at": "2026-09-28T21:57:43Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "f67xr4w0spjt100sokbzz8goc5mz0522",
+     "author": "Apoorv Mittal",
+     "at": "2026-09-29T17:05:36Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "xmpq34c07fl770j0ojjb7rbz6x4xns6p",
+     "author": "Andrew Schofield",
+     "at": "2026-09-29T18:13:21Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "knq26n5hm5jpt52yksndgnvl243kqx82",
+     "author": "Andrew Schofield",
+     "at": "2026-09-29T18:23:39Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "pv8y09vlb0f19g8ct2cgwx1sjylfsor1",
+     "author": "Lianet Magrans",
+     "at": "2026-09-29T18:50:35Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "ksx33toxmmwg0kd1ldwnffjvc82o1tyc",
+     "author": "Lianet Magrans",
+     "at": "2026-09-29T19:06:48Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "vwg09ssk82g77vpw4gct5b6sjz1rsv6g",
+     "author": "Andrew Schofield",
+     "at": "2026-09-29T19:27:56Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "nvyjbl1g4wlbm2cg8onxdrd52wfg3jrg",
+     "author": "Lianet Magrans",
+     "at": "2026-10-02T20:17:23Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "brwf59cywq2g09pm7y4ow4k8msb5zn7q",
+     "author": "Andrew Schofield",
+     "at": "2026-10-05T21:35:08Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    },
+    {
+     "mid": "nkbxwvhzst4lklkmzk955gk5zqx8f22v",
+     "author": "Chris Egerton",
+     "at": "2026-10-05T23:36:24Z",
+     "subject": "Re: [DISCUSS] KIP-1368: Client framework name and version"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-ff6d44a5",
+   "subject": "[VOTE] KIP-1279: Cluster Mirroring",
+   "messages": [
+    {
+     "mid": "cjo3555pzzpwtxl9tn3s3hls65y69yk6",
+     "author": "Federico Valeri",
+     "at": "2026-07-08T12:15:22Z",
+     "subject": "[VOTE] KIP-1279: Cluster Mirroring",
+     "voteLikeLines": []
+    },
+    {
+     "mid": "11pz7ssvfj2jqhbyqdblkht40zbfsm7y",
+     "author": "vaquar khan",
+     "at": "2026-07-12T22:56:34Z",
+     "subject": "Re: [VOTE] KIP-1279: Cluster Mirroring",
+     "voteLikeLines": []
+    },
+    {
+     "mid": "qqq7mwdbyd74337t4ob5fv8yp28pv8sv",
+     "author": "Federico Valeri",
+     "at": "2026-09-11T14:02:15Z",
+     "subject": "Re: [VOTE] KIP-1279: Cluster Mirroring",
+     "voteLikeLines": []
+    },
+    {
+     "mid": "vodqnhfrrmj29sx28f19szhgz8w0c864",
+     "author": "vaquar khan",
+     "at": "2026-09-11T14:50:04Z",
+     "subject": "Re: [VOTE] KIP-1279: Cluster Mirroring",
+     "voteLikeLines": [
+      "+1"
+     ]
+    },
+    {
+     "mid": "hhtyg6fkj998bj0jb5vm455sj9cyyn3l",
+     "author": "Mickael Maison",
+     "at": "2026-09-14T14:46:59Z",
+     "subject": "Re: [VOTE] KIP-1279: Cluster Mirroring",
+     "voteLikeLines": [
+      "+1 (binding)"
+     ]
+    },
+    {
+     "mid": "3yjrpgvy7rnwps56jr2gr7b8w5oqvlyy",
+     "author": "Andrew Schofield",
+     "at": "2026-09-15T10:26:54Z",
+     "subject": "Re: [VOTE] KIP-1279: Cluster Mirroring",
+     "voteLikeLines": [
+      "+1 (binding)"
+     ]
+    },
+    {
+     "mid": "vwtjsycm3n3xw8p5n5rqn5b2xqnsjvml",
+     "author": "Rajini Sivaram",
+     "at": "2026-09-15T15:17:41Z",
+     "subject": "Re: [VOTE] KIP-1279: Cluster Mirroring",
+     "voteLikeLines": [
+      "+1 (binding)"
+     ]
+    },
+    {
+     "mid": "15rddlqk42tqsjh5rw2r6so5cgns122f",
+     "author": "Federico Valeri",
+     "at": "2026-09-18T16:06:37Z",
+     "subject": "Re: [VOTE] KIP-1279: Cluster Mirroring",
+     "voteLikeLines": [
+      "+1 (non-binding): Vaquar Khan"
+     ]
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-3bff04e6",
+   "subject": "[DISCUSS] KIP-1342: Deprecate Authorizer#aclCount",
+   "messages": [
+    {
+     "mid": "0frtc6h3y9ts89do3qb9yk6oj3o1ktg2",
+     "author": "Ming-Yen Chung",
+     "at": "2026-09-18T17:37:06Z",
+     "subject": "[DISCUSS] KIP-1342: Deprecate Authorizer#aclCount"
+    },
+    {
+     "mid": "o6brly6odmwb1mh22nt6z9dor63nvpvk",
+     "author": "Chia-Ping Tsai",
+     "at": "2026-09-18T17:50:03Z",
+     "subject": "Re: [DISCUSS] KIP-1342: Deprecate Authorizer#aclCount"
+    },
+    {
+     "mid": "tdm2dts7n13kojnlffm5yk0dlxy4h2sf",
+     "author": "Ming-Yen Chung",
+     "at": "2026-09-19T06:08:31Z",
+     "subject": "Re: [DISCUSS] KIP-1342: Deprecate Authorizer#aclCount"
+    },
+    {
+     "mid": "tl6s2jmfz2mjcyv3vslkvt1x2kq127mv",
+     "author": "Chia-Ping Tsai",
+     "at": "2026-09-24T01:02:35Z",
+     "subject": "Re: [DISCUSS] KIP-1342: Deprecate Authorizer#aclCount"
+    },
+    {
+     "mid": "7zp79vm9f5qrmy7x7t9wpnc3j9kwy069",
+     "author": "Ming-Yen Chung",
+     "at": "2026-10-06T09:12:52Z",
+     "subject": "Re: [DISCUSS] KIP-1342: Deprecate Authorizer#aclCount"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-82e0d5b3",
+   "subject": "[VOTE] KIP-1349 Bytes-based configurable snapshot frequency for share groups",
+   "messages": [
+    {
+     "mid": "ow8p1n05rob9n3k4b7xw8m8zqx4molbl",
+     "author": "Muralidhar Basani",
+     "at": "2026-08-19T21:11:24Z",
+     "subject": "[VOTE] KIP-1349 Bytes-based configurable snapshot frequency for share groups",
+     "voteLikeLines": []
+    },
+    {
+     "mid": "lmq69lbhzod76byh29b16nm5nz7tlgno",
+     "author": "Muralidhar Basani",
+     "at": "2026-09-18T17:45:25Z",
+     "subject": "Re: [VOTE] KIP-1349 Bytes-based configurable snapshot frequency for share groups",
+     "voteLikeLines": []
+    },
+    {
+     "mid": "hxzv89m1tlrx3yym1szlv1xjzfy0bdzv",
+     "author": "Andrew Schofield",
+     "at": "2026-10-01T14:27:51Z",
+     "subject": "Re: [VOTE] KIP-1349 Bytes-based configurable snapshot frequency for share groups",
+     "voteLikeLines": [
+      "+1 (binding)"
+     ]
+    },
+    {
+     "mid": "gqz29691tnz37w1h7f2gojfbnvd92syf",
+     "author": "Muralidhar Basani",
+     "at": "2026-10-05T17:15:44Z",
+     "subject": "Re: [VOTE] KIP-1349 Bytes-based configurable snapshot frequency for share groups",
+     "voteLikeLines": []
+    },
+    {
+     "mid": "x39wdm9oxc906l0pxyk39f8082cgo39t",
+     "author": "Sushant Mahajan",
+     "at": "2026-10-05T17:38:50Z",
+     "subject": "Re: [VOTE] KIP-1349 Bytes-based configurable snapshot frequency for share groups",
+     "voteLikeLines": [
+      "+1"
+     ]
+    },
+    {
+     "mid": "32wjo305c4rt3lwz60yohj5vqh5wxg77",
+     "author": "Sushant Mahajan",
+     "at": "2026-10-05T18:05:01Z",
+     "subject": "Re: [VOTE] KIP-1349 Bytes-based configurable snapshot frequency for share groups",
+     "voteLikeLines": []
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-f59b0fda",
+   "subject": "[DISCUSS] KIP-1262: Enable auto-formatting directories",
+   "messages": [
+    {
+     "mid": "vnzmqvcbfxo7hhyj9gzpgmdq59w3n7dy",
+     "author": "Kevin Wu",
+     "at": "2026-01-06T13:18:38Z",
+     "subject": "[DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "7qvw8128ox7t1tjlz3f3jjtymt71300x",
+     "author": "Kevin Wu",
+     "at": "2026-02-11T18:20:07Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "03vvjtgmx4ft0cv3yfh0376yt5p28c5j",
+     "author": "Jun Rao",
+     "at": "2026-02-18T01:34:32Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "oj06fc5hl76v5scsc9862h707gdpf6rq",
+     "author": "Kevin Wu",
+     "at": "2026-02-18T16:49:06Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "71x0ohrt3p9902jywr8y5o1o5gpw2vjp",
+     "author": "Alyssa Huang",
+     "at": "2026-02-25T20:57:18Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "5x2vfv1527b2lsdq40b0245vchq6z85z",
+     "author": "Kevin Wu",
+     "at": "2026-02-25T22:22:53Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "ygq4zkjxq8fpz9s7vb7p5b7fhqlv5rdc",
+     "author": "Alyssa Huang",
+     "at": "2026-02-26T18:36:08Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "qrsh1gwkn1qj59tp8yg403c1c4sl8bsk",
+     "author": "Kevin Wu",
+     "at": "2026-02-26T20:47:03Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "9sz29yf7l3z5fjw4zlq5ppv5nscml21t",
+     "author": "Jun Rao",
+     "at": "2026-03-02T23:21:10Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "ozzfg7fpf3rp8oqpr6cwskl8n27k6031",
+     "author": "Kevin Wu",
+     "at": "2026-03-03T12:53:49Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "y9vntlxtqgf8sf15wdhxqb8b4zogn18g",
+     "author": "Jun Rao",
+     "at": "2026-03-03T17:38:25Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "q78c4w5qycg5gr7j08gsl7pvknsn165k",
+     "author": "Luke Chen",
+     "at": "2026-03-12T08:48:09Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "kmxo3ky2mp5dqxhsot7485zbsw62sktl",
+     "author": "Kevin Wu",
+     "at": "2026-03-13T05:53:32Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "994jmtw5thgzjx9kn1omgczp5dr72pkx",
+     "author": "Luke Chen",
+     "at": "2026-03-16T02:45:49Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "otqp124y3h6h9fl2zg9fklg036r50mvs",
+     "author": "José Armando García Sancio",
+     "at": "2026-03-18T23:56:52Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "60c7462spjs87ksd844jb9ggg8zlf5g6",
+     "author": "Kevin Wu",
+     "at": "2026-03-19T08:38:26Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "qov3clstk6btdxdxz14gfrrz3vffr4xc",
+     "author": "Jun Rao",
+     "at": "2026-03-27T21:19:34Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "6278o1ntjkbhp7qbdstgrx24shbpd262",
+     "author": "Kevin Wu",
+     "at": "2026-03-30T16:00:52Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "6gqy1wv85pmz5rxplw2h9s8pjdg6z769",
+     "author": "Jun Rao",
+     "at": "2026-03-31T16:34:16Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "t10stwxvnr3tm5x77qr9wz8vslm2rmff",
+     "author": "Kevin Wu",
+     "at": "2026-03-31T21:48:45Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "90hh9hczd10v2bljll1wtlgmcsbcgojm",
+     "author": "Jun Rao",
+     "at": "2026-04-01T17:00:53Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "0ov57mrtbc1yn97x5j7t2r3rlodxvt6s",
+     "author": "Kevin Wu",
+     "at": "2026-04-01T17:58:05Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "v87m1lo60z392h5dth53xnp7jh6nz9d3",
+     "author": "Alyssa Huang",
+     "at": "2026-04-03T22:51:37Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "tmh4b6hl5sd3lw3shmg1bl3cgwjw8n61",
+     "author": "Kevin Wu",
+     "at": "2026-04-06T14:15:19Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "ktvxr3zsbfk5ht153t758wjg3vh3kzk0",
+     "author": "José Armando García Sancio",
+     "at": "2026-09-21T17:47:18Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "hzk8960foqjk09g5b86p50l4ryvwjzmr",
+     "author": "Kevin Wu",
+     "at": "2026-09-21T19:00:17Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "jd6ghh90bfjkov6ckq6dbvsnhq807gxg",
+     "author": "José Armando García Sancio",
+     "at": "2026-09-22T17:21:28Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    },
+    {
+     "mid": "z1xgwsn4npl7qjhxkymnfnyfjqw53lp1",
+     "author": "Kevin Wu",
+     "at": "2026-09-22T18:31:02Z",
+     "subject": "Re: [DISCUSS] KIP-1262: Enable auto-formatting directories"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-540e8110",
+   "subject": "[DISCUSS] KIP-1371: Explicit Wait Conditions for Consumer Request Managers",
+   "messages": [
+    {
+     "mid": "g239gn2xpz13m2hzl90sgw885js7hxop",
+     "author": "Eric Chang",
+     "at": "2026-09-22T03:02:46Z",
+     "subject": "[DISCUSS] KIP-1371: Explicit Wait Conditions for Consumer Request Managers"
+    },
+    {
+     "mid": "181r4r6qg6fxfbsp6yylcxok9h422r9f",
+     "author": "Andrew Schofield",
+     "at": "2026-09-22T07:42:18Z",
+     "subject": "Re: [DISCUSS] KIP-1371: Explicit Wait Conditions for Consumer Request Managers"
+    },
+    {
+     "mid": "4rnc2z97ynf3k1n01r2ld2bjz9vpnv23",
+     "author": "Eric Chang",
+     "at": "2026-09-23T01:05:05Z",
+     "subject": "Re: [DISCUSS] KIP-1371: Explicit Wait Conditions for Consumer Request Managers"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-3bc971ac",
+   "subject": "[DISCUSS] KIP-1376: Support setting TLS named groups",
+   "messages": [
+    {
+     "mid": "wwlb3yl9hnrcflm8h33g7jmqv7zkw6md",
+     "author": "Mickael Maison",
+     "at": "2026-10-06T10:14:05Z",
+     "subject": "[DISCUSS] KIP-1376: Support setting TLS named groups"
+    },
+    {
+     "mid": "ongwvhpmsfscd5g8xckc635npfwnwvro",
+     "author": "Paolo Patierno",
+     "at": "2026-10-07T10:10:37Z",
+     "subject": "Re: [DISCUSS] KIP-1376: Support setting TLS named groups"
+    },
+    {
+     "mid": "rq0qjw1c5z162ko9y9lrhhtnj0pmpqjv",
+     "author": "Mickael Maison",
+     "at": "2026-10-07T13:07:14Z",
+     "subject": "Re: [DISCUSS] KIP-1376: Support setting TLS named groups"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-743911d7",
+   "subject": "[DISCUSS] KIP-1365: Transform Observability and Skipped Record Handling for Kafka Connect",
+   "messages": [
+    {
+     "mid": "so3ncl074wdhzhfqdjjlljcpx8hbc90b",
+     "author": "pritam kumar",
+     "at": "2026-07-11T14:38:05Z",
+     "subject": "[DISCUSS] KIP-1365: Transform Observability and Skipped Record Handling for Kafka Connect"
+    },
+    {
+     "mid": "ov39zk1187vb3wl8z8gz7ytzwxt8gtkn",
+     "author": "pritam kumar",
+     "at": "2026-07-18T13:17:42Z",
+     "subject": "Re: [DISCUSS] KIP-1365: Transform Observability and Skipped Record Handling for Kafka Connect"
+    },
+    {
+     "mid": "xqcj124gdc06vcvjysk6p2gg53v8tq75",
+     "author": "pritam kumar",
+     "at": "2026-07-27T14:39:31Z",
+     "subject": "Re: [DISCUSS] KIP-1365: Transform Observability and Skipped Record Handling for Kafka Connect"
+    },
+    {
+     "mid": "1v8zkrwtr6y6kg449povn3nqkfd1k70o",
+     "author": "pritam kumar",
+     "at": "2026-09-25T10:37:04Z",
+     "subject": "Re: [DISCUSS] KIP-1365: Transform Observability and Skipped Record Handling for Kafka Connect"
+    },
+    {
+     "mid": "3m9h9t2p50x72xjw6plzbsb642vol274",
+     "author": "Hector Geraldino (BLOOMBERG/ 919 3RD A)",
+     "at": "2026-09-25T19:15:37Z",
+     "subject": "Re: [DISCUSS] KIP-1365: Transform Observability and Skipped Record Handling for Kafka Connect"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-a614bccc",
+   "subject": "[VOTE] KIP-1097: Add Kafka Connect exception handler",
+   "messages": [
+    {
+     "mid": "280nj9onhoct6r3p5cqzoh83nnvywzfo",
+     "author": "Anton Liauchuk",
+     "at": "2025-07-08T18:26:49Z",
+     "subject": "[VOTE] KIP-1097: Add Kafka Connect exception handler",
+     "voteLikeLines": []
+    },
+    {
+     "mid": "7dmbybl1qg290xybzstq0c66w3dthlod",
+     "author": "Anton Liauchuk",
+     "at": "2026-09-21T21:32:01Z",
+     "subject": "Re: [VOTE] KIP-1097: Add Kafka Connect exception handler",
+     "voteLikeLines": []
+    },
+    {
+     "mid": "ypbrwy1fy87bjrhn3f8o2q2gs3dtz70v",
+     "author": "Hector Geraldino (BLOOMBERG/ 919 3RD A)",
+     "at": "2026-09-22T19:04:41Z",
+     "subject": "Re: [VOTE] KIP-1097: Add Kafka Connect exception handler",
+     "voteLikeLines": []
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-0635ac57",
+   "subject": "[DISCUSS] KIP-1153: Extending support for Microsecond Precision for Kafka Connect",
+   "messages": [
+    {
+     "mid": "nowy4gpg9bv6htm19shkbs3ykokc66f5",
+     "author": "pritam kumar",
+     "at": "2025-04-04T18:44:52Z",
+     "subject": "[DISCUSS] KIP-1153: Extending support for Microsecond Precision for Kafka Connect"
+    },
+    {
+     "mid": "c0gdzsmlkp1bmpwo8jp17pxnlx41hlzt",
+     "author": "pritam kumar",
+     "at": "2025-04-05T01:30:49Z",
+     "subject": "Re: [DISCUSS] KIP-1153: Extending support for Microsecond Precision for Kafka Connect"
+    },
+    {
+     "mid": "2f4t9326y25r0y92w46ooo94d050pg4m",
+     "author": "pritam kumar",
+     "at": "2025-05-03T17:23:35Z",
+     "subject": "Re: [DISCUSS] KIP-1153: Extending support for Microsecond Precision for Kafka Connect"
+    },
+    {
+     "mid": "z0tbvslj99o1qftnrfrb9ywmqv2xy69m",
+     "author": "pritam kumar",
+     "at": "2025-05-19T13:17:25Z",
+     "subject": "Re: [DISCUSS] KIP-1153: Extending support for Microsecond Precision for Kafka Connect"
+    },
+    {
+     "mid": "d5c9sht2qnl57s78pj210m4zdvk445m1",
+     "author": "pritam kumar",
+     "at": "2025-05-19T13:21:12Z",
+     "subject": "Re: [DISCUSS] KIP-1153: Extending support for Microsecond Precision for Kafka Connect"
+    },
+    {
+     "mid": "5dc0g4y79fzycrk98nmsbymzjpqmgm9n",
+     "author": "pritam kumar",
+     "at": "2025-05-21T00:56:09Z",
+     "subject": "Re: [DISCUSS] KIP-1153: Extending support for Microsecond Precision for Kafka Connect"
+    },
+    {
+     "mid": "70p1d7oskq6wfb5y950jnrlzlxxrqj2n",
+     "author": "Mickael Maison",
+     "at": "2026-01-05T16:30:24Z",
+     "subject": "Re: [DISCUSS] KIP-1153: Extending support for Microsecond Precision for Kafka Connect"
+    },
+    {
+     "mid": "xflkcn8ftkm8h6kypqjz749f63c127w4",
+     "author": "pritam kumar",
+     "at": "2026-04-05T15:34:17Z",
+     "subject": "Re: [DISCUSS] KIP-1153: Extending support for Microsecond Precision for Kafka Connect"
+    },
+    {
+     "mid": "cl6dgbcw476kgv9c0k0mqns7w2f109mx",
+     "author": "Chia-Ping Tsai",
+     "at": "2026-09-28T14:23:29Z",
+     "subject": "Re: [DISCUSS] KIP-1153: Extending support for Microsecond Precision for Kafka Connect"
+    },
+    {
+     "mid": "lq46vmxv6h8mnf58zl0ttmtlov3js77c",
+     "author": "pritam kumar",
+     "at": "2026-09-28T17:37:23Z",
+     "subject": "Re: [DISCUSS] KIP-1153: Extending support for Microsecond Precision for Kafka Connect"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-7eb8eba3",
+   "subject": "[DISCUSS] KIP-1379: Make server-side rack-aware assignment opt-in",
+   "messages": [
+    {
+     "mid": "nl5kxodkwkk2mlblporw570kk2fbjphq",
+     "author": "David Jacot",
+     "at": "2026-10-02T12:17:02Z",
+     "subject": "[DISCUSS] KIP-1379: Make server-side rack-aware assignment opt-in"
+    },
+    {
+     "mid": "b6ddg1j9r48mropt94tmb0g269hj82py",
+     "author": "Lucas Brutschy",
+     "at": "2026-10-05T09:43:50Z",
+     "subject": "Re: [DISCUSS] KIP-1379: Make server-side rack-aware assignment opt-in"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-f93938c0",
+   "subject": "[DISCUSS] KIP-1165: Object Consolidation for Diskless",
+   "messages": [
+    {
+     "mid": "pmrfr0t9713kpyvyy7pbsj4nf2q4nczc",
+     "author": "Viktor Somogyi-Vass",
+     "at": "2026-10-05T15:31:41Z",
+     "subject": "[DISCUSS] KIP-1165: Object Consolidation for Diskless"
+    },
+    {
+     "mid": "f8o87xhq2k5xlkk14k7tjjdbo1zyb5w8",
+     "author": "Viktor Somogyi-Vass",
+     "at": "2026-10-05T15:32:17Z",
+     "subject": "Re: [DISCUSS] KIP-1165: Object Consolidation for Diskless"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-e903d023",
+   "subject": "[VOTE] KIP-1262: Enable auto-formatting directories",
+   "messages": [
+    {
+     "mid": "95941nto2kxfqclb1pn00pmdtlgq2zjz",
+     "author": "Kevin Wu",
+     "at": "2026-03-04T16:27:10Z",
+     "subject": "[VOTE] KIP-1262: Enable auto-formatting directories",
+     "voteLikeLines": []
+    },
+    {
+     "mid": "pdntzt4dfqcxjdrj9yhxqg52o36yqqfb",
+     "author": "Alyssa Huang",
+     "at": "2026-03-04T19:14:56Z",
+     "subject": "Re: [VOTE] KIP-1262: Enable auto-formatting directories",
+     "voteLikeLines": []
+    },
+    {
+     "mid": "ko3jm4tj32rpjhg6kmjjw1r7rnqcsdt7",
+     "author": "Jun Rao",
+     "at": "2026-03-05T00:29:05Z",
+     "subject": "Re: [VOTE] KIP-1262: Enable auto-formatting directories",
+     "voteLikeLines": []
+    },
+    {
+     "mid": "4oxkxnkh1h8snjc0omrj2wtstnyxboyr",
+     "author": "Luke Chen",
+     "at": "2026-03-16T02:46:12Z",
+     "subject": "Re: [VOTE] KIP-1262: Enable auto-formatting directories",
+     "voteLikeLines": [
+      "+1 (binding) from me."
+     ]
+    },
+    {
+     "mid": "pkx528wyhqhqqrj29jgzcv4zh9d7j55s",
+     "author": "Kevin Wu",
+     "at": "2026-03-19T20:16:33Z",
+     "subject": "Re: [VOTE] KIP-1262: Enable auto-formatting directories",
+     "voteLikeLines": []
+    },
+    {
+     "mid": "41rhqj4f3hsj4j0nbdrtq5q8p46rpxyz",
+     "author": "José Armando García Sancio",
+     "at": "2026-09-22T18:46:10Z",
+     "subject": "Re: [VOTE] KIP-1262: Enable auto-formatting directories",
+     "voteLikeLines": [
+      "+1. LGTM. Looking forward to simplifying the bootstrap process for Kafka."
+     ]
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-dd798156",
+   "subject": "[DISCUSS] KIP-1375: Add SuspendReason to StateRestoreListener.onRestoreSuspended",
+   "messages": [
+    {
+     "mid": "6q2pctxq610d84j90mrq3zxnrb9l6rdp",
+     "author": "Hrishi Baskaran",
+     "at": "2026-09-08T03:17:45Z",
+     "subject": "[DISCUSS] KIP-1375: Add SuspendReason to StateRestoreListener.onRestoreSuspended"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-75914579",
+   "subject": "[VOTE] KIP-1357: Add broker side custom assignors for \"streams\" groups",
+   "messages": [
+    {
+     "mid": "v6h4hchsxwz23khlc7g3yh1w7t1jd1g4",
+     "author": "Gabriella Fu",
+     "at": "2026-06-25T16:14:44Z",
+     "subject": "[VOTE] KIP-1357: Add broker side custom assignors for \"streams\" groups",
+     "voteLikeLines": []
+    },
+    {
+     "mid": "x6zmclw1tw4to7g1c2wyf115ykcvztjo",
+     "author": "Lucas Brutschy",
+     "at": "2026-06-29T07:26:30Z",
+     "subject": "Re: [VOTE] KIP-1357: Add broker side custom assignors for \"streams\" groups",
+     "voteLikeLines": [
+      "+1 (binding)"
+     ]
+    },
+    {
+     "mid": "8gn8bmxtpmpwmvjq97o5dqzgpk8mg1lx",
+     "author": "Bill Bejeck",
+     "at": "2026-06-29T18:03:22Z",
+     "subject": "Re: [VOTE] KIP-1357: Add broker side custom assignors for \"streams\" groups",
+     "voteLikeLines": [
+      "+1 (biding)"
+     ]
+    },
+    {
+     "mid": "k6mqfn80h414ft7f3jy9xx09dv4rpo4o",
+     "author": "Alieh Saeedi",
+     "at": "2026-06-30T15:11:08Z",
+     "subject": "Re: [VOTE] KIP-1357: Add broker side custom assignors for \"streams\" groups",
+     "voteLikeLines": [
+      "+1 (non-binding)"
+     ]
+    },
+    {
+     "mid": "c7hoyc7jnfrw2583txtl4y7rwdnzmfmo",
+     "author": "David Jacot",
+     "at": "2026-07-08T06:29:56Z",
+     "subject": "Re: [VOTE] KIP-1357: Add broker side custom assignors for \"streams\" groups",
+     "voteLikeLines": []
+    },
+    {
+     "mid": "5nsmpnfjm2d39pl2fmnb0xf3sqr4czh1",
+     "author": "Matthias J. Sax",
+     "at": "2026-07-08T16:10:51Z",
+     "subject": "Re: [VOTE] KIP-1357: Add broker side custom assignors for \"streams\" groups",
+     "voteLikeLines": [
+      "+1 (binding)"
+     ]
+    },
+    {
+     "mid": "oc6q49pyoxh0mbd678bgw7ml7bz8s1pk",
+     "author": "Gabriella Fu",
+     "at": "2026-07-08T17:10:48Z",
+     "subject": "Re: [VOTE] KIP-1357: Add broker side custom assignors for \"streams\" groups",
+     "voteLikeLines": []
+    },
+    {
+     "mid": "vbyc24cwj43dmhsg4gd9rz3glp2rwmdo",
+     "author": "Gabriella Fu",
+     "at": "2026-07-30T02:51:54Z",
+     "subject": "Re: [VOTE] KIP-1357: Add broker side custom assignors for \"streams\" groups",
+     "voteLikeLines": []
+    },
+    {
+     "mid": "1x8oo57f0zh6q9j6o19jbog2k2fg8qry",
+     "author": "Gabriella Fu",
+     "at": "2026-08-10T19:17:01Z",
+     "subject": "Re: [VOTE] KIP-1357: Add broker side custom assignors for \"streams\" groups",
+     "voteLikeLines": []
+    },
+    {
+     "mid": "81j31ryjjnk7p6ycyks2wo7ogx0cdc45",
+     "author": "Gabriella Fu",
+     "at": "2026-09-10T20:31:07Z",
+     "subject": "Re: [VOTE] KIP-1357: Add broker side custom assignors for \"streams\" groups",
+     "voteLikeLines": []
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-a9696e08",
+   "subject": "[DISCUSS] KIP-1163: Diskless Core",
+   "messages": [
+    {
+     "mid": "3dj67w04r7pcmlytl912gv69j22o3g4j",
+     "author": "Ivan Yurchenko",
+     "at": "2025-04-23T09:41:03Z",
+     "subject": "[DISCUSS] KIP-1163: Diskless Core"
+    },
+    {
+     "mid": "ly97nn5o9y2h66lgvx18vjmmyhpyqo1w",
+     "author": "Ivan Yurchenko",
+     "at": "2026-03-02T13:42:24Z",
+     "subject": "Re: [DISCUSS] KIP-1163: Diskless Core"
+    },
+    {
+     "mid": "7z5pvjw68vb00yzfhtnflb4xvqj29t47",
+     "author": "Jun Rao",
+     "at": "2026-03-07T00:13:02Z",
+     "subject": "Re: [DISCUSS] KIP-1163: Diskless Core"
+    },
+    {
+     "mid": "b2czl4tnof3nzx6tv9r1qbtn23kr7lzw",
+     "author": "Greg Harris",
+     "at": "2026-03-19T20:35:25Z",
+     "subject": "Re: [DISCUSS] KIP-1163: Diskless Core"
+    },
+    {
+     "mid": "bnr1fjyz89sy7byvchgrm9d3ygv1nsw4",
+     "author": "Jun Rao",
+     "at": "2026-03-26T22:42:32Z",
+     "subject": "Re: [DISCUSS] KIP-1163: Diskless Core"
+    },
+    {
+     "mid": "hm7y5hdb8bs3qs33y4190447g595mfyj",
+     "author": "Viktor Somogyi-Vass",
+     "at": "2026-04-20T15:14:43Z",
+     "subject": "Re: [DISCUSS] KIP-1163: Diskless Core"
+    },
+    {
+     "mid": "3mwt3vslz7mdxo5xh92773g6zzdv4xcz",
+     "author": "Jun Rao",
+     "at": "2026-04-21T18:15:57Z",
+     "subject": "Re: [DISCUSS] KIP-1163: Diskless Core"
+    },
+    {
+     "mid": "g9zldplr7xjcnnz3ypo493wld229bwmq",
+     "author": "Viktor Somogyi-Vass",
+     "at": "2026-04-24T13:46:02Z",
+     "subject": "Re: [DISCUSS] KIP-1163: Diskless Core"
+    },
+    {
+     "mid": "5clzty3bnqk1tovf3rgbrqtcgtv1y605",
+     "author": "Viktor Somogyi-Vass",
+     "at": "2026-04-24T17:22:29Z",
+     "subject": "Re: [DISCUSS] KIP-1163: Diskless Core"
+    },
+    {
+     "mid": "97ot3qk9rzlg560rnmr3d0cq3vfg9q48",
+     "author": "Greg Harris",
+     "at": "2026-04-27T23:16:59Z",
+     "subject": "Re: [DISCUSS] KIP-1163: Diskless Core"
+    },
+    {
+     "mid": "r5jgvbhkypjmtfn2vvvs0v1324b55qmx",
+     "author": "Jun Rao",
+     "at": "2026-05-01T19:06:50Z",
+     "subject": "Re: [DISCUSS] KIP-1163: Diskless Core"
+    },
+    {
+     "mid": "m4cmmsoz2jnk0fvg8g4tdkyo1xcgbvjt",
+     "author": "Viktor Somogyi-Vass",
+     "at": "2026-05-12T15:41:56Z",
+     "subject": "Re: [DISCUSS] KIP-1163: Diskless Core"
+    },
+    {
+     "mid": "otd62w6jkd2hdwp61rt03j7ph850qcz3",
+     "author": "Jun Rao",
+     "at": "2026-05-12T18:28:49Z",
+     "subject": "Re: [DISCUSS] KIP-1163: Diskless Core"
+    },
+    {
+     "mid": "c867q97q1fkhqhph5wzk06jz0bvhgrq2",
+     "author": "Satish Duggana",
+     "at": "2026-05-13T10:53:30Z",
+     "subject": "Re: [DISCUSS] KIP-1163: Diskless Core"
+    },
+    {
+     "mid": "8j1g000cvfmrpzdtx36dojbcx9ssxqmj",
+     "author": "Greg Harris",
+     "at": "2026-05-14T20:10:11Z",
+     "subject": "Re: [DISCUSS] KIP-1163: Diskless Core"
+    },
+    {
+     "mid": "j8z0ndw6tnf2vwh45r4krg0ygob0btpm",
+     "author": "Luke Chen",
+     "at": "2026-05-15T03:50:54Z",
+     "subject": "Re: [DISCUSS] KIP-1163: Diskless Core"
+    },
+    {
+     "mid": "fh3573d3v80hvwwpp669wxv76hggfrq4",
+     "author": "Viktor Somogyi-Vass",
+     "at": "2026-05-15T13:23:55Z",
+     "subject": "Re: [DISCUSS] KIP-1163: Diskless Core"
+    },
+    {
+     "mid": "1y3kpw0sklxmdwksgczcxgg5oc0glxfm",
+     "author": "Jun Rao",
+     "at": "2026-05-15T19:50:51Z",
+     "subject": "Re: [DISCUSS] KIP-1163: Diskless Core"
+    },
+    {
+     "mid": "366ymdjtmc4wbt3y27f7q7y97np89d6j",
+     "author": "Greg Harris",
+     "at": "2026-06-19T18:01:01Z",
+     "subject": "Re: [DISCUSS] KIP-1163: Diskless Core"
+    },
+    {
+     "mid": "vqwy9fl0r55vzkmvq03o5nv4wcfgfxgw",
+     "author": "Greg Harris",
+     "at": "2026-07-09T01:00:18Z",
+     "subject": "Re: [DISCUSS] KIP-1163: Diskless Core"
+    },
+    {
+     "mid": "y32byddj88wrj0f8j2n4r49kz97yqc52",
+     "author": "Jun Rao",
+     "at": "2026-07-20T23:24:23Z",
+     "subject": "Re: [DISCUSS] KIP-1163: Diskless Core"
+    },
+    {
+     "mid": "90m0lh4bp26xxb3564gt6fz5jm2s5h4q",
+     "author": "Viktor Somogyi-Vass",
+     "at": "2026-10-05T15:21:28Z",
+     "subject": "Re: [DISCUSS] KIP-1163: Diskless Core"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-86ae8b63",
+   "subject": "[VOTE] KIP-1368: Client framework name and version",
+   "messages": [
+    {
+     "mid": "byrvhf1on8916z9vxwd9orsphqzfgh9c",
+     "author": "Andrew Schofield",
+     "at": "2026-09-25T07:09:19Z",
+     "subject": "[VOTE] KIP-1368: Client framework name and version",
+     "voteLikeLines": []
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-0b57fb00",
+   "subject": "[DISCUSS] KIP-785: Emit Metric Client Quota Values",
+   "messages": [
+    {
+     "mid": "bz068b0grcvxl98ck87x9cmjg1qtljro",
+     "author": "Manan Gupta",
+     "at": "2026-09-17T06:01:23Z",
+     "subject": "Re: [DISCUSS] KIP-785: Emit Metric Client Quota Values"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-4bc41094",
+   "subject": "[DISCUSS] KIP-1349 : Configurable snapshot frequency for share groups",
+   "messages": [
+    {
+     "mid": "lpwmfgq28lz8ghzyb0wp8s8o4zpgw2tc",
+     "author": "Muralidhar Basani",
+     "at": "2026-05-22T19:30:38Z",
+     "subject": "[DISCUSS] KIP-1349 : Configurable snapshot frequency for share groups"
+    },
+    {
+     "mid": "y8zr1d9v41yksxwmtbx8zz4vfcrm19zo",
+     "author": "Sushant Mahajan",
+     "at": "2026-05-28T07:25:50Z",
+     "subject": "Re: [DISCUSS] KIP-1349 : Configurable snapshot frequency for share groups"
+    },
+    {
+     "mid": "x2gqwhfqpmhbkxf1d9gk4gdfqj31gbdo",
+     "author": "Muralidhar Basani",
+     "at": "2026-05-28T20:16:28Z",
+     "subject": "Re: [DISCUSS] KIP-1349 : Configurable snapshot frequency for share groups"
+    },
+    {
+     "mid": "g1kq08h7fxqwldlr8ko24y7k9801k9rg",
+     "author": "Sushant Mahajan",
+     "at": "2026-06-08T09:12:33Z",
+     "subject": "Re: [DISCUSS] KIP-1349 : Configurable snapshot frequency for share groups"
+    },
+    {
+     "mid": "c0oo9cbw6z7z0xrsc2t2nlv432om9d13",
+     "author": "Chia-Ping Tsai",
+     "at": "2026-06-11T03:19:50Z",
+     "subject": "Re: [DISCUSS] KIP-1349 : Configurable snapshot frequency for share groups"
+    },
+    {
+     "mid": "s6bd8krlnyl5fno5p6gqkg7rlm77dowh",
+     "author": "Muralidhar Basani",
+     "at": "2026-06-14T13:19:57Z",
+     "subject": "Re: [DISCUSS] KIP-1349 : Configurable snapshot frequency for share groups"
+    },
+    {
+     "mid": "pgbsb8pw6ddf8bl7q8fptzym38g8vvhs",
+     "author": "Sushant Mahajan",
+     "at": "2026-07-09T17:24:51Z",
+     "subject": "Re: [DISCUSS] KIP-1349 : Configurable snapshot frequency for share groups"
+    },
+    {
+     "mid": "2wy0sjvqq2n6nj9jx8r0c8mtslxyk1tk",
+     "author": "Muralidhar Basani",
+     "at": "2026-07-10T17:24:39Z",
+     "subject": "Re: [DISCUSS] KIP-1349 : Configurable snapshot frequency for share groups"
+    },
+    {
+     "mid": "mzrrxw8qr2noz196lvg977b332cboxh4",
+     "author": "Sushant Mahajan",
+     "at": "2026-07-13T15:38:48Z",
+     "subject": "Re: [DISCUSS] KIP-1349 : Configurable snapshot frequency for share groups"
+    },
+    {
+     "mid": "snn76f14g43s4nksjb0wk01442fndydb",
+     "author": "Muralidhar Basani",
+     "at": "2026-07-14T19:06:00Z",
+     "subject": "Re: [DISCUSS] KIP-1349 : Configurable snapshot frequency for share groups"
+    },
+    {
+     "mid": "3t01l9sm9ymsq6dqjq5xymh0fmnspyob",
+     "author": "Sushant Mahajan",
+     "at": "2026-07-16T05:13:29Z",
+     "subject": "Re: [DISCUSS] KIP-1349 : Configurable snapshot frequency for share groups"
+    },
+    {
+     "mid": "r4c28ykh8r7x4bcmx1po1bq5bps57vro",
+     "author": "Andrew Schofield",
+     "at": "2026-07-16T13:55:32Z",
+     "subject": "Re: [DISCUSS] KIP-1349 : Configurable snapshot frequency for share groups"
+    },
+    {
+     "mid": "15lqblwssssk0pyons1pgh832hog7fyh",
+     "author": "Muralidhar Basani",
+     "at": "2026-07-16T21:12:58Z",
+     "subject": "Re: [DISCUSS] KIP-1349 : Configurable snapshot frequency for share groups"
+    },
+    {
+     "mid": "v5mbzdk87wc7q0xtn580ts4v4tr2mxm5",
+     "author": "Andrew Schofield",
+     "at": "2026-07-24T14:23:52Z",
+     "subject": "Re: [DISCUSS] KIP-1349 : Configurable snapshot frequency for share groups"
+    },
+    {
+     "mid": "m99fw8p41z7yj48h53rsty50ps482bpb",
+     "author": "Muralidhar Basani",
+     "at": "2026-07-25T18:10:48Z",
+     "subject": "Re: [DISCUSS] KIP-1349 : Configurable snapshot frequency for share groups"
+    },
+    {
+     "mid": "rb4zmqr1w83jx7w520q1ohnw2yg6fz3z",
+     "author": "Muralidhar Basani",
+     "at": "2026-08-04T19:54:00Z",
+     "subject": "Re: [DISCUSS] KIP-1349 : Configurable snapshot frequency for share groups"
+    },
+    {
+     "mid": "pc8883bl1mw6f4j8mtkvo241hjjbpw6y",
+     "author": "Chia-Ping Tsai",
+     "at": "2026-10-06T06:52:31Z",
+     "subject": "Re: [DISCUSS] KIP-1349 : Configurable snapshot frequency for share groups"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-16fc1da5",
+   "subject": "[DISCUSS] KIP-1377: ByteBuffer serialize method for Serializer",
+   "messages": [
+    {
+     "mid": "zbk1tkvo29wkxcwv0m6bcpbgw8jf7joq",
+     "author": "Aditya Kousik",
+     "at": "2026-09-17T19:34:44Z",
+     "subject": "[DISCUSS] KIP-1377: ByteBuffer serialize method for Serializer"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-49e5a9d8",
+   "subject": "[DISCUSS] KIP-1279: Cluster Mirroring",
+   "messages": [
+    {
+     "mid": "k4jj7b5dtq1xr6sr6v1khf13jg2hwphl",
+     "author": "Federico Valeri",
+     "at": "2026-05-11T16:08:13Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "f18zxtrbh1rd4oj490dy340ymb5r735d",
+     "author": "Federico Valeri",
+     "at": "2026-05-11T16:17:05Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "kw2hhgnkootn338762tv8nrgkbj54kpk",
+     "author": "Federico Valeri",
+     "at": "2026-05-15T07:39:57Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "cvsv7rj3ls0g9p9tzy0hv49ox8rj2s4c",
+     "author": "Rajini Sivaram",
+     "at": "2026-05-18T19:22:53Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "vgckx8fynzlcsp5xgvn371obrkzrk3g7",
+     "author": "Federico Valeri",
+     "at": "2026-05-19T09:30:27Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "pvc37sjonrncqlpzxbkzcdd5k7tlrrxh",
+     "author": "vaquar khan",
+     "at": "2026-05-19T16:27:01Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "gmwvfgnwmsbq7qm12966n375on93wdy0",
+     "author": "Rajini Sivaram",
+     "at": "2026-05-19T17:28:14Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "r72d2p0cxm6mkpxhsys8y5oxxlszrn6q",
+     "author": "Federico Valeri",
+     "at": "2026-05-19T17:38:20Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "4btx64bw4b1y8yytsjv93bnzgjhxh730",
+     "author": "Luke Chen",
+     "at": "2026-06-02T06:50:08Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "h0vdmg12wdxhhx58y062pcv7nd5kqp58",
+     "author": "Federico Valeri",
+     "at": "2026-06-04T11:01:36Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "vf48rplkkbykq4tzvlz75y0x1w3p8tsd",
+     "author": "Federico Valeri",
+     "at": "2026-06-04T11:01:36Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "bpfc0hdd623dsh4d2osk5j59w1848pmv",
+     "author": "Andrew Schofield",
+     "at": "2026-06-09T19:58:02Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "4tvpsg2tgq0jcnmhbr5oloxjr5rk3wg9",
+     "author": "Federico Valeri",
+     "at": "2026-06-18T09:36:05Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "whkctn4tzc0xxfw452k8nvyhsdwq39p9",
+     "author": "Federico Valeri",
+     "at": "2026-06-18T20:36:58Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "3zncjopn09g6nkcwt7kvl43vl8tr53gt",
+     "author": "Federico Valeri",
+     "at": "2026-06-19T12:16:52Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "ddqv8wvbybcx442r1tw3gzk175svbyny",
+     "author": "Andrew Schofield",
+     "at": "2026-06-22T17:47:29Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "gfvb7l8rbxo8ggs56dwo9d3sdms674lo",
+     "author": "Mickael Maison",
+     "at": "2026-07-03T15:26:01Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "bstorb1zt2khgblj8k6336f4lr7mt7o7",
+     "author": "Federico Valeri",
+     "at": "2026-07-07T13:40:01Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "qf2nv4fll4sf41z71sd2cl2n89yrszr6",
+     "author": "Jun Rao",
+     "at": "2026-07-12T17:53:08Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "d6t008ft26m9ov73xs18wwsf6m72ddtr",
+     "author": "vaquar khan",
+     "at": "2026-07-12T22:53:44Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "jmf6x1cq2y8wbfhhd36sc6w6xpzlcjmj",
+     "author": "Luke Chen",
+     "at": "2026-07-13T10:25:32Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "36yvkcxd2vmj778qdjjf2xrnkm274yyv",
+     "author": "vaquar khan",
+     "at": "2026-07-13T16:17:19Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "rk90wnqb9v01mpmdsvgqmkbnlz7th78l",
+     "author": "Federico Valeri",
+     "at": "2026-07-15T09:00:05Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "5f3k835ozrq64ydm0p2mr2m1frpcmphf",
+     "author": "Jun Rao",
+     "at": "2026-07-16T00:00:27Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "nwlo0y0ozkot2gl4w83jbbnzynq3qrr5",
+     "author": "Federico Valeri",
+     "at": "2026-07-21T13:00:47Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "x4ys80soktrost85w7xd30yfn4ossxks",
+     "author": "Federico Valeri",
+     "at": "2026-07-30T17:13:46Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "5tp6vomz2gvd8hybvxyn6qlsmjj00t90",
+     "author": "Andrew Schofield",
+     "at": "2026-07-31T08:53:20Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "4vfhqt8ltxvzqmj992gpw587qmgy2khw",
+     "author": "Federico Valeri",
+     "at": "2026-07-31T14:52:09Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "813czshj0y3d99zftjyzrgtrbf27tj3b",
+     "author": "Jun Rao",
+     "at": "2026-08-03T18:21:14Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "4b3dxotjfy134hsdxmy5dhr6q2x29dk7",
+     "author": "Luke Chen",
+     "at": "2026-08-04T12:26:02Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "56wp1mmr63ckgcvp2k3nqmx99jzcrqch",
+     "author": "Jun Rao",
+     "at": "2026-08-04T18:18:48Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "hnqgmjo1hhjj07d1nfdpk7zzh3k5pxwz",
+     "author": "Luke Chen",
+     "at": "2026-08-05T11:51:15Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "b74l7qcohtfvhj65kvo6lf7m8n9jhjrv",
+     "author": "Jun Rao",
+     "at": "2026-08-05T21:47:25Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "dg3xgtzbmoksm3f01plf34tw53gxxrfx",
+     "author": "Luke Chen",
+     "at": "2026-08-06T12:13:02Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "dpb38dcp8kwzgrxnn477fy7dkm5nlm28",
+     "author": "Jun Rao",
+     "at": "2026-08-08T00:33:09Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "p1fcsztfxjoh8dkflxrmxp5gmbnrhnjg",
+     "author": "Luke Chen",
+     "at": "2026-08-10T12:52:04Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "sc1638d8z3yrvqorz2lp0xssvs1pt67n",
+     "author": "Jun Rao",
+     "at": "2026-08-10T22:01:34Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "htjxnkf6fjt9gkp2yto2hkbx58160m2n",
+     "author": "Luke Chen",
+     "at": "2026-08-12T12:35:34Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "2dngl8l1h1vkt3jymb07b9omd83sw3kz",
+     "author": "Jun Rao",
+     "at": "2026-08-12T23:03:37Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "p2bn2mxvnl7lg7ybgmvhtpk80rtpvhx8",
+     "author": "Luke Chen",
+     "at": "2026-08-13T12:13:37Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "dphzh0kkmpmf01ccoqon7h0sn981mrw6",
+     "author": "Jun Rao",
+     "at": "2026-08-13T22:08:48Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "jpyl3yt6v3gkckrd3fb1z081h7ts23w8",
+     "author": "Luke Chen",
+     "at": "2026-08-14T11:32:09Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "b7ko5bxn2xttlr248k8r4q5dbyylfm9r",
+     "author": "Jun Rao",
+     "at": "2026-08-14T23:09:57Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "xmn5rq210l9kn8y4nf3oj9ndtnn1j7n6",
+     "author": "Luke Chen",
+     "at": "2026-08-17T08:10:51Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "r83ks0olslfz59n6z7x7xx3l3nqvz5n9",
+     "author": "Jun Rao",
+     "at": "2026-08-17T17:04:14Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "qdfovprwjmdjzq2h6lk9dqyfv51xdx64",
+     "author": "Luke Chen",
+     "at": "2026-08-18T07:07:47Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "p0kdg3f6vjvo3fkgth5wy999qd2v5b1s",
+     "author": "Jun Rao",
+     "at": "2026-08-18T14:08:59Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "53rzp4w073lzjbf30910crzklbdmjlym",
+     "author": "Rajini Sivaram",
+     "at": "2026-08-25T13:39:50Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "3p9z29sdpxnwyt3g674vxg3554xrlp24",
+     "author": "Federico Valeri",
+     "at": "2026-08-26T15:41:30Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "mblv88rxgmon2n5k76cmxvymd3rxwsrs",
+     "author": "Federico Valeri",
+     "at": "2026-08-27T10:27:32Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "nthf65phs8g7gf5llvz9cnrckrxdzk81",
+     "author": "Rajini Sivaram",
+     "at": "2026-08-28T18:23:47Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "mq1ygvs9hmdzn3xg85ddypnsmr4wbb6s",
+     "author": "Federico Valeri",
+     "at": "2026-08-31T16:11:39Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    },
+    {
+     "mid": "b1vhmj0t8dnlg95sh3kd7cwd9hbkgxmb",
+     "author": "Rajini Sivaram",
+     "at": "2026-09-07T11:09:33Z",
+     "subject": "Re: [DISCUSS] KIP-1279: Cluster Mirroring"
+    }
+   ]
+  }
+ ]
+}
