@@ -299,6 +299,10 @@ const cases: Record<string, Case> = {
   "parsing|constructed: {\"sentences\":[{\"text\":\"KIP-1349 moves (cut at max_tokens)": () => (parseModelJson("{\"sentences\":[{\"text\":\"KIP-1349 moves") === undefined ? "unparsable" : "parsed"),
   "parsing|constructed: prose with an inline {\"draft\":true}, then a ```json fence around {\"a\":1}": () => JSON.stringify(parseModelJson("Draft {\"draft\":true} first.\n```json\n{\"a\":1}\n```")),
   "parsing|constructed: {\"a\":\"x \\\"}\\\" y\"} (an escaped quote before a brace inside a string)": () => JSON.stringify(parseModelJson("{\"a\":\"x \\\"}\\\" y\"}")),
+  "content|constructed: KAFKA-1 adds retry backoff. (3 content words)": () => (contentFree("KAFKA-1 adds retry backoff.") ? "content-free" : "has content"),
+  "content|constructed: KAFKA-1 adds backoff. (2 content words)": () => (contentFree("KAFKA-1 adds backoff.") ? "content-free" : "has content"),
+  "parsing|constructed: outer object cut after a complete inner object": () =>
+    (parseModelJson('{"sentences":[{"text":"a","cites":["KAFKA-PR-1"]},{"text":"b') === undefined ? "unparsable" : "parsed"),
   "content|constructed: Apache Kafka Streams is open.": () => (contentFree("Apache Kafka Streams is open.") ? "content-free" : "has content"),
   "content|KAFKA-20224 is merged (second Dev dry run)": () => (contentFree("KAFKA-20224 is merged") ? "content-free" : "has content"),
   "content|Kafka 4.4.0 RC4 is proposed. (second Dev dry run)": () => (contentFree("Kafka 4.4.0 RC4 is proposed.") ? "content-free" : "has content"),

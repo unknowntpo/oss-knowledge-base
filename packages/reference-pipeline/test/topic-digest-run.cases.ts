@@ -115,6 +115,8 @@ export const testPlanRows = [
   { id: "D81", rule: "raw samples", input: "constructed: dry run where one proposal call returns prose and one translated item drops its placeholder", expected: "rawSamples has {call proposal:<key>, reason unparsable} and {call translate:proposal:<key>, reason placeholders}" },
   { id: "D81", rule: "raw samples", input: "constructed: dry run where every summarize call returns 700 characters of prose", expected: "10 rawSamples, each 600 characters" },
   { id: "D81", rule: "raw samples", input: "constructed: the same prose responses in a scheduled run", expected: "no rawSamples" },
+  { id: "D81", rule: "raw samples", input: "constructed: a dry run through DigestRunner with rejected responses", expected: "the dry-run response carries rawSamples; the stored lastRun behind /health has none" },
+  { id: "D81", rule: "raw samples", input: "constructed: dry run where the first card returns {\"sentences\":[]}, the highlights call returns prose, and the translation batch returns prose twice", expected: "rawSamples include card:<topic> empty, highlights unparsable, and translate:0 unparsable" },
   { id: "D82", rule: "parsing", input: "constructed: every summarize and highlights response wrapped in a ```json fence with a sentence of prose before it", expected: "every card and proposal line generated, headline kept; no unparsable" },
   { id: "D83", rule: "style", input: "constructed: card sentences \"KAFKA-20224 is open.\" and \"Streams standby tasks get rack-aware assignment (KAFKA-20999, open).\"", expected: "style.contentFree 1 of 2" },
 ] as const;

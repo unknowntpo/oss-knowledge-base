@@ -1116,6 +1116,28 @@ const cases: Record<string, () => Promise<string>> = {
     const samples = result.rawSamples ?? [];
     return samples.length === 10 && samples.every((sample) => sample.text.length === 600) ? "10 rawSamples, each 600 characters" : `${samples.length}`;
   },
+  "raw samples|constructed: a dry run through DigestRunner with rejected responses": async () => {
+    const bucket = new MemoryBucket();
+    await publish(bucket);
+    const storage = new MemoryStorage();
+    const { instance } = runner(bucket, storage, async () => false, new FakeModel((kind) => (kind === "summarize" ? "prose" : undefined)));
+    const response = (await instance.request(true)).body as DigestRunResult;
+    const stored = storage.values.get("lastRun") as Record<string, unknown>;
+    return (response.rawSamples?.length ?? 0) > 0 && !("rawSamples" in stored)
+      ? "the dry-run response carries rawSamples; the stored lastRun behind /health has none" : `${response.rawSamples?.length} ${"rawSamples" in stored}`;
+  },
+  "raw samples|constructed: dry run where the first card returns {\"sentences\":[]}, the highlights call returns prose, and the translation batch returns prose twice": async () => {
+    let first = true;
+    const model = new FakeDecider((kind, _index, prompt) => {
+      if (kind === "summarize" && first && prompt.includes("at most 3 sentences")) { first = false; return '{"sentences":[]}'; }
+      if (kind === "highlights" || kind === "translate") return "Sorry, no JSON.";
+      return undefined;
+    });
+    const { result } = await published(model, { dryRun: true });
+    const seen = (result.rawSamples ?? []).map((sample) => `${sample.call.replace(/^card:.*/u, "card:<topic>")} ${sample.reason}`);
+    return ["card:<topic> empty", "highlights unparsable", "translate:0 unparsable"].every((item) => seen.includes(item))
+      ? "rawSamples include card:<topic> empty, highlights unparsable, and translate:0 unparsable" : seen.join(", ");
+  },
   "raw samples|constructed: the same prose responses in a scheduled run": async () => {
     const model = new FakeDecider((kind) => (kind === "summarize" ? "x".repeat(700) : undefined));
     const { result } = await published(model);

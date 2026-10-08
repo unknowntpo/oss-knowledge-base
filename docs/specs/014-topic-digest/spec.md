@@ -780,13 +780,18 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
       stripped, and the first complete JSON object or array in the text
       is parsed; prose before or after it is ignored. Text with no
       complete JSON value (for example, cut at `max_tokens`) is
-      `unparsable`. The schema rules are unchanged.
+      `unparsable`, including an outer value cut after a complete inner
+      one. A JSON value quoted inside prose before the intended one can be
+      the one parsed; the schema rules and sentence validators still
+      apply to it, so it cannot add unvalidated text.
     - **Dry-run samples** (slice 2d): a dry run's result carries
       `rawSamples`, at most 10 `{call, reason, text}` with the first 600
       characters of the raw response, for calls whose output was
       `unparsable` or `empty` and for translated items that failed
       verification. Responses quote public threads only; no request
-      headers or tokens are recorded. Scheduled runs record none.
+      headers or tokens are recorded. Only the authenticated dry-run
+      response carries them: the stored `lastRun` (served by the public
+      `/health`) omits them, and scheduled runs record none.
     - **Classification.** No retry.
       - Output that is not JSON sends the whole batch to rules features.
       - A thread entry that violates the schema sends that thread to rules
@@ -1272,6 +1277,9 @@ synthetic; the others use values captured from Dev.
 | D82 | parsing | constructed: prose with an inline {"draft":true}, then a ```json fence around {"a":1} | {"a":1} |
 | D82 | parsing | constructed: {"a":"x \"}\" y"} (an escaped quote before a brace inside a string) | {"a":"x \"}\" y"} |
 | D83 | content | constructed: Apache Kafka Streams is open. | content-free |
+| D83 | content | constructed: KAFKA-1 adds retry backoff. (3 content words) | has content |
+| D83 | content | constructed: KAFKA-1 adds backoff. (2 content words) | content-free |
+| D82 | parsing | constructed: outer object cut after a complete inner object | unparsable |
 | D82 | parsing | constructed: {"sentences":[{"text":"KIP-1349 moves (cut at max_tokens) | unparsable |
 | D83 | content | KAFKA-20224 is merged (second Dev dry run) | content-free |
 | D83 | content | Kafka 4.4.0 RC4 is proposed. (second Dev dry run) | content-free |
@@ -1392,6 +1400,8 @@ synthetic; the others use values captured from Dev.
 | D81 | raw samples | constructed: dry run where one proposal call returns prose and one translated item drops its placeholder | rawSamples has {call proposal:<key>, reason unparsable} and {call translate:proposal:<key>, reason placeholders} |
 | D81 | raw samples | constructed: dry run where every summarize call returns 700 characters of prose | 10 rawSamples, each 600 characters |
 | D81 | raw samples | constructed: the same prose responses in a scheduled run | no rawSamples |
+| D81 | raw samples | constructed: a dry run through DigestRunner with rejected responses | the dry-run response carries rawSamples; the stored lastRun behind /health has none |
+| D81 | raw samples | constructed: dry run where the first card returns {"sentences":[]}, the highlights call returns prose, and the translation batch returns prose twice | rawSamples include card:<topic> empty, highlights unparsable, and translate:0 unparsable |
 | D82 | parsing | constructed: every summarize and highlights response wrapped in a ```json fence with a sentence of prose before it | every card and proposal line generated, headline kept; no unparsable |
 | D83 | style | constructed: card sentences "KAFKA-20224 is open." and "Streams standby tasks get rack-aware assignment (KAFKA-20999, open)." | style.contentFree 1 of 2 |
 <!-- test-plan:end -->
@@ -1594,7 +1604,8 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   writes a new pair.
 - D81: a dry run's result carries at most 10 `rawSamples` of at most 600
   characters each, for unparsable or empty calls and failed translation
-  items; a scheduled run carries none.
+  items; a scheduled run carries none, and the stored `lastRun` behind
+  `/health` never does.
 - D82: a response wrapped in a ```` ```json ```` fence, or with prose
   before or after the JSON, is parsed; two JSON values give the first; a
   response cut mid-JSON is `unparsable`.
