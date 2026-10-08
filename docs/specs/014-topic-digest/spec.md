@@ -1,6 +1,6 @@
 # Spec 014: Kafka topic digest
 
-Status: Draft (for intent review)
+Status: Accepted 2026-10-08, pending the amendment review
 Date: 2026-10-06 (amended 2026-10-08 after design review)
 Traceability: enforced
 Builds on: Spec 002, Spec 005, Spec 008 (ADR-0013), Spec 010, Spec 011, Spec 012 (ADR-0014), Spec 013
@@ -708,8 +708,9 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
       and nothing else was added. Otherwise that item shows the English text
       with the label "Not translated".
     - Translation runs in batches. It is cached by hash(English text,
-      translator revision, locale). The translator model is set
-      independently of the summarizer (open question 2).
+      translator revision, locale). The translator model is
+      `@cf/qwen/qwen3-30b-a3b-fp8`, set independently of the summarizer
+      (decided 2026-10-08).
     - Each locale is its own object (Behavior 12), so the cache key includes
       the locale.
 26. **One source for counts; window label.**
@@ -814,7 +815,7 @@ To approve, then record in ADR-0015:
    and new web tabs. Proposed routes: `/#/` becomes This week,
    `/#/proposals`, and `/#/threads` for All threads (today's Feed). Spec
    010/011 E2E tests move to `/#/threads`. `/#/feed/<displayId>` is
-   unchanged. Open question 7.
+   unchanged. Decided 2026-10-08 (open question 7).
 4. Project profile fields `proposal {kind, keyPattern, stages[], quorumNote}`,
    `taxonomy`, and `machineUsers`. Plus i18n keys `taxonomy.<projectId>.<key>`,
    `proposal.<kind>.stage.<key>`, and `proposal.<projectId>.quorumNote`.
@@ -1260,7 +1261,8 @@ Named tests, to be written:
   deterministic rules: later.
 - A release tracker block per active RC: later.
 - PR review state ("awaiting reviewer" vs "in review"). It needs GitHub
-  `requested_reviewers` and `pulls/<n>/reviews` per PR: later.
+  `requested_reviewers` and `pulls/<n>/reviews` per PR. It belongs to Spec
+  015 (review queue for PRs and KIPs), which is being written separately.
 - For You and personalization: a future "Following" tab.
 - A second generation per locale (translation only).
 
@@ -1279,11 +1281,12 @@ Named tests, to be written:
 5. Is 7 days with a 3.5-day half-life the right horizon? Is a 36-hour
    staleness bound for a daily job right?
 6. Decided 2026-10-08: admin mail goes to Community & governance.
-7. Routes: is `/#/` = This week, `/#/proposals`, `/#/threads` = All threads
-   right? Spec 010/011 E2E tests move with the Feed.
-8. Translator model: qwen3-30b-a3b (about 175 neurons) or the summarizer's
-   model (about 1,160)? Decide on golden-set translations.
-9. Stage group overflow at 6 rows, and highlights fixed at 3: keep?
+7. Decided 2026-10-08: `/#/` is This week, `/#/proposals` is Proposals, and
+   `/#/threads` is All threads. The Spec 010/011 E2E tests move to
+   `/#/threads` in the implementation.
+8. Decided 2026-10-08: the translator is `@cf/qwen/qwen3-30b-a3b-fp8`.
+9. Decided 2026-10-08: exactly 3 highlights; a stage group shows 6 rows,
+   then "+n more".
 
 ## Review log
 
@@ -1337,3 +1340,10 @@ coordinator folded the review findings in. IDs D1–D35 are unchanged.
 | R9 | Accuracy lesson: five errors in the hand-written target and mock | Evidence; draft rewritten from in-window records; Behavior 30–31, D46, D47, D56 |
 | R10 | Later: affects-users badges, release tracker, For You | Non-goals |
 
+Human decisions, 2026-10-08 (after the design review):
+- Spec accepted for implementation, pending an independent Fable review of
+  the amended spec.
+- Routes: `/#/`, `/#/proposals`, `/#/threads`.
+- Translator: qwen3-30b-a3b.
+- Highlights: 3. Stage groups: 6 rows, then "+n more".
+- PR review state is deferred to Spec 015.
