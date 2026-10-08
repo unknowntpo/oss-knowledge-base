@@ -6,11 +6,14 @@
  *   <!-- test-plan:start apps/web/test/freshness.cases.ts -->
  *   …generated table…
  *   <!-- test-plan:end -->
+ *
+ * A marker may end with ` [pending]` (`<!-- test-plan:start <case file> [pending] -->`) for a case
+ * file of a planned later slice; it is rendered the same way (see check-spec-traceability.ts).
  */
 import { join } from "node:path";
 
 const root = join(import.meta.dir, "..");
-const block = /(<!-- test-plan:start (\S+) -->\n)[\s\S]*?(<!-- test-plan:end -->)/gu;
+const block = /(<!-- test-plan:start (\S+)(?: \[pending\])? -->\n)[\s\S]*?(<!-- test-plan:end -->)/gu;
 
 type Cell = string | number | boolean | null;
 
@@ -30,6 +33,12 @@ export async function renderSpec(
   markdown: string,
   loadRows: (casePath: string) => Promise<readonly Readonly<Record<string, Cell>>[]>,
 ): Promise<string> {
+  // A marker the block pattern does not match would be skipped silently (verifier F2).
+  for (const line of markdown.split("\n")) {
+    if (line.includes("test-plan:start") && !/^<!-- test-plan:start \S+( \[pending\])? -->$/u.test(line.trim())) {
+      throw new Error(`malformed test-plan marker: ${line.trim()}`);
+    }
+  }
   let rendered = markdown;
   for (const match of markdown.matchAll(block)) {
     const table = renderTable(await loadRows(match[2]!));

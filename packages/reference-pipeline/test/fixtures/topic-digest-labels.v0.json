@@ -1,0 +1,46 @@
+{
+ "revision": "golden-v0 (2026-10-08): negatives only; important threads pending human labels",
+ "important": [],
+ "negatives": [
+  {
+   "class": "status-mismatch",
+   "origin": "draft 2026-10-06, card Releases",
+   "text": "4.3.2 RC0 was verified by Bill Bejeck, Jakub Scholz (+1) and Chia-Ping Tsai.",
+   "cites": [
+    "KAFKA-MAIL-8849f679"
+   ]
+  },
+  {
+   "class": "status-mismatch",
+   "origin": "canvas mock, Share groups (DLQ 紀錄保留原始 header)",
+   "text": "DLQ header preservation was merged.",
+   "cites": [
+    "KAFKA-PR-23659"
+   ]
+  },
+  {
+   "class": "misattribution",
+   "origin": "canvas mock, topic page (KAFKA-PR-23712 described as a consumer fix)",
+   "text": "A consumer closing with REMAIN_IN_GROUP may never finish; another PR handles the same case.",
+   "cites": [
+    "KAFKA-PR-23712"
+   ]
+  },
+  {
+   "class": "invented-claim",
+   "origin": "canvas mock, topic page (KAFKA-PR-23688)",
+   "text": "The new config defaults to true; the discussion focuses on whether the default should be conservative.",
+   "cites": [
+    "KAFKA-PR-23688"
+   ]
+  },
+  {
+   "class": "overbroad-stance",
+   "origin": "draft 2026-10-08, card Clients",
+   "text": "Chris Egerton objected on 10-05 to packing connector type and version into one field.",
+   "cites": [
+    "KAFKA-MAIL-fd63cd54"
+   ]
+  }
+ ]
+}

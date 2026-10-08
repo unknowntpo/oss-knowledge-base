@@ -1,0 +1,1702 @@
+{
+ "revision": "hand-2026-10-08",
+ "note": "Hand-authored stand-ins for model output, written by the implementer from the captured week (Spec 014 Example). Not produced by any model. Classification: hand labels for the draft's threads, rules features for the rest.",
+ "classify": {
+  "KAFKA-MAIL-85a6bd91": {
+   "topic": "community",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-MAIL-82e0d5b3": {
+   "topic": "share-groups",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-MAIL-6c38f1a7": {
+   "topic": "releases",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-MAIL-fd63cd54": {
+   "topic": "clients",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23691": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23711": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23672": {
+   "topic": "security",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-22901": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-21830": {
+   "topic": "streams",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23392": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23115": {
+   "topic": "clients",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23105": {
+   "topic": "clients",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-MAIL-f09ac41a": {
+   "topic": "clients",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23690": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23718": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23689": {
+   "topic": "storage",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23702": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23697": {
+   "topic": "storage",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-MAIL-8849f679": {
+   "topic": "releases",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23165": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23660": {
+   "topic": "releases",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-22809": {
+   "topic": "observability",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23678": {
+   "topic": "kraft",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23426": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23712": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23705": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23699": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23720": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23450": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23679": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23693": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23654": {
+   "topic": "releases",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23686": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-MAIL-f93938c0": {
+   "topic": "storage",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-MAIL-7eb8eba3": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23463": {
+   "topic": "storage",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23671": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23688": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23588": {
+   "topic": "streams",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23554": {
+   "topic": "streams",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23559": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23494": {
+   "topic": "connect",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23725": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23696": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23722": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-22155": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23727": {
+   "topic": "streams",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23721": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-22992": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23726": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23557": {
+   "topic": "security",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-MAIL-3bc971ac": {
+   "topic": "security",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23717": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23620": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-MAIL-3bff04e6": {
+   "topic": "security",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23724": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23723": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23495": {
+   "topic": "other",
+   "topicConfidence": 0.9,
+   "routine": true,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23394": {
+   "topic": "security",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23106": {
+   "topic": "clients",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23703": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23109": {
+   "topic": "clients",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23108": {
+   "topic": "clients",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23107": {
+   "topic": "clients",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-MAIL-4bc41094": {
+   "topic": "share-groups",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23675": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23656": {
+   "topic": "share-groups",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-19253": {
+   "topic": "storage",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23596": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23707": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23713": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23663": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23668": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23657": {
+   "topic": "streams",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-19803": {
+   "topic": "kraft",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23719": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23714": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23623": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-22593": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23572": {
+   "topic": "storage",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23630": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23483": {
+   "topic": "security",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-21991": {
+   "topic": "clients",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23167": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23716": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23513": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23715": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-MAIL-a9696e08": {
+   "topic": "storage",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23710": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23673": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-22453": {
+   "topic": "kraft",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23661": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23393": {
+   "topic": "security",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-MAIL-e0d9d8c1": {
+   "topic": "security",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23709": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23708": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-22680": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-MAIL-55bead25": {
+   "topic": "community",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23424": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23706": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23704": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23692": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-22357": {
+   "topic": "share-groups",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-19267": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23694": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23701": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23651": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23676": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23700": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-MAIL-2dc19c3f": {
+   "topic": "community",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23318": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23477": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23698": {
+   "topic": "security",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23695": {
+   "topic": "connect",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-MAIL-f7a35fa2": {
+   "topic": "releases",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23687": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-20568": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23440": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-MAIL-b6d05376": {
+   "topic": "community",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23608": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23032": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-22423": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-22531": {
+   "topic": "kraft",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23528": {
+   "topic": "observability",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23684": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23549": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-22447": {
+   "topic": "security",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23626": {
+   "topic": "storage",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23683": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23685": {
+   "topic": "streams",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-18198": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23682": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23681": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23604": {
+   "topic": "storage",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23677": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23301": {
+   "topic": "storage",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-19244": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23446": {
+   "topic": "storage",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23555": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23666": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23680": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-22963": {
+   "topic": "storage",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23472": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23650": {
+   "topic": "storage",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23600": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23667": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23674": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23606": {
+   "topic": "streams",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-22325": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23670": {
+   "topic": "streams",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-MAIL-750d8124": {
+   "topic": "community",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23609": {
+   "topic": "security",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23245": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23669": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23304": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23445": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23514": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23652": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23571": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23586": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23530": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23615": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23602": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23659": {
+   "topic": "share-groups",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-21826": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23658": {
+   "topic": "streams",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23624": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23665": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23584": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23585": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23664": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23662": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23371": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23649": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23655": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23653": {
+   "topic": "kraft",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-16554": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-21677": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-21715": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-21718": {
+   "topic": "kraft",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-21765": {
+   "topic": "security",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23545": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23561": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23617": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23629": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23634": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23635": {
+   "topic": "kraft",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23569": {
+   "topic": "storage",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23622": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-MAIL-61bf4c33": {
+   "topic": "storage",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-MAIL-8fc2f9c5": {
+   "topic": "connect",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23636": {
+   "topic": "streams",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23412": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23648": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23646": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23647": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23645": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23644": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23643": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23642": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23641": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23640": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-MAIL-b7e5a84f": {
+   "topic": "community",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-22835": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23419": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23639": {
+   "topic": "kraft",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23627": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23638": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23637": {
+   "topic": "security",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23628": {
+   "topic": "releases",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23633": {
+   "topic": "security",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-MAIL-090240c0": {
+   "topic": "clients",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23632": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23631": {
+   "topic": "security",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-22818": {
+   "topic": "streams",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-22911": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23038": {
+   "topic": "kraft",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23169": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23211": {
+   "topic": "storage",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23212": {
+   "topic": "connect",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23453": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23481": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23550": {
+   "topic": "security",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23556": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23603": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23605": {
+   "topic": "releases",
+   "topicConfidence": 0.6,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23607": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-PR-23612": {
+   "topic": "releases",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23621": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-PR-23593": {
+   "topic": "other",
+   "topicConfidence": 0,
+   "routine": false,
+   "routineConfidence": 0
+  },
+  "KAFKA-MAIL-6f627126": {
+   "topic": "releases",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23619": {
+   "topic": "group-coordination",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  },
+  "KAFKA-MAIL-d7907ec4": {
+   "topic": "releases",
+   "topicConfidence": 0.9,
+   "routine": false,
+   "routineConfidence": 0.9
+  },
+  "KAFKA-PR-23625": {
+   "topic": "observability",
+   "topicConfidence": 0.6,
+   "routine": true,
+   "routineConfidence": 0.6
+  }
+ },
+ "cards": {
+  "releases": [
+   {
+    "text": "4.4.0 RC3 will be replaced by RC4 after David Jacot found a Maven signature problem.",
+    "cites": [
+     "KAFKA-MAIL-6c38f1a7"
+    ]
+   },
+   {
+    "text": "The 4.3.2 RC0 vote is still open; Jakub Scholz voted +1 (non-binding), and Bill Bejeck and Chia-Ping Tsai posted their verification steps.",
+    "cites": [
+     "KAFKA-MAIL-8849f679"
+    ]
+   },
+   {
+    "text": "Apache Kafka 4.2.2 was announced, and Andrew Schofield posted the 4.5.0 release plan with KIP freeze on 2027-01-13.",
+    "cites": [
+     "KAFKA-MAIL-d7907ec4",
+     "KAFKA-MAIL-6f627126"
+    ]
+   }
+  ],
+  "group-coordination": [
+   {
+    "text": "KAFKA-20292 merged parts 9–13 of assignor offloading; the open part 14 would run the consumer-group assignor on a coordinator background thread, with the new config defaulting to true.",
+    "cites": [
+     "KAFKA-PR-23622",
+     "KAFKA-PR-23623",
+     "KAFKA-PR-23624",
+     "KAFKA-PR-23666",
+     "KAFKA-PR-23667",
+     "KAFKA-PR-23688"
+    ]
+   },
+   {
+    "text": "David Jacot opened three PRs for a uniform2 consumer assignor (KAFKA-21214) and proposed KIP-1379.",
+    "cites": [
+     "KAFKA-PR-23722",
+     "KAFKA-PR-23723",
+     "KAFKA-PR-23724",
+     "KAFKA-MAIL-7eb8eba3"
+    ]
+   },
+   {
+    "text": "Two open PRs address members that stall when closing with REMAIN_IN_GROUP after a poll timeout, one for the Streams group protocol and one for the consumer group protocol.",
+    "cites": [
+     "KAFKA-PR-23712",
+     "KAFKA-PR-23714"
+    ]
+   }
+  ],
+  "clients": [
+   {
+    "text": "The KIP-1306 author asked on dev@ for reviews of six PRs; Andrew Schofield said he will review them and noted many PRs are waiting.",
+    "cites": [
+     "KAFKA-MAIL-f09ac41a",
+     "KAFKA-PR-23105",
+     "KAFKA-PR-23115"
+    ]
+   },
+   {
+    "text": "KIP-1368 added `client.framework.id`, and on 10-05 Chris Egerton questioned using the instance ID to report connector type and version.",
+    "cites": [
+     "KAFKA-MAIL-fd63cd54"
+    ]
+   },
+   {
+    "text": "Lianet Magrans asked for care on an open async-consumer fetch-buffer PR because recent busy-loop fixes touch the same path.",
+    "cites": [
+     "KAFKA-PR-21991"
+    ]
+   }
+  ],
+  "share-groups": [
+   {
+    "text": "KIP-1349 received a +1 (binding) and a +1 this week, and Chia-Ping Tsai asked whether a bytes-based trigger is better than a count.",
+    "cites": [
+     "KAFKA-MAIL-82e0d5b3",
+     "KAFKA-MAIL-4bc41094"
+    ]
+   },
+   {
+    "text": "A draft PR for KIP-1289 would let share-group acknowledgements join a producer transaction.",
+    "cites": [
+     "KAFKA-PR-22357"
+    ]
+   },
+   {
+    "text": "An open PR would keep the original headers in share-group DLQ records.",
+    "cites": [
+     "KAFKA-PR-23659"
+    ]
+   }
+  ],
+  "security": [
+   {
+    "text": "On the snappy-java CVE thread, Martin Andersson said lz4-java is the problem; the merged lz4-java 1.11.4 bump fixes three advisories, and a 1.12.0 bump is open.",
+    "cites": [
+     "KAFKA-MAIL-e0d9d8c1",
+     "KAFKA-PR-23609",
+     "KAFKA-PR-23637"
+    ]
+   },
+   {
+    "text": "An open PR adds a broker config to reject client writes that use chosen compression types.",
+    "cites": [
+     "KAFKA-PR-23698"
+    ]
+   },
+   {
+    "text": "KIP-1376 (TLS named groups) and KIP-1342 (deprecate `Authorizer#aclCount`) are under discussion.",
+    "cites": [
+     "KAFKA-MAIL-3bc971ac",
+     "KAFKA-MAIL-3bff04e6"
+    ]
+   }
+  ],
+  "storage": [
+   {
+    "text": "A dev@ question about KIP-1023 led to KAFKA-21190 and an open PR that skips the remote aux-state rebuild when the fetch offset equals the log start offset.",
+    "cites": [
+     "KAFKA-MAIL-61bf4c33",
+     "KAFKA-PR-23650"
+    ]
+   },
+   {
+    "text": "A reviewer said per-client-id remote fetch metrics need a KIP, and the author agreed to write one.",
+    "cites": [
+     "KAFKA-PR-23463"
+    ]
+   },
+   {
+    "text": "KIP-1165 was reopened with a fuller object-consolidation design.",
+    "cites": [
+     "KAFKA-MAIL-f93938c0",
+     "KAFKA-MAIL-a9696e08"
+    ]
+   }
+  ],
+  "streams": [
+   {
+    "text": "An open PR adds rack-aware standby task assignment (KAFKA-20999) with fuzz-testbed and JMH results.",
+    "cites": [
+     "KAFKA-PR-23588"
+    ]
+   },
+   {
+    "text": "The KAFKA-20224 iterator-adapter refactor was merged.",
+    "cites": [
+     "KAFKA-PR-21830"
+    ]
+   }
+  ],
+  "community": [
+   {
+    "text": "Sushant Mahajan became a committer.",
+    "cites": [
+     "KAFKA-MAIL-85a6bd91"
+    ]
+   },
+   {
+    "text": "Cruise Control moved to the Linux Foundation.",
+    "cites": [
+     "KAFKA-MAIL-55bead25"
+    ]
+   },
+   {
+    "text": "Contributors asked committers to approve CI runs, and two newcomers asked about pending Jira accounts.",
+    "cites": [
+     "KAFKA-MAIL-b6d05376",
+     "KAFKA-MAIL-b7e5a84f",
+     "KAFKA-MAIL-2dc19c3f",
+     "KAFKA-MAIL-750d8124"
+    ]
+   }
+  ]
+ },
+ "proposals": {
+  "KIP-1349": {
+   "text": "Andrew Schofield voted +1 (binding) on 10-01 and Sushant Mahajan voted +1 on 10-05; Chia-Ping Tsai asked on 10-06 whether bytes beat a count.",
+   "cites": [
+    "KAFKA-MAIL-82e0d5b3",
+    "KAFKA-MAIL-4bc41094"
+   ]
+  },
+  "KIP-1368": {
+   "text": "On 10-05 Andrew Schofield added a third config, `client.framework.id`, after Lianet Magrans' feedback.",
+   "cites": [
+    "KAFKA-MAIL-fd63cd54"
+   ]
+  },
+  "KIP-1379": {
+   "text": "Proposed by David Jacot on 10-02; Lucas Brutschy asked about upgrade and downgrade on 10-05.",
+   "cites": [
+    "KAFKA-MAIL-7eb8eba3"
+   ]
+  },
+  "KIP-1376": {
+   "text": "Opened by Mickael Maison on 10-06.",
+   "cites": [
+    "KAFKA-MAIL-3bc971ac"
+   ]
+  },
+  "KIP-1342": {
+   "text": "Ming-Yen Chung updated it on 10-06 after Chia-Ping Tsai's review.",
+   "cites": [
+    "KAFKA-MAIL-3bff04e6"
+   ]
+  },
+  "KIP-1165": {
+   "text": "Viktor Somogyi-Vass posted a fuller object-merging design on 10-05.",
+   "cites": [
+    "KAFKA-MAIL-f93938c0"
+   ]
+  },
+  "KIP-1163": {
+   "text": "Pointer to the KIP-1165 update.",
+   "cites": [
+    "KAFKA-MAIL-a9696e08"
+   ]
+  },
+  "KIP-1306": {
+   "text": "Six open PRs, [4/N]–[9/N], migrate to `RebalanceListener`; Andrew Schofield said he will review them.",
+   "cites": [
+    "KAFKA-MAIL-f09ac41a",
+    "KAFKA-PR-23105",
+    "KAFKA-PR-23115"
+   ]
+  },
+  "KIP-1332": {
+   "text": "An open PR adds compression support.",
+   "cites": [
+    "KAFKA-PR-23483"
+   ]
+  },
+  "KIP-1289": {
+   "text": "A draft PR for transactional acknowledgements in share groups.",
+   "cites": [
+    "KAFKA-PR-22357"
+   ]
+  },
+  "KIP-1331": {
+   "text": "An open docs follow-up PR.",
+   "cites": [
+    "KAFKA-PR-23412"
+   ]
+  },
+  "KIP-909": {
+   "text": "A draft PR for the Streams DNS resolution config.",
+   "cites": [
+    "KAFKA-PR-23685"
+   ]
+  }
+ },
+ "headline": {
+  "text": "4.4.0 gets an RC4 after a signature problem in RC3, and KIP-1349 is being voted on.",
+  "cites": [
+   "KAFKA-MAIL-6c38f1a7",
+   "KAFKA-MAIL-82e0d5b3"
+  ]
+ },
+ "highlights": [
+  {
+   "title": "4.4.0 RC3 will be replaced by RC4",
+   "body": {
+    "text": "David Jacot found a problem with the Maven artifact signatures, and Omnia Ibrahim said she will raise RC4.",
+    "cites": [
+     "KAFKA-MAIL-6c38f1a7"
+    ]
+   }
+  },
+  {
+   "title": "KIP-1349 is in its vote",
+   "body": {
+    "text": "Andrew Schofield voted +1 (binding) and Sushant Mahajan voted +1 this week; Chia-Ping Tsai asked whether bytes are better than a count.",
+    "cites": [
+     "KAFKA-MAIL-82e0d5b3",
+     "KAFKA-MAIL-4bc41094"
+    ]
+   }
+  },
+  {
+   "title": "KAFKA-20292 merged parts 9–13 of assignor offloading",
+   "body": {
+    "text": "Part 14, still open, would turn the new config on by default.",
+    "cites": [
+     "KAFKA-PR-23622",
+     "KAFKA-PR-23688"
+    ]
+   }
+  }
+ ]
+}
