@@ -135,7 +135,7 @@ Traceability: enforced
       expect(markerErrors("<!-- test-plan:start a/x.cases.ts [Pending] -->")).toEqual(["malformed test-plan marker: \"<!-- test-plan:start a/x.cases.ts [Pending] -->\""]);
       expect(markerErrors("<!-- test-plan:start a/x.cases.ts  [pending] -->")).toHaveLength(1);
       expect(markerErrors("<!-- test-plan:start a/x.cases.ts [pending]-->")).toHaveLength(1);
-      expect(markerErrors("<!-- test-plan:start a/x.cases.ts [pending] -->\n<!-- test-plan:start a/y.cases.ts -->")).toEqual([]);
+      expect(markerErrors("<!-- test-plan:start a/x.cases.ts [pending] -->\n<!-- test-plan:end -->\n<!-- test-plan:start a/y.cases.ts -->\n<!-- test-plan:end -->")).toEqual([]);
     });
 
     test("combined, unknown, or misplaced tags and malformed bullets are errors", () => {
@@ -207,6 +207,26 @@ Traceability: enforced
       expect(runsCaseFile("const note = `import { testPlanRows } from './freshness.cases'`;\ntest.each(testPlanRows)(\"$id\", () => {});", casePath, testPath)).toBe(false);
       expect(runsCaseFile(whole, casePath, "packages/other/test/freshness.test.ts")).toBe(false);
       expect(runsCaseFile(`import { testPlanRows } from "../test/freshness.cases";\ntest.each(testPlanRows)("$id", () => {});`, casePath, "apps/web/e2e/x.spec.ts")).toBe(true);
+    });
+  });
+
+  describe("PR #35 verifier: accepted forms and silent gaps", () => {
+    const casePath = "apps/web/test/freshness.cases.ts";
+    const testPath = "apps/web/test/freshness.test.ts";
+
+    test("a .js specifier and `testPlanRows as readonly Row[]` run the whole file", () => {
+      expect(runsCaseFile(`import { testPlanRows } from "./freshness.cases.js";\ntest.each(testPlanRows)("$id", () => {});`, casePath, testPath)).toBe(true);
+      expect(runsCaseFile(`import { testPlanRows } from "./freshness.cases";\ntest.each(testPlanRows as readonly Row[])("$id", () => {});`, casePath, testPath)).toBe(true);
+      // Positive control: a cast does not hide a filter.
+      expect(runsCaseFile(`import { testPlanRows } from "./freshness.cases";\ntest.each(testPlanRows.filter(keep) as readonly Row[])("$id", () => {});`, casePath, testPath)).toBe(false);
+    });
+
+    test("a marker inside a fenced code block, or a start marker without an end, is an error", () => {
+      const fenced = "```text\n<!-- test-plan:start a/x.cases.ts -->\n<!-- test-plan:end -->\n```\n";
+      expect(markerErrors(fenced)).toEqual(["test-plan marker inside a fenced code block: \"<!-- test-plan:start a/x.cases.ts -->\""]);
+      expect(markerErrors("<!-- test-plan:start a/x.cases.ts -->\nno end\n")).toEqual(["test-plan:start without test-plan:end: \"<!-- test-plan:start a/x.cases.ts -->\""]);
+      expect(markerErrors("<!-- test-plan:start a/x.cases.ts -->\n<!-- test-plan:start a/y.cases.ts -->\n<!-- test-plan:end -->\n")).toHaveLength(1);
+      expect(markerErrors("<!-- test-plan:start a/x.cases.ts -->\n| t |\n<!-- test-plan:end -->\n")).toEqual([]);
     });
   });
 });

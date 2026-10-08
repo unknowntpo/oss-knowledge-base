@@ -128,9 +128,10 @@ export function runsCaseFile(testSource: string, casePath: string, testPath?: st
   const imports = [...code.matchAll(/^import\s+\{([^}]*)\}\s+from\s+["']([^"']+)["'];?\s*$/gmu)].filter((match) =>
     /(?<!type\s)\btestPlanRows\b/u.test(match[1]!) &&
     (testPath === undefined
-      ? match[2]!.endsWith(`/${module}`)
-      : join(dirname(testPath), match[2]!).replace(/\.ts$/u, "") === casePath.replace(/\.ts$/u, "")));
-  const runsAll = /\btest\.each\(\s*(?:testPlanRows\s*\)|\[\s*\.\.\.testPlanRows\s*\](?:\s+as\s+[^()]*)?\s*\))/u;
+      ? match[2]!.replace(/\.js$/u, "").endsWith(`/${module}`)
+      : join(dirname(testPath), match[2]!).replace(/\.[jt]s$/u, "") === casePath.replace(/\.ts$/u, "")));
+  // The whole array, optionally spread into a copy, optionally cast; never filtered or sliced.
+  const runsAll = /\btest\.each\(\s*(?:testPlanRows|\[\s*\.\.\.testPlanRows\s*\])(?:\s+as\s+[^()]*)?\s*\)/u;
   return imports.length > 0 && runsAll.test(code);
 }
 
@@ -139,8 +140,28 @@ const MARKER = /^<!-- test-plan:start \S+( \[pending\])? -->$/u;
 /** Every line that mentions `test-plan:start` must be a well-formed marker (verifier F2). */
 export function markerErrors(markdown: string): readonly string[] {
   // No trimming: trailing whitespace or a CR would make the renderer skip the table (N1).
-  return markdown.split("\n").filter((line) => line.includes("test-plan:start") && !MARKER.test(line))
-    .map((line) => `malformed test-plan marker: ${JSON.stringify(line)}`);
+  const errors: string[] = [];
+  let fenced = false;
+  let open: string | undefined;
+  for (const line of markdown.split("\n")) {
+    if (/^\s*(```|~~~)/u.test(line)) fenced = !fenced;
+    if (line.includes("test-plan:start")) {
+      if (!MARKER.test(line)) {
+        errors.push(`malformed test-plan marker: ${JSON.stringify(line)}`);
+        continue;
+      }
+      if (fenced) {
+        errors.push(`test-plan marker inside a fenced code block: ${JSON.stringify(line)}`);
+        continue;
+      }
+      if (open !== undefined) errors.push(`test-plan:start without test-plan:end: ${JSON.stringify(open)}`);
+      open = line;
+    } else if (line.includes("test-plan:end") && !fenced) {
+      open = undefined;
+    }
+  }
+  if (open !== undefined) errors.push(`test-plan:start without test-plan:end: ${JSON.stringify(open)}`);
+  return errors;
 }
 
 const TAGS = ["deploy", "measure", "pending"];

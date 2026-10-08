@@ -1161,6 +1161,20 @@ synthetic; the others use values captured from Dev.
 | D50 | translate | constructed: the translation drops one item's placeholder | that item Not translated (English kept); no placeholder text in zh-Hant |
 | D37 | highlights | constructed: one highlight cites a thread that no kept sentence cites | that highlight dropped; the other 2 shown |
 | D20 | publication | constructed: the detail map names a different release than the manifest | source-read failure; nothing written |
+| D22 | run control | constructed: DIGEST_CRON 37 1 * * * set; the publisher cron 7 * * * * fires | publisher |
+| D60 | dry run | constructed: two dry runs on the same UTC day | today.estimatedNeurons is the sum of both runs |
+| D60 | dry run | constructed: a dry run's stored lastRun | no objects stored; R2 keys unchanged |
+| D55 | highlights call | constructed: the highlights call fails; same release runs again | fallbacks counted; the next run is not a reuse |
+| D10 | cache | constructed: a classify batch fell back to rules; the next run has a working model | those threads are classified by the model, not served from cache |
+| D1 | window | constructed: a run on the captured release | window.start is window.end minus 7 days |
+| D1 | window | constructed: an entry whose newest activity is exactly the window start | its Detail is read and it is a candidate |
+| D20 | publication | constructed: the Feed manifest is v2 | source-read failure; nothing written |
+| D11 | publication | constructed: the pointer's schema | osskb.digest-pointer.v1 |
+| D13 | model down | constructed: a cold run classifies 12 batches | at most 4 classify calls in flight, and 4 reached |
+| D14 | spend | constructed: today's spend plus the next call's estimate equals the cap exactly | the call runs |
+| D14 | spend | constructed: a call that fails twice | both attempts add the pre-call estimate to today's spend (G21) |
+| D59 | deferral | constructed: a deferred run completes, then the publisher runs at the next alarm | the counter restarted: the alarm defers again |
+| D59 | deferral | constructed: 2 deferrals recorded, then POST /digest/run | counter cleared; the new alarm can defer 4 times |
 <!-- test-plan:end -->
 
 **Slice 3: browser.** Case file

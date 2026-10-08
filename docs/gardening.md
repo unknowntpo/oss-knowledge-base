@@ -227,6 +227,9 @@ the two `viewer/` items below.
 - **Why:** a call that throws adds its pre-call bound (input + `max_tokens`)
   to today's spend, because the real usage of a failed call is unknown. That
   is conservative: repeated failures can reach the daily cap early.
+- **Decision (PR #35 review):** keep the conservative rule for now; it is
+  asserted by a D14 row ("a call that fails twice": both attempts add the
+  pre-call estimate).
 - **Fix:** replace it with gateway-reported usage once D35 shows the error
   shapes.
 - **Layer:** runtime (D35 calibration on Dev).

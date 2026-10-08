@@ -12,7 +12,8 @@ import {
 import { detailPoolKey, FEED_DETAIL_POOL, MANIFEST_KEY, sha256Digest } from "@oss-knowledge-base/serving-contract";
 import fixtureJson from "../../../packages/reference-pipeline/test/fixtures/topic-digest-kafka-2026-10-06.json";
 import { testPlanRows } from "../../../packages/reference-pipeline/test/topic-digest-run.cases";
-import { ModelCallError, RETRY_DELAY_MS, type DigestModel } from "../src/digest/model";
+import { callEstimate } from "@oss-knowledge-base/reference-pipeline";
+import { ModelCallError, ModelCalls, RETRY_DELAY_MS, type DigestModel } from "../src/digest/model";
 import { DIGEST_ROOT, runDigest, type DigestRunInput, type DigestRunResult } from "../src/digest/run";
 import { DEFER_MS, DigestRunner, type DigestStorage } from "../src/digest/runner";
 import type { DigestBucket } from "../src/digest/store";
@@ -97,6 +98,8 @@ function kindOf(prompt: string): Kind {
 class FakeModel implements DigestModel {
   readonly calls: Kind[] = [];
   readonly prompts: string[] = [];
+  inFlight = 0;
+  maxInFlight = 0;
   constructor(private readonly fail: (kind: Kind, index: number, prompt: string) => Error | string | undefined = () => undefined) {}
 
   async run(_model: PricedModel, prompt: string, _maxTokens: number): Promise<string> {
@@ -104,6 +107,10 @@ class FakeModel implements DigestModel {
     const index = this.calls.filter((item) => item === kind).length;
     this.calls.push(kind);
     this.prompts.push(prompt);
+    this.inFlight += 1;
+    this.maxInFlight = Math.max(this.maxInFlight, this.inFlight);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    this.inFlight -= 1;
     const failure = this.fail(kind, index, prompt);
     if (failure instanceof Error) throw failure;
     if (typeof failure === "string") return failure;
@@ -495,6 +502,137 @@ const cases: Record<string, () => Promise<string>> = {
     bucket.objects.set(mapKey, JSON.stringify({ ...JSON.parse(bucket.objects.get(mapKey)!), releaseId: "other-release" }));
     const result = await runDigest(input(bucket));
     return !result.ok && result.failureKind === "source-read" && bucket.writes.length === 0 ? "source-read failure; nothing written" : `${result.failureKind}`;
+  },
+  // Added after the PR #35 verifier mutation pass.
+  "run control|constructed: DIGEST_CRON 37 1 * * * set; the publisher cron 7 * * * * fires": async () => cronTarget("7 * * * *", "37 1 * * *"),
+  "dry run|constructed: two dry runs on the same UTC day": async () => {
+    const bucket = new MemoryBucket();
+    await publish(bucket);
+    const storage = new MemoryStorage();
+    const { instance } = runner(bucket, storage, async () => false, new FakeModel());
+    const first = (await instance.request(true)).body as DigestRunResult;
+    const second = (await instance.request(true)).body as DigestRunResult;
+    const today = (await instance.health()).today.estimatedNeurons;
+    return first.estimatedNeurons > 0 && today === first.estimatedNeurons + second.estimatedNeurons && second.spentToday === today
+      ? "today.estimatedNeurons is the sum of both runs" : `${first.estimatedNeurons} ${second.estimatedNeurons} ${today}`;
+  },
+  "dry run|constructed: a dry run's stored lastRun": async () => {
+    const bucket = new MemoryBucket();
+    await publish(bucket);
+    const keys = [...bucket.objects.keys()].sort().join();
+    const storage = new MemoryStorage();
+    const { instance } = runner(bucket, storage, async () => false, new FakeModel());
+    await instance.request(true);
+    const stored = storage.values.get("lastRun") as Record<string, unknown>;
+    return !("objects" in stored) && [...bucket.objects.keys()].sort().join() === keys ? "no objects stored; R2 keys unchanged" : "stored";
+  },
+  "highlights call|constructed: the highlights call fails; same release runs again": async () => {
+    const { bucket, result } = await published(new FakeModel((kind) => (kind === "highlights" ? new Error("down") : undefined)));
+    const { en } = await objects(bucket, result);
+    const retry = await runDigest(input(bucket, { model: new FakeModel() }));
+    return en.coverage.fallbacks > 0 && retry.reused === "none" ? "fallbacks counted; the next run is not a reuse" : `${en.coverage.fallbacks} ${retry.reused}`;
+  },
+  "cache|constructed: a classify batch fell back to rules; the next run has a working model": async () => {
+    let failures = 0;
+    const { bucket, result } = await published(new FakeModel((kind, _index, prompt) =>
+      (kind === "classify" && prompt.includes("[KAFKA-MAIL-85a6bd91]") && failures++ < 2 ? new Error("down") : undefined)));
+    const before = (await objects(bucket, result)).en;
+    const ruled = Object.values(before.features).filter((item) => item.source === "rules").map((item) => item.displayId);
+    await publish(bucket, { releaseId: "next-release" });
+    const model = new FakeModel();
+    const retry = await runDigest(input(bucket, { model }));
+    const after = (await objects(bucket, retry)).en;
+    const now = ruled.map((id) => Object.values(after.features).find((item) => item.displayId === id)!.source);
+    return ruled.length === 20 && now.every((source) => source === "model") && model.calls.includes("classify")
+      ? "those threads are classified by the model, not served from cache" : `${ruled.length} ${now.join()}`;
+  },
+  "window|constructed: a run on the captured release": async () => {
+    const { bucket, result } = await published();
+    const { en } = await objects(bucket, result);
+    return Date.parse(en.window.end) - Date.parse(en.window.start) === 7 * 86_400_000 && en.window.end === fixture.release.generatedAt
+      ? "window.start is window.end minus 7 days" : `${en.window.start} ${en.window.end}`;
+  },
+  "window|constructed: an entry whose newest activity is exactly the window start": async () => {
+    const start = new Date(Date.parse(fixture.release.generatedAt) - 7 * 86_400_000).toISOString();
+    const entry = { ...fixture.entries.find((item) => item.displayId === "KAFKA-PR-23426")!, lastActivityAt: start };
+    const original = fixture.details["KAFKA-PR-23426"]!;
+    const details = { ...fixture.details, "KAFKA-PR-23426": { ...original, records: original.records.map((record, index) => (index === 0 ? { ...record, author: "boundary", occurredAt: start } : record)).slice(0, 1) } };
+    const bucket = new MemoryBucket();
+    const saved = fixture.details;
+    (fixture as { details: unknown }).details = details;
+    try {
+      await publish(bucket, { entries: [entry] });
+    } finally {
+      (fixture as { details: unknown }).details = saved;
+    }
+    const result = await runDigest(input(bucket));
+    const read = bucket.reads.some((key) => key.startsWith(FEED_DETAIL_POOL));
+    return read && result.candidates === 1 ? "its Detail is read and it is a candidate" : `${read} ${result.candidates}`;
+  },
+  "publication|constructed: the Feed manifest is v2": async () => {
+    const bucket = new MemoryBucket();
+    await publish(bucket);
+    const manifest = JSON.parse(bucket.objects.get(MANIFEST_KEY)!) as Record<string, unknown>;
+    bucket.objects.set(MANIFEST_KEY, JSON.stringify({ ...manifest, schema: "osskb.feed-manifest.v2", detailPrefix: "public/v2/releases/x/details/" }));
+    const result = await runDigest(input(bucket));
+    return !result.ok && result.failureKind === "source-read" && bucket.writes.length === 0 ? "source-read failure; nothing written" : `${result.failureKind}`;
+  },
+  "publication|constructed: the pointer's schema": async () => {
+    const { bucket } = await published();
+    return (JSON.parse(bucket.objects.get(POINTER)!) as { schema: string }).schema;
+  },
+  "model down|constructed: a cold run classifies 12 batches": async () => {
+    const model = new FakeModel();
+    const bucket = new MemoryBucket();
+    await publish(bucket);
+    const tracked: number[] = [];
+    const original = model.run.bind(model);
+    model.run = async (name, prompt, max) => {
+      const output = original(name, prompt, max);
+      if (kindOf(prompt) === "classify") tracked.push(model.inFlight);
+      return output;
+    };
+    await runDigest(input(bucket, { model }));
+    const peak = Math.max(...tracked);
+    return peak <= 4 && peak === 4 ? "at most 4 classify calls in flight, and 4 reached" : `${peak}`;
+  },
+  "spend|constructed: today's spend plus the next call's estimate equals the cap exactly": async () => {
+    const prompt = "x".repeat(4_000);
+    const estimate = callEstimate("@cf/meta/llama-3.3-70b-instruct-fp8-fast", prompt, 300);
+    const model: DigestModel = { run: async () => "ok" };
+    const calls = new ModelCalls(model, { spent: 4_500 - estimate, cap: 4_500 }, noDelay);
+    const output = await calls.call("@cf/meta/llama-3.3-70b-instruct-fp8-fast", prompt, 300);
+    const over = new ModelCalls(model, { spent: 4_501 - estimate, cap: 4_500 }, noDelay);
+    const skipped = await over.call("@cf/meta/llama-3.3-70b-instruct-fp8-fast", prompt, 300);
+    return output === "ok" && skipped === undefined && over.limited ? "the call runs" : `${output} ${skipped}`;
+  },
+  "spend|constructed: a call that fails twice": async () => {
+    const prompt = "x".repeat(4_000);
+    const estimate = callEstimate("@cf/meta/llama-3.3-70b-instruct-fp8-fast", prompt, 300);
+    const calls = new ModelCalls({ run: async () => { throw new Error("down"); } }, { spent: 100, cap: 4_500 }, noDelay);
+    await calls.call("@cf/meta/llama-3.3-70b-instruct-fp8-fast", prompt, 300);
+    return calls.spentToday === 100 + 2 * estimate && calls.calls === 2 ? "both attempts add the pre-call estimate to today's spend (G21)" : `${calls.spentToday}`;
+  },
+  "deferral|constructed: a deferred run completes, then the publisher runs at the next alarm": async () => {
+    const bucket = new MemoryBucket();
+    await publish(bucket);
+    const storage = new MemoryStorage();
+    let publisherBusy = true;
+    const { instance } = runner(bucket, storage, async () => publisherBusy);
+    for (let n = 0; n < 5; n += 1) await instance.alarm();
+    const ranOnce = (storage.values.get("lastRun") as DigestRunResult).deferred === 4;
+    storage.values.delete("lastRun");
+    publisherBusy = true;
+    await instance.alarm();
+    return ranOnce && storage.values.get("lastRun") === undefined && storage.values.get("deferrals") === 1
+      ? "the counter restarted: the alarm defers again" : "ran";
+  },
+  "deferral|constructed: 2 deferrals recorded, then POST /digest/run": async () => {
+    const storage = new MemoryStorage();
+    storage.values.set("deferrals", 2);
+    const { instance } = runner(new MemoryBucket(), storage);
+    const response = await instance.request(false);
+    return response.status === 202 && !storage.values.has("deferrals") ? "counter cleared; the new alarm can defer 4 times" : `${storage.values.get("deferrals")}`;
   },
 };
 
