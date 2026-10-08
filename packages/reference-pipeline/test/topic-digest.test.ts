@@ -22,6 +22,12 @@ import {
   mix,
   neurons,
   parseClassification,
+  parseModelJson,
+  contentFree,
+  SUMMARIZE_PROMPT,
+  HIGHLIGHTS_PROMPT,
+  TRANSLATE_PROMPT,
+  PROMPT_REVISION,
   personLed,
   placement,
   planCalls,
@@ -106,7 +112,7 @@ function features(topic: string, topicConfidence: number, routine: boolean, rout
 
 function placed(feature: ThreadFeatures): string {
   const place = placement(feature);
-  return place.routine ? "routine section" : `${place.topic} card`;
+  return place.routine ? "routine section" : place.topic === "other" ? "other (Uncategorized)" : `${place.topic} card`;
 }
 
 function stagesOf(title: string, others: Thread[] = []): ProposalRow[] {
@@ -259,8 +265,8 @@ const cases: Record<string, Case> = {
   "features|constructed: routine true, routineConfidence 0.60": () => placed(features("clients", 0.9, true, 0.6)),
   "features|hand label: KAFKA-PR-23609 \"Update lz4 to 1.11.4\" for three GHSA advisories {topic: security, topicConfidence 0.8, routine: false, routineConfidence 0.7}": () =>
     `${placed(features("security", 0.8, false, 0.7))}, not routine`,
-  "features|constructed: topic group-coordination, topicConfidence 0.40": () => placed(features("group-coordination", 0.4, false, 0)),
-  "features|constructed: topic group-coordination, topicConfidence 0.60": () => placed(features("group-coordination", 0.6, false, 0)),
+  "features|constructed: topic group-coordination, topicConfidence 0.34": () => placed(features("group-coordination", 0.34, false, 0)),
+  "features|constructed: topic group-coordination, topicConfidence 0.35": () => placed(features("group-coordination", 0.35, false, 0)),
   // D7
   "mixing|captured week, rules classifier": () => {
     const result = mix(candidates, new Map(candidates.map((item) => [item.displayId, rulesClassify(item, KAFKA)])), KAFKA);
@@ -268,9 +274,9 @@ const cases: Record<string, Case> = {
     const once = placedIds.length === candidates.length && new Set(placedIds).size === candidates.length;
     return once ? `every one of ${candidates.length} candidates appears once: in a card's thread list, in routine, or in Uncategorized` : "duplicated or missing";
   },
-  "uncategorized|constructed: threads with best topic other (score 1.0), security at topicConfidence 0.4 (score 2.0), and security at 0.9": () => {
+  "uncategorized|constructed: threads with best topic other (score 1.0), security at topicConfidence 0.3 (score 2.0), and security at 0.9": () => {
     const threads = [made("KAFKA-PR-1", "a", { score: 1 }), made("KAFKA-PR-2", "b", { score: 2 }), made("KAFKA-PR-3", "c", { score: 3 })];
-    const feats = new Map([["KAFKA-PR-1", features("other", 0.9, false, 0.9)], ["KAFKA-PR-2", features("security", 0.4, false, 0.9)],
+    const feats = new Map([["KAFKA-PR-1", features("other", 0.9, false, 0.9)], ["KAFKA-PR-2", features("security", 0.3, false, 0.9)],
       ["KAFKA-PR-3", features("security", 0.9, false, 0.9)]] as const);
     const result = mix(threads, feats, KAFKA);
     const scores = result.uncategorized.map((id) => threads.find((item) => item.displayId === id)!.score.toFixed(1));
@@ -286,6 +292,35 @@ const cases: Record<string, Case> = {
   "style|Apache Kafka 4.3.2 RC0 is open, said 黃竣陽. (first Dev dry run)": () => (personLed("Apache Kafka 4.3.2 RC0 is open, said 黃竣陽.") ? "person-led" : "not person-led"),
   "style|Sushant Mahajan was announced as a new Kafka committer. (first Dev dry run)": () => (personLed("Sushant Mahajan was announced as a new Kafka committer.") ? "person-led" : "not person-led"),
   "style|constructed: KIP-1349 moves share-group snapshot frequency from record counts to bytes.": () => (personLed("KIP-1349 moves share-group snapshot frequency from record counts to bytes.") ? "person-led" : "not person-led"),
+  "parsing|constructed: ```json fence around {\"sentences\":[]}": () => JSON.stringify(parseModelJson("```json\n{\"sentences\":[]}\n```")),
+  "parsing|constructed: \"Here is the JSON:\" then {\"a\":1} then \"Hope this helps.\"": () => JSON.stringify(parseModelJson("Here is the JSON:\n{\"a\":1}\nHope this helps.")),
+  "parsing|constructed: \"[DISCUSS] KIP-1 summary:\" then {\"a\":\"x]\"}": () => JSON.stringify(parseModelJson("[DISCUSS] KIP-1 summary: {\"a\":\"x]\"}")),
+  "parsing|constructed: {\"a\":1}{\"a\":2}": () => JSON.stringify(parseModelJson("{\"a\":1}{\"a\":2}")),
+  "parsing|constructed: {\"sentences\":[{\"text\":\"KIP-1349 moves (cut at max_tokens)": () => (parseModelJson("{\"sentences\":[{\"text\":\"KIP-1349 moves") === undefined ? "unparsable" : "parsed"),
+  "parsing|constructed: prose with an inline {\"draft\":true}, then a ```json fence around {\"a\":1}": () => JSON.stringify(parseModelJson("Draft {\"draft\":true} first.\n```json\n{\"a\":1}\n```")),
+  "parsing|constructed: {\"a\":\"x \\\"}\\\" y\"} (an escaped quote before a brace inside a string)": () => JSON.stringify(parseModelJson("{\"a\":\"x \\\"}\\\" y\"}")),
+  "content|constructed: Apache Kafka Streams is open.": () => (contentFree("Apache Kafka Streams is open.") ? "content-free" : "has content"),
+  "content|KAFKA-20224 is merged (second Dev dry run)": () => (contentFree("KAFKA-20224 is merged") ? "content-free" : "has content"),
+  "content|Kafka 4.4.0 RC4 is proposed. (second Dev dry run)": () => (contentFree("Kafka 4.4.0 RC4 is proposed.") ? "content-free" : "has content"),
+  "content|KAFKA-19762 Gradle feature is proposed. (second Dev dry run)": () => (contentFree("KAFKA-19762 Gradle feature is proposed.") ? "content-free" : "has content"),
+  "content|KIP-1376 is proposed to add TLS named groups support. (second Dev dry run)": () => (contentFree("KIP-1376 is proposed to add TLS named groups support.") ? "content-free" : "has content"),
+  "content|constructed: Streams standby tasks get rack-aware assignment (KAFKA-20999, merged).": () => (contentFree("Streams standby tasks get rack-aware assignment (KAFKA-20999, merged).") ? "content-free" : "has content"),
+  "prompt|summarizer and highlights prompts": () => {
+    const examples = [SUMMARIZE_PROMPT, HIGHLIGHTS_PROMPT].map((prompt) => parseModelJson(prompt.slice(prompt.indexOf("\n{"))));
+    const summary = examples[0] as { sentences?: { text: string }[] } | undefined;
+    const highlights = examples[1] as { headline?: unknown; highlights?: unknown[] } | undefined;
+    const example = summary?.sentences?.[0]?.text ?? "";
+    const ok = PROMPT_REVISION === "digest-prompts@3" && example !== "" && !contentFree(example) && !/^[A-Z]+-\d/u.test(example)
+      && highlights?.headline !== undefined && Array.isArray(highlights.highlights)
+      && /bare status line/u.test(SUMMARIZE_PROMPT) && /do not start a sentence with an id/u.test(SUMMARIZE_PROMPT);
+    return ok ? "digest-prompts@3; both JSON examples parse; the summarizer forbids bare status lines and leading ids" : PROMPT_REVISION;
+  },
+  "features|Kafka profile description of other": () => KAFKA.taxonomy.descriptions?.other ?? "missing",
+  "prompt|translation prompt": () => {
+    const ok = /active voice/u.test(TRANSLATE_PROMPT) && /Avoid 被 passives/u.test(TRANSLATE_PROMPT)
+      && ["\"committer\"", "\"PMC\"", "\"KIP\""].every((term) => TRANSLATE_PROMPT.includes(term)) && /"merged" is 已合併/u.test(TRANSLATE_PROMPT);
+    return ok ? "asks for active voice and avoids 被 passives; keeps committer, PMC, KIP; merged is 已合併" : "missing";
+  },
   "mixing|constructed: topic with 7 threads": () => {
     const threads = Array.from({ length: 7 }, (_, index) => made(`KAFKA-PR-${index + 1}`, `t${index}`, { score: index + 1 }));
     const card = mix(threads, new Map(threads.map((item) => [item.displayId, features("clients", 1, false, 0)])), KAFKA).cards[0]!;

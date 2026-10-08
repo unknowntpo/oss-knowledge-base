@@ -100,7 +100,7 @@ export const testPlanRows = [
   { id: "D74", rule: "call order", input: "constructed: captured week with a Clef cap of 3 requests", expected: "3 Clef requests; the other threads get rules features; limited true" },
   { id: "D75", rule: "bounds", input: "constructed: the max_tokens of each call kind in a cold run", expected: "card 500, proposal 160, highlights 800, translation 4000" },
   { id: "D75", rule: "bounds", input: "captured week, cold run with Clef", expected: "1 translation call for every item; its prompt ends with /no_think" },
-  { id: "D78", rule: "style", input: "constructed: card sentences \"Omnia Ibrahim proposed Apache Kafka 4.4.0 RC4.\" and \"KIP-1349 moves snapshot frequency to bytes.\"", expected: "style {sentences 2, personLed 1}; summarizer prompt digest-prompts@2" },
+  { id: "D78", rule: "style", input: "constructed: card sentences \"Omnia Ibrahim proposed Apache Kafka 4.4.0 RC4.\" and \"KIP-1349 moves snapshot frequency to bytes.\"", expected: "style {sentences 2, personLed 1}; summarizer prompt digest-prompts@3" },
   { id: "D79", rule: "coverage", input: "constructed: the translation batch returns non-JSON twice", expected: "en and zh-Hant coverage identical; notTranslated equals the zh-Hant items marked Not translated" },
   { id: "D79", rule: "coverage", input: "constructed: a complete en with an incomplete zh-Hant, retried", expected: "a new pair with identical coverage; the pointer names both new objects" },
   { id: "D80", rule: "rejections", input: "constructed: a proposal call returns JSON cut off mid-string", expected: "rejections.unparsable 1; that line null" },
@@ -111,4 +111,10 @@ export const testPlanRows = [
   { id: "D76", rule: "uncategorized", input: "captured week, cold run with Clef", expected: "en.uncategorized lists every non-routine thread placed in other, by score; not empty" },
   { id: "D74", rule: "call order", input: "constructed: captured week at every ceiling from 20 to 35 requests", expected: "at least 3 requests remain at the highlights call (highlights, 1 translation, 1 retry)" },
   { id: "D74", rule: "call order", input: "constructed: the reserve for 50 and for 51 items so far", expected: "3 and 4" },
+  // Slice 2d (second Dev dry run, 2026-10-08).
+  { id: "D81", rule: "raw samples", input: "constructed: dry run where one proposal call returns prose and one translated item drops its placeholder", expected: "rawSamples has {call proposal:<key>, reason unparsable} and {call translate:proposal:<key>, reason placeholders}" },
+  { id: "D81", rule: "raw samples", input: "constructed: dry run where every summarize call returns 700 characters of prose", expected: "10 rawSamples, each 600 characters" },
+  { id: "D81", rule: "raw samples", input: "constructed: the same prose responses in a scheduled run", expected: "no rawSamples" },
+  { id: "D82", rule: "parsing", input: "constructed: every summarize and highlights response wrapped in a ```json fence with a sentence of prose before it", expected: "every card and proposal line generated, headline kept; no unparsable" },
+  { id: "D83", rule: "style", input: "constructed: card sentences \"KAFKA-20224 is open.\" and \"Streams standby tasks get rack-aware assignment (KAFKA-20999, open).\"", expected: "style.contentFree 1 of 2" },
 ] as const;
