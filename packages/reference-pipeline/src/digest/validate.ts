@@ -30,7 +30,7 @@ const STATUS_WORDS: readonly (readonly [readonly string[], (thread: CitedThread)
 const STANCE = ["objected", "opposed", "rejected", "refused", "disagreed", "pushed back", "blocked"] as const;
 
 function hasWord(text: string, word: string): boolean {
-  return new RegExp(`(?<![A-Za-z])${word.replace(/ /gu, "\\s+")}(?![A-Za-z])`, "iu").test(text);
+  return new RegExp(`(?<![A-Za-z0-9_])${word.replace(/ /gu, "\\s+")}(?![A-Za-z0-9_])`, "iu").test(text);
 }
 
 export interface SentenceContext {
@@ -46,7 +46,8 @@ export interface SentenceContext {
 /** Behavior 9 and 30 for one sentence; `null` means kept. */
 export function rejectSentence(sentence: Sentence, context: SentenceContext): Rejection | null {
   const text = sentence.text;
-  if (text.length < 1 || text.length > MAX_SENTENCE_CHARS) return "length";
+  const length = [...text].length; // characters (code points), not UTF-16 units
+  if (length < 1 || length > MAX_SENTENCE_CHARS) return "length";
   if (sentence.cites.length === 0) return "no-cites";
   if (sentence.cites.some((cite) => !context.inputs.has(cite))) return "cite-outside-inputs";
   const cited = sentence.cites.map((cite) => context.threads.get(cite)).filter((thread) => thread !== undefined);

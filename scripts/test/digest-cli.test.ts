@@ -26,6 +26,8 @@ test("D25 D26: `digest -- measure` reports cold and steady budgets within their 
   expect(report.cold.modelCalls).toBeLessThanOrEqual(45);
 });
 
-test("an unknown mode exits with usage", () => {
+test("an unknown mode or flag exits with usage", () => {
   expect(run("dry-run").code).toBe(2);
+  const result = Bun.spawnSync(["bun", script, "measure", "--scale", "2"], { stdout: "pipe", stderr: "pipe" });
+  expect(result.exitCode).toBe(2);
 });

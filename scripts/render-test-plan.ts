@@ -33,6 +33,12 @@ export async function renderSpec(
   markdown: string,
   loadRows: (casePath: string) => Promise<readonly Readonly<Record<string, Cell>>[]>,
 ): Promise<string> {
+  // A marker the block pattern does not match would be skipped silently (verifier F2).
+  for (const line of markdown.split("\n")) {
+    if (line.includes("test-plan:start") && !/^<!-- test-plan:start \S+( \[pending\])? -->$/u.test(line.trim())) {
+      throw new Error(`malformed test-plan marker: ${line.trim()}`);
+    }
+  }
   let rendered = markdown;
   for (const match of markdown.matchAll(block)) {
     const table = renderTable(await loadRows(match[2]!));

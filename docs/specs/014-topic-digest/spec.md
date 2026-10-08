@@ -766,7 +766,9 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
          threads; for the highlights call, names that appear in its input
          sentences.
     - **Verification.** A translation is kept only when both hold:
-      - every placeholder appears exactly once;
+      - every placeholder appears exactly once, and only canonical in-range
+        placeholders appear (`⟦3⟧`, never `⟦03⟧` or `⟦7⟧` when there are 2
+        spans);
       - after placeholders are restored, no protected-span pattern (classes
         1–6) matches anything that was not restored.
       Otherwise that item shows the English text with the label "Not
@@ -830,8 +832,10 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
     - A missing locale object makes `/api/digest` return `en` with
       `localeFallback: true`.
 30. **Accuracy rules.** These are deterministic and run on the English text
-    before translation. Words match on word boundaries, case-insensitively,
-    without stemming. False positives are accepted and tracked through the
+    before translation. Words match on word boundaries (a letter, digit, or
+    `_` next to the word means no match), case-insensitively, without
+    stemming. Sentence length counts characters (code points), not UTF-16
+    units. False positives are accepted and tracked through the
     eval's "share dropped".
     - **Status words.** A sentence using one of these words must cite a
       thread in the matching state, or it is dropped:
@@ -1078,6 +1082,29 @@ synthetic; the others use values captured from Dev.
 | D49 | translate | constructed: translation repeats the name placeholder (Andrew Schofield twice) | English text kept, label Not translated |
 | D21 | lag | constructed: a github+jira entry active 2026-10-06; the newest jira-only entry 2026-09-19 | jira lagging (multi-source entries do not count) |
 | D36 | profile | constructed: profile with kind null but a KIP key pattern, captured week | no proposal rows |
+| D49 | translate | constructed: translation adds ⟦01⟧ (leading zero) for the name placeholder ⟦1⟧ | English text kept, label Not translated |
+| D49 | translate | constructed: translation contains ⟦7⟧ with only 2 placeholders | English text kept, label Not translated |
+| D14 | estimate | constructed: before a call, 6,000 input chars and max_tokens 300 on llama-3.3-70b | 101 neurons (input estimate + max_tokens bound) |
+| D38 | translate | constructed: names Andrew and Andrew Schofield; text "Andrew Schofield voted" | one name span: Andrew Schofield |
+| D38 | translate | constructed: "The next RC is due" | RC protected |
+| D38 | translate | constructed: "+10 comments and a +1" | +1 protected; +10 not |
+| D47 | stance | constructed: "Lianet Magrans pushed back on the change" | dropped |
+| D1 | window | constructed: newest human record at 2026-10-06T13:07:37Z (exactly the window end) | candidate |
+| D1 | window | constructed: only record at 2026-10-06T13:07:38Z (1 s after the window end) | not a candidate |
+| D21 | lag | constructed: newest jira-only entry exactly at window start 2026-09-29T13:07:37Z | not lagging |
+| D21 | lag | constructed: newest jira-only entry 1 s before window start | lagging |
+| D46 | status words | constructed: "KAFKA-1 was fixed" citing a resolved Jira issue | kept |
+| D46 | status words | constructed: "The change landed" citing a resolved Jira issue | kept |
+| D46 | status words | constructed: "KAFKA-1 was fixed" citing an open Jira issue | dropped |
+| D46 | status words | constructed: "KIP-1 was accepted" citing a [RESULT] [VOTE] thread | kept |
+| D46 | status words | constructed: "KIP-1 was accepted" citing only a [VOTE] thread | dropped |
+| D46 | status words | constructed: "The merged_state flag is added" citing an open PR | kept (identifier, not the word merged) |
+| D9 | summary | constructed: sentence of 121 emoji (242 UTF-16 units) | kept (length counts characters) |
+| D4 | kip stage | constructed: GitHub PR titled "[VOTE] KIP-1: x" | KIP-1 implementing (subject tags count only on dev@) |
+| D55 | highlights | constructed: 3 valid highlights | 3 shown |
+| D55 | highlights | constructed: fallback where the top proposal row's newest thread is also the top card's top thread | 3 distinct threads |
+| D39 | counts | constructed: threads from mail, jira, and github | mailThreads 1 |
+| D46 | status words | constructed: "The pre_merged branch is ready" citing an open PR | kept (identifier, not the word merged) |
 <!-- test-plan:end -->
 
 **Slice 2: run loop, model clients, and cache.** Case file

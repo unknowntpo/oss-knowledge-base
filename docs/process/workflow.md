@@ -113,7 +113,8 @@ Items for a planned later slice are tagged `[pending]`, and their case-file
 markers end with ` [pending]`. The gate lists them without failing. It fails
 when a pending item already has a test (a stale tag), or when the spec's
 Status starts with "Implemented" (ai-sdd-workflow: each slice removes its own
-`[pending]` tags).
+`[pending]` tags). A malformed marker or tag, more than one tag on an item, or an
+acceptance bullet the parser cannot read also fails the gate.
 
 ## Trust layers
 

@@ -44,7 +44,10 @@ export function restore(translated: string, spans: readonly string[]): string | 
   for (let index = 0; index < spans.length; index += 1) {
     if (translated.split(`⟦${index}⟧`).length !== 2) return null;
   }
-  for (const match of translated.matchAll(/⟦(\d+)⟧/gu)) if (Number(match[1]) >= spans.length) return null;
+  // Only canonical, in-range placeholders: `⟦03⟧` or `⟦7⟧` (of 2) would restore a span twice or as undefined.
+  for (const match of translated.matchAll(/⟦(\d+)⟧/gu)) {
+    if (match[1] !== String(Number(match[1])) || Number(match[1]) >= spans.length) return null;
+  }
   const restored = translated.replace(/⟦(\d+)⟧/gu, (_, n: string) => spans[Number(n)]!);
   const allowed = new Map<string, number>();
   for (const span of spans) allowed.set(span, (allowed.get(span) ?? 0) + 1);

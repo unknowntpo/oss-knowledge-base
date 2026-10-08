@@ -6,6 +6,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  callEstimate,
   capGroups,
   cardInput,
   chooseHighlights,
@@ -127,6 +128,16 @@ function translated(english: string, names: string[], translate: (masked: string
 
 function emptyCard(topic: string, threads: string[]): TopicCard {
   return { topic, score: 0, threads, keywords: [], sentences: [], status: "fallback" };
+}
+
+function lagAt(newestAt: string): string {
+  const entries = [{ id: "b", displayId: "KAFKA-1", projectKey: "kafka", status: "open", title: "t", lastActivityAt: newestAt, sourceCounts: { jira: 1 } }];
+  return sourceCoverage(entries, KAFKA, END).jira!.lagging ? "lagging" : "not lagging";
+}
+
+function status(text: string, cited: CitedThread): string {
+  const reason = rejectSentence({ text, cites: ["X-1"] }, { inputs: new Set(["X-1"]), threads: new Map([["X-1", cited]]), profile: KAFKA });
+  return reason === null ? "kept" : "dropped";
 }
 
 type CaseRow = (typeof testPlanRows)[number];
@@ -531,6 +542,59 @@ const cases: Record<string, Case> = {
   "profile|constructed: profile with kind null but a KIP key pattern, captured week": () => {
     const profile: DigestProfile = { ...KAFKA, proposal: { ...KAFKA.proposal, kind: null } };
     return proposalRows(candidates, profile).length === 0 ? "no proposal rows" : "rows produced";
+  },
+  // Added after the independent verifier's mutation run.
+  "translate|constructed: translation adds ⟦01⟧ (leading zero) for the name placeholder ⟦1⟧": () =>
+    translated("KIP-1 by Andrew Schofield.", ["Andrew Schofield"], (masked) => `${masked} ⟦01⟧`),
+  "translate|constructed: translation contains ⟦7⟧ with only 2 placeholders": () =>
+    translated("KIP-1 by Andrew Schofield.", ["Andrew Schofield"], (masked) => `${masked} ⟦7⟧`),
+  "estimate|constructed: before a call, 6,000 input chars and max_tokens 300 on llama-3.3-70b": () =>
+    `${callEstimate("@cf/meta/llama-3.3-70b-instruct-fp8-fast", longText(6_000), 300)} neurons (input estimate + max_tokens bound)`,
+  "translate|constructed: names Andrew and Andrew Schofield; text \"Andrew Schofield voted\"": () => {
+    const { spans } = protect("Andrew Schofield voted", ["Andrew", "Andrew Schofield"]);
+    return spans.length === 1 ? `one name span: ${spans[0]}` : spans.join("|");
+  },
+  "translate|constructed: \"The next RC is due\"": () => (protect("The next RC is due", []).spans.join() === "RC" ? "RC protected" : "not protected"),
+  "translate|constructed: \"+10 comments and a +1\"": () => {
+    const { spans } = protect("+10 comments and a +1", []);
+    return spans.join() === "+1" ? "+1 protected; +10 not" : spans.join("|");
+  },
+  "stance|constructed: \"Lianet Magrans pushed back on the change\"": () =>
+    keep({ text: "Lianet Magrans pushed back on the change", cites: ["KAFKA-PR-21991"] }, ["KAFKA-PR-21991"]),
+  "window|constructed: newest human record at 2026-10-06T13:07:37Z (exactly the window end)": () => candidacy([record("alice", END)]),
+  "window|constructed: only record at 2026-10-06T13:07:38Z (1 s after the window end)": () => candidacy([record("alice", at(1000))]),
+  "lag|constructed: newest jira-only entry exactly at window start 2026-09-29T13:07:37Z": () => lagAt(START),
+  "lag|constructed: newest jira-only entry 1 s before window start": () => lagAt(at(-7 * DAY - 1000)),
+  "status words|constructed: \"KAFKA-1 was fixed\" citing a resolved Jira issue": () => status("KAFKA-1 was fixed", { title: "KAFKA-1: x", source: "jira", status: "resolved" }),
+  "status words|constructed: \"The change landed\" citing a resolved Jira issue": () => status("The change landed", { title: "KAFKA-1: x", source: "jira", status: "resolved" }),
+  "status words|constructed: \"KAFKA-1 was fixed\" citing an open Jira issue": () => status("KAFKA-1 was fixed", { title: "KAFKA-1: x", source: "jira", status: "open" }),
+  "status words|constructed: \"KIP-1 was accepted\" citing a [RESULT] [VOTE] thread": () => status("KIP-1 was accepted", { title: "[RESULT] [VOTE] KIP-1: x", source: "mail", status: "discussing" }),
+  "status words|constructed: \"KIP-1 was accepted\" citing only a [VOTE] thread": () => status("KIP-1 was accepted", { title: "[VOTE] KIP-1: x", source: "mail", status: "discussing" }),
+  "status words|constructed: \"The merged_state flag is added\" citing an open PR": () =>
+    `${keep({ text: "The merged_state flag is added", cites: ["KAFKA-PR-23659"] }, ["KAFKA-PR-23659"])} (identifier, not the word merged)`,
+  "status words|constructed: \"The pre_merged branch is ready\" citing an open PR": () =>
+    `${keep({ text: "The pre_merged branch is ready", cites: ["KAFKA-PR-23659"] }, ["KAFKA-PR-23659"])} (identifier, not the word merged)`,
+  "summary|constructed: sentence of 121 emoji (242 UTF-16 units)": () =>
+    `${rejectSentence({ text: "🙂".repeat(121), cites: cite }, ctx) === null ? "kept" : "dropped"} (length counts characters)`,
+  "kip stage|constructed: GitHub PR titled \"[VOTE] KIP-1: x\"": () => {
+    const row = proposalRows([made("KAFKA-PR-1", "[VOTE] KIP-1: x")], KAFKA)[0]!;
+    return `${row.key} ${row.stages.join("+")} (subject tags count only on dev@)`;
+  },
+  "highlights|constructed: 3 valid highlights": () => {
+    const valid: Highlight[] = [1, 2, 3].map((n) => ({ title: `h${n}`, body: { text: `b${n}`, cites: cite } }));
+    return `${chooseHighlights(valid, { proposals: [], cards: [], titles: new Map() }).highlights.length} shown`;
+  },
+  "highlights|constructed: fallback where the top proposal row's newest thread is also the top card's top thread": () => {
+    const titles = new Map([["A", { title: "a", lastActivityAt: END }], ["B", { title: "b", lastActivityAt: START }], ["C", { title: "c", lastActivityAt: START }]]);
+    const row: ProposalRow = { key: "KIP-1", group: "vote", stages: ["vote"], cites: ["A"], newestActivityAt: END, line: null };
+    const ids = chooseHighlights([], { proposals: [row], cards: [emptyCard("x", ["A", "B"]), emptyCard("y", ["C"])], titles })
+      .highlights.map((item) => item.body.cites[0]);
+    return new Set(ids).size === 3 ? "3 distinct threads" : ids.join();
+  },
+  "counts|constructed: threads from mail, jira, and github": () => {
+    const threads = Object.fromEntries((["mail", "jira", "github"] as const).map((source, index) =>
+      [`T${index}`, { title: "t", source, status: null, url: null, score: 1 }]));
+    return `mailThreads ${digestCounts({ proposals: [], cards: [], routine: { threads: [] }, threads }).mailThreads}`;
   },
 };
 

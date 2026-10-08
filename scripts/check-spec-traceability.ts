@@ -80,6 +80,7 @@ export async function checkTraceability(input: TraceabilityInput): Promise<Trace
   const items: AcceptanceItem[] = [];
   const caseIds = new Set<string>();
   for (const { path: spec, markdown } of input.specs) {
+    errors.push(...markerErrors(markdown).map((error) => `${spec}: ${error}`), ...acceptanceErrors(spec, markdown));
     const specItems = acceptanceItems(spec, markdown);
     if (specItems.length === 0) continue;
     items.push(...specItems);
@@ -115,11 +116,44 @@ export async function checkTraceability(input: TraceabilityInput): Promise<Trace
   };
 }
 
-/** Whether a test source imports the case file and runs it with test.each. */
+/** Whether a test source value-imports `testPlanRows` from the case file and runs it with test.each. */
 export function runsCaseFile(testSource: string, casePath: string): boolean {
-  const module = casePath.split("/").pop()!.replace(/\.ts$/u, "");
-  return new RegExp(`from ["'][^"']*/${module.replaceAll(".", "\\.")}["']`, "u").test(testSource) &&
-    /\btest\.each\(/u.test(testSource);
+  const code = testSource.replace(/\/\*[\s\S]*?\*\//gu, " ").replace(/(^|[^:"'`])\/\/.*$/gmu, "$1");
+  const module = casePath.split("/").pop()!.replace(/\.ts$/u, "").replaceAll(".", "\\.");
+  const imports = new RegExp(`import\\s+\\{[^}]*(?<!type\\s)\\btestPlanRows\\b[^}]*\\}\\s+from\\s+["'][^"']*/${module}["']`, "u");
+  return imports.test(code) && /\btest\.each\(\s*(?:\[\s*\.\.\.)?testPlanRows\b/u.test(code);
+}
+
+const MARKER = /^<!-- test-plan:start \S+( \[pending\])? -->$/u;
+
+/** Every line that mentions `test-plan:start` must be a well-formed marker (verifier F2). */
+export function markerErrors(markdown: string): readonly string[] {
+  return markdown.split("\n").filter((line) => line.includes("test-plan:start") && !MARKER.test(line.trim()))
+    .map((line) => `malformed test-plan marker: ${line.trim()}`);
+}
+
+const TAGS = ["deploy", "measure", "pending"];
+
+/** Tag and bullet shapes the item parser would otherwise drop silently (verifier F2, F4). */
+export function acceptanceErrors(spec: string, markdown: string): readonly string[] {
+  if (!/^Traceability:\s*enforced\s*$/mu.test(markdown)) return [];
+  const lines = markdown.split("\n");
+  const start = lines.findIndex((line) => /^## Acceptance\s*$/u.test(line));
+  if (start < 0) return [`${spec}: enforced spec has no "## Acceptance" section`];
+  const end = lines.findIndex((line, index) => index > start && /^## /u.test(line));
+  const errors: string[] = [];
+  for (const line of lines.slice(start + 1, end < 0 ? undefined : end)) {
+    const item = /^- ([A-Z]+\d+):\s*((?:\[[^\]]*\]\s*)*)/u.exec(line);
+    if (item !== null) {
+      const tags = [...item[2]!.matchAll(/\[([^\]]*)\]/gu)].map((match) => match[1]!);
+      const unknown = tags.find((tag) => !TAGS.includes(tag));
+      if (unknown !== undefined) errors.push(`${spec} ${item[1]}: unknown tag [${unknown}]`);
+      else if (tags.length > 1) errors.push(`${spec} ${item[1]}: more than one tag (${tags.map((tag) => `[${tag}]`).join(" ")}); use one of [deploy], [measure], [pending]`);
+      continue;
+    }
+    if (/^\s*[-*+]\s*[A-Z]+\d+:/u.test(line)) errors.push(`${spec}: malformed acceptance bullet: "${line}"`);
+  }
+  return errors;
 }
 
 if (import.meta.main) {

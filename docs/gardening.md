@@ -210,6 +210,17 @@ the two `viewer/` items below.
   checked in review).
 - **Source:** Spec 014 slice 1.
 
+### G20. Lowercase proposal keys are not "other proposals"
+- **Where:** `rejectSentence` in
+  `packages/reference-pipeline/src/digest/validate.ts` (one-proposal rule).
+- **Why:** the profile `keyPattern` is case-sensitive (Spec 012), so a
+  generated KIP-1163 line that says `kip-1165` is kept. Spec 014 Behavior 30
+  does not say whether that counts as naming another proposal.
+- **Fix:** decide in the spec; if it counts, match keys case-insensitively in
+  the validator only (not in key extraction).
+- **Layer:** test (a case row once decided).
+- **Source:** [PR #33 verifier, F3](https://github.com/unknowntpo/oss-knowledge-base/pull/33#issuecomment-6052403167).
+
 ## Process and docs
 
 ### G11. Spec status lines drift from reality

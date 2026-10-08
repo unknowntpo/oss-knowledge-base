@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { acceptanceItems, checkTraceability, runsCaseFile, testPlanCaseFiles, testTitles, untracedItems } from "../check-spec-traceability";
+import { acceptanceErrors, acceptanceItems, checkTraceability, markerErrors, runsCaseFile, testPlanCaseFiles, testTitles, untracedItems } from "../check-spec-traceability";
 
 const spec = `# Spec 999
 Traceability: enforced
@@ -113,14 +113,69 @@ Traceability: enforced
     });
 
     test("only the Status line decides Implemented", async () => {
-      const spec = pendingSpec("Accepted").replace("Traceability: enforced", "Builds on: Spec 001 (Implemented)\nTraceability: enforced");
+      const spec = pendingSpec("Accepted").replace("Traceability: enforced", "Builds on: Spec 001 (Implemented); prose says Status: Implemented mid-line\nTraceability: enforced");
       expect((await checkTraceability({ specs: [{ path: "s.md", markdown: spec }], tests: [runner], rows: (path) => rows[path] ?? [] })).errors).toEqual([]);
+    });
+
+    test("a pending item traced by rows of a run case file is a stale tag", async () => {
+      const staleRows: Record<string, readonly { id: string }[]> = { "a/now.cases.ts": [{ id: "P1" }, { id: "P2" }], "a/later.cases.ts": [] };
+      const result = await checkTraceability({ specs: [{ path: "s.md", markdown: pendingSpec("Accepted") }], tests: [runner], rows: (path) => staleRows[path] ?? [] });
+      expect(result.errors).toEqual(["s.md P2: tagged [pending] but a test name contains \"P2:\""]);
     });
 
     test("rows of a pending case file do not trace their IDs", async () => {
       const spec = pendingSpec("Accepted").replace("- P2: [pending] next slice", "- P2: next slice");
       const errors = (await checkTraceability({ specs: [{ path: "s.md", markdown: spec }], tests: [runner], rows: (path) => rows[path] ?? [] })).errors;
       expect(errors).toEqual(["s.md P2: no test name contains \"P2:\""]);
+    });
+  });
+
+  describe("fail-closed parsing (verifier F2, F4)", () => {
+    test("a malformed test-plan marker is an error, a well-formed one is not", () => {
+      expect(markerErrors("<!-- test-plan:start a/x.cases.ts [Pending] -->")).toEqual(["malformed test-plan marker: <!-- test-plan:start a/x.cases.ts [Pending] -->"]);
+      expect(markerErrors("<!-- test-plan:start a/x.cases.ts  [pending] -->")).toHaveLength(1);
+      expect(markerErrors("<!-- test-plan:start a/x.cases.ts [pending]-->")).toHaveLength(1);
+      expect(markerErrors("<!-- test-plan:start a/x.cases.ts [pending] -->\n<!-- test-plan:start a/y.cases.ts -->")).toEqual([]);
+    });
+
+    test("combined, unknown, or misplaced tags and malformed bullets are errors", () => {
+      const bad = `Traceability: enforced
+
+## Acceptance
+- D1: [deploy] [pending] both
+- D2: [Pending] wrong case
+  - D3: indented
+* D4: star bullet
+- D5: [measure] fine
+- D6:[pending] no space is fine
+`;
+      expect(acceptanceErrors("s.md", bad)).toEqual([
+        "s.md D1: more than one tag ([deploy] [pending]); use one of [deploy], [measure], [pending]",
+        "s.md D2: unknown tag [Pending]",
+        "s.md: malformed acceptance bullet: \"  - D3: indented\"",
+        "s.md: malformed acceptance bullet: \"* D4: star bullet\"",
+      ]);
+      expect(acceptanceItems("s.md", bad).find((item) => item.id === "D6")).toEqual({ spec: "s.md", id: "D6", tag: "pending" });
+      expect(acceptanceErrors("s.md", "Traceability: enforced\n\n## Acceptance criteria\n- D1: x\n")).toEqual(["s.md: enforced spec has no \"## Acceptance\" section"]);
+      expect(acceptanceErrors("s.md", spec)).toEqual([]);
+    });
+
+    test("the gate reports parse errors", async () => {
+      const markdown = `${spec}\n<!-- test-plan:start a/x.cases.ts [Pending] -->\n`;
+      const result = await checkTraceability({ specs: [{ path: "s.md", markdown }], tests: [{ path: "t.ts", source: 'test("F1: x", () => {});' }], rows: () => [] });
+      expect(result.errors).toContain("s.md: malformed test-plan marker: <!-- test-plan:start a/x.cases.ts [Pending] -->");
+      const combined = spec.replace("- F2: [deploy] visible on Dev", "- F2: [deploy] [pending] visible on Dev");
+      const tagged = await checkTraceability({ specs: [{ path: "s.md", markdown: combined }], tests: [{ path: "t.ts", source: 'test("F1: x", () => {});' }], rows: () => [] });
+      expect(tagged.errors).toContain("s.md F2: more than one tag ([deploy] [pending]); use one of [deploy], [measure], [pending]");
+    });
+
+    test("a type-only import or a commented test.each does not run a case file", () => {
+      const path = "apps/web/test/freshness.cases.ts";
+      expect(runsCaseFile(`import type { testPlanRows } from "./freshness.cases";\ntest.each(testPlanRows)("$id", () => {});`, path)).toBe(false);
+      expect(runsCaseFile(`import { type testPlanRows } from "./freshness.cases";\ntest.each(testPlanRows)("$id", () => {});`, path)).toBe(false);
+      expect(runsCaseFile(`import { testPlanRows } from "./freshness.cases";\n// test.each(testPlanRows)("$id", () => {});`, path)).toBe(false);
+      expect(runsCaseFile(`import { testPlanRows } from "./freshness.cases";\n/* test.each(testPlanRows) */ test.each(rows)("$id", () => {});`, path)).toBe(false);
+      expect(runsCaseFile(`import { parseFilters, testPlanRows } from "./freshness.cases";\ntest.each([...testPlanRows] as Row[])("$id", () => {});`, path)).toBe(true);
     });
   });
 });

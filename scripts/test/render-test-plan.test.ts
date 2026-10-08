@@ -33,4 +33,9 @@ describe("test-plan rendering", () => {
     expect(seen).toEqual(["later.cases.ts"]);
     expect(once).toStartWith("<!-- test-plan:start later.cases.ts [pending] -->\n| id |");
   });
+
+  test("a malformed marker fails rendering instead of being skipped", async () => {
+    await expect(renderSpec("<!-- test-plan:start later.cases.ts [Pending] -->\nold\n<!-- test-plan:end -->\n", async () => rows))
+      .rejects.toThrow("malformed test-plan marker");
+  });
 });
