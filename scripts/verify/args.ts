@@ -12,12 +12,13 @@ export const targets: Readonly<Record<Target, { readonly pages: string; readonly
   },
 };
 
-export const views = ["feed", "feed-detail", "search", "search-detail"] as const;
+export const views = ["feed", "feed-detail", "search", "search-detail", "week", "proposals", "topic"] as const;
 export type View = (typeof views)[number];
 
 /** Elements whose state every capture records; extend with --selector. */
 export const defaultSelectors = [
   ".topbar",
+  ".top-tabs",
   ".brand",
   ".demo-pill",
   ".locale-control",
@@ -26,6 +27,11 @@ export const defaultSelectors = [
   ".search-card",
   ".topic-wrap",
   ".load-error",
+  "#digest",
+  ".digest-freshness",
+  ".kip-row",
+  ".topic-card",
+  ".thread-card",
 ] as const;
 
 export interface UiOptions {

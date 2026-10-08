@@ -30,12 +30,25 @@ async function feedGeneratedAt(baseUrl: string): Promise<string | undefined> {
   return body.metadata?.manifest?.generatedAt;
 }
 
+// Spec 014: the Feed lives at /#/<project>/threads; This week, Proposals and topic pages are digest views.
+const PROJECT = "kafka";
+
 async function openView(page: Page, baseUrl: string, options: UiOptions, view: View): Promise<void> {
-  await page.goto(`${baseUrl}/#${options.route}`);
   if (options.route !== "/") {
+    await page.goto(`${baseUrl}/#${options.route}`);
     await page.waitForLoadState("networkidle");
     return;
   }
+  if (view === "week" || view === "proposals" || view === "topic") {
+    await page.goto(`${baseUrl}/#/${PROJECT}/${view === "proposals" ? "proposals" : ""}`);
+    await page.locator("#digest, .proposals-tab, .digest-notice:not(.is-loading)").first().waitFor();
+    if (view === "topic") {
+      await page.locator(".topic-card-title a").first().click();
+      await page.locator("#view-topic-page, .digest-notice:not(.is-loading)").first().waitFor();
+    }
+    return;
+  }
+  await page.goto(`${baseUrl}/#/${PROJECT}/threads`);
   await page.locator(".card").first().waitFor();
   if (view === "feed-detail") {
     await page.locator(".card").first().click();
@@ -50,7 +63,7 @@ async function openView(page: Page, baseUrl: string, options: UiOptions, view: V
     await page.waitForURL(/#\/search\//u);
   }
   // The detail view reuses .load-error for its loading state; wait for content or a real error.
-  if (view !== "feed" && view !== "search") {
+  if (view === "feed-detail" || view === "search-detail") {
     await page.locator(".topic-wrap, .load-error:not(:has-text('Loading detail'))").first().waitFor();
   }
 }

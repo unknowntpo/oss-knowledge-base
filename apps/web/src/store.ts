@@ -7,6 +7,8 @@ export interface FeedStore {
   readonly loading: Ref<boolean>;
   readonly error: Ref<string | undefined>;
   readonly refresh: () => Promise<void>;
+  /** A query typed in the top bar, handed to All threads once (Spec 014 Behavior 27). */
+  readonly searchQuery: Ref<string>;
 }
 
 export const feedStoreKey: InjectionKey<FeedStore> = Symbol("feed-store");

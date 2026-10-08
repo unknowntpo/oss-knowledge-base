@@ -503,6 +503,8 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
    - Its group is the first stage present in the order vote, discuss,
      implementing. Every stage present is shown as a badge.
    - Within a group, rows are ordered by newest in-window activity.
+   - The pages show the groups as columns in process order (discuss, vote,
+     implementing), as in the design canvas. A row's group does not change.
    - A row cites every in-window thread that names the proposal, including
      PRs linked through `KAFKA-N`. These cites do not count toward the
      place-once rule (Behavior 7).
@@ -795,7 +797,8 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
     - **Routes** carry the project's `projectKey` (`kafka`, `datafusion`):
       - `/#/<projectKey>/` This week;
       - `/#/<projectKey>/proposals`;
-      - `/#/<projectKey>/threads` All threads: today's Feed, filtered to the
+      - `/#/<projectKey>/threads` All threads (a typed query still searches
+        every project, Spec 005): today's Feed, filtered to the
         project;
       - `/#/<projectKey>/topic/<topicKey>`.
       - `/#/feed/<displayId>` and `/#/search/<ref>` are unchanged.
@@ -1180,7 +1183,7 @@ synthetic; the others use values captured from Dev.
 **Slice 3: browser.** Case file
 `packages/reference-pipeline/test/topic-digest-ui.cases.ts`.
 
-<!-- test-plan:start packages/reference-pipeline/test/topic-digest-ui.cases.ts [pending] -->
+<!-- test-plan:start packages/reference-pipeline/test/topic-digest-ui.cases.ts -->
 | id | rule | input | expected |
 | --- | --- | --- | --- |
 | D24 | injection | constructed: sentence text contains "<img src=x onerror=alert(1)>" | kept as text; rendered escaped |
@@ -1266,7 +1269,7 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   objectKeys, sourceReleaseId}`, with the `osskb.digest.v1` fields in
   Contract changes. A complete pair for the same release and revisions is
   reused with zero model calls.
-- D12: [pending] with fixture digests, `/#/kafka/` shows the This week page:
+- D12: with fixture digests, `/#/kafka/` shows the This week page:
   - headline, window label, stats, and highlights;
   - proposal rows (`.digest-kips .kip-row[data-stage]` with
     `.stage-badge`s);
@@ -1295,20 +1298,20 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
 - D42: on This week, a stage group shows at most 6 rows and then "+n more",
   linking to the Proposals tab. The Proposals tab shows every row, uncapped.
   A proposal row's line is about that proposal only.
-- D43: [pending] every view, including a topic page, has the top bar: community
+- D43: every view, including a topic page, has the top bar: community
   switcher, tabs, search, and locale.
   - A topic page lists all its threads, with All / PR / dev@ / JIRA filters
     whose counts match the lists.
   - Each thread card links to its canonical source URL and shows its source
     state.
   - No review-state badge is shown.
-- D44: [pending] every headline, highlight, card sentence, proposal line, and
+- D44: every headline, highlight, card sentence, proposal line, and
   topic-page sentence shows at least one citation chip linking to
   `/#/feed/<displayId>`.
-- D45: [pending] chrome, stage labels, the quorum note, and taxonomy labels come from
+- D45: chrome, stage labels, the quorum note, and taxonomy labels come from
   `apps/web/i18n.js` in both locales; switching locale in the top bar loads
   the matching digest object.
-- D62: [pending] routes carry the project:
+- D62: routes carry the project:
   - `/#/` opens the last selected project's This week (from
     `localStorage`, read and written inside try/catch), else `kafka`'s;
   - the switcher lists every project in the published Feed;
@@ -1336,7 +1339,7 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
 - D17: a week with no candidates publishes `empty: true` with zero model
   calls, and This week shows the empty-week text instead of a previous
   digest.
-- D18: [pending] the freshness line uses the case-file strings and turns stale only
+- D18: the freshness line uses the case-file strings and turns stale only
   after 36 h (boundary rows). A cited thread missing from the current Feed
   links to its canonical source URL.
 - D19: a crash between writes is recovered:
@@ -1356,7 +1359,7 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
     running;
   - a digest cron tick does not start a publication, and a publisher cron
     tick does not start a digest.
-- D23: [pending] with `/api/digest` returning 404 or 503, This week shows the
+- D23: with `/api/digest` returning 404 or 503, This week shows the
   no-digest notice and a link to All threads, with no inline feed;
   `/api/feed` and All threads are unaffected.
 - D24: an excerpt containing instructions (e.g. "ignore previous
@@ -1387,15 +1390,15 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   - With the translator failing or limited, the zh-Hant object is still
     published, with English generated text labeled "Not translated" and
     zh-Hant chrome. The next run retries translation only.
-- D53: [pending] an unknown project or topic route shows a not-found state with the
+- D53: an unknown project or topic route shows a not-found state with the
   top bar.
-- D54: [pending] a thread card without a canonical URL links only to Detail.
+- D54: a thread card without a canonical URL links only to Detail.
 - D55: highlights degrade gracefully:
   - 1 or 2 valid highlights show 1 or 2;
   - with none valid, or the call failing, the fallback highlights are
     shown;
   - an invalid headline is omitted.
-- D58: [pending] a missing locale object makes `/api/digest` return `en` with
+- D58: a missing locale object makes `/api/digest` return `en` with
   `localeFallback: true`; an unsupported locale returns 400.
 - D59: when the digest alarm fires while the publisher reports `running`,
   it re-arms 15 min later, at most 4 times. Then it runs and records
@@ -1437,7 +1440,7 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   within ±10% of the median of the 7 runs before deployment.
 
 ### Observability
-- D30: [pending] at a controlled clock (E2E), the freshness line shows the case-file
+- D30: at a controlled clock (E2E), the freshness line shows the case-file
   string for the digest's age, lagging sources, and the model label or "AI
   summary unavailable".
 - D31: `/health.digest` reports:
@@ -1493,6 +1496,12 @@ A slice removes the `[pending]` tags of the IDs it implements, and the
    - `digest -- eval|measure` on the committed fixture with recorded
      responses.
    No Worker or web change.
+2b items are all `[deploy]` or `[measure]` acceptance items, which the gate
+lists but does not test: D27, D28, D29, D32, D34, D35, and D57. The spec can
+be marked Implemented once slices 1–3 are merged; those items are then
+reported from Dev in the 2b PR. D27's `digest -- measure --scale 2` is part
+of 2b. Until then the command rejects the flag.
+
 2. **`DigestRun` in the data Worker:** cache, publication, deferral, dry run,
    and `/health.digest`. There is no `AI` binding and no digest cron yet:
    production runs rules-only and only by `POST /digest/run`. A fake model

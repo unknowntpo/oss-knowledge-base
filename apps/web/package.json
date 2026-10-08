@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@oss-knowledge-base/domain": "workspace:*",
+    "@oss-knowledge-base/reference-pipeline": "workspace:*",
     "@oss-knowledge-base/search": "workspace:*",
     "@oss-knowledge-base/serving-contract": "workspace:*",
     "vue": "3",

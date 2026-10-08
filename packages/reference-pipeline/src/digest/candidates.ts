@@ -59,7 +59,12 @@ export function selectCandidates(
       .filter((record) => !isMachineAuthor(record.author, profile) && inWindow(record.occurredAt, windowEnd))
       .sort((a, b) => Date.parse(a.occurredAt) - Date.parse(b.occurredAt) || (a.id < b.id ? -1 : 1));
     if (records.length === 0) continue;
-    const root = [...detail.records].sort((a, b) => Date.parse(a.occurredAt) - Date.parse(b.occurredAt))[0];
+    // The root artifact (issue, PR, Jira issue, first message) when retained, else the oldest human
+    // record: a bot comment is never the excerpt the reader or the model sees.
+    const byTime = [...detail.records].sort((a, b) => Date.parse(a.occurredAt) - Date.parse(b.occurredAt));
+    const root = byTime.find((record) => !record.id.includes(":comment:") && !isMachineAuthor(record.author, profile))
+      ?? byTime.find((record) => !isMachineAuthor(record.author, profile))
+      ?? byTime[0];
     const source = threadSource(entry);
     threads.push({
       displayId: entry.displayId,

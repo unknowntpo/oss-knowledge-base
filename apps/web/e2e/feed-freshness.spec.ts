@@ -17,7 +17,7 @@ test.beforeEach(async ({ page }, testInfo) => {
 
 test("F3: an open page turns stale when the three-hour mark passes", async ({ page }) => {
   await page.clock.install({ time: generatedAt + 3 * hour - 30_000 });
-  await page.goto("/");
+  await page.goto("/#/kafka/threads");
   const pill = page.locator(".demo-pill");
   await expect(pill).toHaveText(freshText);
   await expect(pill).toHaveClass(/is-live/u);
@@ -30,7 +30,7 @@ test("F3: an open page turns stale when the three-hour mark passes", async ({ pa
 test("F4: an unparsable generatedAt hides the age and keeps the Feed", async ({ page }) => {
   // Control: the same page shows an age for a valid generatedAt, so the check below can fail.
   await page.clock.install({ time: generatedAt + 2 * hour });
-  await page.goto("/");
+  await page.goto("/#/kafka/threads");
   await expect(page.locator(".demo-pill")).toContainText("ago");
 
   await page.route("**/api/feed", async (route) => {
@@ -40,6 +40,6 @@ test("F4: an unparsable generatedAt hides the age and keeps the Feed", async ({ 
     await route.fulfill({ response, json: body });
   });
   await page.reload();
-  await expect(page.locator(".card")).toHaveCount(3);
+  await expect(page.locator(".card")).toHaveCount(2);
   await expect(page.locator(".demo-pill")).toHaveText("Published snapshot");
 });

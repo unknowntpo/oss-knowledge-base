@@ -155,6 +155,8 @@ export function evaluate(fixture: DigestFixture, recorded: RecordedResponses, la
   const total = run.kept.length + run.rejected.length;
   const threads = Object.fromEntries(run.candidates.map((thread) => [thread.displayId, {
     title: thread.title, source: thread.source, status: thread.status, url: thread.url, score: thread.score,
+    excerpt: thread.rootExcerpt.slice(0, 280), lastActivityAt: thread.lastActivityAt,
+    ...(thread.records.at(-1)!.author === "unknown sender" ? {} : { author: thread.records.at(-1)!.author }),
   }]));
   let recall = "pending human labels";
   if (labels.important.length > 0) {

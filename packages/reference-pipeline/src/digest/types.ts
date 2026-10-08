@@ -148,6 +148,20 @@ export interface Highlight {
   readonly titleNotTranslated?: true;
 }
 
+/** A thread as the page shows it (Behavior 27): its card and its citation fallback. */
+export interface DigestThread {
+  readonly title: string;
+  readonly source: DigestSource;
+  readonly status: string | null;
+  readonly url: string | null;
+  readonly score: number;
+  /** Root record excerpt, at most 280 characters. */
+  readonly excerpt?: string;
+  /** Author of the newest in-window human record; anonymous senders are omitted. */
+  readonly author?: string;
+  readonly lastActivityAt?: string;
+}
+
 export interface SourceCoverage {
   readonly newestAt: string | null;
   readonly lagging: boolean;
@@ -186,13 +200,7 @@ export interface DigestV1 {
   readonly proposals: readonly ProposalRow[];
   readonly cards: readonly TopicCard[];
   readonly routine: { readonly threads: readonly string[] };
-  readonly threads: Readonly<Record<string, {
-    readonly title: string;
-    readonly source: DigestSource;
-    readonly status: string | null;
-    readonly url: string | null;
-    readonly score: number;
-  }>>;
+  readonly threads: Readonly<Record<string, DigestThread>>;
   /** Behavior 11: thread features keyed by hash(model input, classifier revision). */
   readonly features: Readonly<Record<string, ThreadFeatures & { readonly displayId: string }>>;
   /** zh-Hant only: translations keyed by hash(English text, translator revision). */
