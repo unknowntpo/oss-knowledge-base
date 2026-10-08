@@ -14,10 +14,10 @@ import fixtureJson from "../../../packages/reference-pipeline/test/fixtures/topi
 import { testPlanRows } from "../../../packages/reference-pipeline/test/topic-digest-run.cases";
 import {
   estimateTokens,
-  callEstimate, CLEF_EXCERPT_CHARS, placement, clefStateTokens, type ClefModel, type ClefRequest, type ClefResponse,
+  callEstimate, CANARY_WORDS, canaryWord, clefRequest, CLEF_EXCERPT_CHARS, placement, clefStateTokens, type ClefModel, type ClefRequest, type ClefResponse,
 } from "@oss-knowledge-base/reference-pipeline";
 import { ModelCallError, ModelCalls, RETRY_DELAY_MS, type DigestModel } from "../src/digest/model";
-import { DIGEST_ROOT, runDigest, type DigestRunInput, type DigestRunResult } from "../src/digest/run";
+import { DIGEST_ROOT, reserveCalls, runDigest, TRANSLATE_BATCH, type DigestRunInput, type DigestRunResult } from "../src/digest/run";
 import { DEFER_MS, DigestRunner, type DigestStorage } from "../src/digest/runner";
 import type { DigestBucket } from "../src/digest/store";
 import { cronTarget, digestModel, mergeHealth } from "../src/index";
@@ -103,14 +103,16 @@ function kindOf(prompt: string): Kind {
 class FakeModel implements DigestModel {
   readonly calls: Kind[] = [];
   readonly prompts: string[] = [];
+  readonly maxTokens: [Kind, number][] = [];
   inFlight = 0;
   maxInFlight = 0;
   constructor(private readonly fail: (kind: Kind, index: number, prompt: string) => Error | string | undefined = () => undefined) {}
 
-  async run(_model: PricedModel, prompt: string, _maxTokens: number): Promise<string> {
+  async run(_model: PricedModel, prompt: string, maxTokens: number): Promise<string> {
     const kind = kindOf(prompt);
     const index = this.calls.filter((item) => item === kind).length;
     this.calls.push(kind);
+    this.maxTokens.push([kind, maxTokens]);
     this.prompts.push(prompt);
     this.inFlight += 1;
     this.maxInFlight = Math.max(this.maxInFlight, this.inFlight);
@@ -160,17 +162,29 @@ class FakeDecider extends FakeModel {
     if (custom instanceof Error) throw custom;
     if (custom !== undefined) return custom;
     const options = [...KAFKA_DIGEST_PROFILE.taxonomy.topics, "routine"];
-    const answers = Object.fromEntries(request.state.map((item) => {
+    const threads = threadItems(request);
+    const canary = { probabilities: Object.fromEntries(CANARY_WORDS.map((word) => [word, word === canaryWord(threads.length) ? 0.97 : 0.01])) };
+    const answers = Object.fromEntries([...threads.map((item) => {
       const rules = rulesClassify({ title: item.title }, KAFKA_DIGEST_PROFILE);
       const probabilities = Object.fromEntries(options.map((option) => [option,
         option === "routine" ? (rules.routine ? 0.9 : 0.05) : option === rules.topic ? 0.9 : 0.01]));
       return [item.ref, { choice: rules.topic, probabilities }];
-    }));
+    }), ["end", canary]]);
     return { answers, usage: { prompt_tokens: Math.round(JSON.stringify(request).length / 3) } };
   }
 }
 
 const noDelay = async () => {};
+
+/** The thread items of a Clef request (the canary excluded). */
+function threadItems(request: ClefRequest): { ref: string; title: string; excerpt: string }[] {
+  return request.state.filter((item): item is { ref: string; title: string; excerpt: string } => "title" in item);
+}
+
+/** A correct canary answer for a batch of `size` threads. */
+function canaryAnswer(size: number, p = 0.97) {
+  return { probabilities: Object.fromEntries(CANARY_WORDS.map((word) => [word, word === canaryWord(size) ? p : (1 - p) / 3])) };
+}
 
 function input(bucket: MemoryBucket, overrides: Partial<DigestRunInput> = {}): DigestRunInput {
   return { bucket, profile: KAFKA_DIGEST_PROFILE, now: () => NOW, delay: noDelay, spentToday: 0, cap: 4_500, dryRun: false, ...overrides };
@@ -334,9 +348,9 @@ const cases: Record<string, () => Promise<string>> = {
     const { zh } = await objects(bucket, result);
     const sentences = [...zh.cards.flatMap((card) => card.sentences), ...zh.proposals.flatMap((row) => (row.line ? [row.line] : []))];
     const items = sentences.length + (zh.headline === null ? 0 : 1) + zh.highlights.length * 2;
-    const batches = Math.ceil(items / 25);
-    const firstBatch = sentences.slice(0, 25);
-    const laterTranslated = items > 25 && sentences.slice(25).every((sentence) => sentence.notTranslated !== true);
+    const batches = Math.ceil(items / TRANSLATE_BATCH);
+    const firstBatch = sentences.slice(0, TRANSLATE_BATCH);
+    const laterTranslated = items <= TRANSLATE_BATCH || sentences.slice(TRANSLATE_BATCH).every((sentence) => sentence.notTranslated !== true);
     return model.calls.filter((kind) => kind === "translate").length === batches + 1 && firstBatch.every((sentence) => sentence.notTranslated === true) && laterTranslated && result.ok
       ? "1 retry of that batch only; every item in it Not translated; zh-Hant published" : `${batches} ${model.calls.filter((kind) => kind === "translate").length}`;
   },
@@ -743,7 +757,8 @@ const cases: Record<string, () => Promise<string>> = {
     const { packClefBatches } = await import("@oss-knowledge-base/reference-pipeline");
     const threads = Array.from({ length: 70 }, (_, index) => ({ displayId: `KAFKA-PR-${index}`, entryId: "e", title: "x", source: "github" as const, status: "open", url: null, rootExcerpt: "", records: [], score: 1, lastActivityAt: NOW.toISOString() }));
     const batches = packClefBatches(threads, KAFKA_DIGEST_PROFILE);
-    return `${batches.length} requests: ${batches.map((batch) => batch.length).join(" + ")} questions`;
+    const each = batches.every((batch) => Object.keys(clefRequest(batch, KAFKA_DIGEST_PROFILE).questions).length === batch.length + 1);
+    return `${batches.length} requests: ${batches.map((batch) => batch.length).join(" + ")} thread questions${each ? ", each plus the canary" : ""}`;
   },
   "clef|constructed: answer t1 routine 0.6, other 0.4": async () => {
     const feature = await oneClef({ routine: 0.6, other: 0.4 });
@@ -759,8 +774,8 @@ const cases: Record<string, () => Promise<string>> = {
     await published(model);
     const states = model.requests.map((request) => clefStateTokens(request));
     const questions = model.requests.map((request) => Object.keys(request.questions).length);
-    const excerpts = model.requests.flatMap((request) => request.state.map((item) => item.excerpt.length));
-    return `${model.requests.length} Clef requests; every state at most ${Math.max(...states) <= 1_200 ? "1,200" : Math.max(...states)} tokens; at most ${Math.max(...questions) <= 64 ? 64 : Math.max(...questions)} questions; excerpts at most ${Math.max(...excerpts) <= CLEF_EXCERPT_CHARS ? CLEF_EXCERPT_CHARS : Math.max(...excerpts)} chars`;
+    const excerpts = model.requests.flatMap((request) => threadItems(request).map((item) => item.excerpt.length));
+    return `${model.requests.length} Clef requests; every state at most ${Math.max(...states) <= 1_800 ? "1,800" : Math.max(...states)} tokens; at most ${Math.max(...questions) <= 64 ? 64 : Math.max(...questions)} questions; excerpts at most ${Math.max(...excerpts) <= CLEF_EXCERPT_CHARS ? CLEF_EXCERPT_CHARS : Math.max(...excerpts)} chars`;
   },
   "clef|constructed: the request body for one batch": async () => {
     const seen: { model: string; inputs: Record<string, unknown>; options?: Record<string, unknown> }[] = [];
@@ -770,11 +785,17 @@ const cases: Record<string, () => Promise<string>> = {
     await publish(bucket);
     await runDigest(input(bucket, { model, cap: 4_500 }));
     const clef = seen.find((call) => call.model === "@cf/cloudflare/clef-flash")!;
-    const state = clef.inputs.state as { ref: string; title: string; excerpt: string }[];
-    const question = Object.values(clef.inputs.questions as Record<string, { type: string; criteria: Record<string, string> }>)[0]!;
+    const state = clef.inputs.state as { ref: string; title?: string; excerpt?: string; word?: string }[];
+    const questions = clef.inputs.questions as Record<string, { type: string; criteria: Record<string, string> }>;
+    const question = questions.t1!;
+    const descriptions = KAFKA_DIGEST_PROFILE.taxonomy.descriptions!;
+    const described = Object.entries(question.criteria).every(([option, text]) => text === descriptions[option]);
+    const last = state.at(-1)!;
     return clef.inputs.model === "clef-flash" && JSON.stringify(Object.keys(state[0]!)) === JSON.stringify(["ref", "title", "excerpt"])
-      && Object.keys(clef.inputs.questions as object).length === state.length && question.type === "choice" && Object.keys(question.criteria).length === 13
-      ? "model clef-flash; state [{ref, title, excerpt}]; one choice question per thread with 13 options (12 topics + routine)" : JSON.stringify(clef.inputs).slice(0, 200);
+      && last.ref === "end" && typeof last.word === "string"
+      && Object.keys(questions).length === state.length && question.type === "choice" && Object.keys(question.criteria).length === 13 && described
+      && questions.end !== undefined && Object.keys(questions.end.criteria).length === 4
+      ? "model clef-flash; state [{ref, title, excerpt}] then the canary; one choice question per thread with 13 options (12 topics + routine) described by the profile, plus question end" : JSON.stringify(clef.inputs).slice(0, 300);
   },
   "clef|constructed: a new comment on a thread whose title and root excerpt are unchanged": async () => {
     const { bucket } = await published(new FakeDecider());
@@ -792,19 +813,19 @@ const cases: Record<string, () => Promise<string>> = {
     const retry = await runDigest(input(bucket, { model }));
     const { en } = await objects(bucket, retry);
     const feature = Object.values(en.features).find((item) => item.displayId === "KAFKA-PR-23426")!;
-    const asked = model.requests.some((request) => request.state.some((item) => item.title === original.title));
+    const asked = model.requests.some((request) => threadItems(request).some((item) => item.title === original.title));
     return feature.source === "cache" && !asked ? "Clef features reused from cache; 0 Clef requests for it" : `${feature.source} ${asked}`;
   },
   "clef|constructed: answer for t2 missing, t3 probability 1.4": async () => {
     const model = new FakeDecider(undefined, (request) => {
       const options = [...KAFKA_DIGEST_PROFILE.taxonomy.topics, "routine"];
       const good = Object.fromEntries(options.map((option) => [option, option === "other" ? 0.9 : 0.01]));
-      return { answers: Object.fromEntries(request.state.flatMap((item) =>
-        item.ref === "t2" ? [] : [[item.ref, { probabilities: item.ref === "t3" ? { ...good, other: 1.4 } : good }]])) };
+      return { answers: { ...Object.fromEntries(threadItems(request).flatMap((item) =>
+        item.ref === "t2" ? [] : [[item.ref, { probabilities: item.ref === "t3" ? { ...good, other: 1.4 } : good }]])), end: canaryAnswer(threadItems(request).length) } };
     });
     const { bucket, result } = await published(model);
     const { en } = await objects(bucket, result);
-    const first = model.requests[0]!.state.map((item) => item.title);
+    const first = threadItems(model.requests[0]!).map((item) => item.title);
     const byTitle = (title: string) => Object.values(en.features).find((item) => en.threads[item.displayId]?.title === title)!;
     const sources = first.map((title) => byTitle(title).source);
     return sources[1] === "rules" && sources[2] === "rules" && sources[0] === "model" && sources.slice(3).every((source) => source === "model") && en.coverage.fallbacks > 0
@@ -813,7 +834,7 @@ const cases: Record<string, () => Promise<string>> = {
   "clef|constructed: the Clef request fails twice": async () => {
     let failures = 0;
     const model = new FakeDecider(undefined, (request) =>
-      (request.state.some((item) => item.title.includes("New committer")) && failures++ < 2 ? new Error("down") : undefined));
+      (threadItems(request).some((item) => item.title.includes("New committer")) && failures++ < 2 ? new Error("down") : undefined));
     const delays: number[] = [];
     const { bucket, result } = await published(model, { delay: async (ms) => { delays.push(ms); } });
     const { en } = await objects(bucket, result);
@@ -857,13 +878,220 @@ const cases: Record<string, () => Promise<string>> = {
     ];
     return none.every((model) => model === undefined) ? "no model: rules only" : "model";
   },
-  "spend|constructed: the 46th model request of one run": async () => {
+  "spend|constructed: the 51st model request of one run": async () => {
     const calls = new ModelCalls({ run: async () => "ok" }, { spent: 0, cap: 1_000_000 }, noDelay);
     for (let n = 0; n < MAX_CALLS_PER_RUN; n += 1) await calls.call("@cf/qwen/qwen3-30b-a3b-fp8", "p", 10);
     const before = calls.limited;
     const last = await calls.call("@cf/qwen/qwen3-30b-a3b-fp8", "p", 10);
-    return MAX_CALLS_PER_RUN === 45 && !before && last === undefined && calls.limited && calls.calls === 45 ? "skipped; limited true" : `${calls.calls}`;
+    return MAX_CALLS_PER_RUN === 50 && !before && last === undefined && calls.limited && calls.calls === 50 ? "skipped; limited true" : `${calls.calls}`;
   },
+  // Slice 2c.
+  "canary|constructed: Clef answers the canary word with probability 0.3": async () => canaryClef(0.3),
+  "canary|constructed: Clef answers the canary word with probability 0.9": async () => canaryClef(0.9),
+  "canary|constructed: canary word 0.45, every decoy 0.01": async () => {
+    const { clefFeatures } = await import("@oss-knowledge-base/reference-pipeline");
+    const thread = { displayId: "KAFKA-PR-1", entryId: "e", title: "t", source: "github" as const, status: "open", url: null, rootExcerpt: "", records: [], score: 1, lastActivityAt: NOW.toISOString() };
+    const options = [...KAFKA_DIGEST_PROFILE.taxonomy.topics, "routine"];
+    const probabilities = Object.fromEntries(options.map((option) => [option, option === "security" ? 0.9 : 0.01]));
+    const end = { probabilities: Object.fromEntries(CANARY_WORDS.map((item) => [item, item === canaryWord(1) ? 0.45 : 0.01])) };
+    const parsed = clefFeatures({ answers: { t1: { probabilities }, end } }, [thread], KAFKA_DIGEST_PROFILE, { model: "m", prompt: "p", generatedAt: "g" });
+    return parsed.unseen && parsed.fallbacks === 1 ? "the whole batch is unseen: rules features, counted as a fallback" : "model features";
+  },
+  "canary|constructed: canary word 0.6, decoy falcon 0.55": async () => {
+    const { clefFeatures } = await import("@oss-knowledge-base/reference-pipeline");
+    const thread = { displayId: "KAFKA-PR-1", entryId: "e", title: "t", source: "github" as const, status: "open", url: null, rootExcerpt: "", records: [], score: 1, lastActivityAt: NOW.toISOString() };
+    const options = [...KAFKA_DIGEST_PROFILE.taxonomy.topics, "routine"];
+    const probabilities = Object.fromEntries(options.map((option) => [option, option === "security" ? 0.9 : 0.01]));
+    const word = canaryWord(1);
+    const decoy = CANARY_WORDS.find((item) => item !== word)!;
+    const end = { probabilities: Object.fromEntries(CANARY_WORDS.map((item) => [item, item === word ? 0.6 : item === decoy ? 0.55 : 0.01])) };
+    const parsed = clefFeatures({ answers: { t1: { probabilities }, end } }, [thread], KAFKA_DIGEST_PROFILE, { model: "m", prompt: "p", generatedAt: "g" });
+    return parsed.unseen && parsed.features.get("KAFKA-PR-1")!.source === "rules" && parsed.fallbacks === 1
+      ? "the whole batch is unseen: rules features, counted as a fallback" : "model features";
+  },
+  "canary|constructed: a whole run where every Clef response omits the canary answer": async () => {
+    const model = new FakeDecider();
+    const original = model.decide.bind(model);
+    model.decide = async (name, request) => {
+      const response = await original(name, request);
+      const { end: _end, ...answers } = response.answers as Record<string, unknown>;
+      return { ...response, answers };
+    };
+    const { bucket, result } = await published(model);
+    const { en } = await objects(bucket, result);
+    const sources = new Set(Object.values(en.features).map((item) => item.source));
+    const { clefCalls, clefCanaryMisses } = result.calibration;
+    return sources.size === 1 && sources.has("rules") && clefCalls > 0 && clefCanaryMisses === clefCalls
+      ? "every thread gets rules features; clefCanaryMisses equals clefCalls" : `${[...sources]} ${clefCanaryMisses}/${clefCalls}`;
+  },
+  "clef|constructed: the Clef request criteria for the Kafka profile": async () => {
+    const { CLEF_REVISION } = await import("@oss-knowledge-base/reference-pipeline");
+    const thread = { displayId: "KAFKA-PR-1", entryId: "e", title: "t", source: "github" as const, status: "open", url: null, rootExcerpt: "", records: [], score: 1, lastActivityAt: NOW.toISOString() };
+    const question = clefRequest([thread], KAFKA_DIGEST_PROFILE).questions.t1 as { criteria: Record<string, string> };
+    const descriptions = KAFKA_DIGEST_PROFILE.taxonomy.descriptions!;
+    const ok = [...KAFKA_DIGEST_PROFILE.taxonomy.topics, "routine"].every((option) => question.criteria[option] === descriptions[option] && descriptions[option] !== option);
+    return ok ? `every topic option's criterion is the profile description; revision ${CLEF_REVISION}` : JSON.stringify(question.criteria);
+  },
+  "call order|captured week, cold run with Clef": async () => {
+    const model = new FakeDecider();
+    const { bucket, result } = await published(model);
+    const { en } = await objects(bucket, result);
+    const labels = model.calls.map((kind, index) => (kind === "summarize" ? (model.maxTokens.find((_, at) => at === index - model.calls.slice(0, index).filter((item) => item === "classify").length)?.[1] === 160 ? "proposal" : "card") : kind));
+    const collapsed = labels.filter((label, index) => index === 0 || labels[index - 1] !== label);
+    const cardFirstIds = model.prompts.filter((prompt) => prompt.startsWith(SUMMARIZE_PROMPT.slice(0, 40)) && prompt.includes("at most 3 sentences"))
+      .map((prompt) => /^\[([A-Z]+-[A-Za-z0-9-]+)\]/mu.exec(prompt.slice(prompt.indexOf("\n<")))![1]!);
+    const byScore = JSON.stringify(cardFirstIds) === JSON.stringify(en.cards.map((card) => card.threads[0]));
+    return collapsed.join(">") === "classify>proposal>card>highlights>translate" && byScore
+      ? "classify, then proposal rows, then cards by score, then highlights, then translation" : `${collapsed.join(">")} ${byScore}`;
+  },
+  "call order|constructed: captured week with a 30-request ceiling": async () => {
+    const { bucket, result } = await published(new FakeDecider(), { limits: { maxCalls: 30 } });
+    const { en, zh } = await objects(bucket, result);
+    const lines = en.proposals.every((row) => row.line !== null);
+    const fallbackAt = en.cards.findIndex((card) => card.status === "fallback");
+    const suffix = fallbackAt > 0 && en.cards.slice(fallbackAt).every((card) => card.status === "fallback");
+    return lines && en.highlightsProvenance !== null && suffix && result.limited && zh.coverage.notTranslated === 0 && result.modelCalls <= 30
+      ? "every proposal line, the highlights call, and translation ran; the lowest-score cards fall back; limited true; no item Not translated"
+      : `${lines} ${en.highlightsProvenance !== null} ${fallbackAt} ${result.limited} ${zh.coverage.notTranslated} ${result.modelCalls}`;
+  },
+  "call order|constructed: a ModelCalls ceiling of 3 requests": async () => {
+    const calls = new ModelCalls({ run: async () => "ok" }, { spent: 0, cap: 1_000_000 }, noDelay, 3);
+    for (let n = 0; n < 3; n += 1) await calls.call("@cf/qwen/qwen3-30b-a3b-fp8", "p", 10);
+    const fourth = await calls.call("@cf/qwen/qwen3-30b-a3b-fp8", "p", 10);
+    return fourth === undefined && calls.limited && calls.calls === 3 ? "the 4th request is skipped; limited true" : `${calls.calls}`;
+  },
+  "call order|constructed: captured week with a Clef cap of 3 requests": async () => {
+    const model = new FakeDecider();
+    const { bucket, result } = await published(model, { limits: { maxClefRequests: 3 } });
+    const { en } = await objects(bucket, result);
+    const asked = new Set(model.requests.flatMap((request) => threadItems(request).map((item) => item.title)));
+    const others = Object.values(en.features).filter((item) => !asked.has(en.threads[item.displayId]!.title));
+    return model.requests.length === 3 && others.length > 0 && others.every((item) => item.source === "rules") && result.limited
+      ? "3 Clef requests; the other threads get rules features; limited true" : `${model.requests.length} ${others.length} ${result.limited}`;
+  },
+  "bounds|constructed: the max_tokens of each call kind in a cold run": async () => {
+    const model = new FakeDecider();
+    await published(model);
+    const of = (kind: Kind) => [...new Set(model.maxTokens.filter(([item]) => item === kind).map(([, tokens]) => tokens))].sort((a, b) => b - a);
+    const [card, proposal] = of("summarize");
+    return `card ${card}, proposal ${proposal}, highlights ${of("highlights").join("/")}, translation ${of("translate").join("/")}`;
+  },
+  "bounds|captured week, cold run with Clef": async () => {
+    const model = new FakeDecider();
+    const { bucket, result } = await published(model);
+    const { zh } = await objects(bucket, result);
+    const translations = model.prompts.filter((prompt) => prompt.startsWith(TRANSLATE_PROMPT.slice(0, 40)));
+    return translations.length === 1 && translations[0]!.trimEnd().endsWith("/no_think") && zh.coverage.notTranslated === 0
+      ? "1 translation call for every item; its prompt ends with /no_think" : `${translations.length}`;
+  },
+  "style|constructed: card sentences \"Omnia Ibrahim proposed Apache Kafka 4.4.0 RC4.\" and \"KIP-1349 moves snapshot frequency to bytes.\"": async () => {
+    let done = false;
+    const model = new FakeDecider((kind, _index, prompt) => {
+      if (kind !== "summarize") return undefined;
+      if (done || !prompt.includes("at most 3 sentences")) return "no";
+      done = true;
+      const id = /^\[([A-Z]+-[A-Za-z0-9-]+)\]/mu.exec(prompt.slice(prompt.indexOf("\n<")))![1]!;
+      return JSON.stringify({ sentences: [{ text: "Omnia Ibrahim proposed Apache Kafka 4.4.0 RC4.", cites: [id] }, { text: "KIP-1349 moves snapshot frequency to bytes.", cites: [id] }] });
+    });
+    const { result, bucket } = await published(model);
+    const { en } = await objects(bucket, result);
+    return `style {sentences ${result.style.sentences}, personLed ${result.style.personLed}}; summarizer prompt ${en.revisions.summarizer.prompt}`;
+  },
+  "coverage|constructed: the translation batch returns non-JSON twice": async () => {
+    const model = new FakeModel((kind, index) => (kind === "translate" && index < 2 ? "Sure, here is the translation" : undefined));
+    const { bucket, result } = await published(model);
+    const { en, zh } = await objects(bucket, result);
+    const marked = [...zh.cards.flatMap((card) => card.sentences), ...zh.proposals.flatMap((row) => (row.line ? [row.line] : [])), ...(zh.headline ? [zh.headline] : []),
+      ...zh.highlights.map((highlight) => highlight.body)].filter((sentence) => sentence.notTranslated === true).length
+      + zh.highlights.filter((highlight) => highlight.titleNotTranslated === true).length;
+    return JSON.stringify(en.coverage) === JSON.stringify(zh.coverage) && zh.coverage.notTranslated === marked && marked > 0
+      ? "en and zh-Hant coverage identical; notTranslated equals the zh-Hant items marked Not translated" : `${JSON.stringify(en.coverage)} ${JSON.stringify(zh.coverage)} ${marked}`;
+  },
+  "coverage|constructed: a complete en with an incomplete zh-Hant, retried": async () => {
+    const failing = new FakeModel((kind) => (kind === "translate" ? "not json" : undefined));
+    const { bucket, result: first } = await published(failing);
+    const second = await runDigest(input(bucket, { model: new FakeModel() }));
+    const { en, zh } = await objects(bucket, second);
+    const pointer = JSON.parse(bucket.objects.get(`${DIGEST_ROOT}apache-kafka/current.json`)!) as { objectKeys: { en: string; "zh-Hant": string } };
+    return second.reused === "en" && second.objectKeys!.en !== first.objectKeys!.en && JSON.stringify(en.coverage) === JSON.stringify(zh.coverage)
+      && pointer.objectKeys.en === second.objectKeys!.en && pointer.objectKeys["zh-Hant"] === second.objectKeys!["zh-Hant"] && zh.coverage.notTranslated === 0
+      ? "a new pair with identical coverage; the pointer names both new objects" : `${second.reused} ${second.objectKeys!.en === first.objectKeys!.en}`;
+  },
+  "rejections|constructed: a proposal call returns JSON cut off mid-string": async () => {
+    let cut = false;
+    const model = new FakeDecider((kind, _index, prompt) => {
+      if (kind !== "summarize" || cut || !prompt.includes("at most 1 sentences")) return undefined;
+      cut = true;
+      return '{"sentences":[{"text":"KIP-1349 moves snapshot frequency';
+    });
+    const { bucket, result } = await published(model);
+    const { en } = await objects(bucket, result);
+    return result.rejections.unparsable === 1 && en.proposals[0]!.line === null ? "rejections.unparsable 1; that line null" : JSON.stringify(result.rejections);
+  },
+  "rejections|constructed: a card sentence says merged while its cited PR is open": async () => {
+    let used = false;
+    const model = new FakeDecider((kind, _index, prompt) => {
+      if (kind !== "summarize" || used || !prompt.includes("at most 3 sentences")) return undefined;
+      const match = /^\[([A-Z]+-PR-[A-Za-z0-9-]+)\] .* \(github, open\)$/mu.exec(prompt.slice(prompt.indexOf("\n<")));
+      if (match === null) return undefined;
+      used = true;
+      return JSON.stringify({ sentences: [{ text: "The change merged this week.", cites: [match[1]!] }] });
+    });
+    const { result } = await published(model);
+    return `rejections["status:merged"] ${result.rejections["status:merged"]}`;
+  },
+  "rejections|constructed: the highlights call returns a headline citing a thread outside its inputs and a highlight body with \"objected\"": async () => {
+    const model = new FakeDecider((kind, _index, prompt) => {
+      if (kind !== "highlights") return undefined;
+      const body = prompt.slice(prompt.indexOf("\n<"));
+      const cite = (JSON.parse(body.slice(body.indexOf("["), body.lastIndexOf("]") + 1)) as { cites: string[] }[])[0]!.cites[0]!;
+      return JSON.stringify({ headline: { text: "A week of work.", cites: ["KAFKA-PR-999999"] },
+        highlights: [{ title: "Pushback", body: { text: "Reviewers objected to the change.", cites: [cite] } }] });
+    });
+    const { bucket, result } = await published(model);
+    const { en } = await objects(bucket, result);
+    return `rejections["cite-outside-inputs"] ${result.rejections["cite-outside-inputs"]}, rejections["stance:objected"] ${result.rejections["stance:objected"]}; headline ${en.headline === null ? "null" : "kept"}`;
+  },
+  "rejections|constructed: the highlights call returns no headline and 4 items: an 81-character title, a title without a body, \"junk\", and one valid item": async () => {
+    const model = new FakeDecider((kind, _index, prompt) => {
+      if (kind !== "highlights") return undefined;
+      const body = prompt.slice(prompt.indexOf("\n<"));
+      const cite = (JSON.parse(body.slice(body.indexOf("["), body.lastIndexOf("]") + 1)) as { cites: string[] }[])[0]!.cites[0]!;
+      const valid = { text: "Snapshot frequency moves to bytes.", cites: [cite] };
+      return JSON.stringify({ highlights: [{ title: "t".repeat(81), body: valid }, { title: "No body" }, "junk", { title: "Kept", body: valid }] });
+    });
+    const { bucket, result } = await published(model);
+    const { en } = await objects(bucket, result);
+    const kept = en.highlightsProvenance === null ? 0 : en.highlights.length;
+    return `rejections.title ${result.rejections.title}, rejections.empty ${result.rejections.empty}; ${kept} highlight kept; headline ${en.headline === null ? "null" : "kept"}`;
+  },
+  "rejections|constructed: the highlights call returns {}": async () => {
+    const model = new FakeDecider((kind) => (kind === "highlights" ? "{}" : undefined));
+    const { bucket, result } = await published(model);
+    const { en } = await objects(bucket, result);
+    return `rejections.empty ${result.rejections.empty}; headline ${en.headline === null ? "null" : "kept"}`;
+  },
+  "uncategorized|captured week, cold run with Clef": async () => {
+    const { bucket, result } = await published(new FakeDecider());
+    const { en } = await objects(bucket, result);
+    const placed = Object.values(en.features).filter((item) => { const place = placement(item); return !place.routine && place.topic === "other"; }).map((item) => item.displayId);
+    const listed = en.uncategorized?.threads ?? [];
+    const scores = listed.map((id) => en.threads[id]!.score);
+    const sorted = scores.every((score, index) => index === 0 || scores[index - 1]! >= score);
+    return listed.length > 0 && new Set(listed).size === new Set(placed).size && placed.every((id) => listed.includes(id)) && sorted
+      ? "en.uncategorized lists every non-routine thread placed in other, by score; not empty" : `${listed.length} ${placed.length}`;
+  },
+  "call order|constructed: captured week at every ceiling from 20 to 35 requests": async () => {
+    const short: string[] = [];
+    for (let ceiling = 20; ceiling <= 35; ceiling += 1) {
+      const model = new FakeDecider();
+      await published(model, { limits: { maxCalls: ceiling } });
+      const before = model.calls.indexOf("highlights");
+      if (before < 0 || ceiling - before < 3) short.push(`${ceiling}:${before < 0 ? "none" : ceiling - before}`);
+    }
+    return short.length === 0 ? "at least 3 requests remain at the highlights call (highlights, 1 translation, 1 retry)" : short.join(" ");
+  },
+  "call order|constructed: the reserve for 50 and for 51 items so far": async () => `${reserveCalls(50)} and ${reserveCalls(51)}`,
   "run control|DIGEST_ENABLED unset (Prod)": async () => {
     const bucket = new MemoryBucket();
     await publish(bucket);
@@ -893,13 +1121,26 @@ const cases: Record<string, () => Promise<string>> = {
   },
 };
 
+/** One-thread Clef answer whose canary word has probability `p`. */
+async function canaryClef(p: number): Promise<string> {
+  const { clefFeatures } = await import("@oss-knowledge-base/reference-pipeline");
+  const thread = { displayId: "KAFKA-PR-1", entryId: "e", title: "t", source: "github" as const, status: "open", url: null, rootExcerpt: "", records: [], score: 1, lastActivityAt: NOW.toISOString() };
+  const options = [...KAFKA_DIGEST_PROFILE.taxonomy.topics, "routine"];
+  const probabilities = Object.fromEntries(options.map((option) => [option, option === "security" ? 0.9 : 0.01]));
+  const parsed = clefFeatures({ answers: { t1: { probabilities }, end: canaryAnswer(1, p) } }, [thread], KAFKA_DIGEST_PROFILE, { model: "m", prompt: "p", generatedAt: "g" });
+  const feature = parsed.features.get("KAFKA-PR-1")!;
+  return feature.source === "rules" && parsed.fallbacks === 1 && parsed.unseen
+    ? "the whole batch is unseen: rules features, counted as a fallback"
+    : feature.source === "model" && !parsed.unseen ? "model features" : feature.source;
+}
+
 /** One-thread Clef answer with reported prompt tokens against a forced estimate. */
 async function clefWithUsage(reported: number, estimated: number): Promise<string> {
   const { clefFeatures } = await import("@oss-knowledge-base/reference-pipeline");
   const thread = { displayId: "KAFKA-PR-1", entryId: "e", title: "t", source: "github" as const, status: "open", url: null, rootExcerpt: "", records: [], score: 1, lastActivityAt: NOW.toISOString() };
   const options = [...KAFKA_DIGEST_PROFILE.taxonomy.topics, "routine"];
   const probabilities = Object.fromEntries(options.map((option) => [option, option === "security" ? 0.9 : 0.01]));
-  const parsed = clefFeatures({ answers: { t1: { probabilities } }, usage: { prompt_tokens: reported } }, [thread], KAFKA_DIGEST_PROFILE,
+  const parsed = clefFeatures({ answers: { t1: { probabilities }, end: canaryAnswer(1) }, usage: { prompt_tokens: reported } }, [thread], KAFKA_DIGEST_PROFILE,
     { model: "m", prompt: "p", generatedAt: "g" }, estimated);
   const feature = parsed.features.get("KAFKA-PR-1")!;
   return feature.source === "rules" && parsed.fallbacks === 1
@@ -912,7 +1153,7 @@ async function oneClef(probabilities: Record<string, number>) {
   const full = Object.fromEntries(options.map((option) => [option, probabilities[option] ?? 0]));
   const { clefFeatures } = await import("@oss-knowledge-base/reference-pipeline");
   const thread = { displayId: "KAFKA-PR-1", entryId: "e", title: "t", source: "github" as const, status: "open", url: null, rootExcerpt: "", records: [], score: 1, lastActivityAt: NOW.toISOString() };
-  return clefFeatures({ answers: { t1: { probabilities: full } } }, [thread], KAFKA_DIGEST_PROFILE, { model: "m", prompt: "p", generatedAt: "g" }).features.get("KAFKA-PR-1")!;
+  return clefFeatures({ answers: { t1: { probabilities: full }, end: canaryAnswer(1) } }, [thread], KAFKA_DIGEST_PROFILE, { model: "m", prompt: "p", generatedAt: "g" }).features.get("KAFKA-PR-1")!;
 }
 
 

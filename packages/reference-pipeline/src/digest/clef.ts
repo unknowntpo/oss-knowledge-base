@@ -7,12 +7,15 @@
  *                                         | { type: "noul", instructions } } }   (1–64 questions)
  *   response { model, answers: { <id>: { choice, probabilities } | { probability } }, usage }
  * Assumption (unconfirmed until the D35 Dev dry run): Workers AI truncates long `state` text near
- * 2K tokens, so `state` carries only threads' titles
- * and short excerpts and is packed to stay well under it (CLEF_STATE_TOKENS); the questions are
- * billed but not part of `state`. Fail safe: when Clef reports fewer prompt tokens than 80% of what
- * the job estimated it sent, part of the request went unseen, so the whole batch gets rules
- * features (D35 checks the real limit and field names on Dev). One choice question per thread:
- * the taxonomy topics plus `routine`. A thread is routine when that option's probability is at
+ * 2K tokens, so `state` carries only threads' titles and short excerpts and is packed to stay under
+ * it (CLEF_STATE_TOKENS); the questions are billed but not part of `state`.
+ * Truncation check (slice 2c): Clef-flash returned no `usage` on Dev, so every request ends `state`
+ * with a canary `{ref: "end", word}` and asks question `end` for that word among 4. A cut `state`
+ * loses the canary. A canary probability below 0.5, or under 0.25 above the best decoy, or (when
+ * `usage` exists) reported prompt tokens under 80% of the estimate make the whole batch unseen:
+ * rules features. The canary only detects a cut at the end of `state` (D35 probes it).
+ * One choice question per thread: the taxonomy topics plus `routine`, described by the profile's
+ * `taxonomy.descriptions`. A thread is routine when that option's probability is at
  * least 0.5, and goes to the routine section at 0.6 or more (`placement`, Behavior 6); its topic is
  * the most probable topic option.
  */
@@ -22,12 +25,23 @@ import type { DigestProfile, Thread, ThreadFeatures } from "./types";
 
 export const CLEF_MODELS = { flash: "@cf/cloudflare/clef-flash", full: "@cf/cloudflare/clef" } as const;
 export type ClefModel = (typeof CLEF_MODELS)[keyof typeof CLEF_MODELS];
-export const CLEF_REVISION = "digest-clef@1";
+export const CLEF_REVISION = "digest-clef@2";
 /** Head room under the assumed ~2K-token truncation of `state` (D35 confirms). */
-export const CLEF_STATE_TOKENS = 1_200;
+export const CLEF_STATE_TOKENS = 1_800;
 /** Reported prompt tokens below this share of the estimate mean truncation (fail safe). */
 export const CLEF_SEEN_RATIO = 0.8;
 export const CLEF_MAX_QUESTIONS = 64;
+/** Thread questions per request: the 64-question limit minus the canary question. */
+export const CLEF_MAX_THREADS = CLEF_MAX_QUESTIONS - 1;
+/** At most this many Clef requests per run; later threads get rules features (Behavior 6). */
+export const CLEF_MAX_REQUESTS = 20;
+export const CANARY_REF = "end";
+/** Canary words; a request's canary is chosen by its thread count, the others are decoys. */
+export const CANARY_WORDS = ["amber", "falcon", "glacier", "lantern"] as const;
+/** A canary probability below this means the model did not see the end of `state`. */
+export const CANARY_SEEN = 0.5;
+/** The canary must also beat the most probable decoy by this much (a word-biased blind model fails). */
+export const CANARY_MARGIN = 0.25;
 export const CLEF_EXCERPT_CHARS = 120;
 export const ROUTINE_OPTION = "routine";
 
@@ -35,8 +49,12 @@ export type ClefQuestion =
   | { readonly type: "choice"; readonly instructions: string; readonly criteria: Readonly<Record<string, string>> }
   | { readonly type: "noul"; readonly instructions: string };
 
+export type ClefStateItem =
+  | { readonly ref: string; readonly title: string; readonly excerpt: string }
+  | { readonly ref: typeof CANARY_REF; readonly word: string };
+
 export interface ClefRequest {
-  readonly state: readonly { readonly ref: string; readonly title: string; readonly excerpt: string }[];
+  readonly state: readonly ClefStateItem[];
   readonly questions: Readonly<Record<string, ClefQuestion>>;
 }
 
@@ -45,29 +63,13 @@ export interface ClefResponse {
   readonly usage?: Readonly<Record<string, unknown>>;
 }
 
-/** Short option descriptions (every option repeats per thread, so they stay to a few words). */
-const OPTION_HINTS: Readonly<Record<string, string>> = {
-  releases: "releases",
-  "group-coordination": "group coordinator, assignors",
-  clients: "producer, consumer clients",
-  "share-groups": "share groups",
-  streams: "Kafka Streams",
-  connect: "Connect, MirrorMaker",
-  storage: "log, tiered, diskless storage",
-  kraft: "KRaft, metadata",
-  security: "security, ACLs, CVEs",
-  observability: "metrics",
-  community: "committers, PMC, admin",
-  other: "other",
-  [ROUTINE_OPTION]: "deps, build, tests, docs, backports",
-};
-
 function questionsFor(ref: string, profile: DigestProfile): Record<string, ClefQuestion> {
+  const descriptions = profile.taxonomy.descriptions ?? {};
   return {
     [ref]: {
       type: "choice",
       instructions: `Topic of ${ref}`,
-      criteria: Object.fromEntries([...profile.taxonomy.topics, ROUTINE_OPTION].map((option) => [option, OPTION_HINTS[option] ?? option])),
+      criteria: Object.fromEntries([...profile.taxonomy.topics, ROUTINE_OPTION].map((option) => [option, descriptions[option] ?? option])),
     },
   };
 }
@@ -76,11 +78,24 @@ function stateOf(thread: Thread, ref: string) {
   return { ref, title: thread.title, excerpt: thread.rootExcerpt.slice(0, CLEF_EXCERPT_CHARS) };
 }
 
+/** The canary word for a batch of `size` threads. */
+export function canaryWord(size: number): string {
+  return CANARY_WORDS[size % CANARY_WORDS.length]!;
+}
+
 export function clefRequest(batch: readonly Thread[], profile: DigestProfile): ClefRequest {
   const refs = batch.map((_, index) => `t${index + 1}`);
+  const word = canaryWord(batch.length);
   return {
-    state: batch.map((thread, index) => stateOf(thread, refs[index]!)),
-    questions: Object.assign({}, ...batch.map((_, index) => questionsFor(refs[index]!, profile))),
+    state: [...batch.map((thread, index) => stateOf(thread, refs[index]!)), { ref: CANARY_REF, word }],
+    questions: {
+      ...Object.assign({}, ...batch.map((_, index) => questionsFor(refs[index]!, profile))),
+      [CANARY_REF]: {
+        type: "choice",
+        instructions: `The word of item ${CANARY_REF}`,
+        criteria: Object.fromEntries(CANARY_WORDS.map((option) => [option, option])),
+      },
+    },
   };
 }
 
@@ -100,7 +115,7 @@ export function packClefBatches(threads: readonly Thread[], profile: DigestProfi
   let current: Thread[] = [];
   for (const thread of threads) {
     const next = [...current, thread];
-    const fits = next.length <= CLEF_MAX_QUESTIONS && clefStateTokens(clefRequest(next, profile)) <= maxTokens;
+    const fits = next.length <= CLEF_MAX_THREADS && clefStateTokens(clefRequest(next, profile)) <= maxTokens;
     if (fits || current.length === 0) {
       current = next;
     } else {
@@ -128,13 +143,19 @@ export function clefFeatures(
   profile: DigestProfile,
   model: { model: string; prompt: string; generatedAt: string },
   estimatedTokens?: number,
-): { features: Map<string, ThreadFeatures>; fallbacks: number } {
+): { features: Map<string, ThreadFeatures>; fallbacks: number; unseen: boolean } {
   const features = new Map<string, ThreadFeatures>();
   let fallbacks = 0;
   const reported = response?.usage?.prompt_tokens;
-  if (typeof reported === "number" && estimatedTokens !== undefined && reported < CLEF_SEEN_RATIO * estimatedTokens) {
+  const canary = response?.answers?.[CANARY_REF] as { probabilities?: Record<string, unknown> } | undefined;
+  const word = canaryWord(batch.length);
+  const canaryP = probability(canary?.probabilities?.[word]) ?? 0;
+  const decoyP = Math.max(0, ...CANARY_WORDS.filter((option) => option !== word).map((option) => probability(canary?.probabilities?.[option]) ?? 0));
+  const canarySeen = canaryP >= CANARY_SEEN && canaryP - decoyP >= CANARY_MARGIN;
+  const truncated = typeof reported === "number" && estimatedTokens !== undefined && reported < CLEF_SEEN_RATIO * estimatedTokens;
+  if (response !== undefined && (!canarySeen || truncated)) {
     for (const thread of batch) features.set(thread.displayId, rulesClassify(thread, profile));
-    return { features, fallbacks: batch.length };
+    return { features, fallbacks: batch.length, unseen: true };
   }
   batch.forEach((thread, index) => {
     const answer = response?.answers?.[`t${index + 1}`] as { probabilities?: Record<string, unknown> } | undefined;
@@ -159,5 +180,5 @@ export function clefFeatures(
       ...model,
     });
   });
-  return { features, fallbacks };
+  return { features, fallbacks, unseen: false };
 }

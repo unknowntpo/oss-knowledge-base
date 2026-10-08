@@ -6,8 +6,9 @@
  */
 import {
   cardInput, CLASSIFY_PROMPT, chooseHighlights, HIGHLIGHTS_PROMPT, MAX_TOKENS, mix,
-  MODELS, parseClassification, PROMPT_REVISION, proposalRows, protect, rejectSentence, restore,
-  CLEF_EXCERPT_CHARS, CLEF_MODELS, CLEF_REVISION, clefFeatures, clefRequest, clefRequestTokens, packClefBatches,
+  MODELS, NO_THINK, parseClassification, PROMPT_REVISION, proposalRows, protect, rejectSentence, restore,
+  CLEF_EXCERPT_CHARS, CLEF_MAX_REQUESTS, CLEF_MODELS, CLEF_REVISION, clefFeatures, clefRequest, clefRequestTokens, packClefBatches,
+  styleOf,
   RULES_REVISION, rulesClassify, SCORING_REVISION, selectCandidates, sourceCoverage, SUMMARIZE_PROMPT,
   threadText, TRANSLATE_PROMPT, validateSentences, digestWindowStart,
   type CitedThread, type DigestProfile, type DigestV1, type Highlight, type ProposalRow, type Provenance,
@@ -20,7 +21,18 @@ import { DigestSourceError, readPinnedRelease, type DigestBucket } from "./store
 export const DIGEST_ROOT = "public/digest/v1/";
 export const CLASSIFY_BATCH = 20;
 export const CLASSIFY_IN_FLIGHT = 4;
-export const TRANSLATE_BATCH = 25;
+/** Slice 2c: one call holds a week's items (Behavior 16). */
+export const TRANSLATE_BATCH = 60;
+/** Headline plus 3 highlight titles and bodies: translation items the highlights call can add. */
+const HIGHLIGHT_ITEMS = 7;
+
+/**
+ * Behavior 15 (slice 2c): calls kept back before each card: 1 highlights call, the translation
+ * batches for the items so far plus 3 more card sentences and the highlights items, and 1 retry.
+ */
+export function reserveCalls(itemsSoFar: number): number {
+  return 1 + Math.ceil((itemsSoFar + 3 + HIGHLIGHT_ITEMS) / TRANSLATE_BATCH) + 1;
+}
 export const HIGHLIGHT_TITLE_CHARS = 80;
 
 export type DigestFailureKind = "source-read" | "pointer-missing" | "write" | "internal";
@@ -36,6 +48,14 @@ export interface DigestRunInput {
   readonly cap: number;
   readonly dryRun: boolean;
   readonly deferred?: number;
+  /** Test and measure hooks: the per-run request ceiling and the Clef request cap. */
+  readonly limits?: { readonly maxCalls?: number; readonly maxClefRequests?: number };
+}
+
+/** Slice 2c (D78, D80): the person-led measure and why generated text was dropped. */
+export interface GenerationReport {
+  readonly style: { readonly sentences: number; readonly personLed: number };
+  readonly rejections: Readonly<Record<string, number>>;
 }
 
 export interface DigestRunResult {
@@ -60,6 +80,8 @@ export interface DigestRunResult {
   /** D35: shapes of failed model calls (at most 10) and the token-estimate calibration. */
   readonly modelErrors: readonly ModelErrorShape[];
   readonly calibration: Calibration;
+  readonly style: GenerationReport["style"];
+  readonly rejections: GenerationReport["rejections"];
   /** Dry runs return both objects instead of writing them (D60). */
   readonly objects?: { readonly en: DigestV1; readonly "zh-Hant": DigestV1 };
 }
@@ -143,7 +165,9 @@ async function existingPairs(bucket: DigestBucket, prefix: string) {
 
 export async function runDigest(input: DigestRunInput): Promise<DigestRunResult> {
   const started = input.now();
-  const calls = new ModelCalls(input.model, { spent: input.spentToday, cap: input.cap }, input.delay);
+  const calls = new ModelCalls(input.model, { spent: input.spentToday, cap: input.cap }, input.delay, input.limits?.maxCalls);
+  const rejections: Record<string, number> = {};
+  let styled: GenerationReport["style"] = { sentences: 0, personLed: 0 };
   const base = {
     dryRun: input.dryRun,
     deferred: input.deferred ?? 0,
@@ -157,7 +181,9 @@ export async function runDigest(input: DigestRunInput): Promise<DigestRunResult>
       completedAt: completed.toISOString(),
       durationMs: completed.getTime() - started.getTime(),
       modelCalls: calls.calls,
-      limited: calls.limited,
+      limited: calls.limited || calls.partial,
+      style: styled,
+      rejections: { ...rejections },
       modelErrors: [...calls.errors],
       calibration: calls.calibration(),
       estimatedNeurons: calls.spentToday - input.spentToday,
@@ -181,29 +207,39 @@ export async function runDigest(input: DigestRunInput): Promise<DigestRunResult>
     const pairs = await existingPairs(input.bucket, prefix);
     const pointer = await input.bucket.getJson(pointerKey) as { objectKeys?: { en?: string; "zh-Hant"?: string } } | undefined;
 
-    // Reuse a complete English object for this release and revisions (Behavior 12).
-    for (const [contentHash, pair] of pairs) {
+    // Reuse a complete pair for this release and revisions (Behavior 12).
+    const completeEn: { key: string; en: DigestV1; zh: string[] }[] = [];
+    for (const pair of pairs.values()) {
       if (pair.en === undefined) continue;
       const en = await input.bucket.getJson(pair.en) as DigestV1;
       if (!isComplete(en)) continue;
       for (const zhKey of pair.zh) {
         const zh = await input.bucket.getJson(zhKey) as DigestV1;
         if (isComplete(zh)) {
+          styled = styleOfDigest(en);
           if (!input.dryRun) await input.bucket.putPointer(pointerKey, pointerBody(pair.en, zhKey, pinned.release.releaseId));
           return finish({ ok: true, reused: "pair", sourceReleaseId: pinned.release.releaseId, objectKeys: { en: pair.en, "zh-Hant": zhKey }, candidates: en.coverage.candidates });
         }
       }
+      completeEn.push({ key: pair.en, en, zh: pair.zh });
+    }
+    for (const pair of completeEn) {
+      const en = pair.en;
       // Complete English, missing or incomplete zh-Hant: translation only (B2, D61).
+      // A new pair: the reused English with this run's coverage, then zh-Hant (Behavior 18, D79).
       const caches = await loadCaches(input.bucket, [...pair.zh, ...(pointer?.objectKeys?.["zh-Hant"] === undefined ? [] : [pointer.objectKeys["zh-Hant"]])]);
-      const zh = await translate(en, caches, calls, selectCandidates(pinned.entries, pinned.details, input.profile, pinned.release.generatedAt), revisions);
-      const zhKey = `${prefix}${contentHash}/zh-Hant.${(await hash(JSON.stringify(zh))).slice(0, 16)}.json`;
+      const translated = await translate(en, caches, calls, selectCandidates(pinned.entries, pinned.details, input.profile, pinned.release.generatedAt), revisions);
+      const pairOut = withRunCoverage(en, translated, calls, input.spentToday);
+      styled = styleOfDigest(pairOut.en);
+      const keys = await pairKeys(prefix, pairOut.en, pairOut.zh);
       if (!input.dryRun) {
-        await input.bucket.putIfAbsent(zhKey, JSON.stringify(zh));
-        await input.bucket.putPointer(pointerKey, pointerBody(pair.en, zhKey, pinned.release.releaseId));
+        await input.bucket.putIfAbsent(keys.en, JSON.stringify(pairOut.en));
+        await input.bucket.putIfAbsent(keys.zh, JSON.stringify(pairOut.zh));
+        await input.bucket.putPointer(pointerKey, pointerBody(keys.en, keys.zh, pinned.release.releaseId));
       }
       return finish({
-        ok: true, reused: "en", sourceReleaseId: pinned.release.releaseId, objectKeys: { en: pair.en, "zh-Hant": zhKey },
-        candidates: en.coverage.candidates, ...(input.dryRun ? { objects: { en, "zh-Hant": zh } } : {}),
+        ok: true, reused: "en", sourceReleaseId: pinned.release.releaseId, objectKeys: { en: keys.en, "zh-Hant": keys.zh },
+        candidates: en.coverage.candidates, ...(input.dryRun ? { objects: { en: pairOut.en, "zh-Hant": pairOut.zh } } : {}),
       });
     }
 
@@ -212,11 +248,11 @@ export async function runDigest(input: DigestRunInput): Promise<DigestRunResult>
       ...Object.values(pointer?.objectKeys ?? {}).filter((key): key is string => typeof key === "string"),
     ];
     const caches = await loadCaches(input.bucket, cacheKeys);
-    const en = await compose(pinned, caches, calls, revisions, input);
-    const contentHash = await hash(JSON.stringify(en));
-    const zh = await translate(en, caches, calls, selectCandidates(pinned.entries, pinned.details, input.profile, pinned.release.generatedAt), revisions);
-    const enKey = `${prefix}${contentHash}/en.json`;
-    const zhKey = `${prefix}${contentHash}/zh-Hant.${(await hash(JSON.stringify(zh))).slice(0, 16)}.json`;
+    const composed = await compose(pinned, caches, calls, revisions, input, rejections);
+    const translated = await translate(composed, caches, calls, selectCandidates(pinned.entries, pinned.details, input.profile, pinned.release.generatedAt), revisions);
+    const { en, zh } = withRunCoverage(composed, translated, calls, input.spentToday);
+    styled = styleOfDigest(en);
+    const { en: enKey, zh: zhKey } = await pairKeys(prefix, en, zh);
     if (!input.dryRun) {
       // Order matters: en, then zh-Hant, then the pointer; a crash between them serves the previous digest.
       await input.bucket.putIfAbsent(enKey, JSON.stringify(en));
@@ -233,6 +269,28 @@ export async function runDigest(input: DigestRunInput): Promise<DigestRunResult>
   }
 }
 
+/** Behavior 18 (slice 2c): both objects of a pair carry the run's coverage, computed after translation. */
+function withRunCoverage(en: DigestV1, zh: DigestV1, calls: ModelCalls, spentBefore: number): { en: DigestV1; zh: DigestV1 } {
+  const coverage = {
+    ...en.coverage,
+    notTranslated: zh.coverage.notTranslated,
+    modelCalls: calls.calls,
+    limited: calls.limited || calls.partial,
+    estimatedNeurons: calls.spentToday - spentBefore,
+  };
+  return { en: { ...en, coverage }, zh: { ...zh, coverage } };
+}
+
+async function pairKeys(prefix: string, en: DigestV1, zh: DigestV1): Promise<{ en: string; zh: string }> {
+  const contentHash = await hash(JSON.stringify(en));
+  return { en: `${prefix}${contentHash}/en.json`, zh: `${prefix}${contentHash}/zh-Hant.${(await hash(JSON.stringify(zh))).slice(0, 16)}.json` };
+}
+
+function styleOfDigest(en: DigestV1): GenerationReport["style"] {
+  return styleOf([...en.cards.flatMap((card) => card.sentences.map((sentence) => sentence.text)),
+    ...en.proposals.flatMap((row) => (row.line === null ? [] : [row.line.text]))]);
+}
+
 function pointerBody(en: string, zh: string, sourceReleaseId: string): string {
   return JSON.stringify({ schema: "osskb.digest-pointer.v1", objectKeys: { en, "zh-Hant": zh }, sourceReleaseId });
 }
@@ -243,7 +301,9 @@ async function compose(
   calls: ModelCalls,
   revisions: Revisions,
   input: DigestRunInput,
+  rejections: Record<string, number>,
 ): Promise<DigestV1> {
+  const reject = (reason: string) => { rejections[reason] = (rejections[reason] ?? 0) + 1; };
   const { profile } = input;
   const windowEnd = pinned.release.generatedAt;
   const generatedAt = input.now().toISOString();
@@ -289,12 +349,19 @@ async function compose(
   if (calls.decides) {
     // Slice 2b: Clef-flash, requests packed under its state budget, 4 in flight.
     const byId = new Map(pending.map((item) => [item.thread.displayId, item]));
-    const batches = packClefBatches(pending.map((item) => item.thread), profile);
+    const packed = packClefBatches(pending.map((item) => item.thread), profile);
+    const batches = packed.slice(0, input.limits?.maxClefRequests ?? CLEF_MAX_REQUESTS);
+    // Threads past the request cap get rules features; the run is limited (Behavior 6).
+    for (const thread of packed.slice(batches.length).flat()) {
+      record(byId.get(thread.displayId)!, rulesClassify(thread, profile));
+      calls.partial = true;
+    }
     for (let index = 0; index < batches.length; index += CLASSIFY_IN_FLIGHT) {
       await Promise.all(batches.slice(index, index + CLASSIFY_IN_FLIGHT).map(async (batch) => {
         const request = clefRequest(batch, profile);
         const response = await calls.decide(CLEF_MODELS.flash, request);
         const parsed = clefFeatures(response, batch, profile, model, clefRequestTokens(request));
+        if (parsed.unseen) calls.canaryMisses += 1;
         if (response === undefined || parsed.fallbacks > 0) fallbacks += 1;
         for (const thread of batch) record(byId.get(thread.displayId)!, parsed.features.get(thread.displayId)!);
       }));
@@ -318,7 +385,7 @@ async function compose(
   // Stages 3–5.
   const mixed = mix(candidates, features, profile);
   const summarizerRevision = `${revisions.summarizer.model}|${revisions.summarizer.prompt}`;
-  const generate = async (threads: readonly Thread[], limit: number, ownProposal?: string) => {
+  const generate = async (threads: readonly Thread[], limit: number, ownProposal?: string, allowCall: () => boolean = () => true) => {
     const inputText = cardInput(threads);
     const inputHash = await hash(`${inputText.text}\n${limit}\n${summarizerRevision}`);
     const included = inputText.threads.map((id) => byId.get(id)!);
@@ -330,12 +397,22 @@ async function compose(
       return { sentences: validateSentences(hit.sentences, context, limit).kept, provenance: { ...hit.provenance, source: "cache" as const } };
     }
     if (!modelConfigured) return { sentences: [] as Sentence[], provenance: undefined };
+    if (!allowCall()) {
+      // Skipped to keep the reserve for highlights and translation (Behavior 15, slice 2c).
+      calls.partial = true;
+      fallbacks += 1;
+      return { sentences: [] as Sentence[], provenance: undefined };
+    }
     const max = String(limit);
     const output = await calls.call(MODELS.summarizer,
       `${SUMMARIZE_PROMPT.replace("{max}", max)}\n<threads>\n${inputText.text}\n</threads>`, limit === 1 ? MAX_TOKENS.proposal : MAX_TOKENS.card);
     const parsed = parseJson(output) as { sentences?: unknown } | undefined;
     const raw = Array.isArray(parsed?.sentences) ? parsed.sentences.filter(isSentence) : [];
-    const kept = validateSentences(raw, context, limit).kept;
+    if (output !== undefined && parsed === undefined) reject("unparsable");
+    else if (output !== undefined && raw.length === 0) reject("empty");
+    const validated = validateSentences(raw, context, limit);
+    for (const item of validated.rejected) reject(item.reason);
+    const kept = validated.kept;
     if (kept.length === 0) {
       fallbacks += 1;
       return { sentences: [] as Sentence[], provenance: undefined };
@@ -347,18 +424,21 @@ async function compose(
     return { sentences: kept, provenance };
   };
 
+  // Value order (Behavior 15, slice 2c): proposal rows, then cards by score, both within a reserve.
+  const proposals: ProposalRow[] = [];
   const cards: TopicCard[] = [];
+  const itemsSoFar = () => proposals.filter((row) => row.line !== null).length + cards.reduce((sum, card) => sum + card.sentences.length, 0);
+  const withinReserve = () => calls.remaining > reserveCalls(itemsSoFar());
+  for (const row of proposalRows(candidates, profile)) {
+    const result = await generate(row.cites.map((id) => byId.get(id)).filter((thread) => thread !== undefined), 1, row.key, withinReserve);
+    proposals.push({ ...row, line: result.sentences[0] ?? null, ...(result.provenance === undefined ? {} : { provenance: result.provenance }) });
+  }
   for (const card of mixed.cards) {
-    const result = await generate(card.threads.map((id) => byId.get(id)!), 3);
+    const result = await generate(card.threads.map((id) => byId.get(id)!), 3, undefined, withinReserve);
     cards.push({
       ...card, sentences: result.sentences, status: result.sentences.length > 0 ? "generated" : "fallback",
       ...(result.provenance === undefined ? {} : { provenance: result.provenance }),
     });
-  }
-  const proposals: ProposalRow[] = [];
-  for (const row of proposalRows(candidates, profile)) {
-    const result = await generate(row.cites.map((id) => byId.get(id)).filter((thread) => thread !== undefined), 1, row.key);
-    proposals.push({ ...row, line: result.sentences[0] ?? null, ...(result.provenance === undefined ? {} : { provenance: result.provenance }) });
   }
 
   // Headline and highlights (Behavior 24).
@@ -372,11 +452,32 @@ async function compose(
     const output = await calls.call(MODELS.summarizer, `${HIGHLIGHTS_PROMPT}\n<sentences>\n${inputText}\n</sentences>`, MAX_TOKENS.highlights);
     const parsed = parseJson(output) as { headline?: unknown; highlights?: unknown } | undefined;
     const context = { inputs: new Set(kept.flatMap((sentence) => sentence.cites)), threads: states, profile };
-    if (isSentence(parsed?.headline) && rejectSentence(parsed.headline, context) === null) headline = parsed.headline;
-    valid = (Array.isArray(parsed?.highlights) ? parsed.highlights : []).filter((item): item is Highlight =>
-      item !== null && typeof item === "object" && typeof (item as Highlight).title === "string"
-      && [...(item as Highlight).title].length >= 1 && [...(item as Highlight).title].length <= HIGHLIGHT_TITLE_CHARS
-      && isSentence((item as Highlight).body) && rejectSentence((item as Highlight).body, context) === null).slice(0, 3);
+    const items = Array.isArray(parsed?.highlights) ? parsed.highlights : [];
+    if (output !== undefined && parsed === undefined) reject("unparsable");
+    else if (parsed !== undefined && !isSentence(parsed.headline) && items.length === 0) reject("empty");
+    if (isSentence(parsed?.headline)) {
+      const reason = rejectSentence(parsed.headline, context);
+      if (reason === null) headline = parsed.headline;
+      else reject(reason);
+    }
+    // D80: every dropped highlight is counted by its reason.
+    valid = items.filter((item): item is Highlight => {
+      if (item === null || typeof item !== "object" || !isSentence((item as Highlight).body)) {
+        reject("empty");
+        return false;
+      }
+      const reason = rejectSentence((item as Highlight).body, context);
+      if (reason !== null) {
+        reject(reason);
+        return false;
+      }
+      const title = (item as Highlight).title;
+      if (typeof title !== "string" || [...title].length < 1 || [...title].length > HIGHLIGHT_TITLE_CHARS) {
+        reject("title");
+        return false;
+      }
+      return true;
+    }).slice(0, 3);
     if (output === undefined || (valid.length === 0 && headline === null)) fallbacks += 1;
     if (valid.length > 0 || headline !== null) {
       highlightsProvenance = {
@@ -406,7 +507,7 @@ async function compose(
       fallbacks,
       notTranslated: 0,
       modelCalls: calls.calls,
-      limited: calls.limited,
+      limited: calls.limited || calls.partial,
       estimatedNeurons: calls.spentToday - input.spentToday,
       sources: sourceCoverage(pinned.entries, profile, windowEnd),
     },
@@ -417,6 +518,7 @@ async function compose(
     proposals,
     cards,
     routine: { threads: mixed.routine },
+    uncategorized: { threads: mixed.uncategorized },
     threads,
     features: stored,
   };
@@ -479,7 +581,7 @@ async function translate(
   }
   for (let index = 0; index < todo.length; index += TRANSLATE_BATCH) {
     const batch = todo.slice(index, index + TRANSLATE_BATCH);
-    const prompt = `${TRANSLATE_PROMPT}\n<items>\n${JSON.stringify(batch.map((entry) => ({ id: entry.item.id, text: entry.masked })))}\n</items>`;
+    const prompt = `${TRANSLATE_PROMPT}\n<items>\n${JSON.stringify(batch.map((entry) => ({ id: entry.item.id, text: entry.masked })))}\n</items>\n${NO_THINK}`;
     let parsed: unknown;
     for (let attempt = 0; attempt < 2 && calls.enabled; attempt += 1) {
       parsed = parseJson(await calls.call(MODELS.translator, prompt, MAX_TOKENS.translation));
@@ -526,7 +628,7 @@ async function translate(
     proposals,
     headline,
     highlights,
-    coverage: { ...en.coverage, notTranslated, modelCalls: calls.calls, limited: en.coverage.limited || calls.limited },
+    coverage: { ...en.coverage, notTranslated, modelCalls: calls.calls, limited: en.coverage.limited || calls.limited || calls.partial },
     translations,
   };
 }

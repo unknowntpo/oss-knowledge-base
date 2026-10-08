@@ -16,7 +16,8 @@ export const PRICES = {
 export type PricedModel = keyof typeof PRICES;
 
 export const DAILY_CAP = { prod: 5_000, dev: 4_500 } as const;
-export const MAX_TOKENS = { classify: 800, card: 300, proposal: 80, highlights: 400, translation: 2_000 } as const;
+/** Slice 2c raised card, proposal, highlights and translation after JSON was cut on Dev (Behavior 15). */
+export const MAX_TOKENS = { classify: 800, card: 500, proposal: 160, highlights: 800, translation: 4_000 } as const;
 
 const DISPLAY_ID = /\b[A-Z]+-(?:PR|ISSUE|MAIL)-[0-9a-f]+\b/gu;
 const CJK = /[　-〿㐀-䶿一-鿿豈-﫿＀-￯]/gu;
