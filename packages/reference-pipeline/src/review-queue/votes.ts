@@ -4,11 +4,11 @@ import { matchesRosterName, type Roster } from "./roster";
 import type { ThreadStats } from "./threads";
 
 /** Bump when the line rules change: cached vote lines are then refetched (Q27). */
-export const VOTE_REGEX_VERSION = 1;
+export const VOTE_REGEX_VERSION = 2;
 
 const STOP = /^\s*-{2,}\s*Original Message|^\s*From:\s/iu;
 const VOTE_LINE =
-  /^\s*(?<vote>[+-]1)(?=$|[\s(,.!:;])\s*(?<binding>\(\s*(?:non[-\s]?)?bin?ding\s*\)|(?:non[-\s]?)?bin?ding\b)?\s*(?<rest>.*)$/iu;
+  /^\s*(?<vote>[+-]1)(?=$|[\s(,.!:;])\s*,?\s*(?<binding>\(\s*(?:non[-\s]?)?bin?ding\s*\)|(?:non[-\s]?)?bin?ding\b)?\s*(?<rest>.*)$/iu;
 const VOTE_REST = /^(?:$|[.!,;)]|from me\b|thanks?\b|lgtm\b)/iu;
 
 export type VoteValue = "+1" | "-1";
@@ -102,11 +102,11 @@ export function tallyVote(thread: ThreadStats, rule: VoteRule, roster: Roster | 
   let unclear = 0;
   let ambiguous = 0;
   for (const message of thread.members) {
-    if (message.body === null) {
+    const lines = message.lines ?? (message.body === null ? null : parseVoteLines(message.body));
+    if (lines === null) {
       unread += 1;
       continue;
     }
-    const lines = parseVoteLines(message.body);
     unclear += lines.unclear.length;
     if (lines.ambiguous) ambiguous += 1;
     const last = lines.votes.at(-1);
@@ -146,6 +146,7 @@ export function tallyText(tally: Tally, quorum: number): string {
     `${tally.complete ? "" : "seen "}+1 × ${tally.plus} · binding ${ge}${tally.plusBinding} of ${quorum}${tally.plusBindingViaRoster > 0 ? ` (${tally.plusBindingViaRoster} via roster)` : ""}`,
     ...(tally.minusBinding > 0 ? [`binding -1 × ${ge}${tally.minusBinding}`] : []),
     ...(tally.minusUnmarked > 0 ? [`${tally.minusUnmarked} unmarked -1`] : []),
+    ...(tally.minus - tally.minusBinding - tally.minusUnmarked > 0 ? [`${tally.minus - tally.minusBinding - tally.minusUnmarked} non-binding -1`] : []),
     ...(tally.unmarked > 0 ? [`${tally.unmarked} unmarked`] : []),
   ].join(" · ");
   if (tally.complete) return parts;

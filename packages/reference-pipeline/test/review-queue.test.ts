@@ -319,6 +319,18 @@ const cases: Record<string, () => string> = {
     const tally = tallyVote(stats, proposalRule, roster, KIP_NOW);
     return `${stats.members.some((member) => member.mid === "a") ? "member" : "not a member"}; ${tally.complete ? "tally complete" : `tally incomplete: ${stats.unattributed} reply not attributed`}`;
   },
+  "members|constructed: reply \"Fw: Re: [VOTE] KIP-9: x\" (stacked prefixes)": () => {
+    const stats = threadStats([message("Root", "2026-10-01T00:00:00Z", VOTE_SUBJECT, null, "r"), message("A", "2026-10-02T00:00:00Z", "Fw: Re: [VOTE] KIP-9: x", null, "a")], VOTE_SUBJECT);
+    return stats.members.some((member) => member.mid === "a") ? "member" : "not a member";
+  },
+  "members|constructed: \"Re: [DISCUSS] KIP-9: x\" in a [VOTE] KIP-9 tree": () => {
+    const stats = threadStats([message("Root", iso(KIP_NOW, -100 * HOUR), VOTE_SUBJECT, "Please vote.", "r"),
+      message("A", iso(KIP_NOW, -90 * HOUR), "Re: [DISCUSS] KIP-9: x", null, "a")], VOTE_SUBJECT, [], "KIP-9");
+    const tally = tallyVote(stats, proposalRule, roster, KIP_NOW);
+    return `${stats.unattributed === 0 ? "not unattributed (no [VOTE] tag)" : "unattributed"}; ${tally.complete ? "tally complete" : "tally incomplete"}`;
+  },
+  "members|constructed: root subject \"[EXTERNAL] [VOTE] KIP-9: x\"": () =>
+    threadStats([message("Root", "2026-10-01T00:00:00Z", "[EXTERNAL] [VOTE] KIP-9: x", null, "r")], VOTE_SUBJECT).rootArchived ? "root archived" : "root not archived",
   "members|KAFKA-MAIL-0b57fb00 KIP-785: only message \"Re: [DISCUSS] KIP-785 …\" by Manan Gupta 2026-09-17, no parent": () => {
     const row = discussRow("KIP-785");
     return `${row.stats.rootArchived ? "root archived" : "root not archived"}; "seen ≥ ${row.stats.repliers} replier"; ${queuedText(row.queued)}`;
@@ -352,6 +364,8 @@ const cases: Record<string, () => string> = {
   "vote line|constructed: \"-1: the upgrade path is missing\"": () => vote("-1: the upgrade path is missing"),
   "vote line|constructed: \"+1: looks good\"": () => vote("+1: looks good"),
   "vote line|constructed: \"+1;\"": () => vote("+1;"),
+  "vote line|constructed: \"-1, binding, see below\"": () => vote("-1, binding, see below"),
+  "vote line|constructed: \"+1, non-binding\"": () => vote("+1, non-binding"),
   "vote line|constructed: \"Thanks\", \"From: Bob\", then an unquoted \"+1 (binding)\"": () => {
     const parsed = parseVoteLines("Thanks\nFrom: Bob <b@x>\nSent: Monday\n+1 (binding)");
     return `${parsed.votes.length === 0 ? "no vote" : "vote"}; ${parsed.ambiguous ? "message ambiguous (vote-like line after a quoted header)" : "clear"}`;
@@ -438,6 +452,14 @@ const cases: Record<string, () => string> = {
       { author: "D", body: "Agreed.\nFrom: E <e@x>\nSent: Monday\n+1 (binding)" }]);
     return `"${tallyText(tally, 3)}"; ${tally.state}`;
   },
+  "wording|constructed: one \"+1 (binding)\" and one reply under \"Re: [VOTE] KIP-9 (was: x)\"": () => {
+    const stats = threadStats([message("Root", iso(KIP_NOW, -100 * HOUR), VOTE_SUBJECT, "Please vote.", "r"),
+      message("A", iso(KIP_NOW, -90 * HOUR), `Re: ${VOTE_SUBJECT}`, "+1 (binding)", "a"),
+      message("B", iso(KIP_NOW, -80 * HOUR), "Re: [VOTE] KIP-9 (was: x)", "+1 (binding)", "b")], VOTE_SUBJECT, [], "KIP-9");
+    return `"${tallyText(tallyVote(stats, proposalRule, roster, KIP_NOW), 3)}"`;
+  },
+  "wording|constructed: complete tally with A \"+1 (binding)\" and B \"-1 (non-binding)\"": () =>
+    `"${tallyText(constructedTally([{ author: "A", body: "+1 (binding)" }, { author: "B", body: "-1 (non-binding)" }]), 3)}"`,
   "wording|KIP-1279 with 1 unclear line": () => `"${tallyText(voteRow("KIP-1279").tally, proposalRule.quorum)}"`,
   "wording|constructed: vote thread whose members are all replies, one \"+1 (binding)\"": () =>
     `"${tallyText(constructedTally([{ author: "A", body: "+1 (binding)" }], { root: false }), proposalRule.quorum)}"`,

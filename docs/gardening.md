@@ -143,6 +143,9 @@ the two `viewer/` items below.
   deleted, so storage and list cost grow without bound.
 - **Fix:** own spec: keep the last N releases plus anything reachable from
   them; mark-and-sweep with a dry-run report first.
+- **Also:** Spec 015 adds `public/review-queue/v1/<projectId>/<sha256>.json`
+  (one object per changed hourly run) and `internal/rosters/v1/`; keep the
+  objects `current.json` points to and the last few.
 - **Layer:** test plus measurement (object count per day on Dev).
 - **Source:** [Spec 008 Non-goals](specs/008-content-addressed-details/spec.md#non-goals),
   [ADR 0013](architecture/decisions/0013-share-detail-objects-by-content-digest.md).

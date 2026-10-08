@@ -8,7 +8,8 @@
     "deploy:development": "wrangler deploy -c wrangler.development.jsonc",
     "deploy:production": "wrangler deploy -c wrangler.production.jsonc",
     "measure:memory": "bun scripts/measure-publication-memory.ts",
-    "measure:search-latency": "bun scripts/measure-search-latency.ts"
+    "measure:search-latency": "bun scripts/measure-search-latency.ts",
+    "measure:review-queue": "bun scripts/measure-review-queue.ts"
   },
   "dependencies": {
     "@oss-knowledge-base/domain": "workspace:*",

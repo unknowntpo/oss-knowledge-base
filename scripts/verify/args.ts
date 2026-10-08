@@ -288,3 +288,27 @@ export function formatHealth(report: HealthReport, verdict: HealthVerdict): stri
   );
   return lines.join("\n");
 }
+
+const REVIEW_QUEUE_MAX_AGE_MS = 2 * 3_600_000;
+
+/**
+ * Spec 015 Q40/Q44: one line about the review queue's `last-run.json` (from `/health.reviewQueue`):
+ * its age, failures, and a missing-run flag when it is older than 2 h.
+ */
+export function reviewQueueLine(lastRun: unknown, now: string): string {
+  if (lastRun === null || lastRun === undefined) return "reviewQueue no run yet";
+  const run = lastRun as {
+    ok?: boolean;
+    completedAt?: string;
+    failureKind?: string;
+    sources?: Record<string, { ok?: boolean; failureKind?: string } | null>;
+  };
+  const ageMs = Date.parse(now) - Date.parse(run.completedAt ?? "");
+  const failures = [
+    ...(run.failureKind === undefined ? [] : [`run:${run.failureKind}`]),
+    ...Object.entries(run.sources ?? {}).flatMap(([name, source]) => (source?.failureKind === undefined ? [] : [`${name}:${source.failureKind}`])),
+  ];
+  const age = Number.isNaN(ageMs) ? "?" : `${Math.floor(ageMs / 60_000)}m`;
+  const missing = Number.isNaN(ageMs) || ageMs > REVIEW_QUEUE_MAX_AGE_MS ? " MISSING RUN (last-run older than 2 h)" : "";
+  return `reviewQueue ok=${String(run.ok)} age=${age} failures=${failures.length === 0 ? "none" : failures.join(",")}${missing}`;
+}
