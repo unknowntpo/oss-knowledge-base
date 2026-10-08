@@ -929,7 +929,7 @@ const cases: Record<string, () => Promise<string>> = {
     const thread = { displayId: "KAFKA-PR-1", entryId: "e", title: "t", source: "github" as const, status: "open", url: null, rootExcerpt: "", records: [], score: 1, lastActivityAt: NOW.toISOString() };
     const question = clefRequest([thread], KAFKA_DIGEST_PROFILE).questions.t1 as { criteria: Record<string, string> };
     const descriptions = KAFKA_DIGEST_PROFILE.taxonomy.descriptions!;
-    const ok = [...KAFKA_DIGEST_PROFILE.taxonomy.topics, "routine"].every((option) => question.criteria[option] === descriptions[option] && descriptions[option] !== option);
+    const ok = [...KAFKA_DIGEST_PROFILE.taxonomy.topics, "routine"].every((option) => question.criteria[option] === descriptions[option] && (option === "other" || descriptions[option] !== option));
     return ok ? `every topic option's criterion is the profile description; revision ${CLEF_REVISION}` : JSON.stringify(question.criteria);
   },
   "call order|captured week, cold run with Clef": async () => {
@@ -1092,6 +1092,82 @@ const cases: Record<string, () => Promise<string>> = {
     return short.length === 0 ? "at least 3 requests remain at the highlights call (highlights, 1 translation, 1 retry)" : short.join(" ");
   },
   "call order|constructed: the reserve for 50 and for 51 items so far": async () => `${reserveCalls(50)} and ${reserveCalls(51)}`,
+  // Slice 2d.
+  "raw samples|constructed: dry run where one proposal call returns prose and one translated item drops its placeholder": async () => {
+    let prose = false;
+    const model = new FakeDecider((kind, _index, prompt) => {
+      if (kind === "summarize" && !prose && prompt.includes("at most 1 sentences")) { prose = true; return "I cannot find a clear development here."; }
+      if (kind === "translate") {
+        const body = prompt.slice(prompt.indexOf("\n<"));
+        const items = JSON.parse(body.slice(body.indexOf("["), body.lastIndexOf("]") + 1)) as { id: string; text: string }[];
+        const target = items.find((item) => item.id.startsWith("proposal:") && item.text.includes("⟦0⟧"));
+        return JSON.stringify(items.map((item) => ({ id: item.id, text: item === target ? "譯：無佔位符" : `譯：${item.text}` })));
+      }
+      return undefined;
+    });
+    const { result } = await published(model, { dryRun: true });
+    const calls = (result.rawSamples ?? []).map((sample) => `${sample.call.replace(/:KIP-\d+$/u, ":<key>")}|${sample.reason}`);
+    return calls.includes("proposal:<key>|unparsable") && calls.includes("translate:proposal:<key>|placeholders")
+      ? "rawSamples has {call proposal:<key>, reason unparsable} and {call translate:proposal:<key>, reason placeholders}" : calls.join(" ");
+  },
+  "raw samples|constructed: dry run where every summarize call returns 700 characters of prose": async () => {
+    const model = new FakeDecider((kind) => (kind === "summarize" ? "x".repeat(700) : undefined));
+    const { result } = await published(model, { dryRun: true });
+    const samples = result.rawSamples ?? [];
+    return samples.length === 10 && samples.every((sample) => sample.text.length === 600) ? "10 rawSamples, each 600 characters" : `${samples.length}`;
+  },
+  "raw samples|constructed: a dry run through DigestRunner with rejected responses": async () => {
+    const bucket = new MemoryBucket();
+    await publish(bucket);
+    const storage = new MemoryStorage();
+    const { instance } = runner(bucket, storage, async () => false, new FakeModel((kind) => (kind === "summarize" ? "prose" : undefined)));
+    const response = (await instance.request(true)).body as DigestRunResult;
+    const stored = storage.values.get("lastRun") as Record<string, unknown>;
+    return (response.rawSamples?.length ?? 0) > 0 && !("rawSamples" in stored)
+      ? "the dry-run response carries rawSamples; the stored lastRun behind /health has none" : `${response.rawSamples?.length} ${"rawSamples" in stored}`;
+  },
+  "raw samples|constructed: dry run where the first card returns {\"sentences\":[]}, the highlights call returns prose, and the translation batch returns prose twice": async () => {
+    let first = true;
+    const model = new FakeDecider((kind, _index, prompt) => {
+      if (kind === "summarize" && first && prompt.includes("at most 3 sentences")) { first = false; return '{"sentences":[]}'; }
+      if (kind === "highlights" || kind === "translate") return "Sorry, no JSON.";
+      return undefined;
+    });
+    const { result } = await published(model, { dryRun: true });
+    const seen = (result.rawSamples ?? []).map((sample) => `${sample.call.replace(/^card:.*/u, "card:<topic>")} ${sample.reason}`);
+    return ["card:<topic> empty", "highlights unparsable", "translate:0 unparsable"].every((item) => seen.includes(item))
+      ? "rawSamples include card:<topic> empty, highlights unparsable, and translate:0 unparsable" : seen.join(", ");
+  },
+  "raw samples|constructed: the same prose responses in a scheduled run": async () => {
+    const model = new FakeDecider((kind) => (kind === "summarize" ? "x".repeat(700) : undefined));
+    const { result } = await published(model);
+    return result.rawSamples === undefined && result.rejections.unparsable! > 0 ? "no rawSamples" : JSON.stringify(result.rawSamples).slice(0, 80);
+  },
+  "parsing|constructed: every summarize and highlights response wrapped in a ```json fence with a sentence of prose before it": async () => {
+    const model = new FakeDecider();
+    const original = model.run.bind(model);
+    model.run = async (name, prompt, maxTokens) => {
+      const text = await original(name, prompt, maxTokens);
+      const kind = kindOf(prompt);
+      return kind === "summarize" || kind === "highlights" ? `Here is the JSON.\n\`\`\`json\n${text}\n\`\`\`` : text;
+    };
+    const { bucket, result } = await published(model);
+    const { en } = await objects(bucket, result);
+    return en.cards.every((card) => card.status === "generated") && en.proposals.every((row) => row.line !== null) && en.headline !== null && result.rejections.unparsable === undefined
+      ? "every card and proposal line generated, headline kept; no unparsable" : JSON.stringify(result.rejections);
+  },
+  "style|constructed: card sentences \"KAFKA-20224 is open.\" and \"Streams standby tasks get rack-aware assignment (KAFKA-20999, open).\"": async () => {
+    let done = false;
+    const model = new FakeDecider((kind, _index, prompt) => {
+      if (kind !== "summarize") return undefined;
+      if (done || !prompt.includes("at most 3 sentences")) return "no";
+      done = true;
+      const id = /^\[([A-Z]+-[A-Za-z0-9-]+)\]/mu.exec(prompt.slice(prompt.indexOf("\n<")))![1]!;
+      return JSON.stringify({ sentences: [{ text: "KAFKA-20224 is open.", cites: [id] }, { text: "Streams standby tasks get rack-aware assignment (KAFKA-20999, open).", cites: [id] }] });
+    });
+    const { result } = await published(model);
+    return `style.contentFree ${result.style.contentFree} of ${result.style.sentences}`;
+  },
   "run control|DIGEST_ENABLED unset (Prod)": async () => {
     const bucket = new MemoryBucket();
     await publish(bucket);

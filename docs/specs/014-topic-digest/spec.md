@@ -543,7 +543,13 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
        threads are `community`, not routine. A routine thread's topic is
        still a taxonomy id, usually `other`.
    - `routineConfidence` ≥ 0.6 sends the thread to the routine section.
-   - `topicConfidence` < 0.6 maps the topic to `other`.
+   - `topicConfidence` < 0.35 maps the topic to `other` (0.6 before slice
+     2d). Chosen from the second Dev dry run (316 candidates, 285
+     non-routine): Clef's renormalised top-topic confidence has deciles
+     0.24, 0.29, 0.34, 0.41, 0.51, 0.62, 0.74, 0.83, 0.90. At 0.6, 168
+     threads (53%) were Uncategorized; at 0.35, 99 (31%), of which 48 had
+     `other` as the best topic. The final gate waits for the D34 labels
+     (gardening G29).
    - A low-confidence label never hides a thread.
    - Input per thread:
      - display id, title, source, status;
@@ -558,7 +564,10 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
      - Each thread gets one `choice` question. Its options are the taxonomy
        topics plus `routine`. Each option's description comes from the
        profile (`taxonomy.descriptions`, at most 8 words) and says what
-       belongs there. Kafka's descriptions are in `profiles.ts`.
+       belongs there. Kafka's descriptions are in `profiles.ts`. Kafka's
+       `other` is described as just "other" (slice 2d): described as "none
+       of the topics above" on the second dry run, it was the best topic for
+       48 of 285 threads, against 12 of 276 on the first.
      - A thread is routine when the `routine` option's probability is at
        least 0.5, and goes to the routine section at 0.6 or more.
      - The topic is the most probable topic option. `topicConfidence` is
@@ -617,11 +626,27 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
      matters: a proposal's author, a release manager, a binding voter, or
      a new committer. Before 2c, sentences read as a transcript ("X said
      …", "X proposed …").
+   - **Content** (slice 2d, prompt `digest-prompts@3`): 2c's prompt
+     overcorrected into status lines with no content ("KAFKA-20224 is
+     merged", "KIP-1349 is proposed"). Each sentence now says what changes
+     or is decided, in plain words taken from the thread titles and
+     excerpts, and does not start with a bare id; the status follows the
+     content, e.g. "Streams standby tasks get rack-aware assignment
+     (KAFKA-20999, merged)". The prompts show a literal JSON example
+     instead of a pseudo-schema.
+     - Measure: a sentence is **content-free** when fewer than 3 words
+       remain after removing ids (issue, proposal, display ids, `#n`),
+       versions and `RCn`, status words (merged, open, opened, closed,
+       resolved, proposed, proposes, released, pending, remains, approved),
+       auxiliaries (is, are, was, were, be, been, has, have, would, will),
+       articles and prepositions, and the project's names (Apache, Kafka).
+       The result reports `style.contentFree`. On the second dry run, 27
+       of 40 sentences were content-free (3 of 40 on the first).
      - Measure: a sentence is **person-led** when a reporting verb (said,
        asked, proposed, questioned, discussed, suggested, noted, argued,
        requested, introduced, congratulated) appears within its first 6
        words, or it ends with ", said <name>". A run's result reports
-       `style {sentences, personLed}` over the English card sentences and
+       `style {sentences, personLed, contentFree}` over the English card sentences and
        proposal lines. This is a measure, not a validation rule.
    - **Validation, per sentence.** A sentence is kept only when all of
      these hold; otherwise it is dropped:
@@ -750,6 +775,23 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
       and 20 items stayed "Not translated".
     - **Dry runs** (Behavior 22) count against the same cap.
 16. **Malformed output.**
+    - **Parsing** (slice 2d): model text is parsed tolerantly but
+      validated strictly. A Markdown code fence (```` ```json ````) is
+      stripped, and the first complete JSON object or array in the text
+      is parsed; prose before or after it is ignored. Text with no
+      complete JSON value (for example, cut at `max_tokens`) is
+      `unparsable`, including an outer value cut after a complete inner
+      one. A JSON value quoted inside prose before the intended one can be
+      the one parsed; the schema rules and sentence validators still
+      apply to it, so it cannot add unvalidated text.
+    - **Dry-run samples** (slice 2d): a dry run's result carries
+      `rawSamples`, at most 10 `{call, reason, text}` with the first 600
+      characters of the raw response, for calls whose output was
+      `unparsable` or `empty` and for translated items that failed
+      verification. Responses quote public threads only; no request
+      headers or tokens are recorded. Only the authenticated dry-run
+      response carries them: the stored `lastRun` (served by the public
+      `/health`) omits them, and scheduled runs record none.
     - **Classification.** No retry.
       - Output that is not JSON sends the whole batch to rules features.
       - A thread entry that violates the schema sends that thread to rules
@@ -867,6 +909,11 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
       Otherwise that item shows the English text with the label "Not
       translated".
     - Translated highlight titles are not length-checked.
+    - **Style** (slice 2d): natural Traditional Chinese as written in
+      Taiwan technical writing, in the active voice. "被" passives such as
+      "Kafka 4.4.0 RC4 被提出" are avoided ("4.4.0 RC4 開始投票"). The prompt
+      fixes a few terms: committer stays "committer" (2c rendered it
+      貢獻者, contributor), PMC and KIP stay in English, merged is 已合併.
     - The translator is `@cf/qwen/qwen3-30b-a3b-fp8` (decided 2026-10-08).
 26. **Counts and window label.**
     - Counts are computed from the digest object's arrays, never stored, by
@@ -1116,8 +1163,8 @@ synthetic; the others use values captured from Dev.
 | D6 | features | constructed: routine true, routineConfidence 0.59 | topic card (routine needs >= 0.6) |
 | D6 | features | constructed: routine true, routineConfidence 0.60 | routine section |
 | D6 | features | hand label: KAFKA-PR-23609 "Update lz4 to 1.11.4" for three GHSA advisories {topic: security, topicConfidence 0.8, routine: false, routineConfidence 0.7} | security card, not routine |
-| D6 | features | constructed: topic group-coordination, topicConfidence 0.40 | other card |
-| D6 | features | constructed: topic group-coordination, topicConfidence 0.60 | group-coordination card |
+| D6 | features | constructed: topic group-coordination, topicConfidence 0.34 | other (Uncategorized) |
+| D6 | features | constructed: topic group-coordination, topicConfidence 0.35 | group-coordination card |
 | D7 | mixing | captured week, rules classifier | every one of 234 candidates appears once: in a card's thread list, in routine, or in Uncategorized |
 | D7 | mixing | constructed: topic with 7 threads | card shows the 5 highest-scoring threads and "2 more" |
 | D7 | mixing | constructed: topics A (top-3 scores 2.5, 0.2, 0.1) and B (1.0, 1.0, 1.0) | B first (3.0 > 2.8) |
@@ -1217,12 +1264,31 @@ synthetic; the others use values captured from Dev.
 | D1 | window | constructed: entry with sourceCounts github and jira | source github |
 | D5 | kip block | constructed: two discuss rows, KIP-1 newest 10-05 and KIP-2 newest 10-06 | KIP-2 then KIP-1 |
 | D40 | taxonomy | constructed: "Please add the ci-approved label to the docs PR" | community card, not routine |
-| D76 | uncategorized | constructed: threads with best topic other (score 1.0), security at topicConfidence 0.4 (score 2.0), and security at 0.9 | Uncategorized [score 2.0, score 1.0]; one security card; no card has topic other |
+| D76 | uncategorized | constructed: threads with best topic other (score 1.0), security at topicConfidence 0.3 (score 2.0), and security at 0.9 | Uncategorized [score 2.0, score 1.0]; one security card; no card has topic other |
 | D73 | descriptions | Kafka profile taxonomy | every topic and routine has a description of 1–8 words |
 | D78 | style | Omnia Ibrahim proposed Apache Kafka 4.4.0 RC4. (first Dev dry run) | person-led |
 | D78 | style | Apache Kafka 4.3.2 RC0 is open, said 黃竣陽. (first Dev dry run) | person-led |
 | D78 | style | Sushant Mahajan was announced as a new Kafka committer. (first Dev dry run) | not person-led |
 | D78 | style | constructed: KIP-1349 moves share-group snapshot frequency from record counts to bytes. | not person-led |
+| D82 | parsing | constructed: ```json fence around {"sentences":[]} | {"sentences":[]} |
+| D82 | parsing | constructed: "Here is the JSON:" then {"a":1} then "Hope this helps." | {"a":1} |
+| D82 | parsing | constructed: "[DISCUSS] KIP-1 summary:" then {"a":"x]"} | {"a":"x]"} |
+| D82 | parsing | constructed: {"a":1}{"a":2} | {"a":1} |
+| D82 | parsing | constructed: prose with an inline {"draft":true}, then a ```json fence around {"a":1} | {"a":1} |
+| D82 | parsing | constructed: {"a":"x \"}\" y"} (an escaped quote before a brace inside a string) | {"a":"x \"}\" y"} |
+| D83 | content | constructed: Apache Kafka Streams is open. | content-free |
+| D83 | content | constructed: KAFKA-1 adds retry backoff. (3 content words) | has content |
+| D83 | content | constructed: KAFKA-1 adds backoff. (2 content words) | content-free |
+| D82 | parsing | constructed: outer object cut after a complete inner object | unparsable |
+| D82 | parsing | constructed: {"sentences":[{"text":"KIP-1349 moves (cut at max_tokens) | unparsable |
+| D83 | content | KAFKA-20224 is merged (second Dev dry run) | content-free |
+| D83 | content | Kafka 4.4.0 RC4 is proposed. (second Dev dry run) | content-free |
+| D83 | content | KAFKA-19762 Gradle feature is proposed. (second Dev dry run) | content-free |
+| D83 | content | KIP-1376 is proposed to add TLS named groups support. (second Dev dry run) | has content |
+| D83 | content | constructed: Streams standby tasks get rack-aware assignment (KAFKA-20999, merged). | has content |
+| D83 | prompt | summarizer and highlights prompts | digest-prompts@3; both JSON examples parse; the summarizer forbids bare status lines and leading ids |
+| D84 | features | Kafka profile description of other | other |
+| D85 | prompt | translation prompt | asks for active voice and avoids 被 passives; keeps committer, PMC, KIP; merged is 已合併 |
 <!-- test-plan:end -->
 
 **Slice 2: run loop, model clients, and cache.** Case file
@@ -1320,7 +1386,7 @@ synthetic; the others use values captured from Dev.
 | D74 | call order | constructed: captured week with a Clef cap of 3 requests | 3 Clef requests; the other threads get rules features; limited true |
 | D75 | bounds | constructed: the max_tokens of each call kind in a cold run | card 500, proposal 160, highlights 800, translation 4000 |
 | D75 | bounds | captured week, cold run with Clef | 1 translation call for every item; its prompt ends with /no_think |
-| D78 | style | constructed: card sentences "Omnia Ibrahim proposed Apache Kafka 4.4.0 RC4." and "KIP-1349 moves snapshot frequency to bytes." | style {sentences 2, personLed 1}; summarizer prompt digest-prompts@2 |
+| D78 | style | constructed: card sentences "Omnia Ibrahim proposed Apache Kafka 4.4.0 RC4." and "KIP-1349 moves snapshot frequency to bytes." | style {sentences 2, personLed 1}; summarizer prompt digest-prompts@3 |
 | D79 | coverage | constructed: the translation batch returns non-JSON twice | en and zh-Hant coverage identical; notTranslated equals the zh-Hant items marked Not translated |
 | D79 | coverage | constructed: a complete en with an incomplete zh-Hant, retried | a new pair with identical coverage; the pointer names both new objects |
 | D80 | rejections | constructed: a proposal call returns JSON cut off mid-string | rejections.unparsable 1; that line null |
@@ -1331,6 +1397,13 @@ synthetic; the others use values captured from Dev.
 | D76 | uncategorized | captured week, cold run with Clef | en.uncategorized lists every non-routine thread placed in other, by score; not empty |
 | D74 | call order | constructed: captured week at every ceiling from 20 to 35 requests | at least 3 requests remain at the highlights call (highlights, 1 translation, 1 retry) |
 | D74 | call order | constructed: the reserve for 50 and for 51 items so far | 3 and 4 |
+| D81 | raw samples | constructed: dry run where one proposal call returns prose and one translated item drops its placeholder | rawSamples has {call proposal:<key>, reason unparsable} and {call translate:proposal:<key>, reason placeholders} |
+| D81 | raw samples | constructed: dry run where every summarize call returns 700 characters of prose | 10 rawSamples, each 600 characters |
+| D81 | raw samples | constructed: the same prose responses in a scheduled run | no rawSamples |
+| D81 | raw samples | constructed: a dry run through DigestRunner with rejected responses | the dry-run response carries rawSamples; the stored lastRun behind /health has none |
+| D81 | raw samples | constructed: dry run where the first card returns {"sentences":[]}, the highlights call returns prose, and the translation batch returns prose twice | rawSamples include card:<topic> empty, highlights unparsable, and translate:0 unparsable |
+| D82 | parsing | constructed: every summarize and highlights response wrapped in a ```json fence with a sentence of prose before it | every card and proposal line generated, headline kept; no unparsable |
+| D83 | style | constructed: card sentences "KAFKA-20224 is open." and "Streams standby tasks get rack-aware assignment (KAFKA-20999, open)." | style.contentFree 1 of 2 |
 <!-- test-plan:end -->
 
 **Slice 3: browser.** Case file
@@ -1411,7 +1484,7 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   badge and a link without a count.
 - D6: classification follows the Behavior 6 schema:
   - routine needs `routineConfidence` ≥ 0.6;
-  - `topicConfidence` < 0.6 maps to `other`;
+  - `topicConfidence` < 0.35 maps to `other` (D84);
   - the lz4 advisory bump with `routine: false` lands in the security card.
 - D7: every candidate appears exactly once (proposal cites excluded). Cards
   are ordered by top-3 score sum and show 5 threads plus "n more"; routine
@@ -1523,12 +1596,27 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   `other`, ordered by score; no card has topic `other`.
 - D77: This week shows Uncategorized as a collapsed section with its count,
   after the topic cards; a digest without the field shows none.
-- D78: the summarizer prompt is `digest-prompts@2` and asks for
+- D78: the summarizer prompt (`digest-prompts@2`, `@3` since slice 2d) asks for
   development-first sentences; a run's result reports
   `style {sentences, personLed}` per Behavior 9.
 - D79: both locale objects of a pair carry identical `coverage`, including
   `notTranslated`, `modelCalls` and `limited`; a translation-only retry
   writes a new pair.
+- D81: a dry run's result carries at most 10 `rawSamples` of at most 600
+  characters each, for unparsable or empty calls and failed translation
+  items; a scheduled run carries none, and the stored `lastRun` behind
+  `/health` never does.
+- D82: a response wrapped in a ```` ```json ```` fence, or with prose
+  before or after the JSON, is parsed; two JSON values give the first; a
+  response cut mid-JSON is `unparsable`.
+- D83: the summarizer prompt is `digest-prompts@3`, asks for content
+  sentences that do not start with a bare id, and shows a literal JSON
+  example; `style.contentFree` counts sentences per Behavior 9, and the
+  second dry run's status lines count as content-free.
+- D84: `topicConfidence` below 0.35 places a thread in `other`; 0.35 or
+  more gives its topic's card. Kafka's `other` description is "other".
+- D85: the translation prompt asks for natural, active-voice zh-Hant and
+  fixes committer, PMC, KIP and merged.
 - D80: a run's result reports `rejections`: for every card, proposal row
   and highlights call, `unparsable` (no JSON), `empty` (JSON without
   sentences) or each dropped sentence's Behavior 9/30 reason. For the
@@ -1801,6 +1889,10 @@ built yet; the command rejects the flag.
      D77), development-first sentences (D78), one coverage per pair (D79),
      and rejection counts (D80). The cron stays off; a second Dev dry run
      follows the merge.
+   - **2d** (after the second Dev dry run, 2026-10-08): raw-response
+     samples and tolerant parsing (D81, D82), content sentences (D83),
+     the 0.35 topic gate and the plain `other` description (D84), and
+     natural zh-Hant (D85). The cron stays off.
 3. **Web:** routes, tabs, This week, Proposals, topic page, i18n, and
    `/api/digest`. The E2E moves are part of this slice.
 

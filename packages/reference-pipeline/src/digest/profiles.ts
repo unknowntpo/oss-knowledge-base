@@ -27,7 +27,7 @@ export const KAFKA_DIGEST_PROFILE: DigestProfile = {
       security: "authentication, ACLs, TLS, CVEs, vulnerable dependencies",
       observability: "metrics, logging, monitoring, telemetry",
       community: "committers, PMC, governance, accounts, CI approvals",
-      other: "none of the topics above",
+      other: "other",
       routine: "dependency bumps, build, tests, docs, backports",
     },
   },

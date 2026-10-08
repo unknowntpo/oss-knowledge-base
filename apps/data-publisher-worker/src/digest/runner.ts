@@ -112,9 +112,11 @@ export class DigestRunner {
         deferred,
       });
       await this.deps.storage.put(`spend:${date}`, result.spentToday);
-      // Dry-run objects are returned to the caller, not stored in the Durable Object.
+      // Dry-run objects and raw samples go only to the authenticated caller; the stored lastRun is
+      // served by the public /health (D81).
       const recorded: DigestRunResult = { ...result };
       delete (recorded as { objects?: unknown }).objects;
+      delete (recorded as { rawSamples?: unknown }).rawSamples;
       await this.deps.storage.put("lastRun", recorded);
       return result;
     } finally {
