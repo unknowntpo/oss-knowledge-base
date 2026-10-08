@@ -25,6 +25,8 @@ export interface DigestRunnerDeps {
   readonly bucket: DigestBucket;
   readonly profile: DigestProfile;
   readonly environment: "development" | "production";
+  /** `DIGEST_ENABLED=true`: off on Prod until its gateway exists (slice 2b). */
+  readonly enabled: boolean;
   readonly model?: DigestModel;
   readonly now: () => Date;
   readonly delay: (ms: number) => Promise<void>;
@@ -33,6 +35,7 @@ export interface DigestRunnerDeps {
 }
 
 export interface DigestHealth {
+  readonly enabled: boolean;
   readonly running: boolean;
   readonly scheduled: boolean;
   readonly today: { readonly date: string; readonly estimatedNeurons: number; readonly cap: number };
@@ -56,6 +59,7 @@ export class DigestRunner {
     const date = this.today();
     const alarm = await this.deps.storage.getAlarm();
     return {
+      enabled: this.deps.enabled,
       running: this.running,
       scheduled: runPending(false, alarm, this.deps.now().getTime()),
       today: { date, estimatedNeurons: (await this.deps.storage.get<number>(`spend:${date}`)) ?? 0, cap: this.cap },
@@ -65,6 +69,7 @@ export class DigestRunner {
 
   /** `POST /digest/run[?dryRun=1]`: 409 while a run is pending or active (D22). */
   async request(dryRun: boolean): Promise<{ readonly status: number; readonly body: unknown }> {
+    if (!this.deps.enabled) return { status: 403, body: { ok: false, disabled: true } };
     if (runPending(this.running, await this.deps.storage.getAlarm(), this.deps.now().getTime())) {
       return { status: 409, body: { ok: false, skipped: "already-running" } };
     }
@@ -79,6 +84,7 @@ export class DigestRunner {
 
   /** The alarm: defer while the publisher runs, at most four times, then run (D59). */
   async alarm(): Promise<void> {
+    if (!this.deps.enabled) return;
     const deferrals = (await this.deps.storage.get<number>("deferrals")) ?? 0;
     if (deferrals < MAX_DEFERRALS && await this.deps.publisherRunning()) {
       await this.deps.storage.put("deferrals", deferrals + 1);

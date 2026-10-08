@@ -7,13 +7,14 @@
 import {
   cardInput, CLASSIFY_PROMPT, chooseHighlights, HIGHLIGHTS_PROMPT, MAX_TOKENS, mix,
   MODELS, parseClassification, PROMPT_REVISION, proposalRows, protect, rejectSentence, restore,
+  CLEF_EXCERPT_CHARS, CLEF_MODELS, CLEF_REVISION, clefFeatures, clefRequest, clefRequestTokens, packClefBatches,
   RULES_REVISION, rulesClassify, SCORING_REVISION, selectCandidates, sourceCoverage, SUMMARIZE_PROMPT,
   threadText, TRANSLATE_PROMPT, validateSentences, digestWindowStart,
   type CitedThread, type DigestProfile, type DigestV1, type Highlight, type ProposalRow, type Provenance,
   type Sentence, type Thread, type ThreadFeatures, type TopicCard,
 } from "@oss-knowledge-base/reference-pipeline";
 import { sha256Digest } from "@oss-knowledge-base/serving-contract";
-import { ModelCalls, type DigestModel } from "./model";
+import { ModelCalls, type Calibration, type DigestModel, type ModelErrorShape } from "./model";
 import { DigestSourceError, readPinnedRelease, type DigestBucket } from "./store";
 
 export const DIGEST_ROOT = "public/digest/v1/";
@@ -56,6 +57,9 @@ export interface DigestRunResult {
   readonly estimatedNeurons: number;
   readonly spentToday: number;
   readonly dryRun: boolean;
+  /** D35: shapes of failed model calls (at most 10) and the token-estimate calibration. */
+  readonly modelErrors: readonly ModelErrorShape[];
+  readonly calibration: Calibration;
   /** Dry runs return both objects instead of writing them (D60). */
   readonly objects?: { readonly en: DigestV1; readonly "zh-Hant": DigestV1 };
 }
@@ -71,7 +75,9 @@ function revisionsFor(profile: DigestProfile, model: DigestModel | undefined): R
   return {
     scoring: SCORING_REVISION,
     taxonomy: profile.taxonomy.revision,
-    classifier: model === undefined ? { model: RULES_REVISION, prompt: "none" } : { model: MODELS.summarizer, prompt: PROMPT_REVISION },
+    classifier: model === undefined ? { model: RULES_REVISION, prompt: "none" }
+      : model.decide !== undefined ? { model: CLEF_MODELS.flash, prompt: CLEF_REVISION }
+      : { model: MODELS.summarizer, prompt: PROMPT_REVISION },
     summarizer: model === undefined ? none : { model: MODELS.summarizer, prompt: PROMPT_REVISION },
     translator: model === undefined ? none : { model: MODELS.translator, prompt: PROMPT_REVISION },
   };
@@ -152,6 +158,8 @@ export async function runDigest(input: DigestRunInput): Promise<DigestRunResult>
       durationMs: completed.getTime() - started.getTime(),
       modelCalls: calls.calls,
       limited: calls.limited,
+      modelErrors: [...calls.errors],
+      calibration: calls.calibration(),
       estimatedNeurons: calls.spentToday - input.spentToday,
       spentToday: calls.spentToday,
     };
@@ -253,7 +261,11 @@ async function compose(
   const stored: Record<string, ThreadFeatures & { displayId: string }> = {};
   const pending: { thread: Thread; inputHash: string }[] = [];
   for (const thread of candidates) {
-    const inputHash = await hash(`${threadText(thread, { maxExcerpts: 3 })}\n${classifierRevision}`);
+    // The cache key is the classifier's own input: Clef sees the title and a short excerpt.
+    const classifierInput = calls.decides
+      ? JSON.stringify([thread.title, thread.rootExcerpt.slice(0, CLEF_EXCERPT_CHARS)])
+      : threadText(thread, { maxExcerpts: 3 });
+    const inputHash = await hash(`${classifierInput}\n${classifierRevision}`);
     const hit = caches.features.get(inputHash);
     if (hit !== undefined && modelConfigured) {
       const feature = { ...hit, source: "cache" as const };
@@ -268,23 +280,39 @@ async function compose(
       pending.push({ thread, inputHash });
     }
   }
-  const batches: { thread: Thread; inputHash: string }[][] = [];
-  for (let index = 0; index < pending.length; index += CLASSIFY_BATCH) batches.push(pending.slice(index, index + CLASSIFY_BATCH));
-  const prompt = CLASSIFY_PROMPT.replace("{topics}", profile.taxonomy.topics.join(", "));
-  for (let index = 0; index < batches.length; index += CLASSIFY_IN_FLIGHT) {
-    await Promise.all(batches.slice(index, index + CLASSIFY_IN_FLIGHT).map(async (batch) => {
-      const threads = batch.map((item) => item.thread);
-      const text = `${prompt}\n<threads>\n${threads.map((thread) => threadText(thread, { maxExcerpts: 3 })).join("\n\n")}\n</threads>`;
-      const output = await calls.call(MODELS.summarizer, text, MAX_TOKENS.classify);
-      const parsed = parseClassification(output ?? "", threads, profile, { model: revisions.classifier.model, prompt: revisions.classifier.prompt, generatedAt });
-      if (output === undefined) fallbacks += 1;
-      for (const item of batch) {
-        const feature = parsed.features.get(item.thread.displayId)!;
-        if (feature.source === "model") classifiedByModel += 1;
-        features.set(item.thread.displayId, feature);
-        stored[item.inputHash] = { ...feature, displayId: item.thread.displayId };
-      }
-    }));
+  const model = { model: revisions.classifier.model, prompt: revisions.classifier.prompt, generatedAt };
+  const record = (item: { thread: Thread; inputHash: string }, feature: ThreadFeatures) => {
+    if (feature.source === "model") classifiedByModel += 1;
+    features.set(item.thread.displayId, feature);
+    stored[item.inputHash] = { ...feature, displayId: item.thread.displayId };
+  };
+  if (calls.decides) {
+    // Slice 2b: Clef-flash, requests packed under its state budget, 4 in flight.
+    const byId = new Map(pending.map((item) => [item.thread.displayId, item]));
+    const batches = packClefBatches(pending.map((item) => item.thread), profile);
+    for (let index = 0; index < batches.length; index += CLASSIFY_IN_FLIGHT) {
+      await Promise.all(batches.slice(index, index + CLASSIFY_IN_FLIGHT).map(async (batch) => {
+        const request = clefRequest(batch, profile);
+        const response = await calls.decide(CLEF_MODELS.flash, request);
+        const parsed = clefFeatures(response, batch, profile, model, clefRequestTokens(request));
+        if (response === undefined || parsed.fallbacks > 0) fallbacks += 1;
+        for (const thread of batch) record(byId.get(thread.displayId)!, parsed.features.get(thread.displayId)!);
+      }));
+    }
+  } else {
+    const batches: { thread: Thread; inputHash: string }[][] = [];
+    for (let index = 0; index < pending.length; index += CLASSIFY_BATCH) batches.push(pending.slice(index, index + CLASSIFY_BATCH));
+    const prompt = CLASSIFY_PROMPT.replace("{topics}", profile.taxonomy.topics.join(", "));
+    for (let index = 0; index < batches.length; index += CLASSIFY_IN_FLIGHT) {
+      await Promise.all(batches.slice(index, index + CLASSIFY_IN_FLIGHT).map(async (batch) => {
+        const threads = batch.map((item) => item.thread);
+        const text = `${prompt}\n<threads>\n${threads.map((thread) => threadText(thread, { maxExcerpts: 3 })).join("\n\n")}\n</threads>`;
+        const output = await calls.call(MODELS.summarizer, text, MAX_TOKENS.classify);
+        const parsed = parseClassification(output ?? "", threads, profile, model);
+        if (output === undefined) fallbacks += 1;
+        for (const item of batch) record(item, parsed.features.get(item.thread.displayId)!);
+      }));
+    }
   }
 
   // Stages 3–5.

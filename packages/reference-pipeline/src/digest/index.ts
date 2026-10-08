@@ -1,5 +1,6 @@
 export * from "./candidates";
 export * from "./classify";
+export * from "./clef";
 export * from "./estimate";
 export * from "./eval";
 export * from "./mixing";

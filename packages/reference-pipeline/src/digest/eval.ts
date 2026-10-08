@@ -5,9 +5,10 @@
  */
 import { digestWindowStart, selectCandidates, sourceCoverage } from "./candidates";
 import { parseClassification } from "./classify";
+import { clefRequest, clefRequestTokens, packClefBatches } from "./clef";
 import { estimateTokens, MAX_TOKENS, neurons, type PricedModel } from "./estimate";
-import { cardInput, mix, threadText } from "./mixing";
-import { CLASSIFY_PROMPT, HIGHLIGHTS_PROMPT, SUMMARIZE_PROMPT, TRANSLATE_PROMPT } from "./prompts";
+import { cardInput, mix } from "./mixing";
+import { HIGHLIGHTS_PROMPT, SUMMARIZE_PROMPT, TRANSLATE_PROMPT } from "./prompts";
 import { chooseHighlights, digestCounts } from "./present";
 import { proposalRows } from "./proposals";
 import { protect } from "./protect";
@@ -41,6 +42,7 @@ export interface GoldenLabels {
 
 export const BATCH = { classify: 20, translate: 25 } as const;
 export const MODELS = {
+  classifier: "@cf/cloudflare/clef-flash",
   summarizer: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
   translator: "@cf/qwen/qwen3-30b-a3b-fp8",
 } as const satisfies Record<string, PricedModel>;
@@ -185,17 +187,9 @@ export interface MeasureReport {
 /** D25/D26: neurons and counters for a cold and a steady run, from prompts built on the fixture. */
 export function measure(fixture: DigestFixture, recorded: RecordedResponses, profile: DigestProfile): MeasureReport {
   const run = replay(fixture, recorded, profile);
-  const prompt = CLASSIFY_PROMPT.replace("{topics}", profile.taxonomy.topics.join(", "));
-  const classifyNeurons = (threads: readonly Thread[]) => {
-    let total = 0;
-    for (let index = 0; index < threads.length; index += BATCH.classify) {
-      const batch = threads.slice(index, index + BATCH.classify);
-      const input = `${prompt}\n<threads>\n${batch.map((thread) => threadText(thread, { maxExcerpts: 3 })).join("\n\n")}\n</threads>`;
-      const output = JSON.stringify(batch.map((thread) => ({ id: thread.displayId, ...recorded.classify[thread.displayId] })));
-      total += neurons(MODELS.summarizer, estimateTokens(input), Math.min(estimateTokens(output), MAX_TOKENS.classify));
-    }
-    return total;
-  };
+  // Classification runs on Clef-flash: packed requests, input billed only (slice 2b).
+  const classifyNeurons = (threads: readonly Thread[]) => packClefBatches(threads, profile)
+    .reduce((sum, batch) => sum + neurons(MODELS.classifier, clefRequestTokens(clefRequest(batch, profile)), 0), 0);
   const summarize = (input: string, output: unknown, max: number) =>
     neurons(MODELS.summarizer, estimateTokens(`${SUMMARIZE_PROMPT}\n<threads>\n${input}\n</threads>`), Math.min(estimateTokens(JSON.stringify(output)), max));
   const cards = run.cards.reduce((sum, card) => sum + summarize(run.cardInputs.get(card.topic) ?? "", { sentences: card.sentences }, MAX_TOKENS.card), 0);
@@ -218,7 +212,7 @@ export function measure(fixture: DigestFixture, recorded: RecordedResponses, pro
   const classify = classifyNeurons(run.candidates);
   const recentStart = Date.parse(fixture.release.generatedAt) - 86_400_000;
   const changed = run.candidates.filter((thread) => Date.parse(thread.lastActivityAt) >= recentStart);
-  const modelCalls = Math.ceil(run.candidates.length / BATCH.classify) + run.cards.length + run.proposals.length + 1 + translationCalls;
+  const modelCalls = packClefBatches(run.candidates, profile).length + run.cards.length + run.proposals.length + 1 + translationCalls;
   return {
     cold: {
       neurons: classify + cards + rows + highlights + translation,
