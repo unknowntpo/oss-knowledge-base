@@ -371,9 +371,20 @@ dry run: POST /digest/run?dryRun=1 (Dev) returns both objects, writes nothing
     `workersAiSummarizer` and none (fallback).
   - The model id, prompt revision, and taxonomy revision are part of
     `revision`.
-- **Model.** The default proposal is `@cf/meta/llama-3.3-70b-instruct-fp8-fast`
-  (JSON-schema mode documented), at temperature 0. `@cf/qwen/qwen3-30b-a3b-fp8`
-  is about 6x cheaper and is compared on the golden set (open question 2).
+- **Models** (slice 2b, decided 2026-10-08).
+  - **Classifier:** Cloudflare's decision model **Clef-flash**
+    (`@cf/cloudflare/clef-flash`, 9B, launched 2026-10-01). It returns a
+    probability for each caller-defined option. It costs $0.09 per M input
+    tokens and bills no output, which is 8,182 neurons per M input tokens.
+    **Clef** (`@cf/cloudflare/clef`, 27B, $0.24 per M input tokens) is the
+    comparison candidate for the golden set.
+  - **Summarizer:** `@cf/meta/llama-3.3-70b-instruct-fp8-fast` at
+    temperature 0. This is still open (open question 2); qwen3-30b-a3b is
+    the cheaper comparison candidate.
+  - **Translator:** `@cf/qwen/qwen3-30b-a3b-fp8`. Its `<think>` blocks are
+    stripped from the output.
+  - **Gateway:** every call goes through `env.AI.run(model, inputs,
+    { gateway: { id: DIGEST_GATEWAY_ID, skipCache: true } })`.
 
 ## Simplification review
 
@@ -536,8 +547,22 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
      - display id, title, source, status;
      - the root excerpt (≤ 280 chars);
      - up to 3 newest in-window human excerpts (≤ 200 chars each).
-   - Threads are classified in batches of 20, with 4 batches in flight at a
-     time.
+   - With the text model (tests, fallback comparison), threads are
+     classified in batches of 20, with 4 batches in flight at a time.
+   - **With Clef-flash** (slice 2b):
+     - Each request's `state` carries only `{ref, title, excerpt}` per
+       thread, with the excerpt cut to 120 characters.
+     - Each thread gets one `choice` question. Its options are the taxonomy
+       topics plus `routine`.
+     - A thread is routine when the `routine` option's probability is at
+       least 0.5, and goes to the routine section at 0.6 or more.
+     - The topic is the most probable topic option. `topicConfidence` is
+       that option's probability renormalised over the topics.
+     - Workers AI truncates long `state` (about 2K tokens), so requests are
+       packed until `state` reaches 1,800 estimated tokens or 64 questions.
+       The captured week needs 8 requests, with 4 in flight.
+     - The cache key is the Clef input itself (title and excerpt), so a new
+       comment does not reclassify a thread.
 7. **Mixing.**
    - Each candidate appears exactly once: in one card's thread list, or in
      the routine section.
@@ -668,7 +693,11 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
       - the running total plus the next call's estimate would exceed the
         cap;
       - error 3036 occurs;
-      - AI Gateway returns 429.
+      - AI Gateway returns 429, or refuses for its spend limit. The Dev
+        gateway's own limit of $2 per month is a hard stop independent of
+        the job's cap.
+      - the run reaches 45 model requests. The Dev gateway allows 60 per
+        hour.
     - **Dry runs** (Behavior 22) count against the same cap.
 16. **Malformed output.**
     - **Classification.** No retry.
@@ -937,7 +966,13 @@ accepted.
    `wrangler deploy` fails with an authorization error, add the Workers AI
    permission to the CI API token. Docs do not state whether it is required.
 5. **No new secrets.**
-6. **Preconditions for slice 2's Dev checks.**
+6. **Done by the human on 2026-10-08:**
+   - `osskb-digest-dev` was created with logs on, cache off, a rate limit
+     of 60 requests per hour (fixed window), a spend limit of $2 per month
+     (sliding window, beta), authentication on, and retries off.
+   - The caps were approved: Dev 4,500 and Prod 5,000.
+   - The Prod gateway does not exist yet, so the Prod digest stays off.
+7. **Preconditions for slice 2's Dev checks.**
    - D35 needs gateway `osskb-digest-dev` (step 2), plus a temporary test
      gateway limited to 1 request/min.
    - The `ai` binding needs wrangler auth to deploy (step 4).
@@ -1181,6 +1216,27 @@ synthetic; the others use values captured from Dev.
 | D14 | spend | constructed: a call that fails twice | both attempts add the pre-call estimate to today's spend (G21) |
 | D59 | deferral | constructed: a deferred run completes, then the publisher runs at the next alarm | the counter restarted: the alarm defers again |
 | D59 | deferral | constructed: 2 deferrals recorded, then POST /digest/run | counter cleared; the new alarm can defer 4 times |
+| D63 | clef | constructed: answer t1 security 0.7, clients 0.2, other 0.1, routine 0.1 | topic security, topicConfidence 0.70, routine false (0.90) |
+| D63 | clef | constructed: answer t1 routine 0.6, other 0.4 | routine section (routineConfidence 0.60) |
+| D63 | clef | captured week, cold run with Clef | 8 Clef requests; every state at most 1,800 tokens; at most 64 questions; excerpts at most 120 chars |
+| D63 | clef | constructed: the request body for one batch | model clef-flash; state [{ref, title, excerpt}]; one choice question per thread with 13 options (12 topics + routine) |
+| D63 | clef | constructed: a new comment on a thread whose title and root excerpt are unchanged | Clef features reused from cache; 0 Clef requests for it |
+| D67 | clef | constructed: answer for t2 missing, t3 probability 1.4 | t2 and t3 get rules features; the rest model; batch counted as a fallback |
+| D67 | clef | constructed: the Clef request fails twice | 1 retry; the batch gets rules features |
+| D68 | errors | binding throws "AiError: 3036: daily free allocation of 10,000 neurons used" | code 3036; limit |
+| D68 | errors | binding throws "AI Gateway: 429 Too Many Requests" | status 429; limit |
+| D68 | errors | binding throws "Gateway spend limit reached" | limit |
+| D68 | errors | binding throws "AiError: 5007: internal server error" | code 5007; retry |
+| D69 | text response | Workers AI returns {response: "<think>…</think>{\"sentences\":[]}", usage} | text {"sentences":[]}; usage kept |
+| D69 | text response | Workers AI returns {response: {sentences: []}} (JSON mode object) | text {"sentences":[]} |
+| D70 | gateway | DIGEST_MODEL workers-ai, DIGEST_GATEWAY_ID osskb-digest-dev, AI binding | every call passes {gateway: {id: osskb-digest-dev, skipCache: true}} |
+| D70 | gateway | AI binding without DIGEST_GATEWAY_ID (or DIGEST_MODEL unset) | no model: rules only |
+| D71 | spend | constructed: the 46th model request of one run | skipped; limited true |
+| D64 | run control | DIGEST_ENABLED unset (Prod) | POST /digest/run 403 disabled; an alarm runs nothing |
+| D66 | dry run | constructed: a dry run where the model reports usage and one call fails | result lists the error shape and a calibration ratio of reported to estimated input tokens |
+| D63 | clef | constructed: answer t1 routine 0.45, other 0.55 | topic other, topicConfidence 1.00, routine false (0.55) |
+| D63 | clef | constructed: answer t1 routine 0.5, other 0.25, security 0.25 | topic other, topicConfidence 0.50, routine true (0.50) |
+| D63 | clef | constructed: 70 threads with one-letter titles and no excerpt | 2 requests: 64 + 6 questions |
 <!-- test-plan:end -->
 
 **Slice 3: browser.** Case file
@@ -1328,6 +1384,26 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
     link to `/#/datafusion/threads`;
   - `/#/feed/<displayId>` still opens Detail.
 
+- D63: Clef-flash classification (slice 2b):
+  - one choice question per thread (12 topics plus `routine`);
+  - state `{ref, title, excerpt ≤ 120}`, packed to at most 1,800 state
+    tokens and 64 questions (8 requests on the captured week);
+  - routine at a `routine` probability of 0.6 or more; topic and confidence
+    renormalised over the topics;
+  - the request names the model `clef-flash`;
+  - the cache is keyed by the Clef input.
+- D64: with `DIGEST_ENABLED` unset (Prod), `POST /digest/run` returns 403
+  `{disabled: true}` and an alarm runs nothing; Dev returns 202.
+- D65: in the deploy config, every cron is the publisher's or
+  `DIGEST_CRON`, and `DIGEST_CRON` never exists without its entry.
+  - Dev has the `ai` binding and `osskb-digest-dev`, with no digest cron.
+  - Prod has no `ai` binding and no digest variables.
+- D66: a dry run returns `modelErrors` (the shape of each failed call, at
+  most 10) and `calibration` (estimated against reported input tokens).
+- D70: with `DIGEST_MODEL=workers-ai`, `DIGEST_GATEWAY_ID`, and the `AI`
+  binding, every call passes `{gateway: {id, skipCache: true}}`. If any of
+  the three is missing, the run is rules-only.
+
 ### Failure and retry
 - D13: a binding error, 5xx, 3040, or unidentified error is retried once
   after 5 s.
@@ -1418,12 +1494,26 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   translated" item is not complete, and the next run retranslates only
   those items.
 
+- D67: a missing or out-of-range Clef answer gives that thread rules
+  features and counts the batch as a fallback; a Clef request failing twice
+  gives the batch rules features after one retry.
+- D68: binding errors are mapped from their message. Code 3036, status 429,
+  and "spend limit" stop the run's model use; other codes (e.g. 5007) are
+  retried once.
+- D69: text responses with `<think>` blocks or JSON-mode objects become
+  plain JSON text, and the reported usage is kept.
+- D71: the 46th model request of a run is skipped and the run is
+  `limited`.
+
 ### Budget
 - D25: [measure] on the captured week, a cold Kafka run estimates at most
   4,500 neurons and a steady daily run at most 2,000.
-  - Cold run, about 3,900 by the earlier estimate: English generation on
-    llama-3.3-70b-fp8-fast, about 3,700, and zh-Hant translation on
-    qwen3-30b-a3b, about 175.
+  - Measured 2026-10-08 with Clef-flash classification (slice 2b): cold
+    **1,310**, steady **1,056**.
+  - The cold run breaks down as: classification on Clef-flash 351 (8
+    requests); cards 610, proposal lines 236, and highlights 71 on
+    llama-3.3-70b; translation 42 on qwen3-30b-a3b.
+  - Before 2b, with llama classification, the cold run was 3,531.
   - Steady run: it reclassifies the 64 threads whose `lastActivityAt` is
     within 24 h of the window end, and regenerates every card and proposal
     row.
@@ -1431,9 +1521,9 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
     committed fixture and applies the pinned price table and the Behavior
     15 token estimate.
 - D26: [measure] the same command prints call and read counters:
-  - model calls per cold run: at most 45 (12 classification batches, about
-    9 cards, 12 proposal rows, 1 highlights call, 2 translation batches,
-    retries);
+  - model calls per cold run: at most 45. Measured 35: 8 Clef requests, 12
+    cards, 12 proposal rows, 1 highlights call, and 2 translation batches.
+    This stays under the Dev gateway's 60 requests per hour;
   - R2 reads: at most 300 (pointer, manifest, feed index, detail map, 234
     Details, two previous objects, one list);
   - both are far below the Worker's 20,000 subrequests.
@@ -1505,19 +1595,30 @@ A slice removes the `[pending]` tags of the IDs it implements, and the
    - `digest -- eval|measure` on the committed fixture with recorded
      responses.
    No Worker or web change.
-2b items are all `[deploy]` or `[measure]` acceptance items, which the gate
-lists but does not test: D27, D28, D29, D32, D34, D35, and D57. The spec can
-be marked Implemented once slices 1–3 are merged; those items are then
-reported from Dev in the 2b PR. D27's `digest -- measure --scale 2` is part
-of 2b. Until then the command rejects the flag.
+Slice 2b adds acceptance items D63–D71, which are tested. Its Dev evidence
+items stay `[deploy]` or `[measure]` and are reported from Dev after the
+human reviews a dry run: D28, D29, D32, D35, and D57. D34 waits for the
+golden-set labels. D27's `digest -- measure --scale 2` (memory at 2x) is not
+built yet; the command rejects the flag.
 
 2. **`DigestRun` in the data Worker:** cache, publication, deferral, dry run,
    and `/health.digest`. There is no `AI` binding and no digest cron yet:
    production runs rules-only and only by `POST /digest/run`. A fake model
    tests every model path.
-   - **2b**, after the human's Cloudflare setup: the Workers AI client behind
-     the same `DigestModel` interface, the gateway option, D35 on Dev, and
-     the `DIGEST_CRON` variable plus cron entry.
+   - **2b** (this PR):
+     - The Workers AI client sits behind the same `DigestModel` interface.
+       Clef-flash classifies through `decide`; the other models use `run`.
+     - The gateway option is on every call.
+     - D35 capture: dry-run results carry `modelErrors` and a
+       `calibration` of the estimated against the reported input tokens.
+     - The per-run ceiling is 45 requests.
+     - Dev: `DIGEST_ENABLED=true`, `DIGEST_MODEL=workers-ai`,
+       `DIGEST_GATEWAY_ID=osskb-digest-dev`, and the `ai` binding.
+     - Prod: none of these. Its digest is off and `POST /digest/run`
+       returns 403.
+     - The digest cron ships **disabled**: no `DIGEST_CRON` and no cron
+       entry. Both are added together once the human has reviewed a Dev dry
+       run.
 3. **Web:** routes, tabs, This week, Proposals, topic page, i18n, and
    `/api/digest`. The E2E moves are part of this slice.
 
@@ -1585,9 +1686,10 @@ of 2b. Until then the command rejects the flag.
 
 1. Golden-set thresholds (D34): for example, recall ≥ 0.8 of important
    threads in visible card slots and 0 important threads in routine.
-2. Summarizer model: llama-3.3-70b (documented JSON mode, about 3,700
-   neurons cold) vs qwen3-30b-a3b (about 590, JSON mode unconfirmed). Decide on the golden
-   set.
+2. Summarizer model: llama-3.3-70b, the current choice (about 920
+   neurons cold for cards, rows, and highlights), against qwen3-30b-a3b
+   (about 6x cheaper; JSON mode unconfirmed). Decide on the golden set. The
+   classifier is decided (Clef-flash), with Clef as its comparison.
 3. The human listed KIP stage and decision-bearing as model features. This
    spec makes stage deterministic and deletes decision-bearing. It also
    shows all stages as badges, grouped vote → discuss → implementing, so a

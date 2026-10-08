@@ -4,6 +4,7 @@ import { DigestRunner } from "./digest/runner";
 import { R2DigestBucket } from "./digest/store";
 import { runReviewQueue } from "./review-queue/run";
 import { R2ReviewQueueBucket, reviewQueueLastRunKey } from "./review-queue/store";
+import { WorkersAiModel, type AiBinding } from "./digest/workers-ai";
 import { DurableObjectPipelineState } from "./durable-object-state";
 import { GitHubFetchTransport } from "./github-transport";
 import { R2PublicationDestination } from "./r2-destination";
@@ -18,10 +19,16 @@ interface Env {
   readonly OSS_KB_BUCKET: R2Bucket;
   readonly PIPELINE_STATE: DurableObjectNamespace;
   readonly DIGEST_RUN: DurableObjectNamespace;
-  /** Spec 014: the digest's cron expression. Unset in this slice, so no cron starts a digest. */
+  /** Spec 014: the digest's cron expression. Unset until a Dev dry run is reviewed, so no cron starts a digest. */
   readonly DIGEST_CRON?: string;
   /** Spec 015: the review queue's cron expression. Unset until a Dev dry run is measured. */
   readonly REVIEW_QUEUE_CRON?: string;
+  /** "true" enables the digest (Dev); unset on Prod until its gateway exists. */
+  readonly DIGEST_ENABLED?: string;
+  /** "workers-ai" uses the `AI` binding through `DIGEST_GATEWAY_ID`; otherwise rules only. */
+  readonly DIGEST_MODEL?: string;
+  readonly DIGEST_GATEWAY_ID?: string;
+  readonly AI?: AiBinding;
 }
 
 const sourceFetch = (url: string, init: { readonly headers: Readonly<Record<string, string>> }) =>
@@ -40,6 +47,12 @@ export function cronTarget(cron: string, digestCron: string | undefined, reviewQ
   if (matches(cron, digestCron)) return "digest";
   if (matches(cron, reviewQueueCron)) return "review-queue";
   return "publisher";
+}
+
+/** Slice 2b: Workers AI through the gateway only when all three settings are present. */
+export function digestModel(env: Pick<Env, "DIGEST_MODEL" | "DIGEST_GATEWAY_ID" | "AI">): WorkersAiModel | undefined {
+  const gateway = env.DIGEST_GATEWAY_ID?.trim() ?? "";
+  return env.DIGEST_MODEL === "workers-ai" && env.AI !== undefined && gateway !== "" ? new WorkersAiModel(env.AI, gateway) : undefined;
 }
 
 /**
@@ -218,6 +231,8 @@ export class DigestRun implements DurableObject {
       bucket: new R2DigestBucket(env.OSS_KB_BUCKET),
       profile: KAFKA_DIGEST_PROFILE,
       environment: env.PUBLICATION_ENVIRONMENT,
+      enabled: env.DIGEST_ENABLED === "true",
+      ...(digestModel(env) === undefined ? {} : { model: digestModel(env)! }),
       now: () => new Date(),
       delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       publisherRunning: async () => {

@@ -8,6 +8,10 @@ import { PROTECTED_PATTERNS } from "./protect";
 export const PRICES = {
   "@cf/meta/llama-3.3-70b-instruct-fp8-fast": { inputPerM: 26_668, outputPerM: 204_805 },
   "@cf/qwen/qwen3-30b-a3b-fp8": { inputPerM: 4_625, outputPerM: 30_475 },
+  // Clef decision models (launched 2026-10-01): $0.09 and $0.24 per M input tokens, output not
+  // billed; at $0.011 per 1,000 neurons that is 8,182 and 21,818 neurons per M input tokens.
+  "@cf/cloudflare/clef-flash": { inputPerM: 8_182, outputPerM: 0 },
+  "@cf/cloudflare/clef": { inputPerM: 21_818, outputPerM: 0 },
 } as const;
 export type PricedModel = keyof typeof PRICES;
 

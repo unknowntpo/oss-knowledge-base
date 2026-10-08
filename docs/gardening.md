@@ -196,7 +196,7 @@ the two `viewer/` items below.
 - **Source:** Spec 014 slice 1.
 
 ### G19. Workers AI price table is copied into code
-- **Where:** `PRICES` in `packages/reference-pipeline/src/digest/estimate.ts`.
+- **Where:** `PRICES` in `packages/reference-pipeline/src/digest/estimate.ts`. Includes the Clef decision models since slice 2b ($0.09 and $0.24 per M input tokens, from the Clef-flash model page, 2026-10-08).
 - **Why:** the daily spend cap (Spec 014 Behavior 15) and `bun run digest --
   measure` use these numbers; a Cloudflare price change makes the cap wrong
   silently.

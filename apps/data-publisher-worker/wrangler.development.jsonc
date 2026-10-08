@@ -9,7 +9,13 @@
     "subrequests": 20000
   },
   "vars": {
-    "PUBLICATION_ENVIRONMENT": "development"
+    "PUBLICATION_ENVIRONMENT": "development",
+    "DIGEST_ENABLED": "true",
+    "DIGEST_MODEL": "workers-ai",
+    "DIGEST_GATEWAY_ID": "osskb-digest-dev"
+  },
+  "ai": {
+    "binding": "AI"
   },
   "triggers": {
     "crons": ["7 * * * *"]
