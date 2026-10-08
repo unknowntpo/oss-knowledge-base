@@ -5,7 +5,8 @@
 import type { DigestProfile, Thread, ThreadFeatures } from "./types";
 
 export const ROUTINE_THRESHOLD = 0.6;
-export const TOPIC_THRESHOLD = 0.6;
+/** Slice 2d: chosen from the second Dev dry run's Clef confidences (Behavior 6); D34 labels refine it. */
+export const TOPIC_THRESHOLD = 0.35;
 export const RULES_REVISION = "digest-rules@1";
 
 const ROUTINE_RULES: readonly RegExp[] = [
