@@ -266,3 +266,15 @@ the two `viewer/` items below.
   as frozen.
 - **Layer:** rule (README states which apps are live).
 - **Source:** repository grep, 2026-10-06.
+
+### G22. `/api/feed` ships the whole Feed index (11 MB) to every visitor
+- **Where:** `apps/web/functions/api/feed.ts`, `apps/web/src/api.ts`.
+- **Why:** after Spec 012 the index is 11.05 MB uncompressed (3,743 entries
+  with `searchText`). Every page load downloads it, and Chromium's inspector
+  can no longer return its body, which broke the deployed E2E from #31 to #35
+  unnoticed (PR checks skip deployed E2E).
+- **Fix:** page or project-scope the Feed response and drop `searchText` from
+  it; Spec 014's `/#/<project>/threads` is the natural cut. Separately, make a
+  red deployed E2E on `main` visible before the next merge.
+- **Layer:** structure (response shape) and gate (merge only on a green `main`).
+- **Source:** deployed E2E failures on `main`, 2026-10-07/08.

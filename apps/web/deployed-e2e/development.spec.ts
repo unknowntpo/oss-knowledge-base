@@ -78,7 +78,8 @@ test("development cron data reaches Feed, Search, facets, and immutable detail",
   await page.goto("/", { waitUntil: "networkidle" });
   const feedResponse = await feedResponsePromise;
   expect(feedResponse.status()).toBe(200);
-  const feed = await feedResponse.json() as {
+  // /api/feed exceeds Chromium's inspector body cache (~10 MB), so read it outside the page.
+  const feed = await (await request.get("/api/feed")).json() as {
     readonly entries: readonly { readonly projectKey: string }[];
     readonly metadata: { readonly manifest: { readonly releaseId: string } };
   };
