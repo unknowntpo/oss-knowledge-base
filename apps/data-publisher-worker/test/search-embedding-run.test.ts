@@ -9,6 +9,7 @@ import {
 import { SEARCH_CURRENT_KEY, SEARCH_RELEASE_SCHEMA_V2, searchReleaseManifestKey } from "@oss-knowledge-base/serving-contract";
 
 import { DEFAULT_EMBEDDING_LIMITS, type EmbeddingLimits, type EmbeddingRunResult } from "../src/search-embedding/run";
+import { EmbeddingState } from "../src/search-embedding/state";
 import { testPlanRows } from "./search-embedding.cases";
 import { DAY_1, DAY_MS, DIMENSIONS, FIVE, harness, PROFILE, projectA, projectB, publishRelease } from "./support/search-embedding";
 
@@ -303,12 +304,12 @@ describe("Spec 016 embedding run", () => {
     expectStateMatchesIndex(h);
   });
 
-  test("H46: the initial backfill of 8,577 chunks finishes in three runs under the default bounds", async () => {
-    const corpus = Array.from({ length: 8_577 }, (_, n) => (n % 4 === 0 ? projectB : projectA)(`record:${n}`));
+  test("H46: the initial backfill of 8,586 chunks finishes in three runs under the default bounds", async () => {
+    const corpus = Array.from({ length: 8_586 }, (_, n) => (n % 4 === 0 ? projectB : projectA)(`record:${n}`));
     const h = harness();
     publishRelease(h.bucket, "r1", corpus);
     const dry = await h.run({ dryRun: true });
-    expect(dry.estimate).toMatchObject({ chunks: 8_577, calls: 172, runs: 3, days: 1 });
+    expect(dry.estimate).toMatchObject({ chunks: 8_586, calls: 172, runs: 3, days: 1 });
     expect(h.model.calls).toEqual([]);
 
     const runs: EmbeddingRunResult[] = [];
@@ -317,12 +318,12 @@ describe("Spec 016 embedding run", () => {
       runs.push(await h.run());
     }
     expect(runs.map((result) => `${result.embeddedThisRun} ${result.modelCalls} ${result.limited ?? "-"}`))
-      .toEqual(["3000 60 chunks-per-run", "3000 60 chunks-per-run", "2577 52 -", "0 0 -"]);
+      .toEqual(["3000 60 chunks-per-run", "3000 60 chunks-per-run", "2586 52 -", "0 0 -"]);
     expect(runs.every((result) => result.ok)).toBe(true);
-    expect(runs[2]).toMatchObject({ embedded: 8_577, pending: 0, storedVectors: 8_577, storedDimensions: 8_577 * DIMENSIONS });
+    expect(runs[2]).toMatchObject({ embedded: 8_586, pending: 0, storedVectors: 8_586, storedDimensions: 8_586 * DIMENSIONS });
     expect(runs[2]!.spentToday.calls).toBe(172);
     expect(runs[2]!.spentToday.calls).toBeLessThanOrEqual(DEFAULT_EMBEDDING_LIMITS.maxCallsPerDay);
-    expect(h.index.vectors.size).toBe(8_577);
+    expect(h.index.vectors.size).toBe(8_586);
   }, 60_000);
 
   test.each([
@@ -432,6 +433,143 @@ describe("Spec 016 embedding run", () => {
     const hybrid = await hybridSearch({ query: "Title of a2", lexical: [], semantic: serving(next) });
     expect(hybrid.retrieval).toMatchObject({ semantic: "ok" });
     expect(hybrid.results[0]!.groupRootRecordId).toBe("a2");
+  });
+
+  test("H53: an empty release deletes nothing and leaves the state as it is", async () => {
+    const h = harness();
+    publishRelease(h.bucket, "r1", FIVE);
+    await h.run();
+    publishRelease(h.bucket, "r2", []);
+    h.index.calls.length = 0;
+    h.model.calls.length = 0;
+    const vectors = h.storage.vectorIds();
+    const result = await h.run();
+    expect(result).toMatchObject({
+      ok: true, releaseId: "r2", chunks: 0, embedded: 0, deletedThisRun: 0, deletePending: 5, heldDeletes: 5, storedVectors: 5, modelCalls: 0,
+      absentProjects: [{ projectId: "p-a", vectors: 3, releases: 1 }, { projectId: "p-b", vectors: 2, releases: 1 }],
+    });
+    expect(h.index.calls).toEqual(["describe"]);
+    expect(h.storage.vectorIds()).toEqual(vectors);
+    expect(h.index.vectors.size).toBe(5);
+    // The release that follows holds the chunks again: nothing is embedded or deleted.
+    publishRelease(h.bucket, "r3", FIVE);
+    expect(await h.run()).toMatchObject({ ok: true, embedded: 5, modelCalls: 0, deletedThisRun: 0, heldDeletes: 0, absentProjects: [] });
+    expect(h.model.calls).toEqual([]);
+  });
+
+  test("H53: a project missing from a release keeps its vectors until three releases in a row lack it", async () => {
+    const h = harness();
+    const onlyA = FIVE.slice(0, 2);
+    publishRelease(h.bucket, "r1", FIVE);
+    await h.run();
+    h.model.calls.length = 0;
+
+    // p-b is gone from r2; a3 is gone too, but its project is still there, so it is deleted as before.
+    publishRelease(h.bucket, "r2", onlyA);
+    expect(await h.run()).toMatchObject({ ok: true, deletedThisRun: 1, deletePending: 2, heldDeletes: 2, storedVectors: 4, absentProjects: [{ projectId: "p-b", vectors: 2, releases: 1 }] });
+    // The same release again is not a second observation.
+    expect(await h.run()).toMatchObject({ deletedThisRun: 0, heldDeletes: 2, absentProjects: [{ projectId: "p-b", vectors: 2, releases: 1 }] });
+    // A dry run reports the hold and counts nothing.
+    publishRelease(h.bucket, "r3", onlyA);
+    expect(await h.run({ dryRun: true })).toMatchObject({ deletedThisRun: 0, heldDeletes: 2, absentProjects: [{ projectId: "p-b", vectors: 2, releases: 2 }] });
+    expect(await h.run()).toMatchObject({ deletedThisRun: 0, heldDeletes: 2, absentProjects: [{ projectId: "p-b", vectors: 2, releases: 2 }] });
+
+    // It returns: no delete, no model call, and the count starts over.
+    publishRelease(h.bucket, "r4", [...onlyA, ...FIVE.slice(3)]);
+    expect(await h.run()).toMatchObject({ ok: true, embedded: 4, modelCalls: 0, deletedThisRun: 0, heldDeletes: 0, absentProjects: [] });
+    expect(h.model.calls).toEqual([]);
+    expect(h.index.vectors.size).toBe(4);
+
+    const held: number[] = [];
+    for (const release of ["r5", "r6", "r7"]) {
+      publishRelease(h.bucket, release, onlyA);
+      const result = await h.run();
+      held.push(result.heldDeletes);
+      if (release !== "r7") expect(result.deletedThisRun).toBe(0);
+      else expect(result).toMatchObject({ ok: true, deletedThisRun: 2, deletePending: 0, storedVectors: 2, absentProjects: [] });
+    }
+    expect(held).toEqual([2, 2, 0]);
+    expect([...h.index.vectors.values()].map((vector) => vector.namespace)).toEqual(["p-a", "p-a"]);
+    expectStateMatchesIndex(h);
+    expect([...h.storage.values.keys()].filter((key) => key.startsWith("absent:"))).toEqual(["absent:p-b"]);
+    publishRelease(h.bucket, "r8", onlyA);
+    await h.run();
+    expect([...h.storage.values.keys()].filter((key) => key.startsWith("absent:"))).toEqual([]);
+  });
+
+  test("H54: a batch that fails in three runs in a row is quarantined for a day, and the rest is embedded", async () => {
+    const h = harness({ batchTexts: 2 });
+    publishRelease(h.bucket, "r1", FIVE);
+    const poison = (texts: readonly string[]) => (texts.some((text) => text.includes("a3")) ? new Error("AiError: 3010: Invalid input") : undefined);
+    h.model.respond = (_call, texts) => poison(texts);
+    const [, , a3, b1] = await ids(FIVE);
+
+    const runs: string[] = [];
+    for (let hour = 0; hour < 5; hour += 1) {
+      h.clock.now = DAY_1 + hour * 3_600_000;
+      const result = await h.run();
+      runs.push(`${result.modelCalls} calls, ${result.embedded}/5, quarantined ${result.quarantined}, ${result.ok ? "ok" : result.failureKind}`);
+      if (hour === 3) expect(result.quarantinedIds).toEqual([a3!, b1!].sort());
+    }
+    // Three failed runs cost two calls each; after that the batch costs nothing.
+    expect(runs).toEqual([
+      "4 calls, 3/5, quarantined 0, model",
+      "2 calls, 3/5, quarantined 0, model",
+      "2 calls, 3/5, quarantined 0, model",
+      "0 calls, 3/5, quarantined 2, ok",
+      "0 calls, 3/5, quarantined 2, ok",
+    ]);
+    expect(await h.run({ dryRun: true })).toMatchObject({ quarantined: 2, pending: 2, estimate: { chunks: 0, calls: 0 } });
+
+    // A day after the last failure it is tried once more; a success ends the quarantine.
+    h.clock.now = DAY_1 + 2 * 3_600_000 + DAY_MS - 1;
+    expect(await h.run()).toMatchObject({ modelCalls: 0, quarantined: 2 });
+    h.clock.now += 1;
+    expect(await h.run()).toMatchObject({ ok: false, modelCalls: 2, quarantined: 0, embedded: 3 });
+    h.clock.now += 3_600_000;
+    expect(await h.run()).toMatchObject({ ok: true, modelCalls: 0, quarantined: 2 });
+    h.model.respond = () => undefined;
+    h.clock.now += DAY_MS;
+    expect(await h.run()).toMatchObject({ ok: true, modelCalls: 1, quarantined: 0, embedded: 5, pending: 0 });
+    expect([...h.storage.values.keys()].filter((key) => key.startsWith("f:"))).toEqual([]);
+  });
+
+  test("H54: a refusal, a store failure, or a changed chunk does not count toward quarantine; a new revision and a reset clear it", async () => {
+    const strikes = (h: Harness) => [...h.storage.values].filter(([key]) => key.startsWith("f:")).map(([, value]) => (value as { n: number }).n);
+    const refused = harness({ batchTexts: 2 });
+    publishRelease(refused.bucket, "r1", FIVE);
+    for (const error of ["429 Too Many Requests", "AiError: 3036: daily allocation", "AI Gateway spend limit exceeded"]) {
+      refused.model.respond = () => new Error(error);
+      await refused.run();
+    }
+    refused.model.respond = () => undefined;
+    refused.index.fail = (operation) => (operation === "upsert" ? new Error("VECTOR_UPSERT_ERROR") : undefined);
+    await refused.run();
+    expect(strikes(refused)).toEqual([]);
+
+    const quarantine = async () => {
+      const h = harness({ batchTexts: 2 });
+      publishRelease(h.bucket, "r1", FIVE);
+      h.model.respond = (_call, texts) => (texts.some((text) => text.includes("a3")) ? new Error("AiError: 3010: Invalid input") : undefined);
+      for (let run = 0; run < 3; run += 1) await h.run();
+      expect(await h.run()).toMatchObject({ modelCalls: 0, quarantined: 2 });
+      expect(strikes(h)).toEqual([3, 3]);
+      return h;
+    };
+    // The text of a3 changes: it is a new passage and is tried at once; b1 stays quarantined.
+    const changed = await quarantine();
+    publishRelease(changed.bucket, "r2", FIVE.map((chunk) => (chunk.recordId === "a3" ? { ...chunk, text: "Rewritten a3" } : chunk)));
+    expect(await changed.run()).toMatchObject({ modelCalls: 2, quarantined: 1 });
+    // Another revision embeds everything again.
+    const revised = await quarantine();
+    revised.model.respond = () => undefined;
+    expect(await revised.run({ profile: searchEmbeddingProfile("test@2", { ...PROFILE.revision, modelRevision: "2" }) })).toMatchObject({ ok: true, embedded: 5, quarantined: 0 });
+    // A reset forgets the strikes with the vectors.
+    const reset = await quarantine();
+    await new EmbeddingState(reset.storage).clear();
+    expect(strikes(reset)).toEqual([]);
+    reset.model.respond = () => undefined;
+    expect(await reset.run()).toMatchObject({ ok: true, embedded: 5, quarantined: 0, modelCalls: 3 });
   });
 
   test("H51: a dry run reports what a run would do and cost, calling no model, mutating no vector, and writing no state", async () => {

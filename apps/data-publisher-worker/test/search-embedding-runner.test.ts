@@ -6,6 +6,7 @@ import type { PipelineRunStatus } from "../src/pipeline";
 import { STALE_ALARM_MS } from "../src/run-schedule";
 import { DEFAULT_EMBEDDING_LIMITS, type EmbeddingRunResult } from "../src/search-embedding/run";
 import { searchEmbeddingConfig, SearchEmbeddingRunner, unboundSearchEmbeddingHealth, type SearchEmbeddingHealth, type SearchEmbeddingRunnerDeps } from "../src/search-embedding/runner";
+import { EmbeddingState } from "../src/search-embedding/state";
 import { DAY_1, FIVE, MemoryBucket, MemoryStorage, projectA, publishRelease } from "./support/search-embedding";
 
 const DIMENSIONS = 1_024;
@@ -182,22 +183,23 @@ describe("Spec 016 embedding object", () => {
       running: false,
       scheduled: false,
       interrupted: null,
-      today: { date: "2026-10-10", estimatedNeurons: 3, cap: 3_000, calls: 3, callCap: 400 },
+      today: { date: "2026-10-10", estimatedNeurons: 3, cap: 2_500, calls: 3, callCap: 400 },
       lastMutation: { id: "mutation-3", acceptedAt: "2026-10-10T08:00:00.000Z" },
+      lastError: null,
       lastRun: {
         ok: true, dryRun: false, completedAt: "2026-10-10T08:00:00.000Z", durationMs: 0, releaseId: "r1",
         model: "@cf/baai/bge-m3", revision: "bge-m3@1", semanticRevision: SEMANTIC_REVISION,
-        chunks: 5, embedded: 5, pending: 0, embeddedThisRun: 5, deletedThisRun: 0, deletePending: 0, storedVectors: 5, storedDimensions: 5_120,
+        chunks: 5, embedded: 5, pending: 0, embeddedThisRun: 5, deletedThisRun: 0, deletePending: 0, heldDeletes: 0, absentProjects: [], quarantined: 0, quarantinedIds: [], storedVectors: 5, storedDimensions: 5_120,
         modelCalls: 3, estimatedInputTokens: 30, estimatedNeurons: 3, spentToday: { date: "2026-10-10", estimatedNeurons: 3, calls: 3 },
         limited: null, modelErrors: [], index: { vectorCount: 0, mutationsProcessed: null }, lastMutationId: "mutation-3",
         estimate: { chunks: 0, calls: 0, inputTokens: 0, neurons: 0, usd: 0, runs: 0, days: 0 },
       },
     } satisfies SearchEmbeddingHealth);
-    expect(DEFAULT_EMBEDDING_LIMITS).toMatchObject({ dailyNeuronCap: 3_000, maxCallsPerDay: 400, maxChunksPerRun: 3_000, maxCallsPerRun: 80 });
+    expect(DEFAULT_EMBEDDING_LIMITS).toMatchObject({ dailyNeuronCap: 2_500, maxCallsPerDay: 400, maxChunksPerRun: 3_000, maxCallsPerRun: 80 });
 
     // The next day's ledger starts at zero; a stale alarm no longer blocks a trigger.
     clock.now = DAY_1 + 86_400_000;
-    expect((await runner.health()).today).toEqual({ date: "2026-10-11", estimatedNeurons: 0, cap: 3_000, calls: 0, callCap: 400 });
+    expect((await runner.health()).today).toEqual({ date: "2026-10-11", estimatedNeurons: 0, cap: 2_500, calls: 0, callCap: 400 });
     storage.alarm = clock.now - STALE_ALARM_MS;
     expect((await runner.request()).status).toBe(202);
   });
@@ -276,6 +278,54 @@ describe("Spec 016 embedding object", () => {
     expect((await runner.health()).lastRun).toMatchObject({ ok: true, embedded: 5, pending: 0 });
   });
 
+  test("H54: the last model or store error stays in /health until a run embeds again, whatever stops the runs between", async () => {
+    const { storage, ai, index, clock, runner } = setup({ limits: { batchTexts: 2, maxCallsPerDay: 4 } });
+    const alarm = async () => { storage.alarm = null; await runner.alarm(); return runner.health(); };
+    expect((await runner.health()).lastError).toBeNull();
+    const secret = `Bearer ${"s3cr3t".repeat(8)}`;
+    ai.fail = new Error(`AiError: 5007: upstream said ${secret} key=${"a1B2".repeat(10)} ${"x".repeat(400)}`);
+    const failed = await alarm();
+    expect(failed.lastError).toEqual({ kind: "model", message: expect.stringContaining("AiError: 5007: upstream said Bearer [redacted] key=[redacted]"), at: "2026-10-10T08:00:00.000Z", batchSize: 2 });
+    expect(failed.lastError!.message).not.toContain("s3cr3t");
+    expect(failed.lastError!.message).not.toContain("a1B2a1B2");
+    expect(failed.lastError!.message.length).toBeLessThanOrEqual(200);
+    expect(failed.today.calls).toBe(4);
+
+    // The model works again, but the day's calls are used up: the run is ok and limited, and the error stays.
+    ai.fail = undefined;
+    clock.now += 3_600_000;
+    const capped = await alarm();
+    expect(capped.lastRun).toMatchObject({ ok: true, limited: "calls-per-day", modelCalls: 0 });
+    expect(capped.lastError).toEqual(failed.lastError);
+
+    clock.now += 86_400_000;
+    const recovered = await alarm();
+    expect(recovered.lastRun).toMatchObject({ ok: true, embedded: 5 });
+    expect(recovered.lastError).toBeNull();
+
+    // A store failure is kept the same way, with the size of the batch that was lost.
+    const store = setup();
+    store.index.fail = (operation) => (operation === "upsert" ? new Error("VECTOR_UPSERT_ERROR (code = 40011)") : undefined);
+    store.storage.alarm = null;
+    await store.runner.alarm();
+    expect((await store.runner.health()).lastError).toEqual({ kind: "vector-store", message: "The vector upsert failed: VECTOR_UPSERT_ERROR (code = 40011)", at: "2026-10-10T08:00:00.000Z", batchSize: 2 });
+    expect(index.vectors.size).toBe(5);
+    // A dry run neither records nor clears it.
+    await store.runner.request({ dryRun: true });
+    expect((await store.runner.health()).lastError).not.toBeNull();
+  });
+
+  test("H51: a reset forgets more vectors than one storage call may delete", async () => {
+    const { storage, runner } = setup({ flag: undefined });
+    const state = new EmbeddingState(storage);
+    await state.record(Array.from({ length: 250 }, (_, n) => [`id-${n}`, { p: "p-a", h: "h", r: "r" }] as const));
+    expect(storage.vectorIds()).toHaveLength(250);
+    expect(storage.writes.filter((write) => write.startsWith("putMany"))).toEqual(["putMany 100", "putMany 100", "putMany 50"]);
+    expect(await runner.request({ reset: true })).toEqual({ status: 200, body: { ok: true, scheduled: false, forgotten: 250 } });
+    expect(storage.vectorIds()).toEqual([]);
+    expect(storage.writes.filter((write) => write.startsWith("deleteMany"))).toEqual(["deleteMany 100", "deleteMany 100", "deleteMany 50"]);
+  });
+
   test("H47: an alarm whose storage fails does not throw, so the runtime does not retry it into another spend", async () => {
     const { storage, ai, runner } = setup();
     storage.fail = (write) => (write === "put run-started" ? new Error("storage unavailable") : undefined);
@@ -304,7 +354,7 @@ describe("Spec 016 embedding object", () => {
     const health = unboundSearchEmbeddingHealth(undefined, new Date(DAY_1));
     expect(health).toEqual({
       enabled: false, model: null, revision: null, semanticRevision: null, running: false, scheduled: false, interrupted: null,
-      today: { date: "2026-10-10", estimatedNeurons: 0, cap: 3_000, calls: 0, callCap: 400 }, lastMutation: null, lastRun: null,
+      today: { date: "2026-10-10", estimatedNeurons: 0, cap: 2_500, calls: 0, callCap: 400 }, lastMutation: null, lastError: null, lastRun: null,
     });
     expect(unboundSearchEmbeddingHealth("bge-m3@1", new Date(DAY_1)).configError).toBe('SEARCH_EMBEDDING is "bge-m3@1" but the SEARCH_EMBEDDING_RUN binding is missing');
     expect(mergeHealth(publisher, { enabled: true }, null, health)).toEqual({ ...publisher, digest: { enabled: true }, reviewQueue: null, searchEmbedding: health });
