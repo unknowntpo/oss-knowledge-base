@@ -104,3 +104,14 @@ test("project facets shrink with the query and stay consistent when selected", a
   await expect(results.first()).toContainText("Merged");
   expect(browserProblems).toEqual([]);
 });
+
+test("H25: the default bucket still serves bm25-reference@1 (the @2 bucket is playwright.lexical2.config.ts)", async ({ request }) => {
+  const response = await request.get("/api/search?q=KIP770&limit=5");
+  expect(response.status()).toBe(200);
+  const body = await response.json() as { readonly results: readonly unknown[]; readonly retrieval: { readonly lexicalRevision: string } };
+  expect(body.retrieval.lexicalRevision).toBe("bm25-reference@1");
+  expect(body.results).toEqual([]);
+  // Positive control: the hyphenated spelling is found at `@1`.
+  const hyphenated = await (await request.get("/api/search?q=KIP-405&limit=5")).json() as typeof body;
+  expect(hyphenated.results.length).toBeGreaterThan(0);
+});

@@ -124,10 +124,12 @@ Clef-flash 的限制：在 Workers AI 上，長輸入會被截斷（約 2K token
 ## 下一步
 
 1. Spec 016 slice 1（已實作）：評估工具（v2 標準查詢、Recall@20、MRR、nDCG@10）、字面檢索修正（`bm25-reference@2`：camelCase 拆字、編號正規化）、RRF 合併核心。
-2. slice 2：發布時為每個 chunk 算 embedding 並寫入 Vectorize；`bm25-reference@2` 上線。
-3. slice 3：查詢時算 embedding，在 `/api/search` 以開關啟用混合檢索。
-4. slice 4：用真實模型量 v2 標準查詢，比較 BM25 與混合檢索，再決定是否加入重排。
-5. 視需要做「問答」：用檢索結果讓模型附引用回答（RAG，另立規格）。檢索品質是它的上限。
+2. slice 2a（已實作）：編號樣式移到社群 profile（`packages/reference-pipeline/src/search/profiles.ts`，發布端與 Pages 讀取端共用）；讀取端依 manifest 的 `lexicalRevision` 同時支援 `@1` 與 `@2`，其他版本回 503；發布端在 Worker 變數 `SEARCH_LEXICAL_REVISION=bm25-reference@2` 時才寫 `@2`，兩個環境目前都未設定，所以 Dev 仍是 `@1`。
+3. 切換：確認 slice 2a 已部署後，在 Dev 的 Worker 設定加上該變數（Spec 016 H42）；移除變數即回到 `@1`。
+4. slice 2b：發布時為每個 chunk 算 embedding 並寫入 Vectorize。
+5. slice 3：查詢時算 embedding，在 `/api/search` 以開關啟用混合檢索。
+6. slice 4：用真實模型量 v2 標準查詢，比較 BM25 與混合檢索，再決定是否加入重排。
+7. 視需要做「問答」：用檢索結果讓模型附引用回答（RAG，另立規格）。檢索品質是它的上限。
 
 ## 營運限制
 

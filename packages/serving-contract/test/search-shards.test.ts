@@ -3,7 +3,10 @@ import { describe, expect, test } from "bun:test";
 import { buildFeedDetail, type FeedEntry, type SourceRecordView } from "@oss-knowledge-base/domain";
 import {
   buildLexicalIndex,
+  lexicalSearchConfigFor,
+  lexicalShardPostings,
   parseSearchGoldenFixture,
+  parseSearchGoldenFixtureV2,
   rankLexicalShard,
   searchLexicalIndex,
   selectLexicalResults,
@@ -11,6 +14,7 @@ import {
 } from "@oss-knowledge-base/search";
 
 import {
+  buildR2SearchProjection,
   feedProjectionObjects,
   MANIFEST_KEY,
   publishProjectionStreams,
@@ -33,6 +37,7 @@ import { feedFixture, fixtureGeneratedAt } from "./feed-fixture";
 import { testPlanRows } from "./search-shards.cases";
 
 const goldenPath = new URL("../../search/test/fixtures/golden-queries.v1.json", import.meta.url).pathname;
+const goldenV2Path = new URL("../../search/test/fixtures/golden-queries.v2.json", import.meta.url).pathname;
 
 const release = {
   indexRevision: "search-r1",
@@ -240,6 +245,79 @@ describe("Spec 013 failure and retry", () => {
     expect(result).toMatchObject({ ok: true, switchedProjections: ["search", "feed"] });
     const terms = JSON.parse(new TextDecoder().decode(destination.body(searchTermsKey("search-r1"))!)) as SearchTermsV1;
     expect(terms.terms).toEqual({});
+  });
+});
+
+describe("Spec 016 lexical revision of a release", () => {
+  test.each([1, 2, 1_000])("H35: bm25-reference@2 stamps the manifest and writes @2 postings and statistics (maxShardChunks %p)", async (maxShardChunks) => {
+    const golden = parseSearchGoldenFixtureV2(await Bun.file(goldenV2Path).json());
+    const lexical = { lexicalRevision: "bm25-reference@2", identifiers: golden.identifierProfiles };
+    const config = lexicalSearchConfigFor(lexical.lexicalRevision, lexical.identifiers);
+    const { objects, value } = await drain(searchProjectionObjects(release, goldenGroups(golden.chunks), { maxShardChunks, ...lexical }));
+    const terms = JSON.parse(objects.get(searchTermsKey(release.indexRevision))!) as SearchTermsV1;
+    const shards = value.manifest.shards.map((shard) => JSON.parse(objects.get(shard.key)!) as SearchLexicalShardV2);
+    const index = buildLexicalIndex({ indexRevision: "golden", chunks: golden.chunks, config });
+
+    expect(value.manifest.lexicalRevision).toBe("bm25-reference@2");
+    expect(JSON.parse(objects.get(value.descriptor.current.releaseManifestKey)!).lexicalRevision).toBe("bm25-reference@2");
+    expect(value.manifest.chunkCount).toBe(golden.chunks.length);
+    expect(value.manifest.totalChunkLength).toBe(index.documents.reduce((total, document) => total + document.length, 0));
+    expect(Object.fromEntries(Object.entries(terms.terms).map(([term, entry]) => [term, entry[0]])))
+      .toEqual(Object.fromEntries(index.documentFrequency));
+    for (const shard of shards) {
+      const expected = lexicalShardPostings(shard.chunks, config);
+      expect(shard.lengths).toEqual([...expected.lengths]);
+      expect(shard.postings).toEqual(expected.postings);
+    }
+    // Code-text parts and identifiers a title or record id names are terms; `@1` has neither.
+    expect(terms.terms.manager![0]).toBeGreaterThan(terms.terms.offsetsrequestmanager![0]!);
+    expect(terms.terms["kip-770"]![0]).toBe(2);
+    expect(terms.terms["#770"]![0]).toBe(1);
+
+    const corpus = {
+      chunkCount: value.manifest.chunkCount,
+      totalChunkLength: value.manifest.totalChunkLength,
+      documentFrequency: (term: string) => Object.hasOwn(terms.terms, term) ? terms.terms[term]![0]! : 0,
+    };
+    for (const query of ["KIP770", "770", "RequestManager", "request manager", "KIP-405"]) {
+      const request = { query, limit: 100 };
+      const actual = selectLexicalResults(shards.flatMap((shard) => rankLexicalShard(shard, corpus, { query }, config)), request);
+      expect(actual.results.length).toBeGreaterThan(0);
+      expect(actual.results).toEqual(searchLexicalIndex(index, request));
+    }
+  });
+
+  test("H35: without a revision a release is bm25-reference@1, byte for byte, with or without profiles", async () => {
+    const golden = parseSearchGoldenFixtureV2(await Bun.file(goldenV2Path).json());
+    const plain = await drain(searchProjectionObjects(release, goldenGroups(golden.chunks), { maxShardChunks: 2 }));
+    const explicit = await drain(searchProjectionObjects(release, goldenGroups(golden.chunks), {
+      maxShardChunks: 2,
+      lexicalRevision: "bm25-reference@1",
+      identifiers: golden.identifierProfiles,
+    }));
+    expect(plain.value.manifest.lexicalRevision).toBe("bm25-reference@1");
+    expect([...explicit.objects]).toEqual([...plain.objects]);
+    const terms = JSON.parse(plain.objects.get(searchTermsKey(release.indexRevision))!) as SearchTermsV1;
+    expect(Object.hasOwn(terms.terms, "kip-770")).toBe(true);
+    expect(Object.hasOwn(terms.terms, "#770")).toBe(false);
+    expect(Object.hasOwn(terms.terms, "manager")).toBe(true);
+    expect(terms.terms.manager![0]).toBeLessThan(
+      (JSON.parse((await drain(searchProjectionObjects(release, goldenGroups(golden.chunks), { lexicalRevision: "bm25-reference@2" })))
+        .objects.get(searchTermsKey(release.indexRevision))!) as SearchTermsV1).terms.manager![0]!,
+    );
+  });
+
+  test.each(["bm25-reference@3", "bm25:v1", ""])("H38: a release of the unknown revision %p is not written", async (lexicalRevision) => {
+    const golden = parseSearchGoldenFixtureV2(await Bun.file(goldenV2Path).json());
+    const groups = goldenGroups(golden.chunks);
+    const stream = searchProjectionObjects(release, groups, { lexicalRevision });
+    await expect(stream.next()).rejects.toThrow(`Unsupported lexical revision ${lexicalRevision}`);
+    await expect(buildR2SearchProjection({ ...release, lexicalRevision, shards: [], details: [] }))
+      .rejects.toThrow(`Unsupported lexical revision ${lexicalRevision}`);
+    // Positive control: the same groups publish at a supported revision.
+    expect((await drain(searchProjectionObjects(release, groups, { lexicalRevision: "bm25-reference@2" }))).value.manifest.groupCount)
+      .toBe(groups.length);
+    expect((await buildR2SearchProjection({ ...release, lexicalRevision: "bm25-reference@2", shards: [], details: [] })).length).toBeGreaterThan(0);
   });
 });
 

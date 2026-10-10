@@ -16,11 +16,11 @@
         "@oss-knowledge-base/domain": "workspace:*",
         "@oss-knowledge-base/github-publisher": "workspace:*",
         "@oss-knowledge-base/reference-pipeline": "workspace:*",
+        "@oss-knowledge-base/search": "workspace:*",
         "@oss-knowledge-base/serving-contract": "workspace:*",
       },
       "devDependencies": {
         "@cloudflare/workers-types": "^5.20260820.1",
-        "@oss-knowledge-base/search": "workspace:*",
         "@types/bun": "^1.4.0",
         "typescript": "5.9.3",
         "wrangler": "^4.125.0",
@@ -68,6 +68,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@oss-knowledge-base/domain": "workspace:*",
+        "@oss-knowledge-base/search": "workspace:*",
         "@oss-knowledge-base/serving-contract": "workspace:*",
       },
       "devDependencies": {

@@ -1,7 +1,9 @@
 import type { FeedDetail, FeedEntry } from "@oss-knowledge-base/domain";
 import {
   DEFAULT_LEXICAL_REVISION,
+  lexicalSearchConfigFor,
   lexicalShardPostings,
+  type IdentifierProfilesV1,
   type SourceRecordChunkV1,
 } from "@oss-knowledge-base/search";
 
@@ -134,11 +136,19 @@ export interface SearchGroupSource {
   readonly chunks: readonly SourceRecordChunkV1[];
 }
 
-/** Release identity; the lexical revision is always the one postings are computed for. */
+/** Release identity; `SearchReleaseOptions` chooses the lexical revision postings are computed for. */
 export interface SearchReleaseInput {
   readonly indexRevision: string;
   readonly corpusRevision: string;
   readonly generatedAt: string;
+}
+
+export interface SearchReleaseOptions {
+  readonly maxShardChunks?: number;
+  /** The revision postings, lengths, and term statistics are written for; `bm25-reference@1` when absent (Spec 016). */
+  readonly lexicalRevision?: string;
+  /** Community identifier patterns by project; indexed from `bm25-reference@2`, ignored at `@1`. */
+  readonly identifiers?: IdentifierProfilesV1;
 }
 
 /** A whole Search publication in memory; used by fixtures and scripts, not by the publisher. */
@@ -223,15 +233,16 @@ export interface StreamedSearchRelease {
   readonly shardGroups: ReadonlyMap<string, readonly SearchGroupDetailRef[]>;
 }
 
+/** Publishes an in-memory publication at its own `lexicalRevision`; `options.lexicalRevision` is not read. */
 export async function buildR2SearchProjection(
   publication: SearchPublicationV1,
-  options: { readonly maxShardChunks?: number } = {},
+  options: Omit<SearchReleaseOptions, "lexicalRevision"> = {},
 ): Promise<readonly ProjectionObject[]> {
-  if (publication.lexicalRevision !== DEFAULT_LEXICAL_REVISION) {
-    throw new Error(`Search postings are computed for ${DEFAULT_LEXICAL_REVISION}, not ${publication.lexicalRevision}`);
-  }
   const produced = new Map<string, ProjectionObject>();
-  const stream = searchProjectionObjects(publication, searchGroupsFromPublication(publication), options);
+  const stream = searchProjectionObjects(publication, searchGroupsFromPublication(publication), {
+    ...options,
+    lexicalRevision: publication.lexicalRevision,
+  });
   let next = await stream.next();
   for (; !next.done; next = await stream.next()) {
     produced.set(next.value.key, immutableObject(next.value.key, decodeBody(next.value.body)));
@@ -289,13 +300,15 @@ export function* searchGroupsFromPublication(publication: SearchPublicationV1): 
  * arrive ordered by project, then group root; each group's detail is written as it arrives,
  * and whole groups fill a shard of at most `maxShardChunks` chunks (a larger group fills one
  * alone) that is written and released before the next starts. Only term statistics and
- * per-group digests outlive a shard. The terms object and the manifest come last.
+ * per-group digests outlive a shard. The terms object and the manifest come last. An
+ * unsupported `lexicalRevision` fails before the first object.
  */
 export async function* searchProjectionObjects(
   release: SearchReleaseInput,
   groups: Iterable<SearchGroupSource> | AsyncIterable<SearchGroupSource>,
-  options: { readonly maxShardChunks?: number } = {},
+  options: SearchReleaseOptions = {},
 ): AsyncGenerator<EncodedProjectionObject, StreamedSearchRelease> {
+  const lexical = lexicalSearchConfigFor(options.lexicalRevision ?? DEFAULT_LEXICAL_REVISION, options.identifiers);
   requireSegment(release.indexRevision, "indexRevision");
   requireText(release.corpusRevision, "corpusRevision");
   requireTimestamp(release.generatedAt, "generatedAt");
@@ -319,7 +332,7 @@ export async function* searchProjectionObjects(
     open = undefined;
     const shard = shards.length;
     chunks.sort((left, right) => left.id.localeCompare(right.id));
-    const { lengths, postings } = lexicalShardPostings(chunks);
+    const { lengths, postings } = lexicalShardPostings(chunks, lexical);
     for (const [term, list] of Object.entries(postings)) {
       const statistics = terms.get(term);
       if (statistics === undefined) terms.set(term, [list.length / 2, shard]);
@@ -397,7 +410,7 @@ export async function* searchProjectionObjects(
     schema: SEARCH_RELEASE_SCHEMA,
     indexRevision: release.indexRevision,
     corpusRevision: release.corpusRevision,
-    lexicalRevision: DEFAULT_LEXICAL_REVISION,
+    lexicalRevision: lexical.revision,
     generatedAt: release.generatedAt,
     shards,
     chunkCount,

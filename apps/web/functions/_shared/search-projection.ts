@@ -1,13 +1,16 @@
 import type { FeedDetail } from "@oss-knowledge-base/domain";
+import { searchIdentifierProfiles } from "@oss-knowledge-base/reference-pipeline/search-profiles";
 import {
   buildLexicalIndex,
-  DEFAULT_LEXICAL_REVISION,
   facetLexicalIndexByProject,
+  lexicalQueryTerms,
+  lexicalSearchConfigFor,
   rankLexicalShard,
   searchLexicalIndex,
   selectLexicalResults,
-  tokenizeLexical,
+  SUPPORTED_LEXICAL_REVISIONS,
   validateSearchFilters,
+  type LexicalSearchConfigV1,
   type LexicalSearchResultV1,
   type SearchFiltersV1,
 } from "@oss-knowledge-base/search";
@@ -61,9 +64,10 @@ export async function searchR2Projection(
     throw new SearchClientError(error instanceof Error ? error.message : "Search filters are invalid");
   }
   const manifest = await readSearchManifest(bucket);
+  const config = releaseLexicalConfig(manifest.lexicalRevision);
   const ranked = manifest.schema === SEARCH_RELEASE_SCHEMA
-    ? await rankShardedRelease(bucket, manifest, query, request)
-    : await rankWholeRelease(bucket, manifest, query, request);
+    ? await rankShardedRelease(bucket, manifest, query, request, config)
+    : await rankWholeRelease(bucket, manifest, query, request, config);
 
   return {
     schema: SEARCH_RESPONSE_SCHEMA,
@@ -133,34 +137,34 @@ interface RankedRelease {
   readonly projectIds: readonly string[];
 }
 
-const BM25_REFERENCE_CONFIG = {
-  k1: 1.2,
-  b: 0.75,
-  titleWeight: 4,
-  tagWeight: 2,
-  exactBoost: 1_000,
-  additionalGroupMatchWeight: 0.25,
-  maxEvidenceMatches: 5,
-  excerptCharacters: 280,
-} as const;
+/**
+ * The config the release was written with (Spec 016): its revision's tokenizer and, from
+ * `bm25-reference@2`, the community identifier profiles the publisher indexes with. A release
+ * of any other revision is not answered (HTTP 503) rather than scored with the wrong tokens.
+ */
+function releaseLexicalConfig(revision: string): LexicalSearchConfigV1 {
+  if (!SUPPORTED_LEXICAL_REVISIONS.includes(revision)) {
+    throw new Error(`R2 Search release uses unsupported lexical revision ${revision}`);
+  }
+  return lexicalSearchConfigFor(revision, searchIdentifierProfiles);
+}
 
 /** Shards fetched at once; each is ranked and released before more are read (Spec 013). */
 const SHARD_READ_CONCURRENCY = 4;
 
 /**
- * search-release.v3: reads only the shards that hold a query term and scores their stored
- * postings with the release-wide statistics, so results equal the whole-corpus oracle.
- * Each shard keeps only its facet counts and its best `limit` groups.
+ * search-release.v3: reads only the shards that hold a term of the query, as the release's
+ * revision tokenizes it, and scores their stored postings with the release-wide statistics, so
+ * results equal the whole-corpus oracle. Each shard keeps only its facet counts and its best
+ * `limit` groups.
  */
 async function rankShardedRelease(
   bucket: R2Bucket,
   manifest: SearchReleaseManifestV3,
   query: string,
   request: R2SearchRequestV1,
+  config: LexicalSearchConfigV1,
 ): Promise<RankedRelease> {
-  if (manifest.lexicalRevision !== DEFAULT_LEXICAL_REVISION) {
-    throw new Error(`R2 Search release uses unsupported lexical revision ${manifest.lexicalRevision}`);
-  }
   const projectIds = [...new Set(manifest.shards.map((shard) => shard.projectId))].sort();
   const terms = await readJsonObject<unknown>(bucket, searchTermsKey(manifest.indexRevision));
   if (!isSearchTerms(terms) || terms.indexRevision !== manifest.indexRevision) {
@@ -175,7 +179,7 @@ async function rankShardedRelease(
     return value;
   };
   const selected = new Set<number>();
-  for (const term of new Set(tokenizeLexical(query))) {
+  for (const term of lexicalQueryTerms(query, config)) {
     for (const shard of statistics(term)?.slice(1) ?? []) {
       if (shard >= manifest.shards.length) throw new Error(`R2 Search terms name an undeclared shard ${shard}`);
       selected.add(shard);
@@ -186,7 +190,6 @@ async function rankShardedRelease(
     totalChunkLength: manifest.totalChunkLength,
     documentFrequency: (term: string) => statistics(term)?.[0] ?? 0,
   };
-  const config = { revision: manifest.lexicalRevision, ...BM25_REFERENCE_CONFIG };
   const projectStatuses = request.filters?.projectStatuses;
   const rankRequest = { query, ...(request.filters === undefined ? {} : { filters: request.filters }) };
 
@@ -229,6 +232,7 @@ async function rankWholeRelease(
   manifest: Exclude<SearchReleaseManifest, SearchReleaseManifestV3>,
   query: string,
   request: R2SearchRequestV1,
+  config: LexicalSearchConfigV1,
 ): Promise<RankedRelease> {
   const selectedKeys = Object.entries(manifest.shardKeys)
     .sort(([left], [right]) => left.localeCompare(right));
@@ -247,7 +251,7 @@ async function rankWholeRelease(
   const index = buildLexicalIndex({
     indexRevision: manifest.indexRevision,
     chunks,
-    config: { revision: manifest.lexicalRevision, ...BM25_REFERENCE_CONFIG },
+    config,
   });
   const ranked = searchLexicalIndex(index, {
     query,

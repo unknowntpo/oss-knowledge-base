@@ -1,6 +1,6 @@
 # Spec 016: Semantic candidates and hybrid fusion for Search
 
-Status: Draft for human review — decisions of 2026-10-08..10 recorded below; slice 1 implemented with this spec, slices 2–4 pending
+Status: Draft for human review — decisions of 2026-10-08..10 recorded below; slices 1 and 2a implemented, the `@2` switch on Dev (H42) and slices 2b–4 pending
 Date: 2026-10-10
 Traceability: enforced
 Builds on: Spec 005 (Phases 2 and 3, LLM boundary), Spec 013 (lexical shards, `bm25-reference@1`), Spec 014 (community profile `proposal`), Spec 015 (profile blocks, ADR-0016)
@@ -57,7 +57,9 @@ Corpus size, from `GET /api/feed` on the same release (sum of
 records, Kafka 2,194). The Search materializer makes one chunk part per record
 (`parts: [{ key: "excerpt", … }]`) and excerpts are clipped far below the
 180-word window, so the release holds about 8,577 chunks. The exact value is
-`chunkCount` in the Search manifest, which is not publicly readable (H27).
+`chunkCount` in the Search manifest, which is not publicly readable; since
+slice 2a the publisher reports it at `/health` `lastRun.search.chunkCount`
+(H41).
 
 ## Example
 
@@ -149,10 +151,11 @@ see Results.
 Lexical revision `bm25-reference@2` (slice 1):
 
 1. **Revisions.** `bm25-reference@1` is unchanged and remains
-   `DEFAULT_LEXICAL_REVISION`: the publisher writes it and readers accept only
-   it. `bm25-reference@2` uses the `@1` formula, weights, and group assembly
-   with the tokens of rules 2 and 3. Postings and chunk lengths differ, so a
-   release is one revision or the other.
+   `DEFAULT_LEXICAL_REVISION`: the publisher writes it unless told otherwise
+   (rule 13). `bm25-reference@2` uses the `@1` formula, weights, and group
+   assembly with the tokens of rules 2 and 3. Postings and chunk lengths
+   differ, so a release is one revision or the other. Readers accept both
+   since slice 2a (rule 12).
 2. **Code-text tokens.** In addition to the `@1` tokens, a word with a case
    boundary is also indexed and queried as its parts, lower-cased, after the
    token it comes from. Boundaries: lower-case letter or digit before an
@@ -180,8 +183,9 @@ Lexical revision `bm25-reference@2` (slice 1):
    - A query that is only digits is an exact match for every chunk holding
      any of its own project's identifiers with that number.
    - Exact matches keep the `@1` boost and rank first; among them BM25 decides.
-   - Core search contains no community literal. Slice 1 reads the patterns
-     from the golden fixture; slice 2 moves them into the community profile.
+   - Core search contains no community literal. The patterns live in the
+     community search profiles (rule 12); the golden fixture holds a copy that
+     a test keeps equal.
 
 Semantic retrieval and fusion (slice 1: interface, fusion, in-memory
 retriever; slices 2–3: model and store):
@@ -228,22 +232,67 @@ Evaluation (slice 1):
     retriever maps a few surface forms to concepts by hand: its numbers show
     that fusion, fallback, and reporting work, not the quality of `bge-m3`.
 
+Serving `bm25-reference@2` (slice 2a):
+
+12. **Search profiles and the reader.**
+    `packages/reference-pipeline/src/search/profiles.ts` holds one
+    `SearchProfile { projectId, identifiers }` per project: Kafka has `kip`
+    (`KIP-`), `jira` (`KAFKA-`), and `github-number` (`#`); DataFusion has
+    `github-number`. The module is data with one type import, exported as
+    `@oss-knowledge-base/reference-pipeline/search-profiles`; the publisher
+    and the Pages reader both import it. A release's lexical config is
+    `lexicalSearchConfigFor(revision, profiles)`: `@1` ignores the profiles,
+    `@2` applies them, any other revision throws. The reader reads the
+    manifest's `lexicalRevision`, selects shards with
+    `lexicalQueryTerms(query, config)`, and scores with the same config, for
+    v3 and for whole-release (v1/v2) layouts. A release of any other revision
+    is not answered: HTTP 503, and nothing after the manifest is read.
+    `SearchResponseV1` is unchanged; `retrieval.lexicalRevision` names the
+    revision served.
+13. **Publisher flag.** The Worker variable `SEARCH_LEXICAL_REVISION` selects
+    the revision a run writes: unset or blank writes `bm25-reference@1`,
+    byte-identical to before; `bm25-reference@2` writes `@2` postings, chunk
+    lengths, and term statistics with the search profiles and stamps the
+    manifest. Any other value fails the run before a source is polled or an
+    object written, and `/health` shows the error. Neither deployed
+    configuration sets the variable in slice 2a. A successful run records
+    `lastRun.search { lexicalRevision, chunkCount, shardCount, shardBytes,
+    largestShardBytes, termsBytes }` from the manifest and object sizes of the
+    release it wrote.
+
 ## Community profile fit
 
 Checked: `packages/reference-pipeline/src/digest/profiles.ts` (Spec 014,
 `DigestProfile.proposal { keyPattern, issueKeyPattern }`) and
 `review-queue/governance.ts` (Spec 015, `ReviewProfile`, ASF preset).
 
-- The mechanism fits: one TypeScript profile object per project, one block
-  per concern, regular-expression sources as strings, no rule language.
-  Slice 2 adds a `search: { identifiers: IdentifierPatternV1[] }` block the
-  same way.
+- The mechanism fits: one TypeScript profile object per project and concern
+  (`KAFKA_DIGEST_PROFILE`, `KAFKA_REVIEW_PROFILE`), regular-expression sources
+  as strings, no rule language. Slice 2a adds `KAFKA_SEARCH_PROFILE` and
+  `DATAFUSION_SEARCH_PROFILE` the same way (Behavior 12).
 - The existing fields do not fit as they are: `proposal.keyPattern`
   (`\bKIP-\d+\b`) requires the hyphen and has no capture group, and nothing
   describes a GitHub number.
 - `packages/search` cannot import the profile (`reference-pipeline` depends on
   `serving-contract`, which depends on `search`), so the type lives in
-  `packages/search` and the values are passed in.
+  `packages/search` and the values are passed in: the Worker passes them to
+  `searchProjectionObjects`, the reader to `lexicalSearchConfigFor`.
+
+Decided in slice 2a (implementer, to confirm):
+
+- **Location.** A profile module inside `reference-pipeline`, next to the
+  digest and review profiles, with its own package export so the Pages bundle
+  takes the data and nothing else. A new package was not needed.
+- **Open question 5.** `proposal.keyPattern` and `issueKeyPattern` (Spec 014)
+  stay separate: they have no capture group and answer "does this text name a
+  proposal", not "which spellings are one identifier". One test keeps the
+  search profile's project ids equal to the digest profiles'.
+- **Space and leading zero.** `KIP 770` is not normalized: with a space
+  allowed, the title "Apache Kafka 4.2.0" would index `KAFKA-4`. `KIP-0770`
+  stays a different identifier from `KIP-770`. Both have a test.
+- **Linear time.** Each pattern handles 50,000-character adversarial input in
+  under 500 ms in a test over the real profiles; validation still rejects only
+  the obvious nested quantifier.
 
 ## Slices
 
@@ -252,8 +301,15 @@ Checked: `packages/reference-pipeline/src/digest/profiles.ts` (Spec 014,
    (`SemanticRetriever`, `rrf-group@1`, fallback, in-memory retriever). No
    cloud resource, deploy configuration, model call, or deployed behavior
    change.
-2. **Publisher embedding step and Vectorize adapter**, the `search` profile
-   block, and the `bm25-reference@2` rollout (below). H21–H27.
+2. **`bm25-reference@2` on Dev, then embeddings.**
+   - **2a (this PR).** Search profiles (H26); the reader answers `@1` and
+     `@2` (H25, H34, H37); the publisher can write `@2` behind
+     `SEARCH_LEXICAL_REVISION`, off in both deployed configurations (H35,
+     H36, H38, H39); `/health` `lastRun.search` (H41); size measurement (H40).
+     No model call, Vectorize, binding, or new cloud resource. Dev serves
+     `@1` after the merge.
+   - **Switch.** A one-line change sets the variable for Dev (H42).
+   - **2b.** Publisher embedding step and Vectorize adapter. H21–H24, H27.
 3. **Query-time wiring** in the web API behind a flag. H28–H32.
 4. **Measured comparison** with the real model and the decision on rerank.
    H33.
@@ -272,24 +328,52 @@ Slice 1 changes no stored object and no response:
   `SemanticRetriever` and its types, `createInMemorySemanticRetriever`,
   `fuseRankings`, `hybridSearch`, the metrics, golden v2, and the runner.
 
-Rolling out `bm25-reference@2` (slice 2) changes the stored index, so it needs
-this order (Spec 013 Behavior 7 gives the pattern):
+Slice 2a changes, all additive:
 
-1. Pages first: the reader accepts `@1` and `@2`, selects shards and scores
-   with `lexicalQueryTerms(query, config)` for the manifest's revision, and
-   carries the same identifier profiles as the publisher. Today it rejects any
-   revision but `@1` (`apps/web/functions/_shared/search-projection.ts`).
-2. Then the Worker writes `@2` postings
-   (`packages/serving-contract/src/search-r2.ts` declares `@1` today). Every
-   run writes a complete release, so the next hourly run republishes every
-   shard; no separate backfill.
-3. Rollback: pause the Cron, redeploy the previous Worker; its next run writes
-   `@1`, which the new Pages still read. Pages older than step 1 answer 503
-   for an `@2` release, so restore an `@1` `current.json` before rolling Pages
-   back.
-4. A profile pattern is part of the index: a change takes effect with the
+- `packages/search`: `SUPPORTED_LEXICAL_REVISIONS`, `lexicalSearchConfigFor`.
+- `packages/serving-contract`: `searchProjectionObjects` and
+  `buildR2SearchProjection` take `identifiers`, and the former
+  `lexicalRevision`; without them the objects are byte-identical (the
+  recorded publication parity still holds for every object, pointer, and
+  evidence record). `SearchReleaseManifestV3.lexicalRevision` may now be
+  `bm25-reference@2`; the manifest, shard, and terms schemas are unchanged.
+- `packages/reference-pipeline`: the `./search-profiles` export.
+- Publisher `/health`: `lastRun.search` on a successful run.
+- `SearchResponseV1`: unchanged.
+
+Rolling out `bm25-reference@2` changes the stored index. Pages and the Worker
+deploy from one CI job, Pages first, and the Worker's Cron (`7 * * * *`) can
+run at any time, so the order is enforced by a flag, not by timing
+(Spec 013 Behavior 7 gives the pattern):
+
+1. **Slice 2a merges.** Pages read `@1` and `@2`. The Worker can write `@2`
+   but `SEARCH_LEXICAL_REVISION` is unset, so every run still writes `@1`.
+   Nothing a reader sees changes; `/health` gains `lastRun.search`.
+2. **Switch (H42).** After the slice 2a deploy and its deployed E2E are green
+   on `main`, set `"SEARCH_LEXICAL_REVISION": "bm25-reference@2"` in
+   `apps/data-publisher-worker/wrangler.development.jsonc` and update H39.
+   Every commit that sets the variable also contains the dual reader and CI
+   deploys Pages before the Worker, so no deployed reader meets a revision it
+   rejects. Each run writes a complete release, so the next hourly run
+   republishes every shard at `@2`; no backfill.
+3. **Turning `@2` off.** Remove the variable (revert the switch). The next
+   run writes an `@1` release and moves `current.json`; the reader serves the
+   `@2` release until then and `@1` after. Releases are immutable and
+   content-addressed, so nothing is deleted and no Cron pause is needed.
+   `POST /run` shortens the wait.
+4. **Rolling Pages back below slice 2a.** A pre-2a reader answers every
+   `/api/search` query with HTTP 503 ("unsupported lexical revision") while
+   the current release is `@2`; Feed, detail, and `detailRef` hydration do
+   not read the revision and keep working. So first do step 3 and wait for
+   `/health` `lastRun.search.lexicalRevision` to read `bm25-reference@1` (or
+   pause the Cron and restore a retained `@1` `current.json`, per the
+   publisher runbook), then roll Pages back.
+5. **A wrong value** of the variable publishes nothing: the run fails before
+   polling, both pointers stay, `/health` names the value.
+6. A profile pattern is part of the index: a change takes effect with the
    next release, and until then affected identifier queries lose their exact
-   match but still return lexical results.
+   match but still return lexical results. Reader and publisher take the
+   patterns from one module at one commit.
 
 Slices 2–3 add to `SearchResponseV1.retrieval` the fields Spec 005 already
 names (`semanticRevision`, `fusionRevision`) plus `semantic`, and to each
@@ -347,9 +431,34 @@ result:
 | H4 | a number that is no identifier | 405000 | — |  |
 <!-- test-plan:end -->
 
+Reader at both revisions (slice 2a), from
+`apps/web/test/search-lexical-revisions.cases.ts`. Each row publishes golden
+v2 as a search-release.v3 at `revision` (2 chunks per shard, `@2` with the
+search profiles) and searches it through the Pages reader; the result must
+also equal the whole-corpus index of that revision. The rows without a
+project filter at `@2` run again in the browser (`apps/web/e2e-lexical2`):
+
+<!-- test-plan:start apps/web/test/search-lexical-revisions.cases.ts -->
+| id | case | revision | query | projects | exact | includes | results |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| H34 | identifier without its hyphen | bm25-reference@2 | KIP770 | — | kafka:github:pull:22458 kafka:mail:dev:kip-770-discuss | — | 7 |
+| H34 | canonical identifier | bm25-reference@2 | KIP-770 | — | kafka:github:pull:22458 kafka:mail:dev:kip-770-discuss | — | 7 |
+| H34 | bare number lists every kind | bm25-reference@2 | 770 | — | datafusion:github:pull:770 kafka:jira:issue:KAFKA-770 kafka:github:pull:22458 kafka:mail:dev:kip-770-discuss | — | 4 |
+| H34 | bare number within one project | bm25-reference@2 | 770 | apache-datafusion | datafusion:github:pull:770 | — | 1 |
+| H34 | number sign names a GitHub record | bm25-reference@2 | #770 | — | datafusion:github:pull:770 | — | 4 |
+| H34 | class-name fragment | bm25-reference@2 | RequestManager | — | — | kafka:jira:issue:KAFKA-19804 kafka:github:pull:22747 kafka:jira:issue:KAFKA-19738 | 8 |
+| H34 | the fragment as two words | bm25-reference@2 | request manager | — | — | kafka:jira:issue:KAFKA-19804 kafka:github:pull:22747 kafka:jira:issue:KAFKA-19738 | 8 |
+| H34 | a golden v1 identifier is unchanged | bm25-reference@2 | KIP-405 | — | kafka:wiki:kip-405 | — | 5 |
+| H25 | no hyphen finds nothing at @1 | bm25-reference@1 | KIP770 | — | — | — | 0 |
+| H25 | canonical identifier at @1 | bm25-reference@1 | KIP-770 | — | kafka:github:pull:22458 kafka:mail:dev:kip-770-discuss | — | 6 |
+| H25 | bare number is an ordinary term at @1 | bm25-reference@1 | 770 | — | — | kafka:jira:issue:KAFKA-770 | 3 |
+| H25 | class-name fragment finds nothing at @1 | bm25-reference@1 | RequestManager | — | — | — | 0 |
+| H25 | two words at @1 miss the class names | bm25-reference@1 | request manager | — | — | kafka:jira:issue:KAFKA-19804 kafka:github:pull:22747 | 7 |
+<!-- test-plan:end -->
+
 ## Acceptance
 
-Items tagged `[pending]` belong to slices 2–4.
+Items tagged `[pending]` belong to the `@2` switch and slices 2b–4.
 
 ### Behavior
 - H1: given each row of the code-text token plan, the `@2` tokenizer returns
@@ -444,19 +553,70 @@ Items tagged `[pending]` belong to slices 2–4.
 - H23: [pending] given a Workers AI or Vectorize failure during a run, the
   lexical release still publishes, the previous vectors stay queryable, and
   `/health` shows the embedding step's failure.
-- H25: [pending] given an `@1` and an `@2` release, the Pages reader answers
-  both with that release's tokens; the Worker writes `@2` only after that
-  reader is deployed; rollback follows "Contract changes and rollout".
+- H37: given a release whose manifest declares any other revision
+  (`bm25-reference@3`, `bm25:v1`), in the v3 or the whole-release layout, the
+  reader throws, reads no terms object or shard, and `/api/search` answers
+  HTTP 503 naming the revision; the same objects answer once they declare a
+  supported one; `lexicalSearchConfigFor` throws for an unknown revision →
+  evidence: `search-lexical-revisions.test.ts`, `code-tokens.test.ts`.
+- H38: given `SEARCH_LEXICAL_REVISION` set to an unsupported value, the run
+  fails before a source is polled or an object written, both pointers stay,
+  `/health` `lastRun.error` names the value, and a later run with a supported
+  value publishes; the Worker passes its variable to the run;
+  `searchProjectionObjects` and `buildR2SearchProjection` refuse an unknown
+  revision before the first object → evidence: `pipeline.test.ts`,
+  `durable-object-state.test.ts`, `search-shards.test.ts`.
+- H39: given the deployed publisher configurations of this slice, neither
+  sets `SEARCH_LEXICAL_REVISION`, so a merge still writes `@1` → evidence:
+  `pipeline.test.ts`. The switch (H42) changes the Dev half of this item.
 - H29: [pending] given a query-embedding failure, timeout, or quota error,
   `/api/search` returns HTTP 200 with lexical results and `retrieval.semantic`
   set to the state.
+
+### Behavior (slice 2a)
+- H25: given golden v2 published at `@1` and at `@2`, the reader answers each
+  release with its own tokens: every `H25` row of the reader plan holds;
+  switching `current.json` `@1` → `@2` → `@1` in one bucket answers each time
+  and every earlier `detailRef` still resolves; an `@1` release is
+  byte-identical with or without profiles and a query is not rewritten; a
+  whole-release layout of an `@2` index answers like its shards; the local
+  `@1` E2E bucket still serves `@1` → evidence:
+  `search-lexical-revisions.test.ts`, `feed-detail.spec.ts`, and the unchanged
+  Spec 005 and 013 reader tests.
+- H26: given the search profiles, every published project has one keyed by
+  its project id; Kafka names KIP, Jira, and GitHub numbers and DataFusion
+  GitHub numbers; a comment's record id and a mail message name none; a space
+  is not a spelling; the profiles equal golden v2's, pass the lexical config
+  validation, and stay under 500 ms on 50,000-character adversarial input;
+  `packages/search/src`, `packages/serving-contract/src`, and
+  `apps/web/functions` hold no community literal outside comments →
+  evidence: `search-profiles.test.ts`.
+- H34: given each `H34` row of the reader plan, `/api/search` over an `@2`
+  release returns the listed exact matches first, the listed threads, and the
+  listed number of results, equal to the whole-corpus `@2` index, reading only
+  the shards that hold a term of `lexicalQueryTerms`; the response keeps the
+  `osskb.search-response.v1` fields; in the browser the same queries show that
+  many cards, the exact badge on the exact matches only, and open a detail →
+  evidence: `search-lexical-revisions.test.ts`,
+  `apps/web/e2e-lexical2/search.spec.ts`.
+- H35: given `lexicalRevision: bm25-reference@2` and identifier profiles,
+  `searchProjectionObjects` stamps the manifest and writes postings, chunk
+  lengths, and term statistics equal to `lexicalShardPostings` and the
+  whole-corpus index at `@2`, for shards of 1, 2, and 1,000 chunks, and
+  `rankLexicalShard` over them returns the in-memory results; without a
+  revision the release is `@1`, byte-identical with or without profiles →
+  evidence: `search-shards.test.ts`, `publication-parity.test.ts`.
+- H36: given `SEARCH_LEXICAL_REVISION` unset, blank, or `bm25-reference@1`,
+  a publisher run writes the same objects as before; given
+  `bm25-reference@2` it publishes an `@2` release whose terms hold the
+  identifiers the record ids name; a later run without the variable writes
+  `@1` again and leaves the `@2` release in place → evidence:
+  `pipeline.test.ts`.
 
 ### Behavior (later slices)
 - H24: [pending] given a Vectorize index, the adapter implements
   `SemanticRetriever` (project namespace, filters, chunk candidates) and
   passes the contract tests the in-memory retriever passes.
-- H26: [pending] given the community profiles, each has a
-  `search.identifiers` block and core search holds no community literal.
 - H28: [pending] given the flag on, `/api/search` returns fused results with
   `retrieval.semanticRevision`, `fusionRevision`, and per-match
   `signals.semanticRank`; with the flag off the response is unchanged.
@@ -465,10 +625,12 @@ Items tagged `[pending]` belong to slices 2–4.
   decision (decision 5) is recorded with the numbers.
 
 ### Budget
-- H27: [pending] Vectorize stored dimensions (`chunkCount` from the Search
-  manifest × 1,024), embedding neurons per run, and the growth of
-  `terms.json` and shard bytes at `@2`, each with a committed measuring
+- H27: [pending] Vectorize stored dimensions (`lastRun.search.chunkCount` ×
+  1,024) and embedding neurons per run, each with a committed measuring
   command.
+- H40: [measure] growth of `terms.json` and lexical shard bytes from `@1` to
+  `@2` for the same Feed → `bun run measure:search-revisions` (Results,
+  slice 2a); on Dev, `/health` `lastRun.search` before and after the switch.
 - H31: [pending] added p50 latency of hybrid search on Dev against the
   lexical-only response, and Workers AI and Vectorize requests per query.
 
@@ -478,6 +640,14 @@ Items tagged `[pending]` belong to slices 2–4.
   digest's.
 - H32: [pending] on Dev, `/api/search` `retrieval.semantic` and `/health`
   show whether semantic retrieval answered, without tailing logs.
+- H41: given a successful run at `@1` or `@2`, `/health` `lastRun.search`
+  holds the release's `lexicalRevision`, the manifest's `chunkCount`, the
+  shard count, the summed and largest shard bytes, and the `terms.json` bytes
+  as written → evidence: `pipeline.test.ts`.
+- H42: [pending] given slice 2a live on Dev and the variable set for Dev, the
+  next run's `/health` `lastRun.search.lexicalRevision` is
+  `bm25-reference@2`, and Dev `/api/search` returns results for `KIP770` and
+  `RequestManager` with `retrieval.lexicalRevision` `bm25-reference@2`.
 
 ## Results (slice 1, 2026-10-10)
 
@@ -522,6 +692,32 @@ model.
 Mutation evidence (one mutant per behavior, each seen failing) is listed in
 the PR.
 
+## Results (slice 2a, 2026-10-10)
+
+`bun run measure:search-revisions`, on the version-controlled recorded Feed
+snapshot (`apps/web/test/fixtures/recorded-feed-publication.v1.json`, release
+`2026-08-25T08-29-41-122Z`: real GitHub records of both projects, 184 groups,
+353 chunks, 2 shards), published at each revision with the search profiles:
+
+| | `@1` | `@2` | Growth |
+| --- | --- | --- | --- |
+| `terms.json` bytes | 61,969 | 66,196 | +6.8% |
+| Distinct terms | 3,703 | 3,983 | +7.6% |
+| Lexical shard bytes | 768,249 | 776,293 | +1.0% |
+| Largest shard bytes | 605,016 | 610,719 | +0.9% |
+| Total chunk length (weighted tokens) | 31,976 | 35,030 | +9.6% |
+
+Chunks and excerpts dominate a shard, so the added postings barely move it.
+The snapshot is 4% of the Dev corpus and holds no dev@ or Jira record, whose
+titles carry more class names; a larger recorded snapshot is measured with
+`--seed <directory>`. The Dev values (and the real chunk count, open question
+4) are read from `/health` `lastRun.search` after this slice deploys (`@1`)
+and again after the switch (`@2`).
+
+Golden v1, golden v2, and `bun run eval:search` are unchanged
+(`golden-evaluation.v2.json` is byte-identical). The recorded publication
+parity changed only in `statuses[].search`.
+
 ## Open questions
 
 Not decided here:
@@ -533,11 +729,12 @@ Not decided here:
    not share the digest gateway `osskb-digest-dev`.
 3. **Query embedding in the browser or on the server.** Spec 005 leaves it to
    a measured spike.
-4. **Actual chunk count.** 8,577 is inferred from the Feed index; read
-   `chunkCount` from the Search manifest in slice 2 (H27).
-5. **One source for identifiers.** Should `proposal.keyPattern` and
-   `issueKeyPattern` (Spec 014) be derived from `search.identifiers`, or stay
-   separate?
+4. **Actual chunk count.** 8,577 is inferred from the Feed index; the exact
+   value is `/health` `lastRun.search.chunkCount` once slice 2a is deployed
+   (H41).
+5. **One source for identifiers.** Slice 2a keeps `proposal.keyPattern` and
+   `issueKeyPattern` (Spec 014) separate from the search profile (see
+   "Community profile fit"); to confirm.
 6. **Thread-title repetition** (Results). Candidates: count the title once
    per thread, lower the further-chunk weight, a phrase-proximity signal, or
    leave it to rerank. Each changes the lexical ranking and needs its own
@@ -546,20 +743,27 @@ Not decided here:
    Release Manager negative, and is "top 3" the right bound for the three
    expected threads?
 
-Known limitations of the fixture's patterns (slice 2 decides with H26):
+Known limitations of the profile patterns (kept in slice 2a, see "Community
+profile fit"):
 
 - `KIP 770` (a space) is not normalized to `KIP-770`. Dev excerpts do contain
   `KAFKA 13152` and `Kip 770`.
 - `KIP-0770` (a leading zero) is another identifier than `KIP-770`.
+- A title that cites `#770` indexes that number for its own record too, so
+  `#770` also exact-matches records that mention the pull request.
 - Profile patterns are trusted repository data. Validation rejects only the
-  obvious nested quantifier; it does not prove a pattern runs in linear time.
-  The API caps a query at 500 characters.
+  obvious nested quantifier; a test bounds each real pattern on adversarial
+  input but does not prove linear time. The API caps a query at 500
+  characters.
+- The manifest does not record which profile revision indexed it (rollout 6).
 
 ## Non-goals
 
 - R3: an AI answer with citations.
 - Reranking, query rewriting, and graph expansion.
 - Any cloud resource, deploy configuration, model call, or change to what
-  Dev serves (slice 1).
+  Dev serves (slice 1). Slice 2a adds no cloud resource, binding, or model
+  call and leaves `/api/search` on Dev at `@1`.
+- A ranking change for the repeated thread title (open question 6, G31).
 - A different BM25 formula or field weights.
 - Estimating production recall from the golden fixture.

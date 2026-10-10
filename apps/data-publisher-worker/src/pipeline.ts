@@ -10,6 +10,8 @@ import {
   ReferenceStateStore,
   type SerializedReferenceStateV1,
 } from "@oss-knowledge-base/reference-pipeline";
+import { searchIdentifierProfiles } from "@oss-knowledge-base/reference-pipeline/search-profiles";
+import { DEFAULT_LEXICAL_REVISION, SUPPORTED_LEXICAL_REVISIONS } from "@oss-knowledge-base/search";
 import {
   encodeJson,
   feedProjectionObjects,
@@ -22,6 +24,7 @@ import {
   type PublicationStreamPhase,
   type Sha256Digest,
   type StreamedPublicationResult,
+  type StreamedSearchRelease,
 } from "@oss-knowledge-base/serving-contract";
 
 export interface PipelineStateRepository {
@@ -78,6 +81,7 @@ export type PipelineRunStatus =
       readonly pollTruncated: boolean;
       readonly copiedObjectCount: number;
       readonly reusedObjectCount: number;
+      readonly search: SearchReleaseStatus;
       readonly sources?: Readonly<Record<string, SourceRunStatus>>;
     }
   | {
@@ -89,6 +93,29 @@ export type PipelineRunStatus =
       readonly retryAfterSeconds: number;
       readonly sources?: Readonly<Record<string, SourceRunStatus>>;
     };
+
+/** The Search release a run published: what it was tokenized with and what its lexical objects weigh (Spec 016). */
+export interface SearchReleaseStatus {
+  readonly lexicalRevision: string;
+  readonly chunkCount: number;
+  readonly shardCount: number;
+  readonly shardBytes: number;
+  readonly largestShardBytes: number;
+  readonly termsBytes: number;
+}
+
+/**
+ * Spec 016 rollout flag: `SEARCH_LEXICAL_REVISION` unset or blank writes `bm25-reference@1`. Any
+ * value that is not a supported revision fails the run instead of silently writing another one.
+ */
+export function resolveSearchLexicalRevision(value: string | undefined): string {
+  const revision = value?.trim() ?? "";
+  if (revision === "") return DEFAULT_LEXICAL_REVISION;
+  if (!SUPPORTED_LEXICAL_REVISIONS.includes(revision)) {
+    throw new Error(`SEARCH_LEXICAL_REVISION "${value}" is not a supported lexical revision (${SUPPORTED_LEXICAL_REVISIONS.join(", ")})`);
+  }
+  return revision;
+}
 
 export type PipelinePhase =
   | "reading-state"
@@ -121,6 +148,8 @@ export async function runDataPublication(input: {
   readonly sources?: readonly NamedConnector[];
   readonly state: PipelineStateRepository;
   readonly destination: PublicationDestination;
+  /** The `SEARCH_LEXICAL_REVISION` variable as configured; see `resolveSearchLexicalRevision`. */
+  readonly searchLexicalRevision?: string;
 }): Promise<PipelineRunStatus> {
   const startedAt = Date.now();
   const counts: Record<string, number> = {};
@@ -140,6 +169,8 @@ export async function runDataPublication(input: {
   try {
     await phase("reading-state");
     previousStatus = await input.state.readStatus?.();
+    // Before any source is polled or object written: a misconfigured revision publishes nothing.
+    const lexicalRevision = resolveSearchLexicalRevision(input.searchLexicalRevision);
     const next = new ReferenceStateStore(await input.state.read());
     await phase("polling", { storedEvents: next.readEvents().length });
     previousCheckpoint = next.readCheckpoint();
@@ -172,7 +203,7 @@ export async function runDataPublication(input: {
     await phase("materializing", { polledEvents, events: next.readEvents().length });
     const releaseId = releaseIdFor(input.materializedAt);
     const searchRevision = `feed-${releaseId}`;
-    const published = await publish(input, next.readEvents(), releaseId, searchRevision, phase);
+    const published = await publish(input, next.readEvents(), releaseId, searchRevision, lexicalRevision, phase);
     if (!published.ok) throw new Error(`${published.kind}: ${published.message}`);
     const publishedBySource = published.entriesBySource;
 
@@ -198,6 +229,7 @@ export async function runDataPublication(input: {
       pollTruncated: succeeded.some((item) => item.poll.complete && item.poll.truncated),
       copiedObjectCount: published.copiedObjectCount,
       reusedObjectCount: published.reusedObjectCount,
+      search: published.search(),
       ...withSources(sourceStatuses(polls, previousStatus, previousCheckpoint, input.materializedAt, conflicts, publishedBySource)),
     });
   } catch (error) {
@@ -223,10 +255,11 @@ async function publish(
   events: readonly DomainEventV1[],
   releaseId: string,
   searchRevision: string,
+  lexicalRevision: string,
   phase: (name: PipelinePhase, update?: Readonly<Record<string, number>>) => Promise<void>,
-): Promise<StreamedPublicationResult & { readonly entriesBySource: ReadonlyMap<string, number> }> {
+): Promise<StreamedPublicationResult & { readonly entriesBySource: ReadonlyMap<string, number>; readonly search: () => SearchReleaseStatus }> {
   const config = defaultReferenceConfig(input.materializedAt);
-  const { streams, counts, entriesBySource } = await materializeStreams(events, config, releaseId, searchRevision);
+  const { streams, counts, entriesBySource, search } = await materializeStreams(events, config, releaseId, searchRevision, lexicalRevision);
   const result = await publishProjectionStreams(
     {
       id: `github-${releaseId}`,
@@ -241,7 +274,21 @@ async function publish(
       onPhase: (name, progress) => phase(name, { ...counts, ...progress }),
     },
   );
-  return { ...result, entriesBySource };
+  return { ...result, entriesBySource, search };
+}
+
+/** Reads the manifest and the lexical object sizes off the release the Search stream declared. */
+function searchReleaseStatus(release: StreamedSearchRelease): SearchReleaseStatus {
+  const sizes = new Map(release.descriptor.immutableObjects.map((object) => [object.key, object.byteLength]));
+  const shardBytes = release.manifest.shards.map((shard) => sizes.get(shard.key) ?? 0);
+  return {
+    lexicalRevision: release.manifest.lexicalRevision,
+    chunkCount: release.manifest.chunkCount,
+    shardCount: shardBytes.length,
+    shardBytes: shardBytes.reduce((total, bytes) => total + bytes, 0),
+    largestShardBytes: Math.max(0, ...shardBytes),
+    termsBytes: [...sizes].find(([key]) => key.endsWith("/terms.json"))?.[1] ?? 0,
+  };
 }
 
 /**
@@ -254,24 +301,37 @@ async function materializeStreams(
   config: ReturnType<typeof defaultReferenceConfig>,
   releaseId: string,
   searchRevision: string,
+  lexicalRevision: string,
 ): Promise<{
   readonly streams: ProjectionStreams;
   readonly counts: Readonly<Record<string, number>>;
   readonly entriesBySource: ReadonlyMap<string, number>;
+  /** The Search release's status; available once the Search stream has been consumed. */
+  readonly search: () => SearchReleaseStatus;
 }> {
   const materialized = materializeReferenceFeed(events, config);
   const entriesBySource = new Map<string, number>();
   for (const entry of materialized.publication.index.entries) {
     for (const source of Object.keys(entry.links)) entriesBySource.set(source, (entriesBySource.get(source) ?? 0) + 1);
   }
+  let searchStatus: SearchReleaseStatus | undefined;
+  const search = searchProjectionObjects({
+    indexRevision: searchRevision,
+    corpusRevision: materialized.digest,
+    generatedAt: config.materializedAt,
+  }, searchGroupsFromFeed(materialized.publication), { lexicalRevision, identifiers: searchIdentifierProfiles });
   return {
     streams: {
-      search: searchProjectionObjects({
-        indexRevision: searchRevision,
-        corpusRevision: materialized.digest,
-        generatedAt: config.materializedAt,
-      }, searchGroupsFromFeed(materialized.publication)),
+      search: (async function* () {
+        const release = yield* search;
+        searchStatus = searchReleaseStatus(release);
+        return release;
+      })(),
       feed: feedProjectionObjects(materialized.publication, releaseId),
+    },
+    search: () => {
+      if (searchStatus === undefined) throw new Error("The Search release was not written");
+      return searchStatus;
     },
     counts: {
       feedEntries: materialized.publication.index.entries.length,

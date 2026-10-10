@@ -44,3 +44,20 @@ before relying on the Cron.
   re-enable the Cron.
 - Never copy checkpoints or Durable Object state between development and
   production.
+
+## Search lexical revision (Spec 016)
+
+`SEARCH_LEXICAL_REVISION` in a Worker's `vars` selects the lexical revision a
+run writes. Unset writes `bm25-reference@1`; `bm25-reference@2` writes `@2`;
+any other value fails the run before polling and `/health` `lastRun.error`
+names it. `/health` `lastRun.search.lexicalRevision` shows what the last run
+wrote; `/api/search` `retrieval.lexicalRevision` shows what is served.
+
+- Set `bm25-reference@2` only when the environment's Pages are at or after
+  Spec 016 slice 2a. Older Pages answer every search with HTTP 503 for an
+  `@2` release.
+- To return to `@1`, remove the variable and deploy; the next run writes an
+  `@1` release. No Cron pause or pointer restore is needed, because current
+  Pages read both.
+- Before rolling Pages back below slice 2a, return to `@1` first and wait for
+  `lastRun.search.lexicalRevision` to read `bm25-reference@1`.

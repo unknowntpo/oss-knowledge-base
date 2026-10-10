@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./digest": "./src/digest/index.ts"
+    "./digest": "./src/digest/index.ts",
+    "./search-profiles": "./src/search/profiles.ts"
   },
   "scripts": {
     "test": "bun test",
@@ -15,6 +16,7 @@
   },
   "dependencies": {
     "@oss-knowledge-base/domain": "workspace:*",
+    "@oss-knowledge-base/search": "workspace:*",
     "@oss-knowledge-base/serving-contract": "workspace:*"
   },
   "devDependencies": {

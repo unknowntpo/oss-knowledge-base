@@ -3,7 +3,7 @@ import type { SourceRecordChunkV1 } from "./golden-fixture";
 import { compileIdentifierProfiles, type IdentifierProfilesV1 } from "./identifiers";
 
 export const LEXICAL_INDEX_SCHEMA = "osskb.lexical-index.v1" as const;
-/** The revision deployed releases declare; readers and the publisher still use only this one. */
+/** The revision the publisher writes unless it is told otherwise; readers also accept `@2`. */
 export const DEFAULT_LEXICAL_REVISION = "bm25-reference@1";
 /**
  * Spec 016: `bm25-reference@1` scoring over code-text tokens (camelCase and PascalCase words are
@@ -43,6 +43,21 @@ export const codeTextLexicalSearchConfig: LexicalSearchConfigV1 = {
   ...defaultLexicalSearchConfig,
   revision: CODE_TEXT_LEXICAL_REVISION,
 };
+
+/** Every revision a release may declare; a reader or publisher rejects any other. */
+export const SUPPORTED_LEXICAL_REVISIONS: readonly string[] = [DEFAULT_LEXICAL_REVISION, CODE_TEXT_LEXICAL_REVISION];
+
+/**
+ * The config a release of `revision` is written and read with, so both sides tokenize alike.
+ * Identifier profiles apply from `bm25-reference@2`; `@1` ignores them. An unknown revision throws.
+ */
+export function lexicalSearchConfigFor(revision: string, identifiers?: IdentifierProfilesV1): LexicalSearchConfigV1 {
+  if (revision === DEFAULT_LEXICAL_REVISION) return defaultLexicalSearchConfig;
+  if (revision === CODE_TEXT_LEXICAL_REVISION) {
+    return identifiers === undefined ? codeTextLexicalSearchConfig : { ...codeTextLexicalSearchConfig, identifiers };
+  }
+  throw new Error(`Unsupported lexical revision ${revision}; supported: ${SUPPORTED_LEXICAL_REVISIONS.join(", ")}`);
+}
 
 interface IndexedChunk {
   readonly chunk: SourceRecordChunkV1;

@@ -7,12 +7,14 @@ import {
   codeTextLexicalSearchConfig,
   defaultLexicalSearchConfig,
   lexicalQueryTerms,
+  lexicalSearchConfigFor,
   lexicalShardPostings,
   lexicalTokenizer,
   parseSearchGoldenFixture,
   rankLexicalShard,
   searchLexicalIndex,
   selectLexicalResults,
+  SUPPORTED_LEXICAL_REVISIONS,
   tokenizeLexical,
   type LexicalSearchConfigV1,
   type SourceRecordChunkV1,
@@ -121,6 +123,20 @@ describe("Spec 016 code-text tokens (bm25-reference@2)", () => {
     expect(lexicalQueryTerms("HeartbeatRequestManager")).toEqual(["heartbeatrequestmanager"]);
     // Positive control: the same input does split at @2.
     expect(lexicalTokenizer(CODE_TEXT_LEXICAL_REVISION)("HeartbeatRequestManager")).toContain("manager");
+  });
+
+  test("H37: a release's config comes from its revision, and an unknown revision has none", async () => {
+    const { identifierProfiles } = await loadGoldenV2();
+    expect(SUPPORTED_LEXICAL_REVISIONS).toEqual(["bm25-reference@1", "bm25-reference@2"]);
+    expect(lexicalSearchConfigFor("bm25-reference@1")).toBe(defaultLexicalSearchConfig);
+    // `@1` has no identifier profiles, whatever the caller carries.
+    expect(lexicalSearchConfigFor("bm25-reference@1", identifierProfiles)).toBe(defaultLexicalSearchConfig);
+    expect(lexicalSearchConfigFor("bm25-reference@2")).toBe(codeTextLexicalSearchConfig);
+    expect(lexicalSearchConfigFor("bm25-reference@2", identifierProfiles))
+      .toEqual({ ...codeTextLexicalSearchConfig, identifiers: identifierProfiles });
+    for (const revision of ["bm25-reference@3", "bm25-reference", "BM25-REFERENCE@2", " bm25-reference@2", ""]) {
+      expect(() => lexicalSearchConfigFor(revision, identifierProfiles)).toThrow(`Unsupported lexical revision ${revision}`);
+    }
   });
 
   test("H10: @1 postings do not change, and @2 postings differ", async () => {

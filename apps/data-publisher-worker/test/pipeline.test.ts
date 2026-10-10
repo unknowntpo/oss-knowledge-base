@@ -7,11 +7,18 @@ import {
   MANIFEST_KEY,
   SEARCH_CURRENT_KEY,
   SEARCH_DETAIL_POOL,
+  searchTermsKey,
   type PublicationObjectStore,
+  type SearchCurrentPointerV1,
+  type SearchLexicalShardV2,
+  type SearchReleaseManifestV3,
+  type SearchTermsV1,
 } from "@oss-knowledge-base/serving-contract";
 
 import fixture from "../../../packages/reference-pipeline/test/fixtures/github-events.v1.json";
+import { healthBody } from "../src/health";
 import {
+  resolveSearchLexicalRevision,
   runDataPublication,
   type PipelineRunStatus,
   type PipelineStateRepository,
@@ -244,6 +251,128 @@ describe("Spec 009 bounded-memory publication", () => {
     if (completed.ok) expect(completed.reusedObjectCount).toBeGreaterThanOrEqual(writtenBeforeFailure.length);
     expect(createdImmutables(destination).filter((key) => writtenBeforeFailure.includes(key))).toEqual([]);
     expect(pointers()).not.toEqual(previousPointers);
+  });
+});
+
+describe("Spec 016 lexical revision of the published Search release", () => {
+  const events = fixture.events as DomainEventV1[];
+  const run = (destination: MemoryDestination, state: MemoryState, searchLexicalRevision: string | undefined, materializedAt = fixture.config.materializedAt) =>
+    runDataPublication({
+      environment: "development",
+      materializedAt,
+      connector: connectorSuccess(events),
+      state,
+      destination,
+      ...(searchLexicalRevision === undefined ? {} : { searchLexicalRevision }),
+    });
+  const json = <T>(destination: MemoryDestination, key: string) => JSON.parse(new TextDecoder().decode(destination.objects.get(key))) as T;
+  const published = (destination: MemoryDestination) => {
+    const manifest = json<SearchReleaseManifestV3>(destination, json<SearchCurrentPointerV1>(destination, SEARCH_CURRENT_KEY).releaseManifestKey);
+    return {
+      manifest,
+      terms: json<SearchTermsV1>(destination, searchTermsKey(manifest.indexRevision)).terms,
+      shards: manifest.shards.map((shard) => json<SearchLexicalShardV2>(destination, shard.key)),
+    };
+  };
+
+  test.each([undefined, "", "  ", "bm25-reference@1"])("H36: SEARCH_LEXICAL_REVISION %p publishes bm25-reference@1, as before", async (value) => {
+    expect(resolveSearchLexicalRevision(value)).toBe("bm25-reference@1");
+    const destination = new MemoryDestination();
+    const unset = new MemoryDestination();
+    expect((await run(destination, new MemoryState(), value)).ok).toBe(true);
+    expect((await run(unset, new MemoryState(), undefined)).ok).toBe(true);
+    expect(published(destination).manifest.lexicalRevision).toBe("bm25-reference@1");
+    // The same objects, byte for byte, as a run that is not told a revision.
+    expect([...destination.objects].map(([key, body]) => [key, new TextDecoder().decode(body)]))
+      .toEqual([...unset.objects].map(([key, body]) => [key, new TextDecoder().decode(body)]));
+    expect(Object.hasOwn(published(destination).terms, "#42")).toBe(false);
+  });
+
+  test("H36: SEARCH_LEXICAL_REVISION bm25-reference@2 publishes @2 postings with the community search profiles", async () => {
+    expect(resolveSearchLexicalRevision(" bm25-reference@2 ")).toBe("bm25-reference@2");
+    const destination = new MemoryDestination();
+    const result = await run(destination, new MemoryState(), "bm25-reference@2");
+    expect(result.ok).toBe(true);
+    const { manifest, terms, shards } = published(destination);
+    expect(manifest.lexicalRevision).toBe("bm25-reference@2");
+    // The record ids name issue 42 in both projects and pull request 43; a comment title cites #42.
+    expect(terms["#42"]![0]).toBe(4);
+    expect(terms["#43"]![0]).toBe(1);
+    expect(shards.map((shard) => `${shard.projectId} ${Object.hasOwn(shard.postings, "#42")}`))
+      .toEqual(["apache-datafusion true", "apache-kafka true"]);
+  });
+
+  test("H36: a later run without the flag writes @1 again (rollback), leaving the @2 release in place", async () => {
+    const destination = new MemoryDestination();
+    await run(destination, new MemoryState(), "bm25-reference@2");
+    const second = published(destination).manifest;
+    await run(destination, new MemoryState(), undefined, laterHour(fixture.config.materializedAt));
+    const third = published(destination).manifest;
+    expect([second.lexicalRevision, third.lexicalRevision]).toEqual(["bm25-reference@2", "bm25-reference@1"]);
+    expect(third.indexRevision).not.toBe(second.indexRevision);
+    expect(json<SearchReleaseManifestV3>(destination, `public/search/v1/releases/${second.indexRevision}/manifest.json`).lexicalRevision)
+      .toBe("bm25-reference@2");
+  });
+
+  test.each(["bm25-reference@3", "bm25-reference", "2", "true"])("H38: SEARCH_LEXICAL_REVISION %p fails the run before any write", async (value) => {
+    expect(() => resolveSearchLexicalRevision(value)).toThrow(`SEARCH_LEXICAL_REVISION "${value}" is not a supported lexical revision`);
+    const state = new MemoryState();
+    const destination = new MemoryDestination();
+    destination.objects.set(MANIFEST_KEY, new TextEncoder().encode("old-feed"));
+    destination.objects.set(SEARCH_CURRENT_KEY, new TextEncoder().encode("old-search"));
+    let polls = 0;
+    const result = await runDataPublication({
+      environment: "development",
+      materializedAt: fixture.config.materializedAt,
+      connector: { poll: async () => { polls += 1; return connectorSuccess(events).poll(); } },
+      state,
+      destination,
+      searchLexicalRevision: value,
+    });
+
+    expect(result).toMatchObject({ ok: false, failureKind: "pipeline" });
+    expect(result.ok === false && result.error).toContain(`SEARCH_LEXICAL_REVISION "${value}"`);
+    expect(destination.operations).toEqual([]);
+    expect(polls).toBe(0);
+    expect(state.value.events).toEqual([]);
+    expect(new TextDecoder().decode(destination.objects.get(SEARCH_CURRENT_KEY))).toBe("old-search");
+    // `/health` carries the failure; a run with a supported value then publishes.
+    expect(healthBody({ environment: "development", running: false, scheduled: false, phase: undefined, status: state.statuses.at(-1) }).lastRun)
+      .toMatchObject({ ok: false, error: expect.stringContaining("SEARCH_LEXICAL_REVISION") });
+    expect((await run(destination, state, "bm25-reference@2")).ok).toBe(true);
+    expect(published(destination).manifest.lexicalRevision).toBe("bm25-reference@2");
+  });
+
+  test("H39: neither deployed publisher sets SEARCH_LEXICAL_REVISION, so merging this slice still writes @1", async () => {
+    for (const environment of ["development", "production"] as const) {
+      const vars = (await config(environment)).vars as Readonly<Record<string, string>>;
+      expect(Object.keys(vars)).toContain("PUBLICATION_ENVIRONMENT");
+      expect(Object.hasOwn(vars, "SEARCH_LEXICAL_REVISION")).toBe(false);
+      expect(resolveSearchLexicalRevision(vars.SEARCH_LEXICAL_REVISION)).toBe("bm25-reference@1");
+    }
+  });
+
+  test.each(["bm25-reference@1", "bm25-reference@2"])("H41: /health lastRun.search reports the %s release's revision, chunk count, and lexical bytes", async (revision) => {
+    const state = new MemoryState();
+    const destination = new MemoryDestination();
+    const result = await run(destination, state, revision);
+    const { manifest, shards } = published(destination);
+    const bytes = (key: string) => destination.objects.get(key)!.byteLength;
+    const shardBytes = manifest.shards.map((shard) => bytes(shard.key));
+
+    expect(manifest.chunkCount).toBe(shards.reduce((total, shard) => total + shard.chunks.length, 0));
+    expect(manifest.chunkCount).toBe(5);
+    const expected = {
+      lexicalRevision: revision,
+      chunkCount: 5,
+      shardCount: 2,
+      shardBytes: shardBytes.reduce((total, value) => total + value, 0),
+      largestShardBytes: Math.max(...shardBytes),
+      termsBytes: bytes(searchTermsKey(manifest.indexRevision)),
+    };
+    expect(result).toMatchObject({ ok: true, search: expected });
+    expect(healthBody({ environment: "development", running: false, scheduled: false, phase: undefined, status: state.statuses.at(-1) }).lastRun)
+      .toMatchObject({ search: expected });
   });
 });
 
