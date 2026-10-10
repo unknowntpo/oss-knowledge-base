@@ -69,6 +69,15 @@ export const DEFAULT_EMBEDDING_LIMITS: EmbeddingLimits = {
   quarantineMs: 24 * 3_600_000,
 };
 
+/**
+ * The longest one run can take, from the constants: no model call or delete starts at or after
+ * the deadline, so the last model call may start just before it and run to its timeout, and its
+ * upsert may time out, wait, and time out again.
+ */
+export function worstCaseWallMs(limits: EmbeddingLimits): number {
+  return limits.deadlineMs + limits.callTimeoutMs + (2 * limits.callTimeoutMs + RETRY_DELAY_MS);
+}
+
 /** Sent alone when a batch and both its halves fail and nothing has succeeded in the run. */
 export const PROBE_TEXT = "ok";
 

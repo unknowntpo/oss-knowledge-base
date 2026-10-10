@@ -455,6 +455,19 @@ describe("Spec 016 embedding after a publication", () => {
     expect(withTrigger.state.value.events.length).toBeGreaterThan(0);
   });
 
+  test("H54: a failing trigger is logged without its bearer token or token-like strings", async () => {
+    const logged: string[] = [];
+    const realError = console.error;
+    console.error = (...args: unknown[]) => { logged.push(args.join(" ")); };
+    try {
+      const { result } = await publish({ onPublished: async () => { throw new Error(`object said Bearer s3cr3t.t0ken ${"Zm9v+/8=".repeat(6)}`); } });
+      expect(result.ok).toBe(true);
+    } finally {
+      console.error = realError;
+    }
+    expect(logged).toEqual(["after-publication hook failed: object said Bearer [redacted] [redacted]"]);
+  });
+
   test("H21: an embedding run over the release the publisher wrote stores one vector per chunk in each project's namespace", async () => {
     const { destination, result } = await publish();
     const { manifest, shards } = (() => {

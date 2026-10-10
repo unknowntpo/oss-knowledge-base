@@ -159,7 +159,18 @@ describe("Spec 016 embedding object", () => {
     await searchEmbeddingTrigger({ SEARCH_EMBEDDING: "nonsense", SEARCH_EMBEDDING_RUN: accepted })!(ok);
     expect(requests).toHaveLength(2);
     // 409 (a run is pending) and 500 are answers, not exceptions; a rejected fetch rejects for the pipeline to swallow.
-    for (const status of [409, 500]) await searchEmbeddingTrigger({ SEARCH_EMBEDDING: "bge-m3@1", SEARCH_EMBEDDING_RUN: namespace(() => new Response("no", { status })) })!(ok);
+    const logged: string[] = [];
+    const realError = console.error;
+    console.error = (...args: unknown[]) => { logged.push(args.join(" ")); };
+    try {
+      for (const status of [409, 500]) {
+        await searchEmbeddingTrigger({ SEARCH_EMBEDDING: "bge-m3@1", SEARCH_EMBEDDING_RUN: namespace(() => new Response(`no Bearer s3cr3t.t0ken ${"Zm9v+/8=".repeat(6)}`, { status })) })!(ok);
+      }
+    } finally {
+      console.error = realError;
+    }
+    // Only the 500 is logged, and what the object answered is redacted.
+    expect(logged).toEqual(["Scheduling the search embedding failed: 500 no Bearer [redacted] [redacted]"]);
     await expect(searchEmbeddingTrigger({ SEARCH_EMBEDDING: "bge-m3@1", SEARCH_EMBEDDING_RUN: namespace(() => { throw new Error("object unavailable"); }) })!(ok))
       .rejects.toThrow("object unavailable");
   });
