@@ -128,6 +128,53 @@ test("development cron data reaches Feed, Search, facets, and immutable detail",
   expect(browserProblems).toEqual([]);
 });
 
+test("H42: Search serves the lexical revision the publisher last wrote, and at @2 an identifier needs no hyphen", async ({ request, publisherRequest }, testInfo) => {
+  type Search = {
+    readonly results: readonly { readonly entry: { readonly sourceTitleRecordId: string } }[];
+    readonly retrieval: { readonly indexRevision: string; readonly lexicalRevision: string };
+  };
+  type Health = {
+    readonly running: boolean;
+    readonly lastRun: null | { readonly ok: boolean; readonly searchRevision?: string; readonly search?: { readonly lexicalRevision: string } };
+  };
+  const search = async (query: string) => {
+    const response = await request.get(`/api/search?q=${encodeURIComponent(query)}&limit=20`);
+    expect(response.status(), query).toBe(200);
+    return await response.json() as Search;
+  };
+  // One release for all three reads: retry when a publication switches the pointer in between.
+  let hyphenated: Search | undefined;
+  let plain: Search | undefined;
+  let health: Health | undefined;
+  await expect.poll(async () => {
+    hyphenated = await search("KIP-770");
+    plain = await search("KIP770");
+    const response = await publisherRequest.get(`${workerUrl}/health`);
+    health = response.status() === 200 ? await response.json() as Health : undefined;
+    return health?.running === false && health.lastRun?.ok === true &&
+      plain.retrieval.indexRevision === hyphenated.retrieval.indexRevision &&
+      health.lastRun.searchRevision === hyphenated.retrieval.indexRevision;
+  }, {
+    message: "wait for Search and /health to name the same completed release",
+    timeout: 15 * 60 * 1_000,
+    intervals: [1_000, 5_000, 10_000],
+  }).toBe(true);
+
+  const served = hyphenated!.retrieval.lexicalRevision;
+  expect(["bm25-reference@1", "bm25-reference@2"]).toContain(served);
+  // What the reader serves is what the publisher says it wrote.
+  expect(health!.lastRun!.search?.lexicalRevision).toBe(served);
+  testInfo.annotations.push({ type: "lexicalRevision", description: served });
+  if (served !== "bm25-reference@2") {
+    // The first deploy after the switch runs before the next hourly publication; a rollback
+    // (variable removed) also lands here. `/health` `lastRun.search` is the runtime check.
+    console.log(`Dev Search still serves ${served}; the @2 identifier check is skipped until an @2 release is current`);
+    return;
+  }
+  const roots = (body: Search) => body.results.map((result) => result.entry.sourceTitleRecordId);
+  expect(roots(plain!)).toEqual(roots(hyphenated!));
+});
+
 test("This week renders the digest, or the no-digest notice while Dev has no digest pointer", async ({ page, request }) => {
   const api = await request.get("/api/digest?projectId=apache-kafka&locale=en");
   // 404 until the digest job publishes on Dev (Spec 014 slice 2b); never a 5xx.
