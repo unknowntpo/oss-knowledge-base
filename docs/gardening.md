@@ -420,3 +420,16 @@ the two `viewer/` items below.
   red deployed E2E on `main` visible before the next merge.
 - **Layer:** structure (response shape) and gate (merge only on a green `main`).
 - **Source:** deployed E2E failures on `main`, 2026-10-07/08.
+
+### G37. Search detail responses are re-fetched every 30 s
+- **Where:** `apps/web/functions/api/search-detail/[ref].ts` answers a 200
+  with the default `public, max-age=30, stale-while-revalidate=120` (Spec 003
+  R7).
+- **Why:** the objects behind a `detailRef` never change, but the handler
+  shapes the body (`reason.label`, `highlightedRecordIds`, new `FeedDetail`
+  fields), so `immutable` would pin old shapes in browsers for a year. The
+  handler asked for `immutable` until PR #47; it never took effect.
+- **Fix:** make the response a pure function of the ref (for example a
+  shaping version in the ref or the URL), then pass `immutable` again.
+- **Layer:** test (the R7 row for this endpoint).
+- **Source:** [PR #47](https://github.com/unknowntpo/oss-knowledge-base/pull/47).

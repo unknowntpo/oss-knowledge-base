@@ -4,7 +4,6 @@
  * (`bun run docs:test-plan` regenerates it). `outcome` names the scenario the test sets up.
  */
 const REVALIDATE = "public, max-age=30, stale-while-revalidate=120";
-const IMMUTABLE = "public, max-age=31536000, immutable";
 const NO_STORE = "no-store";
 
 export const testPlanRows = [
@@ -18,7 +17,7 @@ export const testPlanRows = [
   { id: "R7", endpoint: "/api/search", outcome: "empty query", status: 400, cacheControl: NO_STORE },
   { id: "R7", endpoint: "/api/search", outcome: "no current pointer", status: 503, cacheControl: NO_STORE },
   { id: "R7", endpoint: "/api/search", outcome: "unsupported lexical revision", status: 503, cacheControl: NO_STORE },
-  { id: "R7", endpoint: "/api/search-detail/:ref", outcome: "ref of a published release", status: 200, cacheControl: IMMUTABLE },
+  { id: "R7", endpoint: "/api/search-detail/:ref", outcome: "ref of a published release", status: 200, cacheControl: REVALIDATE },
   { id: "R7", endpoint: "/api/search-detail/:ref", outcome: "no ref", status: 400, cacheControl: NO_STORE },
   { id: "R7", endpoint: "/api/search-detail/:ref", outcome: "invalid ref", status: 400, cacheControl: NO_STORE },
   { id: "R7", endpoint: "/api/search-detail/:ref", outcome: "detail object absent", status: 404, cacheControl: NO_STORE },

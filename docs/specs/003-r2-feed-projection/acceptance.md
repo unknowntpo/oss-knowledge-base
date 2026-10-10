@@ -38,5 +38,5 @@ Wrangler runs the Pages project, then `/api/feed` reports
 
 Given each endpoint and outcome in the spec's "Response caching" table, when
 the Pages Function answers, then `cache-control` is the listed value: no error
-is storable, successes revalidate after 30 s, and a Search detail is immutable
+is storable and every success revalidates after 30 s
 → evidence: `apps/web/test/r2-functions.test.ts` (`R7:` rows).

@@ -50,12 +50,11 @@ the Search and digest endpoints of later specs, because they share the helper.
 - An error (status ≥ 400) is `no-store`.
 - A success is `public, max-age=30, stale-while-revalidate=120`: it follows the
   mutable `current.json` pointers.
-- A `/api/search-detail/:ref` success is `public, max-age=31536000, immutable`:
-  the ref names its `indexRevision`, release objects are written only if
-  absent, and the detail is content-addressed (Spec 008), so the same ref
-  always reads the same objects. Consequence: a browser keeps the body, so a
-  later change to how the handler shapes it is not seen for refs already
-  opened.
+- A `/api/search-detail/:ref` success uses the same default, not `immutable`.
+  The objects a ref reads never change, but the handler shapes the body
+  (`reason.label`, `highlightedRecordIds`, and `FeedDetail` fields that are
+  still being added), so the response is not a pure function of the ref and a
+  one-year browser cache would pin old shapes (gardening G37).
 - A `cache-control` passed by a handler wins; the defaults above apply only
   when it passes none.
 
@@ -76,7 +75,7 @@ case file, not this table.
 | R7 | /api/search | empty query | 400 | no-store |
 | R7 | /api/search | no current pointer | 503 | no-store |
 | R7 | /api/search | unsupported lexical revision | 503 | no-store |
-| R7 | /api/search-detail/:ref | ref of a published release | 200 | public, max-age=31536000, immutable |
+| R7 | /api/search-detail/:ref | ref of a published release | 200 | public, max-age=30, stale-while-revalidate=120 |
 | R7 | /api/search-detail/:ref | no ref | 400 | no-store |
 | R7 | /api/search-detail/:ref | invalid ref | 400 | no-store |
 | R7 | /api/search-detail/:ref | detail object absent | 404 | no-store |

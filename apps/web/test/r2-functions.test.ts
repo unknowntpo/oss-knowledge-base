@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   buildR2Projection,
+  jsonResponse,
   MANIFEST_KEY,
   readDetailProjection,
   readFeedProjection,
@@ -408,6 +409,15 @@ describe("Spec 003 R7: cache-control per endpoint and outcome", () => {
     expect([response.status, response.headers.get("cache-control")]).toEqual([row.status, row.cacheControl]);
     // An error is `{error}`; a success is not (the scenario reached the outcome it names).
     expect(Object.hasOwn(await response.json() as object, "error")).toBe(row.status >= 400);
+  });
+
+  test("R7: a cache-control the handler passes wins over both defaults", () => {
+    const passed = { headers: { "cache-control": "private, max-age=5" } };
+    expect([jsonResponse({}, passed), jsonResponse({}, { ...passed, status: 503 })].map((response) => response.headers.get("cache-control")))
+      .toEqual(["private, max-age=5", "private, max-age=5"]);
+    // Positive control: without one, the status picks the default.
+    expect([jsonResponse({}), jsonResponse({}, { status: 503 })].map((response) => response.headers.get("cache-control")))
+      .toEqual(["public, max-age=30, stale-while-revalidate=120", "no-store"]);
   });
 
   test("R7: no error row is publicly cacheable, and every endpoint has a success and an error row", () => {

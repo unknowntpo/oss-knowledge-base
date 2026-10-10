@@ -153,10 +153,10 @@ No `data-testid` attributes; tests select by class, id, and role.
 
 All GET, R2 binding `OSS_KB_BUCKET`. Errors are `{error}`. `cache-control`
 (Spec 003 R7, `jsonResponse` in `apps/web/functions/_shared/r2-projection.ts`):
-every 4xx/5xx is `no-store`; a 200 is `public, max-age=30,
-stale-while-revalidate=120`, except `/api/search-detail/:ref`, which is
-`public, max-age=31536000, immutable` (a ref pins a write-once release). A
-handler's own `cache-control` wins over these defaults.
+every 4xx/5xx is `no-store`; every 200 is `public, max-age=30,
+stale-while-revalidate=120`, including `/api/search-detail/:ref` (gardening
+G37). A handler's own `cache-control` wins over these defaults; none passes
+one for a 200 today.
 
 | Endpoint | Returns | Data source | Covered by |
 | --- | --- | --- | --- |
