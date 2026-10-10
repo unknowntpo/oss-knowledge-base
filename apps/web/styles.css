@@ -91,6 +91,34 @@ select {
   border: 0;
 }
 
+/* Upstream-authored text (titles, excerpts, author names, tags, keywords) can hold a URL, class
+ * name, config key or file path with no break opportunity. It wraps inside its box instead of
+ * widening the card and the page (Spec 001 A13). Add a selector here when a new element renders
+ * such text. `anywhere` (unlike `break-word`) also lowers the min-content width, so a flex or grid
+ * item shrinks without `min-width: 0`. Fixed-vocabulary badges and generated ids (`.status-badge`,
+ * `.source-badge`, `.stage-badge`, `.cite`) stay `nowrap`. Cards get the same from `.card > *`. */
+.topic-id,
+.topic-head h1,
+.topic-lede,
+.topic-meta,
+.ai-item p,
+.tl-meta .author,
+.tl-kind,
+.tl-title,
+.tl-excerpt,
+.related-item,
+.tag-chip,
+.digest-headline,
+.highlight-title,
+.digest-sentence,
+.kip-title,
+.keyword,
+.thread-title,
+.thread-excerpt,
+.thread-meta {
+  overflow-wrap: anywhere;
+}
+
 .skip-link {
   position: absolute;
   left: 12px;
@@ -1105,7 +1133,6 @@ mark {
   font-weight: 600;
   line-height: 1.4;
   color: var(--text-1);
-  overflow-wrap: anywhere;
 }
 
 .tl-excerpt {
@@ -1417,7 +1444,6 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
   font-size: clamp(24px, 4vw, 34px);
   line-height: 1.25;
   color: var(--text-strong);
-  overflow-wrap: anywhere;
 }
 
 .digest-stats {
@@ -1464,7 +1490,7 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
 }
 
 .highlight-title, .topic-card-title { margin: 0 0 6px; font-size: 16px; color: var(--text-strong); }
-.digest-sentence { margin: 6px 0; line-height: 1.55; overflow-wrap: anywhere; }
+.digest-sentence { margin: 6px 0; line-height: 1.55; }
 .digest-sentence.fallback { color: var(--text-3); }
 .not-translated { margin-left: 6px; font-size: 11px; color: #7a4a12; }
 
@@ -1509,7 +1535,7 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
 
 .kip-row-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
 .kip-key { font-family: var(--font-mono); font-size: 12px; color: var(--accent); }
-.kip-title { font-weight: 600; color: var(--text-strong); overflow-wrap: anywhere; }
+.kip-title { font-weight: 600; color: var(--text-strong); }
 .kip-badges { display: inline-flex; gap: 4px; }
 .vote-link, .stage-more, .topic-more { font-size: 13px; color: var(--accent); }
 
@@ -1556,9 +1582,9 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
 .thread-status { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--chip-bg); color: var(--chip-text); }
 .thread-status.status-merged { background: #dff2ea; color: #1c5e44; }
 .thread-status.status-open, .thread-status.status-discussing { background: #e3eefa; color: #1d4e89; }
-.thread-title { display: block; margin: 6px 0 4px; font-weight: 600; color: var(--text-strong); text-decoration: none; overflow-wrap: anywhere; }
+.thread-title { display: block; margin: 6px 0 4px; font-weight: 600; color: var(--text-strong); text-decoration: none; }
 .thread-title:hover { color: var(--accent); }
-.thread-excerpt { margin: 4px 0; font-size: 13px; color: var(--text-3); overflow-wrap: anywhere; }
+.thread-excerpt { margin: 4px 0; font-size: 13px; color: var(--text-3); }
 .thread-meta { margin: 4px 0 0; font-size: 12px; color: var(--muted-1); }
 
 @media (max-width: 768px) {
