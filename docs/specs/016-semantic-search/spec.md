@@ -1086,7 +1086,7 @@ Limits of these numbers:
   become queryable are read on Dev (H52).
 
 Worker bundle (`wrangler deploy --dry-run`, both configurations): 278.51 KiB
-(gzip 69.92) before, 310.04 KiB (gzip 77.35) after.
+(gzip 69.92) before, 311.40 KiB (gzip 77.67) after.
 
 Mutation evidence (one mutant or more per behavior, each seen failing) is
 listed in the PR.
