@@ -42,17 +42,6 @@ the two `viewer/` items below.
 - **Source:** [Spec 011 Non-goals](specs/011-stall-visibility/spec.md#non-goals),
   [PR #26 verifier](https://github.com/unknowntpo/oss-knowledge-base/pull/26#issuecomment-6011850693).
 
-### G4. Search detail horizontal overflow at 375 px (unconfirmed)
-- **Where:** Search detail view (`apps/web/src/views/FeedDetailView.vue`).
-- **Why:** reported from Spec 011 Evidence screenshots. Not reproduced on
-  2026-10-06: `verify:ui --view search-detail --width 375` (first `KIP-405`
-  result, en and zh-Hant, local fixture and Dev) shows no page overflow and no
-  element past the viewport.
-- **Fix:** find the detail that overflows (likely a long unbroken URL or code
-  span) and add `overflow-wrap: anywhere`; otherwise close the item.
-- **Layer:** test (E2E: `document.body.scrollWidth <= innerWidth` on detail views).
-- **Source:** [Spec 011 Non-goals](specs/011-stall-visibility/spec.md#non-goals).
-
 ### G5. Detail loading state reuses `.load-error` and is not translated
 - **Where:** `apps/web/src/views/FeedDetailView.vue` lines 113 and 138
   (`<div class="load-error"><p>Loading detail…</p>`).
@@ -94,6 +83,33 @@ the two `viewer/` items below.
   means without a query.
 - **Layer:** structure (remove the unreachable option) — delete, do not explain.
 - **Source:** [PR #29 verifier, 2d](https://github.com/unknowntpo/oss-knowledge-base/pull/29#issuecomment-6014587324).
+
+### G38. `.topic-grid` is defined twice
+- **Where:** `apps/web/styles.css`: the detail page's
+  `.topic-grid { grid-template-columns: minmax(0, 1fr) 268px }` and its
+  `max-width: 900px` override, then the Spec 014 block's
+  `.topic-grid { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) }`
+  for the This week topic cards. The later rule wins everywhere.
+- **Why:** the detail page (`FeedDetailView.vue`) gets two equal columns at
+  1280 px instead of a timeline and a 268 px rail, and its one-column layout
+  below 900 px works only because 300 px happens to fit. Found while fixing
+  Spec 001 A13; not changed there (desktop layout was out of scope).
+- **Fix:** rename one of the two classes; decide which detail layout is meant.
+- **Layer:** test (detail E2E asserting the rail width at 1280 px).
+- **Source:** this PR (Spec 001 A13).
+
+### G39. The E2E suite runs Chromium only
+- **Where:** `playwright.config.ts` (both projects use `browserName:
+  "chromium"`; "mobile-chromium" is an iPhone 13 viewport, not WebKit), CI
+  installs only Chromium.
+- **Why:** layout bugs reported from iOS Safari (Spec 001 A13) are reproduced
+  and verified in a different engine. Line breaking differs between engines:
+  Chromium breaks a URL after `?` and `/`, so a URL that overflows in Safari
+  can fit in the test.
+- **Fix:** a WebKit project for the layout specs (`long-text.spec.ts`,
+  `stall-visibility.spec.ts`).
+- **Layer:** test.
+- **Source:** this PR (Spec 001 A13).
 
 ## Publisher and data
 
