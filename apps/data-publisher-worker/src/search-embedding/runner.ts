@@ -136,12 +136,16 @@ export class SearchEmbeddingRunner {
     };
   }
 
-  /** `POST /search-embedding/run[?dryRun=1][&reset=1]`, and the publisher's trigger after a publication. */
-  async request(options: { readonly dryRun?: boolean; readonly reset?: boolean } = {}): Promise<{ readonly status: number; readonly body: unknown }> {
+  /**
+   * `POST /search-embedding/run[?dryRun=1[&profile=…]][&reset=1]`, and the publisher's trigger after a
+   * publication. While the flag is off only the two requests that call no model and no index are
+   * served: a dry run for a named profile (the estimate before enabling) and a reset.
+   */
+  async request(options: { readonly dryRun?: boolean; readonly reset?: boolean; readonly profile?: string } = {}): Promise<{ readonly status: number; readonly body: unknown }> {
     const config = searchEmbeddingConfig(this.deps);
-    if (config.state === "off") return { status: 403, body: { ok: false, disabled: true } };
-    if (config.state === "error") return { status: 500, body: await this.recordConfigError(config, options.dryRun === true) };
     if (options.dryRun === true && options.reset === true) return { status: 400, body: { ok: false, error: "reset cannot be combined with dryRun" } };
+    if (config.state === "off") return this.requestWhileOff(options);
+    if (config.state === "error") return { status: 500, body: await this.recordConfigError(config, options.dryRun === true) };
     if (runPending(this.running, await this.deps.storage.getAlarm(), this.deps.now().getTime())) {
       return { status: 409, body: { ok: false, skipped: "already-running" } };
     }
@@ -152,6 +156,21 @@ export class SearchEmbeddingRunner {
     const forgotten = options.reset === true ? await this.state.clear() : undefined;
     await this.deps.storage.setAlarm(this.deps.now().getTime());
     return { status: 202, body: { ok: true, scheduled: true, ...(forgotten === undefined ? {} : { forgotten }) } };
+  }
+
+  private async requestWhileOff(options: { readonly dryRun?: boolean; readonly reset?: boolean; readonly profile?: string }): Promise<{ readonly status: number; readonly body: unknown }> {
+    if (options.reset === true) return { status: 200, body: { ok: true, scheduled: false, forgotten: await this.state.clear() } };
+    if (options.dryRun !== true || (options.profile?.trim() ?? "") === "") return { status: 403, body: { ok: false, disabled: true } };
+    let profile: SearchEmbeddingProfile;
+    try {
+      profile = resolveSearchEmbedding(options.profile)!;
+    } catch (error) {
+      return { status: 400, body: { ok: false, error: error instanceof Error ? error.message : String(error) } };
+    }
+    // A dry run reaches neither: both refuse, so a mistake here cannot spend or mutate.
+    const refuse = async (): Promise<never> => { throw new Error("A dry run must not call the model or the index"); };
+    const result = await this.execute({ state: "on", profile, embed: refuse, index: { describe: refuse, upsert: refuse, deleteByIds: refuse, query: refuse } }, true);
+    return { status: result.ok ? 200 : 500, body: result };
   }
 
   /** Never throws: a thrown alarm is retried by the runtime, and each retry could spend again. */

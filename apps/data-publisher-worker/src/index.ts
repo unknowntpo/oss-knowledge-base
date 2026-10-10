@@ -182,7 +182,11 @@ export default {
       if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
       const embedding = searchEmbeddingObject(env);
       if (embedding === undefined) return Response.json({ ok: false, disabled: true }, { status: 403 });
-      const query = ["dryRun", "reset"].filter((name) => url.searchParams.get(name) === "1").map((name) => `${name}=1`).join("&");
+      const forwarded = new URLSearchParams();
+      for (const name of ["dryRun", "reset"]) if (url.searchParams.get(name) === "1") forwarded.set(name, "1");
+      const profile = url.searchParams.get("profile");
+      if (profile !== null) forwarded.set("profile", profile);
+      const query = forwarded.toString();
       return embedding.fetch(`https://search-embedding.internal/run${query === "" ? "" : `?${query}`}`, { method: "POST" });
     }
     if (request.method === "POST" && url.pathname === "/digest/run") {
@@ -358,6 +362,7 @@ export class SearchEmbeddingRun implements DurableObject {
       const result = await this.runner.request({
         dryRun: url.searchParams.get("dryRun") === "1",
         reset: url.searchParams.get("reset") === "1",
+        ...(url.searchParams.get("profile") === null ? {} : { profile: url.searchParams.get("profile")! }),
       });
       return Response.json(result.body, { status: result.status });
     }

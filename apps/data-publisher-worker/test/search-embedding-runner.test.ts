@@ -52,6 +52,12 @@ describe("Spec 016 embedding object", () => {
     expect(await off.runner.health()).toMatchObject({ enabled: false, model: null, revision: null, semanticRevision: null, lastRun: null });
     expect(await off.runner.health()).not.toHaveProperty("configError");
 
+    // A reset is served while off (it calls nothing) so that a wiped index is not trusted later.
+    expect(await off.runner.request({ reset: true })).toEqual({ status: 200, body: { ok: true, scheduled: false, forgotten: 0 } });
+    expect(off.storage.alarm).toBeNull();
+    expect(off.ai.calls).toEqual([]);
+    expect(off.index.calls).toEqual([]);
+
     // Positive control: the same object with the flag embeds the release.
     const on = setup();
     expect((await on.runner.request()).status).toBe(202);
@@ -212,6 +218,29 @@ describe("Spec 016 embedding object", () => {
     expect(await runner.request({ dryRun: true, reset: true })).toEqual({ status: 400, body: { ok: false, error: "reset cannot be combined with dryRun" } });
   });
 
+  test("H51: before the flag is set, a dry run for a named profile returns the estimate and still calls nothing", async () => {
+    const { storage, bucket, ai, index, runner } = setup({ flag: undefined });
+    const answer = await runner.request({ dryRun: true, profile: "bge-m3@1" });
+    expect(answer.status).toBe(200);
+    expect(answer.body).toMatchObject({
+      ok: true, dryRun: true, releaseId: "r1", model: "@cf/baai/bge-m3", revision: "bge-m3@1", semanticRevision: SEMANTIC_REVISION,
+      chunks: 5, embedded: 0, pending: 5, modelCalls: 0, estimate: { chunks: 5, calls: 3, inputTokens: 30, neurons: 3, usd: 0.000033, runs: 1, days: 1 },
+    });
+    expect(bucket.reads.length).toBeGreaterThan(0);
+    expect(ai.calls).toEqual([]);
+    expect(index.calls).toEqual([]);
+    expect(storage.writes).toEqual([]);
+    expect(await runner.health()).toMatchObject({ enabled: false, lastRun: null });
+    // Without a profile it is still disabled; an unknown profile is refused; a real run stays off.
+    expect(await runner.request({ dryRun: true })).toEqual({ status: 403, body: { ok: false, disabled: true } });
+    expect(await runner.request({ dryRun: true, profile: " " })).toEqual({ status: 403, body: { ok: false, disabled: true } });
+    expect(await runner.request({ dryRun: true, profile: "bge-m3@9" })).toEqual({ status: 400, body: { ok: false, error: 'SEARCH_EMBEDDING "bge-m3@9" is not a supported embedding profile (bge-m3@1)' } });
+    expect(await runner.request({ profile: "bge-m3@1" })).toEqual({ status: 403, body: { ok: false, disabled: true } });
+    expect(storage.alarm).toBeNull();
+    // With the flag set, the flag decides the profile and the parameter is not needed.
+    expect((await setup().runner.request({ dryRun: true })).body).toMatchObject({ ok: true, revision: "bge-m3@1" });
+  });
+
   test("H51: reset=1 forgets the vector state, keeps the day's ledger, and the next run embeds every chunk again", async () => {
     const { storage, ai, index, runner } = setup();
     await runner.alarm();
@@ -311,11 +340,13 @@ describe("Spec 016 embedding endpoints of the Worker", () => {
     await worker.fetch(post("/search-embedding/run?dryRun=1", "placeholder-token"), env);
     await worker.fetch(post("/search-embedding/run?reset=1", "placeholder-token"), env);
     await worker.fetch(post("/search-embedding/run?dryRun=true&reset=0", "placeholder-token"), env);
+    await worker.fetch(post("/search-embedding/run?dryRun=1&profile=bge-m3@1", "placeholder-token"), env);
     expect(forwarded).toEqual([
       "POST https://search-embedding.internal/run",
       "POST https://search-embedding.internal/run?dryRun=1",
       "POST https://search-embedding.internal/run?reset=1",
       "POST https://search-embedding.internal/run",
+      "POST https://search-embedding.internal/run?dryRun=1&profile=bge-m3%401",
     ]);
     // Without the object (Prod) the endpoint says disabled, after checking the token.
     expect((await worker.fetch(post("/search-embedding/run"), baseEnv())).status).toBe(401);
@@ -365,6 +396,7 @@ describe("Spec 016 embedding endpoints of the Worker", () => {
 
     const off = object({ SEARCH_GATEWAY_ID: "osskb-search-dev" });
     expect(await call(off, "POST", "/run")).toEqual([403, { ok: false, disabled: true }]);
+    expect((await call(off, "POST", "/run?dryRun=1&profile=bge-m3%401"))[1]).toMatchObject({ ok: true, dryRun: true, revision: "bge-m3@1", pending: 2 });
     expect((await call(off, "GET", "/status"))[1]).toMatchObject({ enabled: false });
     await off.alarm();
     expect(ai.calls).toEqual([]);

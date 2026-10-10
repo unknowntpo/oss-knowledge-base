@@ -116,6 +116,59 @@ see Results.
    patterns (KIP-n, KAFKA-n) belong in the community profile, not hard-coded in
    core search.
 
+## Decisions (slice 2b, implementer, 2026-10-10; to confirm)
+
+Human decisions 2–4 fixed the unit, the model, the store, the namespace per
+project, and the separate gateway. These were left to the implementer:
+
+7. **State in the embedding object's storage**, one entry per vector
+   (Behavior 18). Rejected: an R2 object (rewritten whole on every batch, or
+   progress is lost when a run dies; a mutable object beside
+   content-addressed releases); Vectorize metadata as the state (listing is
+   paged and eventually consistent, the exact property that would cause
+   re-embedding). Durable Object storage is strongly consistent and written
+   per batch. Size: about 100 bytes per vector, 0.9 MB at 8,577 chunks and
+   3 MB at 30,000, far under the 128 MB memory limit; values are far under
+   the per-value limit; writes go 100 keys per call (the limit is 128).
+8. **A separate Durable Object**, not a step in the publisher's alarm. The
+   publisher's object has already hit the 128 MB limit and the 15-minute
+   alarm wall time, and a retried publisher alarm publishes again. Embedding
+   in its own object cannot extend, fail, or re-run a publication
+   (Behavior 15).
+9. **Vector id per passage, not per chunk id** (Behavior 17). H21 used to
+   say "under its chunk id": a chunk id is 76 bytes (limit 64) and changes
+   with every `sourceVersion`, which would re-embed a thread on every new
+   comment. This changes the wording of H21, not its intent.
+10. **No metadata index and no revision in the id.** A new revision
+    overwrites each vector in place, so storage never doubles; during the
+    change the index is mixed, and the retriever drops other revisions by
+    metadata (Behavior 22). Cost: until the backfill ends, other-revision
+    matches use part of the 50 returned per namespace.
+11. **An unknown `SEARCH_EMBEDDING` fails the embedding run, not the
+    publication** (Behavior 14).
+12. **Bounds** (Behavior 19): 3,000 chunks and 80 model calls per run, 400
+    calls and 3,000 neurons per UTC day, 50 texts and 20,000 estimated tokens
+    per call. Arithmetic in Results (slice 2b). The embedding ledger is its
+    own; with the digest's 4,500 the two stay under the 10,000 neurons a day
+    the plan includes.
+13. **Our own bounds are not failures; refusals are.** A run stopped by a
+    bound of Behavior 19 is `ok` with `limited`. Code 3036, a gateway 429, and
+    a spend-limit refusal are `ok: false`, `failureKind: model-limit`, because
+    someone has to look.
+14. **Coverage is in `/health`, not in the manifest** (Behavior 22).
+15. **A new package, `packages/semantic-vectorize`**, holds what the
+    publisher and the query side share (profile, vector id and metadata, the
+    `VectorIndex` port, the Workers AI embedder, the retriever, the fakes).
+    The Pages reader will import it in slice 3; `packages/search` and
+    `packages/serving-contract` do not depend on it (a test checks).
+16. **Deployed configuration.** Dev gets the Vectorize binding, the
+    `SearchEmbeddingRun` object (migration `v3`), and `SEARCH_GATEWAY_ID`.
+    Prod gets nothing, not even the inert object binding the digest has.
+17. **Small ones.** `truncate_inputs: true` on the model call; the gateway
+    cache is skipped when publishing; non-positive similarities are not
+    candidates (as in the in-memory retriever); `reset=1` and a dry run with
+    `profile=` are served while the flag is off, because they call nothing.
+
 ## Simplification review
 
 1. **Question every requirement.**
@@ -400,7 +453,12 @@ Decided in slice 2a (implementer, to confirm):
      No model call, Vectorize, binding, or new cloud resource. Dev serves
      `@1` after the merge.
    - **Switch.** A one-line change sets the variable for Dev (H42).
-   - **2b.** Publisher embedding step and Vectorize adapter. H21–H24, H27.
+   - **2b (this PR).** The embedding object, run, and state (H21–H23,
+     H45–H49), the Vectorize adapter with the release consistency rule (H24,
+     H43, H44, H50), `/health` and the trigger endpoint (H51), the cost
+     measurement (H27). `SEARCH_EMBEDDING` is unset in both deployed
+     configurations: nothing is embedded after the merge.
+   - **Enable.** A one-line change sets the variable for Dev (H52).
 3. **Query-time wiring** in the web API behind a flag. H28–H32.
 4. **Measured comparison** with the real model and the decision on rerank.
    H33.
@@ -465,6 +523,40 @@ run at any time, so the order is enforced by a flag, not by timing
    next release, and until then affected identifier queries lose their exact
    match but still return lexical results. Reader and publisher take the
    patterns from one module at one commit.
+
+Slice 2b changes, all additive:
+
+- New package `packages/semantic-vectorize` (Decision 15).
+- `packages/reference-pipeline`: the price of `@cf/baai/bge-m3` in `PRICES`
+  and `USD_PER_NEURON`.
+- Publisher: `runDataPublication` takes `onPublished`; `/health` gains
+  `searchEmbedding`; `POST /search-embedding/run`; the Worker exports
+  `SearchEmbeddingRun`.
+- Dev Worker configuration: `vectorize` binding `SEARCH_VECTORS` →
+  `osskb-search-dev`, Durable Object `SEARCH_EMBEDDING_RUN` (migration `v3`),
+  `SEARCH_GATEWAY_ID=osskb-search-dev`. Prod configuration: unchanged.
+- Release objects, `SearchResponseV1`, and the Pages bundle: unchanged.
+  `packages/search/test/fusion.test.ts` now runs the shared retriever
+  contract; `golden-evaluation.v2.json` is byte-identical.
+
+Rolling out embeddings on Dev:
+
+1. **Slice 2b merges.** The Dev deploy creates the object class and attaches
+   the index. The flag is unset: the publisher has no trigger, no model or
+   index call is made, `/health` `searchEmbedding.enabled` is `false`.
+2. **Estimate.** `POST /search-embedding/run?dryRun=1&profile=bge-m3@1`
+   returns the chunks, calls, tokens, neurons, dollars, and runs (H52).
+3. **Enable.** Set `"SEARCH_EMBEDDING": "bge-m3@1"` in
+   `wrangler.development.jsonc` and update the H45 configuration test. Each
+   successful publication then triggers a run; the backfill takes about
+   three.
+4. **Turn off.** Remove the variable. No further call is made; stored
+   vectors stay and are simply not updated. Nothing reads them before
+   slice 3.
+5. **Start over.** Delete and recreate the index (1,024 dimensions, cosine),
+   then `POST /search-embedding/run?reset=1`; without the reset the state
+   would still call every chunk embedded.
+6. **A release rollback** needs no step here (Behavior 22).
 
 Slices 2–3 add to `SearchResponseV1.retrieval` the fields Spec 005 already
 names (`semanticRevision`, `fusionRevision`) plus `semantic`, and to each
@@ -545,6 +637,47 @@ project filter at `@2` run again in the browser (`apps/web/e2e-lexical2`):
 | H25 | bare number is an ordinary term at @1 | bm25-reference@1 | 770 | — | — | kafka:jira:issue:KAFKA-770 | 3 |
 | H25 | class-name fragment finds nothing at @1 | bm25-reference@1 | RequestManager | — | — | — | 0 |
 | H25 | two words at @1 miss the class names | bm25-reference@1 | request manager | — | — | kafka:jira:issue:KAFKA-19804 kafka:github:pull:22747 | 7 |
+<!-- test-plan:end -->
+
+Embedding run (slice 2b), from
+`apps/data-publisher-worker/test/search-embedding.cases.ts`. Each row runs
+against a release of five chunks in two projects (two shards) with two texts
+per model call, so three batches. `start` is `empty`, or `one extra` (all five
+embedded plus one vector of a chunk the release no longer holds); `fault`
+happens during the first run only; `days` is the UTC day of each run;
+`expected` lists, per run, model calls, chunks embedded of chunks read,
+vectors deleted, the bound reached, and `ok` or the failure kind:
+
+<!-- test-plan:start apps/data-publisher-worker/test/search-embedding.cases.ts -->
+| id | case | start | limits | fault | days | expected |
+| --- | --- | --- | --- | --- | --- | --- |
+| H21 | everything is embedded, then nothing is left to do | empty | — | — | 1 1 | 3 calls, 5/5 embedded, 0 deleted, not limited, ok → 0 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H21 | a vector the release dropped is deleted | one extra | — | — | 1 1 | 0 calls, 5/5 embedded, 1 deleted, not limited, ok → 0 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H46 | chunks per run | empty | maxChunksPerRun=3 | — | 1 1 | 2 calls, 3/5 embedded, 0 deleted, chunks-per-run, ok → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H46 | model calls per run | empty | maxCallsPerRun=1 | — | 1 1 1 | 1 calls, 2/5 embedded, 0 deleted, calls-per-run, ok → 1 calls, 4/5 embedded, 0 deleted, calls-per-run, ok → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H46 | model calls per UTC day | empty | maxCallsPerDay=2 | — | 1 1 2 | 2 calls, 4/5 embedded, 0 deleted, calls-per-day, ok → 0 calls, 4/5 embedded, 0 deleted, calls-per-day, ok → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H46 | estimated neurons per UTC day | empty | dailyNeuronCap=2 | — | 1 1 2 | 2 calls, 4/5 embedded, 0 deleted, daily-neurons, ok → 0 calls, 4/5 embedded, 0 deleted, daily-neurons, ok → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H46 | the deadline | empty | deadlineMs=1500 callMs=1000 | — | 1 1 | 2 calls, 4/5 embedded, 0 deleted, deadline, ok → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H46 | a bound of zero embeds nothing | empty | maxChunksPerRun=0 | — | 1 | 0 calls, 0/5 embedded, 0 deleted, chunks-per-run, ok |
+| H48 | a model error, then success | empty | — | model: call 1 fails | 1 1 | 4 calls, 5/5 embedded, 0 deleted, not limited, ok → 0 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | a model error twice leaves that batch pending | empty | — | model: calls 2 and 3 fail | 1 1 | 4 calls, 3/5 embedded, 0 deleted, not limited, model → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | Workers AI code 3036 stops model use | empty | — | model: call 1 is refused with code 3036 | 1 1 | 1 calls, 0/5 embedded, 0 deleted, model-limit, model-limit → 3 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | a gateway 429 stops model use | empty | — | model: call 2 is refused with a gateway 429 | 1 1 | 2 calls, 2/5 embedded, 0 deleted, model-limit, model-limit → 2 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | a spend-limit refusal stops model use | empty | — | model: call 3 is refused for the spend limit | 1 1 | 3 calls, 4/5 embedded, 0 deleted, model-limit, model-limit → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | too few vectors | empty | — | model: calls 1 and 2 return one vector too few | 1 1 | 4 calls, 3/5 embedded, 0 deleted, not limited, model → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | a wrong dimension | empty | — | model: calls 1 and 2 return 3-dimension vectors | 1 1 | 4 calls, 3/5 embedded, 0 deleted, not limited, model → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | a model call that never answers | empty | callTimeoutMs=5 | model: calls 1 and 2 never answer | 1 1 | 4 calls, 3/5 embedded, 0 deleted, not limited, model → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | an upsert error, then success | empty | — | index: upsert 1 fails | 1 1 | 3 calls, 5/5 embedded, 0 deleted, not limited, ok → 0 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | an upsert error twice stops embedding | empty | — | index: upserts 2 and 3 fail | 1 1 | 2 calls, 2/5 embedded, 0 deleted, vector-store, vector-store → 2 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | an index that does not answer | empty | — | index: describe fails | 1 1 | 0 calls, 0/0 embedded, 0 deleted, not limited, vector-store → 3 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | an index of other dimensions | empty | — | index: has 768 dimensions | 1 | 0 calls, 0/0 embedded, 0 deleted, not limited, config |
+| H48 | a delete error, then success | one extra | — | index: delete 1 fails | 1 | 0 calls, 5/5 embedded, 1 deleted, not limited, ok |
+| H48 | a delete error twice keeps the vector and its state | one extra | — | index: deletes 1 and 2 fail | 1 1 | 0 calls, 5/5 embedded, 0 deleted, not limited, vector-store → 0 calls, 5/5 embedded, 1 deleted, not limited, ok |
+| H48 | an unreadable shard keeps what was embedded before it | empty | — | release: the second shard cannot be read | 1 1 | 1 calls, 2/3 embedded, 0 deleted, not limited, release-read → 2 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | an unreadable shard deletes nothing | one extra | — | release: the second shard cannot be read | 1 1 | 0 calls, 3/3 embedded, 0 deleted, not limited, release-read → 0 calls, 5/5 embedded, 1 deleted, not limited, ok |
+| H48 | a manifest whose chunk count disagrees deletes nothing | one extra | — | release: the manifest declares 6 chunks | 1 1 | 0 calls, 5/5 embedded, 0 deleted, not limited, release-read → 0 calls, 5/5 embedded, 1 deleted, not limited, ok |
+| H48 | a release that is not search-release.v3 | one extra | — | release: a search-release.v2 manifest | 1 | 0 calls, 0/0 embedded, 0 deleted, not limited, release-read |
+| H48 | no current pointer | one extra | — | release: no current pointer | 1 | 0 calls, 0/0 embedded, 0 deleted, not limited, release-read |
 <!-- test-plan:end -->
 
 ## Acceptance
@@ -815,10 +948,13 @@ Items tagged `[pending]` belong to the `@2` switch and slices 3–4.
   while a run is pending, 202 when scheduled, and with `dryRun=1` returns the
   estimate (chunks, calls, tokens, neurons, dollars, runs) having called no
   model, mutated no vector, and written no state; `reset=1` forgets the
-  state so that the next run embeds every chunk again → evidence:
-  `search-embedding-runner.test.ts`.
-- H52: [deploy] given slice 2b live on Dev and `SEARCH_EMBEDDING=bge-m3@1`
-  set for Dev, a dry run's estimate is recorded, the backfill reaches
+  state so that the next run embeds every chunk again; while the flag is off
+  only a reset and a dry run with `profile=bge-m3@1` are served → evidence:
+  `search-embedding-runner.test.ts`, `search-embedding-run.test.ts`.
+- H52: [deploy] given slice 2b live on Dev, the Dev deploy with the new
+  binding and migration succeeds, `/health` `searchEmbedding.enabled` is
+  `false`, and a dry run with `profile=bge-m3@1` returns an estimate; given
+  `SEARCH_EMBEDDING=bge-m3@1` then set for Dev, the backfill reaches
   `pending: 0` within the estimated runs, `lastRun.index.mutationsProcessed`
   becomes true, and the search gateway shows the calls while
   `osskb-digest-dev` shows none of them.
@@ -896,15 +1032,55 @@ Golden v1, golden v2, and `bun run eval:search` are unchanged
 (`golden-evaluation.v2.json` is byte-identical). The recorded publication
 parity changed only in `statuses[].search`.
 
+## Results (slice 2b, 2026-10-10)
+
+`bun run measure:search-embedding`, on the recorded Feed snapshot (353 chunks,
+real GitHub records of both projects), with the real run, a fake model, and an
+in-memory index under the default bounds:
+
+| | Snapshot (measured) | Dev corpus (scaled to 8,577 chunks) |
+| --- | --- | --- |
+| Estimated tokens per chunk | mean 88.8, median 102, p95 123, max 137 | same averages |
+| Estimated input tokens | 31,360 | 761,968 |
+| Model calls (50 texts each) | 8 | 172 |
+| Estimated neurons | 35 | 831 |
+| Cost at $0.011 per 1,000 neurons | $0.0004 | $0.0091 |
+| Stored dimensions (× 1,024) | 361,472 | 8,782,848 (10 M included) |
+| Runs under the bounds | 1 | 3 (3,000 + 3,000 + 2,577 chunks; 60 + 60 + 52 calls) |
+| UTC days under the daily bounds | 1 | 1 (172 of 400 calls, 831 of 3,000 neurons) |
+| A run on an unchanged release | 0 model calls, 1 index call (`describe`) | same |
+
+The three-run backfill is also a test: 8,577 synthetic chunks finish in runs
+of 3,000, 3,000, and 2,577 chunks with 60, 60, and 52 calls
+(`search-embedding-run.test.ts`).
+
+Limits of these numbers:
+
+- Tokens are the digest's estimate (4 characters per token, 1 per CJK
+  character), not the model's tokenizer; an embedding response reports no
+  usage. The gateway's analytics on Dev are the check (H52).
+- The snapshot holds no dev@ or Jira record. Excerpts are clipped the same
+  way for every source, so the per-chunk mean should be close.
+- Nothing here measures Workers AI or Vectorize: latency, the real batch
+  limit of `@cf/baai/bge-m3`, error shapes, and how long a mutation takes to
+  become queryable are read on Dev (H52).
+
+Worker bundle (`wrangler deploy --dry-run`, both configurations): 278.51 KiB
+(gzip 69.92) before, 310.04 KiB (gzip 77.35) after.
+
+Mutation evidence (one mutant or more per behavior, each seen failing) is
+listed in the PR.
+
 ## Open questions
 
 Not decided here:
 
-1. **Workers Paid plan.** Vectorize stored dimensions are about 30.7 M at an
-   estimated 30,000 chunks, above the free 5 M. At the measured 8,577 records
-   (about one chunk each) they are about 8.8 M, still above it.
-2. **AI Gateway and abuse protection** for query-time embedding. Search must
-   not share the digest gateway `osskb-digest-dev`.
+1. **Workers Paid plan.** Decided: the account is Workers Paid (10 M stored
+   dimensions included). At 8,577 chunks the index holds about 8.8 M; at 9,766
+   chunks it passes 10 M and storage is billed.
+2. **AI Gateway.** Decided: `osskb-search-dev` (600 requests an hour, a
+   spend limit, authentication). The publisher uses at most 80 requests a run
+   through it; query-time abuse protection is slice 3 (H30).
 3. **Query embedding in the browser or on the server.** Spec 005 leaves it to
    a measured spike.
 4. **Actual chunk count.** 8,577 is inferred from the Feed index; the exact
@@ -920,6 +1096,39 @@ Not decided here:
 7. **Labels.** Should `RequestManager` and `request manager` carry the
    Release Manager negative, and is "top 3" the right bound for the three
    expected threads?
+
+Raised by slice 2b:
+
+8. **H21's wording** (Decision 9): one vector per passage, not per chunk id.
+   To confirm.
+9. **Finding a release's chunk at query time.** `SemanticReleaseView.chunks`
+   is the seam; slice 3 must implement it over R2. A release has no
+   record → shard lookup today (the lexical reader finds shards by term).
+   Candidates: the first group root of each shard in the manifest (groups are
+   written in group-root order, and the vector carries its group root as a
+   hint), or a per-release side object. Either changes a release object and
+   is a contract decision.
+10. **Depth.** Vectorize returns at most 50 matches with metadata per
+    namespace, and stale or other-revision matches are dropped after that.
+    Whether 50 is enough is measured in slice 4; `returnMetadata: "indexed"`
+    with a metadata index allows 100.
+11. **Should the retriever tell Pages its coverage?** Today only the
+    publisher's `/health` knows it; Pages cannot read that object.
+12. **Query embedding and the gateway cache.** The retriever leaves the
+    cache to its caller; slice 3 decides with H31.
+13. **Unverified against Cloudflare:** the batch size `@cf/baai/bge-m3`
+    accepts (50 assumed), its response shape (`data: number[][]` per the
+    binding types), the exception text of 3036, 429, and spend-limit refusals
+    for an embedding call (matched as the digest matches them), the type of
+    `describe().processedUpToMutation`, and whether the CI token may deploy a
+    Worker with a Vectorize binding.
+14. **An empty release deletes every vector** (2,000 per run) and the next
+    one embeds them again, for about a cent. Accepted; say if it should stop
+    instead.
+15. **A minimum similarity.** Only non-positive scores are dropped; a real
+    threshold needs slice 4's numbers.
+16. **Prod.** When Prod goes live it needs its own index, gateway, binding,
+    migration, and the same enable sequence; none of it exists.
 
 Known limitations of the profile patterns (kept in slice 2a, see "Community
 profile fit"):
@@ -942,6 +1151,11 @@ profile fit"):
 - Any cloud resource, deploy configuration, model call, or change to what
   Dev serves (slice 1). Slice 2a adds no cloud resource, binding, or model
   call and leaves `/api/search` on Dev at `@1`.
+- Calling the retriever from `/api/search`, any Pages binding, and any change
+  to a response (slice 3). Slice 2b sets no flag and embeds nothing on Dev or
+  Prod until H52.
+- A real Workers AI or Vectorize call from a test or a developer machine.
+- Re-embedding to repair one vector: the unit of repair is `reset=1`.
 - A ranking change for the repeated thread title (open question 6, G31).
 - A different BM25 formula or field weights.
 - Estimating production recall from the golden fixture.
