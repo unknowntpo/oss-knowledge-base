@@ -11,7 +11,26 @@ export const KAFKA_DIGEST_PROFILE: DigestProfile = {
   projectKey: "kafka",
   digest: true,
   sources: ["github", "mail", "jira"],
-  taxonomy: { revision: "kafka-topics@1", topics: KAFKA_TOPICS },
+  taxonomy: {
+    revision: "kafka-topics@1",
+    topics: KAFKA_TOPICS,
+    // Slice 2c: at most 8 words each; Clef reads them as option criteria (Behavior 6).
+    descriptions: {
+      releases: "release candidates, release votes, release planning",
+      "group-coordination": "group coordinator, rebalance protocol, assignors",
+      clients: "producer, consumer, admin client behavior",
+      "share-groups": "share groups and queues (KIP-932)",
+      streams: "Kafka Streams library, state stores, topologies",
+      connect: "Kafka Connect, connectors, MirrorMaker",
+      storage: "log segments, tiered and diskless storage, replication",
+      kraft: "KRaft controller, metadata log, quorum",
+      security: "authentication, ACLs, TLS, CVEs, vulnerable dependencies",
+      observability: "metrics, logging, monitoring, telemetry",
+      community: "committers, PMC, governance, accounts, CI approvals",
+      other: "other",
+      routine: "dependency bumps, build, tests, docs, backports",
+    },
+  },
   machineUsers: [],
   proposal: {
     kind: "KIP",

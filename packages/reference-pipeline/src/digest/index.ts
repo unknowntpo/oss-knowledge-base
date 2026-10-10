@@ -8,6 +8,8 @@ export * from "./present";
 export * from "./profiles";
 export * from "./prompts";
 export * from "./proposals";
+export * from "./style";
+export * from "./parse";
 export * from "./protect";
 export * from "./types";
 export * from "./validate";

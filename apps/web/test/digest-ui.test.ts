@@ -105,6 +105,21 @@ const cases: Record<string, () => Promise<string>> = {
     return rows === en.proposals.length && ordered === "discuss,vote,implementing" && note.includes("3 binding +1")
       ? "every row grouped by stage; quorum note \"3 binding +1 votes\"" : `${rows} ${ordered} ${note}`;
   },
+  "uncategorized|constructed: digest with uncategorized threads KAFKA-PR-23426 and KAFKA-MAIL-85a6bd91": async () => {
+    const digest = { ...en, uncategorized: { threads: ["KAFKA-PR-23426", "KAFKA-MAIL-85a6bd91"] } };
+    const html = await render(components.DigestWeek, { digest, profile: kafka().profile, projectName: "Apache Kafka", now: NOW });
+    const at = html.indexOf('id="digest-uncategorized"');
+    const section = html.slice(at, html.indexOf("</section>", at));
+    const collapsed = /<details class="digest-routine digest-uncategorized">/u.test(section) && !/<details[^>]* open/u.test(section);
+    return at > html.indexOf('id="digest-topics"') && at < html.indexOf('id="digest-routine"') && collapsed
+      && section.includes(">Uncategorized<") && section.includes("Show list · 2 items")
+      ? "collapsed section after the topic cards: \"Uncategorized\", \"Show list · 2 items\"" : section.slice(0, 300);
+  },
+  "uncategorized|constructed: digest object without the uncategorized field": async () => {
+    const { uncategorized: _omit, ...digest } = en as typeof en & { uncategorized?: unknown };
+    const html = await render(components.DigestWeek, { digest, profile: kafka().profile, projectName: "Apache Kafka", now: NOW });
+    return html.includes("digest-uncategorized") ? "section shown" : "no Uncategorized section";
+  },
   "empty|constructed: digest with empty true": async () => {
     const empty = { ...en, empty: true, cards: [], proposals: [], routine: { threads: [] }, highlights: [], headline: null, threads: {} };
     const html = await render(components.DigestWeek, { digest: empty, profile: kafka().profile, projectName: "Apache Kafka", now: NOW });

@@ -8,7 +8,7 @@ import { parseClassification } from "./classify";
 import { clefRequest, clefRequestTokens, packClefBatches } from "./clef";
 import { estimateTokens, MAX_TOKENS, neurons, type PricedModel } from "./estimate";
 import { cardInput, mix } from "./mixing";
-import { HIGHLIGHTS_PROMPT, SUMMARIZE_PROMPT, TRANSLATE_PROMPT } from "./prompts";
+import { HIGHLIGHTS_PROMPT, NO_THINK, SUMMARIZE_PROMPT, TRANSLATE_PROMPT } from "./prompts";
 import { chooseHighlights, digestCounts } from "./present";
 import { proposalRows } from "./proposals";
 import { protect } from "./protect";
@@ -40,7 +40,7 @@ export interface GoldenLabels {
   readonly negatives: readonly { readonly text: string; readonly cites: readonly string[]; readonly class: ErrorClass; readonly origin: string }[];
 }
 
-export const BATCH = { classify: 20, translate: 25 } as const;
+export const BATCH = { classify: 20, translate: 60 } as const;
 export const MODELS = {
   classifier: "@cf/cloudflare/clef-flash",
   summarizer: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
@@ -56,6 +56,7 @@ export interface Replay {
   readonly features: ReadonlyMap<string, ThreadFeatures>;
   readonly cards: readonly TopicCard[];
   readonly routine: readonly string[];
+  readonly uncategorized: readonly string[];
   readonly proposals: ReturnType<typeof proposalRows>;
   readonly kept: readonly { readonly where: string; readonly sentence: Sentence }[];
   readonly rejected: readonly { readonly where: string; readonly sentence: Sentence; readonly reason: Rejection }[];
@@ -119,7 +120,7 @@ export function replay(fixture: DigestFixture, recorded: RecordedResponses, prof
   if (recorded.headline !== null && headlineReason !== null) rejected.push({ where: "headline", sentence: recorded.headline, reason: headlineReason });
   const titles = new Map(candidates.map((thread) => [thread.displayId, { title: thread.title, lastActivityAt: thread.lastActivityAt }]));
   return {
-    candidates, features, cards, routine: mixed.routine, proposals, kept, rejected,
+    candidates, features, cards, routine: mixed.routine, uncategorized: mixed.uncategorized, proposals, kept, rejected,
     highlights: chooseHighlights(validHighlights, { proposals, cards, titles }),
     headline: headlineReason === null ? recorded.headline : null,
     coverage: sourceCoverage(fixture.entries, profile, windowEnd),
@@ -169,7 +170,7 @@ export function evaluate(fixture: DigestFixture, recorded: RecordedResponses, la
     revision: recorded.revision,
     window: { start: digestWindowStart(fixture.release.generatedAt), end: fixture.release.generatedAt },
     candidates: run.candidates.length,
-    counts: digestCounts({ proposals: run.proposals, cards: run.cards, routine: { threads: run.routine }, threads }),
+    counts: digestCounts({ proposals: run.proposals, cards: run.cards, routine: { threads: run.routine }, uncategorized: { threads: run.uncategorized }, threads }),
     cards: run.cards.map((card) => ({ topic: card.topic, threads: card.threads.length, status: card.status })),
     sentences: { kept: run.kept.length, dropped: run.rejected.length, shareDropped: total === 0 ? 0 : run.rejected.length / total, byReason },
     negatives,
@@ -203,7 +204,7 @@ export function measure(fixture: DigestFixture, recorded: RecordedResponses, pro
   let translationCalls = 0;
   for (let index = 0; index < items.length; index += BATCH.translate) {
     const batch = items.slice(index, index + BATCH.translate);
-    const input = `${TRANSLATE_PROMPT}\n<items>\n${batch.map((text) => protect(text, []).masked).join("\n")}\n</items>`;
+    const input = `${TRANSLATE_PROMPT}\n<items>\n${batch.map((text) => protect(text, []).masked).join("\n")}\n</items>\n${NO_THINK}`;
     // zh-Hant output: about one CJK character (one token) per two English characters.
     const outputTokens = Math.ceil(batch.reduce((sum, text) => sum + text.length, 0) / 2);
     translation += neurons(MODELS.translator, estimateTokens(input), Math.min(outputTokens, MAX_TOKENS.translation));

@@ -293,9 +293,21 @@ the two `viewer/` items below.
 - **Layer:** test row, once a real case exists.
 - **Source:** Spec 015 review finding 16.
 
+### G29. The 0.6 topic gate was set for self-reported confidence, not Clef
+- **Where:** `placement` (`packages/reference-pipeline/src/digest/classify.ts`).
+- **Why:** on the first Dev dry run, Clef's renormalised topic probability
+  had a median of 0.61; 119 of 276 non-routine threads had a non-`other`
+  best topic below 0.6 and went to `other` (Uncategorized since slice 2c).
+  Some are right (a flaky test at kraft 0.30 is noise); others are not.
+- **Interim (slice 2d):** the gate is 0.35, chosen from the second Dev dry
+  run's confidence deciles (Uncategorized 99 of 316 instead of 168).
+- **Fix:** set the Clef gate from the D34 golden-set labels.
+- **Layer:** test row in `digest -- eval`, once labels exist.
+- **Source:** Spec 014 slice 2c, first Dev dry run 2026-10-08.
+
 ## CI evidence
 
-### G29. The evidence redaction gate does not decode every encoding
+### G30. The evidence redaction gate does not decode every encoding
 - **Where:** `scripts/verify/redact-artifacts.ts` (the "Redact the Access
   token from the evidence" step before the deployed E2E upload).
 - **Why:** it rewrites plain copies of the Cloudflare Access token (also

@@ -4,7 +4,7 @@
 // file under the given directories, including files inside zips (traces) and the zip the
 // HTML report embeds as base64 in index.html. Then exits 1 if any value, or a base64
 // encoding of one, is still found anywhere, so the upload step never runs. Prints paths, never values.
-// Not detected (docs/gardening.md G29): gzip, hex, \u-escaped JSON, UTF-16, a value split
+// Not detected (docs/gardening.md G30): gzip, hex, \u-escaped JSON, UTF-16, a value split
 // across lines, or reversed. Playwright writes none of these for header values today.
 // Needs the `zip` and `unzip` commands (present on GitHub's ubuntu runners and macOS).
 import { execFileSync } from "node:child_process";

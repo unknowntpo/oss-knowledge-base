@@ -32,7 +32,12 @@ export interface DigestProfile {
   /** Whether this project gets a weekly digest (Behavior 23, 27). */
   readonly digest: boolean;
   readonly sources: readonly DigestSource[];
-  readonly taxonomy: { readonly revision: string; readonly topics: readonly string[] };
+  readonly taxonomy: {
+    readonly revision: string;
+    readonly topics: readonly string[];
+    /** Slice 2c: Clef option descriptions (at most 8 words), keyed by topic and `routine`. */
+    readonly descriptions?: Readonly<Record<string, string>>;
+  };
   readonly machineUsers: readonly string[];
   readonly proposal: ProposalProfile;
 }
@@ -200,6 +205,8 @@ export interface DigestV1 {
   readonly proposals: readonly ProposalRow[];
   readonly cards: readonly TopicCard[];
   readonly routine: { readonly threads: readonly string[] };
+  /** Slice 2c: non-routine threads whose effective topic is `other`; absent in older objects. */
+  readonly uncategorized?: { readonly threads: readonly string[] };
   readonly threads: Readonly<Record<string, DigestThread>>;
   /** Behavior 11: thread features keyed by hash(model input, classifier revision). */
   readonly features: Readonly<Record<string, ThreadFeatures & { readonly displayId: string }>>;

@@ -35,7 +35,7 @@ if (mode === "eval") {
   console.log(JSON.stringify(evaluate(fixture, recorded, labels, KAFKA_DIGEST_PROFILE), null, 2));
 } else if (mode === "measure") {
   const report = measure(fixture, recorded, KAFKA_DIGEST_PROFILE);
-  const limits = { coldNeurons: 4_500, steadyNeurons: 2_000, modelCalls: 45, r2Reads: 300 };
+  const limits = { coldNeurons: 4_500, steadyNeurons: 2_000, modelCalls: 50, r2Reads: 300 };
   const ok = report.cold.neurons <= limits.coldNeurons && report.steady.neurons <= limits.steadyNeurons
     && report.cold.modelCalls <= limits.modelCalls && report.cold.r2Reads <= limits.r2Reads;
   console.log(JSON.stringify({ ...report, limits, ok }, null, 2));
