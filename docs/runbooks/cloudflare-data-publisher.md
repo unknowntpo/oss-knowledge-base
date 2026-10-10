@@ -65,3 +65,75 @@ H42); production does not set the variable and writes `@1`.
   Pages read both.
 - Before rolling Pages back below slice 2a, return to `@1` first and wait for
   `lastRun.search.lexicalRevision` to read `bm25-reference@1`.
+
+## Search embeddings (Spec 016 slice 2b)
+
+`SearchEmbeddingRun` is a separate Durable Object. After each successful
+publication the publisher asks it to run; it embeds the current Search
+release's chunks with `@cf/baai/bge-m3` through the AI Gateway named by
+`SEARCH_GATEWAY_ID` and stores one vector per passage in the Vectorize index
+bound as `SEARCH_VECTORS`, one namespace per project. It cannot fail, delay,
+or re-run a publication. Nothing reads the vectors before Spec 016 slice 3.
+
+| | Development | Production |
+| --- | --- | --- |
+| Vectorize index (1,024 dimensions, cosine) | `osskb-search-dev` | none |
+| AI Gateway | `osskb-search-dev` (600 requests an hour, spend limit, authenticated) | none |
+| `SEARCH_EMBEDDING` | unset (off) | unset (off) |
+
+`GET /health` → `searchEmbedding`: `enabled`, `configError`, `today`
+(estimated neurons and calls against the daily bounds), `interrupted` (a run
+the platform killed), and `lastRun` (`releaseId`, `chunks`, `embedded`,
+`pending`, `deletedThisRun`, `limited`, `ok`, `error`, `modelErrors`,
+`index.mutationsProcessed`, `estimate`).
+
+Bounds: 3,000 chunks and 80 model calls per run; 400 calls and 3,000
+estimated neurons per UTC day; 10 minutes per run. A run that reaches one
+reports `limited` and the next run continues. The Dev backfill (about 8,600
+chunks) is about 172 calls, 0.76 M tokens, 830 neurons, under one cent, in
+three runs.
+
+### Dry run (calls no model and no index, writes nothing)
+
+```sh
+curl -sS -X POST -H "Authorization: Bearer $MANUAL_TRIGGER_TOKEN" \
+  "https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/search-embedding/run?dryRun=1&profile=bge-m3@1"
+```
+
+`estimate` holds the chunks, calls, tokens, neurons, dollars, runs, and days
+still needed. `&profile=` is needed only while the flag is off.
+
+### Enable on Dev
+
+1. Run the dry run and read `estimate`.
+2. In `apps/data-publisher-worker/wrangler.development.jsonc` add
+   `"SEARCH_EMBEDDING": "bge-m3@1"` to `vars`, update the `H45` configuration
+   test, and merge. Any other value fails the embedding run (not the
+   publication) and `/health` `searchEmbedding.configError` names it.
+3. The next publication (minute 7 of the hour) starts a run; `POST
+   /search-embedding/run` with the bearer token starts one at once (202;
+   409 means one is pending).
+4. Watch `searchEmbedding.lastRun` until `pending` is 0 and, a run later,
+   `index.mutationsProcessed` is `true`. Check the gateway `osskb-search-dev`
+   for the requests; `osskb-digest-dev` must show none of them.
+
+### Turn off or roll back
+
+- Remove `SEARCH_EMBEDDING` and deploy. No further model or index call is
+  made. The stored vectors stay; they are only stale.
+- `ok: false` with `failureKind: model-limit` means Workers AI or the gateway
+  refused (daily allocation, rate limit, spend limit): nothing to do, the
+  next run continues. `vector-store` means Vectorize did not answer or the
+  index has other dimensions. `release-read` means the Search release could
+  not be read whole; nothing was deleted.
+- Rolling a Search release back needs no step here: the next run reconciles
+  the index with whatever release is current.
+
+### Wipe the index
+
+1. `bunx wrangler vectorize delete osskb-search-dev`, then
+   `bunx wrangler vectorize create osskb-search-dev --dimensions=1024 --metric=cosine`.
+2. `POST /search-embedding/run?reset=1` with the bearer token. It forgets the
+   embedding state (it is served while the flag is off too). Without it the
+   state still calls every chunk embedded and nothing is embedded again.
+3. With the flag on, the next runs embed every chunk again (one backfill).

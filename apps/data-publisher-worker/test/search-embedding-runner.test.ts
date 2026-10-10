@@ -310,8 +310,7 @@ describe("Spec 016 embedding object", () => {
     expect(mergeHealth(publisher, { enabled: true }, null, health)).toEqual({ ...publisher, digest: { enabled: true }, reviewQueue: null, searchEmbedding: health });
     // The object did not answer: null, like the digest.
     expect(mergeHealth(publisher, null, null, null)).toEqual({ ...publisher, digest: null, reviewQueue: null, searchEmbedding: null });
-    // Callers that pass no embedding health get the body they got before.
-    expect(mergeHealth(publisher, null)).toEqual({ ...publisher, digest: null, reviewQueue: null });
+    expect(mergeHealth(publisher, null)).toEqual({ ...publisher, digest: null, reviewQueue: null, searchEmbedding: null });
   });
 });
 

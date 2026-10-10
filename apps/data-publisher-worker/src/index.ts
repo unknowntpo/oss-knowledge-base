@@ -98,15 +98,15 @@ export function digestModel(env: Pick<Env, "DIGEST_MODEL" | "DIGEST_GATEWAY_ID" 
 /**
  * `/health`: the publisher's body, unchanged, plus `digest` (null when the digest object fails),
  * `reviewQueue`, the review queue's `last-run.json` (null before the first run or on a read error),
- * and `searchEmbedding` when the caller passes it.
+ * and `searchEmbedding` (null when the embedding object does not answer).
  */
-export function mergeHealth(publisher: unknown, digest: unknown, reviewQueue: unknown = null, searchEmbedding?: unknown): unknown {
+export function mergeHealth(publisher: unknown, digest: unknown, reviewQueue: unknown = null, searchEmbedding: unknown = null): unknown {
   return {
     ...(publisher as Record<string, unknown>),
     digest: digest ?? null,
     reviewQueue: reviewQueue ?? null,
     // Spec 016 H51: the embedding object's health, or null when it does not answer.
-    ...(searchEmbedding === undefined ? {} : { searchEmbedding }),
+    searchEmbedding: searchEmbedding ?? null,
   };
 }
 
