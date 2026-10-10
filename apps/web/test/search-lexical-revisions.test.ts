@@ -188,6 +188,8 @@ describe("Spec 016 Pages reader at bm25-reference@1 and @2", () => {
       expect(bucket.reads.filter((key) => key.includes("/lexical/") || key.endsWith("/terms.json"))).toEqual([]);
       const response = await searchRequest("https://dev.example/api/search?q=KIP-770", bucket.asR2());
       expect(response.status).toBe(503);
+      expect([intact.headers.get("cache-control"), response.headers.get("cache-control")])
+        .toEqual(["public, max-age=30, stale-while-revalidate=120", "no-store"]);
       expect(await response.json()).toMatchObject({ error: expect.stringContaining(`unsupported lexical revision ${revision}`) });
     }
   });

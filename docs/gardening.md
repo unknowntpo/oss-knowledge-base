@@ -84,22 +84,6 @@ the two `viewer/` items below.
   deployed E2E).
 - **Source:** [Spec 012 Non-goals, "Alerting on a failed source"](https://github.com/unknowntpo/oss-knowledge-base/blob/41dc4d39ef0312277349098f76f0e4131c4c01a8/docs/specs/012-kafka-mailing-list-jira/spec.md#non-goals).
 
-### G14. API cache headers: errors are cached, Search detail is not immutable
-- **Where:** `jsonResponse` in `apps/web/functions/_shared/r2-projection.ts`
-  (lines 79–84) always sets `cache-control: public, max-age=30,
-  stale-while-revalidate=120`, overwriting the `no-store` (errors in
-  `feed.ts`, `search.ts`, `detail/[id].ts`, `search-detail/[ref].ts`) and
-  `public, max-age=31536000, immutable` (`search-detail/[ref].ts`) headers the
-  handlers pass.
-- **Why:** a transient 503 or a 404 is cached for 30 s plus 120 s stale, so
-  the page keeps failing after R2 recovers; immutable Search details are
-  re-fetched every 30 s. Observed on Dev: `/api/search-detail/bogus` → 400
-  and `/api/detail/NOPE-1` → 404, both with `max-age=30`.
-- **Fix:** set the default only when `init.headers` has no `cache-control`.
-- **Layer:** test (Functions test asserting the header per status and
-  endpoint).
-- **Source:** [PR #29 verifier, 2a](https://github.com/unknowntpo/oss-knowledge-base/pull/29#issuecomment-6014587324).
-
 ### G15. "Relevance" sort is dead code on the Feed
 - **Where:** `apps/web/src/views/FeedView.vue`: `visibleEntries` fixes
   `normalized = ""` (line 126), so the relevance branch (line 137) never runs;
@@ -436,3 +420,16 @@ the two `viewer/` items below.
   red deployed E2E on `main` visible before the next merge.
 - **Layer:** structure (response shape) and gate (merge only on a green `main`).
 - **Source:** deployed E2E failures on `main`, 2026-10-07/08.
+
+### G37. Search detail responses are re-fetched every 30 s
+- **Where:** `apps/web/functions/api/search-detail/[ref].ts` answers a 200
+  with the default `public, max-age=30, stale-while-revalidate=120` (Spec 003
+  R7).
+- **Why:** the objects behind a `detailRef` never change, but the handler
+  shapes the body (`reason.label`, `highlightedRecordIds`, new `FeedDetail`
+  fields), so `immutable` would pin old shapes in browsers for a year. The
+  handler asked for `immutable` until PR #47; it never took effect.
+- **Fix:** make the response a pure function of the ref (for example a
+  shaping version in the ref or the URL), then pass `immutable` again.
+- **Layer:** test (the R7 row for this endpoint).
+- **Source:** [PR #47](https://github.com/unknowntpo/oss-knowledge-base/pull/47).

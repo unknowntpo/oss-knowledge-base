@@ -556,11 +556,13 @@ Items tagged `[pending]` belong to the `@2` switch and slices 2b–4.
 - H37: given a release whose manifest declares any other revision
   (`bm25-reference@3`, `bm25:v1`), in the v3 or the whole-release layout, the
   reader throws, reads no terms object or shard, and `/api/search` answers
-  HTTP 503 naming the revision; the same objects answer once they declare a
+  HTTP 503 naming the revision, `no-store` (Spec 003 R7) so the error is not
+  replayed after the switch; the same objects answer once they declare a
   supported one; `lexicalSearchConfigFor` throws for an unknown revision →
   evidence: `search-lexical-revisions.test.ts`, `code-tokens.test.ts`.
 - H38: given `SEARCH_LEXICAL_REVISION` set to an unsupported value, the run
-  fails before a source is polled or an object written, both pointers stay,
+  fails before a source is polled or an object written (its last phase
+  marker is `reading-state`, never `polling`), both pointers stay,
   `/health` `lastRun.error` names the value, and a later run with a supported
   value publishes; the Worker passes its variable to the run;
   `searchProjectionObjects` and `buildR2SearchProjection` refuse an unknown

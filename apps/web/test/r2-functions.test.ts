@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   buildR2Projection,
+  jsonResponse,
   MANIFEST_KEY,
   readDetailProjection,
   readFeedProjection,
@@ -19,11 +20,17 @@ import {
   type SearchLexicalShardV1,
 } from "@oss-knowledge-base/serving-contract";
 import { onRequestGet as detailHandler } from "../functions/api/detail/[id]";
+import { onRequestGet as digestHandler } from "../functions/api/digest";
+import { onRequestGet as feedHandler } from "../functions/api/feed";
+import { onRequestGet as searchHandler } from "../functions/api/search";
+import { onRequestGet as searchDetailHandler } from "../functions/api/search-detail/[ref]";
+import { DIGEST_ROOT } from "../functions/_shared/digest";
 import {
   readSearchDetailProjection,
   searchR2Projection,
 } from "../functions/_shared/search-projection";
 import { buildGoldenSearchPublication } from "../scripts/build-search-fixture";
+import { testPlanRows as cacheRows } from "./api-cache.cases";
 import { legacyV2SearchObjects } from "./legacy-search-release";
 
 const searchFixturePath = new URL(
@@ -339,6 +346,86 @@ describe("versioned R2 Search projection", () => {
     const publication = await buildGoldenSearchPublication(searchFixturePath);
     await expect(buildR2SearchProjection({ ...publication, details: [] }))
       .rejects.toThrow("membership mismatch");
+  });
+});
+
+describe("Spec 003 R7: cache-control per endpoint and outcome", () => {
+  type Row = (typeof cacheRows)[number];
+  type Objects = readonly { readonly key: string; readonly body: string }[];
+  const call = (handler: unknown, bucket: R2Bucket, url: string, params: Readonly<Record<string, string>> = {}) =>
+    (handler as (context: unknown) => Promise<Response>)({
+      env: { OSS_KB_BUCKET: bucket },
+      params,
+      request: new Request(`https://dev.example${url}`),
+    });
+  const digestPrefix = `${DIGEST_ROOT}apache-kafka/`;
+  const digestPointer = (key: string) => ({ key: `${digestPrefix}current.json`, body: JSON.stringify({ objectKeys: { en: key } }) });
+
+  async function respond(row: Row): Promise<Response> {
+    const none = memoryBucket([]);
+    switch (row.endpoint) {
+      case "/api/feed":
+        return call(feedHandler, row.status === 200 ? memoryBucket(await buildR2Projection(fixture(), "release-1")) : none, "/api/feed");
+      case "/api/detail/:id": {
+        const id = { 200: "feed-entry:kafka:1", 400: "", 404: "feed-entry:kafka:absent", 503: "feed-entry:kafka:1" }[row.status];
+        const bucket = row.status === 503 ? none : memoryBucket(await buildR2Projection(fixture(), "release-1"));
+        return call(detailHandler, bucket, "/api/detail/x", { id });
+      }
+      case "/api/search": {
+        let objects: Objects = await buildR2SearchProjection(await buildGoldenSearchPublication(searchFixturePath));
+        if (row.outcome === "no current pointer") objects = [];
+        if (row.outcome === "unsupported lexical revision") {
+          objects = objects.map((object) => object.key.endsWith("/manifest.json")
+            ? { ...object, body: JSON.stringify({ ...JSON.parse(object.body), lexicalRevision: "bm25-reference@9" }) }
+            : object);
+        }
+        return call(searchHandler, memoryBucket(objects), `/api/search?q=${row.status === 400 ? "" : "KIP-405"}`);
+      }
+      case "/api/search-detail/:ref": {
+        const objects = await buildR2SearchProjection(await buildGoldenSearchPublication(searchFixturePath));
+        const found = await searchR2Projection(memoryBucket(objects), { query: "KIP-405", limit: 1 });
+        const ref = { "no ref": "", "invalid ref": "bogus" }[row.outcome as string] ?? found.results[0]!.detailRef;
+        const kept = {
+          "detail object absent": objects.filter((object) => !object.key.startsWith(SEARCH_DETAIL_POOL)),
+          "release manifest absent": [],
+        }[row.outcome as string] ?? objects;
+        return call(searchDetailHandler, memoryBucket(kept), "/api/search-detail/x", { ref });
+      }
+      case "/api/digest": {
+        const digestKey = `${digestPrefix}2026-W41/en.json`;
+        const objects: Objects = {
+          "current digest": [digestPointer(digestKey), { key: digestKey, body: JSON.stringify({ schema: "osskb.digest.v1" }) }],
+          "pointer outside the project prefix": [digestPointer(`${DIGEST_ROOT}apache-datafusion/en.json`)],
+        }[row.outcome as string] ?? [];
+        const query = { "unknown project": "projectId=nope", "unsupported locale": "projectId=apache-kafka&locale=fr" }[row.outcome as string]
+          ?? "projectId=apache-kafka";
+        return call(digestHandler, memoryBucket(objects), `/api/digest?${query}`);
+      }
+    }
+  }
+
+  test.each([...cacheRows])("$id: $endpoint $outcome → $status $cacheControl", async (row) => {
+    const response = await respond(row);
+    expect([response.status, response.headers.get("cache-control")]).toEqual([row.status, row.cacheControl]);
+    // An error is `{error}`; a success is not (the scenario reached the outcome it names).
+    expect(Object.hasOwn(await response.json() as object, "error")).toBe(row.status >= 400);
+  });
+
+  test("R7: a cache-control the handler passes wins over both defaults", () => {
+    const passed = { headers: { "cache-control": "private, max-age=5" } };
+    expect([jsonResponse({}, passed), jsonResponse({}, { ...passed, status: 503 })].map((response) => response.headers.get("cache-control")))
+      .toEqual(["private, max-age=5", "private, max-age=5"]);
+    // Positive control: without one, the status picks the default.
+    expect([jsonResponse({}), jsonResponse({}, { status: 503 })].map((response) => response.headers.get("cache-control")))
+      .toEqual(["public, max-age=30, stale-while-revalidate=120", "no-store"]);
+  });
+
+  test("R7: no error row is publicly cacheable, and every endpoint has a success and an error row", () => {
+    for (const row of cacheRows) expect(row.cacheControl === "no-store").toBe(row.status >= 400);
+    for (const endpoint of new Set(cacheRows.map((row) => row.endpoint))) {
+      const statuses = cacheRows.filter((row) => row.endpoint === endpoint).map((row) => row.status as number);
+      expect([statuses.includes(200), statuses.some((status) => status >= 400)]).toEqual([true, true]);
+    }
   });
 });
 

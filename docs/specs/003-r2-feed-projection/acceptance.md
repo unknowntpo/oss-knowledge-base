@@ -33,3 +33,10 @@ evidence contains no console errors, page errors, or failed requests.
 Given generated real Kafka and DataFusion GitHub projections in local R2, when
 Wrangler runs the Pages project, then `/api/feed` reports
 `cloudflare-pages-function-r2` and a FeedDetail request returns cited records.
+
+## R7 — Response caching
+
+Given each endpoint and outcome in the spec's "Response caching" table, when
+the Pages Function answers, then `cache-control` is the listed value: no error
+is storable and every success revalidates after 30 s
+→ evidence: `apps/web/test/r2-functions.test.ts` (`R7:` rows).
