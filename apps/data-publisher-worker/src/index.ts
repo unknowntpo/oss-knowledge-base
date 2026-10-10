@@ -29,6 +29,11 @@ interface Env {
   readonly DIGEST_MODEL?: string;
   readonly DIGEST_GATEWAY_ID?: string;
   readonly AI?: AiBinding;
+  /**
+   * Spec 016: the lexical revision the Search release is written at. Unset writes
+   * `bm25-reference@1`; set `bm25-reference@2` only once Pages that read it are live.
+   */
+  readonly SEARCH_LEXICAL_REVISION?: string;
 }
 
 const sourceFetch = (url: string, init: { readonly headers: Readonly<Record<string, string>> }) =>
@@ -205,6 +210,7 @@ export class PipelineState implements DurableObject {
         ],
         state: new DurableObjectPipelineState(this.ctx.storage),
         destination: new R2PublicationDestination(this.env.OSS_KB_BUCKET),
+        ...(this.env.SEARCH_LEXICAL_REVISION === undefined ? {} : { searchLexicalRevision: this.env.SEARCH_LEXICAL_REVISION }),
       });
     } finally {
       this.running = false;

@@ -846,7 +846,15 @@
       "pageCount": 1,
       "pollTruncated": false,
       "copiedObjectCount": 192,
-      "reusedObjectCount": 0
+      "reusedObjectCount": 0,
+      "search": {
+        "lexicalRevision": "bm25-reference@1",
+        "chunkCount": 336,
+        "shardCount": 2,
+        "shardBytes": 587320,
+        "largestShardBytes": 458864,
+        "termsBytes": 12495
+      }
     },
     {
       "ok": true,
@@ -860,7 +868,15 @@
       "pageCount": 1,
       "pollTruncated": false,
       "copiedObjectCount": 14,
-      "reusedObjectCount": 180
+      "reusedObjectCount": 180,
+      "search": {
+        "lexicalRevision": "bm25-reference@1",
+        "chunkCount": 340,
+        "shardCount": 2,
+        "shardBytes": 594225,
+        "largestShardBytes": 463333,
+        "termsBytes": 12564
+      }
     }
   ]
 }

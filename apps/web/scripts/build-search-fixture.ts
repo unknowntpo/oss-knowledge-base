@@ -7,6 +7,7 @@ import {
 import {
   DEFAULT_LEXICAL_REVISION,
   parseSearchGoldenFixture,
+  parseSearchGoldenFixtureV2,
   type SourceRecordChunkV1,
 } from "@oss-knowledge-base/search";
 import {
@@ -19,7 +20,23 @@ export async function buildGoldenSearchPublication(
   fixturePath: string,
   indexRevision?: string,
 ): Promise<SearchPublicationV1> {
-  const golden = parseSearchGoldenFixture(await Bun.file(fixturePath).json());
+  return goldenPublication(parseSearchGoldenFixture(await Bun.file(fixturePath).json()), indexRevision, DEFAULT_LEXICAL_REVISION);
+}
+
+/** Golden v2 (Spec 016) as a publication of `lexicalRevision`; its chunks include golden v1's. */
+export async function buildGoldenV2SearchPublication(
+  fixturePath: string,
+  indexRevision: string | undefined,
+  lexicalRevision: string,
+): Promise<SearchPublicationV1> {
+  return goldenPublication(parseSearchGoldenFixtureV2(await Bun.file(fixturePath).json()), indexRevision, lexicalRevision);
+}
+
+function goldenPublication(
+  golden: { readonly revision: string; readonly indexRevision: string; readonly chunks: readonly SourceRecordChunkV1[] },
+  indexRevision: string | undefined,
+  lexicalRevision: string,
+): SearchPublicationV1 {
   const revision = indexRevision ?? golden.indexRevision;
   const chunksByProject = groupBy(golden.chunks, (chunk) => chunk.projectId);
   const details: SearchPublicationV1["details"][number][] = [];
@@ -81,7 +98,7 @@ export async function buildGoldenSearchPublication(
   return {
     indexRevision: revision,
     corpusRevision: golden.revision,
-    lexicalRevision: DEFAULT_LEXICAL_REVISION,
+    lexicalRevision,
     generatedAt: "2026-08-25T12:00:00Z",
     shards,
     details,
