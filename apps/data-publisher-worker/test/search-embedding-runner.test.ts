@@ -200,7 +200,7 @@ describe("Spec 016 embedding object", () => {
       lastRun: {
         ok: true, dryRun: false, completedAt: "2026-10-10T08:00:00.000Z", durationMs: 0, releaseId: "r1",
         model: "@cf/baai/bge-m3", revision: "bge-m3@1", semanticRevision: SEMANTIC_REVISION,
-        chunks: 5, embedded: 5, pending: 0, embeddedThisRun: 5, deletedThisRun: 0, deletePending: 0, heldDeletes: 0, absentProjects: [], quarantined: 0, quarantinedIds: [], storedVectors: 5, storedDimensions: 5_120,
+        chunks: 5, embedded: 5, pending: 0, embeddedThisRun: 5, deletedThisRun: 0, deletePending: 0, heldDeletes: 0, absentProjects: [], quarantined: 0, quarantinedIds: [], retryCalls: 0, retriesDeferred: 0, storedVectors: 5, storedDimensions: 5_120,
         modelCalls: 3, estimatedInputTokens: 30, estimatedNeurons: 3, spentToday: { date: "2026-10-10", estimatedNeurons: 3, calls: 3 },
         limited: null, modelErrors: [], index: { vectorCount: 0, mutationsProcessed: null }, lastMutationId: "mutation-3",
         estimate: { chunks: 0, calls: 0, inputTokens: 0, neurons: 0, usd: 0, runs: 0, days: 0 },

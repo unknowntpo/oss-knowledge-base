@@ -16,6 +16,9 @@ import { DAY_1, DAY_MS, DIMENSIONS, FIVE, harness, PROFILE, projectA, projectB, 
 
 type Harness = ReturnType<typeof harness>;
 
+/** Hourly runs the 172-bad-text corpus needs before every healthy chunk is embedded (Spec 016 Results). */
+const CONVERGENCE_RUNS_172 = 0;
+
 const outcome = (result: EmbeddingRunResult) =>
   `${result.modelCalls} calls, ${result.embedded}/${result.chunks} embedded, ${result.deletedThisRun} deleted, ${result.limited ?? "not limited"}, ${result.ok ? "ok" : result.failureKind}`;
 
@@ -513,11 +516,11 @@ describe("Spec 016 embedding run", () => {
       runs.push(`${result.modelCalls} calls, ${result.embedded}/5, quarantined ${result.quarantined}, ${result.ok ? "ok" : result.failureKind}`);
       if (hour === 3) expect(result.quarantinedIds).toEqual([a3!]);
     }
-    // The first run isolates a3 (batch, a3, b1); the next two try it alone twice and probe; then it costs nothing.
+    // The first run isolates a3 (batch, a3, b1); the next two try it once and probe; then it costs nothing.
     expect(runs).toEqual([
       "5 calls, 4/5, quarantined 0, model",
-      "3 calls, 4/5, quarantined 0, model",
-      "3 calls, 4/5, quarantined 0, model",
+      "2 calls, 4/5, quarantined 0, model",
+      "2 calls, 4/5, quarantined 0, model",
       "0 calls, 4/5, quarantined 1, ok",
       "0 calls, 4/5, quarantined 1, ok",
     ]);
@@ -525,16 +528,20 @@ describe("Spec 016 embedding run", () => {
     expect([...h.storage.values].filter(([key]) => key.startsWith("f:"))).toEqual([[`f:${a3}`, { h: expect.any(String), r: PROFILE.semanticRevision, n: 3, at: "2026-10-10T10:00:00.000Z" }]]);
     expect(await h.run({ dryRun: true })).toMatchObject({ quarantined: 1, pending: 1, estimate: { chunks: 0, calls: 0 } });
 
-    // A day after the last failure it is tried once more; a success ends the quarantine.
+    // A day after the last failure it is tried once more, once; each further failure doubles the wait.
     h.clock.now = DAY_1 + 2 * 3_600_000 + DAY_MS - 1;
-    expect(await h.run()).toMatchObject({ modelCalls: 0, quarantined: 1 });
+    expect(await h.run()).toMatchObject({ modelCalls: 0, quarantined: 1, retryCalls: 0 });
     h.clock.now += 1;
-    expect(await h.run()).toMatchObject({ ok: false, modelCalls: 3, quarantined: 0, embedded: 4 });
-    h.clock.now += 3_600_000;
-    expect(await h.run()).toMatchObject({ ok: true, modelCalls: 0, quarantined: 1 });
+    expect(await h.run()).toMatchObject({ ok: false, modelCalls: 2, retryCalls: 2, quarantined: 0, embedded: 4 });
+    for (const days of [2, 4, 8, 16, 30, 30]) {
+      h.clock.now += days * DAY_MS - 1;
+      expect(await h.run()).toMatchObject({ ok: true, modelCalls: 0, quarantined: 1 });
+      h.clock.now += 1;
+      expect(await h.run()).toMatchObject({ ok: false, modelCalls: 2, quarantined: 0 });
+    }
     h.model.respond = () => undefined;
-    h.clock.now += DAY_MS;
-    expect(await h.run()).toMatchObject({ ok: true, modelCalls: 1, quarantined: 0, embedded: 5, pending: 0 });
+    h.clock.now += 30 * DAY_MS;
+    expect(await h.run()).toMatchObject({ ok: true, modelCalls: 1, retryCalls: 1, quarantined: 0, embedded: 5, pending: 0 });
     expect([...h.storage.values.keys()].filter((key) => key.startsWith("f:"))).toEqual([]);
   });
 
@@ -561,10 +568,10 @@ describe("Spec 016 embedding run", () => {
     expect(h.index.vectors.has(poison!)).toBe(false);
     expectStateMatchesIndex(h);
     expect(result.spentToday.calls).toBe(12);
-    // The next run tries the one text alone, twice, probes, and touches nothing else.
+    // The next run tries the one text alone, once, probes, and touches nothing else.
     h.model.calls.length = 0;
-    expect(await h.run()).toMatchObject({ modelCalls: 3, embedded: 49, embeddedThisRun: 0 });
-    expect(h.model.calls.map((texts) => texts.join("|").slice(-8))).toEqual(["fifty:37", "fifty:37", "ok"]);
+    expect(await h.run()).toMatchObject({ modelCalls: 2, retryCalls: 2, embedded: 49, embeddedThisRun: 0 });
+    expect(h.model.calls.map((texts) => texts.join("|").slice(-8))).toEqual(["fifty:37", "ok"]);
     expect(failing(h)).toEqual([`${poison}:2`]);
   });
 
@@ -670,11 +677,11 @@ describe("Spec 016 embedding run", () => {
     const before = failing(struck);
     expect(before).toHaveLength(1);
     struck.model.respond = () => new Error("AiError: 3040: Capacity temporarily exceeded");
-    expect(await struck.run()).toMatchObject({ limited: "model-down", modelCalls: 3 });
+    expect(await struck.run()).toMatchObject({ limited: "model-down", modelCalls: 2 });
     expect(failing(struck)).toEqual(before);
     // With the model answering the probe, the same failure is a strike.
     struck.model.respond = poisoned("a3");
-    expect(await struck.run()).toMatchObject({ limited: null, modelCalls: 3 });
+    expect(await struck.run()).toMatchObject({ limited: null, modelCalls: 2 });
     expect(failing(struck)).toEqual(before.map((entry) => entry.replace(/:1$/u, ":2")));
   });
 
@@ -703,7 +710,8 @@ describe("Spec 016 embedding run", () => {
     expectStateMatchesIndex(inside);
 
     // The single text's retry and the probe obey it as well.
-    for (const [deadlineMs, calls] of [[30_000, 1], [40_000, 2], [70_000, 3]] as const) {
+    // A call that would start exactly at the deadline does not start (35 s: the first call and the delay).
+    for (const [deadlineMs, calls] of [[30_000, 1], [35_000, 1], [35_001, 2], [40_000, 2], [70_000, 3]] as const) {
       const single = harness({ deadlineMs });
       publishRelease(single.bucket, "r1", [projectA("only")]);
       single.model.respond = () => new Error("AiError: 3040: Capacity temporarily exceeded");
@@ -745,6 +753,102 @@ describe("Spec 016 embedding run", () => {
     ["a short path is kept", "see a/b/c", "see a/b/c"],
   ])("H54: in an error text, %s", (_name, text, expected) => {
     expect(sanitizeErrorMessage(text)).toBe(expected);
+  });
+
+  /** Runs once an hour until `done`, checking in every run that retries never take a healthy chunk's call. */
+  async function hourly(h: Harness, done: (result: EmbeddingRunResult) => boolean, maxRuns: number): Promise<{ readonly runs: number; readonly last: EmbeddingRunResult }> {
+    let last: EmbeddingRunResult | undefined;
+    for (let hour = 0; hour < maxRuns; hour += 1) {
+      h.clock.now = DAY_1 - 8 * 3_600_000 + hour * 3_600_000;
+      const result = await h.run();
+      last = result;
+      // Healthy work is left only by a bound, and a run that leaves any spends nothing on retries.
+      if (result.estimate.chunks > 0) {
+        expect(result.limited).not.toBeNull();
+        expect(result.retryCalls).toBe(0);
+      }
+      expect(result.retryCalls).toBeLessThanOrEqual(DEFAULT_EMBEDDING_LIMITS.maxRetryCallsPerRun);
+      expect(result.modelCalls).toBeLessThanOrEqual(DEFAULT_EMBEDDING_LIMITS.maxCallsPerRun);
+      expect(result.spentToday.calls).toBeLessThanOrEqual(DEFAULT_EMBEDDING_LIMITS.maxCallsPerDay);
+      if (done(result)) return { runs: hour + 1, last: result };
+    }
+    return { runs: maxRuns, last: last! };
+  }
+  const ledgerCalls = (h: Harness) => [...h.storage.values].filter(([key]) => key.startsWith("spend:")).reduce((sum, [, value]) => sum + (value as { calls: number }).calls, 0);
+  const retryCallsByDay = (h: Harness) => [...h.storage.values].filter(([key]) => key.startsWith("spend:")).map(([, value]) => (value as { retryCalls?: number }).retryCalls ?? 0);
+
+  test("H56: 8,586 chunks with one bad text in every batch of 50 still get every healthy chunk embedded, in 6 days of hourly runs", async () => {
+    const corpus = Array.from({ length: 8_586 }, (_, n) => projectA(`c:${String(n).padStart(4, "0")}${n % 50 === 17 ? ":bad" : ""}`));
+    const bad = corpus.filter((chunk) => chunk.recordId.endsWith(":bad")).length;
+    expect(bad).toBe(172);
+    const h = harness();
+    publishRelease(h.bucket, "r1", corpus);
+    h.model.respond = (_call, texts) => (texts.some((text) => text.endsWith(":bad")) ? new Error("AiError: 3010: Invalid input") : undefined);
+
+    const healthy = 8_586 - bad;
+    const converged = await hourly(h, (result) => result.embedded === healthy, 24 * 6);
+    expect(converged.last.embedded).toBe(healthy);
+    expect(converged.runs).toBeLessThanOrEqual(24 * 6);
+    expect(converged.runs).toBe(CONVERGENCE_RUNS_172);
+    expect(ledgerCalls(h)).toBe(h.model.calls.length);
+
+    // Afterwards the bad texts are retried within their own small budget and end up quarantined.
+    const before = h.model.calls.length;
+    const later = await hourly(h, (result) => result.quarantined === bad, 24 * 6 + 24 * 12);
+    expect(later.last).toMatchObject({ embedded: healthy, quarantined: bad });
+    for (const calls of retryCallsByDay(h)) expect(calls).toBeLessThanOrEqual(DEFAULT_EMBEDDING_LIMITS.maxRetryCallsPerDay);
+    expect(ledgerCalls(h)).toBe(h.model.calls.length);
+    // Two retries each, one call a retry, and a probe for every three failures in a row or first call of a run.
+    expect(h.model.calls.length - before).toBeLessThanOrEqual(2 * bad * 2);
+    expectStateMatchesIndex(h);
+  }, 300_000);
+
+  test("H56: 500 quarantined texts do not keep new chunks from being embedded in the next run", async () => {
+    const stuck = Array.from({ length: 500 }, (_, n) => projectA(`q:${String(n).padStart(3, "0")}:bad`));
+    const h = harness();
+    publishRelease(h.bucket, "r1", stuck);
+    // All 500 are struck and due for a retry at once, well over a day's calls at one call each.
+    const [, ...refs] = [undefined, ...(await Promise.all(stuck.map((chunk) => chunkVectorRef(chunk))))];
+    await new EmbeddingState(h.storage).recordFailures(refs.map((ref) => [ref!.id, { h: ref!.fingerprint, r: PROFILE.semanticRevision, n: 2, at: "2026-10-01T00:00:00.000Z" }] as const));
+    h.model.respond = (_call, texts) => (texts.some((text) => text.endsWith(":bad")) ? new Error("AiError: 3010: Invalid input") : undefined);
+
+    const days: number[] = [];
+    for (let hour = 0; hour < 72; hour += 1) {
+      h.clock.now = DAY_1 - 8 * 3_600_000 + hour * 3_600_000;
+      // Every hour 60 new healthy chunks arrive.
+      publishRelease(h.bucket, `r${hour}`, [...stuck, ...Array.from({ length: 60 * (hour + 1) }, (_, n) => projectB(`new:${n}`))]);
+      const result = await h.run();
+      expect(result).toMatchObject({ embedded: 60 * (hour + 1), estimate: { chunks: 0 } });
+      expect(result.retryCalls).toBeLessThanOrEqual(10);
+      expect(result.retriesDeferred + result.quarantined + result.retryCalls).toBeGreaterThan(0);
+      if (hour % 24 === 23) days.push(result.spentToday.calls);
+    }
+    // Per day: 48 calls for the new chunks and at most 100 for retries.
+    for (const calls of days) expect(calls).toBeLessThanOrEqual(48 + 100);
+    for (const calls of retryCallsByDay(h)) expect(calls).toBeLessThanOrEqual(100);
+    expect(ledgerCalls(h)).toBe(h.model.calls.length);
+  }, 120_000);
+
+  test("H56: a retry waits for the healthy chunks of its run, oldest failure first, and is one call", async () => {
+    const h = harness({ batchTexts: 2, maxRetryCallsPerRun: 3 });
+    const chunks = [projectA("x1:bad"), projectA("x2:bad"), projectA("x3:bad"), projectA("x4:bad"), projectB("y1"), projectB("y2")];
+    publishRelease(h.bucket, "r1", chunks);
+    const refs = await Promise.all(chunks.map((chunk) => chunkVectorRef(chunk)));
+    const at = ["2026-10-04", "2026-10-02", "2026-10-03", "2026-10-01"];
+    await new EmbeddingState(h.storage).recordFailures(refs.slice(0, 4).map((ref, n) => [ref.id, { h: ref.fingerprint, r: PROFILE.semanticRevision, n: 1, at: `${at[n]}T00:00:00.000Z` }] as const));
+    h.model.respond = (_call, texts) => (texts.some((text) => text.endsWith(":bad")) ? new Error("AiError: 3010: Invalid input") : undefined);
+    const result = await h.run();
+    // The healthy batch first although it comes last in the release; then x4, x2, x3 by age; x1 waits.
+    expect(h.model.calls.map((texts) => texts.map((text) => text.slice(-6)).join(" "))).toEqual(["of y1 of y2", "x4:bad", "x2:bad", "x3:bad"]);
+    expect(result).toMatchObject({ ok: false, embedded: 2, modelCalls: 4, retryCalls: 3, retriesDeferred: 1, quarantined: 0, estimate: { chunks: 0 } });
+    expect(failing(h).map((entry) => entry.slice(-2)).sort()).toEqual([":1", ":2", ":2", ":2"]);
+
+    // A run stopped by a bound makes no retry; a dry run makes none and counts them.
+    const bound = harness({ batchTexts: 2, maxChunksPerRun: 1 });
+    publishRelease(bound.bucket, "r1", chunks);
+    await new EmbeddingState(bound.storage).recordFailures([[refs[0]!.id, { h: refs[0]!.fingerprint, r: PROFILE.semanticRevision, n: 1, at: "2026-10-01T00:00:00.000Z" }]]);
+    expect(await bound.run()).toMatchObject({ limited: "chunks-per-run", retryCalls: 0, retriesDeferred: 1 });
+    expect(await h.run({ dryRun: true })).toMatchObject({ modelCalls: 0, retryCalls: 0, retriesDeferred: 4 });
   });
 
   test("H55: when the model is down a run costs four calls, strikes nothing, and embeds everything once it is back", async () => {
