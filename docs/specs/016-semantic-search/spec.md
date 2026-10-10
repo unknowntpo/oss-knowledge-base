@@ -177,10 +177,21 @@ project, and the separate gateway. These were left to the implementer:
     writes one release an hour and a source outage that empties a project is
     more likely than a project ending; counting releases rather than runs
     means repeated manual triggers cannot shorten the wait.
-19. **Quarantine is by time, not forever** (Behavior 24). A batch that fails
-    in three runs in a row is skipped for 24 hours and then tried once more,
-    so a poisoned batch costs 2 calls a day instead of 48, and chunks caught
-    by a long model outage come back by themselves.
+19. **Quarantine is by time, not forever** (Behavior 24). A text that fails
+    alone in three runs in a row is skipped for 24 hours and then tried once
+    more (2 calls), so a wrong conviction heals by itself.
+20. **A failed batch is split, not retried whole** (Behavior 25, after the
+    second verdict on PR #50). Retrying 50 texts as one call can only fail
+    again when one of them is bad, and the 49 others stay unembedded beside it
+    for good. Halving finds the bad text in `1 + 2 × ceil(log2 n)` calls (13
+    for 50) and stores the rest in the same run. The halves take the place of
+    the whole-batch retry, so a transient error costs 3 calls instead of 2.
+    A probe text tells a bad batch from a model that is down, because both
+    look the same from one batch: without it, either two bad texts in the
+    first batch are never separated or an outage splits every batch.
+21. **Every error text is redacted** (Behavior 24), in the embedding path
+    only. The digest shares `errorShape` and still surfaces model errors
+    unredacted (gardening G43).
 
 Owner's answers (2026-10-10, after the PR #50 verdict):
 
@@ -394,8 +405,8 @@ Embedding publication and the Vectorize adapter (slice 2b):
     run that dies and is retried counts both attempts. A run that reaches a
     bound stops embedding, keeps what it recorded, reports `limited`, and the
     next run continues from the state.
-20. **Failures.** A model error is retried once after 5 seconds; a second
-    failure leaves that batch pending and the run continues. Workers AI code
+20. **Failures.** A model call that fails is followed, after 5 seconds, by
+    its halves (Behavior 25); a single text is retried once. Workers AI code
     3036, a gateway 429, and a spend-limit refusal stop model use for the run
     without a retry. A wrong number of vectors or a wrong dimension is a
     model error. A failed upsert is retried once, then embedding stops for
@@ -436,18 +447,43 @@ Embedding publication and the Vectorize adapter (slice 2b):
     are, the result reports `heldDeletes` and `absentProjects { projectId,
     vectors, releases }`, and the run is still `ok`. Each further release
     without the project counts once, however many runs read it; at the third
-    in a row the vectors are deleted like any other. A release that holds the
+    in a row the vectors are deleted like any other, and the count with them.
+    At one release an hour that is about three hours. A rollback to an older
+    release is a release like any other: it counts when it lacks the project
+    and ends the count when it holds it. A release that holds the
     project again ends the count, and nothing is embedded again.
-24. **The last error and quarantine.** The last model or vector-store
-    failure is kept as `/health` `searchEmbedding.lastError { kind, message,
-    at, batchSize }` (the message cut to 200 characters with bearer tokens and
-    long token-like strings removed) until a later run embeds at least one
-    chunk without a failure; a run that only reaches a bound leaves it. A
-    chunk whose batch the model failed (twice, not a refusal and not a store
-    failure) in three runs in a row, at the same fingerprint and revision, is
+24. **The last error, redaction, and quarantine.** The last model or
+    vector-store failure that the run did not recover from is kept as
+    `/health` `searchEmbedding.lastError { kind, message, at, batchSize }`
+    until a later run embeds at least one chunk without a failure; a run that
+    only reaches a bound leaves it. Every error text this path stores,
+    returns, or logs (`lastError`, a run's `error` and `modelErrors`, the
+    body of `POST /search-embedding/run`, `configError`, `console.error`) has
+    `Bearer …` and any run of 32 or more base64, base64url, or hex characters
+    replaced by `[redacted]` and is then cut to 200 characters; object keys
+    the run itself names are kept. A text that fails alone (Behavior 25) in
+    three runs in a row, at the same fingerprint and revision, is
     quarantined: skipped for 24 hours, then tried once more. A run reports
     `quarantined` and the first five ids. A changed chunk, another revision,
     and `reset=1` end a quarantine.
+25. **Splitting a failed batch.** When a call for more than one text fails
+    (not a refusal), each half is sent once; a half that succeeds is stored
+    at once, a half that fails is halved again, down to single texts. A text
+    that fails alone is struck (Behavior 24) and from then on is sent alone,
+    so it cannot fail a batch again. Every call is counted in the ledger
+    before it is made and is subject to the per-run and per-day bounds; a
+    bound reached part-way leaves the stored halves stored and the rest
+    pending and unstruck. One batch may spend at most `4 × ceil(log2 n)`
+    calls on its parts (24 for 50: two bad texts); parts not reached wait for
+    the next run. When a batch and both its halves fail, or a single text
+    fails twice, and no model call has succeeded in the run, one probe text
+    (`ok`) is embedded: if it fails too the model is down, the run stops
+    embedding with `limited: model-down` and `ok: false`, and nothing is
+    struck. Worst cases: one bad text in a batch of 50 costs 13 calls in the
+    first run, 2 in each of the next two, then 2 per 24 hours (17 on the
+    first day); two bad texts in one batch at most 26; a model outage 4 calls
+    a run (96 a day at one run an hour) and no strike; a transient error 3.
+    A refusal or a store failure stops the run as before and never splits.
 
 ## Community profile fit
 
@@ -728,14 +764,16 @@ vectors deleted, the bound reached, and `ok` or the failure kind:
 | H46 | estimated neurons per UTC day | empty | dailyNeuronCap=2 | — | 1 1 2 | 2 calls, 4/5 embedded, 0 deleted, daily-neurons, ok → 0 calls, 4/5 embedded, 0 deleted, daily-neurons, ok → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
 | H46 | the deadline | empty | deadlineMs=1500 callMs=1000 | — | 1 1 | 2 calls, 4/5 embedded, 0 deleted, deadline, ok → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
 | H46 | a bound of zero embeds nothing | empty | maxChunksPerRun=0 | — | 1 | 0 calls, 0/5 embedded, 0 deleted, chunks-per-run, ok |
-| H48 | a model error, then success | empty | — | model: call 1 fails | 1 1 | 4 calls, 5/5 embedded, 0 deleted, not limited, ok → 0 calls, 5/5 embedded, 0 deleted, not limited, ok |
-| H48 | a model error twice leaves that batch pending | empty | — | model: calls 2 and 3 fail | 1 1 | 4 calls, 3/5 embedded, 0 deleted, not limited, model → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | a model error, then its halves succeed | empty | — | model: call 1 fails | 1 1 | 5 calls, 5/5 embedded, 0 deleted, not limited, ok → 0 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H55 | a batch and one half fail: the other half is embedded | empty | — | model: calls 2 and 3 fail | 1 1 | 5 calls, 4/5 embedded, 0 deleted, not limited, model → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H55 | a batch and both halves fail while the model answers a probe | empty | — | model: calls 1, 2 and 3 fail | 1 1 | 6 calls, 3/5 embedded, 0 deleted, not limited, model → 2 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H55 | the model is down: one batch, its halves, and a probe | empty | — | model: every call fails | 1 1 | 4 calls, 0/5 embedded, 0 deleted, model-down, model → 3 calls, 5/5 embedded, 0 deleted, not limited, ok |
 | H48 | Workers AI code 3036 stops model use | empty | — | model: call 1 is refused with code 3036 | 1 1 | 1 calls, 0/5 embedded, 0 deleted, model-limit, model-limit → 3 calls, 5/5 embedded, 0 deleted, not limited, ok |
 | H48 | a gateway 429 stops model use | empty | — | model: call 2 is refused with a gateway 429 | 1 1 | 2 calls, 2/5 embedded, 0 deleted, model-limit, model-limit → 2 calls, 5/5 embedded, 0 deleted, not limited, ok |
 | H48 | a spend-limit refusal stops model use | empty | — | model: call 3 is refused for the spend limit | 1 1 | 3 calls, 4/5 embedded, 0 deleted, model-limit, model-limit → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
-| H48 | too few vectors | empty | — | model: calls 1 and 2 return one vector too few | 1 1 | 4 calls, 3/5 embedded, 0 deleted, not limited, model → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
-| H48 | a wrong dimension | empty | — | model: calls 1 and 2 return 3-dimension vectors | 1 1 | 4 calls, 3/5 embedded, 0 deleted, not limited, model → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
-| H48 | a model call that never answers | empty | callTimeoutMs=5 | model: calls 1 and 2 never answer | 1 1 | 4 calls, 3/5 embedded, 0 deleted, not limited, model → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | too few vectors | empty | — | model: calls 1 and 2 return one vector too few | 1 1 | 5 calls, 4/5 embedded, 0 deleted, not limited, model → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | a wrong dimension | empty | — | model: calls 1 and 2 return 3-dimension vectors | 1 1 | 5 calls, 4/5 embedded, 0 deleted, not limited, model → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | a model call that never answers | empty | callTimeoutMs=5 | model: calls 1 and 2 never answer | 1 1 | 5 calls, 4/5 embedded, 0 deleted, not limited, model → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
 | H48 | an upsert error, then success | empty | — | index: upsert 1 fails | 1 1 | 3 calls, 5/5 embedded, 0 deleted, not limited, ok → 0 calls, 5/5 embedded, 0 deleted, not limited, ok |
 | H48 | an upsert error twice stops embedding | empty | — | index: upserts 2 and 3 fail | 1 1 | 2 calls, 2/5 embedded, 0 deleted, vector-store, vector-store → 2 calls, 5/5 embedded, 0 deleted, not limited, ok |
 | H48 | an index that does not answer | empty | — | index: describe fails | 1 1 | 0 calls, 0/0 embedded, 0 deleted, not limited, vector-store → 3 calls, 5/5 embedded, 0 deleted, not limited, ok |
@@ -921,8 +959,8 @@ Items tagged `[pending]` belong to slices 3–4.
   exactly the vectors in the index, and no chunk has two vectors; an alarm
   that throws is recorded and does not throw again → evidence:
   `search-embedding-run.test.ts`, `search-embedding-runner.test.ts`.
-- H48: given each `H48` row of the embedding run plan (a model error once or
-  twice, code 3036, a gateway 429, a spend-limit refusal, too few vectors, a
+- H48: given each `H48` row of the embedding run plan (a model error whose
+  halves then succeed, code 3036, a gateway 429, a spend-limit refusal, too few vectors, a
   wrong dimension, a call that never answers, an upsert or delete that fails
   once or twice, an index that does not answer or has other dimensions, an
   unreadable shard, a manifest whose chunk count disagrees, an unsupported
@@ -934,18 +972,32 @@ Items tagged `[pending]` belong to slices 3–4.
   the release still holds is deleted as before; the same release read twice
   counts once and a dry run counts nothing; a project that returns is neither
   deleted nor embedded again and its count starts over; at the third release
-  in a row without it its vectors are deleted → evidence:
+  in a row without it its vectors are deleted and the count removed in that
+  run → evidence:
   `search-embedding-run.test.ts`.
 - H54: given a model or vector-store failure, `/health`
-  `searchEmbedding.lastError` holds its kind, a message without bearer
-  tokens or token-like strings and at most 200 characters, the time, and the
-  batch size, through runs that only reach a bound and through a dry run,
-  until a run embeds without a failure; given a batch the model fails in
-  three runs in a row, later runs skip its chunks, report `quarantined` and
-  their ids, and spend no call on them for 24 hours, then try once; a
-  refusal, a store failure, a changed chunk, another revision, and `reset=1`
-  do not or no longer quarantine → evidence: `search-embedding-run.test.ts`,
-  `search-embedding-runner.test.ts`.
+  `searchEmbedding.lastError` holds its kind, message, time, and batch size
+  through runs that only reach a bound and through a dry run, until a run
+  embeds without a failure; given a bearer token, a base64 string with
+  `+ / =`, or a long hex string in an error from the model, the index, the
+  bucket, or the storage, no result, stored value, HTTP body, or log line of
+  the embedding path holds it, redaction comes before the 200-character cut,
+  and the object key in a release-read error stays; given a text that fails
+  alone in three runs in a row, later runs skip it, report `quarantined` and
+  its id, and spend no call on it for 24 hours, then try once; a refusal, a
+  model outage, a store failure, a changed chunk, another revision, and
+  `reset=1` do not or no longer quarantine → evidence:
+  `search-embedding-run.test.ts`, `search-embedding-runner.test.ts`.
+- H55: given each `H55` row of the embedding run plan and a batch of 50 with
+  one failing text, the other 49 are embedded in the same run in at most 13
+  calls and only that text is struck, then sent alone; two failing texts in
+  one batch are both isolated within the split budget; a bound reached
+  while splitting leaves the stored halves stored, strikes nothing, and
+  later runs finish; when every call fails a run makes 4 calls (3 for a
+  single text), reports `limited: model-down`, and strikes nothing; a
+  refusal or a store failure makes one call and no split; every call of a
+  split is in the day's ledger → evidence: `search-embedding-run.test.ts`
+  rows and tests.
 - H49: given an index that accepts mutations without applying them, the run
   records each chunk as embedded, a second run embeds nothing, and `/health`
   reports the last mutation id and that the index has not processed it; once
@@ -1170,7 +1222,7 @@ Limits of these numbers:
   become queryable are read on Dev (H52).
 
 Worker bundle (`wrangler deploy --dry-run`, both configurations): 278.51 KiB
-(gzip 69.92) before, 316.37 KiB (gzip 78.81) after.
+(gzip 69.92) before, 319.23 KiB (gzip 79.52) after.
 
 Mutation evidence (one mutant or more per behavior, each seen failing) is
 listed in the PR.

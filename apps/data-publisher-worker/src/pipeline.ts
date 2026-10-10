@@ -27,6 +27,8 @@ import {
   type StreamedSearchRelease,
 } from "@oss-knowledge-base/serving-contract";
 
+import { errorText } from "./search-embedding/sanitize";
+
 export interface PipelineStateRepository {
   read(): Promise<SerializedReferenceStateV1>;
   /** The last recorded run, for each source's previous `lastSuccessAt` (ADR-0014). */
@@ -272,7 +274,7 @@ async function notifyPublished(hook: ((status: PipelineRunStatus) => Promise<voi
       }),
     ]);
   } catch (error) {
-    console.error(`after-publication hook failed: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`after-publication hook failed: ${errorText(error)}`);
   } finally {
     if (timer !== undefined) clearTimeout(timer);
   }

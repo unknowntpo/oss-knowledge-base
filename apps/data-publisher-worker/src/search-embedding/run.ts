@@ -25,6 +25,7 @@ import {
 
 import { errorShape, modelErrorKind, RETRY_DELAY_MS, type ModelErrorShape } from "../digest/model";
 import { toModelCallError } from "../digest/workers-ai";
+import { errorText, sanitizeErrorMessage } from "./sanitize";
 import type { EmbeddingState, LastEmbeddingError } from "./state";
 
 export interface EmbeddingLimits {
@@ -68,12 +69,20 @@ export const DEFAULT_EMBEDDING_LIMITS: EmbeddingLimits = {
   quarantineMs: 24 * 3_600_000,
 };
 
+/** Sent alone when a batch and both its halves fail and nothing has succeeded in the run. */
+export const PROBE_TEXT = "ok";
+
+/** Calls a failed batch of `size` texts may spend on its parts: two per level for two bad texts. */
+export function splitBudget(size: number): number {
+  return 4 * Math.ceil(Math.log2(Math.max(size, 2)));
+}
+
 /** How many quarantined vector ids a result names. */
 const QUARANTINE_SAMPLE = 5;
 
 export type EmbeddingLimit =
   | "chunks-per-run" | "calls-per-run" | "calls-per-day" | "daily-neurons" | "deadline"
-  | "model-limit" | "vector-store";
+  | "model-limit" | "model-down" | "vector-store";
 
 export type EmbeddingFailureKind = "config" | "release-read" | "model" | "model-limit" | "vector-store" | "internal";
 
@@ -152,7 +161,8 @@ class RunFailure extends Error {
 }
 
 const MAX_RECORDED_ERRORS = 10;
-const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
+// Object keys and ids in a message are ours; whatever a model, index, or bucket threw is sanitized.
+const message = errorText;
 
 /** Rejects after `ms`, aborting the call's signal; the platform gives no other way to leave a hung call. */
 async function withTimeout<T>(label: string, ms: number, call: (signal: AbortSignal) => Promise<T>): Promise<T> {
@@ -191,14 +201,6 @@ class BatchCount {
   get total(): number {
     return this.batches + (this.texts > 0 ? 1 : 0);
   }
-}
-
-/** Keeps a stored error short and free of anything that looks like a credential. */
-export function sanitizeErrorMessage(text: string): string {
-  return text
-    .replace(/Bearer\s+\S+/giu, "Bearer [redacted]")
-    .replace(/[A-Za-z0-9_-]{32,}/gu, "[redacted]")
-    .slice(0, 200);
 }
 
 interface PendingChunk {
@@ -285,6 +287,8 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
   let inputTokens = 0;
   let spentNeurons = 0;
   let modelFailures = 0;
+  let modelSuccesses = 0;
+  let modelDown = false;
   let lastModelError = "";
   let indexInfo: EmbeddingRunResult["index"] = null;
   let lastMutationId: string | null = null;
@@ -310,42 +314,43 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
     return value;
   };
 
-  /** One model request, counted in the ledger before it is made; `undefined` when it must not or did not succeed. */
-  const embedBatch = async (model: PricedModel, texts: readonly string[], tokens: number): Promise<readonly (readonly number[])[] | undefined> => {
+  /**
+   * One model request, counted in the ledger before it is made. `stopped` when a bound or a
+   * refusal ends model use for the run; `failed` when the model answered wrongly or not at all.
+   */
+  const attempt = async (model: PricedModel, texts: readonly string[], tokens: number): Promise<{ readonly vectors: readonly (readonly number[])[] } | { readonly failed: string } | "stopped"> => {
     const estimate = Math.max(1, neurons(model, tokens, 0));
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      const date = today();
-      const ledger = await state.ledger(date);
-      if (modelCalls >= limits.maxCallsPerRun) run.limited = "calls-per-run";
-      else if (ledger.calls >= limits.maxCallsPerDay) run.limited = "calls-per-day";
-      else if (ledger.neurons + estimate > limits.dailyNeuronCap) run.limited = "daily-neurons";
-      if (run.limited !== null) return undefined;
-      await state.reserve(date, estimate);
-      modelCalls += 1;
-      inputTokens += tokens;
-      spentNeurons += estimate;
-      try {
-        const vectors = await withTimeout("The embedding model", limits.callTimeoutMs, (signal) => input.embed(texts, signal));
-        if (vectors.length !== texts.length) throw new Error(`Embedding response has ${vectors.length} vectors, expected ${texts.length}`);
-        for (const vector of vectors) {
-          if (vector.length !== dimensions) throw new Error(`Embedding has ${vector.length} dimensions, expected ${dimensions}`);
-        }
-        return vectors;
-      } catch (error) {
-        const mapped = toModelCallError(error);
-        const kind = modelErrorKind(mapped);
-        lastModelError = mapped.message;
-        if (modelErrors.length < MAX_RECORDED_ERRORS) modelErrors.push(errorShape(model, kind, mapped));
-        lastFailure = { kind: kind === "limit" ? "model-limit" : "model", message: mapped.message, batchSize: texts.length };
-        if (kind === "limit") {
-          run.limited = "model-limit";
-          return undefined;
-        }
-        if (attempt === 0) await input.delay(RETRY_DELAY_MS);
+    const date = today();
+    const ledger = await state.ledger(date);
+    if (modelCalls >= limits.maxCallsPerRun) run.limited = "calls-per-run";
+    else if (ledger.calls >= limits.maxCallsPerDay) run.limited = "calls-per-day";
+    else if (ledger.neurons + estimate > limits.dailyNeuronCap) run.limited = "daily-neurons";
+    if (run.limited !== null) return "stopped";
+    await state.reserve(date, estimate);
+    modelCalls += 1;
+    inputTokens += tokens;
+    spentNeurons += estimate;
+    try {
+      const vectors = await withTimeout("The embedding model", limits.callTimeoutMs, (signal) => input.embed(texts, signal));
+      if (vectors.length !== texts.length) throw new Error(`Embedding response has ${vectors.length} vectors, expected ${texts.length}`);
+      for (const vector of vectors) {
+        if (vector.length !== dimensions) throw new Error(`Embedding has ${vector.length} dimensions, expected ${dimensions}`);
       }
+      modelSuccesses += 1;
+      return { vectors };
+    } catch (error) {
+      const mapped = toModelCallError(error);
+      const kind = modelErrorKind(mapped);
+      lastModelError = sanitizeErrorMessage(mapped.message);
+      // `errorShape` is the digest's and cuts without redacting; the message is replaced here.
+      if (modelErrors.length < MAX_RECORDED_ERRORS) modelErrors.push({ ...errorShape(model, kind, mapped), message: lastModelError });
+      if (kind === "limit") {
+        lastFailure = { kind: "model-limit", message: lastModelError, batchSize: texts.length };
+        run.limited = "model-limit";
+        return "stopped";
+      }
+      return { failed: lastModelError };
     }
-    modelFailures += 1;
-    return undefined;
   };
 
   /** A mutation the index accepted, or `undefined` after two failures. */
@@ -416,7 +421,9 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
         }
         let size = 0;
         let tokens = 0;
-        while (size < queue.length && size < limits.batchTexts && size < room && (size === 0 || tokens + queue[size]!.tokens <= limits.batchTokens)) {
+        // A text that has failed alone before goes alone, so it cannot fail a batch again.
+        while (size < queue.length && size < limits.batchTexts && size < room &&
+            (size === 0 || (queue[0]!.strikes === 0 && queue[size]!.strikes === 0 && tokens + queue[size]!.tokens <= limits.batchTokens))) {
           tokens += queue[size]!.tokens;
           size += 1;
         }
@@ -428,29 +435,108 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
         }
         const batch = queue.slice(0, size);
         queue = queue.slice(size);
-        const vectors = await embedBatch(model, batch.map((item) => item.text), tokens);
-        if (vectors === undefined) {
-          leave(batch);
-          // Only a batch the model failed twice counts; a refusal or a bound says nothing about it.
-          if (run.limited === null) {
-            const at = input.now().toISOString();
-            await state.recordFailures(batch.map((item) => [item.ref.id, { h: item.ref.fingerprint, r: profile.semanticRevision, n: item.strikes + 1, at }] as const));
-          }
-          continue;
-        }
-        const records: StoredVector[] = batch.map((item, position) => vectorRecord(item.ref, item.chunk, vectors[position]!, profile.semanticRevision));
-        if (await mutate("The vector upsert", records.length, () => index.upsert(records)) === undefined) {
-          // The store is down: more model calls would be paid for and lost.
-          run.limited = "vector-store";
-          leave(batch);
-          continue;
-        }
-        const recorded = batch.map((item) => [item.ref.id, { p: item.chunk.projectId, h: item.ref.fingerprint, r: profile.semanticRevision }] as const);
-        await state.record(recorded);
-        for (const [id, entry] of recorded) entries.set(id, entry);
-        embeddedThisRun += batch.length;
-        embedded += batch.length;
+        await embedIsolating(batch);
       }
+    };
+
+    const tokensOf = (items: readonly PendingChunk[]) => items.reduce((sum, item) => sum + item.tokens, 0);
+    const halves = (items: readonly PendingChunk[]) => [items.slice(0, Math.floor(items.length / 2)), items.slice(Math.floor(items.length / 2))] as const;
+
+    /** Embeds and stores `items` in one call. Items of a `stopped` call are left; a `failed` call's are the caller's. */
+    const embedItems = async (items: readonly PendingChunk[]): Promise<"stored" | "failed" | "stopped"> => {
+      const answer = await attempt(model, items.map((item) => item.text), tokensOf(items));
+      if (answer === "stopped") {
+        leave(items);
+        return "stopped";
+      }
+      if ("failed" in answer) return "failed";
+      const records: StoredVector[] = items.map((item, position) => vectorRecord(item.ref, item.chunk, answer.vectors[position]!, profile.semanticRevision));
+      if (await mutate("The vector upsert", records.length, () => index.upsert(records)) === undefined) {
+        // The store is down: more model calls would be paid for and lost.
+        run.limited = "vector-store";
+        leave(items);
+        return "stopped";
+      }
+      const recorded = items.map((item) => [item.ref.id, { p: item.chunk.projectId, h: item.ref.fingerprint, r: profile.semanticRevision }] as const);
+      await state.record(recorded);
+      for (const [id, entry] of recorded) entries.set(id, entry);
+      embeddedThisRun += items.length;
+      embedded += items.length;
+      return "stored";
+    };
+
+    /** A text that failed alone while the model is known to answer: counted toward quarantine. */
+    const strike = async (item: PendingChunk): Promise<void> => {
+      modelFailures += 1;
+      lastFailure = { kind: "model", message: lastModelError, batchSize: 1 };
+      await state.recordFailures([[item.ref.id, { h: item.ref.fingerprint, r: profile.semanticRevision, n: item.strikes + 1, at: input.now().toISOString() }]]);
+      leave([item]);
+    };
+
+    /**
+     * Whether failures so far can be blamed on the texts. True once any call of this run succeeded
+     * or the text has failed alone before; otherwise one probe text decides, and a failed probe
+     * means the model is down: the run stops embedding and nothing is struck.
+     */
+    const modelAnswers = async (items: readonly PendingChunk[]): Promise<boolean> => {
+      if (modelSuccesses > 0 || items.some((item) => item.strikes > 0)) return true;
+      const probe = await attempt(model, [PROBE_TEXT], 1);
+      if (probe === "stopped") return false;
+      if ("vectors" in probe) return true;
+      run.limited = "model-down";
+      modelDown = true;
+      lastFailure = { kind: "model", message: probe.failed, batchSize: items.length };
+      return false;
+    };
+
+    /** `piece` failed as a whole: try its halves, each once, down to the texts that fail alone. */
+    const split = async (piece: readonly PendingChunk[], budget: { calls: number }): Promise<void> => {
+      if (piece.length === 1) {
+        await strike(piece[0]!);
+        return;
+      }
+      for (const half of halves(piece)) {
+        if (budget.calls <= 0) {
+          // Unproven either way: left for the next run, not struck.
+          leave(half);
+          continue;
+        }
+        budget.calls -= 1;
+        if (await embedItems(half) === "failed") await split(half, budget);
+      }
+    };
+
+    /**
+     * Behavior 25. A failed batch is not retried whole: its halves are, so a transient error costs
+     * one more call than a retry would, and one bad text no longer keeps its neighbours out.
+     */
+    const embedIsolating = async (batch: readonly PendingChunk[]): Promise<void> => {
+      if (await embedItems(batch) !== "failed") return;
+      await input.delay(RETRY_DELAY_MS);
+      if (batch.length === 1) {
+        if (await embedItems(batch) !== "failed") return;
+        if (await modelAnswers(batch)) await strike(batch[0]!);
+        else leave(batch);
+        return;
+      }
+      const budget = { calls: splitBudget(batch.length) - 2 };
+      const [left, right] = halves(batch);
+      const first = await embedItems(left);
+      if (first === "stopped") {
+        leave(right);
+        return;
+      }
+      const second = await embedItems(right);
+      if (second === "stopped") {
+        if (first === "failed") leave(left);
+        return;
+      }
+      if (first === "failed" && second === "failed" && !(await modelAnswers(batch))) {
+        leave(batch);
+        return;
+      }
+      if (first === "failed") await split(left, budget);
+      if (second === "failed") await split(right, budget);
     };
 
     for (const shardRef of manifest.shards) {
@@ -504,6 +590,7 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
       if (!seen.has(id)) staleByProject.set(entry.p, [...staleByProject.get(entry.p) ?? [], id]);
     }
     const stale: string[] = [];
+    const expired: string[] = [];
     for (const [projectId, ids] of [...staleByProject].sort(([left], [right]) => left.localeCompare(right))) {
       if (seenProjects.has(projectId)) {
         stale.push(...ids);
@@ -512,8 +599,10 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
       const before = absences.get(projectId);
       const releases = before === undefined ? 1 : before.releaseId === releaseId ? before.releases : before.releases + 1;
       if (!dryRun && (before === undefined || before.releaseId !== releaseId)) await state.recordAbsence(projectId, { releases, releaseId });
-      if (releases >= limits.absentReleasesBeforeDelete) stale.push(...ids);
-      else {
+      if (releases >= limits.absentReleasesBeforeDelete) {
+        stale.push(...ids);
+        expired.push(projectId);
+      } else {
         heldDeletes += ids.length;
         absentProjects.push({ projectId, vectors: ids.length, releases });
       }
@@ -537,8 +626,13 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
         deletePending -= ids.length;
       }
     }
+    if (!dryRun) {
+      // A project whose last vector is gone needs no count any more.
+      const emptied = expired.filter((projectId) => ![...entries.values()].some((entry) => entry.p === projectId));
+      if (emptied.length > 0) await state.forgetAbsences(emptied);
+    }
     if (run.failure === undefined && run.limited === "model-limit") run.failure = { kind: "model-limit", error: lastModelError };
-    if (run.failure === undefined && modelFailures > 0) run.failure = { kind: "model", error: lastModelError };
+    if (run.failure === undefined && (modelFailures > 0 || modelDown)) run.failure = { kind: "model", error: lastModelError };
   } catch (error) {
     run.failure = error instanceof RunFailure ? { kind: error.kind, error: error.message } : { kind: "internal", error: message(error) };
   }

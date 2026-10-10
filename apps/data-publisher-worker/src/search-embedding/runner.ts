@@ -22,6 +22,7 @@ import {
   type EmbeddingRunResult,
   type ReleaseReader,
 } from "./run";
+import { errorText, sanitizeErrorMessage } from "./sanitize";
 import { EmbeddingState, type AcceptedMutation, type EmbeddingStorage, type LastEmbeddingError } from "./state";
 
 export interface SearchEmbeddingRunnerDeps {
@@ -51,7 +52,7 @@ export function searchEmbeddingConfig(deps: Pick<SearchEmbeddingRunnerDeps, "fla
   try {
     profile = resolveSearchEmbedding(deps.flag);
   } catch (error) {
-    return { state: "error", error: error instanceof Error ? error.message : String(error) };
+    return { state: "error", error: errorText(error) };
   }
   if (profile === undefined) return { state: "off" };
   const gatewayId = deps.gatewayId?.trim() ?? "";
@@ -61,7 +62,7 @@ export function searchEmbeddingConfig(deps: Pick<SearchEmbeddingRunnerDeps, "fla
     : deps.index === undefined ? "the SEARCH_VECTORS binding is missing"
     : undefined;
   if (missing !== undefined || deps.ai === undefined || deps.index === undefined) {
-    return { state: "error", error: `SEARCH_EMBEDDING is "${profile.key}" but ${missing}`, profile };
+    return { state: "error", error: sanitizeErrorMessage(`SEARCH_EMBEDDING is "${profile.key}" but ${missing}`), profile };
   }
   // The state decides what is embedded; a gateway cache hit would only hide a real call's cost.
   return { state: "on", profile, embed: workersAiEmbedder(deps.ai, gatewayId, profile, { skipCache: true }), index: deps.index };
@@ -89,7 +90,7 @@ export function unboundSearchEmbeddingHealth(flag: string | undefined, now: Date
   const set = (flag?.trim() ?? "") !== "";
   return {
     enabled: false,
-    ...(set ? { configError: `SEARCH_EMBEDDING is "${flag}" but the SEARCH_EMBEDDING_RUN binding is missing` } : {}),
+    ...(set ? { configError: sanitizeErrorMessage(`SEARCH_EMBEDDING is "${flag}" but the SEARCH_EMBEDDING_RUN binding is missing`) } : {}),
     model: null,
     revision: null,
     semanticRevision: null,
@@ -169,7 +170,7 @@ export class SearchEmbeddingRunner {
     try {
       profile = resolveSearchEmbedding(options.profile)!;
     } catch (error) {
-      return { status: 400, body: { ok: false, error: error instanceof Error ? error.message : String(error) } };
+      return { status: 400, body: { ok: false, error: errorText(error) } };
     }
     // A dry run reaches neither: both refuse, so a mistake here cannot spend or mutate.
     const refuse = async (): Promise<never> => { throw new Error("A dry run must not call the model or the index"); };
@@ -188,7 +189,7 @@ export class SearchEmbeddingRunner {
       }
       await this.execute(config, false);
     } catch (error) {
-      const text = error instanceof Error ? error.message : String(error);
+      const text = errorText(error);
       console.error(`search embedding run failed: ${text}`);
       await this.deps.storage.put("lastRun", failedEmbeddingRun("internal", text, this.deps.now(), false)).catch(() => undefined);
     }

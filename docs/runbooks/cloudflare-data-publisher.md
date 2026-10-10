@@ -111,9 +111,18 @@ under one cent, in three runs within one UTC day.
 
 - `heldDeletes` / `absentProjects`: the release holds no chunk of a project
   (or none at all), so its vectors were kept. They are deleted only at the
-  third release in a row without it. Check the publisher's sources first.
-- `quarantined`: chunks whose batch the model failed in three runs in a row;
-  they are skipped for 24 hours and then tried once. `lastError` says why.
+  third release in a row without it: about three hours at one release an
+  hour. A rollback to an older release counts as a release too. Check the
+  publisher's sources first.
+- `quarantined`: texts that failed alone in three runs in a row; they are
+  skipped for 24 hours and then tried once (2 calls). `lastError` says why.
+  A failed batch is split in halves to find such a text: at most 13 calls
+  for a batch of 50, and the other texts are embedded in the same run.
+- `limited: model-down`: a batch, both its halves, and a probe text failed
+  (4 calls). The run stopped embedding and struck nothing; the next run
+  tries again.
+- Error texts in `/health`, in the endpoint's answers, and in the logs have
+  bearer tokens and long token-like strings replaced by `[redacted]`.
 
 ### Dry run (calls no model and no index, writes nothing)
 

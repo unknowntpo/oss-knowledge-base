@@ -417,6 +417,22 @@ the two `viewer/` items below.
 - **Layer:** structure (the manifest or side object), then test.
 - **Source:** Spec 016 slice 2b.
 
+### G43. The digest surfaces model error text unredacted
+- **Where:** `errorShape` and `ModelCalls`
+  (`apps/data-publisher-worker/src/digest/model.ts`), `DigestRunResult`
+  `modelErrors` and `error` (`src/digest/run.ts`), served by the public
+  `/health` `digest.lastRun`.
+- **Why:** `errorShape` cuts a message to 200 characters and redacts
+  nothing, so a bearer token or key echoed by Workers AI or the gateway would
+  be published. Spec 016 slice 2b redacts in the embedding path only
+  (`src/search-embedding/sanitize.ts`) and replaces the message `errorShape`
+  returns, because changing the digest was out of that PR's scope.
+- **Fix:** route the digest's error texts through `sanitizeErrorMessage`
+  (move it beside `errorShape`), then drop the local replacement in
+  `search-embedding/run.ts`.
+- **Layer:** structure (one function every surfaced error passes), then test.
+- **Source:** PR #50 verifier, second verdict.
+
 ## CI evidence
 
 ### G30. The evidence redaction gate does not decode every encoding

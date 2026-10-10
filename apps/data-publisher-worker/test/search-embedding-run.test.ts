@@ -8,7 +8,7 @@ import {
 } from "@oss-knowledge-base/semantic-vectorize";
 import { SEARCH_CURRENT_KEY, SEARCH_RELEASE_SCHEMA_V2, searchReleaseManifestKey } from "@oss-knowledge-base/serving-contract";
 
-import { DEFAULT_EMBEDDING_LIMITS, type EmbeddingLimits, type EmbeddingRunResult } from "../src/search-embedding/run";
+import { DEFAULT_EMBEDDING_LIMITS, splitBudget, type EmbeddingLimits, type EmbeddingRunResult } from "../src/search-embedding/run";
 import { sanitizeErrorMessage } from "../src/search-embedding/sanitize";
 import { EmbeddingState } from "../src/search-embedding/state";
 import { testPlanRows } from "./search-embedding.cases";
@@ -550,13 +550,14 @@ describe("Spec 016 embedding run", () => {
     const [poison] = await ids([fifty[37]!]);
     const result = await h.run();
     expect(result).toMatchObject({ ok: false, failureKind: "model", limited: null, chunks: 50, embedded: 49, pending: 1, embeddedThisRun: 49, storedVectors: 49 });
-    // 1 for the batch, then 2 per level: 25, 13, 7, 4, 2, 1 texts.
-    expect(result.modelCalls).toBe(13);
-    expect(h.model.calls.map((texts) => texts.length)).toEqual([50, 25, 25, 12, 13, 6, 7, 3, 4, 2, 2, 1, 1]);
+    // 1 for the batch, then 2 per level; never more than 1 + 2 × ceil(log2 50) = 13.
+    expect(h.model.calls.map((texts) => texts.length)).toEqual([50, 25, 25, 12, 13, 6, 3, 1, 2, 3, 7]);
+    expect(result.modelCalls).toBe(11);
+    expect(1 + splitBudget(50) / 2).toBe(13);
     expect(failing(h)).toEqual([`${poison}:1`]);
     expect(h.index.vectors.has(poison!)).toBe(false);
     expectStateMatchesIndex(h);
-    expect(result.spentToday.calls).toBe(13);
+    expect(result.spentToday.calls).toBe(11);
     // The next run tries the one text alone, twice, and touches nothing else.
     h.model.calls.length = 0;
     expect(await h.run()).toMatchObject({ modelCalls: 2, embedded: 49, embeddedThisRun: 0 });
@@ -575,7 +576,8 @@ describe("Spec 016 embedding run", () => {
     // The batch, both halves, the probe that shows the model is up, then each half's own search.
     expect(h.model.calls.slice(0, 4).map((texts) => texts.length)).toEqual([50, 25, 25, 1]);
     expect(h.model.calls[3]).toEqual(["ok"]);
-    expect(result.modelCalls).toBeLessThanOrEqual(1 + 24 + 1);
+    expect(result.modelCalls).toBeLessThanOrEqual(1 + splitBudget(50) + 1);
+    expect(splitBudget(50)).toBe(24);
     expectStateMatchesIndex(h);
   });
 
@@ -597,6 +599,39 @@ describe("Spec 016 embedding run", () => {
     expect(last).toMatchObject({ embedded: 49, pending: 1 });
     expect(failing(h).map((entry) => entry.split(":")[0])).toEqual([poison!]);
     expect(h.storage.values.get("spend:2026-10-10")).toMatchObject({ calls: h.model.calls.length });
+  });
+
+  test.each([[1], [2]])("H55: a bound reached after %i call(s) of a split leaves both halves pending, counted, and unstruck", async (maxCallsPerRun) => {
+    const h = harness({ maxCallsPerRun });
+    publishRelease(h.bucket, "r1", fifty);
+    h.model.respond = poisoned("fifty:03");
+    const result = await h.run();
+    expect(result).toMatchObject({ ok: true, limited: "calls-per-run", modelCalls: maxCallsPerRun, embedded: 0, pending: 50 });
+    // What is left to do is all of it, whichever half the bound fell on.
+    expect(result.estimate).toMatchObject({ chunks: 50, calls: 1 });
+    expect(failing(h)).toEqual([]);
+  });
+
+  test("H55: a batch with more bad texts than its split budget covers resolves what it can and leaves the rest for the next run", async () => {
+    const eight = fifty.slice(0, 8);
+    const h = harness({ batchTexts: 8 });
+    publishRelease(h.bucket, "r1", [...eight, projectB("healthy-first")]);
+    // Four of eight texts fail, one in every pair: both halves and all quarters fail.
+    h.model.respond = poisoned("fifty:00", "fifty:02", "fifty:04", "fifty:06");
+    expect(splitBudget(8)).toBe(12);
+    const first = await h.run();
+    // 1 for the batch, 12 for its parts, 1 probe, 1 for the other project's text.
+    expect(first.modelCalls).toBeLessThanOrEqual(1 + 12 + 1 + 1);
+    expect(first.ok).toBe(false);
+    const struck = failing(h).length;
+    expect(struck).toBeGreaterThan(0);
+    expect(struck).toBeLessThan(4);
+    // Whatever was not reached is pending, not struck, and the next run finishes the job.
+    expect(first.pending).toBeGreaterThan(struck);
+    const second = await h.run();
+    expect(second).toMatchObject({ embedded: 5, pending: 4 });
+    expect(failing(h)).toHaveLength(4);
+    expectStateMatchesIndex(h);
   });
 
   test("H55: when the model is down a run costs four calls, strikes nothing, and embeds everything once it is back", async () => {
@@ -638,11 +673,11 @@ describe("Spec 016 embedding run", () => {
   test("H47: a run that dies while a batch is being split is continued without embedding the stored halves again", async () => {
     const h = harness({ batchTexts: 4, callTimeoutMs: 2 ** 30 });
     publishRelease(h.bucket, "r1", FIVE);
-    // a2 fails; the run dies on its fourth call ([a2] alone), after [a3 b1]... were not reached.
+    // a2 fails; the run dies on its fourth call, after the half [a3 b1] was stored.
     h.model.respond = (call, texts) => (call === 3 ? new Promise<never>(() => undefined) : poisoned("a2")(call, texts));
     void h.run();
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(h.model.calls.map((texts) => texts.map((text) => text.slice(-2)).join(" "))).toEqual(["a1 a2 a3 b1", "a1 a2", "a3 b1", "a2"]);
+    expect(h.model.calls.map((texts) => texts.map((text) => text.slice(-2)).join(" "))).toEqual(["a1 a2 a3 b1", "a1 a2", "a3 b1", "a1"]);
     expect(h.storage.vectorIds()).toHaveLength(2);
     expect(h.storage.values.get("spend:2026-10-10")).toEqual({ neurons: 4, calls: 4 });
 
@@ -694,7 +729,7 @@ describe("Spec 016 embedding run", () => {
     await new EmbeddingState(reset.storage).clear();
     expect(strikes(reset)).toEqual([]);
     reset.model.respond = () => undefined;
-    expect(await reset.run()).toMatchObject({ ok: true, embedded: 5, quarantined: 0, modelCalls: 1 });
+    expect(await reset.run()).toMatchObject({ ok: true, embedded: 5, quarantined: 0, modelCalls: 3 });
   });
 
   test("H54: no error text leaves the run with a bearer token or a token-like string in it", async () => {

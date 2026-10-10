@@ -13,6 +13,7 @@ import { healthBody } from "./health";
 import { runDataPublication, type PipelinePhaseMarker, type PipelineRunStatus } from "./pipeline";
 import type { EmbeddingAiBinding, VectorIndex } from "@oss-knowledge-base/semantic-vectorize";
 import { SearchEmbeddingRunner, unboundSearchEmbeddingHealth } from "./search-embedding/runner";
+import { sanitizeErrorMessage } from "./search-embedding/sanitize";
 
 interface Env {
   readonly PUBLICATION_ENVIRONMENT: "development" | "production";
@@ -73,7 +74,7 @@ export function searchEmbeddingTrigger(
   return async (status) => {
     if (!status.ok) return;
     const response = await searchEmbeddingObject(env)!.fetch("https://search-embedding.internal/run", { method: "POST" });
-    if (!response.ok && response.status !== 409) console.error(`Scheduling the search embedding failed: ${response.status} ${await response.text()}`);
+    if (!response.ok && response.status !== 409) console.error(sanitizeErrorMessage(`Scheduling the search embedding failed: ${response.status} ${await response.text()}`));
   };
 }
 

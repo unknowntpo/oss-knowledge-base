@@ -288,13 +288,13 @@ describe("Spec 016 embedding object", () => {
     const secret = "Bearer s3cr3t.t0ken-1";
     ai.fail = new Error(`AiError: 5007: upstream said ${secret} key=${"a1B2".repeat(10)} ${"and more ".repeat(60)}`);
     const failed = await alarm();
-    expect(failed.lastError).toEqual({ kind: "model", message: expect.stringContaining("AiError: 5007: upstream said Bearer [redacted] key=[redacted]"), at: "2026-10-10T08:00:00.000Z", batchSize: 2 });
+    expect(failed.lastError).toEqual({ kind: "model", message: expect.stringContaining("AiError: 5007: upstream said Bearer [redacted] [redacted] and more"), at: "2026-10-10T08:00:00.000Z", batchSize: 2 });
     expect(failed.lastError!.message).not.toContain("s3cr3t");
     expect(failed.lastError!.message).not.toContain("a1B2a1B2");
     expect(failed.lastError!.message).toHaveLength(200);
     // The same text in the run result, its model errors, and the HTTP body of a trigger.
     expect(JSON.stringify(failed.lastRun)).not.toMatch(/s3cr3t|a1B2a1B2/u);
-    expect(failed.lastRun!.modelErrors[0]!.message).toContain("Bearer [redacted] key=[redacted]");
+    expect(failed.lastRun!.modelErrors[0]!.message).toContain("Bearer [redacted] [redacted] and more");
     // An alarm that throws logs and records a redacted message as well.
     const thrower = setup();
     thrower.storage.fail = (write) => (write === "put run-started" ? new Error(`storage said ${secret} ${"Zm9v+/8=".repeat(6)}`) : undefined);
