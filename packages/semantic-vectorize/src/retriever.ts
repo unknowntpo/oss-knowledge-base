@@ -67,7 +67,6 @@ export class VectorizeSemanticRetriever implements SemanticRetriever {
         const metadata = parseVectorMetadata(match.metadata);
         if (metadata === undefined || metadata.r !== profile.semanticRevision) continue;
         if (!(match.score > 0) || !Number.isFinite(match.score)) continue;
-        if (match.namespace !== undefined && match.namespace !== projectId) continue;
         proposed.push({ projectId, score: match.score, metadata });
       }
     });

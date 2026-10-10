@@ -156,6 +156,14 @@ describe("Spec 016 Vectorize semantic retriever", () => {
     // A view that answers with some other chunk cannot put it in the results.
     const lying: SemanticReleaseView = { indexRevision: "x", projectIds: ["apache-kafka"], chunks: async (refs) => refs.map(() => corpus[2]!) };
     expect(await records((await setup(corpus, corpus, { release: lying })).retriever)).toEqual([]);
+
+    // Not even a chunk with the same title, text and group: another record, or another passage of it.
+    const original = kafka("kafka:1", "transaction timeout in the coordinator", { title: "same title" });
+    for (const twin of [{ ...original, recordId: "kafka:twin", id: "chunk:twin" }, { ...original, ordinal: 1, id: "chunk:kafka:1:1" }, { ...original, projectId: "apache-datafusion", id: "chunk:other-project" }]) {
+      const swapping: SemanticReleaseView = { indexRevision: "x", projectIds: ["apache-kafka"], chunks: async (refs) => refs.map(() => twin) };
+      expect(await records((await setup([original], [original], { release: swapping })).retriever)).toEqual([]);
+    }
+    expect(await records((await setup([original], [original])).retriever)).toEqual(["kafka:1"]);
   });
 
   test("H22: a vector of another semantic revision is never a candidate, while a mixed index is re-embedded", async () => {

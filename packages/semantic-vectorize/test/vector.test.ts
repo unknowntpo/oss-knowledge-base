@@ -39,10 +39,11 @@ describe("Spec 016 vector identity and metadata", () => {
       vectorId("apache-datafusion", "record", 0),
       vectorId("apache-kafka", "record2", 0),
       vectorId("apache-kafka", "record", 1),
-      // The separator keeps `("a", "b:c")` apart from `("a:b", "c")`.
-      vectorId("apache-kafka\u0000record", "", 0),
     ]);
-    expect(new Set([base, ...others]).size).toBe(5);
+    expect(new Set([base, ...others]).size).toBe(4);
+    // The parts are separated, so text moved from one part to the next is another id.
+    expect(await vectorId("apache", "kafka:1", 0)).not.toBe(await vectorId("apachekafka", ":1", 0));
+    expect(await vectorId("p", "record:1", 0)).not.toBe(await vectorId("p", "record:", 10));
     const chunk = testChunk({ recordId: "record" });
     const later = testChunk({ recordId: "record", sourceVersion: "v2", occurredAt: "2026-10-09T00:00:00.000Z", author: "someone else" });
     expect(later.id).not.toBe(chunk.id);
