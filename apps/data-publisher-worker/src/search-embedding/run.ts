@@ -43,8 +43,9 @@ export interface EmbeddingLimits {
   readonly batchTokens: number;
   readonly deleteBatch: number;
   readonly maxDeletesPerRun: number;
-  /** No batch starts after this long; an alarm has 15 minutes of wall time. */
+  /** No model call or delete starts after this long; an alarm has 15 minutes of wall time. */
   readonly deadlineMs: number;
+  /** A model or index call is abandoned after this long; see `worstCaseWallMs`. */
   readonly callTimeoutMs: number;
   /** A project's vectors are deleted only after this many releases in a row held none of its chunks. */
   readonly absentReleasesBeforeDelete: number;
@@ -63,7 +64,7 @@ export const DEFAULT_EMBEDDING_LIMITS: EmbeddingLimits = {
   deleteBatch: 100,
   maxDeletesPerRun: 2_000,
   deadlineMs: 10 * 60_000,
-  callTimeoutMs: 60_000,
+  callTimeoutMs: 30_000,
   absentReleasesBeforeDelete: 3,
   quarantineAfterFailedRuns: 3,
   quarantineMs: 24 * 3_600_000,
@@ -78,8 +79,10 @@ export function worstCaseWallMs(limits: EmbeddingLimits): number {
   return limits.deadlineMs + limits.callTimeoutMs + (2 * limits.callTimeoutMs + RETRY_DELAY_MS);
 }
 
-/** Sent alone when a batch and both its halves fail and nothing has succeeded in the run. */
+/** Sent alone to learn whether the model answers at all. */
 export const PROBE_TEXT = "ok";
+/** After this many failed calls in a row, earlier successes no longer show that the model answers. */
+export const PROBE_AFTER_FAILURES = 3;
 
 /** Calls a failed batch of `size` texts may spend on its parts: two per level for two bad texts. */
 export function splitBudget(size: number): number {
@@ -297,6 +300,7 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
   let spentNeurons = 0;
   let modelFailures = 0;
   let modelSuccesses = 0;
+  let failedInARow = 0;
   let modelDown = false;
   let lastModelError = "";
   let indexInfo: EmbeddingRunResult["index"] = null;
@@ -331,7 +335,8 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
     const estimate = Math.max(1, neurons(model, tokens, 0));
     const date = today();
     const ledger = await state.ledger(date);
-    if (modelCalls >= limits.maxCallsPerRun) run.limited = "calls-per-run";
+    if (input.now().getTime() - startedAt >= limits.deadlineMs) run.limited = "deadline";
+    else if (modelCalls >= limits.maxCallsPerRun) run.limited = "calls-per-run";
     else if (ledger.calls >= limits.maxCallsPerDay) run.limited = "calls-per-day";
     else if (ledger.neurons + estimate > limits.dailyNeuronCap) run.limited = "daily-neurons";
     if (run.limited !== null) return "stopped";
@@ -346,6 +351,7 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
         if (vector.length !== dimensions) throw new Error(`Embedding has ${vector.length} dimensions, expected ${dimensions}`);
       }
       modelSuccesses += 1;
+      failedInARow = 0;
       return { vectors };
     } catch (error) {
       const mapped = toModelCallError(error);
@@ -358,6 +364,7 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
         run.limited = "model-limit";
         return "stopped";
       }
+      failedInARow += 1;
       return { failed: lastModelError };
     }
   };
@@ -438,16 +445,14 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
         }
         // A batch the next shard could still fill waits for it.
         if (!final && size === queue.length && size < limits.batchTexts && size < room) return;
-        if (input.now().getTime() - startedAt >= limits.deadlineMs) {
-          run.limited = "deadline";
-          continue;
-        }
         const batch = queue.slice(0, size);
         queue = queue.slice(size);
         await embedIsolating(batch);
       }
     };
 
+    /** Texts in the batch being embedded, for the error a failed probe leaves behind. */
+    let batchSize = 0;
     const tokensOf = (items: readonly PendingChunk[]) => items.reduce((sum, item) => sum + item.tokens, 0);
     const halves = (items: readonly PendingChunk[]) => [items.slice(0, Math.floor(items.length / 2)), items.slice(Math.floor(items.length / 2))] as const;
 
@@ -483,23 +488,28 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
     };
 
     /**
-     * Whether failures so far can be blamed on the texts. True once any call of this run succeeded
-     * or the text has failed alone before; otherwise one probe text decides, and a failed probe
-     * means the model is down: the run stops embedding and nothing is struck.
+     * Whether a failure can be blamed on the texts: only while the model demonstrably answers,
+     * that is, a call of this run succeeded and fewer than `PROBE_AFTER_FAILURES` calls have
+     * failed in a row since. Otherwise one probe text decides. A failed probe means the model is
+     * down: the run stops embedding and nothing in the tree is struck or split further.
      */
-    const modelAnswers = async (items: readonly PendingChunk[]): Promise<boolean> => {
-      if (modelSuccesses > 0 || items.some((item) => item.strikes > 0)) return true;
+    const modelAnswers = async (): Promise<boolean> => {
+      if (modelSuccesses > 0 && failedInARow < PROBE_AFTER_FAILURES) return true;
       const probe = await attempt(model, [PROBE_TEXT], 1);
       if (probe === "stopped") return false;
       if ("vectors" in probe) return true;
       run.limited = "model-down";
       modelDown = true;
-      lastFailure = { kind: "model", message: probe.failed, batchSize: items.length };
+      lastFailure = { kind: "model", message: probe.failed, batchSize: batchSize };
       return false;
     };
 
-    /** `piece` failed as a whole: try its halves, each once, down to the texts that fail alone. */
+    /** `piece` failed as a whole: strike it if it is one text, else try its halves, each once. */
     const split = async (piece: readonly PendingChunk[], budget: { calls: number }): Promise<void> => {
+      if (!(await modelAnswers())) {
+        leave(piece);
+        return;
+      }
       if (piece.length === 1) {
         await strike(piece[0]!);
         return;
@@ -520,15 +530,14 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
      * one more call than a retry would, and one bad text no longer keeps its neighbours out.
      */
     const embedIsolating = async (batch: readonly PendingChunk[]): Promise<void> => {
+      batchSize = batch.length;
       if (await embedItems(batch) !== "failed") return;
       await input.delay(RETRY_DELAY_MS);
+      const budget = { calls: splitBudget(batch.length) - 2 };
       if (batch.length === 1) {
-        if (await embedItems(batch) !== "failed") return;
-        if (await modelAnswers(batch)) await strike(batch[0]!);
-        else leave(batch);
+        if (await embedItems(batch) === "failed") await split(batch, budget);
         return;
       }
-      const budget = { calls: splitBudget(batch.length) - 2 };
       const [left, right] = halves(batch);
       const first = await embedItems(left);
       if (first === "stopped") {
@@ -538,10 +547,6 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
       const second = await embedItems(right);
       if (second === "stopped") {
         if (first === "failed") leave(left);
-        return;
-      }
-      if (first === "failed" && second === "failed" && !(await modelAnswers(batch))) {
-        leave(batch);
         return;
       }
       if (first === "failed") await split(left, budget);

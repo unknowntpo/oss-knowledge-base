@@ -104,7 +104,9 @@ kept until a later run embeds), and `lastRun` (`releaseId`, `chunks`,
 `index.mutationsProcessed`, `estimate`).
 
 Bounds: 3,000 chunks and 80 model calls per run; 400 calls and 2,500
-estimated neurons per UTC day; 10 minutes per run. A run that reaches one
+estimated neurons per UTC day. No model call or delete starts after 10
+minutes and each call is abandoned after 30 seconds, so a run ends within
+11 min 35 s (the alarm limit is 15 minutes). A run that reaches one
 reports `limited` and the next run continues. The Dev backfill (8,586
 chunks) is about 172 calls, 0.76 M estimated tokens, 832 estimated neurons,
 under one cent, in three runs within one UTC day.
@@ -115,14 +117,18 @@ under one cent, in three runs within one UTC day.
   hour. A rollback to an older release counts as a release too. Check the
   publisher's sources first.
 - `quarantined`: texts that failed alone in three runs in a row; they are
-  skipped for 24 hours and then tried once (2 calls). `lastError` says why.
-  A failed batch is split in halves to find such a text: at most 13 calls
-  for a batch of 50, and the other texts are embedded in the same run.
-- `limited: model-down`: a batch, both its halves, and a probe text failed
-  (4 calls). The run stopped embedding and struck nothing; the next run
-  tries again.
+  skipped for 24 hours and then tried once (at most 3 calls). `lastError`
+  says why. A failed batch is split in halves to find such a text: at most
+  15 calls for a batch of 50, and the other texts are embedded in the same
+  run.
+- `limited: model-down`: after three failed calls in a row (or before any
+  call of the run succeeded) a probe text failed too. The run stopped
+  embedding and struck nothing: 4 calls when the model is down from the
+  start, at most 4 more when it stops in mid-run. The next run tries again.
 - Error texts in `/health`, in the endpoint's answers, and in the logs have
-  bearer tokens and long token-like strings replaced by `[redacted]`.
+  bearer tokens and tokens of 32 or more characters (hex, base64) replaced
+  by `[redacted]`; object keys and URL paths stay readable, except a path
+  segment of 32 or more characters such as an account id or a digest.
 
 ### Dry run (calls no model and no index, writes nothing)
 

@@ -179,7 +179,7 @@ project, and the separate gateway. These were left to the implementer:
     means repeated manual triggers cannot shorten the wait.
 19. **Quarantine is by time, not forever** (Behavior 24). A text that fails
     alone in three runs in a row is skipped for 24 hours and then tried once
-    more (2 calls), so a wrong conviction heals by itself.
+    more (at most 3 calls), so a wrong conviction heals by itself.
 20. **A failed batch is split, not retried whole** (Behavior 25, after the
     second verdict on PR #50). Retrying 50 texts as one call can only fail
     again when one of them is bad, and the 49 others stay unembedded beside it
@@ -188,7 +188,19 @@ project, and the separate gateway. These were left to the implementer:
     the whole-batch retry, so a transient error costs 3 calls instead of 2.
     A probe text tells a bad batch from a model that is down, because both
     look the same from one batch: without it, either two bad texts in the
-    first batch are never separated or an outage splits every batch.
+    first batch are never separated or an outage splits every batch. The
+    evidence has to be recent (third verdict): "some call succeeded earlier
+    in this run" let a model that died in mid-run get healthy texts struck,
+    so three failures in a row call for a new probe, and a text struck before
+    is treated like any other.
+22. **The deadline is checked before every model call, and the call timeout
+    is 30 seconds, not 60** (Behavior 19, third verdict). Checked only
+    between batches, one split with 60-second timeouts could run 13 minutes
+    and a late batch past the alarm's 15, leaving no result at all. A normal
+    call takes a few seconds; 30 keeps the worst case at 11 min 35 s.
+23. **A path is not a token** (Behavior 24, third verdict). Redacting every
+    run of 32 token characters also removed object keys and URL paths from
+    foreign error text, which is what an operator needs to read.
 21. **Every error text is redacted** (Behavior 24), in the embedding path
     only. The digest shares `errorShape` and still surfaces model errors
     unredacted (gardening G43).
@@ -396,9 +408,14 @@ Embedding publication and the Vectorize adapter (slice 2b):
     must answer with the profile's dimensions, or the run fails before any
     model call; whether the index has processed the last accepted mutation is
     reported, not acted on.
-19. **Bounds.** Per run: at most 3,000 chunks, 80 model calls, 2,000 deletes,
-    and 10 minutes before the next batch starts; each model or Vectorize call
-    is abandoned after 60 seconds. Per UTC day: at most 400 model calls and
+19. **Bounds.** Per run: at most 3,000 chunks, 80 model calls, and 2,000
+    deletes. No model call (a batch, a half, a retry, a probe) and no delete
+    starts 10 minutes or more after the run began, and each model or
+    Vectorize call is abandoned after 30 seconds. So the longest run is the
+    deadline, plus the last model call, plus its upsert timing out, waiting 5
+    seconds, and timing out again: 600 + 30 + 65 = 695 seconds, 11 min 35 s,
+    under the alarm's 15 minutes (`worstCaseWallMs`; reads of the release are
+    not timed by the run). Per UTC day: at most 400 model calls and
     2,500 estimated neurons (`@cf/baai/bge-m3` at 1,091 neurons per million
     input tokens, estimated with the digest's token estimate; every call
     counts at least 1). The ledger is written before each model call, so a
@@ -459,9 +476,13 @@ Embedding publication and the Vectorize adapter (slice 2b):
     only reaches a bound leaves it. Every error text this path stores,
     returns, or logs (`lastError`, a run's `error` and `modelErrors`, the
     body of `POST /search-embedding/run`, `configError`, `console.error`) has
-    `Bearer …` and any run of 32 or more base64, base64url, or hex characters
-    replaced by `[redacted]` and is then cut to 200 characters; object keys
-    the run itself names are kept. A text that fails alone (Behavior 25) in
+    `Bearer …` and every token replaced by `[redacted]` and is then cut to
+    200 characters. A token is a run of 32 or more characters out of letters,
+    digits, and `_ - + / =` (hex, base64, base64url), unless the run is a
+    path: it holds a `/`, holds no `+` or `=`, and none of its words (split
+    on `/ - _`) mixes lower-case and upper-case letters. In a path only a
+    segment of 32 or more characters (a digest, an account id) is redacted.
+    Object keys the run itself names are never touched. A text that fails alone (Behavior 25) in
     three runs in a row, at the same fingerprint and revision, is
     quarantined: skipped for 24 hours, then tried once more. A run reports
     `quarantined` and the first five ids. A changed chunk, another revision,
@@ -470,20 +491,32 @@ Embedding publication and the Vectorize adapter (slice 2b):
     (not a refusal), each half is sent once; a half that succeeds is stored
     at once, a half that fails is halved again, down to single texts. A text
     that fails alone is struck (Behavior 24) and from then on is sent alone,
-    so it cannot fail a batch again. Every call is counted in the ledger
-    before it is made and is subject to the per-run and per-day bounds; a
-    bound reached part-way leaves the stored halves stored and the rest
-    pending and unstruck. One batch may spend at most `4 × ceil(log2 n)`
-    calls on its parts (24 for 50: two bad texts); parts not reached wait for
-    the next run. When a batch and both its halves fail, or a single text
-    fails twice, and no model call has succeeded in the run, one probe text
-    (`ok`) is embedded: if it fails too the model is down, the run stops
-    embedding with `limited: model-down` and `ok: false`, and nothing is
-    struck. Worst cases: one bad text in a batch of 50 costs 13 calls in the
-    first run, 2 in each of the next two, then 2 per 24 hours (17 on the
-    first day); two bad texts in one batch at most 26; a model outage 4 calls
-    a run (96 a day at one run an hour) and no strike; a transient error 3.
-    A refusal or a store failure stops the run as before and never splits.
+    so it cannot fail a batch again. Every call, probes included, is counted
+    in the ledger before it is made and is subject to the deadline and the
+    per-run and per-day bounds; a bound reached part-way leaves the stored
+    halves stored and the rest pending and unstruck. One batch may spend at
+    most `4 × ceil(log2 n)` calls on its parts (24 for 50: two bad texts);
+    parts not reached wait for the next run.
+
+    A failure is blamed on the texts, that is, a failed part is split
+    further or a single text struck, only while the model demonstrably
+    answers: a call of this run has succeeded and fewer than 3 calls have
+    failed in a row since. Otherwise one probe text (`ok`) is embedded first.
+    If the probe succeeds the work goes on; if it fails the model is down:
+    the run stops embedding with `limited: model-down` and `ok: false`, and
+    nothing is struck, whether the text was struck before or not. A refusal
+    or a store failure stops the run as before and never splits.
+
+    | Case | Model calls |
+    | --- | --- |
+    | One bad text in a batch of 50, first run | at most 15: 13 on texts (`1 + 2 × ceil(log2 50)`) and a probe per 3 failures in a row (12 in the test) |
+    | That text alone in a later run | 3 (the text, its retry, a probe), or 2 when another call of the run succeeded |
+    | That text once quarantined | at most 3 per 24 hours |
+    | That text, first day | at most 21 |
+    | Two bad texts in one batch | at most 33 (1 + 24 + probes) |
+    | The model down from the start | 4 a run (batch, two halves, probe); 3 for a single text; 96 a day at one run an hour; no strike |
+    | The model going down in mid-run | at most 4 after it stops (3 failures in a row, then the probe); no strike |
+    | A transient error on one batch | 3 |
 
 ## Community profile fit
 
@@ -951,8 +984,13 @@ Items tagged `[pending]` belong to slices 3–4.
 - H46: given each `H46` row of the embedding run plan, a run that reaches a
   bound (chunks or model calls per run, model calls or neurons per UTC day,
   the deadline) stops embedding, records what it stored, reports `limited`,
-  and later runs embed only the rest, until nothing is pending → evidence:
-  `search-embedding-run.test.ts` rows.
+  and later runs embed only the rest, until nothing is pending; given model
+  calls that each take their whole 30-second timeout, no call (batch, half,
+  single-text retry, probe) starts at or after the deadline, a deadline that
+  falls inside a split leaves the stored halves stored and the rest pending
+  and unstruck, and the run ends within `worstCaseWallMs`, which is 695
+  seconds for the default bounds and under 12 minutes → evidence:
+  `search-embedding-run.test.ts` rows and tests.
 - H47: given a run that dies after the model answered, after the upsert was
   accepted, or while the state is written, the retried run embeds at most
   that batch again, the day's ledger holds both attempts, the state names
@@ -981,23 +1019,30 @@ Items tagged `[pending]` belong to slices 3–4.
   embeds without a failure; given a bearer token, a base64 string with
   `+ / =`, or a long hex string in an error from the model, the index, the
   bucket, or the storage, no result, stored value, HTTP body, or log line of
-  the embedding path holds it, redaction comes before the 200-character cut,
-  and the object key in a release-read error stays; given a text that fails
+  the embedding path holds it (the publisher's log lines for a failed
+  trigger included), redaction comes before the 200-character cut, and the
+  object key in a release-read error stays; given each sanitizer row (an R2
+  key path and a gateway URL path kept, a digest, a 48-hex id, base64 with
+  `/` `+` `=`, a bearer token with slashes redacted, 31 characters kept and
+  32 redacted, for a run and for a path segment) the text is as listed; given a text that fails
   alone in three runs in a row, later runs skip it, report `quarantined` and
   its id, and spend no call on it for 24 hours, then try once; a refusal, a
   model outage, a store failure, a changed chunk, another revision, and
   `reset=1` do not or no longer quarantine → evidence:
   `search-embedding-run.test.ts`, `search-embedding-runner.test.ts`.
 - H55: given each `H55` row of the embedding run plan and a batch of 50 with
-  one failing text, the other 49 are embedded in the same run in at most 13
+  one failing text, the other 49 are embedded in the same run in at most 15
   calls and only that text is struck, then sent alone; two failing texts in
   one batch are both isolated within the split budget; a bound reached
   while splitting leaves the stored halves stored, strikes nothing, and
   later runs finish; when every call fails a run makes 4 calls (3 for a
-  single text), reports `limited: model-down`, and strikes nothing; a
-  refusal or a store failure makes one call and no split; every call of a
-  split is in the day's ledger → evidence: `search-embedding-run.test.ts`
-  rows and tests.
+  single text), reports `limited: model-down`, and strikes nothing; when the
+  model stops answering in mid-run, between batches or inside a split, at
+  most 3 calls fail before a probe, the run reports `model-down`, and no
+  text is struck, including one struck before, while the same failure with
+  the probe answered is a strike; a refusal or a store failure makes one
+  call and no split; every call of a split is in the day's ledger →
+  evidence: `search-embedding-run.test.ts` rows and tests.
 - H49: given an index that accepts mutations without applying them, the run
   records each chunk as embedded, a second run embeds nothing, and `/health`
   reports the last mutation id and that the index has not processed it; once
@@ -1222,7 +1267,7 @@ Limits of these numbers:
   become queryable are read on Dev (H52).
 
 Worker bundle (`wrangler deploy --dry-run`, both configurations): 278.51 KiB
-(gzip 69.92) before, 319.23 KiB (gzip 79.52) after.
+(gzip 69.92) before, 319.60 KiB (gzip 79.71) after.
 
 Mutation evidence (one mutant or more per behavior, each seen failing) is
 listed in the PR.

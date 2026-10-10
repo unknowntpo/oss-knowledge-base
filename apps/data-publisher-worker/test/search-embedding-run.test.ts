@@ -656,8 +656,8 @@ describe("Spec 016 embedding run", () => {
     publishRelease(inside.bucket, "r1", fifty);
     inside.model.respond = (call, texts) => (call >= 2 ? new Error("AiError: 3040: Capacity temporarily exceeded") : poisoned("fifty:37")(call, texts));
     const split = await inside.run();
-    // 50 fails, 25 stored, then 25, 12 and 13 fail in a row and the probe fails.
-    expect(inside.model.calls.map((texts) => texts.length)).toEqual([50, 25, 25, 12, 13, 1]);
+    // 50 fails, 25 stored, then 25, 12 and 6 fail in a row and the probe fails.
+    expect(inside.model.calls.map((texts) => texts.length)).toEqual([50, 25, 25, 12, 6, 1]);
     expect(split).toMatchObject({ limited: "model-down", embedded: 25, pending: 25 });
     expect(failing(inside)).toEqual([]);
     expect(split.estimate.chunks).toBe(25);
@@ -733,6 +733,8 @@ describe("Spec 016 embedding run", () => {
     ["a sha256 digest is redacted", `object sha256:${"9f".repeat(32)} differs`, "object sha256:[redacted] differs"],
     ["a 40-character base64 string with / and + is redacted", "token QUJDREVGR0hJ/ktMTU5PUFFS+1RVVldYWVo0MTIz rejected", "token [redacted] rejected"],
     ["a base64 string with / and = is redacted", "token QUJDREVGR0hJ/ktMTU5PUFFSU1RVVldYWVo0MTI= rejected", "token [redacted] rejected"],
+    ["a single-case string with / and + is redacted", "token abcdefghijklmnop/qrstuvwxyz0123456789+abc rejected", "token [redacted] rejected"],
+    ["a single-case string with / and = is redacted", "token abcdefghijklmnop/qrstuvwxyz0123456789abc= rejected", "token [redacted] rejected"],
     ["a base64 string with only / is redacted", "token QUJDREVGR0hJSktM/TU5PUFFSU1RVVldYWVo0MTIz rejected", "token [redacted] rejected"],
     ["a 48-hex id is redacted", `vector ${"ab12".repeat(12)} missing`, "vector [redacted] missing"],
     ["a bearer token with slashes is redacted", "401 Bearer x/y/z.abc sent", "401 Bearer [redacted] sent"],
