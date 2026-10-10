@@ -22,7 +22,7 @@ import {
   type EmbeddingRunResult,
   type ReleaseReader,
 } from "./run";
-import { EmbeddingState, type AcceptedMutation, type EmbeddingStorage } from "./state";
+import { EmbeddingState, type AcceptedMutation, type EmbeddingStorage, type LastEmbeddingError } from "./state";
 
 export interface SearchEmbeddingRunnerDeps {
   readonly storage: EmbeddingStorage;
@@ -79,6 +79,8 @@ export interface SearchEmbeddingHealth {
   readonly interrupted: { readonly startedAt: string } | null;
   readonly today: { readonly date: string; readonly estimatedNeurons: number; readonly cap: number; readonly calls: number; readonly callCap: number };
   readonly lastMutation: AcceptedMutation | null;
+  /** The last model or vector-store failure, until a later run embeds successfully. */
+  readonly lastError: LastEmbeddingError | null;
   readonly lastRun: EmbeddingRunResult | null;
 }
 
@@ -96,6 +98,7 @@ export function unboundSearchEmbeddingHealth(flag: string | undefined, now: Date
     interrupted: null,
     today: { date: now.toISOString().slice(0, 10), estimatedNeurons: 0, cap: DEFAULT_EMBEDDING_LIMITS.dailyNeuronCap, calls: 0, callCap: DEFAULT_EMBEDDING_LIMITS.maxCallsPerDay },
     lastMutation: null,
+    lastError: null,
     lastRun: null,
   };
 }
@@ -132,6 +135,7 @@ export class SearchEmbeddingRunner {
       interrupted: this.running ? null : marker ?? null,
       today: { date, estimatedNeurons: ledger.neurons, cap: this.limits.dailyNeuronCap, calls: ledger.calls, callCap: this.limits.maxCallsPerDay },
       lastMutation: (await this.state.lastMutation()) ?? null,
+      lastError: (await this.state.lastError()) ?? null,
       lastRun: (await this.deps.storage.get<EmbeddingRunResult>("lastRun")) ?? null,
     };
   }

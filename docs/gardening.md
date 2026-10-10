@@ -368,7 +368,7 @@ the two `viewer/` items below.
 - **Layer:** measurement.
 - **Source:** Spec 016 slice 2a.
 
-### G38. `SEARCH_EMBEDDING` is a rollout flag; embedding is built but off
+### G40. `SEARCH_EMBEDDING` is a rollout flag; embedding is built but off
 - **Where:** `searchEmbeddingConfig`
   (`apps/data-publisher-worker/src/search-embedding/runner.ts`),
   `searchEmbeddingTrigger` (`src/index.ts`), the `H45` configuration test in
@@ -384,7 +384,7 @@ the two `viewer/` items below.
 - **Layer:** test (H45) now.
 - **Source:** Spec 016 slice 2b.
 
-### G39. Embedding bounds and the fake index rest on documentation, not measurement
+### G41. Embedding bounds and the fake index rest on documentation, not measurement
 - **Where:** `DEFAULT_EMBEDDING_LIMITS`
   (`apps/data-publisher-worker/src/search-embedding/run.ts`): 50 texts and
   20,000 estimated tokens per call; `VECTOR_LIMITS` and `FakeVectorIndex`
@@ -396,12 +396,15 @@ the two `viewer/` items below.
   takes to become queryable are unknown until H52; the fake index enforces
   the limits as documented on 2026-10-10 and will drift when they change.
 - **Fix:** after H52, write the observed values into Spec 016 Results, tune
-  the bounds, and correct the fake where Dev disagreed. A batch that fails
-  twice is retried every run and shows in `/health` `lastRun.modelErrors`.
+  the bounds, and correct the fake where Dev disagreed. Record the ratio of
+  the gateway's reported tokens to the estimate (the estimate may undercount
+  by up to about 2×; the daily cap of 2,500 allows for that). A batch that
+  fails in three runs in a row is quarantined for a day and shows in
+  `/health` `lastRun.quarantined` and `lastError`.
 - **Layer:** measurement (H52), then test (the fake).
 - **Source:** Spec 016 slice 2b.
 
-### G40. No reader can find a release's chunk for a stored vector yet
+### G42. No reader can find a release's chunk for a stored vector yet
 - **Where:** `SemanticReleaseView`
   (`packages/semantic-vectorize/src/release-view.ts`); the only
   implementation is `createInMemoryReleaseView`, used by tests.

@@ -25,14 +25,18 @@ import {
 
 import { errorShape, modelErrorKind, RETRY_DELAY_MS, type ModelErrorShape } from "../digest/model";
 import { toModelCallError } from "../digest/workers-ai";
-import type { EmbeddingState } from "./state";
+import type { EmbeddingState, LastEmbeddingError } from "./state";
 
 export interface EmbeddingLimits {
   readonly maxChunksPerRun: number;
   /** Model requests per run, retries included; the search gateway allows 600 per hour. */
   readonly maxCallsPerRun: number;
   readonly maxCallsPerDay: number;
-  /** Estimated neurons per UTC day; with the digest's 4,500 it stays under the 10,000 included. */
+  /**
+   * Estimated neurons per UTC day. The estimate may undercount the model's tokenizer by up to
+   * about 2× on CJK and identifier text; twice this plus the digest's 4,500 is under the 10,000
+   * neurons a day the plan includes.
+   */
   readonly dailyNeuronCap: number;
   readonly batchTexts: number;
   readonly batchTokens: number;
@@ -41,20 +45,31 @@ export interface EmbeddingLimits {
   /** No batch starts after this long; an alarm has 15 minutes of wall time. */
   readonly deadlineMs: number;
   readonly callTimeoutMs: number;
+  /** A project's vectors are deleted only after this many releases in a row held none of its chunks. */
+  readonly absentReleasesBeforeDelete: number;
+  /** A chunk whose batch failed in this many runs in a row is skipped for `quarantineMs`. */
+  readonly quarantineAfterFailedRuns: number;
+  readonly quarantineMs: number;
 }
 
 export const DEFAULT_EMBEDDING_LIMITS: EmbeddingLimits = {
   maxChunksPerRun: 3_000,
   maxCallsPerRun: 80,
   maxCallsPerDay: 400,
-  dailyNeuronCap: 3_000,
+  dailyNeuronCap: 2_500,
   batchTexts: 50,
   batchTokens: 20_000,
   deleteBatch: 100,
   maxDeletesPerRun: 2_000,
   deadlineMs: 10 * 60_000,
   callTimeoutMs: 60_000,
+  absentReleasesBeforeDelete: 3,
+  quarantineAfterFailedRuns: 3,
+  quarantineMs: 24 * 3_600_000,
 };
+
+/** How many quarantined vector ids a result names. */
+const QUARANTINE_SAMPLE = 5;
 
 export type EmbeddingLimit =
   | "chunks-per-run" | "calls-per-run" | "calls-per-day" | "daily-neurons" | "deadline"
@@ -93,6 +108,12 @@ export interface EmbeddingRunResult {
   readonly embeddedThisRun: number;
   readonly deletedThisRun: number;
   readonly deletePending: number;
+  /** Stale vectors kept because their whole project is missing from the release (Behavior 23). */
+  readonly heldDeletes: number;
+  readonly absentProjects: readonly { readonly projectId: string; readonly vectors: number; readonly releases: number }[];
+  /** Chunks skipped because their batch failed in several runs in a row, and the first few ids. */
+  readonly quarantined: number;
+  readonly quarantinedIds: readonly string[];
   readonly storedVectors: number;
   readonly storedDimensions: number;
   readonly modelCalls: number;
@@ -172,7 +193,17 @@ class BatchCount {
   }
 }
 
+/** Keeps a stored error short and free of anything that looks like a credential. */
+export function sanitizeErrorMessage(text: string): string {
+  return text
+    .replace(/Bearer\s+\S+/giu, "Bearer [redacted]")
+    .replace(/[A-Za-z0-9_-]{32,}/gu, "[redacted]")
+    .slice(0, 200);
+}
+
 interface PendingChunk {
+  /** Consecutive failed runs recorded for this passage at this fingerprint and revision. */
+  readonly strikes: number;
   readonly ref: ChunkVectorRef;
   readonly chunk: SourceRecordChunkV1;
   readonly text: string;
@@ -212,6 +243,10 @@ export function failedEmbeddingRun(kind: EmbeddingFailureKind, error: string, no
     embeddedThisRun: 0,
     deletedThisRun: 0,
     deletePending: 0,
+    heldDeletes: 0,
+    absentProjects: [],
+    quarantined: 0,
+    quarantinedIds: [],
     storedVectors: 0,
     storedDimensions: 0,
     modelCalls: 0,
@@ -241,6 +276,11 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
   let embeddedThisRun = 0;
   let deletedThisRun = 0;
   let deletePending = 0;
+  let heldDeletes = 0;
+  const absentProjects: { projectId: string; vectors: number; releases: number }[] = [];
+  let quarantined = 0;
+  const quarantinedIds: string[] = [];
+  let lastFailure: { readonly kind: LastEmbeddingError["kind"]; readonly message: string; readonly batchSize: number } | undefined;
   let modelCalls = 0;
   let inputTokens = 0;
   let spentNeurons = 0;
@@ -296,6 +336,7 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
         const kind = modelErrorKind(mapped);
         lastModelError = mapped.message;
         if (modelErrors.length < MAX_RECORDED_ERRORS) modelErrors.push(errorShape(model, kind, mapped));
+        lastFailure = { kind: kind === "limit" ? "model-limit" : "model", message: mapped.message, batchSize: texts.length };
         if (kind === "limit") {
           run.limited = "model-limit";
           return undefined;
@@ -308,14 +349,17 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
   };
 
   /** A mutation the index accepted, or `undefined` after two failures. */
-  const mutate = async (label: string, call: () => Promise<{ readonly mutationId: string }>): Promise<string | undefined> => {
+  const mutate = async (label: string, size: number, call: () => Promise<{ readonly mutationId: string }>): Promise<string | undefined> => {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       let mutationId: string;
       try {
         ({ mutationId } = await withTimeout(label, limits.callTimeoutMs, call));
       } catch (error) {
         if (attempt === 0) await input.delay(RETRY_DELAY_MS);
-        else run.failure = { kind: "vector-store", error: `${label} failed: ${message(error)}` };
+        else {
+          run.failure = { kind: "vector-store", error: `${label} failed: ${message(error)}` };
+          lastFailure = { kind: "vector-store", message: run.failure.error, batchSize: size };
+        }
         continue;
       }
       await state.acceptMutation({ id: mutationId, acceptedAt: input.now().toISOString() });
@@ -328,13 +372,15 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
   try {
     const model = embeddingModel(profile);
     entries = await state.entries();
+    const failures = await state.failures();
     lastMutationId = (await state.lastMutation())?.id ?? null;
     if (!dryRun) {
       let info: Awaited<ReturnType<VectorIndex["describe"]>>;
       try {
         info = await withTimeout("The vector index", limits.callTimeoutMs, () => index.describe());
       } catch (error) {
-        throw new RunFailure("vector-store", `The vector index did not answer: ${message(error)}`);
+        lastFailure = { kind: "vector-store", message: `The vector index did not answer: ${message(error)}`, batchSize: 0 };
+        throw new RunFailure("vector-store", lastFailure.message);
       }
       if (info.dimensions !== dimensions) {
         throw new RunFailure("config", `The vector index has ${info.dimensions} dimensions; ${profile.key} needs ${dimensions}`);
@@ -354,6 +400,7 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
     releaseId = manifest.indexRevision;
 
     const seen = new Set<string>();
+    const seenProjects = new Set<string>();
     let queue: PendingChunk[] = [];
     const drain = async (final: boolean): Promise<void> => {
       while (queue.length > 0) {
@@ -384,10 +431,15 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
         const vectors = await embedBatch(model, batch.map((item) => item.text), tokens);
         if (vectors === undefined) {
           leave(batch);
+          // Only a batch the model failed twice counts; a refusal or a bound says nothing about it.
+          if (run.limited === null) {
+            const at = input.now().toISOString();
+            await state.recordFailures(batch.map((item) => [item.ref.id, { h: item.ref.fingerprint, r: profile.semanticRevision, n: item.strikes + 1, at }] as const));
+          }
           continue;
         }
         const records: StoredVector[] = batch.map((item, position) => vectorRecord(item.ref, item.chunk, vectors[position]!, profile.semanticRevision));
-        if (await mutate("The vector upsert", () => index.upsert(records)) === undefined) {
+        if (await mutate("The vector upsert", records.length, () => index.upsert(records)) === undefined) {
           // The store is down: more model calls would be paid for and lost.
           run.limited = "vector-store";
           leave(batch);
@@ -410,14 +462,22 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
         const ref = await chunkVectorRef(chunk);
         if (seen.has(ref.id)) throw new RunFailure("release-read", `Search release ${releaseId} holds two chunks for ${chunk.recordId} #${chunk.ordinal}`);
         seen.add(ref.id);
+        seenProjects.add(chunk.projectId);
         chunks += 1;
         const entry = entries.get(ref.id);
         if (entry !== undefined && entry.h === ref.fingerprint && entry.r === profile.semanticRevision) {
           embedded += 1;
           continue;
         }
+        const failed = failures.get(ref.id);
+        const strikes = failed !== undefined && failed.h === ref.fingerprint && failed.r === profile.semanticRevision ? failed : undefined;
+        if (strikes !== undefined && strikes.n >= limits.quarantineAfterFailedRuns && input.now().getTime() - Date.parse(strikes.at) < limits.quarantineMs) {
+          quarantined += 1;
+          quarantinedIds.push(ref.id);
+          continue;
+        }
         const text = chunkEmbeddingText(chunk);
-        queue.push({ ref, chunk, text, tokens: estimateTokens(text) });
+        queue.push({ ref, chunk, text, tokens: estimateTokens(text), strikes: strikes?.n ?? 0 });
       }
       await drain(false);
     }
@@ -427,8 +487,42 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
       throw new RunFailure("release-read", `Search release ${releaseId} declares ${manifest.chunkCount} chunks; its shards hold ${chunks}`);
     }
 
-    const stale = [...entries.keys()].filter((id) => !seen.has(id));
-    deletePending = stale.length;
+    // Failure counts of passages that are gone, changed, or embedded since are of no further use.
+    if (!dryRun) {
+      const settled = [...failures].filter(([id, failed]) => {
+        const entry = entries.get(id);
+        return !seen.has(id) || failed.r !== profile.semanticRevision || (entry !== undefined && entry.h === failed.h && entry.r === failed.r);
+      }).map(([id]) => id);
+      if (settled.length > 0) await state.forgetFailures(settled);
+    }
+
+    // A release with no chunk of a project (or none at all) is more likely a bad release than a
+    // project that ended: its vectors stay until several releases in a row agree (Behavior 23).
+    const absences = await state.absences();
+    const staleByProject = new Map<string, string[]>();
+    for (const [id, entry] of entries) {
+      if (!seen.has(id)) staleByProject.set(entry.p, [...staleByProject.get(entry.p) ?? [], id]);
+    }
+    const stale: string[] = [];
+    for (const [projectId, ids] of [...staleByProject].sort(([left], [right]) => left.localeCompare(right))) {
+      if (seenProjects.has(projectId)) {
+        stale.push(...ids);
+        continue;
+      }
+      const before = absences.get(projectId);
+      const releases = before === undefined ? 1 : before.releaseId === releaseId ? before.releases : before.releases + 1;
+      if (!dryRun && (before === undefined || before.releaseId !== releaseId)) await state.recordAbsence(projectId, { releases, releaseId });
+      if (releases >= limits.absentReleasesBeforeDelete) stale.push(...ids);
+      else {
+        heldDeletes += ids.length;
+        absentProjects.push({ projectId, vectors: ids.length, releases });
+      }
+    }
+    if (!dryRun) {
+      const over = [...absences.keys()].filter((projectId) => seenProjects.has(projectId) || !staleByProject.has(projectId));
+      if (over.length > 0) await state.forgetAbsences(over);
+    }
+    deletePending = stale.length + heldDeletes;
     if (!dryRun && run.limited !== "vector-store") {
       for (let start = 0; start < stale.length && start < limits.maxDeletesPerRun; start += limits.deleteBatch) {
         if (input.now().getTime() - startedAt >= limits.deadlineMs) {
@@ -436,7 +530,7 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
           break;
         }
         const ids = stale.slice(start, Math.min(start + limits.deleteBatch, limits.maxDeletesPerRun));
-        if (await mutate("The vector delete", () => index.deleteByIds([...ids])) === undefined) break;
+        if (await mutate("The vector delete", ids.length, () => index.deleteByIds([...ids])) === undefined) break;
         await state.forget(ids);
         for (const id of ids) entries.delete(id);
         deletedThisRun += ids.length;
@@ -450,6 +544,14 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
   }
 
   const now = input.now();
+  // The last error outlives runs that only hit a bound; a run that embeds without one clears it.
+  // (A dry run calls neither the model nor the index, so it has nothing to record or clear.)
+  try {
+    if (lastFailure !== undefined) await state.recordError({ kind: lastFailure.kind, message: sanitizeErrorMessage(lastFailure.message), at: now.toISOString(), batchSize: lastFailure.batchSize });
+    else if (embeddedThisRun > 0) await state.clearError();
+  } catch (error) {
+    run.failure ??= { kind: "internal", error: message(error) };
+  }
   const ledger = await state.ledger(now.toISOString().slice(0, 10)).catch(() => ({ neurons: 0, calls: 0 }));
   const model = Object.hasOwn(PRICES, profile.revision.model) ? profile.revision.model as PricedModel : undefined;
   const leftCalls = left.batches.total;
@@ -470,6 +572,10 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
     embeddedThisRun,
     deletedThisRun,
     deletePending,
+    heldDeletes,
+    absentProjects,
+    quarantined,
+    quarantinedIds: quarantinedIds.sort().slice(0, QUARANTINE_SAMPLE),
     storedVectors: entries.size,
     storedDimensions: entries.size * dimensions,
     modelCalls,

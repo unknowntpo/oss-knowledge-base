@@ -471,7 +471,10 @@ describe("Spec 016 embedding run", () => {
     expect(await h.run()).toMatchObject({ deletedThisRun: 0, heldDeletes: 2, absentProjects: [{ projectId: "p-b", vectors: 2, releases: 1 }] });
     // A dry run reports the hold and counts nothing.
     publishRelease(h.bucket, "r3", onlyA);
+    h.storage.writes.length = 0;
     expect(await h.run({ dryRun: true })).toMatchObject({ deletedThisRun: 0, heldDeletes: 2, absentProjects: [{ projectId: "p-b", vectors: 2, releases: 2 }] });
+    expect(h.storage.writes).toEqual([]);
+    expect(h.storage.values.get("absent:p-b")).toEqual({ releases: 1, releaseId: "r2" });
     expect(await h.run()).toMatchObject({ deletedThisRun: 0, heldDeletes: 2, absentProjects: [{ projectId: "p-b", vectors: 2, releases: 2 }] });
 
     // It returns: no delete, no model call, and the count starts over.

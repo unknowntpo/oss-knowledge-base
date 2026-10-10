@@ -35,6 +35,8 @@ export function workersAiEmbedder(
 ): EmbedTexts {
   if (gatewayId.trim() === "") throw new Error("An AI Gateway id is required for embeddings");
   return async (texts, signal) => {
+    // `signal` is an `AiOptions` field of the binding (workers-types): the publisher aborts a call
+    // it stopped waiting for, and hybrid search aborts a query that timed out.
     const response = await ai.run(profile.revision.model, { text: [...texts], truncate_inputs: true }, {
       gateway: { id: gatewayId, ...(options.skipCache === undefined ? {} : { skipCache: options.skipCache }) },
       ...(signal === undefined ? {} : { signal }),

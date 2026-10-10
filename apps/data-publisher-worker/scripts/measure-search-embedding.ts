@@ -1,7 +1,7 @@
 /**
  * Spec 016 H27: what embedding a Search release costs, offline.
  *
- *   bun run measure:search-embedding [--fixture <recorded Feed fixture>] [--chunks 8577]
+ *   bun run measure:search-embedding [--fixture <recorded Feed fixture>] [--chunks 8586]
  *
  * Publishes the version-controlled recorded Feed snapshot (real GitHub records of both projects)
  * as the publisher does, then runs the real embedding run against it: once dry (the estimate an
@@ -31,7 +31,7 @@ import { EmbeddingState, type EmbeddingStorage } from "../src/search-embedding/s
 
 const DEFAULT_FIXTURE = "apps/web/test/fixtures/recorded-feed-publication.v1.json";
 const { values } = parseArgs({ options: { fixture: { type: "string" }, chunks: { type: "string" } } });
-const targetChunks = Number(values.chunks ?? 8_577);
+const targetChunks = Number(values.chunks ?? 8_586);
 if (!Number.isInteger(targetChunks) || targetChunks <= 0) throw new Error("--chunks must be a positive integer");
 const profile = resolveSearchEmbedding("bge-m3@1")!;
 const model = embeddingModel(profile);

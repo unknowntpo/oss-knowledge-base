@@ -282,13 +282,13 @@ describe("Spec 016 embedding object", () => {
     const { storage, ai, index, clock, runner } = setup({ limits: { batchTexts: 2, maxCallsPerDay: 4 } });
     const alarm = async () => { storage.alarm = null; await runner.alarm(); return runner.health(); };
     expect((await runner.health()).lastError).toBeNull();
-    const secret = `Bearer ${"s3cr3t".repeat(8)}`;
-    ai.fail = new Error(`AiError: 5007: upstream said ${secret} key=${"a1B2".repeat(10)} ${"x".repeat(400)}`);
+    const secret = "Bearer s3cr3t.t0ken-1";
+    ai.fail = new Error(`AiError: 5007: upstream said ${secret} key=${"a1B2".repeat(10)} ${"and more ".repeat(60)}`);
     const failed = await alarm();
     expect(failed.lastError).toEqual({ kind: "model", message: expect.stringContaining("AiError: 5007: upstream said Bearer [redacted] key=[redacted]"), at: "2026-10-10T08:00:00.000Z", batchSize: 2 });
     expect(failed.lastError!.message).not.toContain("s3cr3t");
     expect(failed.lastError!.message).not.toContain("a1B2a1B2");
-    expect(failed.lastError!.message.length).toBeLessThanOrEqual(200);
+    expect(failed.lastError!.message).toHaveLength(200);
     expect(failed.today.calls).toBe(4);
 
     // The model works again, but the day's calls are used up: the run is ok and limited, and the error stays.

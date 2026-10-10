@@ -81,17 +81,39 @@ or re-run a publication. Nothing reads the vectors before Spec 016 slice 3.
 | AI Gateway | `osskb-search-dev` (600 requests an hour, spend limit, authenticated) | none |
 | `SEARCH_EMBEDDING` | unset (off) | unset (off) |
 
+Preconditions before the Worker is deployed with this binding (the merge of
+Spec 016 slice 2b deploys Dev):
+
+- Vectorize index `osskb-search-dev`, 1,024 dimensions, cosine: exists
+  (created 2026-10-10).
+- AI Gateway `osskb-search-dev`: exists (created 2026-10-10; 600 requests an
+  hour, $2 per 30 days, authentication on).
+- Unconfirmed: whether the CI `CLOUDFLARE_API_TOKEN` may deploy a Worker
+  with a Vectorize binding. If not, the "Deploy the isolated development data
+  publisher" step fails after Pages deployed. Dev stays consistent (the
+  previous Worker keeps running; no release or state changes). Add the
+  Vectorize permission to the token and re-run the job; there is nothing
+  else to roll back.
+
 `GET /health` → `searchEmbedding`: `enabled`, `configError`, `today`
 (estimated neurons and calls against the daily bounds), `interrupted` (a run
-the platform killed), and `lastRun` (`releaseId`, `chunks`, `embedded`,
-`pending`, `deletedThisRun`, `limited`, `ok`, `error`, `modelErrors`,
+the platform killed), `lastError` (the last model or vector-store failure,
+kept until a later run embeds), and `lastRun` (`releaseId`, `chunks`,
+`embedded`, `pending`, `deletedThisRun`, `heldDeletes`, `absentProjects`,
+`quarantined`, `limited`, `ok`, `error`, `modelErrors`,
 `index.mutationsProcessed`, `estimate`).
 
-Bounds: 3,000 chunks and 80 model calls per run; 400 calls and 3,000
+Bounds: 3,000 chunks and 80 model calls per run; 400 calls and 2,500
 estimated neurons per UTC day; 10 minutes per run. A run that reaches one
-reports `limited` and the next run continues. The Dev backfill (about 8,600
-chunks) is about 172 calls, 0.76 M tokens, 830 neurons, under one cent, in
-three runs.
+reports `limited` and the next run continues. The Dev backfill (8,586
+chunks) is about 172 calls, 0.76 M estimated tokens, 832 estimated neurons,
+under one cent, in three runs within one UTC day.
+
+- `heldDeletes` / `absentProjects`: the release holds no chunk of a project
+  (or none at all), so its vectors were kept. They are deleted only at the
+  third release in a row without it. Check the publisher's sources first.
+- `quarantined`: chunks whose batch the model failed in three runs in a row;
+  they are skipped for 24 hours and then tried once. `lastError` says why.
 
 ### Dry run (calls no model and no index, writes nothing)
 
@@ -116,6 +138,10 @@ still needed. `&profile=` is needed only while the flag is off.
 4. Watch `searchEmbedding.lastRun` until `pending` is 0 and, a run later,
    `index.mutationsProcessed` is `true`. Check the gateway `osskb-search-dev`
    for the requests; `osskb-digest-dev` must show none of them.
+5. After the first real run, compare the tokens and neurons the gateway
+   reports with `lastRun.estimatedInputTokens` and `estimatedNeurons`, and
+   record the ratio in Spec 016 Results. The daily cap allows the estimate to
+   be half the truth; lower `dailyNeuronCap` if the ratio is above 2.
 
 ### Turn off or roll back
 
@@ -134,6 +160,7 @@ still needed. `&profile=` is needed only while the flag is off.
 1. `bunx wrangler vectorize delete osskb-search-dev`, then
    `bunx wrangler vectorize create osskb-search-dev --dimensions=1024 --metric=cosine`.
 2. `POST /search-embedding/run?reset=1` with the bearer token. It forgets the
-   embedding state (it is served while the flag is off too). Without it the
+   embedding state, with any quarantine and absent-project count (it is
+   served while the flag is off too). Without it the
    state still calls every chunk embedded and nothing is embedded again.
 3. With the flag on, the next runs embed every chunk again (one backfill).
