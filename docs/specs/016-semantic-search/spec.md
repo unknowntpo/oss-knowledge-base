@@ -1,6 +1,6 @@
 # Spec 016: Semantic candidates and hybrid fusion for Search
 
-Status: Draft for human review — decisions of 2026-10-08..10 recorded below; slices 1 and 2a implemented, the `@2` switch on Dev (H42) and slices 2b–4 pending
+Status: Draft for human review — decisions of 2026-10-08..10 recorded below; slices 1, 2a and 2b implemented (2b: embedding publication and the Vectorize adapter, off in both deployed configurations), the `@2` switch on Dev (H42), enabling embeddings on Dev (H52) and slices 3–4 pending
 Date: 2026-10-10
 Traceability: enforced
 Builds on: Spec 005 (Phases 2 and 3, LLM boundary), Spec 013 (lexical shards, `bm25-reference@1`), Spec 014 (community profile `proposal`), Spec 015 (profile blocks, ADR-0016)
@@ -260,6 +260,97 @@ Serving `bm25-reference@2` (slice 2a):
     largestShardBytes, termsBytes }` from the manifest and object sizes of the
     release it wrote.
 
+Embedding publication and the Vectorize adapter (slice 2b):
+
+14. **Flag and profile.** The Worker variable `SEARCH_EMBEDDING` names an
+    embedding profile; `bge-m3@1` is `SemanticRevisionV1 { model:
+    "@cf/baai/bge-m3", modelRevision: "1", dimensions: 1024,
+    textAssemblyRevision: "title-text@1" }`. Unset or blank is off: the
+    publisher makes no model, Vectorize, or embedding-object call and writes
+    the same objects as before. Any other value, or a missing gateway id, AI
+    binding, or vector index, is a configuration error: the embedding run
+    fails naming it, calls nothing, and `/health` shows it. It does not fail
+    the publication (Spec 005: lexical search never depends on embeddings),
+    which is where this flag differs from `SEARCH_LEXICAL_REVISION`.
+15. **Its own object.** `SearchEmbeddingRun` is a Durable Object with its own
+    isolate, memory, storage, and alarm, like `DigestRun`. After a successful
+    publication the publisher asks it to run and ignores the answer; a
+    failure, timeout, or crash there cannot fail, delay, or re-run a
+    publication. `POST /search-embedding/run` starts it by hand.
+16. **One run.** A run pins the current Search release
+    (`public/search/v1/current.json` → manifest → shards) and reads one shard
+    at a time. Each chunk has a vector id and a fingerprint (rule 17). A chunk
+    is embedded when the state holds no entry for its id with the same
+    fingerprint and semantic revision. Texts go to the model in batches of at
+    most 50 texts and 20,000 estimated tokens, through the AI Gateway named by
+    `SEARCH_GATEWAY_ID`; each batch is upserted into Vectorize and then
+    recorded in the state. Ids in the state that the release no longer holds
+    are deleted from the index, 100 per call, then from the state; nothing is
+    deleted unless every shard was read and the chunks seen equal the
+    manifest's `chunkCount`.
+17. **Vector identity.** The id is the first 48 hex characters of
+    `sha256(projectId, recordId, ordinal)`: a chunk id is 76 bytes and changes
+    with every `sourceVersion`, while this id is 48 bytes and stays with the
+    record's passage. The namespace is the project id. The fingerprint is the
+    first 32 hex characters of `sha256(title + "\n" + text, groupRootRecordId)`.
+    Metadata is `{ r: semantic revision id, h: fingerprint, record, ord,
+    root }`, under 10 KiB, with no metadata index. A new `sourceVersion` with
+    the same title, text, and group is not embedded again; a changed title,
+    text, or group is embedded again under the same id, replacing the vector.
+18. **State.** The object's storage holds one small entry per vector
+    (`v:<id>` → `{ p: projectId, h, r }`), the day's ledger, the last mutation
+    id, and the last result. It is the only source for "is this chunk
+    embedded": the index is never asked, so Vectorize's asynchronous
+    mutations (an upsert returns a mutation id and becomes queryable later)
+    cannot cause a second embedding. A run starts with `describe()`: the index
+    must answer with the profile's dimensions, or the run fails before any
+    model call; whether the index has processed the last accepted mutation is
+    reported, not acted on.
+19. **Bounds.** Per run: at most 3,000 chunks, 80 model calls, 2,000 deletes,
+    and 10 minutes before the next batch starts; each model or Vectorize call
+    is abandoned after 60 seconds. Per UTC day: at most 400 model calls and
+    3,000 estimated neurons (`@cf/baai/bge-m3` at 1,091 neurons per million
+    input tokens, estimated with the digest's token estimate; every call
+    counts at least 1). The ledger is written before each model call, so a
+    run that dies and is retried counts both attempts. A run that reaches a
+    bound stops embedding, keeps what it recorded, reports `limited`, and the
+    next run continues from the state.
+20. **Failures.** A model error is retried once after 5 seconds; a second
+    failure leaves that batch pending and the run continues. Workers AI code
+    3036, a gateway 429, and a spend-limit refusal stop model use for the run
+    without a retry. A wrong number of vectors or a wrong dimension is a
+    model error. A failed upsert is retried once, then embedding stops for
+    the run (the store is down; further model calls would be wasted). A
+    failed delete is retried once, then deletes stop. Every failure leaves
+    the vectors already stored in place and is reported in `/health`.
+21. **`VectorizeSemanticRetriever`.** Embeds the query with the same profile
+    through the same gateway, queries each requested project's namespace
+    (all the release's projects without a project filter) for
+    `min(limit, 50)` matches with metadata, and maps each match through the
+    release it serves (rule 22). It applies the evidence filters to the
+    release's chunk, drops non-positive scores, orders by score then chunk
+    id, and returns `semanticRevisionId(profile)`. An embedding, dimension,
+    or index error rejects, and it rejects as soon as the request's signal is
+    aborted; `hybridSearch` turns that into `failed` or `timed-out`
+    (Behavior 9). It imports no Cloudflare type: the index is the structural
+    `VectorIndex` port, and nothing in `packages/search` or the response
+    contract names Vectorize. Slice 2b does not call it from the web API.
+22. **Consistency with releases.** The index is mutable and has one vector
+    per passage; releases are immutable. A match becomes a candidate only when
+    the release the query is served from holds a chunk of the same project,
+    record, and ordinal whose fingerprint equals the vector's `h`, and the
+    vector's `r` is the profile's revision. The candidate's ids come from the
+    release's chunk, never from metadata. So a vector newer or older than the
+    release, a vector of a removed chunk, and a vector of another revision
+    are dropped; a chunk not yet embedded is simply absent. After a rollback
+    to an older release, chunks whose passage is unchanged keep their
+    semantic candidates and the rest fall back to lexical ranking until the
+    next embedding run, which reconciles the index with whatever release is
+    current. Release objects and `SearchResponseV1` are unchanged; the
+    release a run embedded and its coverage (`releaseId`, `chunks`,
+    `embedded`, `pending`) are in `/health` `searchEmbedding.lastRun`, not in
+    the manifest, because a release is written before its vectors exist.
+
 ## Community profile fit
 
 Checked: `packages/reference-pipeline/src/digest/profiles.ts` (Spec 014,
@@ -458,7 +549,7 @@ project filter at `@2` run again in the browser (`apps/web/e2e-lexical2`):
 
 ## Acceptance
 
-Items tagged `[pending]` belong to the `@2` switch and slices 2b–4.
+Items tagged `[pending]` belong to the `@2` switch and slices 3–4.
 
 ### Behavior
 - H1: given each row of the code-text token plan, the `@2` tokenizer returns
@@ -542,17 +633,6 @@ Items tagged `[pending]` belong to the `@2` switch and slices 2b–4.
 - H20: given a metric cutoff that is not a positive integer, no expected
   item, or a ranking that repeats an id, the metric fails → evidence:
   `metrics.test.ts`.
-- H21: [pending] given a publisher run, every chunk without a vector of the
-  current `SemanticRevisionV1` is embedded with `@cf/baai/bge-m3` and upserted
-  into its project's namespace under its chunk id with the revision; a chunk
-  whose content hash is unchanged is not embedded again; a removed chunk's
-  vector is deleted.
-- H22: [pending] given a change of model, model revision, dimensions, or text
-  assembly, every chunk is embedded again and a query never compares vectors
-  of two revisions.
-- H23: [pending] given a Workers AI or Vectorize failure during a run, the
-  lexical release still publishes, the previous vectors stay queryable, and
-  `/health` shows the embedding step's failure.
 - H37: given a release whose manifest declares any other revision
   (`bm25-reference@3`, `bm25:v1`), in the v3 or the whole-release layout, the
   reader throws, reads no terms object or shard, and `/api/search` answers
@@ -572,6 +652,87 @@ Items tagged `[pending]` belong to the `@2` switch and slices 2b–4.
 - H29: [pending] given a query-embedding failure, timeout, or quota error,
   `/api/search` returns HTTP 200 with lexical results and `retrieval.semantic`
   set to the state.
+
+### Behavior (slice 2b)
+- H21: given a published release and `SEARCH_EMBEDDING=bge-m3@1`, a run embeds
+  every chunk through the search gateway with `@cf/baai/bge-m3` and upserts
+  one vector per chunk into its project's namespace; a second run on the same
+  release makes no model call and no mutation; a new `sourceVersion` with the
+  same title, text, and group is not embedded again; a changed text is
+  embedded alone and replaces the vector under the same id; a removed chunk's
+  vector is deleted → evidence: `search-embedding-run.test.ts`.
+- H22: given a profile that differs in model, model revision, dimensions, or
+  text assembly, every chunk is embedded again in place, and the retriever
+  returns no candidate from a vector of another revision, during and after
+  the change → evidence: `search-embedding-run.test.ts`, `retriever.test.ts`.
+- H24: given an index filled by the publisher's own vector function, the
+  adapter passes every row of the `SemanticRetriever` contract the in-memory
+  retriever passes (ranking, revision, limit, tie order, evidence filters),
+  queries only the namespaces of the requested projects, and imports no
+  Cloudflare type → evidence: `retriever.test.ts`, the contract in
+  `packages/search/test/support/semantic-retriever-contract.ts`.
+- H43: given any record id (long, non-ASCII) the vector id is 48 hex
+  characters, at most 64 bytes, and differs by project, record, and ordinal;
+  the metadata holds only `r`, `h`, `record`, `ord`, `root` and stays under
+  10 KiB or the vector is refused; a model call carries at most 50 texts and
+  20,000 estimated tokens and a delete at most 100 ids; the fake index
+  enforces Vectorize's documented limits (64-byte id and namespace, 10 KiB
+  metadata, dimensions, 1,000 vectors per upsert, `topK` 50 with metadata) →
+  evidence: `vector.test.ts`, `search-embedding-run.test.ts`.
+- H44: given a release and an index, a match is a candidate only when the
+  release holds a chunk of the same project, record, and ordinal with the
+  vector's fingerprint, and its ids are the release's; a vector of a changed,
+  regrouped, or removed chunk, of another project's namespace, with malformed
+  metadata, or newer than a rolled-back release is dropped, while an
+  unchanged passage keeps its candidate across releases → evidence:
+  `retriever.test.ts`.
+- H45: given `SEARCH_EMBEDDING` unset or blank, a publication writes
+  byte-identical objects, the publisher has no embedding trigger, and a run
+  or alarm of the embedding object calls no model and no index; given the
+  flag, a successful publication triggers one embedding run and a failed one
+  none; given an unsupported value or a missing gateway id, AI binding, or
+  index, the embedding run fails naming it and calls nothing while the
+  publication still succeeds; the Dev configuration binds the index, the
+  object, and `SEARCH_GATEWAY_ID=osskb-search-dev` (not the digest gateway)
+  without the flag, and the Prod configuration has none of them → evidence:
+  `search-embedding-runner.test.ts`, `pipeline.test.ts`.
+
+### Failure and retry (slice 2b)
+- H23: given a trigger that throws, never answers, or answers an error, the
+  publication's result, objects, and recorded status are those of a run
+  without it; given a Workers AI or Vectorize failure during an embedding
+  run, vectors stored earlier are untouched and still answer queries, and
+  `/health` `searchEmbedding.lastRun` shows `ok: false` with the error →
+  evidence: `pipeline.test.ts`, `search-embedding-run.test.ts`,
+  `search-embedding-runner.test.ts`.
+- H46: given each `H46` row of the embedding run plan, a run that reaches a
+  bound (chunks or model calls per run, model calls or neurons per UTC day,
+  the deadline) stops embedding, records what it stored, reports `limited`,
+  and later runs embed only the rest, until nothing is pending → evidence:
+  `search-embedding-run.test.ts` rows.
+- H47: given a run that dies after the model answered, after the upsert was
+  accepted, or while the state is written, the retried run embeds at most
+  that batch again, the day's ledger holds both attempts, the state names
+  exactly the vectors in the index, and no chunk has two vectors; an alarm
+  that throws is recorded and does not throw again → evidence:
+  `search-embedding-run.test.ts`, `search-embedding-runner.test.ts`.
+- H48: given each `H48` row of the embedding run plan (a model error once or
+  twice, code 3036, a gateway 429, a spend-limit refusal, too few vectors, a
+  wrong dimension, a call that never answers, an upsert or delete that fails
+  once or twice, an index that does not answer or has other dimensions, an
+  unreadable shard, a manifest whose chunk count disagrees, an unsupported
+  release), the run ends as listed and deletes nothing it could not verify →
+  evidence: `search-embedding-run.test.ts` rows.
+- H49: given an index that accepts mutations without applying them, the run
+  records each chunk as embedded, a second run embeds nothing, and `/health`
+  reports the last mutation id and that the index has not processed it; once
+  the index applies them it reports that it has and queries return the
+  vectors → evidence: `search-embedding-run.test.ts`.
+- H50: given a query embedding that fails, has the wrong dimension, or never
+  answers, an index query that fails, or an aborted signal, the retriever
+  rejects, and `hybridSearch` returns the lexical results in lexical order
+  with `semantic: failed` or `timed-out`; a `limit` above 50 asks each
+  namespace for 50 → evidence: `retriever.test.ts`.
 
 ### Behavior (slice 2a)
 - H25: given golden v2 published at `@1` and at `@2`, the reader answers each
@@ -614,9 +775,6 @@ Items tagged `[pending]` belong to the `@2` switch and slices 2b–4.
   `pipeline.test.ts`.
 
 ### Behavior (later slices)
-- H24: [pending] given a Vectorize index, the adapter implements
-  `SemanticRetriever` (project namespace, filters, chunk candidates) and
-  passes the contract tests the in-memory retriever passes.
 - H28: [pending] given the flag on, `/api/search` returns fused results with
   `retrieval.semanticRevision`, `fusionRevision`, and per-match
   `signals.semanticRank`; with the flag off the response is unchanged.
@@ -625,9 +783,11 @@ Items tagged `[pending]` belong to the `@2` switch and slices 2b–4.
   decision (decision 5) is recorded with the numbers.
 
 ### Budget
-- H27: [pending] Vectorize stored dimensions (`lastRun.search.chunkCount` ×
-  1,024) and embedding neurons per run, each with a committed measuring
-  command.
+- H27: [measure] Vectorize stored dimensions (chunks × 1,024), model calls,
+  estimated input tokens, neurons and dollars for a full backfill, and the
+  runs it takes under the bounds of Behavior 19 →
+  `bun run measure:search-embedding` (Results, slice 2b); on Dev,
+  `/health` `searchEmbedding.lastRun` and a dry run (H52).
 - H40: [measure] growth of `terms.json` and lexical shard bytes from `@1` to
   `@2` for the same Feed → `bun run measure:search-revisions` (Results,
   slice 2a); on Dev, `/health` `lastRun.search` before and after the switch.
@@ -644,6 +804,24 @@ Items tagged `[pending]` belong to the `@2` switch and slices 2b–4.
   holds the release's `lexicalRevision`, the manifest's `chunkCount`, the
   shard count, the summed and largest shard bytes, and the `terms.json` bytes
   as written → evidence: `pipeline.test.ts`.
+- H51: given the embedding object, `/health` `searchEmbedding` reports
+  `enabled`, `configError`, `model`, `revision`, `semanticRevision`,
+  `running`, `scheduled`, `interrupted`, `today { date, estimatedNeurons,
+  cap, calls, callCap }`, `lastMutation`, and `lastRun` (release, chunks,
+  embedded, pending, deleted, stored vectors and dimensions, calls, tokens,
+  neurons, `limited`, error, the index's state, and the estimate of what is
+  left), and `{ enabled: false }` without the object; `POST
+  /search-embedding/run` needs the bearer token, answers 403 when off, 409
+  while a run is pending, 202 when scheduled, and with `dryRun=1` returns the
+  estimate (chunks, calls, tokens, neurons, dollars, runs) having called no
+  model, mutated no vector, and written no state; `reset=1` forgets the
+  state so that the next run embeds every chunk again → evidence:
+  `search-embedding-runner.test.ts`.
+- H52: [deploy] given slice 2b live on Dev and `SEARCH_EMBEDDING=bge-m3@1`
+  set for Dev, a dry run's estimate is recorded, the backfill reaches
+  `pending: 0` within the estimated runs, `lastRun.index.mutationsProcessed`
+  becomes true, and the search gateway shows the calls while
+  `osskb-digest-dev` shows none of them.
 - H42: [pending] given slice 2a live on Dev and the variable set for Dev, the
   next run's `/health` `lastRun.search.lexicalRevision` is
   `bm25-reference@2`, and Dev `/api/search` returns results for `KIP770` and
