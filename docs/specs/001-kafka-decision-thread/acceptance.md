@@ -105,9 +105,34 @@ evidence
 **And** switching from another project clears source and status selections that
 are not valid in the GitHub-only profile.
 
+## A13. Unbreakable upstream text on a phone
+
+**Given** a Feed entry whose record title, excerpt, author, tags or summary
+holds text with no break opportunity: a URL, a class name, a config key, a
+file path or a long identifier (reported on Dev from an iPhone, 390 px wide,
+zh-Hant: `KAFKA-PR-22458`, excerpt `Ref : https://issues.apache.org/jira/browse/KAFKA 13152 Kip 770 : https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=186878390 This PR continues PR #20292 …`)
+**When** the detail page, or any other view that renders that text (Feed
+cards and tag filters, Search results, Search detail, This week, Proposals,
+Topic page), is opened at 375 px or 390 px wide in `en` or `zh-Hant`
+**Then** every character of that text is drawn inside its card or column
+**And** the page does not scroll sideways
+**And** a page without such text renders as before, at 375 px and at 1280 px.
+
+Clamped text stays clamped (Search result summary 3 lines, evidence excerpt 4
+lines). Fixed-vocabulary badges and generated ids stay on one line
+(`.status-badge`, `.source-badge`, `.stage-badge`, `.cite`, `.card-project`,
+`.tl-time`).
+
+Evidence: `apps/web/e2e/long-text.spec.ts` (`A13:`; one row per selector, the
+text appended to the local API responses in the browser). The last clause was
+checked once, not by a test: `bun run verify:ui` captures of every view on the
+unchanged fixtures, before and after the change, at 375 px and 1280 px in both
+locales, report the same element boxes. Not covered: WebKit (the E2E suite
+runs Chromium only; gardening G39).
+
 ## Release gate
 
-Spec 001 is complete only when A1-A12 are automated or have a documented,
+Spec 001 is complete only when A1-A13 are automated or have a documented,
 repeatable verification command with captured evidence. A11 may use captured
 reference screenshots plus browser checks. A demo without replay, LLM-off, and
 provenance checks does not satisfy the spec.

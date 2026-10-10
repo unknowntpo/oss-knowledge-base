@@ -112,7 +112,7 @@ parameters: search text, filters and sort live in component state.
 | Topic page | `/#/<projectKey>/topic/<topicKey>` | `views/TopicView.vue` → `components/digest/TopicPage.vue` (`#view-topic-page`) | click a `.topic-card-title a` | 014 D43, D53, D54 |
 | Feed (All threads) | `/#/<projectKey>/threads` | `apps/web/src/views/FeedView.vue` (`#view-feed`), list filtered to the route project; a typed query searches all projects | tab "All threads" | 002 F10–F11, 003 R2/R5, 010 F1–F5, 011 V1–V6, 014 D62 |
 | Search | `/#/<projectKey>/threads` with text in `#q` (or Enter in the top bar `#topbar-q`) | same view; cards become `SearchResultCard` | type into `#q` (180 ms debounce) | 005 S1–S15 |
-| Feed detail | `/#/feed/:id` (the entry's `displayId`: `KAFKA-PR-<n>`, `KAFKA-ISSUE-<n>`, `KAFKA-<n>` for Jira, `KAFKA-MAIL-<8 hex>` for a dev@ thread, `DATAFUSION-…`) | `apps/web/src/views/FeedDetailView.vue` (`#view-topic`) | click a `.card` or a `.related-item` | 001 A1–A12, 002 F6–F8, 003 R3, 008 C4–C5, 011 V1/V5, 012 K6–K7 |
+| Feed detail | `/#/feed/:id` (the entry's `displayId`: `KAFKA-PR-<n>`, `KAFKA-ISSUE-<n>`, `KAFKA-<n>` for Jira, `KAFKA-MAIL-<8 hex>` for a dev@ thread, `DATAFUSION-…`) | `apps/web/src/views/FeedDetailView.vue` (`#view-topic`) | click a `.card` or a `.related-item` | 001 A1–A13, 002 F6–F8, 003 R3, 008 C4–C5, 011 V1/V5, 012 K6–K7 |
 | Search detail | `/#/search/:detailRef` (`sdr1.…`) | same component, `detailRef` prop; `.topic-id` shows the Detail's `displayId` (falls back to the root title's prefix for older details) | click a `.search-card` | 005 S4, 008 C4/C6, 011 V1/V5, 012 K8 |
 
 App shell (`apps/web/src/App.vue`) fetches `/api/feed` once and shares it via
@@ -147,6 +147,7 @@ No `data-testid` attributes; tests select by class, id, and role.
 | `#digest-uncategorized details.digest-uncategorized` | Collapsed Uncategorized list: threads whose topic is `other` (no `other` card); hidden when empty or absent | 014 D76, D77 |
 | `.no-digest-notice`, `.digest-unavailable`, `.not-found`, `.digest-empty` | No digest (404 / `digest: false`), failed read (503), unknown project or topic, empty week | 014 D17, D23, D53 |
 | `.thread-filter[data-filter][aria-pressed]`, `.thread-card`, `.thread-title` | Topic page filters All / PR / dev@ / JIRA with counts; thread cards link to the source URL, the id to Detail | 014 D43, D54 |
+| Upstream text: `.card > *`, `.topic-id`, `#topic-title`, `.topic-lede`, `.topic-meta`, `.ai-item p`, `.tl-meta .author`, `.tl-kind`, `.tl-title`, `.tl-excerpt`, `.related-item`, `.tag-chip`, `.digest-headline`, `.highlight-title`, `.digest-sentence`, `.kip-title`, `.keyword`, `.thread-title`, `.thread-excerpt`, `.thread-meta` | Text written upstream (titles, excerpts, authors, tags, keywords) wraps inside its card even without a break opportunity (`overflow-wrap: anywhere`, one rule at the top of `apps/web/styles.css`); no view scrolls sideways at 375 px. Still clamped: `.search-card .card-summary` (3 lines), `.search-card .evidence-text` (4 lines). Still one line: `.status-badge`, `.source-badge`, `.stage-badge`, `.cite`, `.card-project`, `.tl-time` | 001 A13 |
 | `.load-error` | App shell: feed load failure with a Retry button. Detail view: "Loading detail…" and detail errors, without Retry (gardening G5) | 003 R4 |
 
 ## Web API (Pages Functions, `apps/web/functions`)
@@ -189,7 +190,7 @@ There is no public `/status`: it exists only inside the Durable Object, and
 
 | Spec | IDs | Surface |
 | --- | --- | --- |
-| [001](specs/001-kafka-decision-thread/acceptance.md) | A1–A12 | Domain, pipeline, detail page |
+| [001](specs/001-kafka-decision-thread/acceptance.md) | A1–A13 | Domain, pipeline, detail page; A13 also covers upstream text on every view at phone width |
 | [002](specs/002-generated-hot-feed/acceptance.md) | F1–F11 | Feed generation, cards, key points |
 | [003](specs/003-r2-feed-projection/acceptance.md) | R1–R6 | `/api/feed`, `/api/detail` |
 | [004](specs/004-replayable-github-feed/acceptance.md) | G1–G12 | GitHub publisher, pipeline |

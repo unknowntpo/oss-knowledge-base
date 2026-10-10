@@ -151,7 +151,7 @@ controlled clock on the E2E fixture (`generatedAt` 2026-08-25T12:00:00Z):
 - Freshness of Search independent of the Feed (see Delete).
 - Follow-up: the pre-existing horizontal overflow of the Search detail
   page body at 375 px (seen in the Evidence capture; unrelated to the
-  topbar).
+  topbar). Done in Spec 001 A13.
 - Follow-up: with `metadata.stale` `true` and a parsable `generatedAt`, the
   pill has stale styling but non-stale text (for example "Updated 2 h
   ago"), because `App.vue` prefers the freshness text over "Cached". This
