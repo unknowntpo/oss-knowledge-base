@@ -1,8 +1,16 @@
 import { validateSearchFilters, type SearchFiltersV1 } from "./filters";
 import type { SourceRecordChunkV1 } from "./golden-fixture";
+import { compileIdentifierProfiles, type IdentifierProfilesV1 } from "./identifiers";
 
 export const LEXICAL_INDEX_SCHEMA = "osskb.lexical-index.v1" as const;
+/** The revision deployed releases declare; readers and the publisher still use only this one. */
 export const DEFAULT_LEXICAL_REVISION = "bm25-reference@1";
+/**
+ * Spec 016: `bm25-reference@1` scoring over code-text tokens (camelCase and PascalCase words are
+ * also indexed as their parts) and, when the config carries identifier profiles, normalized
+ * community identifiers. Postings differ from `@1`, so a release declares one or the other.
+ */
+export const CODE_TEXT_LEXICAL_REVISION = "bm25-reference@2";
 
 export interface LexicalSearchConfigV1 {
   readonly revision: string;
@@ -14,6 +22,8 @@ export interface LexicalSearchConfigV1 {
   readonly additionalGroupMatchWeight: number;
   readonly maxEvidenceMatches: number;
   readonly excerptCharacters: number;
+  /** Community identifier patterns by project; only valid with `bm25-reference@2`. */
+  readonly identifiers?: IdentifierProfilesV1;
 }
 
 export const defaultLexicalSearchConfig: LexicalSearchConfigV1 = {
@@ -26,6 +36,12 @@ export const defaultLexicalSearchConfig: LexicalSearchConfigV1 = {
   additionalGroupMatchWeight: 0.25,
   maxEvidenceMatches: 5,
   excerptCharacters: 280,
+};
+
+/** `bm25-reference@2` with the `@1` weights; add `identifiers` from the community profiles. */
+export const codeTextLexicalSearchConfig: LexicalSearchConfigV1 = {
+  ...defaultLexicalSearchConfig,
+  revision: CODE_TEXT_LEXICAL_REVISION,
 };
 
 interface IndexedChunk {
@@ -142,10 +158,10 @@ function rankLexicalIndex(
   request: LexicalSearchFacetRequestV1,
   ignoreProjectIds: boolean,
 ): readonly LexicalSearchResultV1[] {
-  const query = requireText(request.query, "query");
+  const rawQuery = requireText(request.query, "query");
   validateSearchFilters(request.filters);
-  const queryTerms = [...new Set(tokenizeLexical(query))];
-  if (queryTerms.length === 0) return [];
+  const query = lexicalAnalyzer(index.config).query(rawQuery);
+  if (query.terms.length === 0) return [];
 
   const statistics: CorpusStatistics = {
     chunkCount: index.documents.length,
@@ -153,7 +169,7 @@ function rankLexicalIndex(
     documentFrequency: (term) => index.documentFrequency.get(term) ?? 0,
   };
   const scored = index.documents
-    .filter((document) => matchesFilters(
+    .filter((document) => chunkMatchesSearchFilters(
       document.chunk,
       request.filters,
       request.eligibleGroupRootRecordIds,
@@ -164,7 +180,7 @@ function rankLexicalIndex(
       length: document.length,
       frequency: (term) => document.terms.get(term),
       titleTerms: () => document.titleTerms,
-    }, query, queryTerms))
+    }, query))
     .filter((result): result is ScoredDocument => result !== undefined);
 
   return assembleGroups(index.config, scored).sort(compareLexicalResults);
@@ -242,13 +258,15 @@ export function rankLexicalShard(
   request: LexicalSearchFacetRequestV1,
   config: LexicalSearchConfigV1 = defaultLexicalSearchConfig,
 ): readonly LexicalSearchResultV1[] {
-  const query = requireText(request.query, "query");
+  const rawQuery = requireText(request.query, "query");
   validateSearchFilters(request.filters);
-  const queryTerms = [...new Set(tokenizeLexical(query))];
-  if (queryTerms.length === 0) return [];
+  validateConfig(config);
+  const analyzer = lexicalAnalyzer(config);
+  const query = analyzer.query(rawQuery);
+  if (query.terms.length === 0) return [];
 
   const frequencies = new Map<number, Map<string, number>>();
-  for (const term of queryTerms) {
+  for (const term of query.terms) {
     if (!Object.hasOwn(shard.postings, term)) continue;
     const list = shard.postings[term]!;
     for (let position = 0; position + 1 < list.length; position += 2) {
@@ -268,13 +286,13 @@ export function rankLexicalShard(
     const chunk = shard.chunks[chunkIndex];
     const length = shard.lengths[chunkIndex];
     if (chunk === undefined || length === undefined) throw new Error(`Lexical shard has no chunk ${chunkIndex}`);
-    if (!matchesFilters(chunk, request.filters, request.eligibleGroupRootRecordIds, true)) continue;
+    if (!chunkMatchesSearchFilters(chunk, request.filters, request.eligibleGroupRootRecordIds, true)) continue;
     const result = scoreDocument(statistics, config, {
       chunk,
       length,
       frequency: (term) => terms.get(term),
-      titleTerms: () => new Set(tokenizeLexical(chunk.title)),
-    }, query, queryTerms);
+      titleTerms: () => new Set(analyzer.titleTokens(chunk)),
+    }, query);
     if (result !== undefined) scored.push(result);
   }
   return assembleGroups(config, scored);
@@ -299,7 +317,29 @@ export function selectLexicalResults(
   return { results, projectFacets };
 }
 
+/** The `bm25-reference@1` tokenizer. Deployed shards and their readers depend on its exact output. */
 export function tokenizeLexical(value: string): readonly string[] {
+  return tokenize(value, false);
+}
+
+/**
+ * The tokenizer a lexical revision indexes and queries with. `bm25-reference@2` adds the parts of
+ * camelCase and PascalCase words after the token they come from; every other revision is `@1`.
+ */
+export function lexicalTokenizer(revision: string): (value: string) => readonly string[] {
+  return revision === CODE_TEXT_LEXICAL_REVISION ? (value) => tokenize(value, true) : tokenizeLexical;
+}
+
+/** The distinct terms a query selects postings with, after identifier normalization. */
+export function lexicalQueryTerms(
+  query: string,
+  config: LexicalSearchConfigV1 = defaultLexicalSearchConfig,
+): readonly string[] {
+  validateConfig(config);
+  return lexicalAnalyzer(config).query(query).terms;
+}
+
+function tokenize(value: string, splitCase: boolean): readonly string[] {
   const tokens = value
     .normalize("NFKC")
     .match(
@@ -313,14 +353,114 @@ export function tokenizeLexical(value: string): readonly string[] {
       result.push(...token.replace(/\(\)$/u, "").split("."));
     }
     if (token.includes("-")) result.push(...token.split("-"));
+    if (splitCase) {
+      for (const part of raw.replace(/\(\)$/u, "").split(/[.-]/u)) {
+        const words = caseWords(part);
+        if (words.length > 1) result.push(...words.map((word) => word.toLocaleLowerCase("en-US")));
+      }
+    }
   }
   return result.filter((token) => token.length > 0);
+}
+
+/**
+ * Splits `HeartbeatRequestManager` into its words and `HTTPServer` into `HTTP`, `Server`. A
+ * single letter stays with its neighbour (`KRaft`, `IDs`), so no one-letter term is indexed.
+ */
+function caseWords(part: string): readonly string[] {
+  const pieces = part.split(/(?<=[\p{Ll}\p{N}])(?=\p{Lu})|(?<=\p{Lu})(?=\p{Lu}\p{Ll})/u);
+  const words: string[] = [];
+  let carried = "";
+  for (const piece of pieces) {
+    const word = carried + piece;
+    if ([...word].length === 1) {
+      carried = word;
+    } else {
+      words.push(word);
+      carried = "";
+    }
+  }
+  if (carried.length > 0) {
+    if (words.length === 0) words.push(carried);
+    else words[words.length - 1] += carried;
+  }
+  return words;
 }
 
 export function isExactStructuredQuery(query: string): boolean {
   const trimmed = query.trim();
   return /^[A-Z][A-Z0-9]+-\d+$/u.test(trimmed) ||
     /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+(?:\(\))?$/u.test(trimmed);
+}
+
+/** A query after tokenization: its distinct terms and how a chunk matches it exactly, if it can. */
+interface AnalyzedQuery {
+  readonly terms: readonly string[];
+  readonly exact?: (document: ScoringDocument) => boolean;
+}
+
+interface LexicalAnalyzer {
+  readonly tokenize: (value: string) => readonly string[];
+  /** Title tokens, followed by the identifiers a profile recognizes in the title or record id. */
+  readonly titleTokens: (chunk: SourceRecordChunkV1) => readonly string[];
+  readonly query: (query: string) => AnalyzedQuery;
+}
+
+function lexicalAnalyzer(config: LexicalSearchConfigV1): LexicalAnalyzer {
+  const tokenizeText = lexicalTokenizer(config.revision);
+  const profiles = config.identifiers === undefined ? undefined : compileIdentifierProfiles(config.identifiers);
+  const structured = (query: string): AnalyzedQuery["exact"] => {
+    if (!isExactStructuredQuery(query)) return undefined;
+    const normalized = query.trim().toLocaleLowerCase("en-US");
+    if (/^[a-z][a-z0-9]+-\d+$/u.test(normalized)) return (document) => document.titleTerms().has(normalized);
+    return (document) =>
+      document.chunk.title.toLocaleLowerCase("en-US").includes(normalized) ||
+      document.chunk.text.toLocaleLowerCase("en-US").includes(normalized);
+  };
+  if (profiles === undefined) {
+    return {
+      tokenize: tokenizeText,
+      titleTokens: (chunk) => tokenizeText(chunk.title),
+      query: (query) => {
+        const exact = structured(query);
+        return { terms: [...new Set(tokenizeText(query))], ...(exact === undefined ? {} : { exact }) };
+      },
+    };
+  }
+  return {
+    tokenize: tokenizeText,
+    titleTokens: (chunk) => {
+      const tokens = [...tokenizeText(chunk.title)];
+      const seen = new Set(tokens);
+      for (const identifier of profiles.identifiersOf(chunk.projectId, chunk.title, chunk.recordId)) {
+        // The canonical spelling is indexed even when the title wrote another one, or none.
+        for (const token of [identifier, ...tokenizeText(identifier)]) {
+          if (seen.has(token)) continue;
+          seen.add(token);
+          tokens.push(token);
+        }
+      }
+      return tokens;
+    },
+    query: (query) => {
+      const canonical = profiles.canonicalizeQuery(query).trim();
+      const terms = [...new Set(tokenizeText(canonical))];
+      const lowered = canonical.toLocaleLowerCase("en-US");
+      if (/^\d+$/u.test(canonical)) {
+        // A bare number names every identifier with that number, in every project (R1).
+        return {
+          terms,
+          exact: (document) => profiles.numberCandidates(document.chunk.projectId, canonical)
+            .some((identifier) => document.titleTerms().has(identifier)),
+        };
+      }
+      if (profiles.isCanonical(lowered)) {
+        return { terms: [...new Set([lowered, ...terms])], exact: (document) => document.titleTerms().has(lowered) };
+      }
+      const exact = structured(canonical);
+      return { terms, ...(exact === undefined ? {} : { exact }) };
+    },
+  };
 }
 
 interface ScoringDocument {
@@ -348,10 +488,9 @@ function scoreDocument(
   statistics: CorpusStatistics,
   config: LexicalSearchConfigV1,
   document: ScoringDocument,
-  rawQuery: string,
-  queryTerms: readonly string[],
+  query: AnalyzedQuery,
 ): ScoredDocument | undefined {
-  const matchedTerms = queryTerms.filter((term) => document.frequency(term) !== undefined);
+  const matchedTerms = query.terms.filter((term) => document.frequency(term) !== undefined);
   if (matchedTerms.length === 0) return undefined;
 
   let score = 0;
@@ -371,19 +510,9 @@ function scoreDocument(
       (frequency + config.k1 * normalization));
   }
 
-  const exactMatch = exactStructuredMatch(document, rawQuery);
+  const exactMatch = query.exact?.(document) ?? false;
   if (exactMatch) score += config.exactBoost;
   return { document, score, exactMatch, matchedTerms };
-}
-
-function exactStructuredMatch(document: ScoringDocument, query: string): boolean {
-  if (!isExactStructuredQuery(query)) return false;
-  const normalized = query.trim().toLocaleLowerCase("en-US");
-  if (/^[a-z][a-z0-9]+-\d+$/u.test(normalized)) {
-    return document.titleTerms().has(normalized);
-  }
-  return document.chunk.title.toLocaleLowerCase("en-US").includes(normalized) ||
-    document.chunk.text.toLocaleLowerCase("en-US").includes(normalized);
 }
 
 function assembleGroup(
@@ -439,10 +568,11 @@ function chunkTerms(
   chunk: SourceRecordChunkV1,
   config: LexicalSearchConfigV1,
 ): { readonly terms: ReadonlyMap<string, number>; readonly length: number; readonly titleTokens: readonly string[] } {
-  const titleTokens = tokenizeLexical(chunk.title);
-  const bodyTokens = tokenizeLexical(chunk.text);
-  const tagTokens = chunk.tags.flatMap(tokenizeLexical);
-  const authorTokens = tokenizeLexical(chunk.author);
+  const analyzer = lexicalAnalyzer(config);
+  const titleTokens = analyzer.titleTokens(chunk);
+  const bodyTokens = analyzer.tokenize(chunk.text);
+  const tagTokens = chunk.tags.flatMap((tag) => analyzer.tokenize(tag));
+  const authorTokens = analyzer.tokenize(chunk.author);
   const weightedTokens = [
     ...repeat(titleTokens, config.titleWeight),
     ...bodyTokens,
@@ -476,7 +606,8 @@ function matchedExcerpt(
   return `${start > 0 ? "…" : ""}${text.slice(start, end).trim()}${end < text.length ? "…" : ""}`;
 }
 
-function matchesFilters(
+/** Whether one chunk passes the evidence filters; `ignoreProjectIds` is for project facets. */
+export function chunkMatchesSearchFilters(
   chunk: SourceRecordChunkV1,
   filters: SearchFiltersV1 | undefined,
   eligibleGroupRootRecordIds: ReadonlySet<string> | undefined,
@@ -528,6 +659,12 @@ function uniqueChunks(
 
 function validateConfig(config: LexicalSearchConfigV1): void {
   requireText(config.revision, "config.revision");
+  if (config.identifiers !== undefined) {
+    if (config.revision !== CODE_TEXT_LEXICAL_REVISION) {
+      throw new Error(`Identifier profiles require ${CODE_TEXT_LEXICAL_REVISION}, not ${config.revision}`);
+    }
+    compileIdentifierProfiles(config.identifiers);
+  }
   if (config.k1 <= 0) throw new Error("BM25 k1 must be positive");
   if (config.b < 0 || config.b > 1) throw new Error("BM25 b must be between 0 and 1");
   if (config.exactBoost <= 0) throw new Error("exactBoost must be positive");

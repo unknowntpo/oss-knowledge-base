@@ -80,7 +80,7 @@ export function parseSearchGoldenFixture(value: unknown): SearchGoldenFixtureV1 
   }
 
   const chunks = asArray(fixture.chunks, "fixture.chunks").map((chunk, index) =>
-    parseChunk(chunk, `fixture.chunks[${index}]`),
+    parseGoldenChunk(chunk, `fixture.chunks[${index}]`),
   );
   const queries = asArray(fixture.queries, "fixture.queries").map((query, index) =>
     parseQuery(query, `fixture.queries[${index}]`),
@@ -120,7 +120,8 @@ export function parseSearchGoldenFixture(value: unknown): SearchGoldenFixtureV1 
   };
 }
 
-function parseChunk(value: unknown, path: string): GoldenSourceRecordChunkV1 {
+/** Shared with the v2 fixture, which indexes the same chunk contract. */
+export function parseGoldenChunk(value: unknown, path: string): GoldenSourceRecordChunkV1 {
   const chunk = asObject(value, path);
   const schema = asString(chunk.schema, `${path}.schema`);
   if (schema !== SOURCE_RECORD_CHUNK_SCHEMA) {
@@ -188,7 +189,7 @@ function parseQuery(value: unknown, path: string): GoldenSearchQueryV1 {
   const filters =
     request.filters === undefined
       ? undefined
-      : parseFilters(request.filters, `${path}.request.filters`);
+      : parseGoldenFilters(request.filters, `${path}.request.filters`);
   const expectation = parseExpectation(query.expectation, `${path}.expectation`);
 
   return {
@@ -203,7 +204,8 @@ function parseQuery(value: unknown, path: string): GoldenSearchQueryV1 {
   };
 }
 
-function parseFilters(value: unknown, path: string): SearchFiltersV1 {
+/** Shared with the v2 fixture. */
+export function parseGoldenFilters(value: unknown, path: string): SearchFiltersV1 {
   const filters = asObject(value, path);
   const projectIds = optionalStringArray(filters.projectIds, `${path}.projectIds`);
   const sourceInstanceIds = optionalStringArray(

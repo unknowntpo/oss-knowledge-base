@@ -17,6 +17,7 @@
     "typecheck": "bun run --cwd packages/domain typecheck && bun run --cwd packages/serving-contract typecheck && bun run --cwd packages/search typecheck && bun run --cwd packages/reference-pipeline typecheck && bun run --cwd apps/github-publisher typecheck && bun run --cwd apps/data-publisher-worker typecheck && bun run --cwd apps/web typecheck && tsc -p scripts/verify/tsconfig.json",
     "build": "bun run --cwd apps/web build",
     "measure:search": "bun run --cwd apps/web measure:search",
+    "eval:search": "bun run --cwd packages/search eval",
     "measure:review-queue": "bun run --cwd apps/data-publisher-worker measure:review-queue",
     "search:publish": "bun run --cwd apps/web search:publish",
     "dev": "bun apps/web/scripts/dev.ts",
