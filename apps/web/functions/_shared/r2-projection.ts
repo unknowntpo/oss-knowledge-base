@@ -76,10 +76,17 @@ function readDetailMap(bucket: R2Bucket, manifest: FeedManifestV3): Promise<Feed
   return pending;
 }
 
+/**
+ * Spec 003 R7: a `cache-control` the caller passes is kept. Without one, a success may be
+ * revalidated after 30 s and an error (status ≥ 400) is never stored, so a transient failure
+ * is not replayed from a cache after R2 recovers.
+ */
 export function jsonResponse(value: unknown, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
   headers.set("content-type", "application/json; charset=utf-8");
-  headers.set("cache-control", "public, max-age=30, stale-while-revalidate=120");
+  if (!headers.has("cache-control")) {
+    headers.set("cache-control", (init.status ?? 200) >= 400 ? "no-store" : "public, max-age=30, stale-while-revalidate=120");
+  }
   headers.set("x-content-type-options", "nosniff");
   return new Response(JSON.stringify(value), { ...init, headers });
 }

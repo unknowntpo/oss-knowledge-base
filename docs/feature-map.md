@@ -151,10 +151,12 @@ No `data-testid` attributes; tests select by class, id, and role.
 
 ## Web API (Pages Functions, `apps/web/functions`)
 
-All GET, R2 binding `OSS_KB_BUCKET`. Every response, including errors, carries
-`cache-control: public, max-age=30, stale-while-revalidate=120`: `jsonResponse`
-(`apps/web/functions/_shared/r2-projection.ts`) overwrites the `no-store` and
-`immutable` headers the handlers pass (gardening G14). Errors are `{error}`.
+All GET, R2 binding `OSS_KB_BUCKET`. Errors are `{error}`. `cache-control`
+(Spec 003 R7, `jsonResponse` in `apps/web/functions/_shared/r2-projection.ts`):
+every 4xx/5xx is `no-store`; a 200 is `public, max-age=30,
+stale-while-revalidate=120`, except `/api/search-detail/:ref`, which is
+`public, max-age=31536000, immutable` (a ref pins a write-once release). A
+handler's own `cache-control` wins over these defaults.
 
 | Endpoint | Returns | Data source | Covered by |
 | --- | --- | --- | --- |
