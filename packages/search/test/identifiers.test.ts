@@ -99,10 +99,50 @@ describe("Spec 016 community identifiers (bm25-reference@2 with profiles)", () =
     ["invalid expression", { kind: "kip", canonicalPrefix: "KIP-", recordIdPattern: "(\\d+" }, "is not a valid RegExp"],
     ["empty prefix", { kind: "kip", canonicalPrefix: " ", textPattern: "KIP-?(\\d+)" }, "needs a canonicalPrefix"],
     ["empty kind", { kind: "", canonicalPrefix: "KIP-", textPattern: "KIP-?(\\d+)" }, "needs a kind"],
+    ["a quantified group that holds a quantifier", { kind: "kip", canonicalPrefix: "KIP-", textPattern: "KIP-?(\\d+)+x" }, "nested quantifier"],
+    ["a starred group that holds a quantifier", { kind: "kip", canonicalPrefix: "KIP-", recordIdPattern: "(?:a+)*:(\\d+)$" }, "nested quantifier"],
   ];
 
   test.each(rejectedPatterns)("H15: a profile pattern with %s is rejected", (_case, pattern, message) => {
     expect(() => compileIdentifierProfiles({ p: [pattern] })).toThrow(message);
     expect(() => compileIdentifierProfiles({ p: [{ kind: "kip", canonicalPrefix: "KIP-", textPattern: "KIP-?(\\d+)" }] })).not.toThrow();
+  });
+
+  const optionalNumbers: readonly (readonly [string, IdentifierPatternV1, string, string])[] = [
+    ["an optional capture group", { kind: "k", canonicalPrefix: "K-", textPattern: "\\bK(\\d+)?\\b" }, "K", "K notes"],
+    ["a capture group that can be empty", { kind: "k", canonicalPrefix: "K-", textPattern: "\\bK(\\d*)\\b" }, "K", "K notes"],
+    ["a capture group that is not a number", { kind: "k", canonicalPrefix: "K-", textPattern: "\\bK-(\\w+)\\b" }, "K-abc", "K-abc notes"],
+    ["an optional group in the record id", { kind: "k", canonicalPrefix: "K-", recordIdPattern: "^r(\\d+)?" }, "K", "K notes"],
+  ];
+
+  test.each(optionalNumbers)("H15: a match of %s without a number is not an identifier", (_case, pattern, query, title) => {
+    const profiles = compileIdentifierProfiles({ p: [pattern] });
+    expect(profiles.canonicalizeQuery(query)).toBe(query);
+    expect(profiles.identifiersOf("p", title, "r")).toEqual([]);
+    // Positive control: with a number the same pattern yields the canonical identifier.
+    if (pattern.textPattern !== undefined && pattern.textPattern.includes("\\d")) {
+      expect(profiles.canonicalizeQuery("K7")).toBe("K-7");
+      expect(profiles.identifiersOf("p", "K7 notes", "r")).toEqual(["k-7"]);
+    }
+    if (pattern.recordIdPattern !== undefined) expect(profiles.identifiersOf("p", title, "r7")).toEqual(["k-7"]);
+  });
+
+  test("H15: every fixture profile pattern stays fast on long adversarial input", async () => {
+    const golden = await loadGoldenV2();
+    const profiles = compileIdentifierProfiles(golden.identifierProfiles);
+    const size = 50_000;
+    const inputs = [
+      "7".repeat(size), "KIP-".repeat(size / 4), `KIP-${"7".repeat(size)}x`, `KAFKA${"7".repeat(size)}x`,
+      "#".repeat(size), `#${"7".repeat(size)}x`, "KIP-7 ".repeat(size / 6), `:github:pull:${"7".repeat(size)}x`,
+    ];
+    expect(Object.values(golden.identifierProfiles).flat().length).toBe(4);
+    for (const input of inputs) {
+      const startedAt = performance.now();
+      profiles.canonicalizeQuery(input);
+      for (const projectId of Object.keys(golden.identifierProfiles)) profiles.identifiersOf(projectId, input, input);
+      expect(performance.now() - startedAt, input.slice(0, 16)).toBeLessThan(500);
+    }
+    // Positive control: the inputs do exercise the patterns.
+    expect(profiles.canonicalizeQuery("KIP7 ".repeat(3))).toBe("KIP-7 KIP-7 KIP-7 ");
   });
 });

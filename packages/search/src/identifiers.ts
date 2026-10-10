@@ -61,7 +61,8 @@ export function compileIdentifierProfiles(profiles: IdentifierProfilesV1): Compi
     canonicalizeQuery: (query) => {
       let rewritten = query;
       for (const pattern of queryPatterns.values()) {
-        rewritten = rewritten.replace(pattern.text!, (_match, number: string) => `${pattern.canonicalPrefix}${number}`);
+        rewritten = rewritten.replace(pattern.text!, (match, number: string | undefined) =>
+          isNumber(number) ? `${pattern.canonicalPrefix}${number}` : match);
       }
       return rewritten;
     },
@@ -69,10 +70,12 @@ export function compileIdentifierProfiles(profiles: IdentifierProfilesV1): Compi
       const identifiers = new Set<string>();
       for (const pattern of byProject.get(projectId) ?? []) {
         if (pattern.text !== undefined) {
-          for (const match of title.matchAll(pattern.text)) identifiers.add(canonical(pattern, match[1]!));
+          for (const match of title.matchAll(pattern.text)) {
+            if (isNumber(match[1])) identifiers.add(canonical(pattern, match[1]));
+          }
         }
-        const fromRecord = pattern.recordId?.exec(recordId);
-        if (fromRecord != null) identifiers.add(canonical(pattern, fromRecord[1]!));
+        const fromRecord = pattern.recordId?.exec(recordId)?.[1];
+        if (isNumber(fromRecord)) identifiers.add(canonical(pattern, fromRecord));
       }
       return [...identifiers];
     },
@@ -83,6 +86,11 @@ export function compileIdentifierProfiles(profiles: IdentifierProfilesV1): Compi
   };
   compiled.set(profiles, result);
   return result;
+}
+
+/** A match whose group is absent, empty, or not digits (an optional group) names no identifier. */
+function isNumber(value: string | undefined): value is string {
+  return value !== undefined && /^\d+$/u.test(value);
 }
 
 function canonical(pattern: CompiledPattern, number: string): string {
@@ -106,7 +114,16 @@ function compilePattern(pattern: IdentifierPatternV1, path: string): CompiledPat
   };
 }
 
+/**
+ * A quantified group that itself holds a quantifier, such as `(\d+)+`, can backtrack
+ * exponentially. Patterns are trusted repository data, so this catches the obvious mistake only.
+ */
+const NESTED_QUANTIFIER = /\([^()]*[+*}][^()]*\)[+*{]/u;
+
 function compile(source: string, flags: string, path: string): RegExp {
+  if (NESTED_QUANTIFIER.test(source)) {
+    throw new Error(`Identifier pattern ${path} has a nested quantifier, which can backtrack exponentially`);
+  }
   let expression: RegExp;
   try {
     expression = new RegExp(source, flags);

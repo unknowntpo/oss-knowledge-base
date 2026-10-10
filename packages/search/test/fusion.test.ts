@@ -278,6 +278,20 @@ describe("Spec 016 in-memory semantic retriever", () => {
     expect((await semantic.retrieve({ query: "unrelated words", limit: 10 })).candidates).toEqual([]);
   });
 
+  test("H5: equal similarities rank by chunk id, whatever order the chunks arrive in", async () => {
+    const golden = await loadGoldenV2();
+    const constant = (chunks: typeof golden.chunks) => createInMemorySemanticRetriever({
+      revision: { ...FAKE_SEMANTIC_REVISION, dimensions: 1 },
+      chunks,
+      embed: () => [1],
+    });
+    const forward = await constant(golden.chunks).retrieve({ query: "q", limit: 100 });
+    const reversed = await constant([...golden.chunks].reverse()).retrieve({ query: "q", limit: 100 });
+    const ids = golden.chunks.map((chunk) => chunk.id).sort((left, right) => left.localeCompare(right));
+    expect(forward.candidates.map((item) => item.chunkId)).toEqual(ids);
+    expect(reversed.candidates).toEqual(forward.candidates);
+  });
+
   test("H5: it applies the evidence filters", async () => {
     const golden = await loadGoldenV2();
     const semantic = fakeSemanticRetriever(golden.chunks);

@@ -113,6 +113,10 @@ describe("Spec 016 code-text tokens (bm25-reference@2)", () => {
     expect(DEFAULT_LEXICAL_REVISION).toBe("bm25-reference@1");
     expect(defaultLexicalSearchConfig.revision).toBe("bm25-reference@1");
     expect(lexicalTokenizer("bm25-reference@1")).toBe(tokenizeLexical);
+    // Only @2 opts in: an unknown or later revision keeps the @1 tokens.
+    for (const revision of ["bm25-reference@3", "bm25:v1", ""]) {
+      expect(lexicalTokenizer(revision)("HeartbeatRequestManager")).toEqual(["heartbeatrequestmanager"]);
+    }
     expect(tokenizeLexical("HeartbeatRequestManager KIP770")).toEqual(["heartbeatrequestmanager", "kip770"]);
     expect(lexicalQueryTerms("HeartbeatRequestManager")).toEqual(["heartbeatrequestmanager"]);
     // Positive control: the same input does split at @2.

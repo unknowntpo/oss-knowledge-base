@@ -340,6 +340,7 @@ the two `viewer/` items below.
   vectors; delete the concept table then.
 - **Layer:** test.
 - **Source:** Spec 016 slice 1.
+
 ## CI evidence
 
 ### G30. The evidence redaction gate does not decode every encoding

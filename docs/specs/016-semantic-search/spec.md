@@ -80,6 +80,10 @@ The human labelled one query on 2026-10-09:
 | `bm25-reference@1` | KAFKA-19804, KAFKA-19919, Release Manager, KAFKA-20397, KIP-405 | 1.0 | 1.0 | 0.7981 |
 | `bm25-reference@2` | KAFKA-19919, KAFKA-19804, KAFKA-19738, Release Manager, KAFKA-20765 | 1.0 | 0.5 | 0.7162 |
 
+KAFKA-20765 is the record `kafka:github:pull:22747` (its pull request): the
+fixture keeps one group per key, while Dev has the Jira issue and the pull
+request as separate groups.
+
 At `@2` the Release Manager thread leaves the top 3 and KAFKA-19738
 (`OffsetsRequestManager`) enters it. KAFKA-19919 ("Network Threads Blocked…",
 unjudged) moves to rank 1, because splitting class names raises the document
@@ -154,13 +158,16 @@ Lexical revision `bm25-reference@2` (slice 1):
    token it comes from. Boundaries: lower-case letter or digit before an
    upper-case letter; and inside an upper-case run before its last letter when
    a lower-case letter follows (`HTTPServer` → `http`, `server`). A
-   single-letter part stays with its neighbour, so no one-letter term exists.
+   single-letter part stays with its neighbour, so case splitting adds no
+   one-letter term.
    Index and query use the same tokenizer.
 3. **Identifier profiles.** A lexical config may carry, per project, a list
    of `IdentifierPatternV1 { kind, canonicalPrefix, textPattern?,
    recordIdPattern? }`. Patterns are regular-expression sources with one
    capture group, the number; `textPattern` is matched case-insensitively.
-   Profiles are valid only with `bm25-reference@2`.
+   A match whose group is absent, empty, or not digits is not an identifier.
+   A pattern with a quantified group that holds a quantifier (`(\d+)+`) is
+   rejected. Profiles are valid only with `bm25-reference@2`.
    - Index: every identifier a title's `textPattern` or the record id's
      `recordIdPattern` yields is added to the chunk's title tokens in canonical
      form (`canonicalPrefix` + number, lower-cased, plus its tokens), unless
@@ -404,8 +411,11 @@ Items tagged `[pending]` belong to slices 2–4.
   them are dropped before fusion; the retriever receives the query, filters,
   and depth → evidence: `fusion.test.ts`.
 - H15: given identifier profiles with `bm25-reference@1`, or a pattern with
-  no pattern, no or two capture groups, an invalid expression, or an empty
-  prefix or kind, building an index or postings fails → evidence:
+  no pattern, no or two capture groups, an invalid expression, a nested
+  quantifier, or an empty prefix or kind, building an index or postings fails;
+  a match whose number group is absent, empty, or not digits yields no
+  identifier and leaves the query unchanged; every fixture pattern handles
+  50,000-character adversarial input in under 500 ms → evidence:
   `identifiers.test.ts`.
 - H16: given a golden v2 file with a judgment on a missing or non-root
   record, a thread graded twice, a grade outside 1–2, no grade 2 thread, too
@@ -535,6 +545,15 @@ Not decided here:
 7. **Labels.** Should `RequestManager` and `request manager` carry the
    Release Manager negative, and is "top 3" the right bound for the three
    expected threads?
+
+Known limitations of the fixture's patterns (slice 2 decides with H26):
+
+- `KIP 770` (a space) is not normalized to `KIP-770`. Dev excerpts do contain
+  `KAFKA 13152` and `Kip 770`.
+- `KIP-0770` (a leading zero) is another identifier than `KIP-770`.
+- Profile patterns are trusted repository data. Validation rejects only the
+  obvious nested quantifier; it does not prove a pattern runs in linear time.
+  The API caps a query at 500 characters.
 
 ## Non-goals
 
