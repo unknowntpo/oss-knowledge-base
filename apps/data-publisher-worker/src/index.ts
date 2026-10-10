@@ -11,6 +11,9 @@ import { R2PublicationDestination } from "./r2-destination";
 import { runPending } from "./run-schedule";
 import { healthBody } from "./health";
 import { runDataPublication, type PipelinePhaseMarker, type PipelineRunStatus } from "./pipeline";
+import type { EmbeddingAiBinding, VectorIndex } from "@oss-knowledge-base/semantic-vectorize";
+import { SearchEmbeddingRunner, unboundSearchEmbeddingHealth } from "./search-embedding/runner";
+import { sanitizeErrorMessage } from "./search-embedding/sanitize";
 
 interface Env {
   readonly PUBLICATION_ENVIRONMENT: "development" | "production";
@@ -34,6 +37,17 @@ interface Env {
    * `bm25-reference@1`; set `bm25-reference@2` only once Pages that read it are live.
    */
   readonly SEARCH_LEXICAL_REVISION?: string;
+  /**
+   * Spec 016 slice 2b: the embedding profile (`bge-m3@1`). Unset is off: no model, index, or
+   * embedding-object call. An unknown value fails the embedding run, never the publication.
+   */
+  readonly SEARCH_EMBEDDING?: string;
+  /** The search AI Gateway; never the digest's. */
+  readonly SEARCH_GATEWAY_ID?: string;
+  /** The Vectorize index, one namespace per project. Bound on Dev only. */
+  readonly SEARCH_VECTORS?: VectorIndex;
+  /** Bound on Dev only; everything that reads it tolerates its absence. */
+  readonly SEARCH_EMBEDDING_RUN?: DurableObjectNamespace;
 }
 
 const sourceFetch = (url: string, init: { readonly headers: Readonly<Record<string, string>> }) =>
@@ -41,6 +55,28 @@ const sourceFetch = (url: string, init: { readonly headers: Readonly<Record<stri
 
 const STATE_OBJECT_NAME = "github-feed-search-pipeline-v1";
 const DIGEST_OBJECT_NAME = "topic-digest-apache-kafka-v1";
+const SEARCH_EMBEDDING_OBJECT_NAME = "search-embedding-v1";
+
+function searchEmbeddingObject(env: Pick<Env, "SEARCH_EMBEDDING_RUN">): DurableObjectStub | undefined {
+  return env.SEARCH_EMBEDDING_RUN?.get(env.SEARCH_EMBEDDING_RUN.idFromName(SEARCH_EMBEDDING_OBJECT_NAME));
+}
+
+/**
+ * Spec 016 Behavior 15: what a successful publication does next. `undefined` when the flag is
+ * blank or the object is not bound, so a publisher without embeddings calls nothing. The answer
+ * is logged, not acted on: 409 means a run is already pending, and any failure waits for the
+ * next publication.
+ */
+export function searchEmbeddingTrigger(
+  env: Pick<Env, "SEARCH_EMBEDDING" | "SEARCH_EMBEDDING_RUN">,
+): ((status: PipelineRunStatus) => Promise<void>) | undefined {
+  if ((env.SEARCH_EMBEDDING?.trim() ?? "") === "" || env.SEARCH_EMBEDDING_RUN === undefined) return undefined;
+  return async (status) => {
+    if (!status.ok) return;
+    const response = await searchEmbeddingObject(env)!.fetch("https://search-embedding.internal/run", { method: "POST" });
+    if (!response.ok && response.status !== 409) console.error(sanitizeErrorMessage(`Scheduling the search embedding failed: ${response.status} ${await response.text()}`));
+  };
+}
 
 const matches = (cron: string, configured: string | undefined) => configured !== undefined && configured.trim() !== "" && cron === configured;
 
@@ -61,11 +97,18 @@ export function digestModel(env: Pick<Env, "DIGEST_MODEL" | "DIGEST_GATEWAY_ID" 
 }
 
 /**
- * `/health`: the publisher's body, unchanged, plus `digest` (null when the digest object fails) and
- * `reviewQueue`, the review queue's `last-run.json` (null before the first run or on a read error).
+ * `/health`: the publisher's body, unchanged, plus `digest` (null when the digest object fails),
+ * `reviewQueue`, the review queue's `last-run.json` (null before the first run or on a read error),
+ * and `searchEmbedding` (null when the embedding object does not answer).
  */
-export function mergeHealth(publisher: unknown, digest: unknown, reviewQueue: unknown = null): unknown {
-  return { ...(publisher as Record<string, unknown>), digest: digest ?? null, reviewQueue: reviewQueue ?? null };
+export function mergeHealth(publisher: unknown, digest: unknown, reviewQueue: unknown = null, searchEmbedding: unknown = null): unknown {
+  return {
+    ...(publisher as Record<string, unknown>),
+    digest: digest ?? null,
+    reviewQueue: reviewQueue ?? null,
+    // Spec 016 H51: the embedding object's health, or null when it does not answer.
+    searchEmbedding: searchEmbedding ?? null,
+  };
 }
 
 function reviewQueueRun(env: Env, dryRun: boolean) {
@@ -128,7 +171,24 @@ export default {
       const reviewQueue = await env.OSS_KB_BUCKET.get(reviewQueueLastRunKey(KAFKA_REVIEW_PROFILE.projectId))
         .then((object) => (object === null ? null : object.json()))
         .catch(() => null);
-      return Response.json(mergeHealth(await publisher.json(), digestHealth, reviewQueue));
+      const embedding = searchEmbeddingObject(env);
+      const searchEmbedding = embedding === undefined
+        ? unboundSearchEmbeddingHealth(env.SEARCH_EMBEDDING, new Date())
+        : await embedding.fetch("https://search-embedding.internal/status")
+          .then((response) => (response.ok ? response.json() : null))
+          .catch(() => null);
+      return Response.json(mergeHealth(await publisher.json(), digestHealth, reviewQueue, searchEmbedding));
+    }
+    if (request.method === "POST" && url.pathname === "/search-embedding/run") {
+      if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
+      const embedding = searchEmbeddingObject(env);
+      if (embedding === undefined) return Response.json({ ok: false, disabled: true }, { status: 403 });
+      const forwarded = new URLSearchParams();
+      for (const name of ["dryRun", "reset"]) if (url.searchParams.get(name) === "1") forwarded.set(name, "1");
+      const profile = url.searchParams.get("profile");
+      if (profile !== null) forwarded.set("profile", profile);
+      const query = forwarded.toString();
+      return embedding.fetch(`https://search-embedding.internal/run${query === "" ? "" : `?${query}`}`, { method: "POST" });
     }
     if (request.method === "POST" && url.pathname === "/digest/run") {
       if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
@@ -196,6 +256,7 @@ export class PipelineState implements DurableObject {
       const requestedAt = await this.ctx.storage.get<string>("requested-at");
       await this.ctx.storage.delete("requested-at");
       const materializedAt = requestedAt ?? new Date().toISOString();
+      const onPublished = searchEmbeddingTrigger(this.env);
       await runDataPublication({
         environment: this.env.PUBLICATION_ENVIRONMENT,
         materializedAt,
@@ -211,6 +272,7 @@ export class PipelineState implements DurableObject {
         state: new DurableObjectPipelineState(this.ctx.storage),
         destination: new R2PublicationDestination(this.env.OSS_KB_BUCKET),
         ...(this.env.SEARCH_LEXICAL_REVISION === undefined ? {} : { searchLexicalRevision: this.env.SEARCH_LEXICAL_REVISION }),
+        ...(onPublished === undefined ? {} : { onPublished }),
       });
     } finally {
       this.running = false;
@@ -254,6 +316,55 @@ export class DigestRun implements DurableObject {
     if (request.method === "GET" && url.pathname === "/status") return Response.json(await this.runner.health());
     if (request.method === "POST" && url.pathname === "/run") {
       const result = await this.runner.request(url.searchParams.get("dryRun") === "1");
+      return Response.json(result.body, { status: result.status });
+    }
+    return new Response("Not found", { status: 404 });
+  }
+
+  async alarm(): Promise<void> {
+    await this.runner.alarm();
+  }
+}
+
+/**
+ * Spec 016 slice 2b: embeds the published Search chunks into the vector index. Its own object,
+ * isolate, memory, storage, and alarm, so no failure here reaches the publication.
+ */
+export class SearchEmbeddingRun implements DurableObject {
+  private readonly runner: SearchEmbeddingRunner;
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    this.runner = new SearchEmbeddingRunner({
+      storage: {
+        get: (key) => ctx.storage.get(key),
+        put: (key, value) => ctx.storage.put(key, value),
+        putMany: (entries) => ctx.storage.put(entries as Record<string, unknown>),
+        delete: (key) => ctx.storage.delete(key),
+        deleteMany: async (keys) => { await ctx.storage.delete([...keys]); },
+        list: (prefix) => ctx.storage.list({ prefix }),
+        getAlarm: () => ctx.storage.getAlarm(),
+        setAlarm: (time) => ctx.storage.setAlarm(time),
+      },
+      bucket: new R2DigestBucket(env.OSS_KB_BUCKET),
+      flag: env.SEARCH_EMBEDDING,
+      gatewayId: env.SEARCH_GATEWAY_ID,
+      digestGatewayId: env.DIGEST_GATEWAY_ID,
+      ai: env.AI as EmbeddingAiBinding | undefined,
+      index: env.SEARCH_VECTORS,
+      now: () => new Date(),
+      delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    });
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    if (request.method === "GET" && url.pathname === "/status") return Response.json(await this.runner.health());
+    if (request.method === "POST" && url.pathname === "/run") {
+      const result = await this.runner.request({
+        dryRun: url.searchParams.get("dryRun") === "1",
+        reset: url.searchParams.get("reset") === "1",
+        ...(url.searchParams.get("profile") === null ? {} : { profile: url.searchParams.get("profile")! }),
+      });
       return Response.json(result.body, { status: result.status });
     }
     return new Response("Not found", { status: 404 });

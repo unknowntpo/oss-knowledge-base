@@ -384,6 +384,71 @@ the two `viewer/` items below.
 - **Layer:** measurement.
 - **Source:** Spec 016 slice 2a.
 
+### G40. `SEARCH_EMBEDDING` is a rollout flag; embedding is built but off
+- **Where:** `searchEmbeddingConfig`
+  (`apps/data-publisher-worker/src/search-embedding/runner.ts`),
+  `searchEmbeddingTrigger` (`src/index.ts`), the `H45` configuration test in
+  `test/search-embedding-runner.test.ts`, `wrangler.development.jsonc`
+  (binding, object, and gateway id without the flag).
+- **Why:** slice 2b ships the embedding run without a real Workers AI or
+  Vectorize call ever having been made, so the first one happens on Dev by a
+  one-line change (H52), after a dry run. Until then a Durable Object class
+  and a Vectorize binding are deployed and unused.
+- **Fix:** Spec 016 H52 sets the variable for Dev and updates the H45 test.
+  When slice 3 reads the vectors and Prod has its own index and gateway,
+  decide whether the flag stays as the profile selector or becomes a default.
+- **Layer:** test (H45) now.
+- **Source:** Spec 016 slice 2b.
+
+### G41. Embedding bounds and the fake index rest on documentation, not measurement
+- **Where:** `DEFAULT_EMBEDDING_LIMITS`
+  (`apps/data-publisher-worker/src/search-embedding/run.ts`): 50 texts and
+  20,000 estimated tokens per call; `VECTOR_LIMITS` and `FakeVectorIndex`
+  (`packages/semantic-vectorize/src/`); the response shape in
+  `embeddingVectors`; the token estimate (`estimateTokens`, 4 characters per
+  token) and the copied price (G19).
+- **Why:** no test may call Cloudflare. The batch size `@cf/baai/bge-m3`
+  accepts, its error texts, the real token counts, and how long a mutation
+  takes to become queryable are unknown until H52; the fake index enforces
+  the limits as documented on 2026-10-10 and will drift when they change.
+- **Fix:** after H52, write the observed values into Spec 016 Results, tune
+  the bounds, and correct the fake where Dev disagreed. Record the ratio of
+  the gateway's reported tokens to the estimate (the estimate may undercount
+  by up to about 2×; the daily cap of 2,500 allows for that). A batch that
+  fails in three runs in a row is quarantined for a day and shows in
+  `/health` `lastRun.quarantined` and `lastError`.
+- **Layer:** measurement (H52), then test (the fake).
+- **Source:** Spec 016 slice 2b.
+
+### G42. No reader can find a release's chunk for a stored vector yet
+- **Where:** `SemanticReleaseView`
+  (`packages/semantic-vectorize/src/release-view.ts`); the only
+  implementation is `createInMemoryReleaseView`, used by tests.
+- **Why:** the retriever answers a match with the release's own chunk
+  (Spec 016 Behavior 22), but a release has no record → shard lookup; the
+  lexical reader finds shards by term. Slice 2b stops at the interface.
+- **Fix:** Spec 016 slice 3 implements the view over R2 (open question 9:
+  shard ranges in the manifest, or a per-release side object) and wires the
+  retriever into `/api/search`. Do not copy the in-memory view into Pages.
+- **Layer:** structure (the manifest or side object), then test.
+- **Source:** Spec 016 slice 2b.
+
+### G43. The digest surfaces model error text unredacted
+- **Where:** `errorShape` and `ModelCalls`
+  (`apps/data-publisher-worker/src/digest/model.ts`), `DigestRunResult`
+  `modelErrors` and `error` (`src/digest/run.ts`), served by the public
+  `/health` `digest.lastRun`.
+- **Why:** `errorShape` cuts a message to 200 characters and redacts
+  nothing, so a bearer token or key echoed by Workers AI or the gateway would
+  be published. Spec 016 slice 2b redacts in the embedding path only
+  (`src/search-embedding/sanitize.ts`) and replaces the message `errorShape`
+  returns, because changing the digest was out of that PR's scope.
+- **Fix:** route the digest's error texts through `sanitizeErrorMessage`
+  (move it beside `errorShape`), then drop the local replacement in
+  `search-embedding/run.ts`.
+- **Layer:** structure (one function every surfaced error passes), then test.
+- **Source:** PR #50 verifier, second verdict.
+
 ## CI evidence
 
 ### G30. The evidence redaction gate does not decode every encoding

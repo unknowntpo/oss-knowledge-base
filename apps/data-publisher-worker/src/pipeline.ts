@@ -27,6 +27,8 @@ import {
   type StreamedSearchRelease,
 } from "@oss-knowledge-base/serving-contract";
 
+import { errorText } from "./search-embedding/sanitize";
+
 export interface PipelineStateRepository {
   read(): Promise<SerializedReferenceStateV1>;
   /** The last recorded run, for each source's previous `lastSuccessAt` (ADR-0014). */
@@ -150,6 +152,13 @@ export async function runDataPublication(input: {
   readonly destination: PublicationDestination;
   /** The `SEARCH_LEXICAL_REVISION` variable as configured; see `resolveSearchLexicalRevision`. */
   readonly searchLexicalRevision?: string;
+  /**
+   * Called once after a successful publication is recorded (Spec 016 Behavior 15). Its failure or
+   * silence never changes the run: the result is already recorded and is returned regardless.
+   */
+  readonly onPublished?: (status: PipelineRunStatus) => Promise<void>;
+  /** How long the run waits for `onPublished`; `ON_PUBLISHED_TIMEOUT_MS` when absent. */
+  readonly onPublishedTimeoutMs?: number;
 }): Promise<PipelineRunStatus> {
   const startedAt = Date.now();
   const counts: Record<string, number> = {};
@@ -216,7 +225,7 @@ export async function runDataPublication(input: {
     const compacted = compactState(next.readEvents(), input.materializedAt);
     compacted.commitCheckpoint(mergedCheckpoint(previousCheckpoint, succeeded.map((item) => item.poll)));
     await input.state.commit(compacted.snapshot());
-    return await record(input.state, {
+    const status = await record(input.state, {
       ok: true,
       environment: input.environment,
       completedAt: input.materializedAt,
@@ -232,6 +241,8 @@ export async function runDataPublication(input: {
       search: published.search(),
       ...withSources(sourceStatuses(polls, previousStatus, previousCheckpoint, input.materializedAt, conflicts, publishedBySource)),
     });
+    await notifyPublished(input.onPublished, status, input.onPublishedTimeoutMs ?? ON_PUBLISHED_TIMEOUT_MS);
+    return status;
   } catch (error) {
     return await record(input.state, {
       ok: false,
@@ -246,6 +257,26 @@ export async function runDataPublication(input: {
         previousStatus, previousCheckpoint, input.materializedAt, new Map(), new Map(),
       )),
     });
+  }
+}
+
+/** How long a publication waits for its `onPublished` hook before moving on. */
+export const ON_PUBLISHED_TIMEOUT_MS = 10_000;
+
+async function notifyPublished(hook: ((status: PipelineRunStatus) => Promise<void>) | undefined, status: PipelineRunStatus, timeoutMs: number): Promise<void> {
+  if (hook === undefined) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      hook(status),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, timeoutMs);
+      }),
+    ]);
+  } catch (error) {
+    console.error(`after-publication hook failed: ${errorText(error)}`);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
   }
 }
 

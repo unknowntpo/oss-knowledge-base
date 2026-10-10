@@ -1,6 +1,6 @@
 # Spec 016: Semantic candidates and hybrid fusion for Search
 
-Status: Draft for human review — decisions of 2026-10-08..10 recorded below; slices 1 and 2a implemented, Dev switched to `@2` (H42), slices 2b–4 pending
+Status: Draft for human review — decisions of 2026-10-08..10 recorded below; slices 1, 2a and 2b implemented (2b: embedding publication and the Vectorize adapter, off in both deployed configurations), Dev switched to `@2` (H42), enabling embeddings on Dev (H52) and slices 3–4 pending
 Date: 2026-10-10
 Traceability: enforced
 Builds on: Spec 005 (Phases 2 and 3, LLM boundary), Spec 013 (lexical shards, `bm25-reference@1`), Spec 014 (community profile `proposal`), Spec 015 (profile blocks, ADR-0016)
@@ -59,7 +59,8 @@ records, Kafka 2,194). The Search materializer makes one chunk part per record
 180-word window, so the release holds about 8,577 chunks. The exact value is
 `chunkCount` in the Search manifest, which is not publicly readable; since
 slice 2a the publisher reports it at `/health` `lastRun.search.chunkCount`
-(H41).
+(H41). Measured there on 2026-10-10: 8,586 chunks in 10 shards; the slice 2b
+numbers use that value.
 
 ## Example
 
@@ -115,6 +116,113 @@ see Results.
    keeping the original token) is allowed in core. Community identifier
    patterns (KIP-n, KAFKA-n) belong in the community profile, not hard-coded in
    core search.
+
+## Decisions (slice 2b, implementer, 2026-10-10; to confirm)
+
+Human decisions 2–4 fixed the unit, the model, the store, the namespace per
+project, and the separate gateway. These were left to the implementer:
+
+7. **State in the embedding object's storage**, one entry per vector
+   (Behavior 18). Rejected: an R2 object (rewritten whole on every batch, or
+   progress is lost when a run dies; a mutable object beside
+   content-addressed releases); Vectorize metadata as the state (listing is
+   paged and eventually consistent, the exact property that would cause
+   re-embedding). Durable Object storage is strongly consistent and written
+   per batch. Size: about 100 bytes per vector, 0.9 MB at 8,586 chunks and
+   3 MB at 30,000, far under the 128 MB memory limit; values are far under
+   the per-value limit; writes go 100 keys per call (the limit is 128).
+8. **A separate Durable Object**, not a step in the publisher's alarm. The
+   publisher's object has already hit the 128 MB limit and the 15-minute
+   alarm wall time, and a retried publisher alarm publishes again. Embedding
+   in its own object cannot extend, fail, or re-run a publication
+   (Behavior 15).
+9. **Vector id per passage, not per chunk id** (Behavior 17). H21 used to
+   say "under its chunk id": a chunk id is 76 bytes (limit 64) and changes
+   with every `sourceVersion`, which would re-embed a thread on every new
+   comment. This changes the wording of H21, not its intent.
+10. **No metadata index and no revision in the id.** A new revision
+    overwrites each vector in place, so storage never doubles; during the
+    change the index is mixed, and the retriever drops other revisions by
+    metadata (Behavior 22). Cost: until the backfill ends, other-revision
+    matches use part of the 50 returned per namespace.
+11. **An unknown `SEARCH_EMBEDDING` fails the embedding run, not the
+    publication** (Behavior 14).
+12. **Bounds** (Behavior 19): 3,000 chunks and 80 model calls per run, 400
+    calls and 2,500 estimated neurons per UTC day, 50 texts and 20,000
+    estimated tokens per call. Arithmetic in Results (slice 2b). The
+    embedding ledger is its own. The token estimate may undercount the
+    model's tokenizer by up to about 2× on CJK and identifier text (verifier,
+    PR #50), so the cap is set so that twice it plus the digest's 4,500 is
+    9,500, under the 10,000 neurons a day the plan includes.
+13. **Our own bounds are not failures; refusals are.** A run stopped by a
+    bound of Behavior 19 is `ok` with `limited`. Code 3036, a gateway 429, and
+    a spend-limit refusal are `ok: false`, `failureKind: model-limit`, because
+    someone has to look.
+14. **Coverage is in `/health`, not in the manifest** (Behavior 22).
+15. **A new package, `packages/semantic-vectorize`**, holds what the
+    publisher and the query side share (profile, vector id and metadata, the
+    `VectorIndex` port, the Workers AI embedder, the retriever, the fakes).
+    The Pages reader will import it in slice 3; `packages/search` and
+    `packages/serving-contract` do not depend on it (a test checks).
+16. **Deployed configuration.** Dev gets the Vectorize binding, the
+    `SearchEmbeddingRun` object (migration `v3`), and `SEARCH_GATEWAY_ID`.
+    Prod gets nothing, not even the inert object binding the digest has.
+17. **Small ones.** `truncate_inputs: true` on the model call; the gateway
+    cache is skipped when publishing; non-positive similarities are not
+    candidates (as in the in-memory retriever); `reset=1` and a dry run with
+    `profile=` are served while the flag is off, because they call nothing.
+
+18. **Vectors of a missing project are kept** until three releases in a
+    row hold none of its chunks (Behavior 23). Three, because the publisher
+    writes one release an hour and a source outage that empties a project is
+    more likely than a project ending; counting releases rather than runs
+    means repeated manual triggers cannot shorten the wait.
+19. **Quarantine is by time, not forever** (Behavior 24). A text that fails
+    alone in three runs in a row is skipped for 24 hours and then tried once
+    more (at most 2 calls), so a wrong conviction heals by itself; each
+    further failure doubles the wait, up to 30 days.
+20. **A failed batch is split, not retried whole** (Behavior 25, after the
+    second verdict on PR #50). Retrying 50 texts as one call can only fail
+    again when one of them is bad, and the 49 others stay unembedded beside it
+    for good. Halving finds the bad text in `1 + 2 × ceil(log2 n)` calls (13
+    for 50) and stores the rest in the same run. The halves take the place of
+    the whole-batch retry, so a transient error costs 3 calls instead of 2.
+    A probe text tells a bad batch from a model that is down, because both
+    look the same from one batch: without it, either two bad texts in the
+    first batch are never separated or an outage splits every batch. The
+    evidence has to be recent (third verdict): "some call succeeded earlier
+    in this run" let a model that died in mid-run get healthy texts struck,
+    so three failures in a row call for a new probe, and a text struck before
+    is treated like any other.
+21. **Every error text is redacted** (Behavior 24), in the embedding path
+    only. The digest shares `errorShape` and still surfaces model errors
+    unredacted (gardening G43).
+22. **The deadline is checked before every model call, and the call timeout
+    is 30 seconds, not 60** (Behavior 19, third verdict). Checked only
+    between batches, one split with 60-second timeouts could run 13 minutes
+    and a late batch past the alarm's 15, leaving no result at all. A normal
+    call takes a few seconds; 30 keeps the worst case at 11 min 35 s.
+23. **A path is not a token** (Behavior 24, third verdict). Redacting every
+    run of 32 token characters also removed object keys and URL paths from
+    foreign error text, which is what an operator needs to read.
+24. **Retries never compete with healthy work** (Behavior 26, fourth
+    verdict). Retried in release order with up to 3 calls each, 133
+    quarantined texts used a whole day's calls and the backlog starved (the
+    verifier's 8,586 chunks with 172 bad texts had not converged after 500
+    runs). Healthy first, a small separate budget, and a doubling quarantine
+    make the cost of bad texts independent of how many there are.
+
+Owner's answers (2026-10-10, after the PR #50 verdict):
+
+- (a) Decision 9, one vector per passage with id = hash of project, record,
+  and ordinal: recommended; **awaiting the owner's confirmation**.
+- (b) The slice 3 release-view contract (open question 9): deferred to the
+  slice 3 spec.
+- (c) Decision 11, an unknown flag value fails only the embedding run:
+  accepted.
+- (d) Depth of 50 per namespace (open question 10): measure in slice 4.
+- (e) Decision 16: Prod gets nothing until the Prod launch.
+- (f) An empty release: guard, do not wipe (Decision 18, Behavior 23).
 
 ## Simplification review
 
@@ -261,6 +369,180 @@ Serving `bm25-reference@2` (slice 2a):
     largestShardBytes, termsBytes }` from the manifest and object sizes of the
     release it wrote.
 
+Embedding publication and the Vectorize adapter (slice 2b):
+
+14. **Flag and profile.** The Worker variable `SEARCH_EMBEDDING` names an
+    embedding profile; `bge-m3@1` is `SemanticRevisionV1 { model:
+    "@cf/baai/bge-m3", modelRevision: "1", dimensions: 1024,
+    textAssemblyRevision: "title-text@1" }`. Unset or blank is off: the
+    publisher makes no model, Vectorize, or embedding-object call and writes
+    the same objects as before. Any other value, or a missing gateway id, AI
+    binding, or vector index, is a configuration error: the embedding run
+    fails naming it, calls nothing, and `/health` shows it. It does not fail
+    the publication (Spec 005: lexical search never depends on embeddings),
+    which is where this flag differs from `SEARCH_LEXICAL_REVISION`.
+15. **Its own object.** `SearchEmbeddingRun` is a Durable Object with its own
+    isolate, memory, storage, and alarm, like `DigestRun`. After a successful
+    publication the publisher asks it to run and ignores the answer; a
+    failure, timeout, or crash there cannot fail, delay, or re-run a
+    publication. `POST /search-embedding/run` starts it by hand.
+16. **One run.** A run pins the current Search release
+    (`public/search/v1/current.json` → manifest → shards) and reads one shard
+    at a time. Each chunk has a vector id and a fingerprint (rule 17). A chunk
+    is embedded when the state holds no entry for its id with the same
+    fingerprint and semantic revision. Texts go to the model in batches of at
+    most 50 texts and 20,000 estimated tokens, through the AI Gateway named by
+    `SEARCH_GATEWAY_ID`; each batch is upserted into Vectorize and then
+    recorded in the state. Ids in the state that the release no longer holds
+    are deleted from the index (Behavior 23), 100 per call, then from the state; nothing is
+    deleted unless every shard was read and the chunks seen equal the
+    manifest's `chunkCount`.
+17. **Vector identity.** The id is the first 48 hex characters of
+    `sha256(projectId, recordId, ordinal)`: a chunk id is 76 bytes and changes
+    with every `sourceVersion`, while this id is 48 bytes and stays with the
+    record's passage. The namespace is the project id. The fingerprint is the
+    first 32 hex characters of `sha256(title + "\n" + text, groupRootRecordId)`.
+    Metadata is `{ r: semantic revision id, h: fingerprint, record, ord,
+    root }`, under 10 KiB, with no metadata index. A new `sourceVersion` with
+    the same title, text, and group is not embedded again; a changed title,
+    text, or group is embedded again under the same id, replacing the vector.
+18. **State.** The object's storage holds one small entry per vector
+    (`v:<id>` → `{ p: projectId, h, r }`), the day's ledger, the last mutation
+    id, and the last result. It is the only source for "is this chunk
+    embedded": the index is never asked, so Vectorize's asynchronous
+    mutations (an upsert returns a mutation id and becomes queryable later)
+    cannot cause a second embedding. A run starts with `describe()`: the index
+    must answer with the profile's dimensions, or the run fails before any
+    model call; whether the index has processed the last accepted mutation is
+    reported, not acted on.
+19. **Bounds.** Per run: at most 3,000 chunks, 80 model calls, and 2,000
+    deletes. No model call (a batch, a half, a retry, a probe) and no delete
+    starts 10 minutes or more after the run began, and each model or
+    Vectorize call is abandoned after 30 seconds. So the longest run is the
+    deadline, plus the last model call, plus its upsert timing out, waiting 5
+    seconds, and timing out again: 600 + 30 + 65 = 695 seconds, 11 min 35 s,
+    under the alarm's 15 minutes (`worstCaseWallMs`). Reads of the release
+    from R2 and listings of the object's storage are not individually timed:
+    a read that hangs can still take a run past the alarm limit; the runtime
+    then retries the alarm, and because every stored batch is recorded as it
+    is stored the state stays correct. Per UTC day: at most 400 model calls and
+    2,500 estimated neurons (`@cf/baai/bge-m3` at 1,091 neurons per million
+    input tokens, estimated with the digest's token estimate; every call
+    counts at least 1). The ledger is written before each model call, so a
+    run that dies and is retried counts both attempts. A run that reaches a
+    bound stops embedding, keeps what it recorded, reports `limited`, and the
+    next run continues from the state.
+20. **Failures.** A model call that fails is followed, after 5 seconds, by
+    its halves (Behavior 25); a single text is retried once. Workers AI code
+    3036, a gateway 429, and a spend-limit refusal stop model use for the run
+    without a retry. A wrong number of vectors or a wrong dimension is a
+    model error. A failed upsert is retried once, then embedding stops for
+    the run (the store is down; further model calls would be wasted). A
+    failed delete is retried once, then deletes stop. Every failure leaves
+    the vectors already stored in place and is reported in `/health`.
+21. **`VectorizeSemanticRetriever`.** Embeds the query with the same profile
+    through the same gateway, queries each requested project's namespace
+    (all the release's projects without a project filter) for
+    `min(limit, 50)` matches with metadata, and maps each match through the
+    release it serves (rule 22). It applies the evidence filters to the
+    release's chunk, drops non-positive scores, orders by score then chunk
+    id, and returns `semanticRevisionId(profile)`. An embedding, dimension,
+    or index error rejects, and it rejects as soon as the request's signal is
+    aborted; `hybridSearch` turns that into `failed` or `timed-out`
+    (Behavior 9). It imports no Cloudflare type: the index is the structural
+    `VectorIndex` port, and nothing in `packages/search` or the response
+    contract names Vectorize. Slice 2b does not call it from the web API.
+22. **Consistency with releases.** The index is mutable and has one vector
+    per passage; releases are immutable. A match becomes a candidate only when
+    the release the query is served from holds a chunk of the same project,
+    record, and ordinal whose fingerprint equals the vector's `h`, and the
+    vector's `r` is the profile's revision. The candidate's ids come from the
+    release's chunk, never from metadata. So a vector newer or older than the
+    release, a vector of a removed chunk, and a vector of another revision
+    are dropped; a chunk not yet embedded is simply absent. After a rollback
+    to an older release, chunks whose passage is unchanged keep their
+    semantic candidates and the rest fall back to lexical ranking until the
+    next embedding run, which reconciles the index with whatever release is
+    current. Release objects and `SearchResponseV1` are unchanged; the
+    release a run embedded and its coverage (`releaseId`, `chunks`,
+    `embedded`, `pending`) are in `/health` `searchEmbedding.lastRun`, not in
+    the manifest, because a release is written before its vectors exist.
+23. **A missing project.** Vectors of chunks the release no longer holds are
+    deleted only for a project the release still holds at least one chunk of.
+    When a release holds none of a project's chunks (an empty release is
+    every project at once), that project's vectors and state are left as they
+    are, the result reports `heldDeletes` and `absentProjects { projectId,
+    vectors, releases }`, and the run is still `ok`. Each further release
+    without the project counts once, however many runs read it; at the third
+    in a row the vectors are deleted like any other, and the count with them.
+    At one release an hour that is about three hours. A rollback to an older
+    release is a release like any other: it counts when it lacks the project
+    and ends the count when it holds it. A release that holds the
+    project again ends the count, and nothing is embedded again.
+24. **The last error, redaction, and quarantine.** The last model or
+    vector-store failure that the run did not recover from is kept as
+    `/health` `searchEmbedding.lastError { kind, message, at, batchSize }`
+    until a later run embeds at least one chunk without a failure; a run that
+    only reaches a bound leaves it. Every error text this path stores,
+    returns, or logs (`lastError`, a run's `error` and `modelErrors`, the
+    body of `POST /search-embedding/run`, `configError`, `console.error`) has
+    `Bearer …` and every token replaced by `[redacted]` and is then cut to
+    200 characters. A token is a run of 32 or more characters out of letters,
+    digits, and `_ - + / =` (hex, base64, base64url), unless the run is a
+    path: it holds a `/`, holds no `+` or `=`, and none of its words (split
+    on `/ - _`) mixes lower-case and upper-case letters. In a path only a
+    segment of 32 or more characters (a digest, an account id) is redacted.
+    Object keys the run itself names are never touched. A text that fails alone (Behavior 25) in
+    three runs in a row, at the same fingerprint and revision, is
+    quarantined: skipped for 24 hours, then tried once more. A run reports
+    `quarantined` and the first five ids. A changed chunk, another revision,
+    and `reset=1` end a quarantine.
+25. **Splitting a failed batch.** When a call for more than one text fails
+    (not a refusal), each half is sent once; a half that succeeds is stored
+    at once, a half that fails is halved again, down to single texts. A text
+    that fails alone is struck (Behavior 24) and from then on is sent alone,
+    so it cannot fail a batch again. Every call, probes included, is counted
+    in the ledger before it is made and is subject to the deadline and the
+    per-run and per-day bounds; a bound reached part-way leaves the stored
+    halves stored and the rest pending and unstruck. One batch may spend at
+    most `4 × ceil(log2 n)` calls on its parts (24 for 50: two bad texts);
+    parts not reached wait for the next run.
+
+    A failure is blamed on the texts, that is, a failed part is split
+    further or a single text struck, only while the model demonstrably
+    answers: a call of this run has succeeded and fewer than 3 calls have
+    failed in a row since. Otherwise one probe text (`ok`) is embedded first.
+    If the probe succeeds the work goes on; if it fails the model is down:
+    the run stops embedding with `limited: model-down` and `ok: false`, and
+    nothing is struck, whether the text was struck before or not. A refusal
+    or a store failure stops the run as before and never splits.
+
+    | Case | Model calls |
+    | --- | --- |
+    | One bad text in a batch of 50, first run | at most 15: 13 on texts (`1 + 2 × ceil(log2 50)`) and a probe per 3 failures in a row (12 in the test) |
+    | That text in a later run (Behavior 26) | 1, or 2 with a probe (none succeeded yet in the run, or 3 failed in a row) |
+    | That text once quarantined | at most 2 after 24 hours, then after 48, 96 … up to every 30 days: at most 8 calls in its first 30 days |
+    | That text, first day | at most 19 |
+    | All retries together | at most 10 calls a run and 100 of the day's 400, and none in a run that left healthy work |
+    | Two bad texts in one batch | at most 33 (1 + 24 + probes) |
+    | The model down from the start | 4 a run (batch, two halves, probe); 3 for a single text; 96 a day at one run an hour; no strike |
+    | The model going down in mid-run | at most 4 after it stops (3 failures in a row, then the probe); no strike |
+    | A transient error on one batch | 3 |
+26. **Retries of texts that failed alone.** A text with a strike is never
+    put in a batch again. In every run all chunks without a strike are
+    embedded first; only then, and only if no bound stopped the run, are the
+    struck texts whose quarantine is not running retried, oldest failure
+    first, one call each (no second try; the blame rule of Behavior 25
+    applies, so a failure is a new strike only while the model answers).
+    Retries and their probes may use at most 10 calls a run and 100 calls a
+    UTC day (`maxRetryCallsPerRun`, `maxRetryCallsPerDay`, counted apart in
+    the day's ledger), so at least 300 of the day's 400 calls are never
+    theirs; a retry that does not get a call is counted in
+    `retriesDeferred`, a run's `retryCalls` says what it spent, and
+    `estimate` counts only chunks without a strike. The first quarantine is
+    24 hours; every further failed retry doubles it (48 h, 96 h …) up to 30
+    days. A changed chunk, another revision, and `reset=1` end it.
+
 ## Community profile fit
 
 Checked: `packages/reference-pipeline/src/digest/profiles.ts` (Spec 014,
@@ -312,7 +594,12 @@ Decided in slice 2a (implementer, to confirm):
    - **Switch (done).** `wrangler.development.jsonc` sets the variable, so
      Dev writes `@2` from the first run after that deploy (H42). Production
      is unchanged.
-   - **2b.** Publisher embedding step and Vectorize adapter. H21–H24, H27.
+   - **2b (this PR).** The embedding object, run, and state (H21–H23,
+     H45–H49), the Vectorize adapter with the release consistency rule (H24,
+     H43, H44, H50), `/health` and the trigger endpoint (H51), the cost
+     measurement (H27). `SEARCH_EMBEDDING` is unset in both deployed
+     configurations: nothing is embedded after the merge.
+   - **Enable.** A one-line change sets the variable for Dev (H52).
 3. **Query-time wiring** in the web API behind a flag. H28–H32.
 4. **Measured comparison** with the real model and the decision on rerank.
    H33.
@@ -381,6 +668,58 @@ run at any time, so the order is enforced by a flag, not by timing
    next release, and until then affected identifier queries lose their exact
    match but still return lexical results. Reader and publisher take the
    patterns from one module at one commit.
+
+Slice 2b changes, all additive:
+
+- New package `packages/semantic-vectorize` (Decision 15).
+- `packages/reference-pipeline`: the price of `@cf/baai/bge-m3` in `PRICES`
+  and `USD_PER_NEURON`.
+- Publisher: `runDataPublication` takes `onPublished`; `/health` gains
+  `searchEmbedding`; `POST /search-embedding/run`; the Worker exports
+  `SearchEmbeddingRun`.
+- Dev Worker configuration: `vectorize` binding `SEARCH_VECTORS` →
+  `osskb-search-dev`, Durable Object `SEARCH_EMBEDDING_RUN` (migration `v3`),
+  `SEARCH_GATEWAY_ID=osskb-search-dev`. Prod configuration: unchanged.
+- Release objects, `SearchResponseV1`, and the Pages bundle: unchanged.
+  `packages/search/test/fusion.test.ts` now runs the shared retriever
+  contract; `golden-evaluation.v2.json` is byte-identical.
+
+Rolling out embeddings on Dev. Preconditions, before slice 2b is merged
+(the merge deploys the Dev Worker):
+
+- The Vectorize index `osskb-search-dev` exists with 1,024 dimensions and
+  the cosine metric (created 2026-10-10). A deploy that binds a missing index
+  fails.
+- The AI Gateway `osskb-search-dev` exists (created 2026-10-10: 600 requests
+  an hour, a $2 per 30 days spend limit, authentication on). It is used only
+  once the flag is set.
+- **Unconfirmed:** whether the CI `CLOUDFLARE_API_TOKEN` may deploy a Worker
+  with a Vectorize binding. If it may not, the "Deploy the isolated
+  development data publisher" step fails after Pages has deployed. Dev stays
+  consistent: the previous Worker keeps running, Pages do not depend on this
+  change, and no release or state is touched. Fix: add the Vectorize
+  permission to the token and re-run the job. Nothing else is needed to roll
+  back.
+
+1. **Slice 2b merges.** The Dev deploy creates the object class and attaches
+   the index. The flag is unset: the publisher has no trigger, no model or
+   index call is made, `/health` `searchEmbedding.enabled` is `false`.
+2. **Estimate.** `POST /search-embedding/run?dryRun=1&profile=bge-m3@1`
+   returns the chunks, calls, tokens, neurons, dollars, and runs (H52).
+3. **Enable.** Set `"SEARCH_EMBEDDING": "bge-m3@1"` in
+   `wrangler.development.jsonc` and update the H45 configuration test. Each
+   successful publication then triggers a run; the backfill takes about
+   three. After the first real run, compare the tokens and neurons the
+   gateway `osskb-search-dev` reports with `lastRun.estimatedInputTokens` and
+   `estimatedNeurons`, and record the ratio in Results (the daily cap allows
+   for 2×).
+4. **Turn off.** Remove the variable. No further call is made; stored
+   vectors stay and are simply not updated. Nothing reads them before
+   slice 3.
+5. **Start over.** Delete and recreate the index (1,024 dimensions, cosine),
+   then `POST /search-embedding/run?reset=1`; without the reset the state
+   would still call every chunk embedded.
+6. **A release rollback** needs no step here (Behavior 22).
 
 Slices 2–3 add to `SearchResponseV1.retrieval` the fields Spec 005 already
 names (`semanticRevision`, `fusionRevision`) plus `semantic`, and to each
@@ -463,9 +802,52 @@ project filter at `@2` run again in the browser (`apps/web/e2e-lexical2`):
 | H25 | two words at @1 miss the class names | bm25-reference@1 | request manager | — | — | kafka:jira:issue:KAFKA-19804 kafka:github:pull:22747 | 7 |
 <!-- test-plan:end -->
 
+Embedding run (slice 2b), from
+`apps/data-publisher-worker/test/search-embedding.cases.ts`. Each row runs
+against a release of five chunks in two projects (two shards) with two texts
+per model call, so three batches. `start` is `empty`, or `one extra` (all five
+embedded plus one vector of a chunk the release no longer holds); `fault`
+happens during the first run only; `days` is the UTC day of each run;
+`expected` lists, per run, model calls, chunks embedded of chunks read,
+vectors deleted, the bound reached, and `ok` or the failure kind:
+
+<!-- test-plan:start apps/data-publisher-worker/test/search-embedding.cases.ts -->
+| id | case | start | limits | fault | days | expected |
+| --- | --- | --- | --- | --- | --- | --- |
+| H21 | everything is embedded, then nothing is left to do | empty | — | — | 1 1 | 3 calls, 5/5 embedded, 0 deleted, not limited, ok → 0 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H21 | a vector the release dropped is deleted | one extra | — | — | 1 1 | 0 calls, 5/5 embedded, 1 deleted, not limited, ok → 0 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H46 | chunks per run | empty | maxChunksPerRun=3 | — | 1 1 | 2 calls, 3/5 embedded, 0 deleted, chunks-per-run, ok → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H46 | model calls per run | empty | maxCallsPerRun=1 | — | 1 1 1 | 1 calls, 2/5 embedded, 0 deleted, calls-per-run, ok → 1 calls, 4/5 embedded, 0 deleted, calls-per-run, ok → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H46 | model calls per UTC day | empty | maxCallsPerDay=2 | — | 1 1 2 | 2 calls, 4/5 embedded, 0 deleted, calls-per-day, ok → 0 calls, 4/5 embedded, 0 deleted, calls-per-day, ok → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H46 | estimated neurons per UTC day | empty | dailyNeuronCap=2 | — | 1 1 2 | 2 calls, 4/5 embedded, 0 deleted, daily-neurons, ok → 0 calls, 4/5 embedded, 0 deleted, daily-neurons, ok → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H46 | the deadline | empty | deadlineMs=1500 callMs=1000 | — | 1 1 | 2 calls, 4/5 embedded, 0 deleted, deadline, ok → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H46 | a bound of zero embeds nothing | empty | maxChunksPerRun=0 | — | 1 | 0 calls, 0/5 embedded, 0 deleted, chunks-per-run, ok |
+| H48 | a model error, then its halves succeed | empty | — | model: call 1 fails | 1 1 | 5 calls, 5/5 embedded, 0 deleted, not limited, ok → 0 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H55 | a batch and one half fail: the other half is embedded | empty | — | model: calls 2 and 3 fail | 1 1 | 5 calls, 4/5 embedded, 0 deleted, not limited, model → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H55 | a batch and both halves fail while the model answers a probe | empty | — | model: calls 1, 2 and 3 fail | 1 1 | 6 calls, 3/5 embedded, 0 deleted, not limited, model → 2 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H55 | the model is down: one batch, its halves, and a probe | empty | — | model: every call fails | 1 1 | 4 calls, 0/5 embedded, 0 deleted, model-down, model → 3 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | Workers AI code 3036 stops model use | empty | — | model: call 1 is refused with code 3036 | 1 1 | 1 calls, 0/5 embedded, 0 deleted, model-limit, model-limit → 3 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | a gateway 429 stops model use | empty | — | model: call 2 is refused with a gateway 429 | 1 1 | 2 calls, 2/5 embedded, 0 deleted, model-limit, model-limit → 2 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | a spend-limit refusal stops model use | empty | — | model: call 3 is refused for the spend limit | 1 1 | 3 calls, 4/5 embedded, 0 deleted, model-limit, model-limit → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | too few vectors | empty | — | model: calls 1 and 2 return one vector too few | 1 1 | 5 calls, 4/5 embedded, 0 deleted, not limited, model → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | a wrong dimension | empty | — | model: calls 1 and 2 return 3-dimension vectors | 1 1 | 5 calls, 4/5 embedded, 0 deleted, not limited, model → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | a model call that never answers | empty | callTimeoutMs=5 | model: calls 1 and 2 never answer | 1 1 | 5 calls, 4/5 embedded, 0 deleted, not limited, model → 1 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | an upsert error, then success | empty | — | index: upsert 1 fails | 1 1 | 3 calls, 5/5 embedded, 0 deleted, not limited, ok → 0 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | an upsert error twice stops embedding | empty | — | index: upserts 2 and 3 fail | 1 1 | 2 calls, 2/5 embedded, 0 deleted, vector-store, vector-store → 2 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | an index that does not answer | empty | — | index: describe fails | 1 1 | 0 calls, 0/0 embedded, 0 deleted, not limited, vector-store → 3 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | an index of other dimensions | empty | — | index: has 768 dimensions | 1 | 0 calls, 0/0 embedded, 0 deleted, not limited, config |
+| H48 | a delete error, then success | one extra | — | index: delete 1 fails | 1 | 0 calls, 5/5 embedded, 1 deleted, not limited, ok |
+| H48 | a delete error twice keeps the vector and its state | one extra | — | index: deletes 1 and 2 fail | 1 1 | 0 calls, 5/5 embedded, 0 deleted, not limited, vector-store → 0 calls, 5/5 embedded, 1 deleted, not limited, ok |
+| H48 | an unreadable shard keeps what was embedded before it | empty | — | release: the second shard cannot be read | 1 1 | 1 calls, 2/3 embedded, 0 deleted, not limited, release-read → 2 calls, 5/5 embedded, 0 deleted, not limited, ok |
+| H48 | an unreadable shard deletes nothing | one extra | — | release: the second shard cannot be read | 1 1 | 0 calls, 3/3 embedded, 0 deleted, not limited, release-read → 0 calls, 5/5 embedded, 1 deleted, not limited, ok |
+| H48 | a manifest whose chunk count disagrees deletes nothing | one extra | — | release: the manifest declares 6 chunks | 1 1 | 0 calls, 5/5 embedded, 0 deleted, not limited, release-read → 0 calls, 5/5 embedded, 1 deleted, not limited, ok |
+| H48 | a release that is not search-release.v3 | one extra | — | release: a search-release.v2 manifest | 1 | 0 calls, 0/0 embedded, 0 deleted, not limited, release-read |
+| H48 | no current pointer | one extra | — | release: no current pointer | 1 | 0 calls, 0/0 embedded, 0 deleted, not limited, release-read |
+<!-- test-plan:end -->
+
 ## Acceptance
 
-Items tagged `[pending]` belong to the `@2` switch and slices 2b–4.
+Items tagged `[pending]` belong to slices 3–4.
 
 ### Behavior
 - H1: given each row of the code-text token plan, the `@2` tokenizer returns
@@ -549,17 +931,6 @@ Items tagged `[pending]` belong to the `@2` switch and slices 2b–4.
 - H20: given a metric cutoff that is not a positive integer, no expected
   item, or a ranking that repeats an id, the metric fails → evidence:
   `metrics.test.ts`.
-- H21: [pending] given a publisher run, every chunk without a vector of the
-  current `SemanticRevisionV1` is embedded with `@cf/baai/bge-m3` and upserted
-  into its project's namespace under its chunk id with the revision; a chunk
-  whose content hash is unchanged is not embedded again; a removed chunk's
-  vector is deleted.
-- H22: [pending] given a change of model, model revision, dimensions, or text
-  assembly, every chunk is embedded again and a query never compares vectors
-  of two revisions.
-- H23: [pending] given a Workers AI or Vectorize failure during a run, the
-  lexical release still publishes, the previous vectors stay queryable, and
-  `/health` shows the embedding step's failure.
 - H37: given a release whose manifest declares any other revision
   (`bm25-reference@3`, `bm25:v1`), in the v3 or the whole-release layout, the
   reader throws, reads no terms object or shard, and `/api/search` answers
@@ -582,6 +953,143 @@ Items tagged `[pending]` belong to the `@2` switch and slices 2b–4.
 - H29: [pending] given a query-embedding failure, timeout, or quota error,
   `/api/search` returns HTTP 200 with lexical results and `retrieval.semantic`
   set to the state.
+
+### Behavior (slice 2b)
+- H21: given a published release and `SEARCH_EMBEDDING=bge-m3@1`, a run embeds
+  every chunk through the search gateway with `@cf/baai/bge-m3` and upserts
+  one vector per chunk into its project's namespace; a second run on the same
+  release makes no model call and no mutation; a new `sourceVersion` with the
+  same title, text, and group is not embedded again; a changed text is
+  embedded alone and replaces the vector under the same id; a removed chunk's
+  vector is deleted → evidence: `search-embedding-run.test.ts`.
+- H22: given a profile that differs in model, model revision, dimensions, or
+  text assembly, every chunk is embedded again in place, and the retriever
+  returns no candidate from a vector of another revision, during and after
+  the change → evidence: `search-embedding-run.test.ts`, `retriever.test.ts`.
+- H24: given an index filled by the publisher's own vector function, the
+  adapter passes every row of the `SemanticRetriever` contract the in-memory
+  retriever passes (ranking, revision, limit, tie order, evidence filters),
+  queries only the namespaces of the requested projects, and imports no
+  Cloudflare type → evidence: `retriever.test.ts`, the contract in
+  `packages/search/test/support/semantic-retriever-contract.ts`.
+- H43: given any record id (long, non-ASCII) the vector id is 48 hex
+  characters, at most 64 bytes, and differs by project, record, and ordinal;
+  the metadata holds only `r`, `h`, `record`, `ord`, `root` and stays under
+  10 KiB or the vector is refused; a model call carries at most 50 texts and
+  20,000 estimated tokens and a delete at most 100 ids; the fake index
+  enforces Vectorize's documented limits (64-byte id and namespace, 10 KiB
+  metadata, dimensions, 1,000 vectors per upsert, `topK` 50 with metadata) →
+  evidence: `vector.test.ts`, `search-embedding-run.test.ts`.
+- H44: given a release and an index, a match is a candidate only when the
+  release holds a chunk of the same project, record, and ordinal with the
+  vector's fingerprint, and its ids are the release's; a vector of a changed,
+  regrouped, or removed chunk, of another project's namespace, with malformed
+  metadata, or newer than a rolled-back release is dropped, while an
+  unchanged passage keeps its candidate across releases → evidence:
+  `retriever.test.ts`.
+- H45: given `SEARCH_EMBEDDING` unset or blank, a publication writes
+  byte-identical objects, the publisher has no embedding trigger, and a run
+  or alarm of the embedding object calls no model and no index; given the
+  flag, a successful publication triggers one embedding run and a failed one
+  none; given an unsupported value or a missing gateway id, AI binding, or
+  index, the embedding run fails naming it and calls nothing while the
+  publication still succeeds; the Dev configuration binds the index, the
+  object, and `SEARCH_GATEWAY_ID=osskb-search-dev` (not the digest gateway)
+  without the flag, and the Prod configuration has none of them → evidence:
+  `search-embedding-runner.test.ts`, `pipeline.test.ts`.
+
+### Failure and retry (slice 2b)
+- H23: given a trigger that throws, never answers, or answers an error, the
+  publication's result, objects, and recorded status are those of a run
+  without it; given a Workers AI or Vectorize failure during an embedding
+  run, vectors stored earlier are untouched and still answer queries, and
+  `/health` `searchEmbedding.lastRun` shows `ok: false` with the error →
+  evidence: `pipeline.test.ts`, `search-embedding-run.test.ts`,
+  `search-embedding-runner.test.ts`.
+- H46: given each `H46` row of the embedding run plan, a run that reaches a
+  bound (chunks or model calls per run, model calls or neurons per UTC day,
+  the deadline) stops embedding, records what it stored, reports `limited`,
+  and later runs embed only the rest, until nothing is pending; given model
+  calls that each take their whole 30-second timeout, no call (batch, half,
+  single-text retry, probe) starts at or after the deadline, a deadline that
+  falls inside a split leaves the stored halves stored and the rest pending
+  and unstruck, a call due exactly at the deadline does not start, and the run ends within `worstCaseWallMs`, which is 695
+  seconds for the default bounds and under 12 minutes → evidence:
+  `search-embedding-run.test.ts` rows and tests.
+- H47: given a run that dies after the model answered, after the upsert was
+  accepted, or while the state is written, the retried run embeds at most
+  that batch again, the day's ledger holds both attempts, the state names
+  exactly the vectors in the index, and no chunk has two vectors; an alarm
+  that throws is recorded and does not throw again → evidence:
+  `search-embedding-run.test.ts`, `search-embedding-runner.test.ts`.
+- H48: given each `H48` row of the embedding run plan (a model error whose
+  halves then succeed, code 3036, a gateway 429, a spend-limit refusal, too few vectors, a
+  wrong dimension, a call that never answers, an upsert or delete that fails
+  once or twice, an index that does not answer or has other dimensions, an
+  unreadable shard, a manifest whose chunk count disagrees, an unsupported
+  release), the run ends as listed and deletes nothing it could not verify →
+  evidence: `search-embedding-run.test.ts` rows.
+- H53: given a release with no chunk at all, or none of one project, the
+  run deletes none of that project's vectors, leaves its state, and reports
+  `heldDeletes` and `absentProjects`, while a chunk dropped from a project
+  the release still holds is deleted as before; the same release read twice
+  counts once and a dry run counts nothing; a project that returns is neither
+  deleted nor embedded again and its count starts over; at the third release
+  in a row without it its vectors are deleted and the count removed in that
+  run → evidence:
+  `search-embedding-run.test.ts`.
+- H54: given a model or vector-store failure, `/health`
+  `searchEmbedding.lastError` holds its kind, message, time, and batch size
+  through runs that only reach a bound and through a dry run, until a run
+  embeds without a failure; given a bearer token, a base64 string with
+  `+ / =`, or a long hex string in an error from the model, the index, the
+  bucket, or the storage, no result, stored value, HTTP body, or log line of
+  the embedding path holds it (the publisher's log lines for a failed
+  trigger included), redaction comes before the 200-character cut, and the
+  object key in a release-read error stays; given each sanitizer row (an R2
+  key path and a gateway URL path kept, a digest, a 48-hex id, base64 with
+  `/` `+` `=`, a bearer token with slashes redacted, 31 characters kept and
+  32 redacted, for a run and for a path segment) the text is as listed; given a text that fails
+  alone in three runs in a row, later runs skip it, report `quarantined` and
+  its id, and spend no call on it for 24 hours, then try once (H56 for what
+  follows); a refusal, a
+  model outage, a store failure, a changed chunk, another revision, and
+  `reset=1` do not or no longer quarantine → evidence:
+  `search-embedding-run.test.ts`, `search-embedding-runner.test.ts`.
+- H55: given each `H55` row of the embedding run plan and a batch of 50 with
+  one failing text, the other 49 are embedded in the same run in at most 15
+  calls and only that text is struck, then sent alone; two failing texts in
+  one batch are both isolated within the split budget; a bound reached
+  while splitting leaves the stored halves stored, strikes nothing, and
+  later runs finish; when every call fails a run makes 4 calls (3 for a
+  single text), reports `limited: model-down`, and strikes nothing; when the
+  model stops answering in mid-run, between batches or inside a split, at
+  most 3 calls fail before a probe, the run reports `model-down`, and no
+  text is struck, including one struck before, while the same failure with
+  the probe answered is a strike; a refusal or a store failure makes one
+  call and no split; every call of a split is in the day's ledger →
+  evidence: `search-embedding-run.test.ts` rows and tests.
+- H56: given 8,586 chunks with one failing text in every batch of 50 (172)
+  and the default bounds, hourly runs embed every healthy chunk in 124 runs
+  (under 6 days), no run that leaves healthy work spends a call on a retry,
+  and afterwards retries use at most 10 calls a run and 100 a day; given 500
+  struck texts due at once and 60 new chunks an hour, every run embeds all
+  new chunks; a retry comes after the run's healthy chunks, oldest failure
+  first, is one call, and is a strike only while the model answers; a run a
+  bound stopped and a dry run make none and count them in `retriesDeferred`;
+  a failed retry doubles the quarantine from 24 hours up to 30 days; the
+  day's ledger equals the calls made and names the retry calls → evidence:
+  `search-embedding-run.test.ts`.
+- H49: given an index that accepts mutations without applying them, the run
+  records each chunk as embedded, a second run embeds nothing, and `/health`
+  reports the last mutation id and that the index has not processed it; once
+  the index applies them it reports that it has and queries return the
+  vectors → evidence: `search-embedding-run.test.ts`.
+- H50: given a query embedding that fails, has the wrong dimension, or never
+  answers, an index query that fails, or an aborted signal, the retriever
+  rejects, and `hybridSearch` returns the lexical results in lexical order
+  with `semantic: failed` or `timed-out`; a `limit` above 50 asks each
+  namespace for 50 → evidence: `retriever.test.ts`.
 
 ### Behavior (slice 2a)
 - H25: given golden v2 published at `@1` and at `@2`, the reader answers each
@@ -624,9 +1132,6 @@ Items tagged `[pending]` belong to the `@2` switch and slices 2b–4.
   `pipeline.test.ts`.
 
 ### Behavior (later slices)
-- H24: [pending] given a Vectorize index, the adapter implements
-  `SemanticRetriever` (project namespace, filters, chunk candidates) and
-  passes the contract tests the in-memory retriever passes.
 - H28: [pending] given the flag on, `/api/search` returns fused results with
   `retrieval.semanticRevision`, `fusionRevision`, and per-match
   `signals.semanticRank`; with the flag off the response is unchanged.
@@ -635,9 +1140,11 @@ Items tagged `[pending]` belong to the `@2` switch and slices 2b–4.
   decision (decision 5) is recorded with the numbers.
 
 ### Budget
-- H27: [pending] Vectorize stored dimensions (`lastRun.search.chunkCount` ×
-  1,024) and embedding neurons per run, each with a committed measuring
-  command.
+- H27: [measure] Vectorize stored dimensions (chunks × 1,024), model calls,
+  estimated input tokens, neurons and dollars for a full backfill, and the
+  runs it takes under the bounds of Behavior 19 →
+  `bun run measure:search-embedding` (Results, slice 2b); on Dev,
+  `/health` `searchEmbedding.lastRun` and a dry run (H52).
 - H40: [measure] growth of `terms.json` and lexical shard bytes from `@1` to
   `@2` for the same Feed → `bun run measure:search-revisions` (Results,
   slice 2a); on Dev, `/health` `lastRun.search` before and after the switch.
@@ -654,6 +1161,28 @@ Items tagged `[pending]` belong to the `@2` switch and slices 2b–4.
   holds the release's `lexicalRevision`, the manifest's `chunkCount`, the
   shard count, the summed and largest shard bytes, and the `terms.json` bytes
   as written → evidence: `pipeline.test.ts`.
+- H51: given the embedding object, `/health` `searchEmbedding` reports
+  `enabled`, `configError`, `model`, `revision`, `semanticRevision`,
+  `running`, `scheduled`, `interrupted`, `today { date, estimatedNeurons,
+  cap, calls, callCap }`, `lastMutation`, `lastError`, and `lastRun` (release, chunks,
+  embedded, pending, deleted, stored vectors and dimensions, calls, tokens,
+  neurons, `limited`, error, the index's state, and the estimate of what is
+  left), and `{ enabled: false }` without the object; `POST
+  /search-embedding/run` needs the bearer token, answers 403 when off, 409
+  while a run is pending, 202 when scheduled, and with `dryRun=1` returns the
+  estimate (chunks, calls, tokens, neurons, dollars, runs) having called no
+  model, mutated no vector, and written no state; `reset=1` forgets the
+  state so that the next run embeds every chunk again; while the flag is off
+  only a reset and a dry run with `profile=bge-m3@1` are served → evidence:
+  `search-embedding-runner.test.ts`, `search-embedding-run.test.ts`.
+- H52: [deploy] given slice 2b live on Dev, the Dev deploy with the new
+  binding and migration succeeds, `/health` `searchEmbedding.enabled` is
+  `false`, and a dry run with `profile=bge-m3@1` returns an estimate; given
+  `SEARCH_EMBEDDING=bge-m3@1` then set for Dev, the backfill reaches
+  `pending: 0` within the estimated runs, `lastRun.index.mutationsProcessed`
+  becomes true, the search gateway shows the calls while `osskb-digest-dev`
+  shows none of them, and the ratio of the gateway's reported tokens to the
+  estimate is recorded in Results.
 - H42: [deploy] given slice 2a live on Dev and the variable set for Dev, the
   next run's `/health` `lastRun.search.lexicalRevision` is
   `bm25-reference@2`, and Dev `/api/search` returns results for `KIP770` and
@@ -738,15 +1267,65 @@ Golden v1, golden v2, and `bun run eval:search` are unchanged
 (`golden-evaluation.v2.json` is byte-identical). The recorded publication
 parity changed only in `statuses[].search`.
 
+## Results (slice 2b, 2026-10-10)
+
+`bun run measure:search-embedding`, on the recorded Feed snapshot (353 chunks,
+real GitHub records of both projects), with the real run, a fake model, and an
+in-memory index under the default bounds:
+
+| | Snapshot (measured) | Dev corpus (scaled to 8,586 chunks) |
+| --- | --- | --- |
+| Estimated tokens per chunk | mean 88.8, median 102, p95 123, max 137 | same averages |
+| Estimated input tokens | 31,360 | 762,768 |
+| Model calls (50 texts each) | 8 | 172 |
+| Estimated neurons | 35 | 832 |
+| Cost at $0.011 per 1,000 neurons | $0.0004 | $0.0092 |
+| Stored dimensions (× 1,024) | 361,472 | 8,792,064 (10 M included) |
+| Runs under the bounds | 1 | 3 (3,000 + 3,000 + 2,586 chunks; 60 + 60 + 52 calls) |
+| UTC days under the daily bounds | 1 | 1 (172 of 400 calls, 832 of 2,500 neurons; 1,664 if the estimate is half the truth) |
+| A run on an unchanged release | 0 model calls, 1 index call (`describe`) | same |
+
+The three-run backfill is also a test: 8,586 synthetic chunks finish in runs
+of 3,000, 3,000, and 2,586 chunks with 60, 60, and 52 calls
+(`search-embedding-run.test.ts`).
+
+With bad texts (test `H56`, default bounds, hourly runs from 00:00 UTC):
+8,586 chunks with one failing text in every batch of 50 (172 bad) have all
+8,414 healthy chunks embedded after 124 runs, 5 days and 4 hours. The day's
+400 calls set the pace: each such batch costs about 12 calls instead of 1,
+about 2,060 in all. No retry is made until the healthy work is done; after
+that retries take at most 100 calls a day.
+
+Limits of these numbers:
+
+- Tokens are the digest's estimate (4 characters per token, 1 per CJK
+  character), not the model's tokenizer; an embedding response reports no
+  usage. The estimate may undercount by up to about 2× on CJK and identifier
+  text; the daily cap of 2,500 allows for it. The gateway's analytics on Dev
+  are the check (H52). Ratio of reported to estimated tokens: to be recorded
+  after the first real run.
+- The snapshot holds no dev@ or Jira record. Excerpts are clipped the same
+  way for every source, so the per-chunk mean should be close.
+- Nothing here measures Workers AI or Vectorize: latency, the real batch
+  limit of `@cf/baai/bge-m3`, error shapes, and how long a mutation takes to
+  become queryable are read on Dev (H52).
+
+Worker bundle (`wrangler deploy --dry-run`, both configurations): 278.51 KiB
+(gzip 69.92) before, 321.07 KiB (gzip 80.08) after.
+
+Mutation evidence (one mutant or more per behavior, each seen failing) is
+listed in the PR.
+
 ## Open questions
 
 Not decided here:
 
-1. **Workers Paid plan.** Vectorize stored dimensions are about 30.7 M at an
-   estimated 30,000 chunks, above the free 5 M. At the measured 8,577 records
-   (about one chunk each) they are about 8.8 M, still above it.
-2. **AI Gateway and abuse protection** for query-time embedding. Search must
-   not share the digest gateway `osskb-digest-dev`.
+1. **Workers Paid plan.** Decided: the account is Workers Paid (10 M stored
+   dimensions included). At 8,586 chunks the index holds about 8.8 M; at 9,766
+   chunks it passes 10 M and storage is billed.
+2. **AI Gateway.** Decided: `osskb-search-dev` (600 requests an hour, a
+   spend limit, authentication). The publisher uses at most 80 requests a run
+   through it; query-time abuse protection is slice 3 (H30).
 3. **Query embedding in the browser or on the server.** Spec 005 leaves it to
    a measured spike.
 4. **Actual chunk count.** Answered: 8,586 on Dev on 2026-10-10
@@ -762,6 +1341,39 @@ Not decided here:
 7. **Labels.** Should `RequestManager` and `request manager` carry the
    Release Manager negative, and is "top 3" the right bound for the three
    expected threads?
+
+Raised by slice 2b:
+
+8. **H21's wording** (Decision 9): one vector per passage, not per chunk id.
+   Recommended; to confirm (owner's answer a).
+9. **Finding a release's chunk at query time.** `SemanticReleaseView.chunks`
+   is the seam; slice 3 must implement it over R2. A release has no
+   record → shard lookup today (the lexical reader finds shards by term).
+   Candidates: the first group root of each shard in the manifest (groups are
+   written in group-root order, and the vector carries its group root as a
+   hint), or a per-release side object. Either changes a release object and
+   is a contract decision. Deferred to the slice 3 spec (owner's answer b).
+10. **Depth.** Vectorize returns at most 50 matches with metadata per
+    namespace, and stale or other-revision matches are dropped after that.
+    Whether 50 is enough is measured in slice 4; `returnMetadata: "indexed"`
+    with a metadata index allows 100.
+11. **Should the retriever tell Pages its coverage?** Today only the
+    publisher's `/health` knows it; Pages cannot read that object.
+12. **Query embedding and the gateway cache.** The retriever leaves the
+    cache to its caller; slice 3 decides with H31.
+13. **Unverified against Cloudflare:** the batch size `@cf/baai/bge-m3`
+    accepts (50 assumed), its response shape (`data: number[][]` per the
+    binding types), the exception text of 3036, 429, and spend-limit refusals
+    for an embedding call (matched as the digest matches them), the type of
+    `describe().processedUpToMutation`, and whether the CI token may deploy a
+    Worker with a Vectorize binding.
+14. **An empty release.** Answered: guarded (Behavior 23, owner's answer
+    f).
+15. **A minimum similarity.** Only non-positive scores are dropped; a real
+    threshold needs slice 4's numbers.
+16. **Prod.** When Prod goes live it needs its own index, gateway, binding,
+    migration, and the same enable sequence; none of it exists, and nothing
+    is added before the Prod launch (owner's answer e).
 
 Known limitations of the profile patterns (kept in slice 2a, see "Community
 profile fit"):
@@ -784,6 +1396,11 @@ profile fit"):
 - Any cloud resource, deploy configuration, model call, or change to what
   Dev serves (slice 1). Slice 2a adds no cloud resource, binding, or model
   call and leaves `/api/search` on Dev at `@1`.
+- Calling the retriever from `/api/search`, any Pages binding, and any change
+  to a response (slice 3). Slice 2b sets no flag and embeds nothing on Dev or
+  Prod until H52.
+- A real Workers AI or Vectorize call from a test or a developer machine.
+- Re-embedding to repair one vector: the unit of repair is `reset=1`.
 - A ranking change for the repeated thread title (open question 6, G31).
 - A different BM25 formula or field weights.
 - Estimating production recall from the golden fixture.
