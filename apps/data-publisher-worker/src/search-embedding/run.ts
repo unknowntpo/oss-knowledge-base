@@ -49,9 +49,14 @@ export interface EmbeddingLimits {
   readonly callTimeoutMs: number;
   /** A project's vectors are deleted only after this many releases in a row held none of its chunks. */
   readonly absentReleasesBeforeDelete: number;
-  /** A chunk whose batch failed in this many runs in a row is skipped for `quarantineMs`. */
+  /** A text that failed alone in this many runs in a row is skipped for `quarantineMs`. */
   readonly quarantineAfterFailedRuns: number;
+  /** The first quarantine; each further failed retry doubles it, up to `maxQuarantineMs`. */
   readonly quarantineMs: number;
+  readonly maxQuarantineMs: number;
+  /** Calls a run and a UTC day may spend on texts that failed alone before, probes included. */
+  readonly maxRetryCallsPerRun: number;
+  readonly maxRetryCallsPerDay: number;
 }
 
 export const DEFAULT_EMBEDDING_LIMITS: EmbeddingLimits = {
@@ -68,7 +73,16 @@ export const DEFAULT_EMBEDDING_LIMITS: EmbeddingLimits = {
   absentReleasesBeforeDelete: 3,
   quarantineAfterFailedRuns: 3,
   quarantineMs: 24 * 3_600_000,
+  maxQuarantineMs: 30 * 24 * 3_600_000,
+  maxRetryCallsPerRun: 10,
+  maxRetryCallsPerDay: 100,
 };
+
+/** How long a text with `strikes` failed runs behind it is skipped: 24 h, 48 h, 96 h … up to 30 days. */
+export function quarantineLength(strikes: number, limits: EmbeddingLimits): number {
+  const doublings = Math.max(0, strikes - limits.quarantineAfterFailedRuns);
+  return Math.min(limits.maxQuarantineMs, limits.quarantineMs * 2 ** Math.min(doublings, 30));
+}
 
 /**
  * The longest one run can take, from the constants: no model call or delete starts at or after
@@ -135,6 +149,9 @@ export interface EmbeddingRunResult {
   /** Chunks skipped because their batch failed in several runs in a row, and the first few ids. */
   readonly quarantined: number;
   readonly quarantinedIds: readonly string[];
+  /** Calls spent on texts that failed alone before, and such texts due that this run did not settle. */
+  readonly retryCalls: number;
+  readonly retriesDeferred: number;
   readonly storedVectors: number;
   readonly storedDimensions: number;
   readonly modelCalls: number;
@@ -261,6 +278,8 @@ export function failedEmbeddingRun(kind: EmbeddingFailureKind, error: string, no
     absentProjects: [],
     quarantined: 0,
     quarantinedIds: [],
+    retryCalls: 0,
+    retriesDeferred: 0,
     storedVectors: 0,
     storedDimensions: 0,
     modelCalls: 0,
@@ -299,6 +318,10 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
   let inputTokens = 0;
   let spentNeurons = 0;
   let modelFailures = 0;
+  let retryCalls = 0;
+  let retriesDeferred = 0;
+  /** Set while texts that failed alone before are retried: their calls have their own budget. */
+  let retrying = false;
   let modelSuccesses = 0;
   let failedInARow = 0;
   let modelDown = false;
@@ -309,6 +332,10 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
   const modelErrors: ModelErrorShape[] = [];
   const left = { chunks: 0, tokens: 0, batches: new BatchCount(limits) };
   const leave = (items: readonly PendingChunk[]) => {
+    if (retrying) {
+      retriesDeferred += items.length;
+      return;
+    }
     for (const item of items) {
       left.chunks += 1;
       left.tokens += item.tokens;
@@ -340,7 +367,8 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
     else if (ledger.calls >= limits.maxCallsPerDay) run.limited = "calls-per-day";
     else if (ledger.neurons + estimate > limits.dailyNeuronCap) run.limited = "daily-neurons";
     if (run.limited !== null) return "stopped";
-    await state.reserve(date, estimate);
+    await state.reserve(date, estimate, retrying);
+    if (retrying) retryCalls += 1;
     modelCalls += 1;
     inputTokens += tokens;
     spentNeurons += estimate;
@@ -423,6 +451,7 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
     const seen = new Set<string>();
     const seenProjects = new Set<string>();
     let queue: PendingChunk[] = [];
+    const retries: { readonly item: PendingChunk; readonly at: string }[] = [];
     const drain = async (final: boolean): Promise<void> => {
       while (queue.length > 0) {
         if (dryRun || run.limited !== null) {
@@ -437,9 +466,7 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
         }
         let size = 0;
         let tokens = 0;
-        // A text that has failed alone before goes alone, so it cannot fail a batch again.
-        while (size < queue.length && size < limits.batchTexts && size < room &&
-            (size === 0 || (queue[0]!.strikes === 0 && queue[size]!.strikes === 0 && tokens + queue[size]!.tokens <= limits.batchTokens))) {
+        while (size < queue.length && size < limits.batchTexts && size < room && (size === 0 || tokens + queue[size]!.tokens <= limits.batchTokens)) {
           tokens += queue[size]!.tokens;
           size += 1;
         }
@@ -484,8 +511,11 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
       modelFailures += 1;
       lastFailure = { kind: "model", message: lastModelError, batchSize: 1 };
       await state.recordFailures([[item.ref.id, { h: item.ref.fingerprint, r: profile.semanticRevision, n: item.strikes + 1, at: input.now().toISOString() }]]);
-      leave([item]);
     };
+
+    /** Whether the retry budget of the run and of the day allows one more call. */
+    const retryBudgetLeft = async (): Promise<boolean> =>
+      retryCalls < limits.maxRetryCallsPerRun && ((await state.ledger(today())).retryCalls ?? 0) < limits.maxRetryCallsPerDay;
 
     /**
      * Whether a failure can be blamed on the texts: only while the model demonstrably answers,
@@ -495,6 +525,7 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
      */
     const modelAnswers = async (): Promise<boolean> => {
       if (modelSuccesses > 0 && failedInARow < PROBE_AFTER_FAILURES) return true;
+      if (retrying && !(await retryBudgetLeft())) return false;
       const probe = await attempt(model, [PROBE_TEXT], 1);
       if (probe === "stopped") return false;
       if ("vectors" in probe) return true;
@@ -571,17 +602,34 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
         }
         const failed = failures.get(ref.id);
         const strikes = failed !== undefined && failed.h === ref.fingerprint && failed.r === profile.semanticRevision ? failed : undefined;
-        if (strikes !== undefined && strikes.n >= limits.quarantineAfterFailedRuns && input.now().getTime() - Date.parse(strikes.at) < limits.quarantineMs) {
+        if (strikes !== undefined && strikes.n >= limits.quarantineAfterFailedRuns && input.now().getTime() - Date.parse(strikes.at) < quarantineLength(strikes.n, limits)) {
           quarantined += 1;
           quarantinedIds.push(ref.id);
           continue;
         }
         const text = chunkEmbeddingText(chunk);
-        queue.push({ ref, chunk, text, tokens: estimateTokens(text), strikes: strikes?.n ?? 0 });
+        const item = { ref, chunk, text, tokens: estimateTokens(text), strikes: strikes?.n ?? 0 };
+        // A text that failed alone before never rides in a batch again; it waits for the healthy work.
+        if (strikes === undefined) queue.push(item);
+        else retries.push({ item, at: strikes.at });
       }
       await drain(false);
     }
     await drain(true);
+
+    // Behavior 26: retries come after every healthy chunk had its call, oldest failure first, one
+    // call each, within their own budget. A run a bound stopped makes none.
+    retrying = true;
+    retries.sort((left, right) => left.at.localeCompare(right.at) || left.item.ref.id.localeCompare(right.item.ref.id));
+    for (const { item } of retries) {
+      if (dryRun || !(await retryBudgetLeft())) {
+        retriesDeferred += 1;
+        continue;
+      }
+      batchSize = 1;
+      if (await embedItems([item]) === "failed") await split([item], { calls: 0 });
+    }
+    retrying = false;
     // Nothing is deleted from a release that was not read whole.
     if (chunks !== manifest.chunkCount) {
       throw new RunFailure("release-read", `Search release ${releaseId} declares ${manifest.chunkCount} chunks; its shards hold ${chunks}`);
@@ -684,6 +732,8 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
     absentProjects,
     quarantined,
     quarantinedIds: quarantinedIds.sort().slice(0, QUARANTINE_SAMPLE),
+    retryCalls,
+    retriesDeferred,
     storedVectors: entries.size,
     storedDimensions: entries.size * dimensions,
     modelCalls,

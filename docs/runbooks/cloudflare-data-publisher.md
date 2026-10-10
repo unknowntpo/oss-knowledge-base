@@ -117,10 +117,19 @@ under one cent, in three runs within one UTC day.
   hour. A rollback to an older release counts as a release too. Check the
   publisher's sources first.
 - `quarantined`: texts that failed alone in three runs in a row; they are
-  skipped for 24 hours and then tried once (at most 3 calls). `lastError`
-  says why. A failed batch is split in halves to find such a text: at most
-  15 calls for a batch of 50, and the other texts are embedded in the same
-  run.
+  skipped for 24 hours and then tried once (at most 2 calls); each further
+  failure doubles the wait, up to 30 days. `lastError` says why. A failed
+  batch is split in halves to find such a text: at most 15 calls for a batch
+  of 50, and the other texts are embedded in the same run.
+- `quarantined` growing, with `retryCalls` and `retriesDeferred` above zero
+  run after run, means many texts fail alone while the model answers:
+  usually one cause (texts the model rejects, a changed limit), not many.
+  It cannot slow the healthy work: retries run only after it, with at most
+  10 calls a run and 100 a day. Read `lastError` and `quarantinedIds`, fix
+  the cause, then clear the quarantine with `POST
+  /search-embedding/run?reset=1` (one backfill, under a cent) or wait: a
+  text whose retry succeeds leaves quarantine by itself, and a changed
+  chunk or a new revision is tried at once.
 - `limited: model-down`: after three failed calls in a row (or before any
   call of the run succeeded) a probe text failed too. The run stopped
   embedding and struck nothing: 4 calls when the model is down from the

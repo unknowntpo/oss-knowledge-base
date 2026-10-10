@@ -179,7 +179,8 @@ project, and the separate gateway. These were left to the implementer:
     means repeated manual triggers cannot shorten the wait.
 19. **Quarantine is by time, not forever** (Behavior 24). A text that fails
     alone in three runs in a row is skipped for 24 hours and then tried once
-    more (at most 3 calls), so a wrong conviction heals by itself.
+    more (at most 2 calls), so a wrong conviction heals by itself; each
+    further failure doubles the wait, up to 30 days.
 20. **A failed batch is split, not retried whole** (Behavior 25, after the
     second verdict on PR #50). Retrying 50 texts as one call can only fail
     again when one of them is bad, and the 49 others stay unembedded beside it
@@ -193,6 +194,9 @@ project, and the separate gateway. These were left to the implementer:
     in this run" let a model that died in mid-run get healthy texts struck,
     so three failures in a row call for a new probe, and a text struck before
     is treated like any other.
+21. **Every error text is redacted** (Behavior 24), in the embedding path
+    only. The digest shares `errorShape` and still surfaces model errors
+    unredacted (gardening G43).
 22. **The deadline is checked before every model call, and the call timeout
     is 30 seconds, not 60** (Behavior 19, third verdict). Checked only
     between batches, one split with 60-second timeouts could run 13 minutes
@@ -201,9 +205,12 @@ project, and the separate gateway. These were left to the implementer:
 23. **A path is not a token** (Behavior 24, third verdict). Redacting every
     run of 32 token characters also removed object keys and URL paths from
     foreign error text, which is what an operator needs to read.
-21. **Every error text is redacted** (Behavior 24), in the embedding path
-    only. The digest shares `errorShape` and still surfaces model errors
-    unredacted (gardening G43).
+24. **Retries never compete with healthy work** (Behavior 26, fourth
+    verdict). Retried in release order with up to 3 calls each, 133
+    quarantined texts used a whole day's calls and the backlog starved (the
+    verifier's 8,586 chunks with 172 bad texts had not converged after 500
+    runs). Healthy first, a small separate budget, and a doubling quarantine
+    make the cost of bad texts independent of how many there are.
 
 Owner's answers (2026-10-10, after the PR #50 verdict):
 
@@ -414,8 +421,11 @@ Embedding publication and the Vectorize adapter (slice 2b):
     Vectorize call is abandoned after 30 seconds. So the longest run is the
     deadline, plus the last model call, plus its upsert timing out, waiting 5
     seconds, and timing out again: 600 + 30 + 65 = 695 seconds, 11 min 35 s,
-    under the alarm's 15 minutes (`worstCaseWallMs`; reads of the release are
-    not timed by the run). Per UTC day: at most 400 model calls and
+    under the alarm's 15 minutes (`worstCaseWallMs`). Reads of the release
+    from R2 and listings of the object's storage are not individually timed:
+    a read that hangs can still take a run past the alarm limit; the runtime
+    then retries the alarm, and because every stored batch is recorded as it
+    is stored the state stays correct. Per UTC day: at most 400 model calls and
     2,500 estimated neurons (`@cf/baai/bge-m3` at 1,091 neurons per million
     input tokens, estimated with the digest's token estimate; every call
     counts at least 1). The ledger is written before each model call, so a
@@ -510,13 +520,28 @@ Embedding publication and the Vectorize adapter (slice 2b):
     | Case | Model calls |
     | --- | --- |
     | One bad text in a batch of 50, first run | at most 15: 13 on texts (`1 + 2 × ceil(log2 50)`) and a probe per 3 failures in a row (12 in the test) |
-    | That text alone in a later run | 3 (the text, its retry, a probe), or 2 when another call of the run succeeded |
-    | That text once quarantined | at most 3 per 24 hours |
-    | That text, first day | at most 21 |
+    | That text in a later run (Behavior 26) | 1, or 2 with a probe (none succeeded yet in the run, or 3 failed in a row) |
+    | That text once quarantined | at most 2 after 24 hours, then after 48, 96 … up to every 30 days: at most 8 calls in its first 30 days |
+    | That text, first day | at most 19 |
+    | All retries together | at most 10 calls a run and 100 of the day's 400, and none in a run that left healthy work |
     | Two bad texts in one batch | at most 33 (1 + 24 + probes) |
     | The model down from the start | 4 a run (batch, two halves, probe); 3 for a single text; 96 a day at one run an hour; no strike |
     | The model going down in mid-run | at most 4 after it stops (3 failures in a row, then the probe); no strike |
     | A transient error on one batch | 3 |
+26. **Retries of texts that failed alone.** A text with a strike is never
+    put in a batch again. In every run all chunks without a strike are
+    embedded first; only then, and only if no bound stopped the run, are the
+    struck texts whose quarantine is not running retried, oldest failure
+    first, one call each (no second try; the blame rule of Behavior 25
+    applies, so a failure is a new strike only while the model answers).
+    Retries and their probes may use at most 10 calls a run and 100 calls a
+    UTC day (`maxRetryCallsPerRun`, `maxRetryCallsPerDay`, counted apart in
+    the day's ledger), so at least 300 of the day's 400 calls are never
+    theirs; a retry that does not get a call is counted in
+    `retriesDeferred`, a run's `retryCalls` says what it spent, and
+    `estimate` counts only chunks without a strike. The first quarantine is
+    24 hours; every further failed retry doubles it (48 h, 96 h …) up to 30
+    days. A changed chunk, another revision, and `reset=1` end it.
 
 ## Community profile fit
 
@@ -988,7 +1013,7 @@ Items tagged `[pending]` belong to slices 3–4.
   calls that each take their whole 30-second timeout, no call (batch, half,
   single-text retry, probe) starts at or after the deadline, a deadline that
   falls inside a split leaves the stored halves stored and the rest pending
-  and unstruck, and the run ends within `worstCaseWallMs`, which is 695
+  and unstruck, a call due exactly at the deadline does not start, and the run ends within `worstCaseWallMs`, which is 695
   seconds for the default bounds and under 12 minutes → evidence:
   `search-embedding-run.test.ts` rows and tests.
 - H47: given a run that dies after the model answered, after the upsert was
@@ -1026,7 +1051,8 @@ Items tagged `[pending]` belong to slices 3–4.
   `/` `+` `=`, a bearer token with slashes redacted, 31 characters kept and
   32 redacted, for a run and for a path segment) the text is as listed; given a text that fails
   alone in three runs in a row, later runs skip it, report `quarantined` and
-  its id, and spend no call on it for 24 hours, then try once; a refusal, a
+  its id, and spend no call on it for 24 hours, then try once (H56 for what
+  follows); a refusal, a
   model outage, a store failure, a changed chunk, another revision, and
   `reset=1` do not or no longer quarantine → evidence:
   `search-embedding-run.test.ts`, `search-embedding-runner.test.ts`.
@@ -1043,6 +1069,17 @@ Items tagged `[pending]` belong to slices 3–4.
   the probe answered is a strike; a refusal or a store failure makes one
   call and no split; every call of a split is in the day's ledger →
   evidence: `search-embedding-run.test.ts` rows and tests.
+- H56: given 8,586 chunks with one failing text in every batch of 50 (172)
+  and the default bounds, hourly runs embed every healthy chunk in 124 runs
+  (under 6 days), no run that leaves healthy work spends a call on a retry,
+  and afterwards retries use at most 10 calls a run and 100 a day; given 500
+  struck texts due at once and 60 new chunks an hour, every run embeds all
+  new chunks; a retry comes after the run's healthy chunks, oldest failure
+  first, is one call, and is a strike only while the model answers; a run a
+  bound stopped and a dry run make none and count them in `retriesDeferred`;
+  a failed retry doubles the quarantine from 24 hours up to 30 days; the
+  day's ledger equals the calls made and names the retry calls → evidence:
+  `search-embedding-run.test.ts`.
 - H49: given an index that accepts mutations without applying them, the run
   records each chunk as embedded, a second run embeds nothing, and `/health`
   reports the last mutation id and that the index has not processed it; once
@@ -1252,6 +1289,13 @@ The three-run backfill is also a test: 8,586 synthetic chunks finish in runs
 of 3,000, 3,000, and 2,586 chunks with 60, 60, and 52 calls
 (`search-embedding-run.test.ts`).
 
+With bad texts (test `H56`, default bounds, hourly runs from 00:00 UTC):
+8,586 chunks with one failing text in every batch of 50 (172 bad) have all
+8,414 healthy chunks embedded after 124 runs, 5 days and 4 hours. The day's
+400 calls set the pace: each such batch costs about 12 calls instead of 1,
+about 2,060 in all. No retry is made until the healthy work is done; after
+that retries take at most 100 calls a day.
+
 Limits of these numbers:
 
 - Tokens are the digest's estimate (4 characters per token, 1 per CJK
@@ -1267,7 +1311,7 @@ Limits of these numbers:
   become queryable are read on Dev (H52).
 
 Worker bundle (`wrangler deploy --dry-run`, both configurations): 278.51 KiB
-(gzip 69.92) before, 319.60 KiB (gzip 79.71) after.
+(gzip 69.92) before, 321.07 KiB (gzip 80.08) after.
 
 Mutation evidence (one mutant or more per behavior, each seen failing) is
 listed in the PR.

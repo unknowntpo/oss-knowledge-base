@@ -17,7 +17,7 @@ import { DAY_1, DAY_MS, DIMENSIONS, FIVE, harness, PROFILE, projectA, projectB, 
 type Harness = ReturnType<typeof harness>;
 
 /** Hourly runs the 172-bad-text corpus needs before every healthy chunk is embedded (Spec 016 Results). */
-const CONVERGENCE_RUNS_172 = 0;
+const CONVERGENCE_RUNS_172 = 124;
 
 const outcome = (result: EmbeddingRunResult) =>
   `${result.modelCalls} calls, ${result.embedded}/${result.chunks} embedded, ${result.deletedThisRun} deleted, ${result.limited ?? "not limited"}, ${result.ok ? "ok" : result.failureKind}`;
@@ -792,15 +792,25 @@ describe("Spec 016 embedding run", () => {
     expect(converged.runs).toBe(CONVERGENCE_RUNS_172);
     expect(ledgerCalls(h)).toBe(h.model.calls.length);
 
-    // Afterwards the bad texts are retried within their own small budget and end up quarantined.
-    const before = h.model.calls.length;
-    const later = await hourly(h, (result) => result.quarantined === bad, 24 * 6 + 24 * 12);
-    expect(later.last).toMatchObject({ embedded: healthy, quarantined: bad });
-    for (const calls of retryCallsByDay(h)) expect(calls).toBeLessThanOrEqual(DEFAULT_EMBEDDING_LIMITS.maxRetryCallsPerDay);
-    expect(ledgerCalls(h)).toBe(h.model.calls.length);
-    // Two retries each, one call a retry, and a probe for every three failures in a row or first call of a run.
-    expect(h.model.calls.length - before).toBeLessThanOrEqual(2 * bad * 2);
+    // Every bad text was found; no retry was made before the run that finished the healthy work.
+    expect(failing(h)).toHaveLength(bad);
+    expect(retryCallsByDay(h).reduce((sum, calls) => sum + calls, 0)).toBe(converged.last.retryCalls);
+    expect(converged.last.retryCalls).toBeLessThanOrEqual(10);
     expectStateMatchesIndex(h);
+
+    // Afterwards the bad texts are retried within their own budget: 10 calls a run, 100 a day.
+    const before = h.model.calls.length;
+    for (let hour = 0; hour < 48; hour += 1) {
+      h.clock.now = DAY_1 - 8 * 3_600_000 + (converged.runs + hour) * 3_600_000;
+      const result = await h.run();
+      expect(result).toMatchObject({ embedded: healthy, embeddedThisRun: 0, estimate: { chunks: 0 } });
+      expect(result.modelCalls).toBe(result.retryCalls);
+      expect(result.retryCalls).toBeLessThanOrEqual(10);
+    }
+    for (const calls of retryCallsByDay(h)) expect(calls).toBeLessThanOrEqual(100);
+    expect(Math.max(...retryCallsByDay(h))).toBe(100);
+    expect(h.model.calls.length - before).toBeLessThanOrEqual(3 * 100);
+    expect(ledgerCalls(h)).toBe(h.model.calls.length);
   }, 300_000);
 
   test("H56: 500 quarantined texts do not keep new chunks from being embedded in the next run", async () => {
@@ -830,7 +840,7 @@ describe("Spec 016 embedding run", () => {
   }, 120_000);
 
   test("H56: a retry waits for the healthy chunks of its run, oldest failure first, and is one call", async () => {
-    const h = harness({ batchTexts: 2, maxRetryCallsPerRun: 3 });
+    const h = harness({ batchTexts: 2, maxRetryCallsPerRun: 4 });
     const chunks = [projectA("x1:bad"), projectA("x2:bad"), projectA("x3:bad"), projectA("x4:bad"), projectB("y1"), projectB("y2")];
     publishRelease(h.bucket, "r1", chunks);
     const refs = await Promise.all(chunks.map((chunk) => chunkVectorRef(chunk)));
@@ -838,10 +848,19 @@ describe("Spec 016 embedding run", () => {
     await new EmbeddingState(h.storage).recordFailures(refs.slice(0, 4).map((ref, n) => [ref.id, { h: ref.fingerprint, r: PROFILE.semanticRevision, n: 1, at: `${at[n]}T00:00:00.000Z` }] as const));
     h.model.respond = (_call, texts) => (texts.some((text) => text.endsWith(":bad")) ? new Error("AiError: 3010: Invalid input") : undefined);
     const result = await h.run();
-    // The healthy batch first although it comes last in the release; then x4, x2, x3 by age; x1 waits.
-    expect(h.model.calls.map((texts) => texts.map((text) => text.slice(-6)).join(" "))).toEqual(["of y1 of y2", "x4:bad", "x2:bad", "x3:bad"]);
-    expect(result).toMatchObject({ ok: false, embedded: 2, modelCalls: 4, retryCalls: 3, retriesDeferred: 1, quarantined: 0, estimate: { chunks: 0 } });
+    // The healthy batch first although it comes last in the release; then x4, x2, x3 by age, one call each;
+    // the third failure in a row needs a probe before it is a strike; x1 waits for the next run.
+    expect(h.model.calls.map((texts) => texts.map((text) => text.slice(-6)).join(" "))).toEqual([" of y1  of y2", "x4:bad", "x2:bad", "x3:bad", "ok"]);
+    expect(result).toMatchObject({ ok: false, embedded: 2, modelCalls: 5, retryCalls: 4, retriesDeferred: 1, quarantined: 0, estimate: { chunks: 0 } });
     expect(failing(h).map((entry) => entry.slice(-2)).sort()).toEqual([":1", ":2", ":2", ":2"]);
+    expect(h.storage.values.get("spend:2026-10-10")).toEqual({ neurons: 5, calls: 5, retryCalls: 4 });
+    // With no call left for the probe, the third failure is not a strike.
+    const tight = harness({ batchTexts: 2, maxRetryCallsPerRun: 3 });
+    publishRelease(tight.bucket, "r1", chunks);
+    await new EmbeddingState(tight.storage).recordFailures(refs.slice(0, 4).map((ref, n) => [ref.id, { h: ref.fingerprint, r: PROFILE.semanticRevision, n: 1, at: `${at[n]}T00:00:00.000Z` }] as const));
+    tight.model.respond = h.model.respond;
+    expect(await tight.run()).toMatchObject({ modelCalls: 4, retryCalls: 3, retriesDeferred: 2, estimate: { chunks: 0 } });
+    expect(failing(tight).map((entry) => entry.slice(-2)).sort()).toEqual([":1", ":1", ":2", ":2"]);
 
     // A run stopped by a bound makes no retry; a dry run makes none and counts them.
     const bound = harness({ batchTexts: 2, maxChunksPerRun: 1 });

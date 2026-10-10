@@ -26,6 +26,8 @@ export interface DayLedger {
   /** Estimated neurons of every model call started today (UTC), failed ones included. */
   readonly neurons: number;
   readonly calls: number;
+  /** How many of `calls` were retries of texts that failed alone before (and their probes). */
+  readonly retryCalls?: number;
 }
 
 export interface AcceptedMutation {
@@ -137,9 +139,10 @@ export class EmbeddingState {
   }
 
   /** Counts one model call before it is made, so an attempt that dies is still counted. */
-  async reserve(date: string, neurons: number): Promise<DayLedger> {
+  async reserve(date: string, neurons: number, retry = false): Promise<DayLedger> {
     const before = await this.ledger(date);
-    const after = { neurons: before.neurons + neurons, calls: before.calls + 1 };
+    const retryCalls = (before.retryCalls ?? 0) + (retry ? 1 : 0);
+    const after: DayLedger = { neurons: before.neurons + neurons, calls: before.calls + 1, ...(retryCalls > 0 ? { retryCalls } : {}) };
     await this.storage.put(`spend:${date}`, after);
     return after;
   }
