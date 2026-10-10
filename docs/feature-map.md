@@ -13,6 +13,63 @@ Commands: `bun run verify:ui`, `bun run verify:health` (see
 | Dev | https://oss-knowledge-base-dev.pages.dev | https://oss-knowledge-base-data-dev.unknowntpo.workers.dev (Cron `7 * * * *`) | `oss-knowledge-base-dev` |
 | Prod | not live (https://oss-knowledge-base.pages.dev deploys on a `v*` tag) | `oss-knowledge-base-data-prod`; URL unknown (no `workers.dev` URL is recorded in the repo) (Cron `37 * * * *`) | `oss-knowledge-base-prod` |
 
+### Dev access (Cloudflare Access)
+
+Dev Pages (https://oss-knowledge-base-dev.pages.dev and its preview subdomains
+`*.oss-knowledge-base-dev.pages.dev`) is meant to sit behind Cloudflare Access.
+The publisher worker on `workers.dev` and Prod are not behind Access.
+
+- Automated clients authenticate with a service token: `CF_ACCESS_CLIENT_ID`
+  and `CF_ACCESS_CLIENT_SECRET`, sent as `CF-Access-Client-Id` /
+  `CF-Access-Client-Secret` headers. Both unset means no headers (the behavior
+  before Access existed); only one set is an error.
+- The headers go only to https URLs on the Dev Pages host or its subdomains
+  (`isAccessProtected` in `scripts/verify/access.ts`), never to the publisher,
+  Prod, local, or third-party origins.
+- Redirects never carry the token. In the browser, `accessRouteHandler`
+  fetches Dev Pages requests with `maxRedirects: 0` and fulfils the response,
+  a 3xx included; the browser follows that redirect itself with only its own
+  headers. Playwright does not route the redirected hop, so it is not
+  re-checked: a same-site redirect (Dev to Dev or to a preview subdomain) also
+  arrives without the token and would be challenged once Access is on (Dev
+  Pages has none today). The token-bearing `request` context has
+  `maxRedirects: 0`.
+- CI: the `E2E — deployed development` job reads both from GitHub Actions
+  secrets. `apps/web/deployed-e2e/fixtures.ts` routes Dev Pages browser
+  requests through `accessRouteHandler`, gives `request` a Pages-only context
+  (errors rethrown with the values replaced by `***`; every target, including
+  protocol-relative, backslash and mixed-case-scheme forms and `Request`
+  objects, is resolved against `baseURL` and refused unless it is on the Dev
+  Pages host), and calls the publisher through a separate
+  `publisherRequest` context without the token.
+- Evidence is public, so before upload `scripts/verify/redact-artifacts.ts`
+  replaces both values in every file of the report and test results (inside
+  trace zips and the report's embedded zip too), then fails the job, and skips
+  the upload, if any copy (plain or base64) is left. Known limit: see
+  [gardening G30](gardening.md#g30-the-evidence-redaction-gate-does-not-decode-every-encoding). Playwright's HTML report records request
+  headers of a failed API call even when the error is redacted, so this step is
+  required. Tracing also stays off while a token is set.
+- `bun run test:e2e:access` (part of `test:e2e`) checks the scoping on the
+  wire with a dummy token through a local proxy (`apps/web/access-e2e`); the
+  unit suite forces a connection failure and checks that no evidence file keeps
+  the dummy value after redaction (`scripts/test/access-leak.test.ts`).
+- `verify:ui` and `verify:health --target dev` read the same variables. Without
+  them, an Access login redirect (to `*.cloudflareaccess.com`) or a 401/403
+  from Dev Pages fails with a message telling you to set them; with a token
+  sent, the message says it was rejected. Values are used exactly as set (not
+  trimmed).
+  Neither command prints the values.
+- Local use: keep the token in the macOS Keychain and export it only for the
+  command, never echo it:
+
+  ```sh
+  security add-generic-password -s oss-kb-cf-access-id -a "$USER" -w      # prompts for the value
+  security add-generic-password -s oss-kb-cf-access-secret -a "$USER" -w
+  export CF_ACCESS_CLIENT_ID=$(security find-generic-password -s oss-kb-cf-access-id -w)
+  export CF_ACCESS_CLIENT_SECRET=$(security find-generic-password -s oss-kb-cf-access-secret -w)
+  bun run verify:health -- --target dev
+  ```
+
 Local fixture: `packages/reference-pipeline/test/fixtures/github-feed-projection.v1.json`, plus the Spec 014 digest fixtures `apps/web/test/fixtures/digest/apache-kafka.{en,zh-Hant}.json` (regenerate with `bun apps/data-publisher-worker/scripts/build-digest-fixture.ts`; zh-Hant uses hand translations),
 3 Feed cards (Kafka, DataFusion), `generatedAt` `2026-08-25T12:00:00Z`; search
 fixture from `packages/search/test/fixtures/golden-queries.v1.json` (`KIP-405`

@@ -189,9 +189,22 @@ jobs:
         env:
           DEV_BASE_URL: https://oss-knowledge-base-dev.pages.dev
           DEV_WORKER_URL: https://oss-knowledge-base-data-dev.unknowntpo.workers.dev
+          # Cloudflare Access service token for the Dev Pages site. Sent only to the
+          # Dev Pages origin (scripts/verify/access.ts); empty until the secrets exist.
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: bun run test:e2e:development
-      - name: Upload deployed development evidence
+      # Playwright evidence can hold request headers (the HTML report's step errors,
+      # traces). Replace the token values, then fail if any copy is left, before upload.
+      - name: Redact the Access token from the evidence
+        id: redact
         if: ${{ !cancelled() }}
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: bun scripts/verify/redact-artifacts.ts playwright-report-development test-results/playwright-development
+      - name: Upload deployed development evidence
+        if: ${{ !cancelled() && steps.redact.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: playwright-development-evidence

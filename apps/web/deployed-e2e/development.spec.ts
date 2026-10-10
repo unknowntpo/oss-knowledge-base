@@ -1,4 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+
+import { expect, test } from "./fixtures";
 
 const workerUrl = process.env.DEV_WORKER_URL
   ?? "https://oss-knowledge-base-data-dev.unknowntpo.workers.dev";
@@ -15,7 +17,7 @@ function collectBrowserProblems(page: Page): string[] {
   return problems;
 }
 
-test("development cron data reaches Feed, Search, facets, and immutable detail", async ({ page, request }) => {
+test("development cron data reaches Feed, Search, facets, and immutable detail", async ({ page, request, publisherRequest }) => {
   type Health = {
     readonly environment: string;
     readonly running: boolean;
@@ -29,7 +31,7 @@ test("development cron data reaches Feed, Search, facets, and immutable detail",
   };
   let health: Health | undefined;
   await expect.poll(async () => {
-    const response = await request.get(`${workerUrl}/health`);
+    const response = await publisherRequest.get(`${workerUrl}/health`);
     health = response.status() === 200 ? await response.json() as Health : undefined;
     return {
       status: response.status(),

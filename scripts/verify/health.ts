@@ -2,10 +2,12 @@
 // Compares the publisher's /health with the generatedAt the page reads from /api/feed.
 // Read-only: GET only; it never calls the publisher's POST /run.
 import { STALE_AFTER_MS } from "../../apps/web/src/freshness";
+import { getWithAccess, readAccessHeaders, type AccessHeaders } from "./access";
 import { formatHealth, judgeHealth, parseHealthArgs, reviewQueueLine, targets, UsageError, type HealthReport } from "./args";
 
-async function getJson(url: string): Promise<unknown> {
-  const response = await fetch(url);
+// The Access token goes only to the Dev Pages origin (scripts/verify/access.ts), never to the publisher.
+async function getJson(url: string, access: AccessHeaders | undefined): Promise<unknown> {
+  const response = await getWithAccess(url, access);
   if (!response.ok) throw new Error(`GET ${url} -> ${response.status}`);
   return response.json();
 }
@@ -13,13 +15,14 @@ async function getJson(url: string): Promise<unknown> {
 async function main(): Promise<void> {
   const { target } = parseHealthArgs(process.argv.slice(2));
   const { pages, publisher } = targets[target];
-  const feed = (await getJson(`${pages}/api/feed`)) as {
+  const access = readAccessHeaders(process.env);
+  const feed = (await getJson(`${pages}/api/feed`, access)) as {
     metadata?: { stale?: boolean; manifest?: { generatedAt?: string; releaseId?: string } };
   };
   let publisherReport: HealthReport["publisher"];
   let reviewQueue: unknown;
   if (publisher) {
-    const health = (await getJson(`${publisher}/health`)) as {
+    const health = (await getJson(`${publisher}/health`, access)) as {
       running?: boolean;
       phase?: unknown;
       lastRun?: { ok?: boolean; completedAt?: string; feedReleaseId?: string };

@@ -316,8 +316,7 @@ the two `viewer/` items below.
   once per thread, lower the further-chunk weight, a proximity signal, or
   rerank. Each needs its own measurement.
 - **Layer:** test row (golden v2 already fails on it).
-- **Source:** Spec 016 slice 1 evaluation, 2026-10-10. (G30 is left for
-  open PR #42, whose G29 collides with the G29 above.)
+- **Source:** Spec 016 slice 1 evaluation, 2026-10-10.
 
 ### G32. Search identifier patterns live only in the golden fixture
 - **Where:** `identifierProfiles` in
@@ -341,6 +340,24 @@ the two `viewer/` items below.
   vectors; delete the concept table then.
 - **Layer:** test.
 - **Source:** Spec 016 slice 1.
+## CI evidence
+
+### G30. The evidence redaction gate does not decode every encoding
+- **Where:** `scripts/verify/redact-artifacts.ts` (the "Redact the Access
+  token from the evidence" step before the deployed E2E upload).
+- **Why:** it rewrites plain copies of the Cloudflare Access token (also
+  inside zips and the HTML report's embedded zip) and blocks the upload on
+  base64/base64url copies, but does not detect gzip, hex, `\u`-escaped JSON,
+  UTF-16, a value split across lines, or a reversed value. Playwright writes
+  none of these for header values today (traces are zipped NDJSON, the report
+  an embedded zip, `error-context.md` plain text), so the risk is theoretical
+  until a reporter or trace format changes.
+- **Fix:** if Playwright's output format changes, add the new encoding to
+  `findSecrets` with a row in `scripts/test/redact-artifacts.test.ts`; or stop
+  uploading evidence from runs that carry the token.
+- **Layer:** test (`scripts/test/access-leak.test.ts` fails if real Playwright
+  output keeps the value after redaction).
+- **Source:** [PR #42 verifier, round 2](https://github.com/unknowntpo/oss-knowledge-base/pull/42#issuecomment-6056529926).
 
 ## Process and docs
 

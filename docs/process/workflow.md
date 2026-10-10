@@ -141,6 +141,9 @@ Verifiers do not rebuild a harness per PR. The repository keeps:
   element states as JSON) and `bun run verify:health` (publisher `/health`
   against `/api/feed`), for `--target local` or `dev`. Read-only; they never
   call the publisher's `/run`.
+  Dev Pages is behind Cloudflare Access; set `CF_ACCESS_CLIENT_ID` and
+  `CF_ACCESS_CLIENT_SECRET` first (see
+  [Dev access](../feature-map.md#dev-access-cloudflare-access)).
 
 The verifier uses the kit first. When it needs a missing capability, it adds
 the command or map entry and lists it in its report.
