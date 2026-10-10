@@ -1,6 +1,6 @@
 # Spec 016: Semantic candidates and hybrid fusion for Search
 
-Status: Draft for human review — decisions of 2026-10-08..10 recorded below; slices 1, 2a and 2b implemented (2b: embedding publication and the Vectorize adapter, off in both deployed configurations), the `@2` switch on Dev (H42), enabling embeddings on Dev (H52) and slices 3–4 pending
+Status: Draft for human review — decisions of 2026-10-08..10 recorded below; slices 1, 2a and 2b implemented (2b: embedding publication and the Vectorize adapter, off in both deployed configurations), Dev switched to `@2` (H42), enabling embeddings on Dev (H52) and slices 3–4 pending
 Date: 2026-10-10
 Traceability: enforced
 Builds on: Spec 005 (Phases 2 and 3, LLM boundary), Spec 013 (lexical shards, `bm25-reference@1`), Spec 014 (community profile `proposal`), Spec 015 (profile blocks, ADR-0016)
@@ -307,8 +307,9 @@ Serving `bm25-reference@2` (slice 2a):
     byte-identical to before; `bm25-reference@2` writes `@2` postings, chunk
     lengths, and term statistics with the search profiles and stamps the
     manifest. Any other value fails the run before a source is polled or an
-    object written, and `/health` shows the error. Neither deployed
-    configuration sets the variable in slice 2a. A successful run records
+    object written, and `/health` shows the error. Slice 2a set the variable
+    in neither deployed configuration; since the switch (H42) the development
+    configuration sets `bm25-reference@2` and production still sets none. A successful run records
     `lastRun.search { lexicalRevision, chunkCount, shardCount, shardBytes,
     largestShardBytes, termsBytes }` from the manifest and object sizes of the
     release it wrote.
@@ -452,7 +453,9 @@ Decided in slice 2a (implementer, to confirm):
      H36, H38, H39); `/health` `lastRun.search` (H41); size measurement (H40).
      No model call, Vectorize, binding, or new cloud resource. Dev serves
      `@1` after the merge.
-   - **Switch.** A one-line change sets the variable for Dev (H42).
+   - **Switch (done).** `wrangler.development.jsonc` sets the variable, so
+     Dev writes `@2` from the first run after that deploy (H42). Production
+     is unchanged.
    - **2b (this PR).** The embedding object, run, and state (H21–H23,
      H45–H49), the Vectorize adapter with the release consistency rule (H24,
      H43, H44, H50), `/health` and the trigger endpoint (H51), the cost
@@ -498,14 +501,18 @@ run at any time, so the order is enforced by a flag, not by timing
 1. **Slice 2a merges.** Pages read `@1` and `@2`. The Worker can write `@2`
    but `SEARCH_LEXICAL_REVISION` is unset, so every run still writes `@1`.
    Nothing a reader sees changes; `/health` gains `lastRun.search`.
-2. **Switch (H42).** After the slice 2a deploy and its deployed E2E are green
-   on `main`, set `"SEARCH_LEXICAL_REVISION": "bm25-reference@2"` in
-   `apps/data-publisher-worker/wrangler.development.jsonc` and update H39.
+2. **Switch (H42), done for Dev.** With the slice 2a deploy and its deployed
+   E2E green on `main`,
+   `apps/data-publisher-worker/wrangler.development.jsonc` sets
+   `"SEARCH_LEXICAL_REVISION": "bm25-reference@2"` and H39 pins Dev to `@2`
+   and Prod to unset. Dev serves `@1` until the first run after that deploy
+   switches `current.json`. Production gets the same one-line change in its
+   own PR, before a release tag.
    Every commit that sets the variable also contains the dual reader and CI
    deploys Pages before the Worker, so no deployed reader meets a revision it
    rejects. Each run writes a complete release, so the next hourly run
    republishes every shard at `@2`; no backfill.
-3. **Turning `@2` off.** Remove the variable (revert the switch). The next
+3. **Turning `@2` off.** Remove the variable (revert the switch PR). The next
    run writes an `@1` release and moves `current.json`; the reader serves the
    `@2` release until then and `@1` after. Releases are immutable and
    content-addressed, so nothing is deleted and no Cron pause is needed.
@@ -682,7 +689,7 @@ vectors deleted, the bound reached, and `ok` or the failure kind:
 
 ## Acceptance
 
-Items tagged `[pending]` belong to the `@2` switch and slices 3–4.
+Items tagged `[pending]` belong to slices 3–4.
 
 ### Behavior
 - H1: given each row of the code-text token plan, the `@2` tokenizer returns
@@ -769,19 +776,22 @@ Items tagged `[pending]` belong to the `@2` switch and slices 3–4.
 - H37: given a release whose manifest declares any other revision
   (`bm25-reference@3`, `bm25:v1`), in the v3 or the whole-release layout, the
   reader throws, reads no terms object or shard, and `/api/search` answers
-  HTTP 503 naming the revision; the same objects answer once they declare a
+  HTTP 503 naming the revision, `no-store` (Spec 003 R7) so the error is not
+  replayed after the switch; the same objects answer once they declare a
   supported one; `lexicalSearchConfigFor` throws for an unknown revision →
   evidence: `search-lexical-revisions.test.ts`, `code-tokens.test.ts`.
 - H38: given `SEARCH_LEXICAL_REVISION` set to an unsupported value, the run
-  fails before a source is polled or an object written, both pointers stay,
+  fails before a source is polled or an object written (its last phase
+  marker is `reading-state`, never `polling`), both pointers stay,
   `/health` `lastRun.error` names the value, and a later run with a supported
   value publishes; the Worker passes its variable to the run;
   `searchProjectionObjects` and `buildR2SearchProjection` refuse an unknown
   revision before the first object → evidence: `pipeline.test.ts`,
   `durable-object-state.test.ts`, `search-shards.test.ts`.
-- H39: given the deployed publisher configurations of this slice, neither
-  sets `SEARCH_LEXICAL_REVISION`, so a merge still writes `@1` → evidence:
-  `pipeline.test.ts`. The switch (H42) changes the Dev half of this item.
+- H39: given the deployed publisher configurations, development sets
+  `SEARCH_LEXICAL_REVISION` to `bm25-reference@2` and production does not set
+  it, so only Dev writes `@2` → evidence: `pipeline.test.ts`. (Slice 2a
+  shipped with neither set.)
 - H29: [pending] given a query-embedding failure, timeout, or quota error,
   `/api/search` returns HTTP 200 with lexical results and `retrieval.semantic`
   set to the state.
@@ -958,10 +968,16 @@ Items tagged `[pending]` belong to the `@2` switch and slices 3–4.
   `pending: 0` within the estimated runs, `lastRun.index.mutationsProcessed`
   becomes true, and the search gateway shows the calls while
   `osskb-digest-dev` shows none of them.
-- H42: [pending] given slice 2a live on Dev and the variable set for Dev, the
+- H42: [deploy] given slice 2a live on Dev and the variable set for Dev, the
   next run's `/health` `lastRun.search.lexicalRevision` is
   `bm25-reference@2`, and Dev `/api/search` returns results for `KIP770` and
-  `RequestManager` with `retrieval.lexicalRevision` `bm25-reference@2`.
+  `RequestManager` with `retrieval.lexicalRevision` `bm25-reference@2` →
+  evidence: the post-merge checks in the switch PR. The deployed E2E
+  (`development.spec.ts`) asserts on every run that the served
+  `retrieval.lexicalRevision` equals `/health` `lastRun.search.lexicalRevision`
+  and, once that is `@2`, that `KIP770` returns the threads of `KIP-770`. It
+  cannot require `@2`: it runs right after the deploy, before the next hourly
+  publication.
 
 ## Results (slice 1, 2026-10-10)
 
@@ -1024,9 +1040,13 @@ snapshot (`apps/web/test/fixtures/recorded-feed-publication.v1.json`, release
 Chunks and excerpts dominate a shard, so the added postings barely move it.
 The snapshot is 4% of the Dev corpus and holds no dev@ or Jira record, whose
 titles carry more class names; a larger recorded snapshot is measured with
-`--seed <directory>`. The Dev values (and the real chunk count, open question
-4) are read from `/health` `lastRun.search` after this slice deploys (`@1`)
-and again after the switch (`@2`).
+`--seed <directory>`.
+
+Dev at `@1`, `GET /health` `lastRun.search` of release
+`feed-2026-10-10T08-07-12-000Z` (read 2026-10-10, before the switch):
+8,586 chunks in 10 shards, 17,479,986 shard bytes (largest 2,391,134),
+`terms.json` 493,176 bytes. This is the real chunk count (open question 4).
+The `@2` values are read the same way after the switch.
 
 Golden v1, golden v2, and `bun run eval:search` are unchanged
 (`golden-evaluation.v2.json` is byte-identical). The recorded publication
@@ -1083,9 +1103,9 @@ Not decided here:
    through it; query-time abuse protection is slice 3 (H30).
 3. **Query embedding in the browser or on the server.** Spec 005 leaves it to
    a measured spike.
-4. **Actual chunk count.** 8,577 is inferred from the Feed index; the exact
-   value is `/health` `lastRun.search.chunkCount` once slice 2a is deployed
-   (H41).
+4. **Actual chunk count.** Answered: 8,586 on Dev on 2026-10-10
+   (`/health` `lastRun.search.chunkCount`, H41); the 8,577 above was inferred
+   from the Feed index.
 5. **One source for identifiers.** Slice 2a keeps `proposal.keyPattern` and
    `issueKeyPattern` (Spec 014) separate from the search profile (see
    "Community profile fit"); to confirm.

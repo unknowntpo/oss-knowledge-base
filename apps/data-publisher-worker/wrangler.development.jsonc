@@ -10,6 +10,7 @@
   },
   "vars": {
     "PUBLICATION_ENVIRONMENT": "development",
+    "SEARCH_LEXICAL_REVISION": "bm25-reference@2",
     "DIGEST_ENABLED": "true",
     "DIGEST_MODEL": "workers-ai",
     "DIGEST_GATEWAY_ID": "osskb-digest-dev",

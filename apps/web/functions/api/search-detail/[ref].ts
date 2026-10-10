@@ -12,9 +12,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ env, params }) => {
     const detail = await readSearchDetailProjection(env.OSS_KB_BUCKET, decodeURIComponent(value));
     return detail === undefined
       ? jsonResponse({ error: "FeedDetail not found for this Search result" }, { status: 404 })
-      : jsonResponse(detail, {
-          headers: { "cache-control": "public, max-age=31536000, immutable" },
-        });
+      : jsonResponse(detail);
   } catch (error) {
     const invalid = error instanceof Error && error.message.includes("detailRef is invalid");
     return jsonResponse(

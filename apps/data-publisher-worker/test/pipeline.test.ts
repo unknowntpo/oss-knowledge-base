@@ -340,6 +340,8 @@ describe("Spec 016 lexical revision of the published Search release", () => {
     expect(result.ok === false && result.error).toContain(`SEARCH_LEXICAL_REVISION "${value}"`);
     expect(destination.operations).toEqual([]);
     expect(polls).toBe(0);
+    // The check runs before the `polling` marker, so `/health` never shows this run as polling.
+    expect(state.phases).toEqual(["reading-state"]);
     expect(state.value.events).toEqual([]);
     expect(new TextDecoder().decode(destination.objects.get(SEARCH_CURRENT_KEY))).toBe("old-search");
     // `/health` carries the failure; a run with a supported value then publishes.
@@ -347,15 +349,19 @@ describe("Spec 016 lexical revision of the published Search release", () => {
       .toMatchObject({ ok: false, error: expect.stringContaining("SEARCH_LEXICAL_REVISION") });
     expect((await run(destination, state, "bm25-reference@2")).ok).toBe(true);
     expect(published(destination).manifest.lexicalRevision).toBe("bm25-reference@2");
+    // Positive control: a supported value moves on to `polling`.
+    expect(state.phases.slice(0, 3)).toEqual(["reading-state", "reading-state", "polling"]);
   });
 
-  test("H39: neither deployed publisher sets SEARCH_LEXICAL_REVISION, so merging this slice still writes @1", async () => {
-    for (const environment of ["development", "production"] as const) {
-      const vars = (await config(environment)).vars as Readonly<Record<string, string>>;
-      expect(Object.keys(vars)).toContain("PUBLICATION_ENVIRONMENT");
-      expect(Object.hasOwn(vars, "SEARCH_LEXICAL_REVISION")).toBe(false);
-      expect(resolveSearchLexicalRevision(vars.SEARCH_LEXICAL_REVISION)).toBe("bm25-reference@1");
-    }
+  test("H39: the development publisher writes bm25-reference@2; production does not set the variable and writes @1", async () => {
+    const development = (await config("development")).vars as Readonly<Record<string, string>>;
+    const production = (await config("production")).vars as Readonly<Record<string, string>>;
+    expect(development.PUBLICATION_ENVIRONMENT).toBe("development");
+    expect(development.SEARCH_LEXICAL_REVISION).toBe("bm25-reference@2");
+    expect(resolveSearchLexicalRevision(development.SEARCH_LEXICAL_REVISION)).toBe("bm25-reference@2");
+    expect(production.PUBLICATION_ENVIRONMENT).toBe("production");
+    expect(Object.hasOwn(production, "SEARCH_LEXICAL_REVISION")).toBe(false);
+    expect(resolveSearchLexicalRevision(production.SEARCH_LEXICAL_REVISION)).toBe("bm25-reference@1");
   });
 
   test.each(["bm25-reference@1", "bm25-reference@2"])("H41: /health lastRun.search reports the %s release's revision, chunk count, and lexical bytes", async (revision) => {
@@ -551,7 +557,8 @@ class MemoryState implements PipelineStateRepository {
   async read(): Promise<SerializedReferenceStateV1> { return this.value; }
   async commit(state: SerializedReferenceStateV1): Promise<void> { this.value = state; }
   async recordStatus(status: PipelineRunStatus): Promise<void> { this.statuses.push(status); }
-  async recordPhase(): Promise<void> {}
+  phases: string[] = [];
+  async recordPhase(marker: { readonly phase: string }): Promise<void> { this.phases.push(marker.phase); }
 }
 
 class MemoryDestination implements PublicationDestination, PublicationObjectStore {
