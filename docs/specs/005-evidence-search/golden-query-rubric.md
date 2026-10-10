@@ -72,6 +72,15 @@ The first revision covers:
 - Phase 2 may improve vocabulary-gap Recall@K, but it must continue to pass all
   Phase 1 exact and isolation queries.
 
+## Golden v2 (Spec 016)
+
+`packages/search/test/fixtures/golden-queries.v2.json` keeps this fixture's
+chunks and queries unchanged and adds graded judgments (2 expected,
+1 acceptable), hard negatives, and `requires: lexical | semantic` for the
+Phase 2 and 3 work. Its grading and its hand-written records are described in
+[Spec 016](../016-semantic-search/spec.md). The v1 fixture and its Phase 1 gate
+stay as they are.
+
 ## CI evidence
 
 `packages/search/test/golden-fixture.test.ts` validates the fixture structure,

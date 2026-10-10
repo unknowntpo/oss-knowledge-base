@@ -1,0 +1,1000 @@
+{
+  "schema": "osskb.search-golden-fixture.v2",
+  "revision": "golden-kafka-datafusion-2026-10-10.v2",
+  "indexRevision": "fixture-index-2026-10-10.v2",
+  "provenance": {
+    "note": "Records listed in syntheticRecordIds were written by hand for Spec 016. Titles marked dev-title were copied from the Dev Search release feed-2026-10-10T05-07-12-000Z; bodies are shortened; URLs ending in -fixture and source versions ending in -fixture do not exist upstream. On Dev a Jira issue and its GitHub pull request are separate groups; this fixture keeps one group per key. Every other record is an unchanged copy of golden-queries.v1.json.",
+    "syntheticRecordIds": [
+      "kafka:jira:issue:KAFKA-19804",
+      "kafka:github:pull:22747",
+      "kafka:jira:issue:KAFKA-19738",
+      "kafka:jira:issue:KAFKA-20397",
+      "kafka:mail:dev:release-manager-4-4-0",
+      "kafka:mail:dev:release-manager-4-4-0:reply-1",
+      "kafka:mail:dev:release-manager-4-4-0:reply-2",
+      "kafka:mail:dev:release-manager-4-4-0:reply-3",
+      "kafka:jira:issue:KAFKA-19919",
+      "kafka:mail:dev:kip-770-discuss",
+      "kafka:github:pull:22458",
+      "kafka:jira:issue:KAFKA-770",
+      "datafusion:github:pull:770",
+      "kafka:jira:issue:KAFKA-20785",
+      "kafka:jira:issue:KAFKA-20734"
+    ],
+    "devTitleRecordIds": [
+      "kafka:jira:issue:KAFKA-19804",
+      "kafka:github:pull:22747",
+      "kafka:jira:issue:KAFKA-19738",
+      "kafka:jira:issue:KAFKA-20397",
+      "kafka:mail:dev:release-manager-4-4-0",
+      "kafka:jira:issue:KAFKA-19919",
+      "kafka:github:pull:22458",
+      "kafka:jira:issue:KAFKA-20785",
+      "kafka:jira:issue:KAFKA-20734"
+    ]
+  },
+  "identifierProfiles": {
+    "apache-kafka": [
+      {
+        "kind": "kip",
+        "canonicalPrefix": "KIP-",
+        "textPattern": "\\bKIP-?(\\d+)\\b"
+      },
+      {
+        "kind": "jira",
+        "canonicalPrefix": "KAFKA-",
+        "textPattern": "\\bKAFKA-?(\\d+)\\b",
+        "recordIdPattern": ":jira:issue:KAFKA-(\\d+)$"
+      },
+      {
+        "kind": "github-number",
+        "canonicalPrefix": "#",
+        "textPattern": "(?<![\\w#])#(\\d+)\\b",
+        "recordIdPattern": ":github:(?:pull|issue):(\\d+)$"
+      }
+    ],
+    "apache-datafusion": [
+      {
+        "kind": "github-number",
+        "canonicalPrefix": "#",
+        "textPattern": "(?<![\\w#])#(\\d+)\\b",
+        "recordIdPattern": ":github:(?:pull|issue):(\\d+)$"
+      }
+    ]
+  },
+  "chunks": [
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:kafka:github:issue:20983:0",
+      "projectId": "apache-kafka",
+      "sourceInstanceId": "apache-kafka-github",
+      "recordId": "kafka:github:issue:20983",
+      "groupRootRecordId": "kafka:github:issue:20983",
+      "ordinal": 0,
+      "title": "KAFKA-20983: Keep static member id when LeaveGroup is suppressed",
+      "text": "A static consumer that calls unsubscribe suppresses the LeaveGroup RPC, but resetGenerationOnLeaveGroup erased the local member id. The next join carries UNKNOWN_MEMBER_ID while the coordinator still retains the old member.",
+      "canonicalUrl": "https://github.com/apache/kafka/issues/20983",
+      "author": "Kafka contributor",
+      "occurredAt": "2026-08-24T09:15:00Z",
+      "sourceVersion": "github-issue-20983-updated-2026-08-24",
+      "tags": [
+        "consumer",
+        "group-coordinator",
+        "static-membership"
+      ],
+      "contentHash": "sha256:4b2047dceb2190b2df34e3b27eb13763b8007e02e9b8851df6ded405a9faec09"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:datafusion:github:issue:20983:0",
+      "projectId": "apache-datafusion",
+      "sourceInstanceId": "apache-datafusion-github",
+      "recordId": "datafusion:github:issue:20983",
+      "groupRootRecordId": "datafusion:github:issue:20983",
+      "ordinal": 0,
+      "title": "Issue 20983: Preserve qualifiers through aggregate rewrites",
+      "text": "The optimizer drops a relation qualifier after projection and aggregate rewrites. Column resolution then reports an ambiguous field even though the original qualified reference was valid.",
+      "canonicalUrl": "https://github.com/apache/datafusion/issues/20983",
+      "author": "DataFusion contributor",
+      "occurredAt": "2026-08-23T16:30:00Z",
+      "sourceVersion": "github-issue-20983-updated-2026-08-23",
+      "tags": [
+        "optimizer",
+        "aggregate",
+        "qualified-column"
+      ],
+      "contentHash": "sha256:6226e898b8456a69d19cd70e919abdd05a74829831b2938c9d7b402aa7707cac"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:kafka:github:pr:23203:0",
+      "projectId": "apache-kafka",
+      "sourceInstanceId": "apache-kafka-github",
+      "recordId": "kafka:github:pr:23203",
+      "groupRootRecordId": "kafka:github:pr:23203",
+      "ordinal": 0,
+      "title": "KAFKA-20917: Reduce overhead in RecordAccumulator.ready()",
+      "text": "RecordAccumulator.ready() loops once per topic and calls partitionReady for each partition on every Sender runOnce cycle. Cache the ready batches without changing producer delivery behavior.",
+      "canonicalUrl": "https://github.com/apache/kafka/pull/23203",
+      "author": "Kafka contributor",
+      "occurredAt": "2026-08-25T03:20:00Z",
+      "sourceVersion": "github-pr-23203-merged",
+      "tags": [
+        "producer",
+        "performance",
+        "record-accumulator"
+      ],
+      "contentHash": "sha256:9a125c0fd468e8f193b416d301877838b31c431e7214afa9798160254231b05c"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:kafka:github:issue:20970:0",
+      "projectId": "apache-kafka",
+      "sourceInstanceId": "apache-kafka-github",
+      "recordId": "kafka:github:issue:20970",
+      "groupRootRecordId": "kafka:github:issue:20970",
+      "ordinal": 0,
+      "title": "Expose broker readiness in the health endpoint",
+      "text": "Operators need a cached readiness result so probes do not perform expensive metadata checks for every request. This issue is unrelated to producer batch accumulation.",
+      "canonicalUrl": "https://github.com/apache/kafka/issues/20970",
+      "author": "Kafka operator",
+      "occurredAt": "2026-08-20T04:00:00Z",
+      "sourceVersion": "github-issue-20970-updated-2026-08-20",
+      "tags": [
+        "broker",
+        "health",
+        "readiness"
+      ],
+      "contentHash": "sha256:4661eb8e69de917fe83dfef485518ea5baa7794aadd39246b93fb83ec9a0c33c"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:kafka:wiki:kip-405:0",
+      "projectId": "apache-kafka",
+      "sourceInstanceId": "apache-kafka-wiki",
+      "recordId": "kafka:wiki:kip-405",
+      "groupRootRecordId": "kafka:wiki:kip-405",
+      "ordinal": 0,
+      "title": "KIP-405: Kafka Tiered Storage",
+      "text": "Tiered storage moves older log segments from broker disks to remote object storage while brokers retain hot local data. RemoteStorageManager reads and writes remote log segments.",
+      "canonicalUrl": "https://cwiki.apache.org/confluence/display/KAFKA/KIP-405%3A+Kafka+Tiered+Storage",
+      "author": "Satish Duggana",
+      "occurredAt": "2019-01-08T00:00:00Z",
+      "sourceVersion": "confluence-kip-405-v1",
+      "tags": [
+        "storage",
+        "tiered-storage",
+        "broker"
+      ],
+      "contentHash": "sha256:2e7534ddc79c3940b4d7862b9a3f045e0d376e54c0865f0ac7cf51970e5ddf93"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:kafka:mail:kip-405-compaction:0",
+      "projectId": "apache-kafka",
+      "sourceInstanceId": "apache-kafka-dev-mail",
+      "recordId": "kafka:mail:kip-405-compaction",
+      "groupRootRecordId": "kafka:wiki:kip-405",
+      "ordinal": 0,
+      "title": "Re: [DISCUSS] KIP-405 compacted topic support",
+      "text": "Tiered storage cannot yet be enabled on compacted topics. The cleaner assumes it can rewrite any segment in place, which is false after a segment has been uploaded to remote storage.",
+      "canonicalUrl": "https://lists.apache.org/thread/kip-405-compaction-fixture",
+      "author": "Kafka committer",
+      "occurredAt": "2021-05-04T11:00:00Z",
+      "sourceVersion": "mail-message-2021-05-04",
+      "tags": [
+        "storage",
+        "compaction",
+        "cleaner"
+      ],
+      "contentHash": "sha256:de9f8fe1537c049f234a005c9c084a7ac053b4b1edb920fdeaf2574492f90538"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:kafka:github:pr:remote-fetch:0",
+      "projectId": "apache-kafka",
+      "sourceInstanceId": "apache-kafka-github",
+      "recordId": "kafka:github:pr:remote-fetch",
+      "groupRootRecordId": "kafka:wiki:kip-405",
+      "ordinal": 0,
+      "title": "Bound the remote fetch thread pool per broker",
+      "text": "The implementation caps concurrent remote log fetches per broker and records object-store latency so slow remote reads cannot exhaust request threads.",
+      "canonicalUrl": "https://github.com/apache/kafka/pull/16511",
+      "author": "Kafka contributor",
+      "occurredAt": "2026-06-11T08:00:00Z",
+      "sourceVersion": "github-pr-16511-merged",
+      "tags": [
+        "storage",
+        "remote-fetch",
+        "latency"
+      ],
+      "contentHash": "sha256:16f8489e59cbef98fc309bd6fc3d83b3d5b716d2c18b959bcc5cc4118721dbe0"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:kafka:wiki:kip-1150:0",
+      "projectId": "apache-kafka",
+      "sourceInstanceId": "apache-kafka-wiki",
+      "recordId": "kafka:wiki:kip-1150",
+      "groupRootRecordId": "kafka:wiki:kip-1150",
+      "ordinal": 0,
+      "title": "KIP-1150: Diskless Topics",
+      "text": "Diskless topics write producer batches directly to object storage and register them with the coordinator. This proposal is related to storage cost but is not the KIP-405 tiered-storage work.",
+      "canonicalUrl": "https://cwiki.apache.org/confluence/display/KAFKA/KIP-1150%3A+Diskless+Topics",
+      "author": "Josep Prat",
+      "occurredAt": "2026-08-10T09:00:00Z",
+      "sourceVersion": "confluence-kip-1150-v1",
+      "tags": [
+        "storage",
+        "diskless",
+        "object-storage"
+      ],
+      "contentHash": "sha256:f89f96f88825ea8c7a9b37811aeec3f7e8ae60f8c705aeacb7880605f1e6dcc4"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:datafusion:github:issue:19877:0",
+      "projectId": "apache-datafusion",
+      "sourceInstanceId": "apache-datafusion-github",
+      "recordId": "datafusion:github:issue:19877",
+      "groupRootRecordId": "datafusion:github:issue:19877",
+      "ordinal": 0,
+      "title": "Optimizer loses relation qualifier after aggregate rewrite",
+      "text": "A logical plan retains the qualified column before optimization, but the aggregate rewrite removes the relation qualifier and later projection cannot resolve the column.",
+      "canonicalUrl": "https://github.com/apache/datafusion/issues/19877",
+      "author": "DataFusion contributor",
+      "occurredAt": "2026-07-01T10:00:00Z",
+      "sourceVersion": "github-issue-19877-updated-2026-07-01",
+      "tags": [
+        "optimizer",
+        "logical-plan",
+        "aggregate"
+      ],
+      "contentHash": "sha256:4e21e5779d3a56ded57efc16029d618aabfea921ea12e21fac39f1fb8912a765"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:datafusion:github:comment:19877-1:0",
+      "projectId": "apache-datafusion",
+      "sourceInstanceId": "apache-datafusion-github",
+      "recordId": "datafusion:github:comment:19877-1",
+      "groupRootRecordId": "datafusion:github:issue:19877",
+      "ordinal": 0,
+      "title": "Issue 19877 maintainer analysis",
+      "text": "The qualifier survives parsing and projection. It disappears specifically when Aggregate rewrites its output schema, so the fix belongs in the optimizer rule rather than the SQL parser.",
+      "canonicalUrl": "https://github.com/apache/datafusion/issues/19877#issuecomment-1",
+      "author": "DataFusion maintainer",
+      "occurredAt": "2026-07-02T14:00:00Z",
+      "sourceVersion": "github-comment-19877-1",
+      "tags": [
+        "optimizer",
+        "aggregate",
+        "schema"
+      ],
+      "contentHash": "sha256:1cfb170cb25b3d80f6bf72315de2e7db709c7172b876c619146b50e82ba631e1"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:kafka:jira:issue:KAFKA-19804:0",
+      "projectId": "apache-kafka",
+      "sourceInstanceId": "apache-kafka-jira",
+      "recordId": "kafka:jira:issue:KAFKA-19804",
+      "groupRootRecordId": "kafka:jira:issue:KAFKA-19804",
+      "ordinal": 0,
+      "title": "KAFKA-19804: Improve heartbeat request manager initial HB interval",
+      "text": "With KIP-848, consumer HB interval config moved to the broker, so currently, the consumer HB request manager starts with a 0ms interval (mainly to send a first HB right away after the consumer subscribe + poll).",
+      "canonicalUrl": "https://issues.apache.org/jira/browse/KAFKA-19804",
+      "author": "Lianet Magrans",
+      "occurredAt": "2026-10-06T15:19:59Z",
+      "sourceVersion": "2026-10-06T15:19:59.000Z",
+      "tags": [
+        "consumer"
+      ],
+      "contentHash": "sha256:e6744b0271efed4255983fb25ddc5cec00fa7033b50cf145a6825d7f02e7bfb6"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:kafka:github:pull:22747:0",
+      "projectId": "apache-kafka",
+      "sourceInstanceId": "apache-kafka-github",
+      "recordId": "kafka:github:pull:22747",
+      "groupRootRecordId": "kafka:github:pull:22747",
+      "ordinal": 0,
+      "title": "KAFKA-20765: Fix OffsetFetch stale-epoch retry spinning in dedup loop",
+      "text": "Fixes KAFKA 20765. In the async consumer (AsyncKafkaConsumer), when an in flight OffsetFetch fails with STALE_MEMBER_EPOCH, CommitRequestManager retries it, but the dedup check keeps returning the failed attempt and the application event never completes.",
+      "canonicalUrl": "https://github.com/apache/kafka/pull/22747",
+      "author": "Kafka contributor",
+      "occurredAt": "2026-09-28T10:00:00Z",
+      "sourceVersion": "github-pr-22747-fixture",
+      "tags": [
+        "Pull Request",
+        "consumer"
+      ],
+      "contentHash": "sha256:ecddf3677ac91ff4148e8562e64e5f49c8c3d6a4c354a45488242245aaddc22e"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:kafka:jira:issue:KAFKA-19738:0",
+      "projectId": "apache-kafka",
+      "sourceInstanceId": "apache-kafka-jira",
+      "recordId": "kafka:jira:issue:KAFKA-19738",
+      "groupRootRecordId": "kafka:jira:issue:KAFKA-19738",
+      "ordinal": 0,
+      "title": "KAFKA-19738: Improve testing of OffsetsRequestManager to better match OffsetFetcher",
+      "text": "OffsetsRequestManager has less unit test coverage than OffsetFetcher. Closing the gap could potentially surface issues with its implementation and assist with the resolution of KAFKA-18216.",
+      "canonicalUrl": "https://issues.apache.org/jira/browse/KAFKA-19738",
+      "author": "Kafka contributor",
+      "occurredAt": "2026-09-25T09:00:00Z",
+      "sourceVersion": "jira-KAFKA-19738-fixture",
+      "tags": [
+        "consumer"
+      ],
+      "contentHash": "sha256:c527714ab0007771f33aee9cd876e51d79ebd8b1dc1d6747cee2be627dbaaf84"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:kafka:jira:issue:KAFKA-20397:0",
+      "projectId": "apache-kafka",
+      "sourceInstanceId": "apache-kafka-jira",
+      "recordId": "kafka:jira:issue:KAFKA-20397",
+      "groupRootRecordId": "kafka:jira:issue:KAFKA-20397",
+      "ordinal": 0,
+      "title": "KAFKA-20397: Review to improve metadata error check before blocking on buffer data in consumer",
+      "text": "The async consumer checks and throws metadata errors on poll from checkInflightPoll. Later on (after checking if there is data already buffered), it may block waiting on buffer data. If the background thread finds a metadata error in the meantime, it is not thrown until the wait ends.",
+      "canonicalUrl": "https://issues.apache.org/jira/browse/KAFKA-20397",
+      "author": "Lianet Magrans",
+      "occurredAt": "2026-10-01T13:34:39Z",
+      "sourceVersion": "2026-10-01T13:34:39.000Z",
+      "tags": [
+        "consumer"
+      ],
+      "contentHash": "sha256:6993ba304f9f134e3b5c6fce1c8a5e75bf378ca22f2f1b8563e43eddfdd2c8f6"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:kafka:mail:dev:release-manager-4-4-0:0",
+      "projectId": "apache-kafka",
+      "sourceInstanceId": "apache-kafka-dev-mail",
+      "recordId": "kafka:mail:dev:release-manager-4-4-0",
+      "groupRootRecordId": "kafka:mail:dev:release-manager-4-4-0",
+      "ordinal": 0,
+      "title": "4.4.0 Release Manager",
+      "text": "I would like to volunteer as the release manager for Apache Kafka 4.4.0. If there are no objections I will send out a release plan next week.",
+      "canonicalUrl": "https://lists.apache.org/thread/release-manager-4-4-0-fixture",
+      "author": "Kafka committer",
+      "occurredAt": "2026-08-18T08:00:00Z",
+      "sourceVersion": "mail-message-release-manager-root",
+      "tags": [
+        "dev-list",
+        "release"
+      ],
+      "contentHash": "sha256:6e836fa3bfb477da3cb04e34bcb62f30583b9577c64073c3dd0dff1d1fe4670d"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:kafka:mail:dev:release-manager-4-4-0:reply-1:0",
+      "projectId": "apache-kafka",
+      "sourceInstanceId": "apache-kafka-dev-mail",
+      "recordId": "kafka:mail:dev:release-manager-4-4-0:reply-1",
+      "groupRootRecordId": "kafka:mail:dev:release-manager-4-4-0",
+      "ordinal": 0,
+      "title": "Re: 4.4.0 Release Manager",
+      "text": "Thank you for considering this request. Could you please let me know when the formal release of Kafka 4.4.0 is expected?",
+      "canonicalUrl": "https://lists.apache.org/thread/release-manager-4-4-0-fixture-reply-1",
+      "author": "Kafka user",
+      "occurredAt": "2026-09-30T08:00:00Z",
+      "sourceVersion": "mail-message-release-manager-reply-1",
+      "tags": [
+        "dev-list",
+        "release"
+      ],
+      "contentHash": "sha256:12d910bab0ac370369d3847033f6a05c14183709fde820aef07535d8fd34678c"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:kafka:mail:dev:release-manager-4-4-0:reply-2:0",
+      "projectId": "apache-kafka",
+      "sourceInstanceId": "apache-kafka-dev-mail",
+      "recordId": "kafka:mail:dev:release-manager-4-4-0:reply-2",
+      "groupRootRecordId": "kafka:mail:dev:release-manager-4-4-0",
+      "ordinal": 0,
+      "title": "Re: 4.4.0 Release Manager",
+      "text": "Hi Vivek, the RC3 is published. Please check https://lists.apache.org/thread/h9q0tx49bmo2dwpscrxfn1w0cnh64tf9 for the vote.",
+      "canonicalUrl": "https://lists.apache.org/thread/release-manager-4-4-0-fixture-reply-2",
+      "author": "Kafka committer",
+      "occurredAt": "2026-10-01T08:00:00Z",
+      "sourceVersion": "mail-message-release-manager-reply-2",
+      "tags": [
+        "dev-list",
+        "release"
+      ],
+      "contentHash": "sha256:fa4ac2ba56980be32bed8b52f1116262690e4b12b121d05c067f27e8187fda47"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:kafka:mail:dev:release-manager-4-4-0:reply-3:0",
+      "projectId": "apache-kafka",
+      "sourceInstanceId": "apache-kafka-dev-mail",
+      "recordId": "kafka:mail:dev:release-manager-4-4-0:reply-3",
+      "groupRootRecordId": "kafka:mail:dev:release-manager-4-4-0",
+      "ordinal": 0,
+      "title": "Re: 4.4.0 Release Manager",
+      "text": "Several vulnerabilities have been identified in the libraries included in the Kafka 4.4.0 release candidate. Will the release manager cut another RC?",
+      "canonicalUrl": "https://lists.apache.org/thread/release-manager-4-4-0-fixture-reply-3",
+      "author": "Kafka user",
+      "occurredAt": "2026-10-02T08:00:00Z",
+      "sourceVersion": "mail-message-release-manager-reply-3",
+      "tags": [
+        "dev-list",
+        "release"
+      ],
+      "contentHash": "sha256:e765f78f8a1777481a1b1b6e335db9eff1ecf15df883e3407aac3a75373dd6c1"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:kafka:jira:issue:KAFKA-19919:0",
+      "projectId": "apache-kafka",
+      "sourceInstanceId": "apache-kafka-jira",
+      "recordId": "kafka:jira:issue:KAFKA-19919",
+      "groupRootRecordId": "kafka:jira:issue:KAFKA-19919",
+      "ordinal": 0,
+      "title": "KAFKA-19919: Network Threads Blocked by Synchronous Reverse DNS Lookups During Connection Establishment",
+      "text": "We had an issue with network threads described in https://lists.apache.org/thread/hr26jkgsg243s8oyy3gq5y84vv9stodv. In short, the problem was with intermittent low network thread idle percent due to high response send time.",
+      "canonicalUrl": "https://issues.apache.org/jira/browse/KAFKA-19919",
+      "author": "Nurzhan",
+      "occurredAt": "2026-09-10T03:22:55Z",
+      "sourceVersion": "2026-09-10T03:22:55.000Z",
+      "tags": [
+        "network"
+      ],
+      "contentHash": "sha256:7928251ead0d6a8e47f01f05882150d6a47316abe3fb349fa4f7f2e11bbcc152"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:kafka:mail:dev:kip-770-discuss:0",
+      "projectId": "apache-kafka",
+      "sourceInstanceId": "apache-kafka-dev-mail",
+      "recordId": "kafka:mail:dev:kip-770-discuss",
+      "groupRootRecordId": "kafka:mail:dev:kip-770-discuss",
+      "ordinal": 0,
+      "title": "[DISCUSS] KIP-770: Replace \"buffered.records.per.partition\" with \"input.buffer.max.bytes\"",
+      "text": "I would like to start a discussion on bounding the Streams input buffer by bytes instead of by a per-partition record count.",
+      "canonicalUrl": "https://lists.apache.org/thread/kip-770-discuss-fixture",
+      "author": "Kafka committer",
+      "occurredAt": "2021-08-20T08:00:00Z",
+      "sourceVersion": "mail-message-kip-770-discuss",
+      "tags": [
+        "dev-list",
+        "streams"
+      ],
+      "contentHash": "sha256:7fbd08d561b632503c5942a9fa08854d7832f4f815a980e203da4a766c7337a2"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:kafka:github:pull:22458:0",
+      "projectId": "apache-kafka",
+      "sourceInstanceId": "apache-kafka-github",
+      "recordId": "kafka:github:pull:22458",
+      "groupRootRecordId": "kafka:github:pull:22458",
+      "ordinal": 0,
+      "title": "KAFKA-13152: Add input.buffer.max.bytes based on KIP-770",
+      "text": "Ref : https://issues.apache.org/jira/browse/KAFKA 13152 Kip 770 : https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=186878390 This PR continues PR #20292 (which became inactive).",
+      "canonicalUrl": "https://github.com/apache/kafka/pull/22458",
+      "author": "muralibasani",
+      "occurredAt": "2026-10-07T20:53:30Z",
+      "sourceVersion": "github-pr-22458-fixture",
+      "tags": [
+        "Pull Request",
+        "streams"
+      ],
+      "contentHash": "sha256:85caed168d3ef28e11cb2a4d85451b48a9953195752c1d327ef66bd1231d9c32"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:kafka:jira:issue:KAFKA-770:0",
+      "projectId": "apache-kafka",
+      "sourceInstanceId": "apache-kafka-jira",
+      "recordId": "kafka:jira:issue:KAFKA-770",
+      "groupRootRecordId": "kafka:jira:issue:KAFKA-770",
+      "ordinal": 0,
+      "title": "KAFKA-770: KafkaConfig properties should be verified in the constructor",
+      "text": "Invalid broker properties are only detected when they are first read. Verify every property when the config object is created.",
+      "canonicalUrl": "https://issues.apache.org/jira/browse/KAFKA-770",
+      "author": "Kafka contributor",
+      "occurredAt": "2013-02-20T08:00:00Z",
+      "sourceVersion": "jira-KAFKA-770-fixture",
+      "tags": [
+        "broker",
+        "config"
+      ],
+      "contentHash": "sha256:ea42bf4195e1e836e879c1f434c7824a61165604a3d3d4b36c1e199e028527e9"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:datafusion:github:pull:770:0",
+      "projectId": "apache-datafusion",
+      "sourceInstanceId": "apache-datafusion-github",
+      "recordId": "datafusion:github:pull:770",
+      "groupRootRecordId": "datafusion:github:pull:770",
+      "ordinal": 0,
+      "title": "Add support for reading partitioned Parquet datasets",
+      "text": "ListingTable discovers hive-style partition directories and exposes the partition values as columns.",
+      "canonicalUrl": "https://github.com/apache/datafusion/pull/770",
+      "author": "DataFusion contributor",
+      "occurredAt": "2021-07-25T08:00:00Z",
+      "sourceVersion": "github-pr-770-fixture",
+      "tags": [
+        "Pull Request",
+        "parquet"
+      ],
+      "contentHash": "sha256:bb3167f9b7b9c9250e65e7226bf113351dc4ace42a7bb66589d4f55db61eacf7"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:kafka:jira:issue:KAFKA-20785:0",
+      "projectId": "apache-kafka",
+      "sourceInstanceId": "apache-kafka-jira",
+      "recordId": "kafka:jira:issue:KAFKA-20785",
+      "groupRootRecordId": "kafka:jira:issue:KAFKA-20785",
+      "ordinal": 0,
+      "title": "KAFKA-20785: Unexpected InvalidTxnStateException on EndTxn when commit races with transaction timeout",
+      "text": "We are seeing cases where a Kafka Streams thread stalls briefly, and during the stall the broker correctly aborts the open transaction (triggered by the transaction.timeout.ms). However, the producer was already in COMMITTING_TRANSACTION when the stall began.",
+      "canonicalUrl": "https://issues.apache.org/jira/browse/KAFKA-20785",
+      "author": "Lianet Magrans",
+      "occurredAt": "2026-09-10T13:35:34Z",
+      "sourceVersion": "2026-09-10T13:35:34.000Z",
+      "tags": [
+        "transactions"
+      ],
+      "contentHash": "sha256:93bd8559a16b7169444a4d42cdb607c1bc1c80410ad5518eb98e8ece4836829f"
+    },
+    {
+      "schema": "osskb.source-record-chunk.v1",
+      "id": "chunk:kafka:jira:issue:KAFKA-20734:0",
+      "projectId": "apache-kafka",
+      "sourceInstanceId": "apache-kafka-jira",
+      "recordId": "kafka:jira:issue:KAFKA-20734",
+      "groupRootRecordId": "kafka:jira:issue:KAFKA-20734",
+      "ordinal": 0,
+      "title": "KAFKA-20734: Offline partition can cause loss of transaction markers",
+      "text": "During the rewrite of the KRaftMetadataCache (as part of KAFKA-17573), a bug was introduced which causes transaction coordinator to drop transaction markers for a partition if the leader is missing (offline).",
+      "canonicalUrl": "https://issues.apache.org/jira/browse/KAFKA-20734",
+      "author": "Alyssa Huang",
+      "occurredAt": "2026-10-05T08:38:21Z",
+      "sourceVersion": "2026-10-05T08:38:21.000Z",
+      "tags": [
+        "transactions"
+      ],
+      "contentHash": "sha256:d914b637d0e038841b576ad366a60b35c77c9bcf9711c535c1b05c9a61b2bfb3"
+    }
+  ],
+  "queries": [
+    {
+      "id": "exact-kafka-issue-id",
+      "category": "exact-identifier",
+      "requires": "lexical",
+      "request": {
+        "query": "KAFKA-20983"
+      },
+      "judgments": [
+        {
+          "groupRootRecordId": "kafka:github:issue:20983",
+          "grade": 2
+        }
+      ],
+      "negativeGroupRootRecordIds": [
+        "datafusion:github:issue:20983"
+      ],
+      "requiredEvidenceRecordIds": [
+        "kafka:github:issue:20983"
+      ],
+      "requiredWithin": 1,
+      "negativeWithin": 1,
+      "ordered": false,
+      "note": "Carried over from golden-queries.v1.json: required -> grade 2, acceptable -> grade 1, forbidden -> negative within the v1 topK."
+    },
+    {
+      "id": "exact-kip-id",
+      "category": "exact-identifier",
+      "requires": "lexical",
+      "request": {
+        "query": "KIP-405"
+      },
+      "judgments": [
+        {
+          "groupRootRecordId": "kafka:wiki:kip-405",
+          "grade": 2
+        }
+      ],
+      "negativeGroupRootRecordIds": [
+        "kafka:wiki:kip-1150"
+      ],
+      "requiredEvidenceRecordIds": [
+        "kafka:wiki:kip-405"
+      ],
+      "requiredWithin": 1,
+      "negativeWithin": 1,
+      "ordered": false,
+      "note": "Carried over from golden-queries.v1.json: required -> grade 2, acceptable -> grade 1, forbidden -> negative within the v1 topK."
+    },
+    {
+      "id": "exact-code-symbol",
+      "category": "code-symbol",
+      "requires": "lexical",
+      "request": {
+        "query": "RecordAccumulator.ready()"
+      },
+      "judgments": [
+        {
+          "groupRootRecordId": "kafka:github:pr:23203",
+          "grade": 2
+        }
+      ],
+      "negativeGroupRootRecordIds": [
+        "kafka:github:issue:20970"
+      ],
+      "requiredEvidenceRecordIds": [
+        "kafka:github:pr:23203"
+      ],
+      "requiredWithin": 1,
+      "negativeWithin": 1,
+      "ordered": false,
+      "note": "Carried over from golden-queries.v1.json: required -> grade 2, acceptable -> grade 1, forbidden -> negative within the v1 topK."
+    },
+    {
+      "id": "source-body-only-compaction",
+      "category": "source-body",
+      "requires": "lexical",
+      "request": {
+        "query": "cleaner rewrite segment in place"
+      },
+      "judgments": [
+        {
+          "groupRootRecordId": "kafka:wiki:kip-405",
+          "grade": 2
+        }
+      ],
+      "negativeGroupRootRecordIds": [
+        "kafka:wiki:kip-1150"
+      ],
+      "requiredEvidenceRecordIds": [
+        "kafka:mail:kip-405-compaction"
+      ],
+      "requiredWithin": 3,
+      "negativeWithin": 3,
+      "ordered": false,
+      "note": "Carried over from golden-queries.v1.json: required -> grade 2, acceptable -> grade 1, forbidden -> negative within the v1 topK."
+    },
+    {
+      "id": "same-number-project-filter",
+      "category": "project-filter",
+      "requires": "lexical",
+      "request": {
+        "query": "issue 20983",
+        "filters": {
+          "projectIds": [
+            "apache-datafusion"
+          ]
+        }
+      },
+      "judgments": [
+        {
+          "groupRootRecordId": "datafusion:github:issue:20983",
+          "grade": 2
+        }
+      ],
+      "negativeGroupRootRecordIds": [
+        "kafka:github:issue:20983"
+      ],
+      "requiredEvidenceRecordIds": [
+        "datafusion:github:issue:20983"
+      ],
+      "requiredWithin": 1,
+      "negativeWithin": 1,
+      "ordered": false,
+      "note": "Carried over from golden-queries.v1.json: required -> grade 2, acceptable -> grade 1, forbidden -> negative within the v1 topK."
+    },
+    {
+      "id": "cross-source-tiered-storage-question",
+      "category": "cross-source-question",
+      "requires": "lexical",
+      "request": {
+        "query": "remote storage fetch latency compacted topics"
+      },
+      "judgments": [
+        {
+          "groupRootRecordId": "kafka:wiki:kip-405",
+          "grade": 2
+        },
+        {
+          "groupRootRecordId": "kafka:wiki:kip-1150",
+          "grade": 1
+        }
+      ],
+      "negativeGroupRootRecordIds": [],
+      "requiredEvidenceRecordIds": [
+        "kafka:mail:kip-405-compaction",
+        "kafka:github:pr:remote-fetch"
+      ],
+      "requiredWithin": 3,
+      "negativeWithin": 3,
+      "ordered": false,
+      "note": "Carried over from golden-queries.v1.json: required -> grade 2, acceptable -> grade 1, forbidden -> negative within the v1 topK."
+    },
+    {
+      "id": "hard-negative-readiness-prose",
+      "category": "hard-negative",
+      "requires": "lexical",
+      "request": {
+        "query": "RecordAccumulator ready batches Sender"
+      },
+      "judgments": [
+        {
+          "groupRootRecordId": "kafka:github:pr:23203",
+          "grade": 2
+        }
+      ],
+      "negativeGroupRootRecordIds": [
+        "kafka:github:issue:20970"
+      ],
+      "requiredEvidenceRecordIds": [
+        "kafka:github:pr:23203"
+      ],
+      "requiredWithin": 1,
+      "negativeWithin": 1,
+      "ordered": false,
+      "note": "Carried over from golden-queries.v1.json: required -> grade 2, acceptable -> grade 1, forbidden -> negative within the v1 topK."
+    },
+    {
+      "id": "vocabulary-gap-cold-data",
+      "category": "vocabulary-gap",
+      "requires": "semantic",
+      "request": {
+        "query": "move cold data off broker disks"
+      },
+      "judgments": [
+        {
+          "groupRootRecordId": "kafka:wiki:kip-405",
+          "grade": 2
+        },
+        {
+          "groupRootRecordId": "kafka:wiki:kip-1150",
+          "grade": 1
+        }
+      ],
+      "negativeGroupRootRecordIds": [],
+      "requiredEvidenceRecordIds": [
+        "kafka:wiki:kip-405"
+      ],
+      "requiredWithin": 3,
+      "negativeWithin": 3,
+      "ordered": false,
+      "note": "Carried over from golden-queries.v1.json: required -> grade 2, acceptable -> grade 1, forbidden -> negative within the v1 topK."
+    },
+    {
+      "id": "term-consumer-request-manager",
+      "category": "term",
+      "requires": "lexical",
+      "request": {
+        "query": "consumer network thread request manager"
+      },
+      "judgments": [
+        {
+          "groupRootRecordId": "kafka:jira:issue:KAFKA-19804",
+          "grade": 2
+        },
+        {
+          "groupRootRecordId": "kafka:github:pull:22747",
+          "grade": 2
+        },
+        {
+          "groupRootRecordId": "kafka:jira:issue:KAFKA-19738",
+          "grade": 2
+        },
+        {
+          "groupRootRecordId": "kafka:jira:issue:KAFKA-20397",
+          "grade": 1
+        }
+      ],
+      "negativeGroupRootRecordIds": [
+        "kafka:mail:dev:release-manager-4-4-0"
+      ],
+      "requiredEvidenceRecordIds": [],
+      "requiredWithin": 3,
+      "negativeWithin": 3,
+      "ordered": true,
+      "note": "User-labelled 2026-10-09: expected in this order KAFKA-19804, KAFKA-20765, KAFKA-19738; acceptable KAFKA-20397; the dev@ thread \"4.4.0 Release Manager\" must not rank in the top 3."
+    },
+    {
+      "id": "code-symbol-fragment-request-manager",
+      "category": "code-symbol",
+      "requires": "lexical",
+      "request": {
+        "query": "RequestManager"
+      },
+      "judgments": [
+        {
+          "groupRootRecordId": "kafka:jira:issue:KAFKA-19804",
+          "grade": 2
+        },
+        {
+          "groupRootRecordId": "kafka:github:pull:22747",
+          "grade": 2
+        },
+        {
+          "groupRootRecordId": "kafka:jira:issue:KAFKA-19738",
+          "grade": 2
+        }
+      ],
+      "negativeGroupRootRecordIds": [
+        "kafka:mail:dev:release-manager-4-4-0"
+      ],
+      "requiredEvidenceRecordIds": [],
+      "requiredWithin": 3,
+      "negativeWithin": 3,
+      "ordered": false,
+      "note": "camelCase class fragment; 0 results on Dev at 2026-10-10 with bm25-reference@1."
+    },
+    {
+      "id": "term-request-manager-words",
+      "category": "term",
+      "requires": "lexical",
+      "request": {
+        "query": "request manager"
+      },
+      "judgments": [
+        {
+          "groupRootRecordId": "kafka:jira:issue:KAFKA-19804",
+          "grade": 2
+        },
+        {
+          "groupRootRecordId": "kafka:github:pull:22747",
+          "grade": 2
+        },
+        {
+          "groupRootRecordId": "kafka:jira:issue:KAFKA-19738",
+          "grade": 2
+        }
+      ],
+      "negativeGroupRootRecordIds": [
+        "kafka:mail:dev:release-manager-4-4-0"
+      ],
+      "requiredEvidenceRecordIds": [],
+      "requiredWithin": 3,
+      "negativeWithin": 3,
+      "ordered": false,
+      "note": "R2: the two-word form finds the same family as the class fragment."
+    },
+    {
+      "id": "identifier-kip-hyphenated",
+      "category": "exact-identifier",
+      "requires": "lexical",
+      "request": {
+        "query": "KIP-770"
+      },
+      "judgments": [
+        {
+          "groupRootRecordId": "kafka:mail:dev:kip-770-discuss",
+          "grade": 2
+        },
+        {
+          "groupRootRecordId": "kafka:github:pull:22458",
+          "grade": 1
+        }
+      ],
+      "negativeGroupRootRecordIds": [],
+      "requiredEvidenceRecordIds": [
+        "kafka:mail:dev:kip-770-discuss"
+      ],
+      "requiredWithin": 2,
+      "negativeWithin": 3,
+      "ordered": false
+    },
+    {
+      "id": "identifier-kip-no-hyphen",
+      "category": "identifier-normalization",
+      "requires": "lexical",
+      "request": {
+        "query": "KIP770"
+      },
+      "judgments": [
+        {
+          "groupRootRecordId": "kafka:mail:dev:kip-770-discuss",
+          "grade": 2
+        },
+        {
+          "groupRootRecordId": "kafka:github:pull:22458",
+          "grade": 1
+        }
+      ],
+      "negativeGroupRootRecordIds": [],
+      "requiredEvidenceRecordIds": [
+        "kafka:mail:dev:kip-770-discuss"
+      ],
+      "requiredWithin": 2,
+      "negativeWithin": 3,
+      "ordered": false,
+      "note": "R1: KIP770 is treated as KIP-770. 0 results on Dev at 2026-10-10."
+    },
+    {
+      "id": "identifier-bare-number",
+      "category": "bare-number",
+      "requires": "lexical",
+      "request": {
+        "query": "770"
+      },
+      "judgments": [
+        {
+          "groupRootRecordId": "kafka:mail:dev:kip-770-discuss",
+          "grade": 2
+        },
+        {
+          "groupRootRecordId": "kafka:jira:issue:KAFKA-770",
+          "grade": 2
+        },
+        {
+          "groupRootRecordId": "datafusion:github:pull:770",
+          "grade": 2
+        },
+        {
+          "groupRootRecordId": "kafka:github:pull:22458",
+          "grade": 1
+        }
+      ],
+      "negativeGroupRootRecordIds": [],
+      "requiredEvidenceRecordIds": [],
+      "requiredWithin": 4,
+      "negativeWithin": 3,
+      "ordered": false,
+      "note": "R1: a bare number lists every identifier with that number (KIP-770, KAFKA-770, PR #770); the PR that names KIP-770 in its title is acceptable."
+    },
+    {
+      "id": "abbreviation-txn",
+      "category": "abbreviation",
+      "requires": "semantic",
+      "request": {
+        "query": "txn"
+      },
+      "judgments": [
+        {
+          "groupRootRecordId": "kafka:jira:issue:KAFKA-20785",
+          "grade": 2
+        },
+        {
+          "groupRootRecordId": "kafka:jira:issue:KAFKA-20734",
+          "grade": 2
+        }
+      ],
+      "negativeGroupRootRecordIds": [],
+      "requiredEvidenceRecordIds": [],
+      "requiredWithin": 3,
+      "negativeWithin": 3,
+      "ordered": false,
+      "note": "R2: an abbreviation matches the full word without a synonym table. KAFKA-20734 never spells txn, so lexical retrieval cannot find it."
+    },
+    {
+      "id": "multilingual-transaction-timeout",
+      "category": "multilingual",
+      "requires": "semantic",
+      "request": {
+        "query": "交易逾時"
+      },
+      "judgments": [
+        {
+          "groupRootRecordId": "kafka:jira:issue:KAFKA-20785",
+          "grade": 2
+        },
+        {
+          "groupRootRecordId": "kafka:jira:issue:KAFKA-20734",
+          "grade": 1
+        }
+      ],
+      "negativeGroupRootRecordIds": [],
+      "requiredEvidenceRecordIds": [],
+      "requiredWithin": 3,
+      "negativeWithin": 3,
+      "ordered": false,
+      "note": "R2: a Chinese query (\"transaction timeout\") finds English content."
+    }
+  ]
+}

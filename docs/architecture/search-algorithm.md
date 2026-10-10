@@ -1,18 +1,18 @@
 # 搜尋演算法筆記
 
-狀態：討論中（2026-10-08）。這份文件記錄搜尋的現況、概念與下一步，隨討論更新。
-規格出處：[Spec 005](../specs/005-evidence-search/spec.md)、[Spec 013](../specs/013-search-streaming/spec.md)。
+狀態：討論中（2026-10-10 更新）。這份文件記錄搜尋的現況、概念與下一步，隨討論更新。
+規格出處：[Spec 005](../specs/005-evidence-search/spec.md)、[Spec 013](../specs/013-search-streaming/spec.md)、[Spec 016](../specs/016-semantic-search/spec.md)。
 
 ## 一句話
 
-搜尋分兩步：先用便宜的方法從全部資料抓出幾十筆候選（檢索），再用比較貴但比較準的方法把候選排好（重排）。目前只有第一步（BM25），下一步是加入 Clef 重排，再視結果補語意檢索。
+搜尋分兩步：先用便宜的方法從全部資料抓出幾十筆候選（檢索），再用比較貴但比較準的方法把候選排好（重排）。目前只有第一步（BM25）。下一步是補語意檢索並用 RRF 與 BM25 合併（Spec 016）；重排排在混合檢索之後，量測顯示需要才加。
 
 ## 使用情境（2026-10-08 決定）
 
 - 編號查詢與概念查詢都會用：`KIP-939`、`KAFKA-12345`，以及「transaction 的 timeout 問題」。
 - 可接受重排增加約 0.1–0.3 秒延遲。
 
-兩種查詢都要顧，所以最後的形態是「字面檢索 + 語意檢索 + 重排」。
+兩種查詢都要顧，所以最後的形態是「字面檢索 + 語意檢索 + 重排」。順序依 Spec 005 的階段：語意檢索（Phase 2）→ RRF 合併（Phase 3）→ 重排（Phase 4）。
 
 ## 現況（Spec 005 Phase 1 + Spec 013）
 
@@ -69,6 +69,8 @@ RRF(文件) = Σ 1 / (60 + 該文件在各排名中的名次)
 
 ### 重排與 Clef
 
+尚未採用（見「決定」）；以下是日後評估時的筆記。
+
 Clef 是 decision model：給定「狀態」與「選項」，回傳每個選項的機率。拿來重排有兩種問法：
 
 | | 逐筆（pointwise） | 一次比較（listwise） |
@@ -92,33 +94,55 @@ Clef-flash 的限制：在 Workers AI 上，長輸入會被截斷（約 2K token
 | MRR | 第一個正確答案排第幾，名次越前分數越高 |
 | nDCG@10 | 前 10 名整體排得好不好，越前面的位置權重越高 |
 
-現有標準查詢：`packages/search/test/fixtures/golden-queries.v1.json`，共 8 題（評分規則見 [golden-query-rubric](../specs/005-evidence-search/golden-query-rubric.md)）。其中 `vocabulary-gap-cold-data` 是 Phase 2 才要求通過的詞彙落差題，正好用來衡量語意檢索。8 題太少，需要補真實查詢。
+標準查詢：`packages/search/test/fixtures/golden-queries.v1.json` 共 8 題（評分規則見 [golden-query-rubric](../specs/005-evidence-search/golden-query-rubric.md)）。Spec 016 新增 `golden-queries.v2.json`：沿用 v1 的 8 題，再加 8 題（編號無連字號、純數字、類別名稱片段、縮寫、中文），共 16 題，每題有分級（2 = 預期、1 = 可接受）與 `requires`（`lexical` 或 `semantic`）。`bun run eval:search` 算出三個指標並寫出報告。16 題仍然太少，需要補真實查詢。
 
 判讀失敗的方法：
 
 - 正確答案沒進前 20 名 → 檢索的問題 → 補語意檢索。
-- 正確答案在前 20 名但排在後面 → 重排的問題 → 調整 Clef 的問法或特徵。
+- 正確答案在前 20 名但排在後面 → 排序的問題 → 才考慮加入重排（2026-10-10 決定）。
 
-## 下一步（提案）
+## 決定（2026-10-08 至 10-10，細節見 Spec 016）
 
-1. 量現況：補標準查詢（編號題與概念題各一半），量 BM25 的 Recall@20、MRR、nDCG@10。
-2. 加 Clef 重排：只重排前 20 筆，用開關控制；比較前後分數。
-3. 依失敗型態決定是否加 embedding + RRF（Spec 005 Phase 2）。
-4. 視需要做「問答」：用檢索結果讓模型附引用回答（RAG）。檢索品質是它的上限。
+| 項目 | 決定 |
+|---|---|
+| 檢索 | BM25 + 語意檢索，用 RRF（k = 60）合併；合併規則有版本號 |
+| 退回 | 語意檢索停用或失敗時，只回 BM25 結果 |
+| embedding 單位 | chunk（與 BM25 同一批 chunk），結果依 thread 合併，可引用段落 |
+| 模型 | 多語言 `@cf/baai/bge-m3`（1,024 維），發布與查詢用同一個模型；模型與版本隨向量記錄，換模型就全部重算 |
+| 向量儲存 | Cloudflare Vectorize 是第一個實作，放在可替換的 `SemanticRetriever` 介面後面；每個專案一個 namespace |
+| 重排（Clef） | 不在 Spec 016；量測顯示「正確答案進前 20 名但排在後面」才加 |
+| 通用與社群規則 | camelCase 拆字屬於通用規則，放核心；`KIP-n`、`KAFKA-n` 這類編號規則放社群 profile |
+
+### 沒有採用的做法：查詢改寫
+
+用 LLM 在查詢時把 `txn` 改寫成 `transaction`、把「交易逾時」翻成英文，再交給 BM25。
+
+- 好處：不需要向量儲存，也不必為每個 chunk 算 embedding。
+- 不採用的原因：每次查詢多一次 LLM 呼叫（延遲、費用、失敗時要退回）；改寫結果不固定，同一個查詢可能得到不同結果；Spec 005 的 LLM 邊界把查詢改寫列為混合檢索之後的選項。多語言 embedding 可以同時處理縮寫與跨語言，不必改寫查詢。
+- 重新評估的條件：混合檢索上線後，詞彙落差題的 Recall@20 仍然不夠。
+
+## 下一步
+
+1. Spec 016 slice 1（已實作）：評估工具（v2 標準查詢、Recall@20、MRR、nDCG@10）、字面檢索修正（`bm25-reference@2`：camelCase 拆字、編號正規化）、RRF 合併核心。
+2. slice 2：發布時為每個 chunk 算 embedding 並寫入 Vectorize；`bm25-reference@2` 上線。
+3. slice 3：查詢時算 embedding，在 `/api/search` 以開關啟用混合檢索。
+4. slice 4：用真實模型量 v2 標準查詢，比較 BM25 與混合檢索，再決定是否加入重排。
+5. 視需要做「問答」：用檢索結果讓模型附引用回答（RAG，另立規格）。檢索品質是它的上限。
 
 ## 營運限制
 
-- 搜尋必須用獨立的 AI Gateway，不能共用摘要的 `osskb-digest-dev`（每小時 60 次）；每次查詢約 20 次呼叫。
-- 快取：以（查詢正規化結果、thread 內容雜湊、模型版本）為 key。
-- 費用：Clef-flash 每百萬 input token $0.09，output 不計費；一次查詢約 4K tokens，約 $0.0004。
+- 搜尋必須用獨立的 AI Gateway，不能共用摘要的 `osskb-digest-dev`（每小時 60 次）。查詢時的 embedding 是每次查詢 1 次呼叫；若日後加入逐筆重排，每次查詢約再多 20 次。
+- Vectorize 儲存量：Dev 目前約 8,577 個 chunk（2026-10-10，由 Feed 索引的紀錄數推得）× 1,024 維 ≈ 880 萬維；以 30,000 個 chunk 估計約 3,070 萬維。兩者都超過免費額度 500 萬維，需要確認 Workers Paid 方案（Spec 016 待決事項）。
 - 模型不可用時，直接回 BM25 結果，搜尋不能因模型失敗而中斷。
+- 重排（若日後加入）：快取以（查詢正規化結果、thread 內容雜湊、模型版本）為 key；Clef-flash 每百萬 input token $0.09，output 不計費，一次查詢約 4K tokens，約 $0.0004。
 
 ## 待討論
 
 - 標準查詢由誰提供、要多少題？
-- 「部分相關」的權重 0.5 是否合理？
-- embedding 要依 chunk 還是依 thread 建立？
-- 重排要不要考慮時間（新的 thread 加分）？
+- 查詢的 embedding 在瀏覽器算還是在伺服器算？（Spec 005 要求先量測）
+- 查詢時 embedding 的 AI Gateway 與濫用防護怎麼設？
+- 郵件 thread 的每封回覆都重複標題，長 thread 因此排在前面（Spec 016 Results）；要改字面計分，還是交給重排？
+- 若加入重排：「部分相關」的權重 0.5 是否合理？要不要考慮時間（新的 thread 加分）？
 
 ## 名詞
 

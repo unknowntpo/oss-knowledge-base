@@ -305,6 +305,42 @@ the two `viewer/` items below.
 - **Layer:** test row in `digest -- eval`, once labels exist.
 - **Source:** Spec 014 slice 2c, first Dev dry run 2026-10-08.
 
+### G31. Reply chunks repeat the thread title at title weight
+- **Where:** `chunkTerms` and `assembleGroup` (`packages/search/src/lexical-search.ts`).
+- **Why:** every message of a mail thread is a chunk with the thread title
+  at weight 4, and a group adds 0.25 of each further matching chunk. On
+  golden v2 the four-message "4.4.0 Release Manager" thread ranks first for
+  `RequestManager` and `request manager`, above records that hold both
+  words (Spec 016 Results).
+- **Fix:** decide in Spec 016 slice 4 (open question 6): count the title
+  once per thread, lower the further-chunk weight, a proximity signal, or
+  rerank. Each needs its own measurement.
+- **Layer:** test row (golden v2 already fails on it).
+- **Source:** Spec 016 slice 1 evaluation, 2026-10-10.
+
+### G32. Search identifier patterns live only in the golden fixture
+- **Where:** `identifierProfiles` in
+  `packages/search/test/fixtures/golden-queries.v2.json`.
+- **Why:** slice 1 has no production caller of `bm25-reference@2`, so the
+  Kafka and DataFusion patterns were not added to the community profiles.
+  `proposal.keyPattern` and `issueKeyPattern` (Spec 014) describe the same
+  identifiers in a second form.
+- **Fix:** Spec 016 slice 2 (H26): a `search.identifiers` profile block;
+  decide whether the Spec 014 patterns derive from it (open question 5).
+- **Layer:** structure (one profile type).
+- **Source:** Spec 016 slice 1.
+
+### G33. Hybrid evaluation numbers come from a hand-written fake embedder
+- **Where:** `packages/search/test/support/fake-embedder.ts`,
+  `golden-evaluation.v2.json` configuration "hybrid … + fake semantic".
+- **Why:** slice 1 calls no model. The fake maps `txn`, `交易` and
+  `transaction` to one concept by hand, so its hybrid row shows that fusion
+  and fallback work, not how `@cf/baai/bge-m3` ranks.
+- **Fix:** Spec 016 slice 4 (H33) replaces the row with recorded real-model
+  vectors; delete the concept table then.
+- **Layer:** test.
+- **Source:** Spec 016 slice 1.
+
 ## CI evidence
 
 ### G30. The evidence redaction gate does not decode every encoding
