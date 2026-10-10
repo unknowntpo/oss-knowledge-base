@@ -9,6 +9,7 @@ import {
 import { SEARCH_CURRENT_KEY, SEARCH_RELEASE_SCHEMA_V2, searchReleaseManifestKey } from "@oss-knowledge-base/serving-contract";
 
 import { DEFAULT_EMBEDDING_LIMITS, type EmbeddingLimits, type EmbeddingRunResult } from "../src/search-embedding/run";
+import { sanitizeErrorMessage } from "../src/search-embedding/sanitize";
 import { EmbeddingState } from "../src/search-embedding/state";
 import { testPlanRows } from "./search-embedding.cases";
 import { DAY_1, DAY_MS, DIMENSIONS, FIVE, harness, PROFILE, projectA, projectB, publishRelease } from "./support/search-embedding";
@@ -29,6 +30,8 @@ const ids = (chunks: readonly SourceRecordChunkV1[]) => Promise.all(chunks.map(a
 const faults: Record<string, (h: Harness, shards: readonly string[]) => () => void> = {
   "—": () => () => undefined,
   "model: call 1 fails": (h) => model(h, (call) => (call === 0 ? new Error("AiError: 3040: Capacity temporarily exceeded") : undefined)),
+  "model: calls 1, 2 and 3 fail": (h) => model(h, (call) => (call < 3 ? new Error("AiError: 3040: Capacity temporarily exceeded") : undefined)),
+  "model: every call fails": (h) => model(h, () => new Error("AiError: 3040: Capacity temporarily exceeded")),
   "model: calls 2 and 3 fail": (h) => model(h, (call) => (call === 1 || call === 2 ? new Error("AiError: 3040: Capacity temporarily exceeded") : undefined)),
   "model: call 1 is refused with code 3036": (h) => model(h, (call) => (call === 0 ? new Error("AiError: 3036: You have used up your daily free allocation") : undefined)),
   "model: call 2 is refused with a gateway 429": (h) => model(h, (call) => (call === 1 ? new Error("429 Too Many Requests") : undefined)),
@@ -416,11 +419,10 @@ describe("Spec 016 embedding run", () => {
     h.model.respond = () => new Error("AiError: 5007: No such model");
     const failed = await h.run();
 
-    expect(failed).toMatchObject({ ok: false, failureKind: "model", error: "AiError: 5007: No such model", embedded: 4, pending: 1, embeddedThisRun: 0, storedVectors: 5, modelCalls: 2 });
-    expect(failed.modelErrors).toEqual([
-      { model: "@cf/baai/bge-m3", kind: "retry", name: "ModelCallError", message: "AiError: 5007: No such model", code: 5007 },
-      { model: "@cf/baai/bge-m3", kind: "retry", name: "ModelCallError", message: "AiError: 5007: No such model", code: 5007 },
-    ]);
+    // The one text, its retry, and the probe that finds the model down.
+    expect(failed).toMatchObject({ ok: false, failureKind: "model", error: "AiError: 5007: No such model", limited: "model-down", embedded: 4, pending: 1, embeddedThisRun: 0, storedVectors: 5, modelCalls: 3 });
+    expect(failed.modelErrors).toEqual(Array.from({ length: 3 }, () => ({ model: "@cf/baai/bge-m3", kind: "retry", name: "ModelCallError", message: "AiError: 5007: No such model", code: 5007 })));
+    expect(h.model.calls.at(-1)).toEqual(["ok"]);
     expect(h.index.vectors.size).toBe(5);
 
     h.model.respond = () => undefined;
@@ -494,54 +496,173 @@ describe("Spec 016 embedding run", () => {
     expect(held).toEqual([2, 2, 0]);
     expect([...h.index.vectors.values()].map((vector) => vector.namespace)).toEqual(["p-a", "p-a"]);
     expectStateMatchesIndex(h);
-    expect([...h.storage.values.keys()].filter((key) => key.startsWith("absent:"))).toEqual(["absent:p-b"]);
-    publishRelease(h.bucket, "r8", onlyA);
-    await h.run();
+    // The count goes with the vectors, in the same run.
     expect([...h.storage.values.keys()].filter((key) => key.startsWith("absent:"))).toEqual([]);
   });
 
-  test("H54: a batch that fails in three runs in a row is quarantined for a day, and the rest is embedded", async () => {
+  test("H54: a text that fails alone in three runs in a row is quarantined for a day; its neighbour is embedded at once", async () => {
     const h = harness({ batchTexts: 2 });
     publishRelease(h.bucket, "r1", FIVE);
-    const poison = (texts: readonly string[]) => (texts.some((text) => text.includes("a3")) ? new Error("AiError: 3010: Invalid input") : undefined);
-    h.model.respond = (_call, texts) => poison(texts);
-    const [, , a3, b1] = await ids(FIVE);
+    h.model.respond = (_call, texts) => (texts.some((text) => text.includes("a3")) ? new Error("AiError: 3010: Invalid input") : undefined);
+    const [, , a3] = await ids(FIVE);
 
     const runs: string[] = [];
     for (let hour = 0; hour < 5; hour += 1) {
       h.clock.now = DAY_1 + hour * 3_600_000;
       const result = await h.run();
       runs.push(`${result.modelCalls} calls, ${result.embedded}/5, quarantined ${result.quarantined}, ${result.ok ? "ok" : result.failureKind}`);
-      if (hour === 3) expect(result.quarantinedIds).toEqual([a3!, b1!].sort());
+      if (hour === 3) expect(result.quarantinedIds).toEqual([a3!]);
     }
-    // Three failed runs cost two calls each; after that the batch costs nothing.
+    // The first run isolates a3 (batch, a3, b1); the next two try it alone, twice each; then it costs nothing.
     expect(runs).toEqual([
-      "4 calls, 3/5, quarantined 0, model",
-      "2 calls, 3/5, quarantined 0, model",
-      "2 calls, 3/5, quarantined 0, model",
-      "0 calls, 3/5, quarantined 2, ok",
-      "0 calls, 3/5, quarantined 2, ok",
+      "5 calls, 4/5, quarantined 0, model",
+      "2 calls, 4/5, quarantined 0, model",
+      "2 calls, 4/5, quarantined 0, model",
+      "0 calls, 4/5, quarantined 1, ok",
+      "0 calls, 4/5, quarantined 1, ok",
     ]);
-    expect(await h.run({ dryRun: true })).toMatchObject({ quarantined: 2, pending: 2, estimate: { chunks: 0, calls: 0 } });
+    expect(h.model.calls.slice(0, 5).map((texts) => texts.map((text) => text.slice(-2)).join(" "))).toEqual(["a1 a2", "a3 b1", "a3", "b1", "b2"]);
+    expect([...h.storage.values].filter(([key]) => key.startsWith("f:"))).toEqual([[`f:${a3}`, { h: expect.any(String), r: PROFILE.semanticRevision, n: 3, at: "2026-10-10T10:00:00.000Z" }]]);
+    expect(await h.run({ dryRun: true })).toMatchObject({ quarantined: 1, pending: 1, estimate: { chunks: 0, calls: 0 } });
 
     // A day after the last failure it is tried once more; a success ends the quarantine.
     h.clock.now = DAY_1 + 2 * 3_600_000 + DAY_MS - 1;
-    expect(await h.run()).toMatchObject({ modelCalls: 0, quarantined: 2 });
+    expect(await h.run()).toMatchObject({ modelCalls: 0, quarantined: 1 });
     h.clock.now += 1;
-    expect(await h.run()).toMatchObject({ ok: false, modelCalls: 2, quarantined: 0, embedded: 3 });
+    expect(await h.run()).toMatchObject({ ok: false, modelCalls: 2, quarantined: 0, embedded: 4 });
     h.clock.now += 3_600_000;
-    expect(await h.run()).toMatchObject({ ok: true, modelCalls: 0, quarantined: 2 });
+    expect(await h.run()).toMatchObject({ ok: true, modelCalls: 0, quarantined: 1 });
     h.model.respond = () => undefined;
     h.clock.now += DAY_MS;
     expect(await h.run()).toMatchObject({ ok: true, modelCalls: 1, quarantined: 0, embedded: 5, pending: 0 });
     expect([...h.storage.values.keys()].filter((key) => key.startsWith("f:"))).toEqual([]);
   });
 
+  const failing = (h: Harness) => [...h.storage.values].filter(([key]) => key.startsWith("f:")).map(([key, value]) => `${key.slice(2)}:${(value as { n: number }).n}`).sort();
+  const fifty = Array.from({ length: 50 }, (_, n) => projectA(`fifty:${String(n).padStart(2, "0")}`));
+  const poisoned = (...records: string[]) => (_call: number, texts: readonly string[]) =>
+    (texts.some((text) => records.some((record) => text.endsWith(record))) ? new Error("AiError: 3010: Invalid input") : undefined);
+
+  test("H55: one failing text in a batch of 50 is isolated in at most 13 calls, and the other 49 are embedded in that run", async () => {
+    const h = harness();
+    publishRelease(h.bucket, "r1", fifty);
+    h.model.respond = poisoned("fifty:37");
+    const [poison] = await ids([fifty[37]!]);
+    const result = await h.run();
+    expect(result).toMatchObject({ ok: false, failureKind: "model", limited: null, chunks: 50, embedded: 49, pending: 1, embeddedThisRun: 49, storedVectors: 49 });
+    // 1 for the batch, then 2 per level: 25, 13, 7, 4, 2, 1 texts.
+    expect(result.modelCalls).toBe(13);
+    expect(h.model.calls.map((texts) => texts.length)).toEqual([50, 25, 25, 12, 13, 6, 7, 3, 4, 2, 2, 1, 1]);
+    expect(failing(h)).toEqual([`${poison}:1`]);
+    expect(h.index.vectors.has(poison!)).toBe(false);
+    expectStateMatchesIndex(h);
+    expect(result.spentToday.calls).toBe(13);
+    // The next run tries the one text alone, twice, and touches nothing else.
+    h.model.calls.length = 0;
+    expect(await h.run()).toMatchObject({ modelCalls: 2, embedded: 49, embeddedThisRun: 0 });
+    expect(h.model.calls.map((texts) => texts.length)).toEqual([1, 1]);
+    expect(failing(h)).toEqual([`${poison}:2`]);
+  });
+
+  test("H55: two failing texts in one batch are both isolated, with a probe when nothing has succeeded yet", async () => {
+    const h = harness();
+    publishRelease(h.bucket, "r1", fifty);
+    h.model.respond = poisoned("fifty:03", "fifty:44");
+    const culprits = (await ids([fifty[3]!, fifty[44]!])).map((id) => `${id}:1`).sort();
+    const result = await h.run();
+    expect(result).toMatchObject({ ok: false, failureKind: "model", limited: null, embedded: 48, pending: 2 });
+    expect(failing(h)).toEqual(culprits);
+    // The batch, both halves, the probe that shows the model is up, then each half's own search.
+    expect(h.model.calls.slice(0, 4).map((texts) => texts.length)).toEqual([50, 25, 25, 1]);
+    expect(h.model.calls[3]).toEqual(["ok"]);
+    expect(result.modelCalls).toBeLessThanOrEqual(1 + 24 + 1);
+    expectStateMatchesIndex(h);
+  });
+
+  test("H55: a bound reached while a batch is being split leaves what was stored, strikes nothing unproven, and the next runs finish", async () => {
+    const h = harness({ maxCallsPerRun: 5 });
+    publishRelease(h.bucket, "r1", fifty);
+    h.model.respond = poisoned("fifty:37");
+    const [poison] = await ids([fifty[37]!]);
+    const first = await h.run();
+    // 50 fails, 25 stored, 25 fails, 12 stored, 13 fails: then the bound.
+    expect(first).toMatchObject({ ok: true, limited: "calls-per-run", modelCalls: 5, embedded: 37, pending: 13 });
+    expect(failing(h)).toEqual([]);
+    expectStateMatchesIndex(h);
+    const second = await h.run();
+    expect(second).toMatchObject({ limited: "calls-per-run", modelCalls: 5 });
+    expectStateMatchesIndex(h);
+    let last = second;
+    for (let run = 0; run < 3 && last.pending > 1; run += 1) last = await h.run();
+    expect(last).toMatchObject({ embedded: 49, pending: 1 });
+    expect(failing(h).map((entry) => entry.split(":")[0])).toEqual([poison!]);
+    expect(h.storage.values.get("spend:2026-10-10")).toMatchObject({ calls: h.model.calls.length });
+  });
+
+  test("H55: when the model is down a run costs four calls, strikes nothing, and embeds everything once it is back", async () => {
+    const h = harness();
+    const corpus = [...fifty, ...Array.from({ length: 70 }, (_, n) => projectB(`more:${n}`))];
+    publishRelease(h.bucket, "r1", corpus);
+    h.model.respond = () => new Error("AiError: 3040: Capacity temporarily exceeded");
+    for (let hour = 0; hour < 4; hour += 1) {
+      h.clock.now = DAY_1 + hour * 3_600_000;
+      const result = await h.run();
+      expect(result).toMatchObject({ ok: false, failureKind: "model", limited: "model-down", modelCalls: 4, embedded: 0, pending: 120, quarantined: 0 });
+    }
+    expect(h.model.calls.slice(0, 4).map((texts) => texts.length)).toEqual([50, 25, 25, 1]);
+    expect(h.model.calls).toHaveLength(16);
+    expect(failing(h)).toEqual([]);
+    expect(h.storage.values.get("spend:2026-10-10")).toMatchObject({ calls: 16 });
+    h.model.respond = () => undefined;
+    expect(await h.run()).toMatchObject({ ok: true, embedded: 120, pending: 0, modelCalls: 3, quarantined: 0 });
+
+    // One text alone: the text, its retry, the probe. A refusal or a store failure never splits a batch.
+    const single = harness();
+    publishRelease(single.bucket, "r1", [projectA("only")]);
+    single.model.respond = () => new Error("AiError: 3040: Capacity temporarily exceeded");
+    expect(await single.run()).toMatchObject({ limited: "model-down", modelCalls: 3 });
+    expect(failing(single)).toEqual([]);
+    for (const refusal of ["429 Too Many Requests", "AiError: 3036: daily allocation", "AI Gateway spend limit exceeded"]) {
+      const refused = harness();
+      publishRelease(refused.bucket, "r1", fifty);
+      refused.model.respond = () => new Error(refusal);
+      expect(await refused.run()).toMatchObject({ limited: "model-limit", modelCalls: 1, embedded: 0 });
+    }
+    const store = harness();
+    publishRelease(store.bucket, "r1", fifty);
+    store.index.fail = (operation) => (operation === "upsert" ? new Error("VECTOR_UPSERT_ERROR") : undefined);
+    expect(await store.run()).toMatchObject({ limited: "vector-store", modelCalls: 1, embedded: 0 });
+    expect(failing(store)).toEqual([]);
+  });
+
+  test("H47: a run that dies while a batch is being split is continued without embedding the stored halves again", async () => {
+    const h = harness({ batchTexts: 4, callTimeoutMs: 2 ** 30 });
+    publishRelease(h.bucket, "r1", FIVE);
+    // a2 fails; the run dies on its fourth call ([a2] alone), after [a3 b1]... were not reached.
+    h.model.respond = (call, texts) => (call === 3 ? new Promise<never>(() => undefined) : poisoned("a2")(call, texts));
+    void h.run();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(h.model.calls.map((texts) => texts.map((text) => text.slice(-2)).join(" "))).toEqual(["a1 a2 a3 b1", "a1 a2", "a3 b1", "a2"]);
+    expect(h.storage.vectorIds()).toHaveLength(2);
+    expect(h.storage.values.get("spend:2026-10-10")).toEqual({ neurons: 4, calls: 4 });
+
+    h.model.respond = poisoned("a2");
+    const before = h.model.calls.length;
+    const retry = await h.run();
+    expect(retry).toMatchObject({ ok: false, failureKind: "model", embedded: 4, pending: 1 });
+    const again = h.model.calls.slice(before).map((texts) => texts.map((text) => text.slice(-2)).join(" "));
+    // a3 and b1 are stored and are not sent again.
+    expect(again.join("|")).not.toMatch(/a3|b1/u);
+    expect(retry.spentToday.calls).toBe(h.model.calls.length);
+    expect(failing(h)).toHaveLength(1);
+    expectStateMatchesIndex(h);
+  });
+
   test("H54: a refusal, a store failure, or a changed chunk does not count toward quarantine; a new revision and a reset clear it", async () => {
     const strikes = (h: Harness) => [...h.storage.values].filter(([key]) => key.startsWith("f:")).map(([, value]) => (value as { n: number }).n);
     const refused = harness({ batchTexts: 2 });
     publishRelease(refused.bucket, "r1", FIVE);
-    for (const error of ["429 Too Many Requests", "AiError: 3036: daily allocation", "AI Gateway spend limit exceeded"]) {
+    for (const error of ["429 Too Many Requests", "AiError: 3036: daily allocation", "AI Gateway spend limit exceeded", "AiError: 3040: model down"]) {
       refused.model.respond = () => new Error(error);
       await refused.run();
     }
@@ -555,14 +676,15 @@ describe("Spec 016 embedding run", () => {
       publishRelease(h.bucket, "r1", FIVE);
       h.model.respond = (_call, texts) => (texts.some((text) => text.includes("a3")) ? new Error("AiError: 3010: Invalid input") : undefined);
       for (let run = 0; run < 3; run += 1) await h.run();
-      expect(await h.run()).toMatchObject({ modelCalls: 0, quarantined: 2 });
-      expect(strikes(h)).toEqual([3, 3]);
+      expect(await h.run()).toMatchObject({ modelCalls: 0, quarantined: 1, embedded: 4 });
+      expect(strikes(h)).toEqual([3]);
       return h;
     };
-    // The text of a3 changes: it is a new passage and is tried at once; b1 stays quarantined.
+    // The text of a3 changes: it is a new passage and is tried at once.
     const changed = await quarantine();
+    changed.model.respond = () => undefined;
     publishRelease(changed.bucket, "r2", FIVE.map((chunk) => (chunk.recordId === "a3" ? { ...chunk, text: "Rewritten a3" } : chunk)));
-    expect(await changed.run()).toMatchObject({ modelCalls: 2, quarantined: 1 });
+    expect(await changed.run()).toMatchObject({ ok: true, modelCalls: 1, quarantined: 0, embedded: 5 });
     // Another revision embeds everything again.
     const revised = await quarantine();
     revised.model.respond = () => undefined;
@@ -572,7 +694,52 @@ describe("Spec 016 embedding run", () => {
     await new EmbeddingState(reset.storage).clear();
     expect(strikes(reset)).toEqual([]);
     reset.model.respond = () => undefined;
-    expect(await reset.run()).toMatchObject({ ok: true, embedded: 5, quarantined: 0, modelCalls: 3 });
+    expect(await reset.run()).toMatchObject({ ok: true, embedded: 5, quarantined: 0, modelCalls: 1 });
+  });
+
+  test("H54: no error text leaves the run with a bearer token or a token-like string in it", async () => {
+    const bearer = `Bearer ${"t0k".repeat(14)}`;
+    const base64 = `${"QUJD+/9h".repeat(5)}==`;
+    const leaked = (text: string) => text.includes("t0kt0k") || text.includes("QUJD+/9h");
+    expect(sanitizeErrorMessage(`401 ${bearer} and ${base64}; id ${"ab12".repeat(10)} end`)).toBe("401 Bearer [redacted] and [redacted]; id [redacted] end");
+    expect(sanitizeErrorMessage(`short Bearer abc.def-1 ${"word ".repeat(80)}`)).toBe(`short Bearer [redacted] ${"word ".repeat(80)}`.slice(0, 200));
+    // Redaction comes before the cut: a token that straddles the 200th character does not survive in part.
+    expect(leaked(sanitizeErrorMessage(`${"x ".repeat(90)}${bearer}`))).toBe(false);
+    expect(sanitizeErrorMessage("AiError: 3040: Capacity temporarily exceeded")).toBe("AiError: 3040: Capacity temporarily exceeded");
+
+    const logged: string[] = [];
+    const realError = console.error;
+    console.error = (...args: unknown[]) => { logged.push(args.join(" ")); };
+    try {
+      // A model error.
+      const model = harness({ batchTexts: 2 });
+      publishRelease(model.bucket, "r1", FIVE);
+      model.model.respond = () => new Error(`AiError: 5007: upstream ${bearer} ${base64}`);
+      const failed = await model.run();
+      expect(failed.ok).toBe(false);
+      expect(failed.error).toBe("AiError: 5007: upstream Bearer [redacted] [redacted]");
+      expect(failed.modelErrors.length).toBeGreaterThan(0);
+      // A store error, an index that does not answer, and an unreadable release (dry run included).
+      const store = harness();
+      publishRelease(store.bucket, "r1", FIVE);
+      store.index.fail = (operation) => (operation === "upsert" ? new Error(`VECTOR_UPSERT_ERROR ${bearer}`) : undefined);
+      const index = harness();
+      publishRelease(index.bucket, "r1", FIVE);
+      index.index.fail = () => new Error(`unauthorized ${base64}`);
+      const release = harness();
+      const [shard] = publishRelease(release.bucket, "r1", FIVE);
+      release.bucket.fail = (key) => (key === shard ? new Error(`R2 said ${bearer}`) : undefined);
+      const results = [failed, await store.run(), await index.run(), await release.run(), await release.run({ dryRun: true })];
+      expect(results.map((result) => result.ok)).toEqual([false, false, false, false, false]);
+      // The object key is ours and stays readable.
+      expect(results[3]!.error).toBe(`Reading ${shard} failed: R2 said Bearer [redacted]`);
+      for (const result of results) expect(leaked(JSON.stringify(result))).toBe(false);
+      for (const h of [model, store, index, release]) expect(leaked(JSON.stringify([...h.storage.values]))).toBe(false);
+      expect(JSON.stringify(results)).toContain("[redacted]");
+    } finally {
+      console.error = realError;
+    }
+    expect(logged.some(leaked)).toBe(false);
   });
 
   test("H51: a dry run reports what a run would do and cost, calling no model, mutating no vector, and writing no state", async () => {

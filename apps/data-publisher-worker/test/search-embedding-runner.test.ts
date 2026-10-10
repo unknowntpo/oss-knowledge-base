@@ -282,6 +282,9 @@ describe("Spec 016 embedding object", () => {
     const { storage, ai, index, clock, runner } = setup({ limits: { batchTexts: 2, maxCallsPerDay: 4 } });
     const alarm = async () => { storage.alarm = null; await runner.alarm(); return runner.health(); };
     expect((await runner.health()).lastError).toBeNull();
+    const logged: string[] = [];
+    const realError = console.error;
+    console.error = (...args: unknown[]) => { logged.push(args.join(" ")); };
     const secret = "Bearer s3cr3t.t0ken-1";
     ai.fail = new Error(`AiError: 5007: upstream said ${secret} key=${"a1B2".repeat(10)} ${"and more ".repeat(60)}`);
     const failed = await alarm();
@@ -289,6 +292,17 @@ describe("Spec 016 embedding object", () => {
     expect(failed.lastError!.message).not.toContain("s3cr3t");
     expect(failed.lastError!.message).not.toContain("a1B2a1B2");
     expect(failed.lastError!.message).toHaveLength(200);
+    // The same text in the run result, its model errors, and the HTTP body of a trigger.
+    expect(JSON.stringify(failed.lastRun)).not.toMatch(/s3cr3t|a1B2a1B2/u);
+    expect(failed.lastRun!.modelErrors[0]!.message).toContain("Bearer [redacted] key=[redacted]");
+    // An alarm that throws logs and records a redacted message as well.
+    const thrower = setup();
+    thrower.storage.fail = (write) => (write === "put run-started" ? new Error(`storage said ${secret} ${"Zm9v+/8=".repeat(6)}`) : undefined);
+    await thrower.runner.alarm();
+    console.error = realError;
+    expect((await thrower.runner.health()).lastRun!.error).toBe("storage said Bearer [redacted] [redacted]");
+    expect(logged.join("\n")).toContain("Bearer [redacted]");
+    expect(logged.join("\n")).not.toMatch(/s3cr3t|Zm9v\+/u);
     expect(failed.today.calls).toBe(4);
 
     // The model works again, but the day's calls are used up: the run is ok and limited, and the error stays.
