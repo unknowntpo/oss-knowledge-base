@@ -196,7 +196,7 @@ export class ModelCalls {
   }
 }
 
-function errorShape(model: string, kind: "limit" | "retry", error: unknown): ModelErrorShape {
+export function errorShape(model: string, kind: "limit" | "retry", error: unknown): ModelErrorShape {
   const name = error instanceof Error ? error.constructor.name || error.name : typeof error;
   const message = (error instanceof Error ? error.message : String(error)).slice(0, 200);
   const code = error instanceof ModelCallError ? error.code : undefined;

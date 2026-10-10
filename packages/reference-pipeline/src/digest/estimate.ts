@@ -12,8 +12,13 @@ export const PRICES = {
   // billed; at $0.011 per 1,000 neurons that is 8,182 and 21,818 neurons per M input tokens.
   "@cf/cloudflare/clef-flash": { inputPerM: 8_182, outputPerM: 0 },
   "@cf/cloudflare/clef": { inputPerM: 21_818, outputPerM: 0 },
+  // Search embeddings (Spec 016): $0.012 per M input tokens, no output; 1,091 neurons per M.
+  "@cf/baai/bge-m3": { inputPerM: 1_091, outputPerM: 0 },
 } as const;
 export type PricedModel = keyof typeof PRICES;
+
+/** Workers AI bills $0.011 per 1,000 neurons. */
+export const USD_PER_NEURON = 0.011 / 1_000;
 
 export const DAILY_CAP = { prod: 5_000, dev: 4_500 } as const;
 /** Slice 2c raised card, proposal, highlights and translation after JSON was cut on Dev (Behavior 15). */

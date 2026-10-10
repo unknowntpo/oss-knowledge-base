@@ -12,11 +12,18 @@
     "PUBLICATION_ENVIRONMENT": "development",
     "DIGEST_ENABLED": "true",
     "DIGEST_MODEL": "workers-ai",
-    "DIGEST_GATEWAY_ID": "osskb-digest-dev"
+    "DIGEST_GATEWAY_ID": "osskb-digest-dev",
+    "SEARCH_GATEWAY_ID": "osskb-search-dev"
   },
   "ai": {
     "binding": "AI"
   },
+  "vectorize": [
+    {
+      "binding": "SEARCH_VECTORS",
+      "index_name": "osskb-search-dev"
+    }
+  ],
   "triggers": {
     "crons": ["7 * * * *"]
   },
@@ -35,6 +42,10 @@
       {
         "name": "DIGEST_RUN",
         "class_name": "DigestRun"
+      },
+      {
+        "name": "SEARCH_EMBEDDING_RUN",
+        "class_name": "SearchEmbeddingRun"
       }
     ]
   },
@@ -46,6 +57,10 @@
     {
       "tag": "v2",
       "new_sqlite_classes": ["DigestRun"]
+    },
+    {
+      "tag": "v3",
+      "new_sqlite_classes": ["SearchEmbeddingRun"]
     }
   ]
 }

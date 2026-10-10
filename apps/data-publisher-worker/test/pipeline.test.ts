@@ -15,7 +15,13 @@ import {
   type SearchTermsV1,
 } from "@oss-knowledge-base/serving-contract";
 
+import { createInMemoryReleaseView, VectorizeSemanticRetriever } from "@oss-knowledge-base/semantic-vectorize";
+import { FakeVectorIndex } from "@oss-knowledge-base/semantic-vectorize/testing";
+
 import fixture from "../../../packages/reference-pipeline/test/fixtures/github-events.v1.json";
+import { runSearchEmbedding } from "../src/search-embedding/run";
+import { EmbeddingState } from "../src/search-embedding/state";
+import { FakeEmbedder, MemoryStorage, PROFILE } from "./support/search-embedding";
 import { healthBody } from "../src/health";
 import {
   resolveSearchLexicalRevision,
@@ -373,6 +379,110 @@ describe("Spec 016 lexical revision of the published Search release", () => {
     expect(result).toMatchObject({ ok: true, search: expected });
     expect(healthBody({ environment: "development", running: false, scheduled: false, phase: undefined, status: state.statuses.at(-1) }).lastRun)
       .toMatchObject({ search: expected });
+  });
+});
+
+describe("Spec 016 embedding after a publication", () => {
+  const events = fixture.events as DomainEventV1[];
+  const publish = async (extra: Partial<Parameters<typeof runDataPublication>[0]> = {}, state = new MemoryState(), destination = new MemoryDestination()) => {
+    const result = await runDataPublication({
+      environment: "development",
+      materializedAt: fixture.config.materializedAt,
+      connector: connectorSuccess(events),
+      state,
+      destination,
+      ...extra,
+    });
+    return { state, destination, result };
+  };
+  const bytes = (destination: MemoryDestination) => Object.fromEntries([...destination.objects].map(([key, body]) => [key, new TextDecoder().decode(body)]));
+
+  test("H45: a publication with an embedding trigger writes byte-identical objects, and calls the trigger once after it is recorded", async () => {
+    const plain = await publish();
+    const seen: string[] = [];
+    const state = new MemoryState();
+    const destination = new MemoryDestination();
+    const triggered = await publish({
+      onPublished: async (status) => {
+        // The publication is complete and recorded before the embedding object hears of it.
+        seen.push(`${status.ok} recorded=${state.statuses.length} current=${destination.objects.has(SEARCH_CURRENT_KEY)} committed=${state.value.events.length > 0}`);
+      },
+    }, state, destination);
+    expect(seen).toEqual(["true recorded=1 current=true committed=true"]);
+    expect(plain.result.ok).toBe(true);
+    expect(triggered.result).toEqual(plain.result);
+    expect(triggered.destination.operations).toEqual(plain.destination.operations);
+    expect(bytes(triggered.destination)).toEqual(bytes(plain.destination));
+    expect(Object.keys(bytes(plain.destination)).length).toBeGreaterThan(10);
+  });
+
+  test("H45: a failed publication does not trigger an embedding run", async () => {
+    let calls = 0;
+    const failed = await publish({ searchLexicalRevision: "bm25-reference@9", onPublished: async () => { calls += 1; } });
+    expect(failed.result.ok).toBe(false);
+    expect(calls).toBe(0);
+    const partial = await publish({
+      connector: { poll: async () => ({ complete: false as const, events: [], error: "rate limited", failureKind: "rate-limit", retryAfterSeconds: 60 }) },
+      onPublished: async () => { calls += 1; },
+    });
+    expect(partial.result.ok).toBe(false);
+    expect(calls).toBe(0);
+    // Positive control: the same hook is called by a publication that succeeds.
+    expect((await publish({ onPublished: async () => { calls += 1; } })).result.ok).toBe(true);
+    expect(calls).toBe(1);
+  });
+
+  test.each([
+    ["rejects", async () => { throw new Error("embedding object unavailable"); }],
+    ["throws before returning a promise", (() => { throw new Error("embedding object unavailable"); }) as unknown as () => Promise<void>],
+    ["never answers", () => new Promise<void>(() => undefined)],
+  ])("H23: a trigger that %s leaves the publication, its objects, and its recorded status as they are", async (_name, onPublished) => {
+    const plain = await publish();
+    const started = Date.now();
+    const withTrigger = await publish({ onPublished, onPublishedTimeoutMs: 30 });
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(withTrigger.result).toEqual(plain.result);
+    expect(withTrigger.result.ok).toBe(true);
+    expect(withTrigger.state.statuses).toEqual([withTrigger.result]);
+    expect(bytes(withTrigger.destination)).toEqual(bytes(plain.destination));
+    expect(withTrigger.state.value.events.length).toBe(plain.state.value.events.length);
+    expect(withTrigger.state.value.events.length).toBeGreaterThan(0);
+  });
+
+  test("H21: an embedding run over the release the publisher wrote stores one vector per chunk in each project's namespace", async () => {
+    const { destination, result } = await publish();
+    const { manifest, shards } = (() => {
+      const pointer = JSON.parse(new TextDecoder().decode(destination.objects.get(SEARCH_CURRENT_KEY)!)) as SearchCurrentPointerV1;
+      const manifestValue = JSON.parse(new TextDecoder().decode(destination.objects.get(pointer.releaseManifestKey)!)) as SearchReleaseManifestV3;
+      return { manifest: manifestValue, shards: manifestValue.shards.map((shard) => JSON.parse(new TextDecoder().decode(destination.objects.get(shard.key)!)) as SearchLexicalShardV2) };
+    })();
+    const index = new FakeVectorIndex(PROFILE.revision.dimensions);
+    const model = new FakeEmbedder();
+    const storage = new MemoryStorage();
+    const run = () => runSearchEmbedding({
+      bucket: { getJson: async (key) => { const body = destination.objects.get(key); return body === undefined ? undefined : JSON.parse(new TextDecoder().decode(body)); } },
+      index, embed: model.embed, profile: PROFILE, state: new EmbeddingState(storage),
+      now: () => new Date(fixture.config.materializedAt), delay: async () => undefined, dryRun: false,
+    });
+    const embedded = await run();
+
+    expect(result.ok && result.search.chunkCount).toBe(5);
+    expect(embedded).toMatchObject({ ok: true, releaseId: manifest.indexRevision, chunks: 5, embedded: 5, pending: 0, modelCalls: 1, storedVectors: 5 });
+    const chunks = shards.flatMap((shard) => shard.chunks);
+    expect(model.calls).toEqual([chunks.map((chunk) => `${chunk.title}\n${chunk.text}`)]);
+    expect([...index.vectors.values()].map((vector) => `${vector.namespace} ${vector.metadata.record}`).sort())
+      .toEqual(chunks.map((chunk) => `${chunk.projectId} ${chunk.recordId}`).sort());
+    expect(new Set([...index.vectors.values()].map((vector) => vector.namespace))).toEqual(new Set(["apache-datafusion", "apache-kafka"]));
+    for (const id of index.vectors.keys()) expect(new TextEncoder().encode(id).byteLength).toBeLessThanOrEqual(64);
+    // The release is unchanged by the run, and a second run has nothing to do.
+    expect((await run()).modelCalls).toBe(0);
+
+    // A semantic match is answered with the release's own chunk.
+    const retriever = new VectorizeSemanticRetriever({ index, embed: model.embed, profile: PROFILE, release: createInMemoryReleaseView(manifest.indexRevision, chunks) });
+    const target = chunks[0]!;
+    const { candidates } = await retriever.retrieve({ query: `${target.title} ${target.text}`, limit: 5, filters: { projectIds: [target.projectId] } });
+    expect(candidates[0]).toMatchObject({ chunkId: target.id, recordId: target.recordId, groupRootRecordId: target.groupRootRecordId, projectId: target.projectId });
+    expect(candidates.every((candidate) => candidate.projectId === target.projectId)).toBe(true);
   });
 });
 

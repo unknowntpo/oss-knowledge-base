@@ -7,12 +7,12 @@ import {
   fuseRankings,
   hybridSearch,
   searchLexicalIndex,
-  semanticRevisionId,
   type LexicalSearchResultV1,
   type SemanticCandidateV1,
   type SemanticRetriever,
 } from "../src";
-import { FAKE_SEMANTIC_REVISION, fakeEmbed, fakeSemanticRetriever } from "./support/fake-embedder";
+import { FAKE_SEMANTIC_REVISION, fakeEmbed } from "./support/fake-embedder";
+import { semanticRetrieverContract } from "./support/semantic-retriever-contract";
 import { codeTextConfig, loadGoldenV2 } from "./support/golden-v2";
 
 function lexical(groupRootRecordId: string, exactMatch = false, projectId = "p"): LexicalSearchResultV1 {
@@ -257,50 +257,7 @@ describe("Spec 016 hybrid search fallback", () => {
 });
 
 describe("Spec 016 in-memory semantic retriever", () => {
-  test("H5: it ranks chunks by cosine similarity and reports its revision", async () => {
-    const golden = await loadGoldenV2();
-    const semantic = fakeSemanticRetriever(golden.chunks);
-    const { semanticRevision, candidates } = await semantic.retrieve({ query: "交易逾時", limit: 10 });
-    expect(semanticRevision).toBe("fake-concepts@1:4:title-text@1");
-    expect(semanticRevision).toBe(semanticRevisionId(FAKE_SEMANTIC_REVISION));
-    // KAFKA-20785 names both concepts (cosine 1); KAFKA-20734 names one (cosine 1/sqrt(2)).
-    expect(candidates.map((item) => item.groupRootRecordId)).toEqual(["kafka:jira:issue:KAFKA-20785", "kafka:jira:issue:KAFKA-20734"]);
-    expect(candidates[0]!.score).toBeCloseTo(1, 12);
-    expect(candidates[1]!.score).toBeCloseTo(Math.SQRT1_2, 12);
-    expect(candidates[0]).toEqual({
-      chunkId: "chunk:kafka:jira:issue:KAFKA-20785:0",
-      recordId: "kafka:jira:issue:KAFKA-20785",
-      groupRootRecordId: "kafka:jira:issue:KAFKA-20785",
-      projectId: "apache-kafka",
-      score: candidates[0]!.score,
-    });
-    expect((await semantic.retrieve({ query: "交易逾時", limit: 1 })).candidates).toHaveLength(1);
-    expect((await semantic.retrieve({ query: "unrelated words", limit: 10 })).candidates).toEqual([]);
-  });
-
-  test("H5: equal similarities rank by chunk id, whatever order the chunks arrive in", async () => {
-    const golden = await loadGoldenV2();
-    const constant = (chunks: typeof golden.chunks) => createInMemorySemanticRetriever({
-      revision: { ...FAKE_SEMANTIC_REVISION, dimensions: 1 },
-      chunks,
-      embed: () => [1],
-    });
-    const forward = await constant(golden.chunks).retrieve({ query: "q", limit: 100 });
-    const reversed = await constant([...golden.chunks].reverse()).retrieve({ query: "q", limit: 100 });
-    const ids = golden.chunks.map((chunk) => chunk.id).sort((left, right) => left.localeCompare(right));
-    expect(forward.candidates.map((item) => item.chunkId)).toEqual(ids);
-    expect(reversed.candidates).toEqual(forward.candidates);
-  });
-
-  test("H5: it applies the evidence filters", async () => {
-    const golden = await loadGoldenV2();
-    const semantic = fakeSemanticRetriever(golden.chunks);
-    const all = await semantic.retrieve({ query: "txn", limit: 10 });
-    expect(all.candidates).toHaveLength(2);
-    const after = await semantic.retrieve({ query: "txn", limit: 10, filters: { occurredAfter: "2026-10-01T00:00:00Z" } });
-    expect(after.candidates.map((item) => item.recordId)).toEqual(["kafka:jira:issue:KAFKA-20734"]);
-    const otherProject = await semantic.retrieve({ query: "txn", limit: 10, filters: { projectIds: ["apache-datafusion"] } });
-    expect(otherProject.candidates).toEqual([]);
-    await expect(semantic.retrieve({ query: "txn", limit: 0 })).rejects.toThrow("positive integer");
+  test.each([...semanticRetrieverContract])("H5: $name", async ({ run }) => {
+    await run((input) => createInMemorySemanticRetriever(input));
   });
 });

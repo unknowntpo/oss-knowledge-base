@@ -9,13 +9,15 @@
     "deploy:production": "wrangler deploy -c wrangler.production.jsonc",
     "measure:memory": "bun scripts/measure-publication-memory.ts",
     "measure:search-latency": "bun scripts/measure-search-latency.ts",
-    "measure:review-queue": "bun scripts/measure-review-queue.ts"
+    "measure:review-queue": "bun scripts/measure-review-queue.ts",
+    "measure:search-embedding": "bun scripts/measure-search-embedding.ts"
   },
   "dependencies": {
     "@oss-knowledge-base/domain": "workspace:*",
     "@oss-knowledge-base/github-publisher": "workspace:*",
     "@oss-knowledge-base/reference-pipeline": "workspace:*",
     "@oss-knowledge-base/search": "workspace:*",
+    "@oss-knowledge-base/semantic-vectorize": "workspace:*",
     "@oss-knowledge-base/serving-contract": "workspace:*"
   },
   "devDependencies": {
