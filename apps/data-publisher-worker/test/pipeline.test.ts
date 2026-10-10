@@ -347,13 +347,15 @@ describe("Spec 016 lexical revision of the published Search release", () => {
     expect(state.phases.slice(0, 3)).toEqual(["reading-state", "reading-state", "polling"]);
   });
 
-  test("H39: neither deployed publisher sets SEARCH_LEXICAL_REVISION, so merging this slice still writes @1", async () => {
-    for (const environment of ["development", "production"] as const) {
-      const vars = (await config(environment)).vars as Readonly<Record<string, string>>;
-      expect(Object.keys(vars)).toContain("PUBLICATION_ENVIRONMENT");
-      expect(Object.hasOwn(vars, "SEARCH_LEXICAL_REVISION")).toBe(false);
-      expect(resolveSearchLexicalRevision(vars.SEARCH_LEXICAL_REVISION)).toBe("bm25-reference@1");
-    }
+  test("H39: the development publisher writes bm25-reference@2; production does not set the variable and writes @1", async () => {
+    const development = (await config("development")).vars as Readonly<Record<string, string>>;
+    const production = (await config("production")).vars as Readonly<Record<string, string>>;
+    expect(development.PUBLICATION_ENVIRONMENT).toBe("development");
+    expect(development.SEARCH_LEXICAL_REVISION).toBe("bm25-reference@2");
+    expect(resolveSearchLexicalRevision(development.SEARCH_LEXICAL_REVISION)).toBe("bm25-reference@2");
+    expect(production.PUBLICATION_ENVIRONMENT).toBe("production");
+    expect(Object.hasOwn(production, "SEARCH_LEXICAL_REVISION")).toBe(false);
+    expect(resolveSearchLexicalRevision(production.SEARCH_LEXICAL_REVISION)).toBe("bm25-reference@1");
   });
 
   test.each(["bm25-reference@1", "bm25-reference@2"])("H41: /health lastRun.search reports the %s release's revision, chunk count, and lexical bytes", async (revision) => {
