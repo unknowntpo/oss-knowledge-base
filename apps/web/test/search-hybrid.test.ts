@@ -12,8 +12,10 @@ import {
   type SearchFiltersV1,
 } from "@oss-knowledge-base/search";
 import { chunkFingerprint, type SemanticQueryAnswerV1, type SemanticQueryPort } from "@oss-knowledge-base/semantic-vectorize";
-import { storeChunkVectors, testChunk } from "@oss-knowledge-base/semantic-vectorize/testing";
+import { searchEmbeddingProfile, SemanticQueryGate } from "@oss-knowledge-base/semantic-vectorize";
+import { FakeVectorIndex, hashingEmbed, MemoryGateStorage, storeChunkVectors, testChunk } from "@oss-knowledge-base/semantic-vectorize/testing";
 import {
+  buildR2SearchProjection,
   SEARCH_CURRENT_KEY,
   searchShardForGroupRoot,
   searchTermsKey,
@@ -25,6 +27,9 @@ import { FAKE_SEMANTIC_REVISION, fakeEmbed } from "../../../packages/search/test
 import { onRequestGet as searchHandler } from "../functions/api/search";
 import { HYBRID_LEXICAL_DEPTH, readSearchDetailProjection, searchR2Projection, type SemanticSearchOptions } from "../functions/_shared/search-projection";
 import { durableObjectSemanticGate, SEARCH_QUERY_GATE_NAME, semanticSearchOptions } from "../functions/_shared/semantic-gate";
+import { testPlanRows as realCorpusGuardRows } from "../../../packages/search/test/real-corpus-guards.cases";
+import { testPlanRows as realCorpusRows } from "../../../packages/search/test/real-corpus.cases";
+import { searchPublicationFromChunks } from "../scripts/build-search-fixture";
 import { DIGEST_REQUESTS, lexicalGoldenRelease, responseDigests } from "../scripts/search-response-digests";
 import {
   chunksOf,
@@ -676,5 +681,93 @@ describe("Spec 016 hybrid search: filters, facets, and what a semantic result sh
     const excerpt = response.results[0]!.matches.find((match) => match.chunkId === long.id)!.excerpt;
     expect(excerpt).toBe(`${long.text.slice(0, 280).trim()}…`);
     expect(response.results[0]!.entry.reason).toMatchObject({ label: "4 matching source records" });
+  });
+});
+
+describe("Spec 016 hybrid search on real records", () => {
+  const snapshotPath = new URL("../../../packages/search/test/fixtures/real-corpus-snapshot.v1.json", import.meta.url);
+  const queries = [...new Set([...realCorpusRows, ...realCorpusGuardRows].map((row) => row.query))];
+  const DIMENSIONS = 256;
+  const profile = searchEmbeddingProfile("hashing@1", { model: "hashing", modelRevision: "1", dimensions: DIMENSIONS, textAssemblyRevision: "title-text@1" });
+  const embedText = hashingEmbed(DIMENSIONS);
+
+  /** The Spec 017 snapshot (1,134 real chunks of 343 threads) as a release of 100 chunks per shard. */
+  async function realRelease(): Promise<readonly ProjectionObject[]> {
+    const snapshot = await Bun.file(snapshotPath).json() as { readonly provenance: { readonly indexRevision: string }; readonly chunks: Parameters<typeof searchPublicationFromChunks>[0]["chunks"] };
+    const publication = searchPublicationFromChunks({ revision: "real-corpus", indexRevision: snapshot.provenance.indexRevision, chunks: snapshot.chunks }, "release-real", "bm25-reference@3");
+    return buildR2SearchProjection(publication, { maxShardChunks: 100, identifiers: searchIdentifierProfiles, shardRoots: true });
+  }
+
+  test("H29: on every real-corpus and guard query, hybrid search without semantic candidates is the lexical response", async () => {
+    const objects = await realRelease();
+    expect(queries.length).toBeGreaterThanOrEqual(27);
+    expect(manifestOf(objects).shards.length).toBeGreaterThan(10);
+    const failing = new RecordingGate(async () => { throw new Error("down"); });
+    const original = console.error;
+    console.error = () => undefined;
+    try {
+      for (const query of queries) {
+        const expected = await lexical(objects, { query, limit: 20 });
+        expect(expected.results.length).toBeGreaterThan(0);
+        for (const options of [{ gate: failing }, { gate: untouchableGate, off: true }, { gate: new RecordingGate(async () => okAnswer([])) }, { unavailable: true }] as const) {
+          const response = await searchR2Projection(new MemoryBucket(objects).asR2(), { query, limit: 20 }, options);
+          expect(withoutSemantic(response)).toEqual(expected);
+        }
+      }
+    } finally {
+      console.error = original;
+    }
+  });
+
+  test("H58: with a bag-of-words embedder over the real records, every hybrid result is a thread of the release, found by one retriever or both, once", async () => {
+    const objects = await realRelease();
+    const chunks = chunksOf(objects);
+    const manifest = manifestOf(objects);
+    const index = new FakeVectorIndex(DIMENSIONS);
+    await storeChunkVectors(index, chunks, embedText, profile.semanticRevision);
+    const gate = new SemanticQueryGate({
+      storage: new MemoryGateStorage(),
+      config: () => ({ state: "on", profile, embed: async (texts) => texts.map(embedText), index }),
+      neuronsPerMillionTokens: 1_091,
+      isRefusal: () => false,
+      now: () => new Date("2026-10-12T10:00:00.000Z"),
+    });
+    const groupRoots = new Set(chunks.map((chunk) => chunk.groupRootRecordId));
+    let semanticOnlyResults = 0;
+    let reordered = 0;
+    for (const query of queries) {
+      const bucket = new MemoryBucket(objects);
+      const response = await searchR2Projection(bucket.asR2(), { query, limit: 20 }, { gate });
+      const expected = await lexical(objects, { query, limit: HYBRID_LEXICAL_DEPTH });
+      if (response.retrieval.semantic!.status === "skipped") {
+        expect(withoutSemantic(response)).toEqual({ ...expected, results: expected.results.slice(0, 20) });
+        continue;
+      }
+      expect(response.retrieval.semantic).toMatchObject({ status: "ok", cached: false });
+      // At most 50 passages from each of the two projects' namespaces enter fusion.
+      expect(response.retrieval.semantic!.candidates).toBeGreaterThan(20);
+      expect(response.retrieval.semantic!.candidates).toBeLessThanOrEqual(100);
+      const lexicalRanks = new Map(roots(expected).map((root, position) => [root, position + 1]));
+      expect(new Set(roots(response)).size).toBe(response.results.length);
+      for (const result of response.results) {
+        const root = result.entry.sourceTitleRecordId;
+        const signals = result.matches[0]!.signals;
+        expect(groupRoots.has(root)).toBe(true);
+        expect(signals.lexicalRank).toBe(lexicalRanks.get(root));
+        expect(signals.lexicalRank !== undefined || signals.semanticRank !== undefined).toBe(true);
+        expect(result.matches.every((match) => chunks.some((chunk) => chunk.id === match.chunkId && chunk.groupRootRecordId === root))).toBe(true);
+        if (signals.lexicalRank === undefined) semanticOnlyResults += 1;
+      }
+      if (JSON.stringify(roots(response)) !== JSON.stringify(roots(expected).slice(0, 20))) reordered += 1;
+      // Exact matches, when a query has any, stay first.
+      const exact = response.results.map((result) => result.matches.some((match) => match.signals.exactIdentifier));
+      expect(exact.lastIndexOf(true)).toBe(exact.filter(Boolean).length - 1);
+      expect(new Set(bucket.reads).size).toBe(bucket.reads.length);
+      expect(bucket.reads.length).toBeLessThanOrEqual(3 + manifest.shards.length);
+      expect(bucket.peak).toBeLessThanOrEqual(4);
+    }
+    // Positive control: semantic retrieval changed something on these queries.
+    expect(reordered).toBeGreaterThan(10);
+    expect(semanticOnlyResults).toBeGreaterThan(0);
   });
 });

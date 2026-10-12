@@ -5,9 +5,12 @@ import {
   codeTextLexicalSearchConfig,
   compileIdentifierProfiles,
   defaultLexicalSearchConfig,
+  isExactLexicalQuery,
   lexicalQueryTerms,
   lexicalShardPostings,
+  passageExcerpt,
   searchLexicalIndex,
+  threadPhraseLexicalSearchConfig,
   type IdentifierPatternV1,
   type IdentifierProfilesV1,
 } from "../src";
@@ -144,5 +147,36 @@ describe("Spec 016 community identifiers (bm25-reference@2 with profiles)", () =
     }
     // Positive control: the inputs do exercise the patterns.
     expect(profiles.canonicalizeQuery("KIP7 ".repeat(3))).toBe("KIP-7 KIP-7 KIP-7 ");
+  });
+
+  test("H61: a query can match exactly when it is one identifier, a bare number, or a symbol, and only then does a search return an exact match", async () => {
+    const golden = await loadGoldenV2();
+    const configs = [codeTextConfig(golden), { ...threadPhraseLexicalSearchConfig, identifiers: golden.identifierProfiles }];
+    const index = buildLexicalIndex({ indexRevision: "test", chunks: golden.chunks, config: configs[0]! });
+    const cases: readonly (readonly [string, boolean])[] = [
+      ["KIP-770", true], ["KIP770", true], ["kip770", true], [" KAFKA-20983 ", true], ["#770", true], ["770", true],
+      ["RecordAccumulator.ready()", true], ["a.b", true], ["ABC-1", true],
+      ["KIP770 transaction", false], ["KIP 770", false], ["770 771", false], ["request manager", false], ["RequestManager", false],
+      ["txn", false], ["交易逾時", false], ["kip-", false], ["v1.2", false],
+    ];
+    for (const [query, exact] of cases) {
+      for (const config of configs) expect([query, isExactLexicalQuery(query, config)]).toEqual([query, exact]);
+      // No other kind of query ever yields an exact match.
+      if (!exact) expect(searchLexicalIndex(index, { query, limit: 50 }).some((result) => result.exactMatch)).toBe(false);
+    }
+    expect(searchLexicalIndex(index, { query: "KIP770", limit: 50 }).some((result) => result.exactMatch)).toBe(true);
+    // Without profiles only the structured shapes are exact, as at `@1`.
+    expect(isExactLexicalQuery("KIP770")).toBe(false);
+    expect(isExactLexicalQuery("770", defaultLexicalSearchConfig)).toBe(false);
+    expect(isExactLexicalQuery("KIP-770")).toBe(true);
+    expect(isExactLexicalQuery("a.b()")).toBe(true);
+  });
+
+  test("H60: a passage excerpt is the start of the text, cut at the lexical excerpt length", () => {
+    expect(passageExcerpt("short text")).toBe("short text");
+    expect(passageExcerpt("x".repeat(280))).toBe("x".repeat(280));
+    expect(passageExcerpt("x".repeat(281))).toBe(`${"x".repeat(280)}…`);
+    expect(passageExcerpt(`${"word ".repeat(56)}tail`)).toBe(`${"word ".repeat(56).trim()}…`);
+    expect(passageExcerpt("x".repeat(100), { ...defaultLexicalSearchConfig, excerptCharacters: 40 })).toBe(`${"x".repeat(40)}…`);
   });
 });

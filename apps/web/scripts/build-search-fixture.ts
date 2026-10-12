@@ -20,7 +20,7 @@ export async function buildGoldenSearchPublication(
   fixturePath: string,
   indexRevision?: string,
 ): Promise<SearchPublicationV1> {
-  return goldenPublication(parseSearchGoldenFixture(await Bun.file(fixturePath).json()), indexRevision, DEFAULT_LEXICAL_REVISION);
+  return searchPublicationFromChunks(parseSearchGoldenFixture(await Bun.file(fixturePath).json()), indexRevision, DEFAULT_LEXICAL_REVISION);
 }
 
 /** Golden v2 (Spec 016) as a publication of `lexicalRevision`; its chunks include golden v1's. */
@@ -29,10 +29,11 @@ export async function buildGoldenV2SearchPublication(
   indexRevision: string | undefined,
   lexicalRevision: string,
 ): Promise<SearchPublicationV1> {
-  return goldenPublication(parseSearchGoldenFixtureV2(await Bun.file(fixturePath).json()), indexRevision, lexicalRevision);
+  return searchPublicationFromChunks(parseSearchGoldenFixtureV2(await Bun.file(fixturePath).json()), indexRevision, lexicalRevision);
 }
 
-function goldenPublication(
+/** Any set of whole groups (every group holds its root's chunk) as a publication of `lexicalRevision`. */
+export function searchPublicationFromChunks(
   golden: { readonly revision: string; readonly indexRevision: string; readonly chunks: readonly SourceRecordChunkV1[] },
   indexRevision: string | undefined,
   lexicalRevision: string,
