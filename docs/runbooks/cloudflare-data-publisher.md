@@ -84,7 +84,7 @@ or re-run a publication. Nothing reads the vectors before Spec 016 slice 3.
 | --- | --- | --- |
 | Vectorize index (1,024 dimensions, cosine) | `osskb-search-dev` | none |
 | AI Gateway | `osskb-search-dev` (600 requests an hour, spend limit, authenticated) | none |
-| `SEARCH_EMBEDDING` | unset (off) | unset (off) |
+| `SEARCH_EMBEDDING` | `bge-m3@1` (on since Spec 016 H52, 2026-10-12) | unset (off) |
 
 Preconditions before the Worker is deployed with this binding (the merge of
 Spec 016 slice 2b deploys Dev):
@@ -93,12 +93,8 @@ Spec 016 slice 2b deploys Dev):
   (created 2026-10-10).
 - AI Gateway `osskb-search-dev`: exists (created 2026-10-10; 600 requests an
   hour, $2 per 30 days, authentication on).
-- Unconfirmed: whether the CI `CLOUDFLARE_API_TOKEN` may deploy a Worker
-  with a Vectorize binding. If not, the "Deploy the isolated development data
-  publisher" step fails after Pages deployed. Dev stays consistent (the
-  previous Worker keeps running; no release or state changes). Add the
-  Vectorize permission to the token and re-run the job; there is nothing
-  else to roll back.
+- The CI `CLOUDFLARE_API_TOKEN` may deploy a Worker with a Vectorize binding
+  and the `v3` migration: the Dev deploy of slice 2b succeeded (2026-10-10).
 
 `GET /health` → `searchEmbedding`: `enabled`, `configError`, `today`
 (estimated neurons and calls against the daily bounds), `interrupted` (a run
@@ -112,9 +108,10 @@ Bounds: 3,000 chunks and 80 model calls per run; 400 calls and 2,500
 estimated neurons per UTC day. No model call or delete starts after 10
 minutes and each call is abandoned after 30 seconds, so a run ends within
 11 min 35 s (the alarm limit is 15 minutes). A run that reaches one
-reports `limited` and the next run continues. The Dev backfill (8,586
-chunks) is about 172 calls, 0.76 M estimated tokens, 832 estimated neurons,
-under one cent, in three runs within one UTC day.
+reports `limited` and the next run continues. The Dev backfill, by the dry
+run of 2026-10-10 on the Dev release: 8,586 chunks, 172 calls, 727,738
+estimated tokens, 794 estimated neurons, $0.0087, three runs within one UTC
+day.
 
 - `heldDeletes` / `absentProjects`: the release holds no chunk of a project
   (or none at all), so its vectors were kept. They are deleted only at the
@@ -156,6 +153,10 @@ still needed. `&profile=` is needed only while the flag is off.
 
 ### Enable on Dev
 
+Steps 1 and 2 are done for Dev (dry run 2026-10-10, flag set 2026-10-12,
+Spec 016 H52); steps 3 to 5 follow that deploy. To enable again after a
+rollback, repeat from step 1.
+
 1. Run the dry run and read `estimate`.
 2. In `apps/data-publisher-worker/wrangler.development.jsonc` add
    `"SEARCH_EMBEDDING": "bge-m3@1"` to `vars`, update the `H45` configuration
@@ -174,8 +175,10 @@ still needed. `&profile=` is needed only while the flag is off.
 
 ### Turn off or roll back
 
-- Remove `SEARCH_EMBEDDING` and deploy. No further model or index call is
-  made. The stored vectors stay; they are only stale.
+- Remove `SEARCH_EMBEDDING` and deploy (on Dev: revert the enable PR, which
+  also returns the `H45` test and the deployed E2E's `enabled` check). No
+  further model or index call is made. The stored vectors stay; they are
+  only stale.
 - `ok: false` with `failureKind: model-limit` means Workers AI or the gateway
   refused (daily allocation, rate limit, spend limit): nothing to do, the
   next run continues. `vector-store` means Vectorize did not answer or the

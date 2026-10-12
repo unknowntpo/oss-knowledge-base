@@ -1,6 +1,6 @@
 # Spec 016: Semantic candidates and hybrid fusion for Search
 
-Status: Draft for human review — decisions of 2026-10-08..10 recorded below; slices 1, 2a and 2b implemented (2b: embedding publication and the Vectorize adapter, off in both deployed configurations), Dev switched to `@2` (H42), enabling embeddings on Dev (H52) and slices 3–4 pending
+Status: Draft for human review — decisions of 2026-10-08..10 recorded below; slices 1, 2a and 2b implemented (2b: embedding publication and the Vectorize adapter), Dev switched to `@2` (H42), embeddings enabled on Dev (`SEARCH_EMBEDDING=bge-m3@1`, owner's approval 2026-10-12; the H52 observations follow the deploy), Prod has no flag, slices 3–4 pending
 Date: 2026-10-10
 Traceability: enforced
 Builds on: Spec 005 (Phases 2 and 3, LLM boundary), Spec 013 (lexical shards, `bm25-reference@1`), Spec 014 (community profile `proposal`), Spec 015 (profile blocks, ADR-0016)
@@ -117,7 +117,7 @@ see Results.
    patterns (KIP-n, KAFKA-n) belong in the community profile, not hard-coded in
    core search.
 
-## Decisions (slice 2b, implementer, 2026-10-10; to confirm)
+## Decisions (slice 2b, implementer, 2026-10-10; Decision 9 confirmed 2026-10-12)
 
 Human decisions 2–4 fixed the unit, the model, the store, the namespace per
 project, and the separate gateway. These were left to the implementer:
@@ -215,7 +215,7 @@ project, and the separate gateway. These were left to the implementer:
 Owner's answers (2026-10-10, after the PR #50 verdict):
 
 - (a) Decision 9, one vector per passage with id = hash of project, record,
-  and ordinal: recommended; **awaiting the owner's confirmation**.
+  and ordinal: **confirmed by the owner on 2026-10-12**.
 - (b) The slice 3 release-view contract (open question 9): deferred to the
   slice 3 spec.
 - (c) Decision 11, an unknown flag value fails only the embedding run:
@@ -223,6 +223,10 @@ Owner's answers (2026-10-10, after the PR #50 verdict):
 - (d) Depth of 50 per namespace (open question 10): measure in slice 4.
 - (e) Decision 16: Prod gets nothing until the Prod launch.
 - (f) An empty release: guard, do not wipe (Decision 18, Behavior 23).
+
+Owner's decision (2026-10-12): enable embeddings on Dev with `bge-m3@1`,
+after the dry run of 2026-10-10 on the Dev release (Results, "Dev dry run").
+Prod stays without the flag.
 
 ## Simplification review
 
@@ -599,7 +603,10 @@ Decided in slice 2a (implementer, to confirm):
      H43, H44, H50), `/health` and the trigger endpoint (H51), the cost
      measurement (H27). `SEARCH_EMBEDDING` is unset in both deployed
      configurations: nothing is embedded after the merge.
-   - **Enable.** A one-line change sets the variable for Dev (H52).
+   - **Enable (done for Dev, 2026-10-12).** `wrangler.development.jsonc`
+     sets `"SEARCH_EMBEDDING": "bge-m3@1"`, so each successful publication
+     after that deploy triggers an embedding run (H52). Production is
+     unchanged.
 3. **Query-time wiring** in the web API behind a flag. H28–H32.
 4. **Measured comparison** with the real model and the decision on rerank.
    H33.
@@ -693,28 +700,27 @@ Rolling out embeddings on Dev. Preconditions, before slice 2b is merged
 - The AI Gateway `osskb-search-dev` exists (created 2026-10-10: 600 requests
   an hour, a $2 per 30 days spend limit, authentication on). It is used only
   once the flag is set.
-- **Unconfirmed:** whether the CI `CLOUDFLARE_API_TOKEN` may deploy a Worker
-  with a Vectorize binding. If it may not, the "Deploy the isolated
-  development data publisher" step fails after Pages has deployed. Dev stays
-  consistent: the previous Worker keeps running, Pages do not depend on this
-  change, and no release or state is touched. Fix: add the Vectorize
-  permission to the token and re-run the job. Nothing else is needed to roll
-  back.
+- The CI `CLOUDFLARE_API_TOKEN` may deploy a Worker with a Vectorize
+  binding and the `v3` migration: confirmed by the Dev deploy of slice 2b
+  (PR #50, 2026-10-10), which succeeded.
 
 1. **Slice 2b merges.** The Dev deploy creates the object class and attaches
    the index. The flag is unset: the publisher has no trigger, no model or
    index call is made, `/health` `searchEmbedding.enabled` is `false`.
-2. **Estimate.** `POST /search-embedding/run?dryRun=1&profile=bge-m3@1`
-   returns the chunks, calls, tokens, neurons, dollars, and runs (H52).
-3. **Enable.** Set `"SEARCH_EMBEDDING": "bge-m3@1"` in
-   `wrangler.development.jsonc` and update the H45 configuration test. Each
-   successful publication then triggers a run; the backfill takes about
-   three. After the first real run, compare the tokens and neurons the
-   gateway `osskb-search-dev` reports with `lastRun.estimatedInputTokens` and
-   `estimatedNeurons`, and record the ratio in Results (the daily cap allows
-   for 2×).
-4. **Turn off.** Remove the variable. No further call is made; stored
-   vectors stay and are simply not updated. Nothing reads them before
+2. **Estimate (done 2026-10-10).** `POST
+   /search-embedding/run?dryRun=1&profile=bge-m3@1` returns the chunks,
+   calls, tokens, neurons, dollars, and runs (H52): 8,586 chunks, 172 calls,
+   794 neurons, $0.0087, 3 runs (Results, "Dev dry run").
+3. **Enable (done for Dev, 2026-10-12).** `"SEARCH_EMBEDDING": "bge-m3@1"`
+   is set in `wrangler.development.jsonc` and the H45 configuration test
+   pins Dev to `bge-m3@1` and Prod to unset. Each successful publication
+   then triggers a run; the backfill takes about three. After the first real
+   run, compare the tokens and neurons the gateway `osskb-search-dev` reports
+   with `lastRun.estimatedInputTokens` and `estimatedNeurons`, and record the
+   ratio in Results (the daily cap allows for 2×). The observations are
+   listed under H52.
+4. **Turn off.** Remove the variable (on Dev: revert the enable PR). No
+   further call is made; stored vectors stay and are simply not updated. Nothing reads them before
    slice 3.
 5. **Start over.** Delete and recreate the index (1,024 dimensions, cosine),
    then `POST /search-embedding/run?reset=1`; without the reset the state
@@ -957,7 +963,9 @@ Items tagged `[pending]` belong to slices 3–4.
 ### Behavior (slice 2b)
 - H21: given a published release and `SEARCH_EMBEDDING=bge-m3@1`, a run embeds
   every chunk through the search gateway with `@cf/baai/bge-m3` and upserts
-  one vector per chunk into its project's namespace; a second run on the same
+  one vector per passage (id = hash of project, record, and ordinal;
+  Decision 9, confirmed by the owner 2026-10-12) into its project's
+  namespace; a second run on the same
   release makes no model call and no mutation; a new `sourceVersion` with the
   same title, text, and group is not embedded again; a changed text is
   embedded alone and replaces the vector under the same id; a removed chunk's
@@ -995,7 +1003,9 @@ Items tagged `[pending]` belong to slices 3–4.
   index, the embedding run fails naming it and calls nothing while the
   publication still succeeds; the Dev configuration binds the index, the
   object, and `SEARCH_GATEWAY_ID=osskb-search-dev` (not the digest gateway)
-  without the flag, and the Prod configuration has none of them → evidence:
+  and sets `SEARCH_EMBEDDING=bge-m3@1` (since H52; without the flag the same
+  configuration is off), and the Prod configuration has none of them →
+  evidence:
   `search-embedding-runner.test.ts`, `pipeline.test.ts`.
 
 ### Failure and retry (slice 2b)
@@ -1177,12 +1187,28 @@ Items tagged `[pending]` belong to slices 3–4.
   `search-embedding-runner.test.ts`, `search-embedding-run.test.ts`.
 - H52: [deploy] given slice 2b live on Dev, the Dev deploy with the new
   binding and migration succeeds, `/health` `searchEmbedding.enabled` is
-  `false`, and a dry run with `profile=bge-m3@1` returns an estimate; given
-  `SEARCH_EMBEDDING=bge-m3@1` then set for Dev, the backfill reaches
-  `pending: 0` within the estimated runs, `lastRun.index.mutationsProcessed`
-  becomes true, the search gateway shows the calls while `osskb-digest-dev`
-  shows none of them, and the ratio of the gateway's reported tokens to the
-  estimate is recorded in Results.
+  `false`, and a dry run with `profile=bge-m3@1` returns an estimate
+  (observed 2026-10-10: Results, "Dev dry run"); given
+  `SEARCH_EMBEDDING=bge-m3@1` then set for Dev (2026-10-12), the backfill
+  reaches `pending: 0` within the estimated runs,
+  `lastRun.index.mutationsProcessed` becomes true, the search gateway shows
+  the calls while `osskb-digest-dev` shows none of them, and the ratio of
+  the gateway's reported tokens to the estimate is recorded in Results. The
+  deployed E2E (`development.spec.ts`) asserts on every run that `/health`
+  `searchEmbedding.enabled` is `true` with no `configError`; it cannot
+  assert progress, which depends on later hourly runs. To observe after the
+  enable deploy, from the first run after the next publication (minute 7)
+  on, and to record in Results:
+  - `/health` `searchEmbedding.lastRun`: `ok`, `embeddedThisRun`,
+    `modelCalls`, `modelErrors`, `limited`; `searchEmbedding.lastError`;
+  - `lastRun.index.mutationsProcessed` and the index's dimensions (1,024);
+  - `searchEmbedding.today.calls` and `today.estimatedNeurons` against the
+    caps (400 and 2,500);
+  - whether `@cf/baai/bge-m3` accepted batches of 50 texts within the
+    30-second call timeout;
+  - the tokens and cost the gateway `osskb-search-dev` reports against the
+    estimate, as a ratio, and no such call on `osskb-digest-dev`;
+  - `pending` reaching 0 in about 3 runs.
 - H42: [deploy] given slice 2a live on Dev and the variable set for Dev, the
   next run's `/health` `lastRun.search.lexicalRevision` is
   `bm25-reference@2`, and Dev `/api/search` returns results for `KIP770` and
@@ -1313,6 +1339,35 @@ Limits of these numbers:
 Worker bundle (`wrangler deploy --dry-run`, both configurations): 278.51 KiB
 (gzip 69.92) before, 321.07 KiB (gzip 80.08) after.
 
+### Dev dry run (2026-10-10, H52)
+
+`POST /search-embedding/run?dryRun=1&profile=bge-m3@1` on the Dev Worker
+with slice 2b deployed and the flag off, against the current Dev release. It
+called no model and no index and wrote no state.
+
+| | Dev dry run | Scaled from the snapshot (above) |
+| --- | --- | --- |
+| Chunks | 8,586 | 8,586 |
+| Pending | 8,586 | — |
+| Model calls | 172 | 172 |
+| Estimated input tokens | 727,738 | 762,768 |
+| Estimated neurons | 794 | 832 |
+| Cost | $0.008734 | $0.0092 |
+| Runs | 3 | 3 |
+| UTC days | 1 | 1 |
+
+`/health` `searchEmbedding` at the same time: `enabled: false`, caps of
+2,500 neurons and 400 calls a day, no `configError`. The Dev deploy of slice
+2b had succeeded, so the CI token can deploy the Vectorize binding and the
+`v3` migration. The estimated tokens are 4.6% under the scaled figure
+(84.8 a chunk against 88.8).
+
+The owner approved enabling embeddings on Dev on 2026-10-12 on these
+numbers. Still to record after the first real runs (H52): the run results,
+the batch size and latency the model accepted, the time for a mutation to
+be processed, and the ratio of the gateway's reported tokens to the
+estimate.
+
 Mutation evidence (one mutant or more per behavior, each seen failing) is
 listed in the PR.
 
@@ -1346,7 +1401,7 @@ Not decided here:
 Raised by slice 2b:
 
 8. **H21's wording** (Decision 9): one vector per passage, not per chunk id.
-   Recommended; to confirm (owner's answer a).
+   Decided: confirmed by the owner on 2026-10-12 (owner's answer a).
 9. **Finding a release's chunk at query time.** `SemanticReleaseView.chunks`
    is the seam; slice 3 must implement it over R2. A release has no
    record → shard lookup today (the lexical reader finds shards by term).
@@ -1399,7 +1454,7 @@ profile fit"):
   call and leaves `/api/search` on Dev at `@1`.
 - Calling the retriever from `/api/search`, any Pages binding, and any change
   to a response (slice 3). Slice 2b sets no flag and embeds nothing on Dev or
-  Prod until H52.
+  Prod until H52; since H52 (2026-10-12) Dev embeds and Prod does not.
 - A real Workers AI or Vectorize call from a test or a developer machine.
 - Re-embedding to repair one vector: the unit of repair is `reset=1`.
 - A ranking change for the repeated thread title (open question 6, G31):

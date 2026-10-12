@@ -14,7 +14,8 @@
     "DIGEST_ENABLED": "true",
     "DIGEST_MODEL": "workers-ai",
     "DIGEST_GATEWAY_ID": "osskb-digest-dev",
-    "SEARCH_GATEWAY_ID": "osskb-search-dev"
+    "SEARCH_GATEWAY_ID": "osskb-search-dev",
+    "SEARCH_EMBEDDING": "bge-m3@1"
   },
   "ai": {
     "binding": "AI"
