@@ -242,6 +242,15 @@ describe("Spec 016 query gate: budget", () => {
     expect((await gate.health()).sinceStart).toEqual({ requests: 50, cached: 0, embedded: 10, overBudget: 40, failed: 0 });
   });
 
+  test("H63: the cap holds when storage reads and writes interleave", async () => {
+    const { gate, model, storage } = await setup({ limits: { dailyNeuronCap: 10 } });
+    storage.slow = true;
+    const answers = await Promise.all(Array.from({ length: 30 }, (_, index) => gate.query({ query: `interleaved query ${index}`, projectIds: [KAFKA] })));
+    expect(answers.filter((answer) => answer.status === "ok")).toHaveLength(10);
+    expect(model.calls).toHaveLength(10);
+    expect(storage.values.get("spend:2026-10-12")).toMatchObject({ neurons: 10, modelCalls: 10, indexQueries: 10 });
+  });
+
   test("H63: a call is counted before it is made, so one that fails or never answers is still in the ledger", async () => {
     const { gate, model } = await setup({ limits: { callTimeoutMs: 5 } });
     model.fail = (call) => (call === 1 ? new Error("model exploded") : undefined);

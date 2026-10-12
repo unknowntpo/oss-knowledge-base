@@ -164,12 +164,20 @@ export class MemoryGateStorage {
   readonly values = new Map<string, unknown>();
   /** Return an error to make that write fail. */
   failPut: (key: string) => Error | undefined = () => undefined;
+  /** Make every read and write take a turn of the event loop, as real storage I/O may. */
+  slow = false;
+
+  private async turn(): Promise<void> {
+    if (this.slow) await new Promise((resolve) => setTimeout(resolve, 0));
+  }
 
   async get<T>(key: string): Promise<T | undefined> {
+    await this.turn();
     return this.values.get(key) as T | undefined;
   }
 
   async put(key: string, value: unknown): Promise<void> {
+    await this.turn();
     const error = this.failPut(key);
     if (error !== undefined) throw error;
     this.values.set(key, structuredClone(value));

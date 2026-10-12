@@ -326,12 +326,15 @@ describe("Spec 016 hybrid search: the flag, the binding, and `semantic=off`", ()
     ["the flag without the binding", { SEARCH_SEMANTIC: "rrf-group@1" }, false],
   ])("H66: %s answers lexically with `failed` and asks nothing", async (_, flags, bound) => {
     const objects = await goldenRelease();
-    const env = { OSS_KB_BUCKET: new MemoryBucket(objects).asR2(), ...flags, ...(bound ? { SEARCH_QUERY_GATE: namespaceOf(untouchableGate) } : {}) };
+    // A gate that would answer, so a flag wrongly honoured would show as `ok`.
+    const { gate } = await fakeGate(chunksOf(objects));
+    const env = { OSS_KB_BUCKET: new MemoryBucket(objects).asR2(), ...flags, ...(bound ? { SEARCH_QUERY_GATE: namespaceOf(gate) } : {}) };
     const response = await request("https://dev.example/api/search?q=txn", env);
     expect(response.status).toBe(200);
     const body = await response.json() as SearchResponseV1;
     expect(body.retrieval.semantic).toEqual({ status: "failed" });
     expect(withoutSemantic(body)).toEqual(await lexical(objects, { query: "txn", limit: 20 }));
+    expect(gate.requests).toEqual([]);
     expect(semanticSearchOptions(flags, new URL("https://dev.example/api/search?q=txn"))).toEqual({ unavailable: true });
   });
 
