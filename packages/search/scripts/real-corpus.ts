@@ -30,6 +30,7 @@ import {
   evaluateGoldenFixture,
   formatEvaluationTable,
   lexicalSearchConfigFor,
+  lexicalShardPostings,
   rankLexicalShard,
   selectLexicalResults,
   threadPhraseLexicalSearchConfig,
@@ -175,7 +176,7 @@ if (values.check) {
     for (const revision of SNAPSHOT_REVISIONS) {
       const config = lexicalSearchConfigFor(revision, identifierProfiles);
       const inRelease = rankRelease(row.query, config, EVALUATION_DEPTH).map((result) => [result.groupRootRecordId, result.score]);
-      const snapshotShard = { chunks: corpus.fixture.chunks, ...(await import("../src")).lexicalShardPostings(corpus.fixture.chunks, config) };
+      const snapshotShard = { chunks: corpus.fixture.chunks, ...lexicalShardPostings(corpus.fixture.chunks, config) };
       const inSnapshot = selectLexicalResults(rankLexicalShard(snapshotShard, statistics, { query: row.query }, config), { limit: EVALUATION_DEPTH })
         .results.map((result) => [result.groupRootRecordId, result.score]);
       if (JSON.stringify(inRelease) !== JSON.stringify(inSnapshot)) throw new Error(`${row.query} at ${revision}: the snapshot's first ${EVALUATION_DEPTH} differ from the release's`);

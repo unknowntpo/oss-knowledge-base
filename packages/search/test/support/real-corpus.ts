@@ -4,7 +4,6 @@ import {
   lexicalQueryTerms,
   lexicalSearchConfigFor,
   lexicalShardPostings,
-  lexicalWords,
   parseSearchGoldenFixtureV2,
   rankLexicalShard,
   selectLexicalResults,
@@ -74,9 +73,12 @@ export function realCorpusQueries(rows: readonly RealCorpusCase[] = testPlanRows
   }));
 }
 
-/** The terms and words whose release-wide document frequency a case query is scored with. */
+/**
+ * The terms whose release-wide document frequency a case query is scored with. The words of its
+ * phrase pairs are among them: every word of a query is also one of its terms.
+ */
 export function realCorpusQueryTerms(config: LexicalSearchConfigV1, rows: readonly RealCorpusCase[] = testPlanRows): readonly string[] {
-  return [...new Set(rows.flatMap((row) => [...lexicalQueryTerms(row.query, config), ...lexicalWords(row.query)]))].sort();
+  return [...new Set(rows.flatMap((row) => lexicalQueryTerms(row.query, config)))].sort();
 }
 
 export interface RealCorpus {

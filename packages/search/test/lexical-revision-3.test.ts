@@ -202,6 +202,13 @@ describe("Spec 017 bm25-reference@3: what does not change", () => {
     expect(results[1]!.score).toBeGreaterThan(search("bm25-reference@2")[1]!.score);
     expect(results[1]!.score).toBeGreaterThan(results[0]!.score - config.exactBoost);
     expect(results[0]!.score).toBeGreaterThan(config.exactBoost);
+    // The order does not rest on the size of the boost: with a negligible one the exact match still leads.
+    const tiny = searchLexicalIndex(buildLexicalIndex({ indexRevision: "test", chunks, config: { ...config, exactBoost: 0.001 } }), { query: "KIP770", limit: 20 });
+    expect(tiny.map((result) => [result.groupRootRecordId, result.exactMatch])).toEqual([
+      ["test:record:exact", true],
+      ["test:record:loud", false],
+    ]);
+    expect(tiny[1]!.score).toBeGreaterThan(tiny[0]!.score);
   });
 
   test("N14: the matching threads, project facets, filters, and limit are those of @2; only the order differs", async () => {

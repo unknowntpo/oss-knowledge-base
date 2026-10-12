@@ -182,7 +182,7 @@ queries (`bun run --cwd packages/search real-corpus -- --release <dir>
      and the publisher both rank from one config; `@1` and `@2` configs carry
      neither.
    - The snapshot's document frequencies: needed to score the snapshot as
-     the release does; only the query terms' values are stored (38).
+     the release does; only the query terms' values are stored (37).
    - Owner/implementer labels per row: the owner must be able to tell which
      labels are theirs.
 2. Delete.
@@ -317,7 +317,12 @@ Phrase bonus (`packages/search/test/phrase-bonus.test.ts`):
 | N2 | a camelCase query is its words | RequestManager | Improve heartbeat request manager interval | It starts at zero. | request+manager | — |
 | N2 | the pair only in the text | request manager | Fix a retry loop | CommitRequestManager retries the request. | — | request+manager |
 | N2 | a pair in both is credited once, to the title | request manager | Request manager cleanup | The request manager leaks. | request+manager | — |
-| N2 | a hyphen, a dot, or punctuation between the words | request manager | request-manager, Request.manager and Request: (Manager) | None. | request+manager | — |
+| N2 | a hyphen between the words | request manager | The request-manager | None. | request+manager | — |
+| N2 | a dot between the words | request manager | Call Request.manager | None. | request+manager | — |
+| N2 | several punctuation marks between the words | request manager | Request: (Manager) | None. | request+manager | — |
+| N2 | a line break between the words | request manager | Notes | A request
+
+manager. | — | request+manager |
 | N2 | full-width letters are normalized | request manager | ＲｅｑｕｅｓｔＭａｎａｇｅｒ | None. | request+manager | — |
 | N2 | the words apart | request manager | Request a new manager | For the next cycle. | — | — |
 | N2 | the words reversed | request manager | Manager request queue grows | It is unbounded. | — | — |
