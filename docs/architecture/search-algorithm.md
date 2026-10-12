@@ -1,7 +1,7 @@
 # 搜尋演算法筆記
 
-狀態：討論中（2026-10-10 更新）。這份文件記錄搜尋的現況、概念與下一步，隨討論更新。
-規格出處：[Spec 005](../specs/005-evidence-search/spec.md)、[Spec 013](../specs/013-search-streaming/spec.md)、[Spec 016](../specs/016-semantic-search/spec.md)。
+狀態：討論中（2026-10-12 更新）。這份文件記錄搜尋的現況、概念與下一步，隨討論更新。
+規格出處：[Spec 005](../specs/005-evidence-search/spec.md)、[Spec 013](../specs/013-search-streaming/spec.md)、[Spec 016](../specs/016-semantic-search/spec.md)、[Spec 017](../specs/017-lexical-ranking/spec.md)。
 
 ## 一句話
 
@@ -26,7 +26,9 @@
 | 欄位權重 | 標題 ×4、標籤 ×2、內文與作者 ×1 |
 | 計分 | BM25（k1 = 1.2、b = 0.75），統計值在發布時預先算好 |
 | 精確比對 | 結構化查詢（如 `KAFKA-1234`）命中時加 1000 分 |
-| thread 分數 | 最佳 chunk + 其他命中 chunk × 0.25 |
+| thread 分數 | `@1`、`@2`：最佳 chunk + 其他命中 chunk × 0.25。`@3`：chunk 依分數由高到低排列，第 i 個（從 0 起算）乘 0.25^i，所以 thread 分數低於最佳 chunk 的 4/3 |
+| 詞組加分 | 只有 `@3`：查詢中相鄰的兩個字，若在 chunk 的標題或內文中也相鄰且順序相同，加上兩字 IDF 的平均；出現在標題時再乘 4。`HeartbeatRequestManager` 與 `heartbeat request manager` 視為相同的三個字 |
+| 版本 | `bm25-reference@1`（Prod）、`@2`（Dev：camelCase 拆字、編號正規化）、`@3`（Spec 017：索引與 `@2` 相同，只改排序；已實作，尚無環境啟用） |
 | 儲存 | v3 release：每專案多個 shard（每個 ≤ 1,000 chunk）+ `terms.json` |
 | 延遲 | Dev 中位數約 1.04 秒（Spec 013 前約 4 秒） |
 
@@ -96,6 +98,8 @@ Clef-flash 的限制：在 Workers AI 上，長輸入會被截斷（約 2K token
 
 標準查詢：`packages/search/test/fixtures/golden-queries.v1.json` 共 8 題（評分規則見 [golden-query-rubric](../specs/005-evidence-search/golden-query-rubric.md)）。Spec 016 新增 `golden-queries.v2.json`：沿用 v1 的 8 題，再加 8 題（編號無連字號、純數字、類別名稱片段、縮寫、中文），共 16 題，每題有分級（2 = 預期、1 = 可接受）與 `requires`（`lexical` 或 `semantic`）。`bun run eval:search` 算出三個指標並寫出報告。16 題仍然太少，需要補真實查詢。
 
+Spec 017 另外加入真實語料的評估：`real-corpus-snapshot.v1.json` 取自 2026-10-12 的 Dev release（8,700 個 chunk 中的 1,134 個，並附上該 release 的全域統計值），共 21 題；其中 1 題由 owner 標註，其餘 20 題由實作者依標題標註，待 owner 確認。snapshot 中每題前 20 名的排序與完整 release 相同。`bun run eval:search` 同時寫出這份報告：`@2` 通過 7 題（MRR 0.5913、nDCG@10 0.6832），`@3` 通過 20 題（MRR 0.9762、nDCG@10 0.9531）。25 個 chunk 的 v2 標準查詢看不出這個差距。
+
 判讀失敗的方法：
 
 - 正確答案沒進前 20 名 → 檢索的問題 → 補語意檢索。
@@ -129,7 +133,8 @@ Clef-flash 的限制：在 Workers AI 上，長輸入會被截斷（約 2K token
 4. slice 2b：發布時為每個 chunk 算 embedding 並寫入 Vectorize。
 5. slice 3：查詢時算 embedding，在 `/api/search` 以開關啟用混合檢索。
 6. slice 4：用真實模型量 v2 標準查詢，比較 BM25 與混合檢索，再決定是否加入重排。
-7. 視需要做「問答」：用檢索結果讓模型附引用回答（RAG，另立規格）。檢索品質是它的上限。
+7. Spec 017（已實作，未啟用）：`bm25-reference@3`。thread 分數改為等比遞減，並加入詞組加分；儲存的 shard 與 `terms.json` 和 `@2` 相同，只有 manifest 的 `lexicalRevision` 不同。啟用方式與 `@2` 相同：另開 PR 把 Dev 的 `SEARCH_LEXICAL_REVISION` 設為 `bm25-reference@3`。
+8. 視需要做「問答」：用檢索結果讓模型附引用回答（RAG，另立規格）。檢索品質是它的上限。
 
 ## 營運限制
 
@@ -143,7 +148,8 @@ Clef-flash 的限制：在 Workers AI 上，長輸入會被截斷（約 2K token
 - 標準查詢由誰提供、要多少題？
 - 查詢的 embedding 在瀏覽器算還是在伺服器算？（Spec 005 要求先量測）
 - 查詢時 embedding 的 AI Gateway 與濫用防護怎麼設？
-- 郵件 thread 的每封回覆都重複標題，長 thread 因此排在前面（Spec 016 Results）；要改字面計分，還是交給重排？
+- 郵件 thread 的每封回覆都重複標題，長 thread 因此排在前面（Spec 016 Results）：由 Spec 017 的 `@3` 處理。owner 標註的查詢 `consumer network thread request manager` 在 `@3` 仍未達到「前 3 名」：KAFKA-20765 的內文沒有 `network` 與 `thread`，屬於詞彙落差，要靠語意檢索。
+- Spec 017 的 20 題標註是否正確？`Pull Request` 這類標籤被當成一般文字索引，`request` 出現在 8,700 個 chunk 中的 6,962 個（gardening G44），要不要改？
 - 若加入重排：「部分相關」的權重 0.5 是否合理？要不要考慮時間（新的 thread 加分）？
 
 ## 名詞

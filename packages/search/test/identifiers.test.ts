@@ -86,7 +86,7 @@ describe("Spec 016 community identifiers (bm25-reference@2 with profiles)", () =
   test("H15: identifier profiles are rejected with bm25-reference@1", () => {
     const identifiers: IdentifierProfilesV1 = { p: [{ kind: "kip", canonicalPrefix: "KIP-", textPattern: "KIP-?(\\d+)" }] };
     expect(() => buildLexicalIndex({ indexRevision: "test", chunks: [], config: { ...defaultLexicalSearchConfig, identifiers } }))
-      .toThrow("Identifier profiles require bm25-reference@2, not bm25-reference@1");
+      .toThrow("Identifier profiles require bm25-reference@2 or later, not bm25-reference@1");
     expect(() => lexicalShardPostings([], { ...defaultLexicalSearchConfig, identifiers })).toThrow("require bm25-reference@2");
     expect(buildLexicalIndex({ indexRevision: "test", chunks: [], config: { ...codeTextLexicalSearchConfig, identifiers } }).lexicalRevision)
       .toBe("bm25-reference@2");

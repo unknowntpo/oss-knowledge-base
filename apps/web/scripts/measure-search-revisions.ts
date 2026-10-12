@@ -1,5 +1,6 @@
 /**
- * Spec 016 H40: what `bm25-reference@2` adds to a Search release over `@1`, for the same Feed.
+ * Spec 016 H40 and Spec 017 N15: what each lexical revision adds to a Search release over the one
+ * before it, for the same Feed (`bm25-reference@2` over `@1`, `@3` over `@2`).
  *
  *   bun run measure:search-revisions [--seed <r2-seed directory>]
  *
@@ -54,11 +55,15 @@ for (const lexicalRevision of SUPPORTED_LEXICAL_REVISIONS) {
   };
 }
 
-const [before, after] = SUPPORTED_LEXICAL_REVISIONS.map((revision) => measured[revision]!) as [Readonly<Record<string, number>>, Readonly<Record<string, number>>];
-const growth = Object.fromEntries(Object.keys(before).map((name) => [
-  name,
-  before[name] === 0 ? null : `${((after[name]! / before[name]! - 1) * 100).toFixed(1)}%`,
-]));
+// Growth of each revision over the one before it: `@2` adds tokens; `@3` stores what `@2` stores.
+const growth = Object.fromEntries(SUPPORTED_LEXICAL_REVISIONS.slice(1).map((revision, index) => {
+  const before = measured[SUPPORTED_LEXICAL_REVISIONS[index]!]!;
+  const after = measured[revision]!;
+  return [`${SUPPORTED_LEXICAL_REVISIONS[index]} -> ${revision}`, Object.fromEntries(Object.keys(before).map((name) => [
+    name,
+    before[name] === 0 ? null : `${((after[name]! / before[name]! - 1) * 100).toFixed(1)}%`,
+  ]))];
+}));
 
 console.log(JSON.stringify({
   source: values.seed ?? "apps/web/test/fixtures/recorded-feed-publication.v1.json",

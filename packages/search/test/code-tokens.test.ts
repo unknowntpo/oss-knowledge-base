@@ -11,9 +11,7 @@ import {
   lexicalShardPostings,
   lexicalTokenizer,
   parseSearchGoldenFixture,
-  rankLexicalShard,
   searchLexicalIndex,
-  selectLexicalResults,
   SUPPORTED_LEXICAL_REVISIONS,
   tokenizeLexical,
   type LexicalSearchConfigV1,
@@ -21,6 +19,7 @@ import {
 } from "../src";
 import { testPlanRows } from "./code-tokens.cases";
 import { codeTextConfig, loadGoldenV2 } from "./support/golden-v2";
+import { rankSharded } from "./support/sharded";
 
 const goldenV1Path = new URL("./fixtures/golden-queries.v1.json", import.meta.url);
 const FAMILY = ["kafka:jira:issue:KAFKA-19804", "kafka:github:pull:22747", "kafka:jira:issue:KAFKA-19738"];
@@ -29,41 +28,6 @@ const RELEASE_MANAGER = "kafka:mail:dev:release-manager-4-4-0";
 function roots(chunks: readonly SourceRecordChunkV1[], config: LexicalSearchConfigV1, query: string): readonly string[] {
   const index = buildLexicalIndex({ indexRevision: "test", chunks, config });
   return searchLexicalIndex(index, { query, limit: 20 }).map((result) => result.groupRootRecordId);
-}
-
-/** Ranks through stored shard postings, as the Spec 013 reader does. */
-function rankSharded(chunks: readonly SourceRecordChunkV1[], config: LexicalSearchConfigV1, query: string, maxShardChunks: number) {
-  const byGroup = new Map<string, SourceRecordChunkV1[]>();
-  for (const chunk of [...chunks].sort((left, right) =>
-    left.projectId.localeCompare(right.projectId) || left.groupRootRecordId.localeCompare(right.groupRootRecordId) ||
-    left.id.localeCompare(right.id))) {
-    byGroup.set(chunk.groupRootRecordId, [...byGroup.get(chunk.groupRootRecordId) ?? [], chunk]);
-  }
-  const shards: SourceRecordChunkV1[][] = [];
-  for (const group of byGroup.values()) {
-    const open = shards.at(-1);
-    if (open !== undefined && open[0]!.projectId === group[0]!.projectId && open.length + group.length <= maxShardChunks) {
-      open.push(...group);
-    } else {
-      shards.push([...group]);
-    }
-  }
-  const stored = shards.map((shardChunks) => JSON.parse(JSON.stringify({
-    chunks: shardChunks,
-    ...lexicalShardPostings(shardChunks, config),
-  })) as { chunks: SourceRecordChunkV1[]; lengths: number[]; postings: Record<string, number[]> });
-  const documentFrequency = new Map<string, number>();
-  for (const shard of stored) {
-    for (const [term, postings] of Object.entries(shard.postings)) {
-      documentFrequency.set(term, (documentFrequency.get(term) ?? 0) + postings.length / 2);
-    }
-  }
-  const corpus = {
-    chunkCount: chunks.length,
-    totalChunkLength: stored.flatMap((shard) => shard.lengths).reduce((total, length) => total + length, 0),
-    documentFrequency: (term: string) => documentFrequency.get(term) ?? 0,
-  };
-  return selectLexicalResults(stored.flatMap((shard) => rankLexicalShard(shard, corpus, { query }, config)), { limit: 20 }).results;
 }
 
 describe("Spec 016 code-text tokens (bm25-reference@2)", () => {
@@ -107,7 +71,7 @@ describe("Spec 016 code-text tokens (bm25-reference@2)", () => {
     for (const query of ["RequestManager", "KIP770", "770", "#770", "consumer network thread request manager", "txn", "RecordAccumulator.ready()"]) {
       const expected = searchLexicalIndex(index, { query, limit: 20 });
       expect(expected.length, query).toBeGreaterThan(0);
-      expect(rankSharded(golden.chunks, config, query, maxShardChunks), query).toEqual(expected);
+      expect(rankSharded(golden.chunks, config, query, maxShardChunks).results, query).toEqual(expected);
     }
   });
 
@@ -115,8 +79,8 @@ describe("Spec 016 code-text tokens (bm25-reference@2)", () => {
     expect(DEFAULT_LEXICAL_REVISION).toBe("bm25-reference@1");
     expect(defaultLexicalSearchConfig.revision).toBe("bm25-reference@1");
     expect(lexicalTokenizer("bm25-reference@1")).toBe(tokenizeLexical);
-    // Only @2 opts in: an unknown or later revision keeps the @1 tokens.
-    for (const revision of ["bm25-reference@3", "bm25:v1", ""]) {
+    // Only @2 and @3 (Spec 017) opt in: an unknown or later revision keeps the @1 tokens.
+    for (const revision of ["bm25-reference@4", "bm25:v1", ""]) {
       expect(lexicalTokenizer(revision)("HeartbeatRequestManager")).toEqual(["heartbeatrequestmanager"]);
     }
     expect(tokenizeLexical("HeartbeatRequestManager KIP770")).toEqual(["heartbeatrequestmanager", "kip770"]);
@@ -127,14 +91,14 @@ describe("Spec 016 code-text tokens (bm25-reference@2)", () => {
 
   test("H37: a release's config comes from its revision, and an unknown revision has none", async () => {
     const { identifierProfiles } = await loadGoldenV2();
-    expect(SUPPORTED_LEXICAL_REVISIONS).toEqual(["bm25-reference@1", "bm25-reference@2"]);
+    expect(SUPPORTED_LEXICAL_REVISIONS.slice(0, 2)).toEqual(["bm25-reference@1", "bm25-reference@2"]);
     expect(lexicalSearchConfigFor("bm25-reference@1")).toBe(defaultLexicalSearchConfig);
     // `@1` has no identifier profiles, whatever the caller carries.
     expect(lexicalSearchConfigFor("bm25-reference@1", identifierProfiles)).toBe(defaultLexicalSearchConfig);
     expect(lexicalSearchConfigFor("bm25-reference@2")).toBe(codeTextLexicalSearchConfig);
     expect(lexicalSearchConfigFor("bm25-reference@2", identifierProfiles))
       .toEqual({ ...codeTextLexicalSearchConfig, identifiers: identifierProfiles });
-    for (const revision of ["bm25-reference@3", "bm25-reference", "BM25-REFERENCE@2", " bm25-reference@2", ""]) {
+    for (const revision of ["bm25-reference@4", "bm25-reference", "BM25-REFERENCE@2", " bm25-reference@2", ""]) {
       expect(() => lexicalSearchConfigFor(revision, identifierProfiles)).toThrow(`Unsupported lexical revision ${revision}`);
     }
   });

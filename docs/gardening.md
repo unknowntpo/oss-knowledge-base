@@ -312,11 +312,14 @@ the two `viewer/` items below.
   golden v2 the four-message "4.4.0 Release Manager" thread ranks first for
   `RequestManager` and `request manager`, above records that hold both
   words (Spec 016 Results).
-- **Fix:** decide in Spec 016 slice 4 (open question 6): count the title
-  once per thread, lower the further-chunk weight, a proximity signal, or
-  rerank. Each needs its own measurement.
-- **Layer:** test row (golden v2 already fails on it).
-- **Source:** Spec 016 slice 1 evaluation, 2026-10-10.
+  On the Dev release of 2026-10-12 the 19-message thread is first for every
+  query holding `manager` (Spec 017 Evidence).
+- **Fix:** Spec 017 `bm25-reference@3` (a thread scores less than 4/3 of its
+  best chunk; adjacent query words earn a bonus). Implemented behind
+  `SEARCH_LEXICAL_REVISION`, not switched on. Delete this item when Dev
+  writes `@3` (Spec 017 N17).
+- **Layer:** test rows (`real-corpus.cases.ts`, `thread-score.cases.ts`).
+- **Source:** Spec 016 slice 1 evaluation, 2026-10-10; Spec 017.
 
 ### G32. Search identifier patterns are written twice
 - **Where:** `packages/reference-pipeline/src/search/profiles.ts` (the
@@ -450,6 +453,49 @@ the two `viewer/` items below.
   `search-embedding/run.ts`.
 - **Layer:** structure (one function every surfaced error passes), then test.
 - **Source:** PR #50 verifier, second verdict.
+
+### G44. Record-kind tags are indexed as words
+- **Where:** `chunkTerms` (`packages/search/src/lexical-search.ts`) indexes
+  every tag at weight 2; the Feed tags each GitHub pull request `Pull
+  Request` and each Jira issue `Jira`.
+- **Why:** on the Dev release of 2026-10-12 `request` is in 6,962 of 8,700
+  chunks and `pull` in 6,759, so both words carry almost no score and a
+  query such as `request manager` is decided by `manager` alone. The phrase
+  bonus of Spec 017 compensates for adjacent words only.
+- **Fix:** index a kind tag as one token (or not at all) and filter by it
+  through `filters.tags`. It changes postings, so it needs a lexical revision
+  and its own measurement on the real-corpus snapshot.
+- **Layer:** test row (`real-corpus.cases.ts`).
+- **Source:** Spec 017 Evidence.
+
+### G45. `bm25-reference@3` is a third revision behind the rollout flag
+- **Where:** `threadPhraseLexicalSearchConfig`, `assembleGroup`, and
+  `phraseBonus` (`packages/search/src/lexical-search.ts`); G34 lists the flag
+  and its tests.
+- **Why:** Spec 017 ships the `@3` ranking off. Until Dev and Prod write it,
+  the search package keeps the flat thread sum of `@1` and `@2` next to the
+  geometric one, and the H39 test pins Dev to `@2`.
+- **Fix:** the switch PR (Spec 017 N17) sets the variable for Dev. When no
+  environment needs an `@2` release for rollback, delete the flat sum with
+  `@2` (G34).
+- **Layer:** test (H39) now; structure (one ranking) at the end.
+- **Source:** Spec 017.
+
+### G46. The real-corpus evaluation is one day's release with implementer labels
+- **Where:** `packages/search/test/fixtures/real-corpus-snapshot.v1.json`,
+  `packages/search/test/real-corpus.cases.ts`, the snapshot digests in
+  `lexical-revision-3.test.ts` (N7).
+- **Why:** the snapshot is the Dev release of 2026-10-12 (1,134 of 8,700
+  chunks). 20 of its 21 queries are labelled by the implementer from titles.
+  Refreshing it needs the release's objects from R2 (not publicly readable)
+  and the two `@2` digests recomputed at e9984d0. The coverage numbers in
+  Spec 017 Decision 4 come from a prototype that is not in the repository.
+- **Fix:** have the owner confirm or correct the labels; refresh the snapshot
+  when they change or the corpus changes shape (`bun run --cwd
+  packages/search real-corpus -- --release <dir> --write`); drop the snapshot
+  digests once `@2` is deleted (G45).
+- **Layer:** test rows (owner-confirmed labels).
+- **Source:** Spec 017.
 
 ## CI evidence
 

@@ -1,0 +1,794 @@
+{
+  "schema": "osskb.search-golden-evaluation.v1",
+  "fixtureRevision": "real-corpus-feed-2026-10-12T02-07-12-000Z",
+  "depth": 20,
+  "configurations": [
+    {
+      "id": "lexical bm25-reference@2 on the Dev release",
+      "all": {
+        "queries": 21,
+        "pass": 7,
+        "semanticRequired": 0,
+        "fail": 14,
+        "recallAt20": 0.9397,
+        "mrr": 0.5913,
+        "ndcgAt10": 0.6832
+      },
+      "lexicalQueries": {
+        "queries": 21,
+        "pass": 7,
+        "semanticRequired": 0,
+        "fail": 14,
+        "recallAt20": 0.9397,
+        "mrr": 0.5913,
+        "ndcgAt10": 0.6832
+      },
+      "semanticQueries": {
+        "queries": 0,
+        "pass": 0,
+        "semanticRequired": 0,
+        "fail": 0,
+        "recallAt20": 0,
+        "mrr": 0,
+        "ndcgAt10": 0
+      },
+      "queries": [
+        {
+          "queryId": "consumer network thread request manager",
+          "requires": "lexical",
+          "status": "fail",
+          "recallAt20": 0.3333,
+          "mrr": 0.0833,
+          "ndcgAt10": 0,
+          "orderCorrect": false,
+          "failures": [
+            "kafka:jira:issue:KAFKA-19804 is not in the top 3",
+            "kafka:github:pull:22747 is not in the top 3",
+            "kafka:jira:issue:KAFKA-19738 is not in the top 3",
+            "negative kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2 ranks 1"
+          ],
+          "top": [
+            "kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2",
+            "kafka:github:pull:23390",
+            "kafka:jira:issue:KAFKA-19919",
+            "kafka:github:pull:23712",
+            "kafka:github:pull:23123"
+          ]
+        },
+        {
+          "queryId": "request manager",
+          "requires": "lexical",
+          "status": "fail",
+          "recallAt20": 0.8,
+          "mrr": 0.125,
+          "ndcgAt10": 0.0932,
+          "failures": [
+            "kafka:github:pull:23687 is not in the top 9",
+            "kafka:jira:issue:KAFKA-19738 is not in the top 9",
+            "kafka:github:pull:22667 is not in the top 9",
+            "kafka:github:pull:20964 is not in the top 9",
+            "negative kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2 ranks 1"
+          ],
+          "top": [
+            "kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2",
+            "datafusion:github:pull:25487",
+            "datafusion:github:pull:26110",
+            "kafka:github:pull:23385",
+            "kafka:github:pull:23604"
+          ]
+        },
+        {
+          "queryId": "RequestManager",
+          "requires": "lexical",
+          "status": "fail",
+          "recallAt20": 0.8,
+          "mrr": 0.125,
+          "ndcgAt10": 0.0932,
+          "failures": [
+            "kafka:github:pull:23687 is not in the top 9",
+            "kafka:jira:issue:KAFKA-19738 is not in the top 9",
+            "kafka:github:pull:22667 is not in the top 9",
+            "kafka:github:pull:20964 is not in the top 9",
+            "negative kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2 ranks 1"
+          ],
+          "top": [
+            "kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2",
+            "datafusion:github:pull:25487",
+            "datafusion:github:pull:26110",
+            "kafka:github:pull:23385",
+            "kafka:github:pull:23604"
+          ]
+        },
+        {
+          "queryId": "OffsetsRequestManager",
+          "requires": "lexical",
+          "status": "fail",
+          "recallAt20": 1,
+          "mrr": 0.5,
+          "ndcgAt10": 0.6934,
+          "failures": [
+            "kafka:github:pull:22667 is not in the top 2",
+            "negative kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2 ranks 1"
+          ],
+          "top": [
+            "kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2",
+            "kafka:jira:issue:KAFKA-19738",
+            "kafka:github:pull:22667",
+            "kafka:github:pull:23298",
+            "kafka:jira:issue:KAFKA-21249"
+          ]
+        },
+        {
+          "queryId": "CommitRequestManager",
+          "requires": "lexical",
+          "status": "fail",
+          "recallAt20": 1,
+          "mrr": 0.5,
+          "ndcgAt10": 0.7328,
+          "failures": [
+            "kafka:jira:issue:KAFKA-20765 is not in the top 3",
+            "negative kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2 ranks 1"
+          ],
+          "top": [
+            "kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2",
+            "kafka:jira:issue:KAFKA-21249",
+            "kafka:github:pull:22747",
+            "kafka:jira:issue:KAFKA-20765",
+            "kafka:jira:issue:KAFKA-21230"
+          ]
+        },
+        {
+          "queryId": "AsyncKafkaConsumer",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 1,
+          "failures": [],
+          "top": [
+            "kafka:github:pull:23123",
+            "kafka:github:pull:23756",
+            "kafka:jira:issue:KAFKA-21229",
+            "kafka:jira:issue:KAFKA-21248",
+            "kafka:jira:issue:KAFKA-20187"
+          ]
+        },
+        {
+          "queryId": "heartbeat request manager",
+          "requires": "lexical",
+          "status": "fail",
+          "recallAt20": 1,
+          "mrr": 0.5,
+          "ndcgAt10": 0.7328,
+          "failures": [
+            "kafka:github:pull:20964 is not in the top 3",
+            "negative kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2 ranks 1"
+          ],
+          "top": [
+            "kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2",
+            "kafka:github:pull:23687",
+            "kafka:jira:issue:KAFKA-19804",
+            "kafka:github:pull:20964",
+            "kafka:github:pull:23455"
+          ]
+        },
+        {
+          "queryId": "release manager",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 1,
+          "failures": [],
+          "top": [
+            "kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2",
+            "kafka:mail:dev:message:tj10yosjhl359dylxqw430hb7rmbqnts",
+            "kafka:mail:dev:message:rjvjnr2y63t0tkhysjtoq5znz57cg2lj",
+            "kafka:mail:dev:message:2d84s3w41gkpldz9hx0fv5ofx9yv223k",
+            "datafusion:github:issue:25758"
+          ]
+        },
+        {
+          "queryId": "log manager",
+          "requires": "lexical",
+          "status": "fail",
+          "recallAt20": 1,
+          "mrr": 0.5,
+          "ndcgAt10": 0.7271,
+          "failures": [
+            "negative kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2 ranks 1"
+          ],
+          "top": [
+            "kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2",
+            "kafka:jira:issue:KAFKA-20390",
+            "kafka:github:pull:23604",
+            "kafka:github:pull:23385",
+            "kafka:github:pull:23697"
+          ]
+        },
+        {
+          "queryId": "KIP770",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 1,
+          "failures": [],
+          "top": [
+            "kafka:github:pull:22458",
+            "kafka:mail:dev:message:bkclscbzgokzo4djf91vc298o7hbr24h",
+            "kafka:mail:dev:message:wwlb3yl9hnrcflm8h33g7jmqv7zkw6md",
+            "kafka:mail:dev:message:qqq7mwdbyd74337t4ob5fv8yp28pv8sv",
+            "kafka:github:pull:23698"
+          ]
+        },
+        {
+          "queryId": "KIP-770",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 1,
+          "failures": [],
+          "top": [
+            "kafka:github:pull:22458",
+            "kafka:mail:dev:message:bkclscbzgokzo4djf91vc298o7hbr24h",
+            "kafka:mail:dev:message:wwlb3yl9hnrcflm8h33g7jmqv7zkw6md",
+            "kafka:mail:dev:message:qqq7mwdbyd74337t4ob5fv8yp28pv8sv",
+            "kafka:github:pull:23698"
+          ]
+        },
+        {
+          "queryId": "770",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 1,
+          "failures": [],
+          "top": [
+            "kafka:github:pull:22458",
+            "kafka:jira:issue:KAFKA-19890"
+          ]
+        },
+        {
+          "queryId": "txn",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 1,
+          "failures": [],
+          "top": [
+            "kafka:jira:issue:KAFKA-20785",
+            "kafka:github:pull:23204",
+            "kafka:github:pull:23539",
+            "kafka:jira:issue:KAFKA-21137",
+            "kafka:github:pull:23538"
+          ]
+        },
+        {
+          "queryId": "KAFKA-19804",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 1,
+          "failures": [],
+          "top": [
+            "kafka:jira:issue:KAFKA-19804",
+            "kafka:github:pull:23687",
+            "kafka:jira:issue:KAFKA-20416",
+            "kafka:jira:issue:KAFKA-21020",
+            "kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2"
+          ]
+        },
+        {
+          "queryId": "disk manager",
+          "requires": "lexical",
+          "status": "fail",
+          "recallAt20": 1,
+          "mrr": 0.5,
+          "ndcgAt10": 0.7328,
+          "failures": [
+            "datafusion:github:pull:22246 is not in the top 3",
+            "negative kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2 ranks 1"
+          ],
+          "top": [
+            "kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2",
+            "datafusion:github:pull:26110",
+            "datafusion:github:pull:23139",
+            "datafusion:github:pull:22246",
+            "datafusion:github:pull:24406"
+          ]
+        },
+        {
+          "queryId": "transaction manager",
+          "requires": "lexical",
+          "status": "fail",
+          "recallAt20": 1,
+          "mrr": 0.5,
+          "ndcgAt10": 0.6291,
+          "failures": [
+            "negative kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2 ranks 1"
+          ],
+          "top": [
+            "kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2",
+            "kafka:github:pull:23547",
+            "kafka:jira:issue:KAFKA-20237",
+            "kafka:github:pull:23630",
+            "kafka:jira:issue:KAFKA-21181"
+          ]
+        },
+        {
+          "queryId": "remote log manager",
+          "requires": "lexical",
+          "status": "fail",
+          "recallAt20": 1,
+          "mrr": 0.5,
+          "ndcgAt10": 0.7123,
+          "failures": [
+            "kafka:github:pull:23211 is not in the top 3",
+            "negative kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2 ranks 1"
+          ],
+          "top": [
+            "kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2",
+            "kafka:github:pull:23604",
+            "kafka:jira:issue:KAFKA-20967",
+            "kafka:github:pull:23626",
+            "kafka:github:pull:23211"
+          ]
+        },
+        {
+          "queryId": "SortMergeJoinExec",
+          "requires": "lexical",
+          "status": "fail",
+          "recallAt20": 1,
+          "mrr": 0.5,
+          "ndcgAt10": 0.76,
+          "failures": [
+            "datafusion:github:issue:25205 is not in the top 6",
+            "datafusion:github:issue:25546 is not in the top 6",
+            "datafusion:github:pull:24593 is not in the top 6",
+            "negative datafusion:github:pull:25487 ranks 1"
+          ],
+          "top": [
+            "datafusion:github:pull:25487",
+            "datafusion:github:pull:25490",
+            "datafusion:github:pull:26090",
+            "datafusion:github:pull:24517",
+            "datafusion:github:issue:24768"
+          ]
+        },
+        {
+          "queryId": "GroupMetadataManager",
+          "requires": "lexical",
+          "status": "fail",
+          "recallAt20": 1,
+          "mrr": 0.5,
+          "ndcgAt10": 0.6082,
+          "failures": [
+            "negative kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2 ranks 1"
+          ],
+          "top": [
+            "kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2",
+            "kafka:jira:issue:KAFKA-21176",
+            "kafka:jira:issue:KAFKA-20601",
+            "kafka:jira:issue:KAFKA-19818",
+            "kafka:github:pull:23555"
+          ]
+        },
+        {
+          "queryId": "tiered storage",
+          "requires": "lexical",
+          "status": "fail",
+          "recallAt20": 0.8,
+          "mrr": 0.3333,
+          "ndcgAt10": 0.2766,
+          "failures": [
+            "kafka:github:pull:23456 is not in the top 5",
+            "kafka:jira:issue:KAFKA-20047 is not in the top 5",
+            "kafka:jira:issue:KAFKA-17665 is not in the top 5",
+            "kafka:jira:issue:KAFKA-19968 is not in the top 5"
+          ],
+          "top": [
+            "kafka:github:pull:23463",
+            "kafka:github:pull:23689",
+            "kafka:github:pull:21108",
+            "kafka:github:pull:23471",
+            "kafka:github:pull:23626"
+          ]
+        },
+        {
+          "queryId": "KRaft controller",
+          "requires": "lexical",
+          "status": "fail",
+          "recallAt20": 1,
+          "mrr": 0.25,
+          "ndcgAt10": 0.5551,
+          "failures": [
+            "kafka:github:pull:19321 is not in the top 4",
+            "kafka:jira:issue:KAFKA-20839 is not in the top 4",
+            "kafka:jira:issue:KAFKA-21129 is not in the top 4"
+          ],
+          "top": [
+            "kafka:github:pull:23310",
+            "kafka:github:pull:23038",
+            "kafka:github:pull:20712",
+            "kafka:jira:issue:KAFKA-18874",
+            "kafka:jira:issue:KAFKA-20839"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lexical bm25-reference@3 on the Dev release",
+      "all": {
+        "queries": 21,
+        "pass": 20,
+        "semanticRequired": 0,
+        "fail": 1,
+        "recallAt20": 0.9841,
+        "mrr": 0.9762,
+        "ndcgAt10": 0.9531
+      },
+      "lexicalQueries": {
+        "queries": 21,
+        "pass": 20,
+        "semanticRequired": 0,
+        "fail": 1,
+        "recallAt20": 0.9841,
+        "mrr": 0.9762,
+        "ndcgAt10": 0.9531
+      },
+      "semanticQueries": {
+        "queries": 0,
+        "pass": 0,
+        "semanticRequired": 0,
+        "fail": 0,
+        "recallAt20": 0,
+        "mrr": 0,
+        "ndcgAt10": 0
+      },
+      "queries": [
+        {
+          "queryId": "consumer network thread request manager",
+          "requires": "lexical",
+          "status": "fail",
+          "recallAt20": 0.6667,
+          "mrr": 0.5,
+          "ndcgAt10": 0.4308,
+          "orderCorrect": false,
+          "failures": [
+            "kafka:github:pull:22747 is not in the top 3",
+            "kafka:jira:issue:KAFKA-19738 is not in the top 3"
+          ],
+          "top": [
+            "kafka:jira:issue:KAFKA-17734",
+            "kafka:jira:issue:KAFKA-19804",
+            "kafka:jira:issue:KAFKA-19919",
+            "kafka:github:pull:20964",
+            "kafka:github:pull:23687"
+          ]
+        },
+        {
+          "queryId": "request manager",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 0.8713,
+          "failures": [],
+          "top": [
+            "kafka:jira:issue:KAFKA-19804",
+            "kafka:jira:issue:KAFKA-19738",
+            "kafka:github:pull:22667",
+            "kafka:github:pull:20964",
+            "kafka:github:pull:23687"
+          ]
+        },
+        {
+          "queryId": "RequestManager",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 0.8713,
+          "failures": [],
+          "top": [
+            "kafka:jira:issue:KAFKA-19804",
+            "kafka:jira:issue:KAFKA-19738",
+            "kafka:github:pull:22667",
+            "kafka:github:pull:20964",
+            "kafka:github:pull:23687"
+          ]
+        },
+        {
+          "queryId": "OffsetsRequestManager",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 1,
+          "failures": [],
+          "top": [
+            "kafka:jira:issue:KAFKA-19738",
+            "kafka:github:pull:22667",
+            "kafka:jira:issue:KAFKA-19804",
+            "kafka:github:pull:20964",
+            "kafka:github:pull:23687"
+          ]
+        },
+        {
+          "queryId": "CommitRequestManager",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 1,
+          "failures": [],
+          "top": [
+            "kafka:jira:issue:KAFKA-21249",
+            "kafka:github:pull:22747",
+            "kafka:jira:issue:KAFKA-20765",
+            "kafka:jira:issue:KAFKA-19804",
+            "kafka:jira:issue:KAFKA-19738"
+          ]
+        },
+        {
+          "queryId": "AsyncKafkaConsumer",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 1,
+          "failures": [],
+          "top": [
+            "kafka:github:pull:23756",
+            "kafka:github:pull:23123",
+            "kafka:jira:issue:KAFKA-21229",
+            "kafka:jira:issue:KAFKA-21248",
+            "kafka:jira:issue:KAFKA-20187"
+          ]
+        },
+        {
+          "queryId": "heartbeat request manager",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 1,
+          "failures": [],
+          "top": [
+            "kafka:github:pull:23687",
+            "kafka:jira:issue:KAFKA-19804",
+            "kafka:github:pull:20964",
+            "kafka:github:pull:23455",
+            "kafka:jira:issue:KAFKA-21059"
+          ]
+        },
+        {
+          "queryId": "release manager",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 1,
+          "failures": [],
+          "top": [
+            "kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2",
+            "kafka:mail:dev:message:tj10yosjhl359dylxqw430hb7rmbqnts",
+            "datafusion:github:pull:26119",
+            "kafka:github:pull:23654",
+            "datafusion:github:pull:26110"
+          ]
+        },
+        {
+          "queryId": "log manager",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 0.9443,
+          "failures": [],
+          "top": [
+            "kafka:jira:issue:KAFKA-20390",
+            "kafka:github:pull:23604",
+            "kafka:github:pull:23385",
+            "kafka:github:pull:23772",
+            "kafka:jira:issue:KAFKA-21038"
+          ]
+        },
+        {
+          "queryId": "KIP770",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 1,
+          "failures": [],
+          "top": [
+            "kafka:github:pull:22458",
+            "kafka:mail:dev:message:qqq7mwdbyd74337t4ob5fv8yp28pv8sv",
+            "kafka:mail:dev:message:bkclscbzgokzo4djf91vc298o7hbr24h",
+            "kafka:mail:dev:message:lmq69lbhzod76byh29b16nm5nz7tlgno",
+            "kafka:mail:dev:message:g239gn2xpz13m2hzl90sgw885js7hxop"
+          ]
+        },
+        {
+          "queryId": "KIP-770",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 1,
+          "failures": [],
+          "top": [
+            "kafka:github:pull:22458",
+            "kafka:mail:dev:message:qqq7mwdbyd74337t4ob5fv8yp28pv8sv",
+            "kafka:mail:dev:message:bkclscbzgokzo4djf91vc298o7hbr24h",
+            "kafka:mail:dev:message:lmq69lbhzod76byh29b16nm5nz7tlgno",
+            "kafka:mail:dev:message:g239gn2xpz13m2hzl90sgw885js7hxop"
+          ]
+        },
+        {
+          "queryId": "770",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 1,
+          "failures": [],
+          "top": [
+            "kafka:github:pull:22458",
+            "kafka:jira:issue:KAFKA-19890"
+          ]
+        },
+        {
+          "queryId": "txn",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 1,
+          "failures": [],
+          "top": [
+            "kafka:jira:issue:KAFKA-20785",
+            "kafka:github:pull:23204",
+            "kafka:github:pull:23539",
+            "kafka:jira:issue:KAFKA-21137",
+            "kafka:github:pull:23538"
+          ]
+        },
+        {
+          "queryId": "KAFKA-19804",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 1,
+          "failures": [],
+          "top": [
+            "kafka:jira:issue:KAFKA-19804",
+            "kafka:github:pull:23687",
+            "kafka:jira:issue:KAFKA-21018",
+            "kafka:jira:issue:KAFKA-21076",
+            "kafka:jira:issue:KAFKA-20728"
+          ]
+        },
+        {
+          "queryId": "disk manager",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 1,
+          "failures": [],
+          "top": [
+            "datafusion:github:pull:26110",
+            "datafusion:github:pull:23139",
+            "datafusion:github:pull:22246",
+            "datafusion:github:pull:24406",
+            "datafusion:github:pull:21882"
+          ]
+        },
+        {
+          "queryId": "transaction manager",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 0.979,
+          "failures": [],
+          "top": [
+            "kafka:github:pull:23547",
+            "kafka:jira:issue:KAFKA-20237",
+            "kafka:github:pull:23630",
+            "kafka:jira:issue:KAFKA-21181",
+            "kafka:github:pull:21715"
+          ]
+        },
+        {
+          "queryId": "remote log manager",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 1,
+          "failures": [],
+          "top": [
+            "kafka:github:pull:23604",
+            "kafka:jira:issue:KAFKA-20967",
+            "kafka:github:pull:23211",
+            "kafka:github:pull:23626",
+            "kafka:jira:issue:KAFKA-21124"
+          ]
+        },
+        {
+          "queryId": "SortMergeJoinExec",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 1,
+          "failures": [],
+          "top": [
+            "datafusion:github:pull:25490",
+            "datafusion:github:pull:26090",
+            "datafusion:github:pull:24517",
+            "datafusion:github:issue:25205",
+            "datafusion:github:pull:24593"
+          ]
+        },
+        {
+          "queryId": "GroupMetadataManager",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 0.918,
+          "failures": [],
+          "top": [
+            "kafka:jira:issue:KAFKA-21176",
+            "kafka:jira:issue:KAFKA-19818",
+            "kafka:github:pull:23555",
+            "kafka:jira:issue:KAFKA-20601",
+            "kafka:github:pull:18198"
+          ]
+        },
+        {
+          "queryId": "tiered storage",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 1,
+          "failures": [],
+          "top": [
+            "kafka:github:pull:21108",
+            "kafka:github:pull:23456",
+            "kafka:jira:issue:KAFKA-17665",
+            "kafka:jira:issue:KAFKA-20047",
+            "kafka:jira:issue:KAFKA-19968"
+          ]
+        },
+        {
+          "queryId": "KRaft controller",
+          "requires": "lexical",
+          "status": "pass",
+          "recallAt20": 1,
+          "mrr": 1,
+          "ndcgAt10": 1,
+          "failures": [],
+          "top": [
+            "kafka:jira:issue:KAFKA-18874",
+            "kafka:jira:issue:KAFKA-20839",
+            "kafka:jira:issue:KAFKA-21129",
+            "kafka:github:pull:19321",
+            "kafka:github:pull:20712"
+          ]
+        }
+      ]
+    }
+  ]
+}

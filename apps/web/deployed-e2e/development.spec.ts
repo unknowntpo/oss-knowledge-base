@@ -161,11 +161,12 @@ test("H42: Search serves the lexical revision the publisher last wrote, and at @
   }).toBe(true);
 
   const served = hyphenated!.retrieval.lexicalRevision;
-  expect(["bm25-reference@1", "bm25-reference@2"]).toContain(served);
+  // Spec 017: `@3` indexes like `@2` and ranks differently; the reader serves all three.
+  expect(["bm25-reference@1", "bm25-reference@2", "bm25-reference@3"]).toContain(served);
   // What the reader serves is what the publisher says it wrote.
   expect(health!.lastRun!.search?.lexicalRevision).toBe(served);
   testInfo.annotations.push({ type: "lexicalRevision", description: served });
-  if (served !== "bm25-reference@2") {
+  if (served === "bm25-reference@1") {
     // The first deploy after the switch runs before the next hourly publication; a rollback
     // (variable removed) also lands here. `/health` `lastRun.search` is the runtime check.
     console.log(`Dev Search still serves ${served}; the @2 identifier check is skipped until an @2 release is current`);

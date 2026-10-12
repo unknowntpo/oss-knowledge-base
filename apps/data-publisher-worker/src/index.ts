@@ -34,7 +34,8 @@ interface Env {
   readonly AI?: AiBinding;
   /**
    * Spec 016: the lexical revision the Search release is written at. Unset writes
-   * `bm25-reference@1`; set `bm25-reference@2` only once Pages that read it are live.
+   * `bm25-reference@1`; set `bm25-reference@2` or `@3` (Spec 017) only once Pages that read it
+   * are live.
    */
   readonly SEARCH_LEXICAL_REVISION?: string;
   /**
