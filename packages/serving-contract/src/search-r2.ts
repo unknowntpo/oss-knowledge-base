@@ -87,6 +87,13 @@ export interface SearchReleaseManifestV3 {
 export interface SearchShardRefV1 {
   readonly projectId: string;
   readonly key: string;
+  /**
+   * The first group root the shard holds (Spec 016 Behavior 27). A project's shards hold its
+   * groups in group-root order, so these boundaries name the shard of any group. Written only
+   * when the release is published with `shardRoots`; a release without it on every shard cannot
+   * serve semantic candidates and is answered lexically.
+   */
+  readonly firstGroupRootRecordId?: string;
 }
 
 export type SearchReleaseManifest = SearchReleaseManifestV1 | SearchReleaseManifestV2 | SearchReleaseManifestV3;
@@ -149,6 +156,8 @@ export interface SearchReleaseOptions {
   readonly lexicalRevision?: string;
   /** Community identifier patterns by project; indexed from `bm25-reference@2`, ignored at `@1`. */
   readonly identifiers?: IdentifierProfilesV1;
+  /** Declare each shard's first group root in the manifest (Spec 016 Behavior 27); absent writes the manifest as before. */
+  readonly shardRoots?: boolean;
 }
 
 /** A whole Search publication in memory; used by fixtures and scripts, not by the publisher. */
@@ -175,9 +184,29 @@ export interface SearchEvidenceMatchV1 {
   readonly matchedTerms: readonly string[];
   readonly signals: {
     readonly exactIdentifier: boolean;
-    readonly lexicalRank: number;
+    /** The thread's rank among lexical results; absent when only semantic retrieval returned it (Spec 005). */
+    readonly lexicalRank?: number;
+    /** The thread's rank among semantic candidates; present only when semantic retrieval returned it. */
+    readonly semanticRank?: number;
     readonly fusedRank: number;
   };
+}
+
+/**
+ * Why a response is or is not hybrid (Spec 016 Behavior 31). Only `ok` fused semantic candidates;
+ * every other status is the lexical ranking unchanged.
+ */
+export type SearchSemanticStatusV1 =
+  | "ok" | "disabled" | "skipped" | "uncovered" | "over-budget" | "timed-out" | "failed";
+
+export interface SearchSemanticRetrievalV1 {
+  readonly status: SearchSemanticStatusV1;
+  /** With `skipped`: the query can match an identifier exactly, or is too short to embed. */
+  readonly reason?: "identifier-query" | "short-query";
+  /** With `ok`: passages of the served release that entered fusion. */
+  readonly candidates?: number;
+  /** With `ok`: true when no model call was made for this query. */
+  readonly cached?: boolean;
 }
 
 export interface SearchResultV1 {
@@ -205,6 +234,11 @@ export interface SearchResponseV1 {
     readonly lexicalRevision: string;
     readonly generatedAt: string;
     readonly stale: boolean;
+    /** The three fields below exist only where hybrid search is switched on (Spec 016 slice 3). */
+    readonly fusionRevision?: string;
+    /** Present only when `semantic.status` is `ok`. */
+    readonly semanticRevision?: string;
+    readonly semantic?: SearchSemanticRetrievalV1;
   };
 }
 
@@ -355,7 +389,11 @@ export async function* searchProjectionObjects(
       groups: shardGroupProjections,
     };
     const object = await encodeProjectionObject(key, body, SEARCH_DETAIL_POOL);
-    shards.push({ projectId, key });
+    shards.push({
+      projectId,
+      key,
+      ...(options.shardRoots === true ? { firstGroupRootRecordId: shardGroupProjections[0]!.groupRootRecordId } : {}),
+    });
     shardObjects.push(describe(object));
     shardGroups.set(key, shardGroupProjections.map((group) => ({
       groupRootRecordId: group.groupRootRecordId,
@@ -521,6 +559,31 @@ export function isSearchReleaseManifest(value: unknown): value is SearchReleaseM
   const versioned = value.schema === SEARCH_RELEASE_SCHEMA_V2 ||
     (value.schema === SEARCH_RELEASE_SCHEMA_V1 && isNonEmptyString(value.detailPrefix));
   return versioned && isObject(value.shardKeys) && Object.values(value.shardKeys).every(isNonEmptyString);
+}
+
+/** Whether every shard of a release declares its first group root, so a group's shard can be named. */
+export function searchReleaseHasShardRoots(manifest: SearchReleaseManifest): manifest is SearchReleaseManifestV3 {
+  return manifest.schema === SEARCH_RELEASE_SCHEMA &&
+    manifest.shards.every((shard) => isNonEmptyString(shard.firstGroupRootRecordId));
+}
+
+/**
+ * The number of the shard that holds a group, if the release holds it at all: the project's last
+ * shard whose first group root is not after the group's, in the publisher's own order
+ * (`localeCompare`, Spec 013 Behavior 1). `undefined` for a project the release does not hold, a
+ * root before the project's first, or a release without shard roots.
+ */
+export function searchShardForGroupRoot(
+  manifest: SearchReleaseManifest,
+  projectId: string,
+  groupRootRecordId: string,
+): number | undefined {
+  if (!searchReleaseHasShardRoots(manifest)) return undefined;
+  let found: number | undefined;
+  manifest.shards.forEach((shard, number) => {
+    if (shard.projectId === projectId && shard.firstGroupRootRecordId!.localeCompare(groupRootRecordId) <= 0) found = number;
+  });
+  return found;
 }
 
 /** Shard keys of any release version, in shard order for v3. */

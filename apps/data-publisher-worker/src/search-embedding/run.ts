@@ -4,7 +4,7 @@
  * namespace, and deletes the vectors of chunks the release no longer holds. Every bound stops the
  * run with its progress recorded; the next run continues from the state.
  */
-import { estimateTokens, neurons, PRICES, USD_PER_NEURON, type PricedModel } from "@oss-knowledge-base/reference-pipeline";
+import { DAILY_NEURON_BUDGET, embeddingNeurons, estimateTokens, PRICES, USD_PER_NEURON, type PricedModel } from "@oss-knowledge-base/reference-pipeline";
 import { chunkEmbeddingText, type SourceRecordChunkV1 } from "@oss-knowledge-base/search";
 import {
   chunkVectorRef,
@@ -34,9 +34,9 @@ export interface EmbeddingLimits {
   readonly maxCallsPerRun: number;
   readonly maxCallsPerDay: number;
   /**
-   * Estimated neurons per UTC day. The estimate may undercount the model's tokenizer by up to
-   * about 2× on CJK and identifier text; twice this plus the digest's 4,500 is under the 10,000
-   * neurons a day the plan includes.
+   * Estimated neurons per UTC day, at the calibrated estimate (`EMBEDDING_TOKEN_CALIBRATION`).
+   * With the digest's 4,500 and the query gate's 1,000 it is 8,000 of the 10,000 neurons a day
+   * the plan includes (`DAILY_NEURON_BUDGET`).
    */
   readonly dailyNeuronCap: number;
   readonly batchTexts: number;
@@ -63,7 +63,7 @@ export const DEFAULT_EMBEDDING_LIMITS: EmbeddingLimits = {
   maxChunksPerRun: 3_000,
   maxCallsPerRun: 80,
   maxCallsPerDay: 400,
-  dailyNeuronCap: 2_500,
+  dailyNeuronCap: DAILY_NEURON_BUDGET.searchEmbedding,
   batchTexts: 50,
   batchTokens: 20_000,
   deleteBatch: 100,
@@ -248,7 +248,7 @@ export function embeddingModel(profile: SearchEmbeddingProfile): PricedModel {
 
 /** Cost of embedding `tokens` in `calls` requests: every request counts at least one neuron. */
 function estimatedNeurons(model: PricedModel, tokens: number, calls: number): number {
-  return Math.max(calls, neurons(model, tokens, 0));
+  return Math.max(calls, embeddingNeurons(model, tokens));
 }
 
 export function emptyEstimate(): EmbeddingEstimate {
@@ -359,7 +359,7 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
    * refusal ends model use for the run; `failed` when the model answered wrongly or not at all.
    */
   const attempt = async (model: PricedModel, texts: readonly string[], tokens: number): Promise<{ readonly vectors: readonly (readonly number[])[] } | { readonly failed: string } | "stopped"> => {
-    const estimate = Math.max(1, neurons(model, tokens, 0));
+    const estimate = Math.max(1, embeddingNeurons(model, tokens));
     const date = today();
     const ledger = await state.ledger(date);
     if (input.now().getTime() - startedAt >= limits.deadlineMs) run.limited = "deadline";

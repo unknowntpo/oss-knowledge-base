@@ -1,5 +1,4 @@
 import {
-  chunkMatchesSearchFilters,
   type SemanticCandidateV1,
   type SemanticRetrievalRequestV1,
   type SemanticRetrievalV1,
@@ -8,8 +7,8 @@ import {
 
 import type { SemanticReleaseView } from "./release-view";
 import type { SearchEmbeddingProfile } from "./revision";
-import { chunkFingerprint, parseVectorMetadata, vectorNamespace, type VectorMetadataV1 } from "./vector";
-import { VECTOR_LIMITS, type VectorIndex } from "./vector-index";
+import { acceptSemanticMatch, proposeSemanticMatches } from "./matches";
+import type { VectorIndex } from "./vector-index";
 import type { EmbedTexts } from "./workers-ai";
 
 export interface VectorizeSemanticRetrieverInput {
@@ -55,43 +54,27 @@ export class VectorizeSemanticRetriever implements SemanticRetriever {
       throw new Error(`Embedding has ${vector.length} dimensions, expected ${profile.revision.dimensions}`);
     }
 
-    const projectIds = [...new Set(request.filters?.projectIds ?? release.projectIds)];
-    const topK = Math.min(request.limit, VECTOR_LIMITS.topKWithMetadata);
-    const answers = await abortable(Promise.all(projectIds.map((projectId) =>
-      index.query([...vector], { topK, namespace: vectorNamespace(projectId), returnMetadata: "all", returnValues: false }))), signal);
+    const proposed = await abortable(proposeSemanticMatches({
+      index,
+      vector,
+      projectIds: request.filters?.projectIds ?? release.projectIds,
+      topK: request.limit,
+      semanticRevision: profile.semanticRevision,
+    }), signal);
 
-    const proposed: { readonly projectId: string; readonly score: number; readonly metadata: VectorMetadataV1 }[] = [];
-    answers.forEach((answer, position) => {
-      const projectId = projectIds[position]!;
-      for (const match of answer.matches) {
-        const metadata = parseVectorMetadata(match.metadata);
-        if (metadata === undefined || metadata.r !== profile.semanticRevision) continue;
-        if (!(match.score > 0) || !Number.isFinite(match.score)) continue;
-        proposed.push({ projectId, score: match.score, metadata });
-      }
-    });
-
-    const chunks = await abortable(release.chunks(proposed.map(({ projectId, metadata }) => ({
-      projectId,
-      recordId: metadata.record,
-      ordinal: metadata.ord,
-      groupRootRecordId: metadata.root,
-    })), signal), signal);
+    const chunks = await abortable(release.chunks(proposed, signal), signal);
     const candidates = new Map<string, SemanticCandidateV1>();
-    for (const [position, { projectId, score, metadata }] of proposed.entries()) {
+    for (const [position, match] of proposed.entries()) {
       const chunk = chunks[position];
-      if (chunk === undefined) continue;
-      if (chunk.projectId !== projectId || chunk.recordId !== metadata.record || chunk.ordinal !== metadata.ord) continue;
-      if (await chunkFingerprint(chunk) !== metadata.h) continue;
-      if (!chunkMatchesSearchFilters(chunk, request.filters, undefined, false)) continue;
+      if (chunk === undefined || !(await acceptSemanticMatch(match, chunk, request.filters))) continue;
       const previous = candidates.get(chunk.id);
-      if (previous !== undefined && previous.score >= score) continue;
+      if (previous !== undefined && previous.score >= match.score) continue;
       candidates.set(chunk.id, {
         chunkId: chunk.id,
         recordId: chunk.recordId,
         groupRootRecordId: chunk.groupRootRecordId,
         projectId: chunk.projectId,
-        score,
+        score: match.score,
       });
     }
     return {

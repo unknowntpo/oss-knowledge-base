@@ -48,6 +48,25 @@ export function neurons(model: PricedModel, inputTokens: number, outputTokens: n
   return Math.round((inputTokens * price.inputPerM + outputTokens * price.outputPerM) / 1_000_000);
 }
 
+/**
+ * How many tokens `@cf/baai/bge-m3` bills for each token `estimateTokens` counts. Measured once:
+ * the Dev backfill of 2026-10-12 made 176 calls that the AI Gateway `osskb-search-dev` priced at
+ * $0.0157, against an estimate of 803 neurons ($0.0088) for the same texts: 1.78, rounded up.
+ * The texts were English titles and excerpts with identifiers; other text may differ.
+ */
+export const EMBEDDING_TOKEN_CALIBRATION = 1.8;
+
+/** Neurons for embedding texts of `estimatedTokens` (from `estimateTokens`), calibrated to the measured tokenizer. */
+export function embeddingNeurons(model: PricedModel, estimatedTokens: number): number {
+  return neurons(model, Math.ceil(estimatedTokens * EMBEDDING_TOKEN_CALIBRATION), 0);
+}
+
+/**
+ * Estimated neurons a UTC day may spend on Dev, by spender. The plan includes 10,000 a day; the
+ * rest is headroom for what these estimates miss (Spec 016 Results, slice 3).
+ */
+export const DAILY_NEURON_BUDGET = { digest: 4_500, searchEmbedding: 2_500, searchQuery: 1_000, included: 10_000 } as const;
+
 /** Before a call: input estimate plus `max_tokens` at the output price. */
 export function callEstimate(model: PricedModel, input: string, maxTokens: number): number {
   return neurons(model, estimateTokens(input), maxTokens);

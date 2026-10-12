@@ -394,6 +394,24 @@ export function lexicalQueryTerms(
   return lexicalAnalyzer(config).query(query).terms;
 }
 
+/**
+ * Whether a query can match exactly under this config: one canonical identifier, a bare number,
+ * or a structured symbol (`KAFKA-1`, `a.b()`). Only such a query yields `exactMatch` results, so
+ * hybrid search answers it lexically and embeds nothing (Spec 016 Behavior 30).
+ */
+export function isExactLexicalQuery(
+  query: string,
+  config: LexicalSearchConfigV1 = defaultLexicalSearchConfig,
+): boolean {
+  validateConfig(config);
+  return lexicalAnalyzer(config).query(query).exact !== undefined;
+}
+
+/** The start of a passage, cut like a lexical excerpt, for a match no query term located (Spec 016 Behavior 29). */
+export function passageExcerpt(text: string, config: LexicalSearchConfigV1 = defaultLexicalSearchConfig): string {
+  return matchedExcerpt(text, [], config.excerptCharacters);
+}
+
 const UPPER_AFTER_START = /.\p{Lu}/su;
 
 /** A dotted symbol with an optional `()`, or a run of letters, digits, `_`, `$` joined by hyphens. */

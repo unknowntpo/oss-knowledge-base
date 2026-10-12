@@ -18,6 +18,7 @@ import {
   publishProjectionStreams,
   searchGroupsFromFeed,
   searchProjectionObjects,
+  searchReleaseHasShardRoots,
   type PublicationObjectStore,
   type PublicationSetV1,
   type ProjectionStreams,
@@ -104,6 +105,20 @@ export interface SearchReleaseStatus {
   readonly shardBytes: number;
   readonly largestShardBytes: number;
   readonly termsBytes: number;
+  /** Present and true when the manifest declares each shard's first group root (Spec 016 Behavior 27). */
+  readonly shardRoots?: true;
+}
+
+/**
+ * Spec 016 slice 3 rollout flag: `SEARCH_SHARD_ROOTS` unset or blank writes the manifest as
+ * before; `true` adds each shard's first group root. Any other value fails the run, like an
+ * unknown lexical revision, so a typo cannot silently leave semantic search uncovered.
+ */
+export function resolveSearchShardRoots(value: string | undefined): boolean {
+  const flag = value?.trim() ?? "";
+  if (flag === "") return false;
+  if (flag !== "true") throw new Error(`SEARCH_SHARD_ROOTS "${value}" is not supported (true, or unset)`);
+  return true;
 }
 
 /**
@@ -152,6 +167,8 @@ export async function runDataPublication(input: {
   readonly destination: PublicationDestination;
   /** The `SEARCH_LEXICAL_REVISION` variable as configured; see `resolveSearchLexicalRevision`. */
   readonly searchLexicalRevision?: string;
+  /** The `SEARCH_SHARD_ROOTS` variable as configured; see `resolveSearchShardRoots`. */
+  readonly searchShardRoots?: string;
   /**
    * Called once after a successful publication is recorded (Spec 016 Behavior 15). Its failure or
    * silence never changes the run: the result is already recorded and is returned regardless.
@@ -180,6 +197,7 @@ export async function runDataPublication(input: {
     previousStatus = await input.state.readStatus?.();
     // Before any source is polled or object written: a misconfigured revision publishes nothing.
     const lexicalRevision = resolveSearchLexicalRevision(input.searchLexicalRevision);
+    const shardRoots = resolveSearchShardRoots(input.searchShardRoots);
     const next = new ReferenceStateStore(await input.state.read());
     await phase("polling", { storedEvents: next.readEvents().length });
     previousCheckpoint = next.readCheckpoint();
@@ -212,7 +230,7 @@ export async function runDataPublication(input: {
     await phase("materializing", { polledEvents, events: next.readEvents().length });
     const releaseId = releaseIdFor(input.materializedAt);
     const searchRevision = `feed-${releaseId}`;
-    const published = await publish(input, next.readEvents(), releaseId, searchRevision, lexicalRevision, phase);
+    const published = await publish(input, next.readEvents(), releaseId, searchRevision, { lexicalRevision, shardRoots }, phase);
     if (!published.ok) throw new Error(`${published.kind}: ${published.message}`);
     const publishedBySource = published.entriesBySource;
 
@@ -280,17 +298,22 @@ async function notifyPublished(hook: ((status: PipelineRunStatus) => Promise<voi
   }
 }
 
+interface SearchWriteOptions {
+  readonly lexicalRevision: string;
+  readonly shardRoots: boolean;
+}
+
 /** Materializes Feed and Search, then streams their objects to the destination. */
 async function publish(
   input: { readonly materializedAt: string; readonly destination: PublicationDestination },
   events: readonly DomainEventV1[],
   releaseId: string,
   searchRevision: string,
-  lexicalRevision: string,
+  search: SearchWriteOptions,
   phase: (name: PipelinePhase, update?: Readonly<Record<string, number>>) => Promise<void>,
 ): Promise<StreamedPublicationResult & { readonly entriesBySource: ReadonlyMap<string, number>; readonly search: () => SearchReleaseStatus }> {
   const config = defaultReferenceConfig(input.materializedAt);
-  const { streams, counts, entriesBySource, search } = await materializeStreams(events, config, releaseId, searchRevision, lexicalRevision);
+  const { streams, counts, entriesBySource, search: searchStatus } = await materializeStreams(events, config, releaseId, searchRevision, search);
   const result = await publishProjectionStreams(
     {
       id: `github-${releaseId}`,
@@ -305,7 +328,7 @@ async function publish(
       onPhase: (name, progress) => phase(name, { ...counts, ...progress }),
     },
   );
-  return { ...result, entriesBySource, search };
+  return { ...result, entriesBySource, search: searchStatus };
 }
 
 /** Reads the manifest and the lexical object sizes off the release the Search stream declared. */
@@ -319,6 +342,7 @@ function searchReleaseStatus(release: StreamedSearchRelease): SearchReleaseStatu
     shardBytes: shardBytes.reduce((total, bytes) => total + bytes, 0),
     largestShardBytes: Math.max(0, ...shardBytes),
     termsBytes: [...sizes].find(([key]) => key.endsWith("/terms.json"))?.[1] ?? 0,
+    ...(searchReleaseHasShardRoots(release.manifest) && release.manifest.shards.length > 0 ? { shardRoots: true as const } : {}),
   };
 }
 
@@ -332,7 +356,7 @@ async function materializeStreams(
   config: ReturnType<typeof defaultReferenceConfig>,
   releaseId: string,
   searchRevision: string,
-  lexicalRevision: string,
+  options: SearchWriteOptions,
 ): Promise<{
   readonly streams: ProjectionStreams;
   readonly counts: Readonly<Record<string, number>>;
@@ -350,7 +374,11 @@ async function materializeStreams(
     indexRevision: searchRevision,
     corpusRevision: materialized.digest,
     generatedAt: config.materializedAt,
-  }, searchGroupsFromFeed(materialized.publication), { lexicalRevision, identifiers: searchIdentifierProfiles });
+  }, searchGroupsFromFeed(materialized.publication), {
+    lexicalRevision: options.lexicalRevision,
+    identifiers: searchIdentifierProfiles,
+    ...(options.shardRoots ? { shardRoots: true } : {}),
+  });
   return {
     streams: {
       search: (async function* () {

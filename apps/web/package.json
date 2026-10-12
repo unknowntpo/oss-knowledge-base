@@ -25,6 +25,7 @@
     "@oss-knowledge-base/domain": "workspace:*",
     "@oss-knowledge-base/reference-pipeline": "workspace:*",
     "@oss-knowledge-base/search": "workspace:*",
+    "@oss-knowledge-base/semantic-vectorize": "workspace:*",
     "@oss-knowledge-base/serving-contract": "workspace:*",
     "vue": "3",
     "vue-router": "4"
