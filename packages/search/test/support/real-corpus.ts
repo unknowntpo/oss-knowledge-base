@@ -27,6 +27,13 @@ export const SNAPSHOT_DEPTH = 30;
 /** The revisions the snapshot is exact for: they share tokens, postings, and statistics. */
 export const SNAPSHOT_REVISIONS = [CODE_TEXT_LEXICAL_REVISION, THREAD_PHRASE_LEXICAL_REVISION] as const;
 
+/**
+ * Written into the snapshot. The 2026-10-12 capture read the release's objects from the Dev R2
+ * bucket with a local wrangler login, read-only, which went beyond the authorised public API
+ * GETs; a future snapshot must come from the public API or an explicitly authorised export.
+ */
+export const SNAPSHOT_PROVENANCE_NOTE = "Public Apache Kafka and Apache DataFusion records (GitHub, Jira, dev@ mail) exactly as the Dev Search release stores them: titles, clipped excerpts, authors, links. Captured 2026-10-12 by reading the release's objects from the Dev R2 bucket with a local wrangler login, read-only; that went beyond the authorised public API GETs. Take any future snapshot from the public API or from an export the owner explicitly authorises. Selection and statistics: packages/search/scripts/real-corpus.ts.";
+
 export type RealCorpusCase = (typeof testPlanRows)[number];
 
 export interface RealCorpusSnapshotV1 {

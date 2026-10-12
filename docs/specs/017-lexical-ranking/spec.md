@@ -1,6 +1,6 @@
 # Spec 017: Lexical ranking of threads and phrases (`bm25-reference@3`)
 
-Status: Draft for human review — implemented behind `SEARCH_LEXICAL_REVISION`; no deployed configuration sets `bm25-reference@3` (the switch, N17, is a follow-up PR)
+Status: Draft for human review — implemented (PR #52); the Dev publisher is switched to `bm25-reference@3` (N17, `[deploy]`: observe after the deploy); Prod unchanged
 Date: 2026-10-12
 Traceability: enforced
 Builds on: Spec 005 (lexical search, exact identifiers first), Spec 013 (streaming reader, stored statistics), Spec 016 (`bm25-reference@2`, the revision flag, golden v2, open questions 6 and 7)
@@ -39,7 +39,7 @@ Causes, each checked on that release:
 
 1. **Thread score.** A thread scores its best chunk plus 0.25 of every
    further matching chunk. "4.4.0 Release Manager" has 19 messages; each
-   repeats the title at title weight 4 (gardening G31). For the single word
+   repeats the title at title weight 4 (gardening G31, now part of G45). For the single word
    `manager` its best chunk scores about 7.5 and the thread 41.5, while no
    other thread exceeds 8.5. So it is first for every query that holds
    `manager`. The DataFusion pull request "playground" (130 benchmark
@@ -119,7 +119,8 @@ semantic slices exist for.
 
 Each candidate was measured alone and combined on the whole Dev release, 21
 queries (`bun run --cwd packages/search real-corpus -- --release <dir>
---ablation`):
+--ablation`; without `--release` the committed snapshot gives the same nine
+rows, N19):
 
 | Variant | Pass | Recall@20 | MRR | nDCG@10 |
 | --- | --- | --- | --- | --- |
@@ -147,14 +148,16 @@ queries (`bun run --cwd packages/search real-corpus -- --release <dir>
    computed only for chunks whose postings hold both words of a pair, and the
    words are tokenized only when a cheap string test says the pair may be
    adjacent (Budget, N15).
-4. **Dropped: query-term coverage.** Measured with a throwaway prototype of
-   the scorer (it reproduced the `@2` and `@3` rows above exactly; 19
-   queries, before the held-out ones): multiplying a chunk's score by the
-   IDF-weighted share of query terms it matches gave 9 of 19 alone (`@2`: 7),
-   and added to the shipped pair it lowered Recall@20 (0.9825 → 0.9649) and
-   nDCG@10 (0.9481 → 0.9358). Once a thread is bounded and adjacent words are
+4. **Dropped: query-term coverage.** Multiplying a chunk's score by the
+   IDF-weighted share of the query's terms it matches gives 10 of 21 on top
+   of `@2` (Recall@20 0.9587, MRR 0.7980, nDCG@10 0.7977), and on top of `@3`
+   it lowers every aggregate (20 of 21; 0.9683, 0.9592, 0.9419 against
+   0.9841, 0.9762, 0.9531). Once a thread is bounded and adjacent words are
    credited, BM25's own sum already favours chunks matching more terms.
-   Coverage is not shipped and its prototype is not in the repository.
+   Coverage is not shipped. The variant exists only in
+   `packages/search/scripts/real-corpus.ts` (`--ablation`, "evaluation
+   only"), so these numbers are reproducible; the first measurement, with a
+   throwaway prototype on 19 queries, is superseded by them.
 5. **Dropped: BM25F-style field combination.** Not needed for these queries,
    and it changes postings and lengths, which a stored-format change would
    have to justify.
@@ -193,7 +196,8 @@ queries (`bun run --cwd packages/search real-corpus -- --release <dir>
    - A golden v3 schema: the snapshot's queries are golden v2 queries built
      from the case rows; a copy of the identifier patterns: golden v2's is
      reused.
-   - Recording the ablation prototype in the repository.
+   - A coverage option in the production scorer: the variant lives in the
+     evaluation script only.
 3. Simplify. The thread score is one expression; the bonus is one function;
    the rollout reuses Spec 016's flag, checks, and failure paths unchanged.
 4. Shorten the cycle. `bun run eval:search` reports both corpora offline in
@@ -264,22 +268,22 @@ All additive:
   `SUPPORTED_LEXICAL_REVISIONS` gains `bm25-reference@3`.
 - `SearchReleaseManifestV3.lexicalRevision` may be `bm25-reference@3`. Shard,
   terms, and manifest schemas are unchanged.
-- `SearchResponseV1`, release objects, and both Worker configurations:
-  unchanged.
+- `SearchResponseV1` and release objects: unchanged. PR #52 changed neither
+  Worker configuration; the switch (step 2) changes the development one.
 - Spec 016 tests that used `bm25-reference@3` as their example of an unknown
   revision now use `bm25-reference@4`.
 
 Rollout, the Spec 016 pattern (Pages deploy before the Worker in one CI job;
 the Cron can run at any time, so order is enforced by the flag):
 
-1. **This PR merges.** Pages read `@1`, `@2`, `@3`. The Worker can write `@3`
-   but Dev's variable is `bm25-reference@2`, so nothing a reader sees changes.
-2. **Switch (N17), a separate PR**, once this PR's deploy and deployed E2E
-   are green on `main`: `apps/data-publisher-worker/wrangler.development.jsonc`
-   sets `"SEARCH_LEXICAL_REVISION": "bm25-reference@3"`; the `H39` test pins
-   Dev to `@3`; the feature map, Spec 016's status line, and G34 are updated.
-   Dev serves `@2` until the next hourly run moves `current.json`. Every run
-   writes a complete release; no backfill.
+1. **PR #52 merged (1ca4018).** Pages read `@1`, `@2`, `@3`. The Worker can
+   write `@3` but Dev's variable was `bm25-reference@2`, so nothing a reader
+   saw changed.
+2. **Switch (N17), its own PR:**
+   `apps/data-publisher-worker/wrangler.development.jsonc` sets
+   `"SEARCH_LEXICAL_REVISION": "bm25-reference@3"` and the `H39` test pins
+   Dev to `@3` and Prod to unset. Dev serves `@2` until the next hourly run
+   moves `current.json`. Every run writes a complete release; no backfill.
 3. **Turning `@3` off.** Set the variable back to `bm25-reference@2` (revert
    the switch PR). The next run writes an `@2` release. Releases are
    immutable, so nothing is deleted. `POST /run` shortens the wait.
@@ -365,6 +369,19 @@ thread roots on Dev):
 | N3 | a dotted class name in one title | implementer | GroupMetadataManager | kafka:jira:issue:KAFKA-21176 | kafka:github:pull:23530 | kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2 | 2 | fail | pass | KAFKA-21176 is the only title naming the class; pull request 23530 fixes it and names the key. |
 | N3 | held out: a two-word topic | implementer | tiered storage | kafka:github:pull:21108 kafka:github:pull:23456 kafka:jira:issue:KAFKA-20047 kafka:jira:issue:KAFKA-17665 kafka:jira:issue:KAFKA-19968 | — | — | 5 | fail | pass | The five titles holding `tiered storage`. Added after the ranking was chosen, to check it on a query without `manager`. |
 | N3 | held out: a product word and a role | implementer | KRaft controller | kafka:github:pull:19321 kafka:jira:issue:KAFKA-18874 kafka:jira:issue:KAFKA-20839 kafka:jira:issue:KAFKA-21129 | — | — | 4 | fail | pass | The four titles holding `KRaft controller`. Added after the ranking was chosen. |
+<!-- test-plan:end -->
+
+Guard rows (`packages/search/test/real-corpus-guards.test.ts`):
+
+<!-- test-plan:start packages/search/test/real-corpus-guards.cases.ts -->
+| id | case | query | expected | within | ranksAt2 | ranksAt3 | longThread | at2 | at3 | why |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| N18 | long thread, its title words in the other order | manager release | kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2 | 1 | 1 | 1 | — | pass | pass | The 19-message thread titled `4.4.0 Release Manager` is the answer; the query earns no phrase bonus, and the bounded thread score must not cost it first place. |
+| N18 | long threads, their title words apart | kafka release | kafka:mail:dev:message:tj10yosjhl359dylxqw430hb7rmbqnts kafka:mail:dev:message:rjvjnr2y63t0tkhysjtoq5znz57cg2lj kafka:mail:dev:message:2d84s3w41gkpldz9hx0fv5ofx9yv223k | 3 | 4 2 5 | 1 2 3 | 1 4 | fail | pass | The three `[DISCUSS] Apache Kafka 4.x release` threads (5 to 8 messages) hold `Kafka` and `release` with the version between them. `4.4.0 Release Manager` does not name Kafka. |
+| N18 | class-name words in the other order | manager log | kafka:jira:issue:KAFKA-20390 kafka:github:pull:23772 kafka:github:pull:23385 kafka:jira:issue:KAFKA-21038 | 7 | 2 6 4 7 | 1 5 3 6 | 1 12 | pass | pass | The `LogManager` titles of the `log manager` row; no title holds `manager log`, so no bonus applies. |
+| N18 | known limitation: a topic's words in the other order | storage tiered | kafka:github:pull:21108 kafka:github:pull:23456 kafka:jira:issue:KAFKA-20047 kafka:jira:issue:KAFKA-17665 kafka:jira:issue:KAFKA-19968 | 5 | 3 8 19 11 21 | 3 5 19 7 21 | — | fail | fail | The five `tiered storage` titles. Without the bonus `@3` ranks them about as `@2` does (never lower): the gain on `tiered storage` comes from adjacency in query order. |
+| N18 | known limitation: a role and a product word in the other order | controller kraft | kafka:github:pull:19321 kafka:jira:issue:KAFKA-18874 kafka:jira:issue:KAFKA-20839 kafka:jira:issue:KAFKA-21129 | 4 | 10 4 5 8 | 9 1 2 6 | — | fail | fail | The four `KRaft controller` titles. Better than `@2` through the thread score alone, but not all in the first four. |
+| N18 | known limitation: the long thread still leads without adjacency | manager request | kafka:jira:issue:KAFKA-19804 kafka:github:pull:23687 kafka:jira:issue:KAFKA-19738 kafka:github:pull:22667 kafka:github:pull:20964 | 9 | 8 22 12 20 19 | 7 21 11 18 19 | 1 1 | fail | fail | The `request manager` titles with the words reversed. `request` is in 6,962 of 8,700 chunks (G44), so without the bonus `manager` decides and `4.4.0 Release Manager` stays first: the fix for `request manager` rests on the phrase bonus. |
 <!-- test-plan:end -->
 
 Pages reader over golden v2 at `@3`
@@ -456,26 +473,65 @@ Each item: precondition → action → observable result → evidence.
   thread id; a one-word query's chunk scores equal `@2`'s → evidence:
   `lexical-revision-3.test.ts`.
 
+- N18: given the Dev snapshot, every guard row (a query whose expected thread
+  holds the words but not adjacent in query order, or a long thread that
+  should win) has the listed ranks and status at `@2` and at `@3`, no
+  expected thread ranks lower at `@3`, and the rows where `@3` fails are
+  named known limitations → evidence: `real-corpus-guards.test.ts`.
+- N19: given only the committed snapshot, `real-corpus -- --ablation` prints
+  the committed table, in which coverage on top of `@3` beats `@3` on no
+  aggregate; `--write` and `--check` refuse to run without a release →
+  evidence: `real-corpus-guards.test.ts`,
+  `packages/search/test/fixtures/real-corpus-ablation.txt`.
+
 ### Budget
 - N15: [measure] ranking the whole Dev release (8,700 chunks) takes, for
   the worst query measured, about 18 ms more at `@3` than at `@2` at the
   median (Results); through the
   Pages reader on 17,200 seeded events the worst query's p50 rises from 149
   ms to 164 ms; stored bytes do not grow → `bun run --cwd packages/search
-  real-corpus -- --release <dir> --latency`, `bun run --cwd
+  real-corpus -- --release <dir> --latency` (without `--release`: the same
+  on the snapshot), `bun run --cwd
   apps/data-publisher-worker measure:search-latency -- --events 17200
   --revision bm25-reference@3`, `bun run measure:search-revisions`.
 - N16: [measure] the committed snapshot is what the Dev release gives, and
   ranks and scores every query's first 20 threads like the whole release at
   `@2` and `@3` → `bun run --cwd packages/search real-corpus -- --release
-  <dir> --check`.
+  <dir> --check`. Passed on 2026-10-12 against the release on disk; it needs
+  an authorised copy of a release (Provenance) and is not run in CI.
 
 ### Observability
-- N17: [deploy] after the switch PR, `/health` `lastRun.search.lexicalRevision`
-  and `/api/search` `retrieval.lexicalRevision` read `bm25-reference@3`, and
-  `request manager` on Dev no longer returns "4.4.0 Release Manager" first.
-  The deployed E2E (`H42`) already accepts `@3` and checks that the served
-  revision equals what the publisher wrote.
+- N17: [deploy] after the switch deploys and one publication completes,
+  on Dev, through the public endpoints only:
+  1. `/health` `lastRun.search.lexicalRevision` reads `bm25-reference@3`.
+  2. `/api/search` `retrieval.lexicalRevision` reads `bm25-reference@3`; the
+     deployed E2E (`H42`) asserts that it equals what the publisher wrote and
+     records the first three threads of `request manager` as an annotation.
+  3. `request manager` no longer returns "4.4.0 Release Manager" first, and
+     `release manager` still does, while that thread is inside the Feed
+     window. This is read by hand: no ranking assertion on live content stays
+     true as threads leave the 30-day window, so the deployed E2E asserts
+     none.
+  4. For each `N18` row, the first 20 of `/api/search` are compared with the
+     snapshot's `@3` order, and for each unscored row of Results the live
+     ranks are written into that table.
+
+## Provenance of the snapshot
+
+The snapshot of 2026-10-12 was taken by reading the release's objects
+(`manifest.json`, `terms.json`, ten shards) from the Dev R2 bucket with the
+implementing agent's local wrangler login, read-only. Only GETs of the public
+API had been authorised, so that read went beyond the authorisation. It is
+recorded here, in the snapshot's `provenance.note`, and in
+`packages/search/scripts/real-corpus.ts`. It is not to be repeated: a future
+snapshot comes from the public API or from an export the owner explicitly
+authorises.
+
+The public API alone is not enough to score a snapshot as the release
+scores: it returns ranked threads and excerpts, not the release's total chunk
+length or the document frequency of a term. The guard rows (N18) therefore
+reuse the statistics already recorded, and the rows that would need new ones
+are listed unscored under Results.
 
 ## Results (2026-10-12)
 
@@ -525,6 +581,59 @@ faster word reader brought it to 40 ms.
 Mutation evidence (one mutant per behavior, each seen failing) is listed in
 the PR.
 
+### Guard rows (follow-up, 2026-10-12)
+
+The verifier of PR #52 asked for rows that can catch over-correction: queries
+whose expected thread holds the words but not adjacent, and long threads that
+should win. Six are scored in CI (the `N18` table under Test plan):
+
+| Query | Expected threads `@2` → `@3` | "4.4.0 Release Manager" | `@3` |
+| --- | --- | --- | --- |
+| `manager release` (the thread's title words reversed) | 1 → 1 | is the answer | pass |
+| `kafka release` (three `[DISCUSS] Apache Kafka 4.x release` threads) | 4, 2, 5 → 1, 2, 3 | 1 → 4 | pass |
+| `manager log` | 2, 6, 4, 7 → 1, 5, 3, 6 | 1 → 12 | pass |
+| `storage tiered` | 3, 8, 19, 11, 21 → 3, 5, 19, 7, 21 | — | **fails, as at `@2`** |
+| `controller kraft` | 10, 4, 5, 8 → 9, 1, 2, 6 | — | **fails, as at `@2`** |
+| `manager request` | 8, 22, 12, 20, 19 → 7, 21, 11, 18, 19 | 1 → 1 | **fails, as at `@2`** |
+
+No expected thread ranks lower at `@3` than at `@2` on any of them. Three are
+known limitations, kept as rows: when the query's words are not adjacent in
+the title in query order, `@3` has only the bounded thread score. For
+`manager request` that is not enough: `request` carries almost no score
+(G44), so the 19-message thread whose title holds `manager` stays first. The
+improvement on `request manager` rests on the phrase bonus.
+
+How exact these rows are: at `@2` their first results equal the public Dev
+API's (2026-10-12, release `feed-2026-10-12T03-07-12-000Z`: the first 20 for
+the reordered queries, the first 14 for `kafka release`, where the snapshot
+lacks the threads at live ranks 15, 17, and 20). At `@3` the snapshot was not
+selected for them, so a thread outside it could rank among them; that is
+checked against the public API after the switch (N17, step 4).
+
+Not scored. These need statistics the snapshot does not record and the
+public API cannot give — the document frequency of `aggregate`, `spill`,
+`consumergroupheartbeat`, `client`, `framework`, `name`, `and`, `version` —
+and the chunks of each query's first 30 threads at both revisions:
+
+| Query | Dev at `@2`, public API, 2026-10-12 | At `@3` |
+| --- | --- | --- |
+| `aggregate spill` | 1st the 42-chunk pull request "GC & Deduplicate String View on Spill"; 2nd "perf: route final aggregate buckets by column"; 3rd "fix: size aggregate spill batches by bytes as well as rows" | The verifier of PR #52 measured the 42-chunk pull request falling from 1st to 5th, below titles that hold `aggregate spill`. A possible loss if that long thread is the wanted answer; label to be decided by the owner. Live ranks: to be recorded (N17) |
+| `ConsumerGroupHeartbeat` | 1st pull request 23712 "KAFKA-21219: Fix Streams group close stall…"; 2nd 23768 "KAFKA-21255: Return Streams assignments…"; 3rd 20964 | The verifier measured "Parametrize JoinGroup/Heartbeat broker tests" and KAFKA-20442 rising above the Streams close-stall pull requests: the common pair `consumer group` earns the bonus. A mild loss. Live ranks: to be recorded (N17) |
+| `client framework name and version` (the topic of a long `[DISCUSS]` KIP thread) | 1st "[DISCUSS] KIP-1368: Client framework name and version"; 2nd "playground"; 3rd "[VOTE] KIP-1368: …" | Not measured. Expected: the `[DISCUSS]` thread stays first. Live ranks: to be recorded (N17) |
+
+The second row shows a limit of the bonus: a pair of two common words
+(`consumer group`) is credited like a rare one, scaled only by its mean IDF.
+
+Reproducible from the repository, offline: both evaluation reports (`bun run
+eval:search`), the rank table, the guard rows, the ablation table of
+Decisions including the coverage variant (`bun run --cwd packages/search
+real-corpus -- --ablation`; its output is committed as
+`real-corpus-ablation.txt` and compared in CI, N19), and ranking time on the
+snapshot (`-- --latency`). All nine non-coverage rows of the ablation equal
+the whole-release measurement of 2026-10-12. Not reproducible without an
+authorised copy of a release: `--check` (N16), the whole-release latency of
+N15, and ranks beyond the first 20.
+
 ## Open questions
 
 1. **Labels.** 20 of 21 rows are implementer-labelled from titles. To
@@ -552,7 +661,8 @@ the PR.
 - Semantic retrieval, fusion, and reranking (Spec 016 slices 3–4).
 - Synonyms, stemming, query rewriting.
 - Any model call, cloud resource, binding, or deployed configuration change.
-- Changing what Dev or Prod serve: the switch is a separate PR (N17).
+- Changing what Prod serves. (PR #52 changed no configuration; the switch for
+  Dev is N17.)
 - A change to `@1` or `@2`, to stored objects, or to `SearchResponseV1`.
 - Explaining in the response why a thread ranked.
 - Estimating production quality beyond these 21 queries.

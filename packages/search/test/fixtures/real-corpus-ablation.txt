@@ -1,0 +1,13 @@
+Measured on the committed snapshot of feed-2026-10-12T02-07-12-000Z (1134 of 8700 chunks).
+configuration                    queries   n   pass  semantic-required  fail  Recall@20  MRR     nDCG@10
+@2                               all       21  7     0                  14    0.9397     0.5913  0.6832
+@2, best chunk only (weight 0)   all       21  16    0                  5     0.9492     0.8639  0.8619
+geometric thread score only      all       21  15    0                  6     0.9397     0.8443  0.8259
+geometric, ratio 0.5             all       21  10    0                  11    0.9397     0.7596  0.7660
+phrase bonus only                all       21  10    0                  11    0.9841     0.7778  0.8606
+best chunk only + phrase         all       21  20    0                  1     0.9841     0.9524  0.9497
+geometric + phrase 0.5           all       21  20    0                  1     0.9841     0.9683  0.9446
+@3 = geometric + phrase 1        all       21  20    0                  1     0.9841     0.9762  0.9531
+geometric + phrase 2             all       21  19    0                  2     1.0000     0.9762  0.9443
+@2 x coverage (evaluation only)  all       21  10    0                  11    0.9587     0.7980  0.7977
+@3 x coverage (evaluation only)  all       21  20    0                  1     0.9683     0.9592  0.9419

@@ -1,7 +1,7 @@
 {
   "schema": "osskb.search-corpus-snapshot.v1",
   "provenance": {
-    "note": "Public Apache Kafka and Apache DataFusion records (GitHub, Jira, dev@ mail) exactly as the Dev Search release stores them: titles, clipped excerpts, authors, links. Selection and statistics: packages/search/scripts/real-corpus.ts.",
+    "note": "Public Apache Kafka and Apache DataFusion records (GitHub, Jira, dev@ mail) exactly as the Dev Search release stores them: titles, clipped excerpts, authors, links. Captured 2026-10-12 by reading the release's objects from the Dev R2 bucket with a local wrangler login, read-only; that went beyond the authorised public API GETs. Take any future snapshot from the public API or from an export the owner explicitly authorises. Selection and statistics: packages/search/scripts/real-corpus.ts.",
     "source": "https://oss-knowledge-base-dev.pages.dev (R2 bucket oss-knowledge-base-dev)",
     "indexRevision": "feed-2026-10-12T02-07-12-000Z",
     "generatedAt": "2026-10-12T02:07:12.000Z",

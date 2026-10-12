@@ -174,6 +174,10 @@ test("H42: Search serves the lexical revision the publisher last wrote, and at @
   }
   const roots = (body: Search) => body.results.map((result) => result.entry.sourceTitleRecordId);
   expect(roots(plain!)).toEqual(roots(hyphenated!));
+  // Spec 017 N17 is observed, not asserted: which thread ranks first depends on what is inside
+  // the Feed window, so no ranking check on live content stays true. Record the evidence only.
+  const words = await search("request manager");
+  testInfo.annotations.push({ type: `request manager at ${words.retrieval.lexicalRevision}, first three`, description: roots(words).slice(0, 3).join(" ") });
 });
 
 test("H52: the Dev publisher reports search embedding enabled with no configuration error", async ({ publisherRequest }) => {

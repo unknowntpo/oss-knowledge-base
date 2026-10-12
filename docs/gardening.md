@@ -305,22 +305,6 @@ the two `viewer/` items below.
 - **Layer:** test row in `digest -- eval`, once labels exist.
 - **Source:** Spec 014 slice 2c, first Dev dry run 2026-10-08.
 
-### G31. Reply chunks repeat the thread title at title weight
-- **Where:** `chunkTerms` and `assembleGroup` (`packages/search/src/lexical-search.ts`).
-- **Why:** every message of a mail thread is a chunk with the thread title
-  at weight 4, and a group adds 0.25 of each further matching chunk. On
-  golden v2 the four-message "4.4.0 Release Manager" thread ranks first for
-  `RequestManager` and `request manager`, above records that hold both
-  words (Spec 016 Results).
-  On the Dev release of 2026-10-12 the 19-message thread is first for every
-  query holding `manager` (Spec 017 Evidence).
-- **Fix:** Spec 017 `bm25-reference@3` (a thread scores less than 4/3 of its
-  best chunk; adjacent query words earn a bonus). Implemented behind
-  `SEARCH_LEXICAL_REVISION`, not switched on. Delete this item when Dev
-  writes `@3` (Spec 017 N17).
-- **Layer:** test rows (`real-corpus.cases.ts`, `thread-score.cases.ts`).
-- **Source:** Spec 016 slice 1 evaluation, 2026-10-10; Spec 017.
-
 ### G32. Search identifier patterns are written twice
 - **Where:** `packages/reference-pipeline/src/search/profiles.ts` (the
   source both the publisher and the Pages reader import) and
@@ -354,8 +338,9 @@ the two `viewer/` items below.
   `apps/data-publisher-worker/test/pipeline.test.ts`.
 - **Why:** slice 2a ships the `bm25-reference@2` writer off so no deployed
   reader meets a revision it rejects. Dev sets the variable since the switch
-  (H42); Prod does not. Until both write `@2`, the publisher and the reader
-  keep the `@1` path, and `H39` pins Dev to `@2` and Prod to unset.
+  (H42), and sets `bm25-reference@3` since Spec 017 N17; Prod does not set
+  it. Until both write `@2` or later, the publisher and the reader keep the
+  `@1` path, and `H39` pins Dev to `@3` and Prod to unset.
 - **Fix:** set the variable for Prod in its own PR before a release tag.
   Once Prod writes `@2` and no `@1` release is needed for rollback, make `@2`
   the default, delete the variable, and keep `@1` only as a read path.
@@ -468,17 +453,24 @@ the two `viewer/` items below.
 - **Layer:** test row (`real-corpus.cases.ts`).
 - **Source:** Spec 017 Evidence.
 
-### G45. `bm25-reference@3` is a third revision behind the rollout flag
+### G45. `bm25-reference@3` is a third revision behind the rollout flag, and its limits
 - **Where:** `threadPhraseLexicalSearchConfig`, `assembleGroup`, and
   `phraseBonus` (`packages/search/src/lexical-search.ts`); G34 lists the flag
   and its tests.
-- **Why:** Spec 017 ships the `@3` ranking off. Until Dev and Prod write it,
-  the search package keeps the flat thread sum of `@1` and `@2` next to the
-  geometric one, and the H39 test pins Dev to `@2`.
-- **Fix:** the switch PR (Spec 017 N17) sets the variable for Dev. When no
-  environment needs an `@2` release for rollback, delete the flat sum with
-  `@2` (G34).
-- **Layer:** test (H39) now; structure (one ranking) at the end.
+- **Why:** Dev writes `@3` since Spec 017 N17 (it replaced G31: every reply
+  of a mail thread repeats the title at weight 4, and `@1`/`@2` add a flat
+  quarter of each further chunk). Prod writes `@1`. Until no environment
+  needs an `@1` or `@2` release, the search package keeps their flat thread
+  sum next to the geometric one. Known limits of `@3` (Spec 017 Results,
+  guard rows): without adjacency in query order only the thread bound helps,
+  so `manager request` still returns the long thread first; a pair of two
+  common words (`consumer group`) earns the bonus like a rare one.
+- **Fix:** when no environment needs an `@2` release for rollback, delete the
+  flat sum with `@2` (G34). For the limits: G44 first (it removes most of the
+  `request` noise), then measure an unordered or windowed proximity signal on
+  the guard rows.
+- **Layer:** test (H39, `real-corpus-guards.cases.ts`) now; structure (one
+  ranking) at the end.
 - **Source:** Spec 017.
 
 ### G46. The real-corpus evaluation is one day's release with implementer labels
@@ -487,13 +479,17 @@ the two `viewer/` items below.
   `lexical-revision-3.test.ts` (N7).
 - **Why:** the snapshot is the Dev release of 2026-10-12 (1,134 of 8,700
   chunks). 20 of its 21 queries are labelled by the implementer from titles.
-  Refreshing it needs the release's objects from R2 (not publicly readable)
-  and the two `@2` digests recomputed at e9984d0. The coverage numbers in
-  Spec 017 Decision 4 come from a prototype that is not in the repository.
-- **Fix:** have the owner confirm or correct the labels; refresh the snapshot
-  when they change or the corpus changes shape (`bun run --cwd
-  packages/search real-corpus -- --release <dir> --write`); drop the snapshot
-  digests once `@2` is deleted (G45).
+  It was captured by reading the Dev R2 bucket with a local wrangler login,
+  which was not authorised (Spec 017 Provenance). The public API cannot give
+  the release statistics a snapshot needs (total chunk length, document
+  frequencies), so new queries with new words cannot be scored: three
+  verifier-requested rows are listed unscored in Spec 017 Results. Refreshing
+  also needs the two `@2` digests recomputed at e9984d0.
+- **Fix:** have the owner confirm or correct the labels. Decide how a
+  snapshot may be taken: an authorised export, or a public read-only endpoint
+  for a release's term statistics. Then refresh (`bun run --cwd
+  packages/search real-corpus -- --release <dir> --write`) and score the
+  unscored rows; drop the snapshot digests once `@2` is deleted (G45).
 - **Layer:** test rows (owner-confirmed labels).
 - **Source:** Spec 017.
 
