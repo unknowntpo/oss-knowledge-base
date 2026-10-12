@@ -139,8 +139,9 @@ interface RankedRelease {
 
 /**
  * The config the release was written with (Spec 016): its revision's tokenizer and, from
- * `bm25-reference@2`, the community identifier profiles the publisher indexes with. A release
- * of any other revision is not answered (HTTP 503) rather than scored with the wrong tokens.
+ * `bm25-reference@2`, the community identifier profiles the publisher indexes with; at `@3`
+ * (Spec 017) also its thread score and phrase bonus. A release of any other revision is not
+ * answered (HTTP 503) rather than scored with the wrong tokens.
  */
 function releaseLexicalConfig(revision: string): LexicalSearchConfigV1 {
   if (!SUPPORTED_LEXICAL_REVISIONS.includes(revision)) {

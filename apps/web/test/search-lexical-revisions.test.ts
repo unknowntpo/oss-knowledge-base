@@ -170,7 +170,7 @@ describe("Spec 016 Pages reader at bm25-reference@1 and @2", () => {
     expect(body.results[0]!.matches[0]!.signals.exactIdentifier).toBe(true);
   });
 
-  test.each(["bm25-reference@3", "bm25-reference", "bm25:v1"])("H37: a release declaring %s fails closed with HTTP 503", async (revision) => {
+  test.each(["bm25-reference@4", "bm25-reference", "bm25:v1"])("H37: a release declaring %s fails closed with HTTP 503", async (revision) => {
     const withRevision = (objects: readonly ProjectionObject[], value: string) => objects.map((object) =>
       object.key.endsWith("/manifest.json") ? { ...object, body: JSON.stringify({ ...JSON.parse(object.body), lexicalRevision: value }) } : object);
     const sharded = await release(CODE_TEXT_LEXICAL_REVISION);

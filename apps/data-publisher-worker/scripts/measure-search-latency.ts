@@ -3,6 +3,10 @@
  * Search release published from seeded events, using the Pages Function reader unchanged.
  *
  *   bun run measure:search-latency [--events 8600,17200] [--seed 9] [--iterations 7]
+ *                                  [--revision bm25-reference@3]
+ *
+ * `--revision` publishes at that lexical revision with the community search profiles (Spec 017
+ * N15 compares `bm25-reference@2` with `@3`); without it the release is `bm25-reference@1`.
  *
  * Runs under Bun with an in-memory R2 stand-in, so it measures parse and ranking work, not
  * network time; Dev latency is measured separately after deployment.
@@ -10,6 +14,7 @@
 import { parseArgs } from "node:util";
 
 import { defaultReferenceConfig, materializeReferenceFeed } from "@oss-knowledge-base/reference-pipeline";
+import { searchIdentifierProfiles } from "@oss-knowledge-base/reference-pipeline/search-profiles";
 import { searchGroupsFromFeed, searchProjectionObjects } from "@oss-knowledge-base/serving-contract";
 
 import { searchR2Projection } from "../../web/functions/_shared/search-projection";
@@ -29,6 +34,7 @@ const { values } = parseArgs({
     events: { type: "string", default: "8600,17200" },
     seed: { type: "string", default: "9" },
     iterations: { type: "string", default: "21" },
+    revision: { type: "string" },
   },
 });
 
@@ -91,6 +97,7 @@ async function publishSearch(count: number, seed: number): Promise<Map<string, U
   const stream = searchProjectionObjects(
     { indexRevision: "measure", corpusRevision: "measure", generatedAt: MATERIALIZED_AT },
     searchGroupsFromFeed(feed),
+    values.revision === undefined ? {} : { lexicalRevision: values.revision, identifiers: searchIdentifierProfiles },
   );
   let next = await stream.next();
   for (; !next.done; next = await stream.next()) objects.set(next.value.key, next.value.body);

@@ -320,7 +320,7 @@ describe("Spec 016 lexical revision of the published Search release", () => {
       .toBe("bm25-reference@2");
   });
 
-  test.each(["bm25-reference@3", "bm25-reference", "2", "true"])("H38: SEARCH_LEXICAL_REVISION %p fails the run before any write", async (value) => {
+  test.each(["bm25-reference@4", "bm25-reference", "2", "true"])("H38: SEARCH_LEXICAL_REVISION %p fails the run before any write", async (value) => {
     expect(() => resolveSearchLexicalRevision(value)).toThrow(`SEARCH_LEXICAL_REVISION "${value}" is not a supported lexical revision`);
     const state = new MemoryState();
     const destination = new MemoryDestination();
@@ -351,6 +351,70 @@ describe("Spec 016 lexical revision of the published Search release", () => {
     expect(published(destination).manifest.lexicalRevision).toBe("bm25-reference@2");
     // Positive control: a supported value moves on to `polling`.
     expect(state.phases.slice(0, 3)).toEqual(["reading-state", "reading-state", "polling"]);
+  });
+
+  test("N6: SEARCH_LEXICAL_REVISION bm25-reference@3 publishes the @2 objects under a manifest that names @3", async () => {
+    expect(resolveSearchLexicalRevision(" bm25-reference@3 ")).toBe("bm25-reference@3");
+    const at2 = new MemoryDestination();
+    const at3 = new MemoryDestination();
+    const state = new MemoryState();
+    expect((await run(at2, new MemoryState(), "bm25-reference@2")).ok).toBe(true);
+    const result = await run(at3, state, "bm25-reference@3");
+    expect(result.ok).toBe(true);
+
+    const { manifest, terms } = published(at3);
+    expect(manifest.lexicalRevision).toBe("bm25-reference@3");
+    expect({ ...manifest, lexicalRevision: "bm25-reference@2" }).toEqual(published(at2).manifest);
+    expect(terms["#42"]![0]).toBe(4);
+    const text = (destination: MemoryDestination) => new Map([...destination.objects].map(([key, body]) => [key, new TextDecoder().decode(body)]));
+    const manifestKey = `public/search/v1/releases/${manifest.indexRevision}/manifest.json`;
+    expect([...text(at3).keys()]).toEqual([...text(at2).keys()]);
+    // Only the manifest and the objects that embed its digest or the run's revision differ.
+    const different = [...text(at3)].filter(([key, body]) => body !== text(at2).get(key)).map(([key]) => key);
+    expect(different).toContain(manifestKey);
+    expect(different.filter((key) => key.includes("/lexical/") || key.endsWith("/terms.json") || key.includes("/details/"))).toEqual([]);
+    // `/health` names the revision the run wrote, with the @2 sizes.
+    expect(healthBody({ environment: "development", running: false, scheduled: false, phase: undefined, status: state.statuses.at(-1) }).lastRun)
+      .toMatchObject({ ok: true, search: { lexicalRevision: "bm25-reference@3", chunkCount: manifest.chunkCount, shardCount: manifest.shards.length } });
+  });
+
+  test("N10: after an @3 run, a run at @2 (rollback) or without the variable writes that revision and leaves the @3 release in place", async () => {
+    const destination = new MemoryDestination();
+    await run(destination, new MemoryState(), "bm25-reference@3");
+    const first = published(destination).manifest;
+    await run(destination, new MemoryState(), "bm25-reference@2", laterHour(fixture.config.materializedAt));
+    const second = published(destination).manifest;
+    await run(destination, new MemoryState(), undefined, laterHour(laterHour(fixture.config.materializedAt)));
+    const third = published(destination).manifest;
+    expect([first.lexicalRevision, second.lexicalRevision, third.lexicalRevision])
+      .toEqual(["bm25-reference@3", "bm25-reference@2", "bm25-reference@1"]);
+    expect(new Set([first.indexRevision, second.indexRevision, third.indexRevision]).size).toBe(3);
+    expect(json<SearchReleaseManifestV3>(destination, `public/search/v1/releases/${first.indexRevision}/manifest.json`).lexicalRevision)
+      .toBe("bm25-reference@3");
+  });
+
+  test.each(["bm25-reference@4", "bm25-reference@3.1", "@3", "3"])("N10: SEARCH_LEXICAL_REVISION %p fails the run before a source is polled or an object written", async (value) => {
+    expect(() => resolveSearchLexicalRevision(value)).toThrow(`SEARCH_LEXICAL_REVISION "${value}" is not a supported lexical revision (bm25-reference@1, bm25-reference@2, bm25-reference@3)`);
+    const state = new MemoryState();
+    const destination = new MemoryDestination();
+    destination.objects.set(SEARCH_CURRENT_KEY, new TextEncoder().encode("old-search"));
+    let polls = 0;
+    const result = await runDataPublication({
+      environment: "development",
+      materializedAt: fixture.config.materializedAt,
+      connector: { poll: async () => { polls += 1; return connectorSuccess(events).poll(); } },
+      state,
+      destination,
+      searchLexicalRevision: value,
+    });
+    expect(result).toMatchObject({ ok: false, failureKind: "pipeline" });
+    expect([destination.operations, polls]).toEqual([[], 0]);
+    expect(new TextDecoder().decode(destination.objects.get(SEARCH_CURRENT_KEY))).toBe("old-search");
+    expect(healthBody({ environment: "development", running: false, scheduled: false, phase: undefined, status: state.statuses.at(-1) }).lastRun)
+      .toMatchObject({ ok: false, error: expect.stringContaining(`SEARCH_LEXICAL_REVISION "${value}"`) });
+    // Positive control: @3 then publishes from the same state and destination.
+    expect((await run(destination, state, "bm25-reference@3")).ok).toBe(true);
+    expect(published(destination).manifest.lexicalRevision).toBe("bm25-reference@3");
   });
 
   test("H39: the development publisher writes bm25-reference@2; production does not set the variable and writes @1", async () => {

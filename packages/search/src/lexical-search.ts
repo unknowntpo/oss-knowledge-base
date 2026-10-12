@@ -11,6 +11,13 @@ export const DEFAULT_LEXICAL_REVISION = "bm25-reference@1";
  * community identifiers. Postings differ from `@1`, so a release declares one or the other.
  */
 export const CODE_TEXT_LEXICAL_REVISION = "bm25-reference@2";
+/**
+ * Spec 017: the `@2` tokens, postings, and BM25 with two ranking changes. A thread's further
+ * matching chunks add geometrically less (`furtherChunkWeighting`), and a chunk gains a bonus for
+ * adjacent query words it holds adjacent and in order (`phraseWeight`). Stored postings, lengths,
+ * and term statistics equal `@2`; only the manifest's `lexicalRevision` differs.
+ */
+export const THREAD_PHRASE_LEXICAL_REVISION = "bm25-reference@3";
 
 export interface LexicalSearchConfigV1 {
   readonly revision: string;
@@ -22,8 +29,21 @@ export interface LexicalSearchConfigV1 {
   readonly additionalGroupMatchWeight: number;
   readonly maxEvidenceMatches: number;
   readonly excerptCharacters: number;
-  /** Community identifier patterns by project; only valid with `bm25-reference@2`. */
+  /** Community identifier patterns by project; valid from `bm25-reference@2`. */
   readonly identifiers?: IdentifierProfilesV1;
+  /**
+   * `bm25-reference@3` only. `geometric`: a thread scores its chunks best first, the i-th further
+   * chunk adding `additionalGroupMatchWeight ** i` of its score, so a thread never exceeds
+   * `1 / (1 - additionalGroupMatchWeight)` times its best chunk. Absent: every further chunk adds
+   * `additionalGroupMatchWeight` of its score.
+   */
+  readonly furtherChunkWeighting?: "geometric";
+  /**
+   * `bm25-reference@3` only. For each pair of adjacent query words a chunk holds adjacent and in
+   * order, the chunk gains this weight times the mean IDF of the two words, times `titleWeight`
+   * when the pair is in the title. Absent: no phrase bonus.
+   */
+  readonly phraseWeight?: number;
 }
 
 export const defaultLexicalSearchConfig: LexicalSearchConfigV1 = {
@@ -44,17 +64,36 @@ export const codeTextLexicalSearchConfig: LexicalSearchConfigV1 = {
   revision: CODE_TEXT_LEXICAL_REVISION,
 };
 
+/** `bm25-reference@3`: the `@2` config with bounded thread scores and the phrase bonus; add `identifiers`. */
+export const threadPhraseLexicalSearchConfig: LexicalSearchConfigV1 = {
+  ...codeTextLexicalSearchConfig,
+  revision: THREAD_PHRASE_LEXICAL_REVISION,
+  furtherChunkWeighting: "geometric",
+  phraseWeight: 1,
+};
+
 /** Every revision a release may declare; a reader or publisher rejects any other. */
-export const SUPPORTED_LEXICAL_REVISIONS: readonly string[] = [DEFAULT_LEXICAL_REVISION, CODE_TEXT_LEXICAL_REVISION];
+export const SUPPORTED_LEXICAL_REVISIONS: readonly string[] = [
+  DEFAULT_LEXICAL_REVISION,
+  CODE_TEXT_LEXICAL_REVISION,
+  THREAD_PHRASE_LEXICAL_REVISION,
+];
+
+/** Whether a revision indexes code-text tokens and may carry identifier profiles (`@2` and later). */
+function usesCodeText(revision: string): boolean {
+  return revision === CODE_TEXT_LEXICAL_REVISION || revision === THREAD_PHRASE_LEXICAL_REVISION;
+}
 
 /**
  * The config a release of `revision` is written and read with, so both sides tokenize alike.
- * Identifier profiles apply from `bm25-reference@2`; `@1` ignores them. An unknown revision throws.
+ * Identifier profiles apply from `bm25-reference@2`; `@1` ignores them. `@3` is the `@2` config
+ * with the Spec 017 ranking. An unknown revision throws.
  */
 export function lexicalSearchConfigFor(revision: string, identifiers?: IdentifierProfilesV1): LexicalSearchConfigV1 {
   if (revision === DEFAULT_LEXICAL_REVISION) return defaultLexicalSearchConfig;
-  if (revision === CODE_TEXT_LEXICAL_REVISION) {
-    return identifiers === undefined ? codeTextLexicalSearchConfig : { ...codeTextLexicalSearchConfig, identifiers };
+  if (usesCodeText(revision)) {
+    const config = revision === CODE_TEXT_LEXICAL_REVISION ? codeTextLexicalSearchConfig : threadPhraseLexicalSearchConfig;
+    return identifiers === undefined ? config : { ...config, identifiers };
   }
   throw new Error(`Unsupported lexical revision ${revision}; supported: ${SUPPORTED_LEXICAL_REVISIONS.join(", ")}`);
 }
@@ -338,11 +377,12 @@ export function tokenizeLexical(value: string): readonly string[] {
 }
 
 /**
- * The tokenizer a lexical revision indexes and queries with. `bm25-reference@2` adds the parts of
- * camelCase and PascalCase words after the token they come from; every other revision is `@1`.
+ * The tokenizer a lexical revision indexes and queries with. `bm25-reference@2` and `@3` add the
+ * parts of camelCase and PascalCase words after the token they come from; every other revision
+ * is `@1`.
  */
 export function lexicalTokenizer(revision: string): (value: string) => readonly string[] {
-  return revision === CODE_TEXT_LEXICAL_REVISION ? (value) => tokenize(value, true) : tokenizeLexical;
+  return usesCodeText(revision) ? (value) => tokenize(value, true) : tokenizeLexical;
 }
 
 /** The distinct terms a query selects postings with, after identifier normalization. */
@@ -354,12 +394,13 @@ export function lexicalQueryTerms(
   return lexicalAnalyzer(config).query(query).terms;
 }
 
+const UPPER_AFTER_START = /.\p{Lu}/su;
+
+/** A dotted symbol with an optional `()`, or a run of letters, digits, `_`, `$` joined by hyphens. */
+const RAW_TOKEN = /[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+(?:\(\))?|[\p{L}\p{N}_$]+(?:-[\p{L}\p{N}_$]+)*/gu;
+
 function tokenize(value: string, splitCase: boolean): readonly string[] {
-  const tokens = value
-    .normalize("NFKC")
-    .match(
-      /[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+(?:\(\))?|[\p{L}\p{N}_$]+(?:-[\p{L}\p{N}_$]+)*/gu,
-    ) ?? [];
+  const tokens = value.normalize("NFKC").match(RAW_TOKEN) ?? [];
   const result: string[] = [];
   for (const raw of tokens) {
     const token = raw.toLocaleLowerCase("en-US");
@@ -383,6 +424,8 @@ function tokenize(value: string, splitCase: boolean): readonly string[] {
  * single letter stays with its neighbour (`KRaft`, `IDs`), so no one-letter term is indexed.
  */
 function caseWords(part: string): readonly string[] {
+  // Every boundary has an upper-case letter after the first character; most words have none.
+  if (!UPPER_AFTER_START.test(part)) return [part];
   const pieces = part.split(/(?<=[\p{Ll}\p{N}])(?=\p{Lu})|(?<=\p{Lu})(?=\p{Lu}\p{Ll})/u);
   const words: string[] = [];
   let carried = "";
@@ -402,16 +445,80 @@ function caseWords(part: string): readonly string[] {
   return words;
 }
 
+/**
+ * The words of a text in reading order, lower-cased: every raw token cut at dots, hyphens, and
+ * case boundaries. Each word is also a code-text term, so `HeartbeatRequestManager` and
+ * `heartbeat request manager` are the same three words (Spec 017).
+ */
+export function lexicalWords(value: string): readonly string[] {
+  const words: string[] = [];
+  for (const raw of value.normalize("NFKC").match(RAW_TOKEN) ?? []) {
+    for (const part of raw.replace(/\(\)$/u, "").split(/[.-]/u)) {
+      for (const word of caseWords(part)) {
+        // `toLowerCase` equals the tokenizer's `toLocaleLowerCase("en-US")` and is much faster.
+        if (word.length > 0) words.push(word.toLowerCase());
+      }
+    }
+  }
+  return words;
+}
+
+/** The distinct pairs of adjacent words of a query, in query order. */
+function adjacentWordPairs(query: string): readonly WordPair[] {
+  const words = lexicalWords(query);
+  const pairs = new Map<string, WordPair>();
+  for (let index = 0; index + 1 < words.length; index += 1) {
+    pairs.set(`${words[index]}\n${words[index + 1]}`, [words[index]!, words[index + 1]!]);
+  }
+  return [...pairs.values()];
+}
+
+const WORD_CHARACTER = /[\p{L}\p{N}_$]/u;
+
+/**
+ * Whether a title or text holds a word pair adjacent and in order. The words are read only when
+ * the lower-cased text holds the first word, then no word character, then the second: every
+ * adjacent pair looks like that, because words are cut from the text without reordering. A
+ * capital sigma lower-cases differently inside a text than at the end of a word, so a text with
+ * one skips the shortcut.
+ */
+function adjacencyIn(value: string): (pair: WordPair) => boolean {
+  const normalized = value.normalize("NFKC");
+  const lowered = normalized.includes("\u03a3") ? undefined : normalized.toLowerCase();
+  let words: readonly string[] | undefined;
+  return ([first, second]) => {
+    if (lowered !== undefined && !mayHoldAdjacent(lowered, first, second)) return false;
+    words ??= lexicalWords(normalized);
+    for (let index = words.indexOf(first); index >= 0; index = words.indexOf(first, index + 1)) {
+      if (words[index + 1] === second) return true;
+    }
+    return false;
+  };
+}
+
+function mayHoldAdjacent(lowered: string, first: string, second: string): boolean {
+  for (let start = lowered.indexOf(first); start >= 0; start = lowered.indexOf(first, start + 1)) {
+    let next = start + first.length;
+    while (next < lowered.length && !WORD_CHARACTER.test(lowered[next]!)) next += 1;
+    if (lowered.startsWith(second, next)) return true;
+  }
+  return false;
+}
+
 export function isExactStructuredQuery(query: string): boolean {
   const trimmed = query.trim();
   return /^[A-Z][A-Z0-9]+-\d+$/u.test(trimmed) ||
     /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+(?:\(\))?$/u.test(trimmed);
 }
 
+type WordPair = readonly [string, string];
+
 /** A query after tokenization: its distinct terms and how a chunk matches it exactly, if it can. */
 interface AnalyzedQuery {
   readonly terms: readonly string[];
   readonly exact?: (document: ScoringDocument) => boolean;
+  /** Adjacent word pairs scored by the phrase bonus; absent when the config has none. */
+  readonly phrases?: readonly WordPair[];
 }
 
 interface LexicalAnalyzer {
@@ -432,13 +539,16 @@ function lexicalAnalyzer(config: LexicalSearchConfigV1): LexicalAnalyzer {
       document.chunk.title.toLocaleLowerCase("en-US").includes(normalized) ||
       document.chunk.text.toLocaleLowerCase("en-US").includes(normalized);
   };
+  // The phrase bonus reads the query as the index reads it: after identifier canonicalization.
+  const phrased = (analyzed: AnalyzedQuery, query: string): AnalyzedQuery =>
+    config.phraseWeight === undefined ? analyzed : { ...analyzed, phrases: adjacentWordPairs(query) };
   if (profiles === undefined) {
     return {
       tokenize: tokenizeText,
       titleTokens: (chunk) => tokenizeText(chunk.title),
       query: (query) => {
         const exact = structured(query);
-        return { terms: [...new Set(tokenizeText(query))], ...(exact === undefined ? {} : { exact }) };
+        return phrased({ terms: [...new Set(tokenizeText(query))], ...(exact === undefined ? {} : { exact }) }, query);
       },
     };
   }
@@ -463,17 +573,20 @@ function lexicalAnalyzer(config: LexicalSearchConfigV1): LexicalAnalyzer {
       const lowered = canonical.toLocaleLowerCase("en-US");
       if (/^\d+$/u.test(canonical)) {
         // A bare number names every identifier with that number, in every project (R1).
-        return {
+        return phrased({
           terms,
           exact: (document) => profiles.numberCandidates(document.chunk.projectId, canonical)
             .some((identifier) => document.titleTerms().has(identifier)),
-        };
+        }, canonical);
       }
       if (profiles.isCanonical(lowered)) {
-        return { terms: [...new Set([lowered, ...terms])], exact: (document) => document.titleTerms().has(lowered) };
+        return phrased({
+          terms: [...new Set([lowered, ...terms])],
+          exact: (document) => document.titleTerms().has(lowered),
+        }, canonical);
       }
       const exact = structured(canonical);
-      return { terms, ...(exact === undefined ? {} : { exact }) };
+      return phrased({ terms, ...(exact === undefined ? {} : { exact }) }, canonical);
     },
   };
 }
@@ -511,12 +624,7 @@ function scoreDocument(
   let score = 0;
   for (const term of matchedTerms) {
     const frequency = document.frequency(term) ?? 0;
-    const documentFrequency = statistics.documentFrequency(term);
-    const idf = Math.log(
-      1 +
-        (statistics.chunkCount - documentFrequency + 0.5) /
-          (documentFrequency + 0.5),
-    );
+    const idf = inverseDocumentFrequency(statistics, term);
     const normalization = statistics.averageDocumentLength === 0
       ? 1
       : 1 - config.b +
@@ -525,9 +633,50 @@ function scoreDocument(
       (frequency + config.k1 * normalization));
   }
 
+  if (query.phrases !== undefined && config.phraseWeight !== undefined) {
+    score += config.phraseWeight * phraseBonus(statistics, config, document, query.phrases);
+  }
+
   const exactMatch = query.exact?.(document) ?? false;
   if (exactMatch) score += config.exactBoost;
   return { document, score, exactMatch, matchedTerms };
+}
+
+function inverseDocumentFrequency(statistics: CorpusStatistics, term: string): number {
+  const documentFrequency = statistics.documentFrequency(term);
+  return Math.log(
+    1 +
+      (statistics.chunkCount - documentFrequency + 0.5) /
+        (documentFrequency + 0.5),
+  );
+}
+
+/**
+ * Spec 017: the mean IDF of each query word pair the chunk holds adjacent and in order, counted
+ * once per pair, times `titleWeight` when the title holds it. The title and text are read only
+ * for a chunk whose postings hold both words of some pair.
+ */
+function phraseBonus(
+  statistics: CorpusStatistics,
+  config: LexicalSearchConfigV1,
+  document: ScoringDocument,
+  phrases: readonly WordPair[],
+): number {
+  const candidates = phrases.filter(([first, second]) =>
+    document.frequency(first) !== undefined && document.frequency(second) !== undefined);
+  if (candidates.length === 0) return 0;
+  const inTitle = adjacencyIn(document.chunk.title);
+  let inText: ((pair: WordPair) => boolean) | undefined;
+  let bonus = 0;
+  for (const pair of candidates) {
+    let fieldWeight = 0;
+    if (inTitle(pair)) fieldWeight = config.titleWeight;
+    else if ((inText ??= adjacencyIn(document.chunk.text))(pair)) fieldWeight = 1;
+    if (fieldWeight === 0) continue;
+    bonus += fieldWeight *
+      (inverseDocumentFrequency(statistics, pair[0]) + inverseDocumentFrequency(statistics, pair[1])) / 2;
+  }
+  return bonus;
 }
 
 function assembleGroup(
@@ -543,9 +692,11 @@ function assembleGroup(
   );
   const [best, ...additional] = ordered;
   if (best === undefined) throw new Error("Cannot assemble an empty search group");
-  const score = best.score +
-    additional.reduce((total, result) => total + result.score, 0) *
-      config.additionalGroupMatchWeight;
+  const score = config.furtherChunkWeighting === "geometric"
+    ? ordered.reduce((total, result, index) => total + result.score * config.additionalGroupMatchWeight ** index, 0)
+    : best.score +
+      additional.reduce((total, result) => total + result.score, 0) *
+        config.additionalGroupMatchWeight;
 
   return {
     groupRootRecordId,
@@ -675,10 +826,23 @@ function uniqueChunks(
 function validateConfig(config: LexicalSearchConfigV1): void {
   requireText(config.revision, "config.revision");
   if (config.identifiers !== undefined) {
-    if (config.revision !== CODE_TEXT_LEXICAL_REVISION) {
-      throw new Error(`Identifier profiles require ${CODE_TEXT_LEXICAL_REVISION}, not ${config.revision}`);
+    if (!usesCodeText(config.revision)) {
+      throw new Error(`Identifier profiles require ${CODE_TEXT_LEXICAL_REVISION} or later, not ${config.revision}`);
     }
     compileIdentifierProfiles(config.identifiers);
+  }
+  // `@1` and `@2` rank as they always did: neither Spec 017 change can be switched on for them.
+  if (
+    (config.furtherChunkWeighting !== undefined || config.phraseWeight !== undefined) &&
+    config.revision !== THREAD_PHRASE_LEXICAL_REVISION
+  ) {
+    throw new Error(`furtherChunkWeighting and phraseWeight require ${THREAD_PHRASE_LEXICAL_REVISION}, not ${config.revision}`);
+  }
+  if (config.furtherChunkWeighting !== undefined && config.furtherChunkWeighting !== "geometric") {
+    throw new Error("furtherChunkWeighting must be geometric when set");
+  }
+  if (config.phraseWeight !== undefined && !(config.phraseWeight > 0 && Number.isFinite(config.phraseWeight))) {
+    throw new Error("phraseWeight must be a positive number");
   }
   if (config.k1 <= 0) throw new Error("BM25 k1 must be positive");
   if (config.b < 0 || config.b > 1) throw new Error("BM25 b must be between 0 and 1");

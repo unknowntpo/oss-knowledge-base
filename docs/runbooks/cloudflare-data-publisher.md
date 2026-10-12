@@ -65,6 +65,11 @@ H42); production does not set the variable and writes `@1`.
   Pages read both.
 - Before rolling Pages back below slice 2a, return to `@1` first and wait for
   `lastRun.search.lexicalRevision` to read `bm25-reference@1`.
+- `bm25-reference@3` (Spec 017) stores what `@2` stores and ranks threads
+  differently. No environment sets it yet. Set it only when the
+  environment's Pages are at or after Spec 017; to turn it off, set
+  `bm25-reference@2` again. Before rolling Pages back below Spec 017, return
+  to `@2` first and wait for `lastRun.search.lexicalRevision` to read it.
 
 ## Search embeddings (Spec 016 slice 2b)
 

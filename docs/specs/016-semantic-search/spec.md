@@ -1334,13 +1334,14 @@ Not decided here:
 5. **One source for identifiers.** Slice 2a keeps `proposal.keyPattern` and
    `issueKeyPattern` (Spec 014) separate from the search profile (see
    "Community profile fit"); to confirm.
-6. **Thread-title repetition** (Results). Candidates: count the title once
-   per thread, lower the further-chunk weight, a phrase-proximity signal, or
-   leave it to rerank. Each changes the lexical ranking and needs its own
-   measurement.
+6. **Thread-title repetition** (Results). Answered by
+   [Spec 017](../017-lexical-ranking/spec.md): `bm25-reference@3` bounds a
+   thread's score and adds a phrase bonus, measured on a snapshot of the Dev
+   release. It is implemented behind the flag and not switched on.
 7. **Labels.** Should `RequestManager` and `request manager` carry the
    Release Manager negative, and is "top 3" the right bound for the three
-   expected threads?
+   expected threads? Still open; Spec 017 (open questions 1 and 2) adds the
+   real-corpus ranks.
 
 Raised by slice 2b:
 
@@ -1401,6 +1402,7 @@ profile fit"):
   Prod until H52.
 - A real Workers AI or Vectorize call from a test or a developer machine.
 - Re-embedding to repair one vector: the unit of repair is `reset=1`.
-- A ranking change for the repeated thread title (open question 6, G31).
+- A ranking change for the repeated thread title (open question 6, G31):
+  Spec 017.
 - A different BM25 formula or field weights.
 - Estimating production recall from the golden fixture.

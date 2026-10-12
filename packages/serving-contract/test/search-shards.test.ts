@@ -307,7 +307,7 @@ describe("Spec 016 lexical revision of a release", () => {
     );
   });
 
-  test.each(["bm25-reference@3", "bm25:v1", ""])("H38: a release of the unknown revision %p is not written", async (lexicalRevision) => {
+  test.each(["bm25-reference@4", "bm25:v1", ""])("H38: a release of the unknown revision %p is not written", async (lexicalRevision) => {
     const golden = parseSearchGoldenFixtureV2(await Bun.file(goldenV2Path).json());
     const groups = goldenGroups(golden.chunks);
     const stream = searchProjectionObjects(release, groups, { lexicalRevision });
@@ -318,6 +318,48 @@ describe("Spec 016 lexical revision of a release", () => {
     expect((await drain(searchProjectionObjects(release, groups, { lexicalRevision: "bm25-reference@2" }))).value.manifest.groupCount)
       .toBe(groups.length);
     expect((await buildR2SearchProjection({ ...release, lexicalRevision: "bm25-reference@2", shards: [], details: [] })).length).toBeGreaterThan(0);
+  });
+});
+
+describe("Spec 017 lexical revision bm25-reference@3 of a release", () => {
+  test.each([1, 2, 1_000])("N4: an @3 release stores what the @2 release stores; only the manifest names the revision (maxShardChunks %p)", async (maxShardChunks) => {
+    const golden = parseSearchGoldenFixtureV2(await Bun.file(goldenV2Path).json());
+    const publish = (lexicalRevision: string) =>
+      drain(searchProjectionObjects(release, goldenGroups(golden.chunks), { maxShardChunks, lexicalRevision, identifiers: golden.identifierProfiles }));
+    const at2 = await publish("bm25-reference@2");
+    const at3 = await publish("bm25-reference@3");
+
+    expect([...at3.objects.keys()]).toEqual([...at2.objects.keys()]);
+    const manifestKey = at3.value.descriptor.current.releaseManifestKey;
+    expect([...at3.objects].filter(([key, body]) => body !== at2.objects.get(key)).map(([key]) => key)).toEqual([manifestKey]);
+    expect(at3.value.manifest.lexicalRevision).toBe("bm25-reference@3");
+    expect({ ...at3.value.manifest, lexicalRevision: "bm25-reference@2" }).toEqual(at2.value.manifest);
+    expect(at3.value.descriptor.current).toEqual(at2.value.descriptor.current);
+    // Positive control: @1 stores other postings and statistics.
+    const at1 = await publish("bm25-reference@1");
+    expect(at1.objects.get(searchTermsKey(release.indexRevision))).not.toBe(at2.objects.get(searchTermsKey(release.indexRevision)));
+
+    // The stored shards, scored with the stored statistics at @3, rank like the whole-corpus @3 index.
+    const config = lexicalSearchConfigFor("bm25-reference@3", golden.identifierProfiles);
+    const index = buildLexicalIndex({ indexRevision: "golden", chunks: golden.chunks, config });
+    const terms = JSON.parse(at3.objects.get(searchTermsKey(release.indexRevision))!) as SearchTermsV1;
+    const shards = at3.value.manifest.shards.map((shard) => JSON.parse(at3.objects.get(shard.key)!) as SearchLexicalShardV2);
+    const corpus = {
+      chunkCount: at3.value.manifest.chunkCount,
+      totalChunkLength: at3.value.manifest.totalChunkLength,
+      documentFrequency: (term: string) => Object.hasOwn(terms.terms, term) ? terms.terms[term]![0]! : 0,
+    };
+    for (const query of ["request manager", "RequestManager", "consumer network thread request manager", "KIP770", "770", "release manager"]) {
+      const request = { query, limit: 100 };
+      const actual = selectLexicalResults(shards.flatMap((shard) => rankLexicalShard(shard, corpus, { query }, config)), request);
+      expect(actual.results.length).toBeGreaterThan(0);
+      expect(actual.results).toEqual(searchLexicalIndex(index, request));
+    }
+    const first = (revision: string) => searchLexicalIndex(
+      buildLexicalIndex({ indexRevision: "golden", chunks: golden.chunks, config: lexicalSearchConfigFor(revision, golden.identifierProfiles) }),
+      { query: "request manager", limit: 1 },
+    )[0]!.groupRootRecordId;
+    expect([first("bm25-reference@2"), first("bm25-reference@3")]).toEqual(["kafka:mail:dev:release-manager-4-4-0", "kafka:jira:issue:KAFKA-19804"]);
   });
 });
 
