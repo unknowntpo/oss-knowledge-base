@@ -1,6 +1,6 @@
 # Spec 017: Lexical ranking of threads and phrases (`bm25-reference@3`)
 
-Status: Draft for human review — implemented (PR #52); the Dev publisher is switched to `bm25-reference@3` (N17, `[deploy]`: observe after the deploy); Prod unchanged
+Status: Draft for human review — implemented (PR #52); the Dev publisher is switched to `bm25-reference@3` (N17, `[deploy]`: observed 2026-10-12, Results "Live Dev at `@3`"); Prod unchanged
 Date: 2026-10-12
 Traceability: enforced
 Builds on: Spec 005 (lexical search, exact identifiers first), Spec 013 (streaming reader, stored statistics), Spec 016 (`bm25-reference@2`, the revision flag, golden v2, open questions 6 and 7)
@@ -617,9 +617,9 @@ and the chunks of each query's first 30 threads at both revisions:
 
 | Query | Dev at `@2`, public API, 2026-10-12 | At `@3` |
 | --- | --- | --- |
-| `aggregate spill` | 1st the 42-chunk pull request "GC & Deduplicate String View on Spill"; 2nd "perf: route final aggregate buckets by column"; 3rd "fix: size aggregate spill batches by bytes as well as rows" | The verifier of PR #52 measured the 42-chunk pull request falling from 1st to 5th, below titles that hold `aggregate spill`. A possible loss if that long thread is the wanted answer; label to be decided by the owner. Live ranks: to be recorded (N17) |
-| `ConsumerGroupHeartbeat` | 1st pull request 23712 "KAFKA-21219: Fix Streams group close stall…"; 2nd 23768 "KAFKA-21255: Return Streams assignments…"; 3rd 20964 | The verifier measured "Parametrize JoinGroup/Heartbeat broker tests" and KAFKA-20442 rising above the Streams close-stall pull requests: the common pair `consumer group` earns the bonus. A mild loss. Live ranks: to be recorded (N17) |
-| `client framework name and version` (the topic of a long `[DISCUSS]` KIP thread) | 1st "[DISCUSS] KIP-1368: Client framework name and version"; 2nd "playground"; 3rd "[VOTE] KIP-1368: …" | Not measured. Expected: the `[DISCUSS]` thread stays first. Live ranks: to be recorded (N17) |
+| `aggregate spill` | 1st the 42-chunk pull request "GC & Deduplicate String View on Spill"; 2nd "perf: route final aggregate buckets by column"; 3rd "fix: size aggregate spill batches by bytes as well as rows" | The verifier of PR #52 measured the 42-chunk pull request falling from 1st to 5th, below titles that hold `aggregate spill`. A possible loss if that long thread is the wanted answer; label to be decided by the owner. Live: see "Live Dev at `@3`" below |
+| `ConsumerGroupHeartbeat` | 1st pull request 23712 "KAFKA-21219: Fix Streams group close stall…"; 2nd 23768 "KAFKA-21255: Return Streams assignments…"; 3rd 20964 | The verifier measured "Parametrize JoinGroup/Heartbeat broker tests" and KAFKA-20442 rising above the Streams close-stall pull requests: the common pair `consumer group` earns the bonus. A mild loss. Live: see "Live Dev at `@3`" below |
+| `client framework name and version` (the topic of a long `[DISCUSS]` KIP thread) | 1st "[DISCUSS] KIP-1368: Client framework name and version"; 2nd "playground"; 3rd "[VOTE] KIP-1368: …" | Live: see "Live Dev at `@3`" below |
 
 The second row shows a limit of the bonus: a pair of two common words
 (`consumer group`) is credited like a rare one, scaled only by its mean IDF.
@@ -633,6 +633,32 @@ snapshot (`-- --latency`). All nine non-coverage rows of the ablation equal
 the whole-release measurement of 2026-10-12. Not reproducible without an
 authorised copy of a release: `--check` (N16), the whole-release latency of
 N15, and ranks beyond the first 20.
+
+### Live Dev at `@3` (N17, 2026-10-12)
+
+After the switch. The owner captured these from the public API on
+2026-10-12; they were read again the same day at 10:42 UTC (release
+`feed-2026-10-12T10-07-57-000Z`, `retrieval.lexicalRevision`
+`bm25-reference@3`, `limit=25`) and at 11:16 UTC (release
+`feed-2026-10-12T11-07-57-000Z`, `limit=50`, `bun run measure:search-hybrid`,
+Spec 016) with the same result:
+
+| Query | First threads at `@3`, live |
+| --- | --- |
+| `request manager`, `RequestManager` | 1 KAFKA-19804; 2 KAFKA-19738 (issue); 3 its pull request 22667; 4 pull request 20964 (`AbstractHeartbeatRequestManager`); 5 pull request 23687 (KAFKA-19804); 6 "4.4.0 Release Manager" |
+| `release manager` | 1 "4.4.0 Release Manager"; 2 "[DISCUSS] Apache Kafka 4.5.0 release" |
+| `consumer network thread request manager` | 1 KAFKA-17734 ("KafkaConsumer.close(0) can block indefinitely in ConsumerNetworkClient.poll", unjudged); 2 KAFKA-19804; 3 KAFKA-19919. The owner's expected threads: KAFKA-19804 2nd, pull request 22747 21st, KAFKA-19738 9th |
+| `aggregate spill` | The first 5 are all titled "…aggregate spill…" (pull requests 25853, 25383, 25424, issue 25047, pull request 25252). The 42-chunk "GC & Deduplicate String View on Spill" (23565) is 16th |
+| `ConsumerGroupHeartbeat` | 1 "MINOR: Parametrize JoinGroup/Heartbeat broker tests…" (23498); 2 pull request 23714; 3 23514; 4 22045; 5 22036. The Streams close-stall pull request 23712 is not in the first 25. Known limitation: the common pair `consumer group` earns the bonus |
+| `client framework name and version` | 1 "[DISCUSS] KIP-1368: Client framework name and version"; 2 "[VOTE] KIP-1368: …"; "playground" is no longer in the first 5 |
+
+The six guard rows, live at `@3` (11:16 UTC): `manager release` 1; `kafka
+release` 1, 2, 3; `manager log` 1, 5, 3, 6; `storage tiered` 3, 5, 19, 7, 21;
+`controller kraft` 9, 1, 2, 6; `manager request` 7, 21, 11, 18, 19. Every
+rank equals the snapshot's `@3` column in the guard table above, so no
+thread outside the snapshot ranks among them. The 21 case rows, live: 20 are
+met and the owner's query is not (2nd, 21st, 9th), the same statuses as the
+snapshot's `at3` column.
 
 ## Open questions
 

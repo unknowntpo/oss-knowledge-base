@@ -5,7 +5,7 @@
 
 ## 一句話
 
-搜尋分兩步：先用便宜的方法從全部資料抓出幾十筆候選（檢索），再用比較貴但比較準的方法把候選排好（重排）。目前只有第一步（BM25）。下一步是補語意檢索並用 RRF 與 BM25 合併（Spec 016）；重排排在混合檢索之後，量測顯示需要才加。
+搜尋分兩步：先用便宜的方法從全部資料抓出幾十筆候選（檢索），再用比較貴但比較準的方法把候選排好（重排）。線上目前只有第一步（BM25）。語意檢索與 RRF 合併已實作（Spec 016 slice 3），以開關控制，Dev 與 Prod 都尚未啟用；重排排在混合檢索之後，量測顯示需要才加。
 
 ## 使用情境（2026-10-08 決定）
 
@@ -86,6 +86,33 @@ Clef 是 decision model：給定「狀態」與「選項」，回傳每個選項
 
 Clef-flash 的限制：在 Workers AI 上，長輸入會被截斷（約 2K tokens），所以每筆候選只送標題與一小段摘錄。
 
+## 混合檢索的查詢流程（Spec 016 slice 3，尚未啟用）
+
+```text
+查詢 → 讀 pointer、manifest
+     ├→ 詢問 gate（Durable Object）：查詢 embedding（有快取）→ 每個專案向 Vectorize 取 50 筆
+     └→ 讀 terms.json 與含查詢字的 shard（與上一行同時進行）
+   → 每個 shard 只讀一次：BM25 計分，並把語意候選對回 release 裡的 chunk
+   → 再讀只含語意候選的 shard → RRF 合併 → 結果
+```
+
+| 項目 | 做法 |
+|---|---|
+| 開關 | Pages 變數 `SEARCH_SEMANTIC=rrf-group@1` 加上 Durable Object binding `SEARCH_QUERY_GATE`。未設定時，回應與 slice 3 之前逐位元組相同 |
+| gate | data Worker 的 `SearchQueryGate`：唯一可以呼叫 embedding 模型與 Vectorize 的地方，內含每日帳本與快取；沒有公開路由 |
+| 找 chunk | manifest 的每個 shard 記錄第一個 group root（發布端 `SEARCH_SHARD_ROOTS=true`）。向量帶有 group root，可直接算出所在 shard，不需額外讀取 |
+| 一致性 | 向量可變、release 不可變。候選必須在目前的 release 找到相同專案、紀錄、序號的 chunk，且指紋相同；結果的欄位一律取自 release |
+| 候選數 | 每個專案最多 50 個段落；BM25 固定取前 50 個 thread 的名次，與 `limit` 無關 |
+| 不算 embedding 的查詢 | 可精確比對的查詢（編號、純數字、符號）與少於兩個字母或數字的查詢 |
+| 快取 | key 是語意版本與正規化後的查詢（NFKC、空白合併，保留大小寫）。embedding 保留至少 7 天，各專案的候選保留 1 小時 |
+| 預算 | 每個 UTC 日：查詢 embedding 1,000 neurons（每次 1）、Vectorize 查詢 1,000 次；每小時 100 次模型呼叫。超過時回 BM25 結果，`retrieval.semantic.status` 為 `over-budget` |
+| 退回 | gate 失敗、逾時（1,000 ms）、超過預算、release 沒有 shard root：一律回 BM25 結果，HTTP 200，狀態寫在 `retrieval.semantic.status` |
+| 畫面 | 只由語意檢索找到的結果多一個「意思相近」標記 |
+
+費用估算（`bun run measure:search-query-budget`）：摘要 4,500、embedding 發布 2,500、查詢 1,000，合計 8,000 neurons，低於方案內含的每日 10,000。embedding 發布的估算值自 slice 3 起乘上 1.8：2026-10-12 的回填估計 $0.0088，gateway 實際計為 $0.0157。Vectorize 以（儲存向量數 + 查詢數）× 維度計費，每月上限 31,000 次查詢加上 8,780 個向量約 4,070 萬維，低於內含的 5,000 萬維。
+
+延遲尚未實測。gate 的詢問與 shard 讀取同時進行，預期字面有命中的查詢多 0–0.3 秒，快取命中時幾乎不增加；字面沒有命中的查詢（例如中文）要多讀候選所在的 shard，預期由 0.7 秒增加到 1.2–2.5 秒。啟用後以 `bun run measure:search-hybrid` 量測。
+
 ## 怎麼知道變好了
 
 用固定的標準查詢（golden queries）重跑，比較改動前後。
@@ -96,7 +123,7 @@ Clef-flash 的限制：在 Workers AI 上，長輸入會被截斷（約 2K token
 | MRR | 第一個正確答案排第幾，名次越前分數越高 |
 | nDCG@10 | 前 10 名整體排得好不好，越前面的位置權重越高 |
 
-標準查詢：`packages/search/test/fixtures/golden-queries.v1.json` 共 8 題（評分規則見 [golden-query-rubric](../specs/005-evidence-search/golden-query-rubric.md)）。Spec 016 新增 `golden-queries.v2.json`：沿用 v1 的 8 題，再加 8 題（編號無連字號、純數字、類別名稱片段、縮寫、中文），共 16 題，每題有分級（2 = 預期、1 = 可接受）與 `requires`（`lexical` 或 `semantic`）。`bun run eval:search` 算出三個指標並寫出報告。16 題仍然太少，需要補真實查詢。
+標準查詢：`packages/search/test/fixtures/golden-queries.v1.json` 共 8 題（評分規則見 [golden-query-rubric](../specs/005-evidence-search/golden-query-rubric.md)）。Spec 016 新增 `golden-queries.v2.json`：沿用 v1 的 8 題，再加 8 題（編號無連字號、純數字、類別名稱片段、縮寫、中文），共 16 題，每題有分級（2 = 預期、1 = 可接受）與 `requires`（`lexical` 或 `semantic`）。`bun run eval:search` 算出三個指標並寫出報告。16 題仍然太少，需要補真實查詢。Spec 016 slice 3 為 slice 4 的量測另備 16 題（8 題中文、8 題詞彙落差與縮寫），在看到任何混合檢索結果之前依標題標註，待 owner 確認；`bun run measure:search-hybrid` 對 Dev 的公開 API 各問一次純字面（`semantic=off`）與一次混合檢索，列出預期 thread 的名次。2026-10-12 的字面基準：16 題中 3 題達標。
 
 Spec 017 另外加入真實語料的評估：`real-corpus-snapshot.v1.json` 取自 2026-10-12 的 Dev release（8,700 個 chunk 中的 1,134 個，並附上該 release 的全域統計值），共 21 題；其中 1 題由 owner 標註，其餘 20 題由實作者依標題標註，待 owner 確認。snapshot 中每題前 20 名的排序與完整 release 相同。`bun run eval:search` 同時寫出這份報告：`@2` 通過 7 題（MRR 0.5913、nDCG@10 0.6832），`@3` 通過 20 題（MRR 0.9762、nDCG@10 0.9531）。25 個 chunk 的 v2 標準查詢看不出這個差距。
 
@@ -130,24 +157,25 @@ Spec 017 另外加入真實語料的評估：`real-corpus-snapshot.v1.json` 取�
 1. Spec 016 slice 1（已實作）：評估工具（v2 標準查詢、Recall@20、MRR、nDCG@10）、字面檢索修正（`bm25-reference@2`：camelCase 拆字、編號正規化）、RRF 合併核心。
 2. slice 2a（已實作）：編號樣式移到社群 profile（`packages/reference-pipeline/src/search/profiles.ts`，發布端與 Pages 讀取端共用）；讀取端依 manifest 的 `lexicalRevision` 同時支援 `@1` 與 `@2`，其他版本回 503；發布端在 Worker 變數 `SEARCH_LEXICAL_REVISION=bm25-reference@2` 時才寫 `@2`，slice 2a 合併時兩個環境都未設定。
 3. 切換（已完成，Spec 016 H42）：Dev 的 Worker 設定已加上該變數，部署後的下一次發布起 Dev 為 `@2`；Prod 未設定，仍是 `@1`。移除變數即回到 `@1`。
-4. slice 2b：發布時為每個 chunk 算 embedding 並寫入 Vectorize。
-5. slice 3：查詢時算 embedding，在 `/api/search` 以開關啟用混合檢索。
-6. slice 4：用真實模型量 v2 標準查詢，比較 BM25 與混合檢索，再決定是否加入重排。
+4. slice 2b（已實作；Dev 自 2026-10-12 啟用）：發布時為每個 chunk 算 embedding 並寫入 Vectorize。Dev 目前 8,780 個 chunk 全部完成。
+5. slice 3（已實作，尚未啟用）：查詢時算 embedding，在 `/api/search` 以開關啟用混合檢索（見「混合檢索的查詢流程」）。啟用 Dev 需要兩個設定 PR：先 Worker（shard root、gate 的 class 與 binding），再 Pages（binding 與 `SEARCH_SEMANTIC`）。
+6. slice 4：啟用後以 `bun run measure:search-hybrid` 比較 BM25 與混合檢索，再決定是否加入重排。暫定規則（待 owner 確認）：有合併結果的查詢中，至少 30% 的預期 thread 全部進前 20 名但有一筆落在標註的名次之外，才考慮重排。
 7. Spec 017（已實作；Dev 已切換，N17）：`bm25-reference@3`。thread 分數改為等比遞減，並加入詞組加分；儲存的 shard 與 `terms.json` 和 `@2` 相同，只有 manifest 的 `lexicalRevision` 不同。Dev 的 `SEARCH_LEXICAL_REVISION` 設為 `bm25-reference@3`，部署後的下一次發布起生效；改回 `bm25-reference@2` 即可復原。已知限制：查詢的字在標題中不相鄰或順序相反時沒有詞組加分，例如 `manager request` 仍由長 thread 排第一（Spec 017 Results 的 guard rows）。
 8. 視需要做「問答」：用檢索結果讓模型附引用回答（RAG，另立規格）。檢索品質是它的上限。
 
 ## 營運限制
 
-- 搜尋必須用獨立的 AI Gateway，不能共用摘要的 `osskb-digest-dev`（每小時 60 次）。查詢時的 embedding 是每次查詢 1 次呼叫；若日後加入逐筆重排，每次查詢約再多 20 次。
-- Vectorize 儲存量：Dev 目前約 8,577 個 chunk（2026-10-10，由 Feed 索引的紀錄數推得）× 1,024 維 ≈ 880 萬維；以 30,000 個 chunk 估計約 3,070 萬維。兩者都超過免費額度 500 萬維，需要確認 Workers Paid 方案（Spec 016 待決事項）。
+- 搜尋使用獨立的 AI Gateway `osskb-search-dev`（每小時 600 次），不共用摘要的 `osskb-digest-dev`（每小時 60 次）。查詢時的 embedding 是每個未快取的查詢 1 次呼叫，gate 限制每小時 100 次、每日 1,000 次；若日後加入逐筆重排，每次查詢約再多 20 次。
+- Vectorize 儲存量：Dev 為 8,780 個 chunk × 1,024 維 ≈ 899 萬維（2026-10-12），Workers Paid 方案內含 1,000 萬維；約再增加 990 個 chunk 就會超過，超過的部分每月每 1 億維 $0.05。查詢維度另計，方案內含每月 5,000 萬維。
 - 模型不可用時，直接回 BM25 結果，搜尋不能因模型失敗而中斷。
 - 重排（若日後加入）：快取以（查詢正規化結果、thread 內容雜湊、模型版本）為 key；Clef-flash 每百萬 input token $0.09，output 不計費，一次查詢約 4K tokens，約 $0.0004。
 
 ## 待討論
 
 - 標準查詢由誰提供、要多少題？
-- 查詢的 embedding 在瀏覽器算還是在伺服器算？（Spec 005 要求先量測）
-- 查詢時 embedding 的 AI Gateway 與濫用防護怎麼設？
+- 查詢的 embedding 在瀏覽器算還是在伺服器算？slice 3 在伺服器端計算（data Worker 的 gate），延遲待啟用後量測。
+- 濫用防護：Dev 沒有訪客身分，無法依訪客限流。gate 的每日上限保證 Workers AI 與 Vectorize 不產生費用；上限用完後，當日其餘查詢只回 BM25 結果。是否另加 WAF 限流規則待決定。
+- slice 3 的 16 題標註是否正確？owner 舉例的兩個中文查詢，語料中沒有標題直接提到「逾時」或「很慢」。
 - 郵件 thread 的每封回覆都重複標題，長 thread 因此排在前面（Spec 016 Results）：由 Spec 017 的 `@3` 處理。owner 標註的查詢 `consumer network thread request manager` 在 `@3` 仍未達到「前 3 名」：KAFKA-20765 的內文沒有 `network` 與 `thread`，屬於詞彙落差，要靠語意檢索。
 - Spec 017 的 20 題標註是否正確？`Pull Request` 這類標籤被當成一般文字索引，`request` 出現在 8,700 個 chunk 中的 6,962 個（gardening G44），要不要改？
 - 若加入重排：「部分相關」的權重 0.5 是否合理？要不要考慮時間（新的 thread 加分）？

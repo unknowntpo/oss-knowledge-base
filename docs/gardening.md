@@ -402,25 +402,13 @@ the two `viewer/` items below.
   takes to become queryable are unknown until H52; the fake index enforces
   the limits as documented on 2026-10-10 and will drift when they change.
 - **Fix:** after H52, write the observed values into Spec 016 Results, tune
-  the bounds, and correct the fake where Dev disagreed. Record the ratio of
-  the gateway's reported tokens to the estimate (the estimate may undercount
-  by up to about 2×; the daily cap of 2,500 allows for that). A batch that
+  the bounds, and correct the fake where Dev disagreed. The ratio of the gateway's
+  reported cost to the estimate is recorded: 1.78 on the 2026-10-12
+  backfill, applied as `EMBEDDING_TOKEN_CALIBRATION` since Spec 016
+  slice 3. A batch that
   fails in three runs in a row is quarantined for a day and shows in
   `/health` `lastRun.quarantined` and `lastError`.
 - **Layer:** measurement (H52), then test (the fake).
-- **Source:** Spec 016 slice 2b.
-
-### G42. No reader can find a release's chunk for a stored vector yet
-- **Where:** `SemanticReleaseView`
-  (`packages/semantic-vectorize/src/release-view.ts`); the only
-  implementation is `createInMemoryReleaseView`, used by tests.
-- **Why:** the retriever answers a match with the release's own chunk
-  (Spec 016 Behavior 22), but a release has no record → shard lookup; the
-  lexical reader finds shards by term. Slice 2b stops at the interface.
-- **Fix:** Spec 016 slice 3 implements the view over R2 (open question 9:
-  shard ranges in the manifest, or a per-release side object) and wires the
-  retriever into `/api/search`. Do not copy the in-memory view into Pages.
-- **Layer:** structure (the manifest or side object), then test.
 - **Source:** Spec 016 slice 2b.
 
 ### G43. The digest surfaces model error text unredacted
@@ -560,3 +548,60 @@ the two `viewer/` items below.
   shaping version in the ref or the URL), then pass `immutable` again.
 - **Layer:** test (the R7 row for this endpoint).
 - **Source:** [PR #47](https://github.com/unknowntpo/oss-knowledge-base/pull/47).
+
+### G47. Hybrid search is three rollout flags and a binding, all off
+- **Where:** Pages `SEARCH_SEMANTIC` and the `SEARCH_QUERY_GATE` binding
+  (`apps/web/functions/_shared/semantic-gate.ts`), Worker
+  `SEARCH_SHARD_ROOTS` (`apps/data-publisher-worker/src/pipeline.ts`) and
+  the `SearchQueryGate` class, exported and not bound
+  (`apps/data-publisher-worker/src/index.ts`).
+- **Why:** Spec 016 slice 3 ships the code with nothing enabled; Dev is
+  enabled by two configuration PRs after the owner sees the estimate.
+- **Fix:** after the enable and slice 4, write shard roots always (delete
+  `SEARCH_SHARD_ROOTS` and its off path) and fold `SEARCH_SEMANTIC` into the
+  presence of the binding, or keep one flag and say why.
+- **Layer:** structure (fewer flags), then test (the `H66` pins).
+- **Source:** Spec 016 slice 3.
+
+### G48. Query-time latency and platform behaviour are estimates
+- **Where:** Spec 016 Results (slice 3) "Design in numbers"; open
+  question 18.
+- **Why:** no Workers AI, Vectorize, or deployed Durable Object call was
+  made while building the slice: the time of a single-text embedding, of an
+  index query, of the round trip to the gate object, and whether the object
+  finishes an embedding after the reader timed out are assumed. Vectorize
+  billing is taken from its pricing page.
+- **Fix:** at the enable, run `bun run measure:search-hybrid`, read
+  `/health` `searchQuery`, and replace the estimates with the measurements
+  (H31, H32); move the timeout or the caps if they do not fit.
+- **Layer:** measurement, then the constants.
+- **Source:** Spec 016 slice 3.
+
+### G49. The Worker's entry module may export only handlers and classes
+- **Where:** `apps/data-publisher-worker/src/index.ts`; guarded by `H69: the
+  Worker's entry module exports only handlers…` in
+  `search-query-gate.test.ts`.
+- **Why:** workerd refuses to start a Worker whose entry module exports a
+  constant, and `wrangler deploy --dry-run` does not notice. A string
+  constant exported there during slice 3 would have stopped the Dev Worker;
+  only a local `wrangler dev` run showed it.
+- **Fix:** keep helpers that tests import out of the entry module (move
+  `mergeHealth`, `cronTarget`, `digestModel`, `searchEmbeddingTrigger` to
+  their own modules), and run the Worker once under local `wrangler dev` in
+  CI.
+- **Layer:** test today; structure and a CI step when fixed.
+- **Source:** Spec 016 slice 3.
+
+### G50. `SemanticReleaseView` has only an in-memory implementation, by design
+- **Where:** `packages/semantic-vectorize/src/release-view.ts`,
+  `VectorizeSemanticRetriever`.
+- **Why:** the Pages reader resolves semantic matches inside its one pass
+  over the shards (Spec 016 Decision 26) and shares the retriever's two
+  steps, not the retriever. The view and the retriever remain for the
+  `SemanticRetriever` contract tests and offline evaluation. Formerly G42.
+- **Fix:** if no other reader needs them after slice 4, delete the
+  retriever and the view and keep `proposeSemanticMatches` and
+  `acceptSemanticMatch`.
+- **Layer:** structure.
+- **Source:** Spec 016 slice 3.
+

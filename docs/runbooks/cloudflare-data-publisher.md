@@ -79,7 +79,7 @@ publication the publisher asks it to run; it embeds the current Search
 release's chunks with `@cf/baai/bge-m3` through the AI Gateway named by
 `SEARCH_GATEWAY_ID` and stores one vector per passage in the Vectorize index
 bound as `SEARCH_VECTORS`, one namespace per project. It cannot fail, delay,
-or re-run a publication. Nothing reads the vectors before Spec 016 slice 3.
+or re-run a publication. The vectors are read only by the query gate (below), once hybrid search is enabled.
 
 | | Development | Production |
 | --- | --- | --- |
@@ -106,7 +106,9 @@ kept until a later run embeds), and `lastRun` (`releaseId`, `chunks`,
 `index.mutationsProcessed`, `estimate`).
 
 Bounds: 3,000 chunks and 80 model calls per run; 400 calls and 2,500
-estimated neurons per UTC day. No model call or delete starts after 10
+estimated neurons per UTC day (since Spec 016 slice 3 the neurons are the
+token estimate times 1.8, the ratio measured on the Dev backfill of
+2026-10-12). No model call or delete starts after 10
 minutes and each call is abandoned after 30 seconds, so a run ends within
 11 min 35 s (the alarm limit is 15 minutes). A run that reaches one
 reports `limited` and the next run continues. The Dev backfill, by the dry
@@ -169,10 +171,11 @@ rollback, repeat from step 1.
 4. Watch `searchEmbedding.lastRun` until `pending` is 0 and, a run later,
    `index.mutationsProcessed` is `true`. Check the gateway `osskb-search-dev`
    for the requests; `osskb-digest-dev` must show none of them.
-5. After the first real run, compare the tokens and neurons the gateway
-   reports with `lastRun.estimatedInputTokens` and `estimatedNeurons`, and
-   record the ratio in Spec 016 Results. The daily cap allows the estimate to
-   be half the truth; lower `dailyNeuronCap` if the ratio is above 2.
+5. After the first real run, compare the cost the gateway reports with
+   `lastRun.estimatedNeurons`. Done for the backfill of 2026-10-12: $0.0157
+   against an estimate of $0.0088, a ratio of 1.78; the estimate has been
+   multiplied by 1.8 since (`EMBEDDING_TOKEN_CALIBRATION`). Measure again
+   and change the constant if a later month's ratio leaves 1.5–2.1.
 
 ### Turn off or roll back
 
@@ -197,3 +200,98 @@ rollback, repeat from step 1.
    served while the flag is off too). Without it the
    state still calls every chunk embedded and nothing is embedded again.
 3. With the flag on, the next runs embed every chunk again (one backfill).
+
+## Hybrid search at query time (Spec 016 slice 3)
+
+Off everywhere until the two enable PRs below. With it on, `/api/search`
+fuses lexical results with semantic candidates; whenever semantic retrieval
+is missing it answers lexically and says why.
+
+| Piece | Where | Flag or binding |
+| --- | --- | --- |
+| Shard roots in the Search manifest | publisher | Worker var `SEARCH_SHARD_ROOTS=true` |
+| Query gate (`SearchQueryGate`, one Durable Object: ledger and caches) | data Worker | class migration `v4`; Worker binding `SEARCH_QUERY_GATE` (for `/health`) |
+| Hybrid search in `/api/search` | Pages Function | Pages var `SEARCH_SEMANTIC=rrf-group@1`; Pages Durable Object binding `SEARCH_QUERY_GATE` → `SearchQueryGate` of `oss-knowledge-base-data-dev` |
+
+The gate uses the embedding job's profile, gateway (`osskb-search-dev`), and
+index. It has no public route. Nothing is created by hand: no index, gateway,
+token, or dashboard setting.
+
+### Estimate before enabling (no deployment, no network)
+
+```sh
+bun run measure:search-query-budget          # caps, per-query charge, Vectorize dimensions
+bun run measure:search-hybrid                # lexical baseline of the labelled queries on Dev (public GETs)
+```
+
+The caps: per UTC day 1,000 neurons of query embeddings (1 a query) and
+1,000 index queries (2 a search on Dev, so 500 uncached searches); 100 model
+calls a clock hour. With the digest's 4,500 and the embedding job's 2,500
+that is 8,000 of the 10,000 neurons a day the plan includes; 31 days of
+index queries plus the stored vectors are 40.7 M of Vectorize's included
+50 M dimensions.
+
+### Enable on Dev (two PRs, in this order)
+
+1. **Worker.** In `apps/data-publisher-worker/wrangler.development.jsonc`
+   add `"SEARCH_SHARD_ROOTS": "true"` to `vars`, `{ "name":
+   "SEARCH_QUERY_GATE", "class_name": "SearchQueryGate" }` to
+   `durable_objects.bindings`, and `{ "tag": "v4", "new_sqlite_classes":
+   ["SearchQueryGate"] }` to `migrations`; update the `H66` configuration
+   test in `search-query-gate.test.ts`. After the deploy `/health`
+   `searchQuery.enabled` is `true` with no `configError`; after the next
+   publication `lastRun.search.shardRoots` is `true`. Visitors cannot reach
+   the gate yet.
+2. **Pages**, only after step 1 is deployed (CI deploys Pages before the
+   Worker). In `apps/web/wrangler.development.jsonc` add `"vars": {
+   "SEARCH_SEMANTIC": "rrf-group@1" }` and `"durable_objects": { "bindings":
+   [{ "name": "SEARCH_QUERY_GATE", "class_name": "SearchQueryGate",
+   "script_name": "oss-knowledge-base-data-dev" }] }`; update the `H66`
+   configuration test in `search-hybrid.test.ts`.
+3. First observations (Spec 016 H31, H32):
+   - `GET /api/search?q=交易逾時` → `retrieval.semantic { status: "ok",
+     candidates, cached: false }` and results; again → `cached: true`.
+   - `/health` `searchQuery.today`: 1 neuron, 1 model call, 2 index queries.
+   - The gateway `osskb-search-dev` shows one more request;
+     `osskb-digest-dev` none.
+   - `bun run measure:search-hybrid -- --out report.json`: ranks with and
+     without semantic retrieval, statuses, and the added latency. Compare
+     with the estimate in Spec 016 Results (slice 3).
+
+### Reading the response and `/health`
+
+`retrieval.semantic.status` in `/api/search`:
+
+| Status | Meaning | Do |
+| --- | --- | --- |
+| `ok` | Candidates were fused; `cached` says no model call was made | — |
+| `skipped` | An identifier query or fewer than two letters | — |
+| `disabled` | The request said `semantic=off`, or the gate has no `SEARCH_EMBEDDING` | Check the Worker's variables if unexpected |
+| `uncovered` | The served release has no shard roots | Check `SEARCH_SHARD_ROOTS` and `lastRun.search.shardRoots` |
+| `over-budget` | A daily or hourly cap is spent, or model calls are paused after a refusal | Read `searchQuery.today` and `pausedUntil`; it resets by itself |
+| `timed-out` | The gate took over 1,000 ms | Read `searchQuery.lastError`; watch the share with `measure:search-hybrid` |
+| `failed` | Anything else: a model or index error, a bad flag value, a missing binding | Read `searchQuery.lastError` and `configError`; the Pages log has the sanitized error |
+
+No field at all means `SEARCH_SEMANTIC` is unset on that deployment.
+
+`/health` `searchQuery`: `enabled`, `configError`, `semanticRevision`,
+`today { date, neurons, modelCalls, indexQueries, hour, hourModelCalls,
+neuronCap, indexQueryCap, hourModelCallCap }`, `pausedUntil` (model calls
+are paused for 15 minutes after Workers AI or the gateway refuses a call),
+`lastError { kind, message, at }` (`model`, `model-limit`, `vector-store`,
+`internal`), and `sinceStart { requests, cached, embedded, overBudget,
+failed }`, which restarts whenever the platform restarts the object. It is
+`null` when the object does not answer and `enabled: false` with the caps
+where it is not bound.
+
+### Turn off
+
+- Remove `SEARCH_SEMANTIC` from the Pages configuration and deploy (revert
+  the Pages PR). `/api/search` is the lexical reader again, byte for byte.
+- Nothing needs doing in a hurry: a failing gate, a spent budget, and a
+  timeout already answer lexically.
+- Removing `SEARCH_SHARD_ROOTS` makes the next release `uncovered`. The
+  object and its cache may stay; removing the class needs a `deleted_classes`
+  migration.
+- To compare without deploying, add `&semantic=off` to a request.
+
