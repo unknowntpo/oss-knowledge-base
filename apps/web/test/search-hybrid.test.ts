@@ -26,7 +26,7 @@ import {
 import { FAKE_SEMANTIC_REVISION, fakeEmbed } from "../../../packages/search/test/support/fake-embedder";
 import { onRequestGet as searchHandler } from "../functions/api/search";
 import { HYBRID_LEXICAL_DEPTH, readSearchDetailProjection, searchR2Projection, type SemanticSearchOptions } from "../functions/_shared/search-projection";
-import { durableObjectSemanticGate, SEARCH_QUERY_GATE_NAME, semanticSearchOptions } from "../functions/_shared/semantic-gate";
+import { durableObjectSemanticGate, semanticSearchOptions } from "../functions/_shared/semantic-gate";
 import { testPlanRows as realCorpusGuardRows } from "../../../packages/search/test/real-corpus-guards.cases";
 import { testPlanRows as realCorpusRows } from "../../../packages/search/test/real-corpus.cases";
 import { searchPublicationFromChunks } from "../scripts/build-search-fixture";
@@ -294,7 +294,6 @@ describe("Spec 016 hybrid search: the flag, the binding, and `semantic=off`", ()
     const body = await response.json() as SearchResponseV1;
     expect(body.retrieval.semantic).toEqual({ status: "ok", candidates: 2, cached: false });
     expect(roots(body)).toEqual(["kafka:jira:issue:KAFKA-20785", "kafka:jira:issue:KAFKA-20734"]);
-    expect(SEARCH_QUERY_GATE_NAME).toBe("search-query-gate-v1");
     expect(seen).toEqual({
       names: ["search-query-gate-v1"],
       urls: ["POST https://search-query.internal/query"],

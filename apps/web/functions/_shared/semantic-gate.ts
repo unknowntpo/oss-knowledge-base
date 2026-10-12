@@ -1,10 +1,7 @@
 import { DEFAULT_FUSION_REVISION } from "@oss-knowledge-base/search";
-import { parseSemanticQueryAnswer, sanitizeErrorMessage, type SemanticQueryPort } from "@oss-knowledge-base/semantic-vectorize";
+import { parseSemanticQueryAnswer, sanitizeErrorMessage, SEARCH_QUERY_GATE_OBJECT_NAME, type SemanticQueryPort } from "@oss-knowledge-base/semantic-vectorize";
 
 import type { SemanticSearchOptions } from "./search-projection";
-
-/** The gate object's name; the data Worker reads the same object for `/health`. */
-export const SEARCH_QUERY_GATE_NAME = "search-query-gate-v1";
 
 export interface SemanticSearchEnv {
   /**
@@ -21,7 +18,7 @@ export interface SemanticSearchEnv {
 export function durableObjectSemanticGate(namespace: DurableObjectNamespace): SemanticQueryPort {
   return {
     async query(request, signal) {
-      const stub = namespace.get(namespace.idFromName(SEARCH_QUERY_GATE_NAME));
+      const stub = namespace.get(namespace.idFromName(SEARCH_QUERY_GATE_OBJECT_NAME));
       const response = await stub.fetch("https://search-query.internal/query", {
         method: "POST",
         headers: { "content-type": "application/json" },

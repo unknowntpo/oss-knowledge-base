@@ -11,7 +11,7 @@ import { R2PublicationDestination } from "./r2-destination";
 import { runPending } from "./run-schedule";
 import { healthBody } from "./health";
 import { runDataPublication, type PipelinePhaseMarker, type PipelineRunStatus } from "./pipeline";
-import { unboundQueryGateHealth, type EmbeddingAiBinding, type SemanticQueryGate, type VectorIndex } from "@oss-knowledge-base/semantic-vectorize";
+import { SEARCH_QUERY_GATE_OBJECT_NAME, unboundQueryGateHealth, type EmbeddingAiBinding, type SemanticQueryGate, type VectorIndex } from "@oss-knowledge-base/semantic-vectorize";
 import { createSearchQueryGate } from "./search-query/gate";
 import { SearchEmbeddingRunner, unboundSearchEmbeddingHealth } from "./search-embedding/runner";
 import { sanitizeErrorMessage } from "./search-embedding/sanitize";
@@ -68,8 +68,6 @@ const sourceFetch = (url: string, init: { readonly headers: Readonly<Record<stri
 const STATE_OBJECT_NAME = "github-feed-search-pipeline-v1";
 const DIGEST_OBJECT_NAME = "topic-digest-apache-kafka-v1";
 const SEARCH_EMBEDDING_OBJECT_NAME = "search-embedding-v1";
-/** The one gate object; the Pages reader addresses it by the same name (`SEARCH_QUERY_GATE_NAME`). */
-export const SEARCH_QUERY_GATE_OBJECT_NAME = "search-query-gate-v1";
 
 function searchEmbeddingObject(env: Pick<Env, "SEARCH_EMBEDDING_RUN">): DurableObjectStub | undefined {
   return env.SEARCH_EMBEDDING_RUN?.get(env.SEARCH_EMBEDDING_RUN.idFromName(SEARCH_EMBEDDING_OBJECT_NAME));

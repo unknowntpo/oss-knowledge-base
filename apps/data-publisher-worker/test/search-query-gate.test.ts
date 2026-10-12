@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { DAILY_CAP, DAILY_NEURON_BUDGET, EMBEDDING_TOKEN_CALIBRATION, embeddingNeurons, estimateTokens, neurons, PRICES } from "@oss-knowledge-base/reference-pipeline";
-import { DEFAULT_QUERY_GATE_LIMITS, VECTOR_LIMITS } from "@oss-knowledge-base/semantic-vectorize";
+import { DEFAULT_QUERY_GATE_LIMITS, SEARCH_QUERY_GATE_OBJECT_NAME, VECTOR_LIMITS } from "@oss-knowledge-base/semantic-vectorize";
 import { FakeVectorIndex, MemoryGateStorage, storeChunkVectors, testChunk } from "@oss-knowledge-base/semantic-vectorize/testing";
 
-import worker, { mergeHealth, SEARCH_QUERY_GATE_OBJECT_NAME, SearchQueryGate } from "../src/index";
+import worker, { mergeHealth, SearchQueryGate } from "../src/index";
+import * as entry from "../src/index";
 import { DEFAULT_EMBEDDING_LIMITS } from "../src/search-embedding/run";
 import { createSearchQueryGate, searchQueryGateConfig, type SearchQueryGateDeps } from "../src/search-query/gate";
 
@@ -183,6 +184,14 @@ describe("Spec 016 query gate object and /health", () => {
     const off = new SearchQueryGate(ctx as never, { AI: new FakeAi(), SEARCH_VECTORS: index } as never);
     expect(await (await off.fetch(new Request("https://search-query.internal/query", { method: "POST", body: JSON.stringify({ query: "one", projectIds: ["apache-kafka"] }) }))).json<unknown>()).toEqual({ status: "disabled" });
     expect(ai.calls).toHaveLength(1);
+  });
+
+  test("H69: the Worker's entry module exports only handlers, classes, and functions, as the runtime requires", () => {
+    // workerd refuses to start a Worker whose entry module exports anything else (a string
+    // constant exported here stopped the local runtime during this slice).
+    const exported = Object.entries(entry).map(([name, value]) => `${name}:${name === "default" ? typeof (value as { fetch?: unknown }).fetch : typeof value}`);
+    expect(exported.filter((item) => !item.endsWith(":function"))).toEqual([]);
+    expect(Object.keys(entry)).toContain("SearchQueryGate");
   });
 
   test("H69: the Worker has no public route to the gate", async () => {

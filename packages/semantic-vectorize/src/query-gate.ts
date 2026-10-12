@@ -32,6 +32,9 @@ export interface SemanticQueryPort {
 
 export const MAX_SEMANTIC_QUERY_CHARACTERS = 500;
 
+/** The name of the one gate object; the Pages reader and the data Worker address it by this name. */
+export const SEARCH_QUERY_GATE_OBJECT_NAME = "search-query-gate-v1";
+
 /**
  * The text that is embedded and that keys the caches: NFKC, runs of whitespace as one space,
  * trimmed. Case is kept, because it carries meaning for the model (`KRaft`, `EndTxn`).
