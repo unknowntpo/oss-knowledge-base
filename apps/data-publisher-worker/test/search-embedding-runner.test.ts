@@ -382,10 +382,10 @@ describe("Spec 016 embedding object", () => {
       today: { date: "2026-10-10", estimatedNeurons: 0, cap: 2_500, calls: 0, callCap: 400 }, lastMutation: null, lastError: null, lastRun: null,
     });
     expect(unboundSearchEmbeddingHealth("bge-m3@1", new Date(DAY_1)).configError).toBe('SEARCH_EMBEDDING is "bge-m3@1" but the SEARCH_EMBEDDING_RUN binding is missing');
-    expect(mergeHealth(publisher, { enabled: true }, null, health)).toEqual({ ...publisher, digest: { enabled: true }, reviewQueue: null, searchEmbedding: health });
+    expect(mergeHealth(publisher, { enabled: true }, null, health)).toEqual({ ...publisher, digest: { enabled: true }, reviewQueue: null, searchEmbedding: health, searchQuery: null });
     // The object did not answer: null, like the digest.
-    expect(mergeHealth(publisher, null, null, null)).toEqual({ ...publisher, digest: null, reviewQueue: null, searchEmbedding: null });
-    expect(mergeHealth(publisher, null)).toEqual({ ...publisher, digest: null, reviewQueue: null, searchEmbedding: null });
+    expect(mergeHealth(publisher, null, null, null)).toEqual({ ...publisher, digest: null, reviewQueue: null, searchEmbedding: null, searchQuery: null });
+    expect(mergeHealth(publisher, null)).toEqual({ ...publisher, digest: null, reviewQueue: null, searchEmbedding: null, searchQuery: null });
   });
 });
 
@@ -433,7 +433,7 @@ describe("Spec 016 embedding endpoints of the Worker", () => {
     const health = async (extra: Record<string, unknown>) =>
       (await (await worker.fetch(new Request("https://publisher.example/health"), baseEnv(extra))).json()) as Record<string, unknown>;
     const bound = await health({ SEARCH_EMBEDDING_RUN: stub((url) => (url.endsWith("/status") ? Response.json({ enabled: true, lastRun: { ok: true, pending: 0 } }) : new Response("no", { status: 404 }))) });
-    expect(bound).toEqual({ ...publisher, digest: { enabled: false }, reviewQueue: null, searchEmbedding: { enabled: true, lastRun: { ok: true, pending: 0 } } });
+    expect(bound).toEqual({ ...publisher, digest: { enabled: false }, reviewQueue: null, searchEmbedding: { enabled: true, lastRun: { ok: true, pending: 0 } }, searchQuery: expect.objectContaining({ enabled: false }) });
     expect((await health({ SEARCH_EMBEDDING_RUN: stub(() => new Response("boom", { status: 500 })) })).searchEmbedding).toBeNull();
     expect((await health({ SEARCH_EMBEDDING_RUN: stub(() => { throw new Error("gone"); }) })).searchEmbedding).toBeNull();
     expect((await health({})).searchEmbedding).toMatchObject({ enabled: false, lastRun: null });

@@ -7,6 +7,8 @@ import {
   MANIFEST_KEY,
   SEARCH_CURRENT_KEY,
   SEARCH_DETAIL_POOL,
+  searchReleaseHasShardRoots,
+  searchShardForGroupRoot,
   searchTermsKey,
   type PublicationObjectStore,
   type SearchCurrentPointerV1,
@@ -25,6 +27,7 @@ import { FakeEmbedder, MemoryStorage, PROFILE } from "./support/search-embedding
 import { healthBody } from "../src/health";
 import {
   resolveSearchLexicalRevision,
+  resolveSearchShardRoots,
   runDataPublication,
   type PipelineRunStatus,
   type PipelineStateRepository,
@@ -351,6 +354,87 @@ describe("Spec 016 lexical revision of the published Search release", () => {
     expect(published(destination).manifest.lexicalRevision).toBe("bm25-reference@2");
     // Positive control: a supported value moves on to `polling`.
     expect(state.phases.slice(0, 3)).toEqual(["reading-state", "reading-state", "polling"]);
+  });
+
+  const runWithRoots = (destination: MemoryDestination, state: MemoryState, searchShardRoots: string | undefined) =>
+    runDataPublication({
+      environment: "development",
+      materializedAt: fixture.config.materializedAt,
+      connector: connectorSuccess(events),
+      state,
+      destination,
+      searchLexicalRevision: "bm25-reference@3",
+      ...(searchShardRoots === undefined ? {} : { searchShardRoots }),
+    });
+
+  test.each([undefined, "", "  "])("H57: SEARCH_SHARD_ROOTS %p publishes every object as before, and /health names no shard roots", async (value) => {
+    expect(resolveSearchShardRoots(value)).toBe(false);
+    const destination = new MemoryDestination();
+    const unset = new MemoryDestination();
+    const result = await runWithRoots(destination, new MemoryState(), value);
+    expect((await run(unset, new MemoryState(), "bm25-reference@3")).ok).toBe(true);
+    expect(result.ok).toBe(true);
+    expect([...destination.objects.keys()]).toEqual([...unset.objects.keys()]);
+    for (const [key, body] of destination.objects) expect(Buffer.from(body).equals(Buffer.from(unset.objects.get(key)!))).toBe(true);
+    expect(published(destination).manifest.shards.every((shard) => !Object.hasOwn(shard, "firstGroupRootRecordId"))).toBe(true);
+    expect(result.ok && Object.hasOwn(result.search, "shardRoots")).toBe(false);
+  });
+
+  test("H57: SEARCH_SHARD_ROOTS true adds each shard's first group root to the manifest and nothing else; a later run without it leaves them out again", async () => {
+    expect(resolveSearchShardRoots(" true ")).toBe(true);
+    const destination = new MemoryDestination();
+    const plain = new MemoryDestination();
+    const state = new MemoryState();
+    const result = await runWithRoots(destination, state, "true");
+    expect((await runWithRoots(plain, new MemoryState(), undefined)).ok).toBe(true);
+    expect(result.ok && result.search.shardRoots).toBe(true);
+
+    const { manifest, shards } = published(destination);
+    expect(manifest.shards.length).toBe(2);
+    expect(manifest.shards.map((shard) => shard.firstGroupRootRecordId)).toEqual(shards.map((shard) => shard.groups[0]!.groupRootRecordId));
+    expect(searchReleaseHasShardRoots(manifest)).toBe(true);
+    for (const shard of shards) {
+      for (const group of shard.groups) expect(searchShardForGroupRoot(manifest, shard.projectId, group.groupRootRecordId)).toBe(shard.shard);
+    }
+    const manifestKey = `public/search/v1/releases/${manifest.indexRevision}/manifest.json`;
+    const changed = [...destination.objects].filter(([key, body]) => !Buffer.from(body).equals(Buffer.from(plain.objects.get(key) ?? new Uint8Array())))
+      .map(([key]) => key);
+    // The manifest, and the publication evidence, which records the manifest's digest.
+    expect(changed).toEqual([manifestKey, "publication-sets/v1/github-2026-08-25T12-00-00-000Z.json"]);
+    expect(healthBody({ environment: "development", running: false, scheduled: false, phase: undefined, status: state.statuses.at(-1) }).lastRun)
+      .toMatchObject({ ok: true, search: { lexicalRevision: "bm25-reference@3", shardRoots: true } });
+
+    // Turning the flag off: the next release has no roots, and the release with them stays.
+    const later = await runDataPublication({
+      environment: "development", materializedAt: "2026-08-25T13:00:00.000Z", connector: connectorSuccess(events), state, destination, searchLexicalRevision: "bm25-reference@3",
+    });
+    expect(later.ok && Object.hasOwn(later.search, "shardRoots")).toBe(false);
+    expect(searchReleaseHasShardRoots(published(destination).manifest)).toBe(false);
+    expect(destination.objects.has(manifestKey)).toBe(true);
+  });
+
+  test.each(["1", "yes", "TRUE", "false", "bm25-reference@3"])("H66: SEARCH_SHARD_ROOTS %p fails the run before any write", async (value) => {
+    expect(() => resolveSearchShardRoots(value)).toThrow(`SEARCH_SHARD_ROOTS "${value}" is not supported`);
+    const state = new MemoryState();
+    const destination = new MemoryDestination();
+    destination.objects.set(SEARCH_CURRENT_KEY, new TextEncoder().encode("old-search"));
+    let polls = 0;
+    const result = await runDataPublication({
+      environment: "development",
+      materializedAt: fixture.config.materializedAt,
+      connector: { poll: async () => { polls += 1; return connectorSuccess(events).poll(); } },
+      state,
+      destination,
+      searchShardRoots: value,
+    });
+    expect(result).toMatchObject({ ok: false, failureKind: "pipeline" });
+    expect(result.ok === false && result.error).toContain(`SEARCH_SHARD_ROOTS "${value}"`);
+    expect(destination.operations).toEqual([]);
+    expect(polls).toBe(0);
+    expect(state.phases).toEqual(["reading-state"]);
+    expect(new TextDecoder().decode(destination.objects.get(SEARCH_CURRENT_KEY))).toBe("old-search");
+    // Positive control: the supported value publishes.
+    expect((await runWithRoots(destination, state, "true")).ok).toBe(true);
   });
 
   test("N6: SEARCH_LEXICAL_REVISION bm25-reference@3 publishes the @2 objects under a manifest that names @3", async () => {
