@@ -514,6 +514,23 @@ describe("Spec 016 hybrid search: consistency with the served release", () => {
       .toEqual([[t20785.groupRootRecordId, [t20785.id]], [t20734.groupRootRecordId, [t20734.id]]]);
   });
 
+  test("H58: a gate answer holding null or malformed matches does not fail the search: they are dropped and the good match stays", async () => {
+    const objects = await goldenRelease();
+    const t20785 = chunksOf(objects).find((item) => item.recordId === "kafka:jira:issue:KAFKA-20785")!;
+    const good = await matchFor(t20785, 0.9);
+    const junk = [null, undefined, "x", 7, {}, { ...good, projectId: null }, { ...good, groupRootRecordId: 7 }, { ...good, ordinal: -1 }, { ...good, score: Number.NaN }, { ...good, recordId: "" }];
+    // A port that skips the client's parsing, as a future caller or a bug might.
+    const gate = new RecordingGate(async () => ({ status: "ok", semanticRevision: fakeProfile.semanticRevision, cached: false, matches: [...junk, good, ...junk] }) as never);
+    const response = await searchR2Projection(new MemoryBucket(objects).asR2(), { query: NO_LEXICAL_MATCH, limit: 20 }, { gate });
+    expect(roots(response)).toEqual([t20785.groupRootRecordId]);
+    expect(response.retrieval.semantic).toEqual({ status: "ok", candidates: 1, cached: false });
+    // Matches that are no list at all are no matches.
+    const none = new RecordingGate(async () => ({ status: "ok", semanticRevision: fakeProfile.semanticRevision, cached: false, matches: null }) as never);
+    const empty = await searchR2Projection(new MemoryBucket(objects).asR2(), { query: "txn", limit: 20 }, { gate: none });
+    expect(roots(empty)).toEqual(["kafka:jira:issue:KAFKA-20785"]);
+    expect(empty.retrieval.semantic).toEqual({ status: "ok", candidates: 0, cached: false });
+  });
+
   test("H58: vectors newer, older, or of another revision than the release never become results (real gate)", async () => {
     const objects = await goldenRelease();
     const chunks = chunksOf(objects);

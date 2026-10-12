@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { DAILY_CAP, DAILY_NEURON_BUDGET, EMBEDDING_TOKEN_CALIBRATION, embeddingNeurons, estimateTokens, neurons, PRICES } from "@oss-knowledge-base/reference-pipeline";
+import { DAILY_CAP, DAILY_NEURON_BUDGET, DIGEST_NEURON_CALIBRATION, EMBEDDING_TOKEN_CALIBRATION, embeddingNeurons, estimateTokens, neurons, PRICES, USD_PER_NEURON } from "@oss-knowledge-base/reference-pipeline";
 import { DEFAULT_QUERY_GATE_LIMITS, SEARCH_QUERY_GATE_OBJECT_NAME, VECTOR_LIMITS } from "@oss-knowledge-base/semantic-vectorize";
 import { FakeVectorIndex, MemoryGateStorage, storeChunkVectors, testChunk } from "@oss-knowledge-base/semantic-vectorize/testing";
 
 import worker, { mergeHealth, SearchQueryGate } from "../src/index";
 import * as entry from "../src/index";
+import { resolveSearchShardRoots } from "../src/pipeline";
 import { DEFAULT_EMBEDDING_LIMITS } from "../src/search-embedding/run";
 import { createSearchQueryGate, searchQueryGateConfig, type SearchQueryGateDeps } from "../src/search-query/gate";
 
@@ -97,12 +98,22 @@ describe("Spec 016 query gate of the data Worker", () => {
     expect(DEFAULT_EMBEDDING_LIMITS.dailyNeuronCap).toBe(DAILY_NEURON_BUDGET.searchEmbedding);
   });
 
-  test("H67: the three daily caps fit the included neurons, and the monthly index queries fit the included dimensions", () => {
-    const { digest, searchEmbedding, searchQuery, included } = DAILY_NEURON_BUDGET;
+  test("H67: the three daily caps fit the included neurons at their calibrated estimates, and the monthly index queries fit the included dimensions", () => {
+    const { digest, digestCalibrated, searchEmbedding, searchQuery, included } = DAILY_NEURON_BUDGET;
     expect([digest, searchEmbedding, searchQuery, included]).toEqual([4_500, 2_500, 1_000, 10_000]);
     expect(digest).toBe(DAILY_CAP.dev);
+    // The digest's cap counts its own estimate, which undercounts: 2026-10-08, three dry runs
+    // estimated at 4,507 neurons cost $0.06306 on the gateway, 5,733 neurons, a ratio of 1.272.
+    expect(Math.round(0.06306 / USD_PER_NEURON)).toBe(5_733);
+    expect(Math.round((5_733 / 4_507) * 1_000) / 1_000).toBe(1.272);
+    expect(DIGEST_NEURON_CALIBRATION).toBe(1.28);
+    expect(digestCalibrated).toBe(5_760);
+    expect(digestCalibrated).toBe(Math.ceil(digest * DIGEST_NEURON_CALIBRATION));
+    // The embedding cap is already calibrated and the query cap is an upper bound.
+    expect(digestCalibrated + searchEmbedding + searchQuery).toBe(9_260);
+    expect(included - (digestCalibrated + searchEmbedding + searchQuery)).toBe(740);
+    // Uncalibrated, the same caps read 8,000 and hid 1,260 neurons.
     expect(digest + searchEmbedding + searchQuery).toBe(8_000);
-    expect(digest + searchEmbedding + searchQuery).toBeLessThanOrEqual(included - 2_000);
     // Vectorize bills (stored vectors + queries) × dimensions; 50 M a month are included.
     const monthly = (chunks: number) => (chunks + 31 * DEFAULT_QUERY_GATE_LIMITS.maxIndexQueriesPerDay) * DIMENSIONS;
     expect(monthly(8_780)).toBe(40_734_720);
@@ -204,18 +215,34 @@ describe("Spec 016 query gate object and /health", () => {
     expect(asked).toBe(0);
   });
 
-  test("H66: neither deployed publisher configuration sets the shard-root flag, binds the gate, or migrates its class", async () => {
-    for (const environment of ["development", "production"]) {
-      const config = JSON.parse(await Bun.file(new URL(`../wrangler.${environment}.jsonc`, import.meta.url)).text()) as {
-        readonly vars: Readonly<Record<string, string>>;
-        readonly durable_objects: { readonly bindings: readonly { readonly name: string; readonly class_name: string }[] };
-        readonly migrations: readonly { readonly tag: string; readonly new_sqlite_classes: readonly string[] }[];
-      };
-      expect(Object.hasOwn(config.vars, "SEARCH_SHARD_ROOTS")).toBe(false);
-      expect(config.durable_objects.bindings.map((binding) => binding.class_name)).not.toContain("SearchQueryGate");
-      expect(config.durable_objects.bindings.map((binding) => binding.name)).not.toContain("SEARCH_QUERY_GATE");
-      expect(config.migrations.flatMap((migration) => migration.new_sqlite_classes)).not.toContain("SearchQueryGate");
-      expect(config.migrations.map((migration) => migration.tag)).toEqual(environment === "development" ? ["v1", "v2", "v3"] : ["v1", "v2"]);
-    }
+  test("H66: the development publisher sets the shard-root flag, binds the gate, and migrates its class (v4); production has none of them", async () => {
+    const read = async (environment: string) => JSON.parse(await Bun.file(new URL(`../wrangler.${environment}.jsonc`, import.meta.url)).text()) as {
+      readonly vars: Readonly<Record<string, string>>;
+      readonly durable_objects: { readonly bindings: readonly { readonly name: string; readonly class_name: string }[] };
+      readonly migrations: readonly { readonly tag: string; readonly new_sqlite_classes: readonly string[] }[];
+    };
+    const development = await read("development");
+    expect(development.vars.SEARCH_SHARD_ROOTS).toBe("true");
+    expect(resolveSearchShardRoots(development.vars.SEARCH_SHARD_ROOTS)).toBe(true);
+    expect(development.durable_objects.bindings).toContainEqual({ name: "SEARCH_QUERY_GATE", class_name: "SearchQueryGate" });
+    expect(development.migrations).toEqual([
+      { tag: "v1", new_sqlite_classes: ["PipelineState"] },
+      { tag: "v2", new_sqlite_classes: ["DigestRun"] },
+      { tag: "v3", new_sqlite_classes: ["SearchEmbeddingRun"] },
+      { tag: "v4", new_sqlite_classes: ["SearchQueryGate"] },
+    ]);
+    // Every bound class is exported by the entry module and migrated exactly once.
+    const migrated = development.migrations.flatMap((migration) => migration.new_sqlite_classes);
+    expect([...migrated].sort()).toEqual(development.durable_objects.bindings.map((binding) => binding.class_name).sort());
+    for (const name of migrated) expect(typeof (entry as Record<string, unknown>)[name]).toBe("function");
+    // The gate is on only with the embedding profile, its gateway, the AI binding, and the index: all Dev's.
+    expect(development.vars).toMatchObject({ SEARCH_EMBEDDING: "bge-m3@1", SEARCH_GATEWAY_ID: "osskb-search-dev" });
+
+    const production = await read("production");
+    expect(Object.hasOwn(production.vars, "SEARCH_SHARD_ROOTS")).toBe(false);
+    expect(resolveSearchShardRoots(production.vars.SEARCH_SHARD_ROOTS)).toBe(false);
+    expect(production.durable_objects.bindings.map((binding) => binding.class_name)).toEqual(["PipelineState", "DigestRun"]);
+    expect(production.migrations.map((migration) => migration.tag)).toEqual(["v1", "v2"]);
+    expect(JSON.stringify(production)).not.toContain("SearchQueryGate");
   });
 });

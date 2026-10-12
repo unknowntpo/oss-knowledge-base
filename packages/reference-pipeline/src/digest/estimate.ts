@@ -20,6 +20,7 @@ export type PricedModel = keyof typeof PRICES;
 /** Workers AI bills $0.011 per 1,000 neurons. */
 export const USD_PER_NEURON = 0.011 / 1_000;
 
+/** The digest's daily cap, in neurons of its own estimate (see `DIGEST_NEURON_CALIBRATION`). */
 export const DAILY_CAP = { prod: 5_000, dev: 4_500 } as const;
 /** Slice 2c raised card, proposal, highlights and translation after JSON was cut on Dev (Behavior 15). */
 export const MAX_TOKENS = { classify: 800, card: 500, proposal: 160, highlights: 800, translation: 4_000 } as const;
@@ -62,10 +63,29 @@ export function embeddingNeurons(model: PricedModel, estimatedTokens: number): n
 }
 
 /**
- * Estimated neurons a UTC day may spend on Dev, by spender. The plan includes 10,000 a day; the
- * rest is headroom for what these estimates miss (Spec 016 Results, slice 3).
+ * How many neurons the digest really spends for each neuron its ledger counts. Measured once: on
+ * 2026-10-08 three Dev dry runs were estimated at 4,507 neurons, and the AI Gateway
+ * `osskb-digest-dev` logged their 109 calls at $0.06306, which is 5,733 neurons at $0.011 per
+ * 1,000: 1.272, rounded up. The digest's ledger and cap still count its own estimate; this
+ * constant only says what that cap can cost.
  */
-export const DAILY_NEURON_BUDGET = { digest: 4_500, searchEmbedding: 2_500, searchQuery: 1_000, included: 10_000 } as const;
+export const DIGEST_NEURON_CALIBRATION = 1.28;
+
+const DEV_DIGEST_CAP = 4_500;
+
+/**
+ * What a UTC day may spend on Dev, by spender. `digest` is the digest's cap in its own
+ * estimate and `digestCalibrated` what that cap can really cost; the embedding cap is already
+ * calibrated and the query cap is an upper bound. The calibrated three are 9,260 of the 10,000
+ * neurons a day the plan includes (Spec 016 Results, slice 3).
+ */
+export const DAILY_NEURON_BUDGET = {
+  digest: DEV_DIGEST_CAP,
+  digestCalibrated: Math.ceil(DEV_DIGEST_CAP * DIGEST_NEURON_CALIBRATION),
+  searchEmbedding: 2_500,
+  searchQuery: 1_000,
+  included: 10_000,
+} as const;
 
 /** Before a call: input estimate plus `max_tokens` at the output price. */
 export function callEstimate(model: PricedModel, input: string, maxTokens: number): number {
