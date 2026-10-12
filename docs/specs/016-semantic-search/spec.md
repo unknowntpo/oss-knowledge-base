@@ -1,7 +1,7 @@
 # Spec 016: Semantic candidates and hybrid fusion for Search
 
-Status: Draft for human review — decisions of 2026-10-08..10 recorded below; slices 1, 2a and 2b implemented (2b: embedding publication and the Vectorize adapter), Dev switched to `@2` (H42), embeddings enabled on Dev (`SEARCH_EMBEDDING=bge-m3@1`, owner's approval 2026-10-12; the H52 observations follow the deploy), Prod has no flag, slices 3–4 pending
-Date: 2026-10-10
+Status: Draft for human review — decisions of 2026-10-08..12 recorded below; slices 1, 2a, 2b and 3 implemented (3: query-time hybrid search in the web API, behind `SEARCH_SEMANTIC`, off in every deployed configuration), Dev switched to `@2` (H42) and `@3` (Spec 017), embeddings enabled on Dev (`SEARCH_EMBEDDING=bge-m3@1`, owner's approval 2026-10-12), Prod has no flag, hybrid search not enabled anywhere (H31, H32), slice 4 pending
+Date: 2026-10-12
 Traceability: enforced
 Builds on: Spec 005 (Phases 2 and 3, LLM boundary), Spec 013 (lexical shards, `bm25-reference@1`), Spec 014 (community profile `proposal`), Spec 015 (profile blocks, ADR-0016)
 
@@ -93,6 +93,32 @@ unjudged) moves to rank 1, because splitting class names raises the document
 frequency of `request` and `manager`, and KAFKA-20765 (`CommitRequestManager`
 only in the body) is 5th. The expected order is not reached by lexical search;
 see Results.
+
+### Example (slice 3): Dev before hybrid search, 2026-10-12
+
+`bun run measure:search-hybrid` against the public Dev API at 11:16 UTC,
+release `feed-2026-10-12T11-07-57-000Z`, `bm25-reference@3`, hybrid search
+off (the response has no `retrieval.semantic`), `limit=50`. `/health` at
+10:42 UTC: 8,780 chunks in 10 shards, 17,956,963 shard bytes (largest
+2,423,328), `terms.json` 556,993 bytes; `searchEmbedding`: 8,780 embedded, 0
+pending, semantic revision `@cf/baai/bge-m3@1:1024:title-text@1`.
+
+| Query | Kind | Expected threads, lexical ranks | Time |
+| --- | --- | --- | --- |
+| `consumer network thread request manager` | owner's | KAFKA-19804 2nd, pull request 22747 21st, KAFKA-19738 9th | 1.9–4.1 s |
+| `交易逾時` | Chinese | none in the first 50 (0 results) | 0.7 s |
+| `消費者重新平衡很慢` | Chinese | none in the first 50 (0 results) | 0.8 s |
+| `反向 DNS 查詢阻塞網路執行緒` | Chinese | 7th, 3rd (through the word `DNS`) | 1.0 s |
+| `txn` | abbreviation | 1st to 5th: only threads that spell `Txn` | 1.1 s |
+| `SMJ spill` | abbreviation | 49th, not in 50, 29th | 1.4 s |
+| `two-phase commit` | vocabulary gap | not in 50 (the title says `2PC`) | 1.8 s |
+| `client spins at 100% cpu` | vocabulary gap | 3rd, three more not in 50 | 1.8 s |
+
+Of the 16 Chinese and vocabulary-gap queries written for slice 4 (test plan
+below), 3 are met lexically. A query whose words are in no shard reads three
+objects and takes 0.7 s; one whose words are in every shard reads 13 and
+takes 1.0–2.3 s (median over the 43 measured queries: 1.67 s). Those two
+numbers are the budget the semantic path has to fit beside.
 
 ## Decisions (human, 2026-10-08..10)
 
@@ -227,6 +253,138 @@ Owner's answers (2026-10-10, after the PR #50 verdict):
 Owner's decision (2026-10-12): enable embeddings on Dev with `bge-m3@1`,
 after the dry run of 2026-10-10 on the Dev release (Results, "Dev dry run").
 Prod stays without the flag.
+
+## Decisions (slice 3, 2026-10-12)
+
+Decided by the owner before the slice: hybrid search fuses lexical `@3` with
+Vectorize candidates through `rrf-group@1`; exact identifiers stay first;
+any missing semantic retrieval is the lexical answer; the semantic timeout
+is 1,000 ms; every query-time model call goes through `osskb-search-dev`;
+visitor queries must not cost money; the flag is off in this PR on Dev and
+Prod; `SearchResponseV1` changes only by addition.
+
+Left to the implementer, to confirm:
+
+25. **A release names the shard of a group in its manifest** (Behavior 27;
+    answers open question 9 and G42). `shards[n].firstGroupRootRecordId`.
+    A project's shards hold its groups in group-root order (Spec 013), a
+    vector carries its group root, and a vector whose root differs from the
+    release's has another fingerprint and is dropped anyway (Behavior 22),
+    so the stored root is a complete address. Cost: 0 extra R2 reads and
+    about 60 bytes a shard (0.6 KB on Dev's 10 shards). Rejected: a
+    per-release side object (`record → shard, fingerprint`: about 0.7 MB
+    and one more read per query, and filters and display still need the
+    shard); the shard number in vector metadata (shard boundaries move with
+    every release, so the hint is wrong after an hour and after a rollback,
+    and a wrong hint is a silent miss). The field is not a new revision:
+    readers before this slice validate a shard reference by `projectId` and
+    `key` only and ignore it (a test), so nothing needs to reject anything;
+    a release without it is served lexically (`uncovered`). It is still
+    behind a publisher flag, `SEARCH_SHARD_ROOTS`, like every other change
+    to stored bytes, so that merging changes no object.
+26. **One pass over the shards, with the gate asked first** (Behavior 28).
+    A semantic match is validated against the release's chunk and shown
+    from it, and both need the shard. Lexical ranking reads the same shards
+    and releases each after ranking it (Spec 013), so the reader asks the
+    gate as soon as it has the manifest, reads shards while the gate
+    answers, and ranks and resolves each shard once. A shard is never read
+    twice and never kept: at most 3 + shards reads a query and four shards
+    in flight, the Spec 013 bounds. Rejected: implementing
+    `SemanticReleaseView` over R2 beside the lexical reader (every shard
+    with a match read a second time: up to 18 MB more a query); ranking
+    lexically first and re-reading shards for the matches (the same).
+    The price: the lexical ranking waits for the gate, at most the timeout.
+    `VectorizeSemanticRetriever` and `SemanticReleaseView` stay as the
+    `SemanticRetriever` seam with their contract tests; the reader shares
+    their two steps (`proposeSemanticMatches`, `acceptSemanticMatch`).
+27. **The gate is a Durable Object the Pages Function calls through a
+    binding** (Behavior 32). Pages Functions keep no state, and a hard cap
+    needs one strongly consistent ledger. The object lives in the data
+    Worker, which already has the AI binding, the index, and the gateway
+    id, so the Pages project gets one binding and no AI or Vectorize
+    binding. It is its own class and object: query traffic cannot reach the
+    publisher's or the embedding job's object, storage, or ledger.
+    Rejected: an `ai` and a `vectorize` binding on Pages with the ledger in
+    an object (three bindings, and the embedding call outside the place
+    that counts it); a public route on the Worker with a shared secret (a
+    secret to manage and a route to defend); a second instance of
+    `SearchEmbeddingRun` (no migration, but the Pages binding could then
+    address the embedding run); KV for the ledger (eventually consistent:
+    not a hard cap); the Cache API for the embedding (per data centre, so a
+    repeat elsewhere pays again, and it cannot hold the ledger).
+28. **The gate caches the query embedding and each project's matches**
+    (Behavior 33). The embedding alone would leave every repeat paying an
+    index query, and Vectorize bills queried dimensions (Decision 30).
+    Matches may be up to an hour old: a stale match is dropped by the
+    fingerprint check, so staleness costs recall for chunks embedded within
+    the hour, never correctness.
+29. **All of a release's projects are asked, whatever the project filter**
+    (Behavior 29). Lexical search also reads every shard a term names and
+    filters projects afterwards, because facets ignore the project filter.
+    Asking only the filtered project would make the other project's facet
+    count change when a filter is clicked. Cost: 2 index queries for an
+    uncached query on Dev instead of 1 when a filter is set; the cache key
+    then holds no filter at all, so no filter can poison it.
+30. **Budget** (Behavior 34): per UTC day 1,000 neurons and 1,000 index
+    queries; per clock hour 100 model calls. Arithmetic in Results
+    (slice 3). The charge for an embedding is an upper bound, not an
+    estimate, and at least 1 neuron a call.
+31. **Queries that can match exactly are not embedded** (Behavior 30).
+    The owner asked to skip pure identifier queries and queries where
+    lexical search already has an exact match. The second is known only
+    after the shards are read, and the gate is asked before; but an exact
+    match is possible only for a query that is one identifier, a bare
+    number, or a symbol, which is known from the query alone. So the two
+    rules are one test on the query.
+32. **Statuses** (Behavior 31) keep the names of slice 1 (`ok`, `disabled`,
+    `failed`, `timed-out`) and add `skipped`, `uncovered`, `over-budget`.
+    `signals.lexicalRank` becomes optional, as Spec 005 declares it: a
+    thread only semantic retrieval found has none.
+33. **Calibration** (Results, slice 3): the embedding job's neurons are the
+    token estimate times 1.8, the ratio measured on the Dev backfill. The
+    job's cap stays 2,500, now in calibrated neurons.
+34. **The Worker's entry module exports no constant.** workerd refuses to
+    start a Worker that exports a string from its entry module; a dry-run
+    deploy does not catch it, a local run did. A test now checks every
+    export.
+
+### Simplification review (slice 3)
+
+1. **Question every requirement.**
+   - Shard roots: owned by Behavior 22 (a match is the release's chunk).
+   - The gate, its ledger, the two caches, the hourly cap: owned by the
+     owner's cost requirement; the hourly cap by the embedding job, which
+     shares the gateway's 600 requests an hour.
+   - `retrieval.semantic`: owned by Observability; `semantic=off` by
+     slice 4's comparison.
+   - The badge: owned by the reader, who otherwise sees a result that holds
+     none of the words typed.
+   - `/health` `searchQuery`: owned by the operator; without it the budget
+     is invisible.
+2. **Delete.**
+   - No AI or Vectorize binding on Pages; no side object; no new revision.
+   - No Worker flag for the gate: it is on when `SEARCH_EMBEDDING` is.
+   - No call cap per day beside the neuron cap (every call is at least one
+     neuron), no cache of fused results (they depend on the release, the
+     filters, and the limit), no cache in the Pages isolate, no
+     `SemanticReleaseView` over R2, no global cut of semantic candidates.
+   - No second excerpt function: a semantic passage is cut by the lexical
+     one, from its start.
+   - No rate limiter per visitor: there is no visitor identity without
+     Access, and the day's cap bounds the cost whoever asks.
+   - Deleted and added back: a memo, per isolate, of "the budget is spent
+     until T". Without it every search after the cap still calls the
+     object.
+3. **Simplify.** One status string; one object for the ledger and both
+   caches; one test on the query for both skip rules; cache keys hold the
+   query and the revision only.
+4. **Shorten the cycle.** The whole path runs offline through the real gate
+   with a fake embedder and a fake index (`search-hybrid.test.ts`); the
+   byte-identity of the flag-off response is a digest file written on
+   `origin/main`; `measure:search-hybrid` works against any deployment,
+   hybrid or not.
+5. **Automate last.** No new CI job. Two committed commands,
+   `measure:search-hybrid` and `measure:search-query-budget`.
 
 ## Simplification review
 
@@ -548,6 +706,127 @@ Embedding publication and the Vectorize adapter (slice 2b):
     24 hours; every further failed retry doubles it (48 h, 96 h …) up to 30
     days. A changed chunk, another revision, and `reset=1` end it.
 
+Query-time hybrid search (slice 3):
+
+27. **Shard roots.** When the publisher runs with `SEARCH_SHARD_ROOTS=true`
+    each `shards[n]` of the manifest also carries `firstGroupRootRecordId`,
+    the first group root the shard holds. The shard of a group is its
+    project's last shard whose first root is not after the group's root, in
+    the publisher's own order (`localeCompare`); a root before the
+    project's first, a project the release does not hold, and a release in
+    which any shard lacks the field have none. Unset or blank, the manifest
+    and every other object are byte-identical to before; any other value
+    fails the run before a source is polled, as an unknown lexical revision
+    does. `/health` `lastRun.search.shardRoots` is `true` for a release
+    that has them. No other object, schema, or revision changes.
+28. **The query path.** With `SEARCH_SEMANTIC` unset or blank `/api/search`
+    is the lexical reader: the same reads, no gate call, and a response
+    byte-identical to before this slice. With `rrf-group@1` and the gate
+    binding the reader reads the pointer and the manifest, asks the gate
+    (Behavior 32) with the query and every project of the release, and
+    meanwhile reads the terms object and the shards a query term names. A
+    shard is ranked lexically and its semantic matches resolved once the
+    gate has answered or the timeout has passed; then the shards that hold
+    a match and no term are read. Every shard is read at most once, at most
+    four at a time: at most 3 + shards reads a query. A match is located by
+    its project and group root (Behavior 27) and accepted by Behavior 22:
+    the shard holds a chunk of that record and ordinal with an equal
+    fingerprint. Every field of a candidate comes from that chunk.
+29. **Candidates, fusion, and results.** Up to 50 matches per project are
+    asked for; the accepted ones are filtered exactly as lexical chunks are
+    (source, tags, time bounds, the group's status) and then by the project
+    filter. Lexical threads are ranked to depth 50 whatever the request's
+    `limit`, so a thread's lexical rank does not depend on the limit.
+    `fuseRankings` (`rrf-group@1`, k = 60) orders the threads: exact matches
+    first, then score, then lexical rank, then id; the first `limit` are
+    returned. A thread lexical retrieval returned shows its lexical matches;
+    a thread only semantic retrieval returned shows up to five of its
+    passages, best first, each as the release's chunk: its text from the
+    start, cut like a lexical excerpt (280 characters), its link, author,
+    and time, `matchedTerms: []`, and no `signals.lexicalRank`. Its
+    `detailRef` opens the same detail. A project's facet counts each thread
+    once, lexical or semantic, before the project filter, so it does not
+    change when a project is selected.
+30. **Queries that are not embedded.** A query that can match exactly (one
+    canonical identifier in any spelling a profile knows, a bare number, a
+    structured identifier, or a dotted symbol) and a query with fewer than
+    two letters or digits are answered lexically without a gate call:
+    `skipped` with `identifier-query` or `short-query`. An identifier inside
+    a longer query is embedded. Exact matches therefore never meet semantic
+    candidates; if they did, fusion keeps them first.
+31. **What the response says.** With the flag on, `retrieval` also carries
+    `fusionRevision` (`rrf-group@1`), `semantic { status, reason?,
+    candidates?, cached? }`, and, only when the status is `ok`,
+    `semanticRevision`. `ok`: candidates were fused; `candidates` counts the
+    passages that entered fusion and `cached` is true when no model call was
+    made. Every other status is the lexical response unchanged: `disabled`
+    (the request said `semantic=off`, or the gate has no embedding profile),
+    `skipped` (Behavior 30), `uncovered` (the release has no shard roots or
+    is a whole-release layout), `over-budget` (Behavior 34), `timed-out`
+    (the gate took longer than 1,000 ms; the call is aborted), `failed`
+    (anything else, including an unknown flag value and a missing binding).
+    The status is HTTP 200 in every case and no error text is in the
+    response; the reader logs the sanitized error. `semantic=off` is honoured
+    only where the flag is on; elsewhere it is ignored. Each match's
+    `signals` gains `semanticRank` when semantic retrieval returned its
+    thread; `lexicalRank` is absent when lexical retrieval did not.
+32. **The gate.** `SearchQueryGate` is a Durable Object class of the data
+    Worker with one object (`search-query-gate-v1`), its own storage, and no
+    public route. `POST /query { query, projectIds }` answers `{ status: ok,
+    semanticRevision, cached, matches[] }`, `{ status: over-budget,
+    retryAfterMs }`, `{ status: disabled }`, or `{ status: failed }`; a match
+    is `{ projectId, recordId, ordinal, groupRootRecordId, fingerprint,
+    score }`. It embeds with the embedding job's profile (`SEARCH_EMBEDDING`)
+    through `SEARCH_GATEWAY_ID`, never the gateway cache and never the
+    digest's gateway, and asks each project's namespace for 50 matches with
+    metadata, dropping other revisions, malformed metadata, and non-positive
+    scores. Without the profile it is `disabled`; with a profile and a
+    missing gateway id, AI binding, index, or price it is `failed` and
+    `/health` names what is missing. A text longer than 500 characters after
+    normalization, an empty text, no project, or more than 8 projects is
+    `failed` with nothing called.
+33. **Caches.** The text embedded is the query in NFKC with runs of
+    whitespace as one space, trimmed; case is kept. The cache key is a hash
+    of the semantic revision and that text. The query embedding is stored
+    for at least 7 days; each project's matches for 1 hour. A request whose
+    projects all have fresh matches costs nothing; one with a stored
+    embedding costs index queries only. Identical requests made at once
+    share one answer. Evidence filters, the limit, and the release are not
+    in the key: they are applied by the reader to the release's chunks. Each
+    request that embeds also removes up to four entries past retention.
+34. **Budget.** Per UTC day at most 1,000 neurons of query embeddings and
+    1,000 index queries; per clock hour at most 100 model calls. A model
+    call is charged before it is made, at an upper bound on what the model
+    can bill for the text (its characters plus 3 tokens) and at least 1
+    neuron; every accepted text is 1 neuron at the `bge-m3` price. A request
+    that would pass a cap is `over-budget` with the time until the cap
+    resets, and spends nothing; the index-query cap is checked before the
+    model is called. Requests are counted one at a time, so concurrent
+    queries cannot pass a cap together. The reader remembers per isolate
+    that the budget is spent and does not call the gate until it resets.
+    The gate's ledger is its own object's: it shares nothing with the
+    embedding job's caps (Behavior 19) or the digest's.
+35. **Gate failures and health.** A model error, a wrong number of vectors
+    or dimension, a call that does not answer within 10 seconds, and an
+    index error are `failed`; the charge stays in the ledger. A refusal by
+    the platform (Workers AI code 3036, a gateway 429, a spend-limit
+    refusal) also pauses model calls for 15 minutes: until then a query that
+    needs an embedding is `over-budget`. An embedding already paid for is
+    kept when the index fails. A cache write that fails does not fail the
+    answer. `/health` `searchQuery` reports `enabled`, `configError`,
+    `semanticRevision`, `today { date, neurons, modelCalls, indexQueries,
+    hour, hourModelCalls, neuronCap, indexQueryCap, hourModelCallCap }`,
+    `pausedUntil`, `lastError { kind, message, at }` (sanitized as in
+    Behavior 24), and `sinceStart { requests, cached, embedded, overBudget,
+    failed }`, counted in memory since the object last started.
+36. **The badge.** A result none of whose matches has a `lexicalRank` shows
+    a second badge beside "Evidence search": "Similar meaning" / 「意思相近」.
+    Nothing else in the UI reads the new fields.
+37. **Flags.** Pages: `SEARCH_SEMANTIC` (`rrf-group@1`) and the Durable
+    Object binding `SEARCH_QUERY_GATE`. Worker: `SEARCH_SHARD_ROOTS`
+    (`true`), the binding `SEARCH_QUERY_GATE` for `/health`, and the class's
+    migration. This slice sets none of them in any deployed configuration.
+
 ## Community profile fit
 
 Checked: `packages/reference-pipeline/src/digest/profiles.ts` (Spec 014,
@@ -608,7 +887,13 @@ Decided in slice 2a (implementer, to confirm):
      sets `"SEARCH_EMBEDDING": "bge-m3@1"`, so each successful publication
      after that deploy triggers an embedding run (H52). Production is
      unchanged.
-3. **Query-time wiring** in the web API behind a flag. H28–H32.
+3. **Query-time wiring (this PR).** Shard roots in the manifest (H57), the
+   query gate with its caches and budget (H30, H62–H64, H69), hybrid search
+   in the Pages reader (H28, H29, H58–H61, H65, H66), the badge (H70), the
+   calibrated neuron estimate (H67), and slice 4's query list and measuring
+   command (H71). Every flag is unset and no binding is added: Dev and Prod
+   answer as before. Enabling Dev is two configuration PRs (rollout below);
+   H31 and H32 are observed then.
 4. **Measured comparison** with the real model and the decision on rerank.
    H33.
 
@@ -728,9 +1013,71 @@ Rolling out embeddings on Dev. Preconditions, before slice 2b is merged
    would still call every chunk embedded.
 6. **A release rollback** needs no step here (Behavior 22).
 
-Slices 2–3 add to `SearchResponseV1.retrieval` the fields Spec 005 already
-names (`semanticRevision`, `fusionRevision`) plus `semantic`, and to each
-match `signals.semanticRank`.
+Slice 3 changes, all additive:
+
+- `packages/serving-contract`: `SearchShardRefV1.firstGroupRootRecordId?`,
+  `SearchReleaseOptions.shardRoots`, `searchReleaseHasShardRoots`,
+  `searchShardForGroupRoot`; `SearchResponseV1.retrieval` gains
+  `fusionRevision?`, `semanticRevision?`, `semantic?`; a match's `signals`
+  gains `semanticRank?` and `lexicalRank` becomes optional (as Spec 005
+  declares both). No Cloudflare or Vectorize type is in the contract.
+- `packages/search`: `isExactLexicalQuery`, `passageExcerpt`.
+- `packages/semantic-vectorize`: the query gate (`SemanticQueryGate`, its
+  port and answer types), `proposeSemanticMatches`, `acceptSemanticMatch`,
+  and the sanitizer, moved here from the Worker so the reader shares it.
+- `packages/reference-pipeline`: `EMBEDDING_TOKEN_CALIBRATION`,
+  `embeddingNeurons`, `DAILY_NEURON_BUDGET`.
+- Worker: the `SearchQueryGate` class (exported, not bound), the
+  `SEARCH_SHARD_ROOTS` variable, `/health` `searchQuery` and
+  `lastRun.search.shardRoots`; the embedding job reports calibrated neurons.
+- Pages: `/api/search` reads `SEARCH_SEMANTIC`, `SEARCH_QUERY_GATE`, and the
+  query parameter `semantic=off`; the web app shows the badge.
+- Deployed configurations: unchanged.
+
+What changes on Dev when slice 3 merges: `/health` gains `searchQuery`
+(`enabled: false`, the caps, zero spend), and `searchEmbedding`'s
+`estimatedNeurons` are 1.8 times what the same tokens gave before (the caps
+are unchanged numbers). `/api/search` answers byte for byte as before; no
+release object changes; nothing is embedded or queried at query time.
+
+Enabling hybrid search on Dev. Nothing is created by hand: both steps are
+configuration PRs that CI deploys. Preconditions: slice 3 is deployed (the
+Worker exports the class) and `/health` `searchEmbedding.lastRun.pending`
+is 0.
+
+1. **Estimate (no deployment).** `bun run measure:search-query-budget`
+   prints the caps and what they can cost; `bun run measure:search-hybrid`
+   records the lexical baseline (Example, slice 3).
+2. **Worker PR.** In `apps/data-publisher-worker/wrangler.development.jsonc`:
+   `"SEARCH_SHARD_ROOTS": "true"` under `vars`; `{ "name":
+   "SEARCH_QUERY_GATE", "class_name": "SearchQueryGate" }` under
+   `durable_objects.bindings`; `{ "tag": "v4", "new_sqlite_classes":
+   ["SearchQueryGate"] }` under `migrations`; and the H66 configuration test
+   pinned to that. Observe: `/health` `searchQuery.enabled` is `true` with no
+   `configError` and zero spend; after the next publication
+   `lastRun.search.shardRoots` is `true`. No visitor can reach the gate yet.
+3. **Pages PR**, after step 2 is deployed (CI deploys Pages before the
+   Worker, so the binding must not arrive in the same deploy as the class).
+   In `apps/web/wrangler.development.jsonc`: `"vars": { "SEARCH_SEMANTIC":
+   "rrf-group@1" }` and `"durable_objects": { "bindings": [{ "name":
+   "SEARCH_QUERY_GATE", "class_name": "SearchQueryGate", "script_name":
+   "oss-knowledge-base-data-dev" }] }`; and the H66 Pages configuration test
+   pinned to that. Observe (H31, H32): `GET /api/search?q=交易逾時` has
+   `retrieval.semantic.status` `ok` and results; the same query again says
+   `cached: true`; `/health` `searchQuery.today` shows 1 neuron and 2 index
+   queries; the gateway `osskb-search-dev` shows the call and
+   `osskb-digest-dev` does not; then `bun run measure:search-hybrid`.
+4. **Turn off.** Remove `SEARCH_SEMANTIC` (revert the Pages PR): the next
+   Pages deploy answers lexically, byte for byte as before. Without a
+   deploy: every response already degrades by itself when the gate fails or
+   the budget is spent. Removing `SEARCH_SHARD_ROOTS` makes the next release
+   `uncovered`. The class and its stored cache may stay; deleting the class
+   is a migration of its own.
+5. **Pages rolled back below slice 3** answers lexically and ignores the
+   binding, the flag, and the manifest field. **A release rollback** to a
+   release without shard roots is `uncovered` until the next publication.
+6. **Prod** gets none of this until it has an index, a gateway, and the
+   embedding flag (open question 16).
 
 ## Test plan
 
@@ -852,9 +1199,95 @@ vectors deleted, the bound reached, and `ok` or the failure kind:
 | H48 | no current pointer | one extra | — | release: no current pointer | 1 | 0 calls, 0/0 embedded, 0 deleted, not limited, release-read |
 <!-- test-plan:end -->
 
+Shard roots (slice 3), from
+`packages/serving-contract/test/search-shard-roots.cases.ts`. Each row
+publishes `groups` (`project/groupRoot:chunks`, in the publisher's order)
+with shard roots. `roots` lists `shard project firstGroupRoot` as the
+manifest declares them; `lookups` lists `project/groupRoot=shard`, where
+`none` means the release cannot hold that group:
+
+<!-- test-plan:start packages/serving-contract/test/search-shard-roots.cases.ts -->
+| id | case | maxShardChunks | groups | roots | lookups |
+| --- | --- | --- | --- | --- | --- |
+| H57 | one shard: its first root, a root between two groups, and one past the last | 4 | kafka/b:1 kafka/d:1 | 0 kafka b | kafka/b=0 kafka/c=0 kafka/d=0 kafka/z=0 |
+| H57 | a root before the project's first, and another project | 4 | kafka/b:1 kafka/d:1 | 0 kafka b | kafka/a=none datafusion/b=none |
+| H57 | each side of a shard boundary | 4 | kafka/b:2 kafka/d:2 kafka/f:2 | 0 kafka b; 1 kafka f | kafka/d=0 kafka/e=0 kafka/f=1 kafka/g=1 |
+| H57 | two projects: a root is looked up among its own project's shards | 4 | datafusion/m:1 kafka/c:1 | 0 datafusion m; 1 kafka c | datafusion/m=0 datafusion/z=0 datafusion/a=none kafka/c=1 kafka/a=none kafka/n=1 |
+| H57 | a group larger than the limit, alone in its shard | 4 | kafka/a:1 kafka/b:5 kafka/c:1 | 0 kafka a; 1 kafka b; 2 kafka c | kafka/a=0 kafka/b=1 kafka/bb=1 kafka/c=2 |
+| H57 | the publisher's order, not code-point order: a < A < B < b10 < b2 < b9 | 4 | kafka/a:2 kafka/B:2 kafka/b10:2 kafka/b9:2 | 0 kafka a; 1 kafka b10 | kafka/A=0 kafka/B=0 kafka/b1=0 kafka/b10=1 kafka/b2=1 kafka/b9=1 |
+| H57 | no groups | 4 |  |  | kafka/a=none |
+<!-- test-plan:end -->
+
+Hybrid search through the Pages reader (slice 3), from
+`apps/web/test/search-hybrid.cases.ts`. Each row publishes golden v2 as a
+search-release.v3 at `bm25-reference@3` (2 chunks per shard, 12 shards) and
+searches it with hybrid search on. `release`: `roots` declares shard roots,
+`no roots` does not, `v2` is the whole-release layout. `gate`: `answers` is
+the real query gate over a fake concept embedder and a fake vector index;
+otherwise a gate that `throws`, `never answers` (timeout 20 ms), is `over
+budget`, is `disabled`, or `must not be asked`. `results` are the threads in
+rank order; `semanticOnly` are those no lexical match returned. A row whose
+status is not `ok` must also equal the lexical response:
+
+<!-- test-plan:start apps/web/test/search-hybrid.cases.ts -->
+| id | case | query | projects | release | gate | status | reason | results | semanticOnly |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| H28 | a Chinese query finds English threads | 交易逾時 | — | roots | answers | ok | — | kafka:jira:issue:KAFKA-20785 kafka:jira:issue:KAFKA-20734 | kafka:jira:issue:KAFKA-20785 kafka:jira:issue:KAFKA-20734 |
+| H28 | an abbreviation: the lexical thread stays first, a second one is added | txn | — | roots | answers | ok | — | kafka:jira:issue:KAFKA-20785 kafka:jira:issue:KAFKA-20734 | kafka:jira:issue:KAFKA-20734 |
+| H28 | a thread both retrievers return rises from 4th to 1st | cold data | — | roots | answers | ok | — | kafka:wiki:kip-405 kafka:jira:issue:KAFKA-20397 datafusion:github:issue:19877 datafusion:github:pull:770 datafusion:github:issue:20983 | — |
+| H28 | both retrievers agree: the order is the lexical one | transaction timeout | — | roots | answers | ok | — | kafka:jira:issue:KAFKA-20785 kafka:jira:issue:KAFKA-20734 | — |
+| H28 | no semantic candidate: the lexical order | consumer network thread request manager | — | roots | answers | ok | — | kafka:jira:issue:KAFKA-19804 kafka:jira:issue:KAFKA-19738 kafka:jira:issue:KAFKA-19919 kafka:github:pull:22747 kafka:mail:dev:release-manager-4-4-0 kafka:wiki:kip-405 kafka:jira:issue:KAFKA-20397 kafka:github:issue:20983 datafusion:github:pull:770 kafka:github:pull:22458 kafka:jira:issue:KAFKA-20785 kafka:github:issue:20970 | — |
+| H59 | the project filter keeps semantic threads of that project | 交易逾時 | apache-kafka | roots | answers | ok | — | kafka:jira:issue:KAFKA-20785 kafka:jira:issue:KAFKA-20734 | kafka:jira:issue:KAFKA-20785 kafka:jira:issue:KAFKA-20734 |
+| H59 | the project filter drops semantic threads of another project | 交易逾時 | apache-datafusion | roots | answers | ok | — | — | — |
+| H61 | two letters are enough to ask | 交易 | — | roots | answers | ok | — | kafka:jira:issue:KAFKA-20734 kafka:jira:issue:KAFKA-20785 | kafka:jira:issue:KAFKA-20734 kafka:jira:issue:KAFKA-20785 |
+| H61 | one letter is not | 交 | — | roots | must not be asked | skipped | short-query | — | — |
+| H61 | one letter among punctuation is not | ?? a !! | — | roots | must not be asked | skipped | short-query | kafka:jira:issue:KAFKA-19804 kafka:jira:issue:KAFKA-20734 kafka:mail:dev:kip-770-discuss kafka:mail:dev:release-manager-4-4-0 kafka:github:issue:20970 kafka:wiki:kip-405 datafusion:github:issue:20983 datafusion:github:issue:19877 kafka:github:issue:20983 kafka:jira:issue:KAFKA-20397 kafka:jira:issue:KAFKA-20785 | — |
+| H61 | an identifier without its hyphen | KIP770 | — | roots | must not be asked | skipped | identifier-query | kafka:github:pull:22458 kafka:mail:dev:kip-770-discuss datafusion:github:pull:770 kafka:wiki:kip-405 kafka:jira:issue:KAFKA-770 kafka:wiki:kip-1150 kafka:jira:issue:KAFKA-19804 | — |
+| H61 | a bare number | 770 | — | roots | must not be asked | skipped | identifier-query | datafusion:github:pull:770 kafka:jira:issue:KAFKA-770 kafka:github:pull:22458 kafka:mail:dev:kip-770-discuss | — |
+| H61 | a code symbol | RecordAccumulator.ready() | — | roots | must not be asked | skipped | identifier-query | kafka:github:pr:23203 kafka:mail:dev:kip-770-discuss | — |
+| H61 | an identifier inside a longer query is asked | KIP770 transaction | — | roots | answers | ok | — | kafka:jira:issue:KAFKA-20734 kafka:jira:issue:KAFKA-20785 kafka:github:pull:22458 kafka:mail:dev:kip-770-discuss datafusion:github:pull:770 kafka:wiki:kip-405 kafka:jira:issue:KAFKA-770 kafka:wiki:kip-1150 kafka:jira:issue:KAFKA-19804 | — |
+| H29 | the gate throws | txn | — | roots | throws | failed | — | kafka:jira:issue:KAFKA-20785 | — |
+| H29 | the gate throws and lexical search finds nothing | 交易逾時 | — | roots | throws | failed | — | — | — |
+| H29 | the gate never answers | txn | — | roots | never answers | timed-out | — | kafka:jira:issue:KAFKA-20785 | — |
+| H29 | the day's budget is spent | txn | — | roots | over budget | over-budget | — | kafka:jira:issue:KAFKA-20785 | — |
+| H29 | the gate is disabled | txn | — | roots | disabled | disabled | — | kafka:jira:issue:KAFKA-20785 | — |
+| H65 | a release without shard roots | txn | — | no roots | must not be asked | uncovered | — | kafka:jira:issue:KAFKA-20785 | — |
+| H65 | a whole-release (search-release.v2) layout | txn | — | v2 | must not be asked | uncovered | — | kafka:jira:issue:KAFKA-20785 | — |
+<!-- test-plan:end -->
+
+Queries for the measured comparison (slice 4 preparation), from
+`apps/web/test/search-hybrid-eval.cases.ts`. `bun run measure:search-hybrid`
+asks the public Dev API these, the 21 Spec 017 rows, and its 6 guard rows,
+each once with `semantic=off` and once hybrid. They were written on
+2026-10-12 before any hybrid output existed, from thread titles in the Spec
+017 snapshot. A row is met when every `expected` thread ranks within
+`within`. **Every row is implementer-labelled, owner to confirm**; the first
+two queries are the owner's examples:
+
+<!-- test-plan:start apps/web/test/search-hybrid-eval.cases.ts -->
+| id | kind | labels | query | expected | acceptable | within | why |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| H71 | chinese | implementer | 交易逾時 | kafka:jira:issue:KAFKA-20237 kafka:github:pull:23547 | kafka:jira:issue:KAFKA-20785 kafka:github:pull:23204 kafka:jira:issue:KAFKA-21181 kafka:github:pull:23630 kafka:github:pull:19276 | 10 | The owner's example query (transaction timeout). No title says timeout; the stuck TransactionManager (KAFKA-20237) is the closest, other transaction threads are acceptable. |
+| H71 | chinese | implementer | 消費者重新平衡很慢 | kafka:jira:issue:KAFKA-21249 kafka:github:pull:23760 | kafka:github:pull:23115 kafka:github:pull:20863 | 10 | The owner's example query (consumer rebalance is slow). No title says slow; pre-rebalance auto-commit retries (KAFKA-21249) is the closest. |
+| H71 | chinese | implementer | 分層儲存的配額沒有生效 | kafka:jira:issue:KAFKA-19968 kafka:github:pull:21108 | kafka:github:pull:23456 | 5 | Tiered storage quota not enforced: KAFKA-19968 and its pull request. |
+| H71 | chinese | implementer | 重新認證失敗後 CPU 使用率過高 | kafka:github:pull:21714 | kafka:github:pull:23348 kafka:jira:issue:KAFKA-21031 kafka:github:pull:23357 | 5 | KAFKA-20253: high CPU loop after failed re-authentication; the busy-loop threads are acceptable. |
+| H71 | chinese | implementer | 反向 DNS 查詢阻塞網路執行緒 | kafka:jira:issue:KAFKA-19919 kafka:github:pull:22569 | — | 5 | KAFKA-19919: network threads blocked by synchronous reverse DNS lookups. |
+| H71 | chinese | implementer | 心跳請求的初始間隔 | kafka:jira:issue:KAFKA-19804 kafka:github:pull:23687 | kafka:github:pull:20964 | 5 | KAFKA-19804: heartbeat request manager initial HB interval. |
+| H71 | chinese | implementer | 排序合併連接溢出到磁碟時遺失資料列 | datafusion:github:pull:24056 | datafusion:github:pull:23988 datafusion:github:pull:24192 datafusion:github:pull:25250 datafusion:github:pull:22230 | 5 | DataFusion: keep every spilled slice of a sort-merge join inner key group; other sort-merge spill threads are acceptable. |
+| H71 | chinese | implementer | 發布流程移除 MD5 校驗檔 | kafka:github:pull:23654 | — | 5 | KAFKA-21183: remove MD5 and SHA-1 checksum files from the release process. |
+| H71 | vocabulary-gap | implementer | controller sign-up retried after timing out | kafka:github:pull:19321 | — | 5 | KAFKA-18874: Fix KRaft controller registration retry on timeout; the title says registration. |
+| H71 | vocabulary-gap | implementer | SMJ spill | datafusion:github:pull:24056 datafusion:github:pull:23988 datafusion:github:pull:22230 | datafusion:github:pull:24192 datafusion:github:pull:25250 | 10 | SMJ abbreviates sort-merge join; the titles spell it out. |
+| H71 | vocabulary-gap | implementer | two-phase commit | kafka:github:pull:21735 | — | 5 | KAFKA-15370: Support Participation in 2PC (KIP-939); the title says 2PC. |
+| H71 | vocabulary-gap | implementer | client spins at 100% cpu | kafka:github:pull:21714 kafka:jira:issue:KAFKA-21031 kafka:github:pull:23357 kafka:github:pull:23348 | — | 10 | The titles say high CPU loop and busy loop. |
+| H71 | vocabulary-gap | implementer | remote storage file handle not closed | kafka:jira:issue:KAFKA-20967 kafka:github:pull:23211 | kafka:github:pull:23604 | 5 | KAFKA-20967: RemoteLogManager.read() leaks the remote segment InputStream. |
+| H71 | vocabulary-gap | implementer | hash join that fits in limited RAM | datafusion:github:issue:24768 | — | 5 | DataFusion: [EPIC] Spilling Hash Join, run any join in a bounded memory budget. |
+| H71 | vocabulary-gap | implementer | mark directory as failed on disk error | kafka:jira:issue:KAFKA-16304 kafka:github:pull:23697 | — | 5 | KAFKA-16304 and KAFKA-13468: take the log dir offline on a disk I/O error. |
+| H71 | vocabulary-gap | implementer | HB interval | kafka:jira:issue:KAFKA-19804 kafka:github:pull:23687 | — | 5 | HB abbreviates heartbeat; KAFKA-19804's title holds both spellings. |
+<!-- test-plan:end -->
+
 ## Acceptance
 
-Items tagged `[pending]` belong to slices 3–4.
+Items tagged `[pending]` belong to slice 4.
 
 ### Behavior
 - H1: given each row of the code-text token plan, the `@2` tokenizer returns
@@ -957,9 +1390,21 @@ Items tagged `[pending]` belong to slices 3–4.
   `SEARCH_LEXICAL_REVISION` to `bm25-reference@2` and production does not set
   it, so only Dev writes `@2` → evidence: `pipeline.test.ts`. (Slice 2a
   shipped with neither set.)
-- H29: [pending] given a query-embedding failure, timeout, or quota error,
-  `/api/search` returns HTTP 200 with lexical results and `retrieval.semantic`
-  set to the state.
+- H29: given each `H29` row of the hybrid plan and a gate that throws,
+  answers `failed` or nonsense, never answers, is over budget, or is
+  disabled, `/api/search` returns HTTP 200 with exactly the lexical response
+  plus `retrieval.fusionRevision` and `retrieval.semantic.status` (`failed`,
+  `timed-out`, `over-budget`, `disabled`); no error text is in the body and
+  the thrown error is logged once, sanitized; a gate slower than the timeout
+  is aborted, its later rejection is handled, and one answering in time is
+  used; the timeout's timer is cleared when the gate answers or fails first
+  and the default is 1,000 ms; after an `over-budget` answer the isolate
+  does not ask again until the stated time, and one millisecond later it
+  does; with the real gate over its cap, queries fall back in mid-day while
+  cached ones still answer; on all 27 Spec 017 real-corpus and guard queries
+  over 1,134 real chunks, hybrid search with a failing gate, `semantic=off`,
+  a gate with no match, or an unusable flag equals the lexical response →
+  evidence: `search-hybrid.test.ts`.
 
 ### Behavior (slice 2b)
 - H21: given a published release and `SEARCH_EMBEDDING=bge-m3@1`, a run embeds
@@ -1142,13 +1587,159 @@ Items tagged `[pending]` belong to slices 3–4.
   `@1` again and leaves the `@2` release in place → evidence:
   `pipeline.test.ts`.
 
+### Behavior (slice 3)
+- H28: given each `H28` row of the hybrid plan, `/api/search` returns the
+  listed threads in order with `retrieval.fusionRevision` `rrf-group@1`,
+  `semanticRevision`, `semantic { status: ok, candidates, cached }`, and
+  per-match `signals.semanticRank`, and adds no other field; a repeated
+  query says `cached: true`; golden v2's three semantic queries pass through
+  the reader with the gate, and two of them do not without it; for 33
+  requests (9 queries at three limits, and six filters) the threads, their
+  ranks, and their matches equal `hybridSearch` over the whole corpus, and
+  more than 8 differ from the lexical order; a thread's lexical rank does
+  not depend on `limit`; given the flag unset or blank, with or without the
+  gate binding, on a release with or without shard roots, the status and
+  body of 35 requests (21 queries, limits, every filter, `semantic=off`, two
+  errors) hash to the digests written on `origin/main` fb70705, the reader
+  reads what it read before, and a binding that throws when touched is
+  never touched → evidence: `search-hybrid.test.ts`,
+  `apps/web/test/fixtures/search-responses.lexical.json`.
+- H57: given each `H57` row of the shard-root plan, the manifest declares
+  the listed first group roots and `searchShardForGroupRoot` names the
+  listed shard, each side of every boundary, in the publisher's order and
+  not code-point order; without the option every object is byte-identical
+  and with it only the manifest differs, which a reader from before this
+  slice still validates; a release is covered only when every shard
+  declares a non-empty root, and a whole-release layout never is; given
+  `SEARCH_SHARD_ROOTS` unset or blank a publisher run writes the objects it
+  wrote before, given `true` it adds the roots to the manifest only,
+  `/health` `lastRun.search.shardRoots` is `true`, and a later run without
+  it leaves them out again → evidence: `search-shards.test.ts`,
+  `pipeline.test.ts`.
+- H58: given a match, it becomes a result only as the release's own chunk:
+  a fingerprint of other text or another group, a record or ordinal the
+  release lacks, a group root that names another shard or none, the record
+  under another project, and an unknown project are dropped, and a result's
+  fields come from the chunk; given an index that moved on (a passage
+  re-embedded from newer text, a removed record, another revision), only
+  the unchanged passage is a candidate; each shard is read at most once,
+  four at a time, at most 3 + shards reads, only shards holding a term or a
+  match, the lexical shards first; the gate is asked after the manifest and
+  before the terms object, and shards are read while it answers; an answer
+  from the gate is parsed defensively (malformed matches dropped, anything
+  else `failed`); on 1,134 real chunks with a bag-of-words embedder every
+  result is a thread of the release, once, with its true lexical rank →
+  evidence: `search-hybrid.test.ts`, `query-gate.test.ts`.
+- H59: given each `H59` row and a gate proposing five passages, the source,
+  time-bound (strict, each side), tag, and project-status filters keep
+  exactly the passages a lexical chunk with those fields would pass; the
+  project filter narrows results and leaves both projects' facet counts as
+  they are without it; a thread both retrievers return is counted once →
+  evidence: `search-hybrid.test.ts`.
+- H60: given a thread only semantic retrieval returned, its match is the
+  release's chunk: the text from its start (cut at 280 characters with an
+  ellipsis), its link, author, time, and source version, `matchedTerms: []`,
+  `signals { exactIdentifier: false, semanticRank, fusedRank }` and no
+  `lexicalRank`; its entry is a `search-match` entry naming the matched
+  records, its `detailRef` opens the detail, and a thread shows at most five
+  passages, best first → evidence: `search-hybrid.test.ts`,
+  `identifiers.test.ts`.
+- H61: given each `H61` row, a query that can match exactly (an identifier
+  in any profile spelling, a bare number, a symbol) or has fewer than two
+  letters or digits is answered lexically with `skipped` and its reason and
+  the gate is not asked, two letters and an identifier inside a longer
+  query are asked; only such a query ever yields an exact match; `semantic=off`
+  on a hybrid deployment returns the lexical response with `disabled` and
+  asks nothing, and no other value of the parameter does → evidence:
+  `search-hybrid.test.ts`, `identifiers.test.ts`.
+- H62: given the gate, a query is embedded once and each project's
+  namespace asked for 50 matches of the profile's revision; a repeat,
+  however spaced or composed, makes no model call and no index query, and
+  another case does; matches are cached per project (another project costs
+  one index query, no model call, and never another project's matches); a
+  tampered cache entry cannot answer for another project; another revision
+  shares no entry; matches are asked again after one hour and not one
+  millisecond earlier, with the cached embedding; identical requests made
+  at once share one model call; entries past retention are removed, a few
+  per miss, the cutoff day kept → evidence: `query-gate.test.ts`.
+- H63: given the caps, the next distinct query after the day's neurons are
+  spent is `over-budget` with the time to UTC midnight and no call, cached
+  queries still answer, and the next UTC day starts over; the hourly cap
+  refuses until the next clock hour; the index-query cap is checked before
+  the model call, so a refused request spends nothing; 50 distinct queries
+  made at once, and 30 with interleaving storage, make exactly the capped
+  number of calls; a call that fails or never answers is still in the
+  ledger; the charge is at least 1 neuron and an upper bound on the
+  tokenizer (500 characters cannot exceed 0.55 neurons at the `bge-m3`
+  price); a text longer than 500 characters after NFKC is not embedded; the
+  gate's ledger is its own key in its own object and its cap is the
+  `searchQuery` share of the daily budget → evidence: `query-gate.test.ts`,
+  `search-query-gate.test.ts`.
+- H70: given a response in which result 2 has no `lexicalRank`, at 375 px
+  in English and zh-Hant that card alone shows "Similar meaning" /
+  「意思相近」 beside its "Evidence search" badge, the badge and a long
+  unbreakable title stay inside the card, the page does not scroll
+  sideways, and the card opens its detail; given a response whose semantic
+  status is `over-budget`, `timed-out`, `failed`, or `skipped`, the lexical
+  cards render with no badge and no error → evidence:
+  `apps/web/e2e/search-semantic.spec.ts`.
+- H71: given the labelled queries, each names threads of the Dev snapshot
+  and a rank bound; the list holds 8 Chinese and 8 vocabulary-gap queries
+  beside the 21 Spec 017 rows and 6 guard rows, each query once; the
+  measuring command's report gives lexical and hybrid ranks, the semantic
+  status, and latencies, marks a query as a rerank candidate when every
+  expected thread is in the hybrid top 20 and one is outside its bound
+  (each side of both bounds), lists regressions and threads not retrieved,
+  applies the 30% rule to fused queries only, and reports lexical ranks
+  alone against a deployment without hybrid search → evidence:
+  `search-hybrid-eval.test.ts`.
+
+### Failure and retry (slice 3)
+- H64: given a model error, the gate answers `failed`, records the
+  sanitized error (a bearer token and a long key redacted), caches nothing,
+  and the next query works; a wrong dimension, two vectors, and no vector
+  are model failures; a refusal (Workers AI 3036, a gateway 429, a
+  spend-limit refusal) pauses model calls for 15 minutes, during which a
+  query needing an embedding is `over-budget` and cached ones answer, while
+  another error does not pause; an index failure is `failed` and keeps the
+  embedding, so the retry makes no model call; without a profile the gate
+  is `disabled`, and with a configuration error `failed`, calling nothing;
+  an empty or non-string query, no project, too many projects, and an
+  invalid project id are `failed` with nothing called or counted; a cache
+  write that fails does not fail the answer; a ledger that cannot be
+  written refuses to spend → evidence: `query-gate.test.ts`,
+  `search-query-gate.test.ts`.
+- H65: given each `H65` row (a release without shard roots, a
+  whole-release layout), the response is the lexical one with `uncovered`
+  and the gate is not asked → evidence: `search-hybrid.test.ts`.
+- H66: given `SEARCH_SEMANTIC=rrf-group@1` and the binding, the handler
+  calls the gate object `search-query-gate-v1` with `POST /query` and every
+  project of the release; given any other value of the flag, or the flag
+  without the binding, it answers lexically with `failed` and asks nothing,
+  even a gate that would answer; the gate's client fails on a non-200 and
+  reads a malformed body as `failed`; given `SEARCH_SHARD_ROOTS` set to
+  anything but `true`, the run fails before a source is polled or an object
+  written and `/health` names the value, and the Worker passes its variable
+  to the run; no deployed Pages configuration sets the flag or binds the
+  gate, and neither deployed publisher configuration sets
+  `SEARCH_SHARD_ROOTS`, binds `SEARCH_QUERY_GATE`, or migrates the class →
+  evidence: `search-hybrid.test.ts`, `pipeline.test.ts`,
+  `durable-object-state.test.ts`, `search-query-gate.test.ts`.
+- H67: given the embedding job, a run's neurons, its ledger, its daily cap,
+  and its estimate use the token estimate times 1.8 (`EMBEDDING_TOKEN_CALIBRATION`,
+  from the 2026-10-12 backfill), while tokens and batch sizes do not; the
+  digest's 4,500, the job's 2,500, and the gate's 1,000 are 8,000 of the
+  10,000 neurons a day; 31 days of 1,000 index queries and the stored
+  vectors are within Vectorize's 50 M queried dimensions up to 17,828
+  chunks; the gate's hourly calls and two embedding runs are under the
+  gateway's 600 requests an hour → evidence: `search-embedding-run.test.ts`,
+  `search-query-gate.test.ts`.
+
 ### Behavior (later slices)
-- H28: [pending] given the flag on, `/api/search` returns fused results with
-  `retrieval.semanticRevision`, `fusionRevision`, and per-match
-  `signals.semanticRank`; with the flag off the response is unchanged.
-- H33: [pending] given golden v2 and the real model, `eval:search` reports
-  lexical `@2` against hybrid, the report is committed, and the rerank
-  decision (decision 5) is recorded with the numbers.
+- H33: [pending] given the labelled queries and the real model,
+  `measure:search-hybrid` reports lexical `@3` against hybrid on Dev, the
+  report is committed, and the rerank decision (decision 5) is recorded
+  with the numbers.
 
 ### Budget
 - H27: [measure] Vectorize stored dimensions (chunks × 1,024), model calls,
@@ -1159,15 +1750,36 @@ Items tagged `[pending]` belong to slices 3–4.
 - H40: [measure] growth of `terms.json` and lexical shard bytes from `@1` to
   `@2` for the same Feed → `bun run measure:search-revisions` (Results,
   slice 2a); on Dev, `/health` `lastRun.search` before and after the switch.
-- H31: [pending] added p50 latency of hybrid search on Dev against the
-  lexical-only response, and Workers AI and Vectorize requests per query.
+- H31: [deploy] added median latency of hybrid search on Dev against the
+  `semantic=off` response of the same query, cold and cached, and the model
+  calls and index queries per query from `/health` `searchQuery.today` →
+  `bun run measure:search-hybrid` after the enable (Results, slice 3, gives
+  the estimate it is compared with).
+- H68: [measure] the query budget: neurons charged per query against the
+  calibrated estimate and the upper bound, the three daily neuron caps
+  against the included 10,000, index queries and stored vectors against
+  Vectorize's included dimensions → `bun run measure:search-query-budget`
+  (Results, slice 3).
 
 ### Observability
-- H30: [pending] query-time embedding uses its own AI Gateway with abuse
-  protection, not `osskb-digest-dev`; its usage is visible separately from the
-  digest's.
-- H32: [pending] on Dev, `/api/search` `retrieval.semantic` and `/health`
-  show whether semantic retrieval answered, without tailing logs.
+- H30: given a query, the gate embeds it with `@cf/baai/bge-m3` through
+  `SEARCH_GATEWAY_ID` (`osskb-search-dev` on Dev) with the gateway cache
+  skipped and an abort signal, and asks the bound index; given no flag it
+  is `disabled`, and given an unsupported profile, no gateway id, the
+  digest's gateway, no AI binding, or no index it is `failed`, names it in
+  `/health`, and calls nothing → evidence: `search-query-gate.test.ts`.
+- H32: [deploy] on Dev after the enable, `/api/search`
+  `retrieval.semantic.status` is `ok` for a Chinese query and `cached` on
+  its repeat, `/health` `searchQuery.today` counts the call, and the
+  gateway `osskb-search-dev` shows it while `osskb-digest-dev` does not →
+  the enable PR's post-merge checks.
+- H69: given the gate object, `/health` `searchQuery` is the object's own
+  answer when bound, `null` when it does not answer, and a disabled block
+  with the caps when not bound; the object answers `POST /query` and `GET
+  /status` from its own storage and 404 otherwise; the Worker has no public
+  route to it; the Worker's entry module exports only functions, classes,
+  and the default handler → evidence: `search-query-gate.test.ts`,
+  `query-gate.test.ts`.
 - H41: given a successful run at `@1` or `@2`, `/health` `lastRun.search`
   holds the release's `lexicalRevision`, the manifest's `chunkCount`, the
   shard count, the summed and largest shard bytes, and the `terms.json` bytes
@@ -1372,6 +1984,146 @@ estimate.
 Mutation evidence (one mutant or more per behavior, each seen failing) is
 listed in the PR.
 
+## Results (slice 3, 2026-10-12)
+
+Nothing here was measured against Workers AI or Vectorize: no model or
+index call was made from a developer machine or a test. Latencies are
+estimates until H31.
+
+### Embedding backfill on Dev and the calibration
+
+The backfill of 2026-10-12 (H52): 8,780 chunks embedded, 0 pending, 176
+model calls of up to 50 texts, 0.48 s a call on average (1.7 s at most).
+The estimate was 803 neurons ($0.0088); the gateway `osskb-search-dev`
+reported $0.0157. The ratio is 1.78: `estimateTokens` (4 characters a
+token, 1 per CJK character) undercounts `bge-m3`'s tokenizer on these
+English titles and excerpts. `EMBEDDING_TOKEN_CALIBRATION` is 1.8, and the
+embedding job multiplies its token estimate by it wherever tokens become
+neurons or dollars; token counts and batch sizes are unchanged.
+
+| | Before | After |
+| --- | --- | --- |
+| Neurons for the backfill's tokens | 803 | 1,445 |
+| Embedding job, daily cap | 2,500 estimated (4,500 at the measured ratio; "twice it" was allowed for) | 2,500 calibrated |
+| What the cap admits in a day | 3.1 backfills | 1.7 backfills (15,000 chunks) |
+| Steady state (about 60 new chunks an hour) | about 135 a day | about 240 a day |
+
+### Query budget
+
+`bun run measure:search-query-budget` (H68):
+
+| Workers AI, neurons per UTC day | |
+| --- | --- |
+| Digest (Spec 014, unchanged) | 4,500 |
+| Embedding job (calibrated) | 2,500 |
+| Query gate | 1,000 |
+| Total | 8,000 of the 10,000 included |
+| Headroom | 2,000: the digest's estimate is not calibrated, and 1.8 is one measurement |
+
+| One query embedding | Calibrated estimate | Upper bound | Charged |
+| --- | --- | --- | --- |
+| `consumer network thread request manager` (39 characters) | 0.020 neurons | 0.046 | 1 |
+| `消費者重新平衡很慢` (9 characters) | 0.018 | 0.013 | 1 |
+| 500 ASCII characters, the longest accepted | 0.25 | 0.55 | 1 |
+| 500 CJK characters | 0.98 | 0.55 | 1 |
+
+The upper bound is characters + 3 tokens: the model's tokenizer emits no
+more pieces than the normalized text has characters. So the 1,000-neuron
+cap is at most 1,000 model calls a day and at most 550 real neurons; a day
+of ordinary queries is about 20. At $0.011 per 1,000 neurons the whole cap
+would be $0.011 a day if it were billed; inside the included 10,000 it is
+$0.
+
+| Vectorize, per month of 31 days | |
+| --- | --- |
+| Billed as | (stored vectors + queries) × 1,024 dimensions |
+| Stored, 8,780 chunks | 8,990,720 of 10,000,000 included |
+| Index queries at the cap, 31 × 1,000 | 31,744,000 dimensions |
+| Queried total | 40,734,720 of 50,000,000 included |
+| Passes the included 50 M at | 17,829 chunks |
+
+One uncached search on Dev is 1 model call and 2 index queries (two
+projects), so the index cap admits 500 uncached searches a day. The hourly
+cap (100 model calls) means the day cannot be spent in under 10 hours, and
+with two embedding runs (80 calls each) stays under the gateway's 600
+requests an hour.
+
+What a visitor, or an attacker, can and cannot cost:
+
+- **Workers AI and Vectorize: $0.** The caps are counted in one object
+  before any call; cached, skipped, and refused queries call nothing. When
+  a cap is spent, search answers lexically and says `over-budget` until the
+  next UTC day (or hour).
+- **Denial of the feature, not money.** 500 distinct queries spread over 10
+  hours turn semantic search off for everyone for the rest of the UTC day.
+  There is no per-visitor limit, because Dev has no visitor identity.
+- **Durable Object requests.** Each search that is not skipped, not
+  `uncovered`, and not already known to be over budget is one request to
+  the gate, cached or not. Workers Paid includes 1 M a month, then $0.15 a
+  million; the publisher's objects use a few thousand. After the cap is
+  spent each Pages isolate stops asking, so a flood is bounded by the
+  day's cap plus one request per isolate per reset. Before the cap is
+  spent, a flood of repeats of one query is answered from the cache at one
+  request each.
+- **Pages Functions invocations and R2 reads** are as before this slice
+  (outside it). A semantic search reads no shard twice; a query with no
+  lexical match now reads the shards its matches are in (up to all 10).
+- **Durable Object storage:** at most 7 days × 1,000 entries of about 22 KB
+  (a 4 KB embedding and two projects' matches): about 150 MB, inside the
+  included 5 GB.
+
+### Design in numbers
+
+| | Lexical (today) | Hybrid, uncached | Hybrid, cached |
+| --- | --- | --- | --- |
+| R2 reads | 3 + shards holding a term (13 at most on Dev) | 3 + shards holding a term or a match (13 at most) | the same |
+| Extra reads for the shard lookup | — | 0 (about 60 bytes a shard in the manifest) | 0 |
+| Bytes at most | 18.0 MB of shards, 0.56 MB of terms | the same | the same |
+| Gate requests | 0 | 1 | 1 |
+| Model calls | 0 | 1 | 0 |
+| Index queries | 0 | 1 per project (2 on Dev) | 0 within the hour |
+| Semantic passages into fusion | — | at most 50 per project | the same |
+
+Latency, estimated (H31 measures it):
+
+- The gate, uncached: the round trip to the object (a few ms in its
+  region; an estimated 50–250 ms from another continent), one single-text
+  embedding (batches of 50 took 0.48 s on average; a single short text is
+  assumed to take 0.1–0.5 s), and two index queries in parallel (not
+  measured; assumed 0.05–0.3 s): 0.2–1.0 s. Cached: the round trip only.
+- The reader asks the gate after the manifest and reads the terms object
+  and the first four shards meanwhile, which takes 0.3–1.5 s on Dev today.
+  So a query whose words are in most shards (1.0–2.3 s today) is expected
+  to gain 0–0.3 s uncached and about nothing cached.
+- A query with no lexical match (0.7 s today) waits for the gate and then
+  reads the shards its matches are in: an expected 1.2–2.5 s uncached, the
+  cost of any all-shards query, in exchange for results instead of none.
+- The worst case of a gate that does not answer is the 1,000 ms timeout,
+  added only to a response that would otherwise have been ready earlier.
+
+### Tests
+
+Worker bundle (`wrangler deploy --dry-run`, both configurations): 321.07
+KiB (gzip 80.08) before, 342.11 KiB (gzip 84.89) after. The Pages Functions
+bundle compiles (`wrangler pages functions build`), also with the enable
+configuration of rollout step 3.
+
+Local run without any cloud resource (2026-10-12): the data Worker under
+`wrangler dev` with the gate class bound and no AI or index binding, and
+`wrangler pages dev` with the Durable Object binding to it and
+`SEARCH_SEMANTIC=rrf-group@1`, over a golden release with shard roots.
+`/api/search?q=txn` answered the lexical result with `semantic: { status:
+"disabled" }` and the gate counted the request; `KIP770` and `semantic=off`
+did not reach it. This run found that the Worker would not start with a
+string constant exported from its entry module (Decision 34).
+
+Mutation pass: 79 mutants, one or more per behavior, 78 caught (one of
+them by the retriever's own H44 test). The one left, ranking lexical threads
+to depth 50 with the flag off, changes memory and no response. Two mutants
+survived a first pass and each got a test: a ledger without its lock
+(storage that interleaves) and an unknown flag value honoured (a gate that
+would answer).
+
 ## Open questions
 
 Not decided here:
@@ -1403,21 +2155,21 @@ Raised by slice 2b:
 
 8. **H21's wording** (Decision 9): one vector per passage, not per chunk id.
    Decided: confirmed by the owner on 2026-10-12 (owner's answer a).
-9. **Finding a release's chunk at query time.** `SemanticReleaseView.chunks`
-   is the seam; slice 3 must implement it over R2. A release has no
-   record → shard lookup today (the lexical reader finds shards by term).
-   Candidates: the first group root of each shard in the manifest (groups are
-   written in group-root order, and the vector carries its group root as a
-   hint), or a per-release side object. Either changes a release object and
-   is a contract decision. Deferred to the slice 3 spec (owner's answer b).
+9. **Finding a release's chunk at query time.** Decided in slice 3
+   (Decision 25, Behavior 27): the first group root of each shard in the
+   manifest, behind `SEARCH_SHARD_ROOTS`. To confirm, as a contract
+   decision.
 10. **Depth.** Vectorize returns at most 50 matches with metadata per
     namespace, and stale or other-revision matches are dropped after that.
     Whether 50 is enough is measured in slice 4; `returnMetadata: "indexed"`
     with a metadata index allows 100.
-11. **Should the retriever tell Pages its coverage?** Today only the
-    publisher's `/health` knows it; Pages cannot read that object.
-12. **Query embedding and the gateway cache.** The retriever leaves the
-    cache to its caller; slice 3 decides with H31.
+11. **Should the retriever tell Pages its coverage?** Still no: a release
+    with shard roots is answered with whatever vectors match it, and
+    `retrieval.semantic.candidates` says how many did. Whether the release
+    is fully embedded is in `/health` `searchEmbedding.lastRun` only.
+12. **Query embedding and the gateway cache.** Decided: skipped. The gate
+    has its own cache and ledger, and the gateway's numbers should count
+    exactly the calls the ledger counts.
 13. **Unverified against Cloudflare:** the batch size `@cf/baai/bge-m3`
     accepts (50 assumed), its response shape (`data: number[][]` per the
     binding types), the exception text of 3036, 429, and spend-limit refusals
@@ -1431,6 +2183,44 @@ Raised by slice 2b:
 16. **Prod.** When Prod goes live it needs its own index, gateway, binding,
     migration, and the same enable sequence; none of it exists, and nothing
     is added before the Prod launch (owner's answer e).
+
+Raised by slice 3:
+
+17. **The contract decisions of slice 3**, to confirm: the manifest field
+    (Decision 25); the gate as a Durable Object class of the data Worker
+    reached by a Pages binding (Decision 27), which is one new class and
+    one new binding at the enable; the statuses and `lexicalRank` becoming
+    optional (Decision 32); the caps (Decision 30).
+18. **Unverified against Cloudflare**, to observe at the enable: that a
+    Pages Function can call a Durable Object of another script through a
+    binding on this account (the configuration builds, and it works under
+    local `wrangler`); the time one single-text embedding and one index
+    query take; whether the object finishes an embedding after the reader
+    stopped waiting (the charge is counted either way; the cache may not be
+    filled); that Vectorize bills (stored + queried) × dimensions as its
+    pricing page says (read 2026-10-12); where the gate object is placed
+    relative to visitors.
+19. **One index query instead of one per project.** A query without a
+    namespace might search the whole index and halve the index queries; the
+    documentation read does not say, and a match would have to carry its
+    project. Measure in slice 4.
+20. **The rerank rule** (`RERANK_SHARE`): consider rerank when at least 30%
+    of the fused queries have every expected thread in the hybrid top 20
+    and one outside its bound. The spec's Decision 5 gives no number; this
+    one is the implementer's.
+21. **Labels of the 16 new queries**, all implementer-labelled from titles
+    in a snapshot of 343 of 4,093 threads. For the owner's two Chinese
+    examples no title says "timeout" or "slow"; the expected threads are
+    the closest found.
+22. **Stored dimensions are at 8.99 M of the included 10 M.** About 990
+    more chunks pass it (open question 1); the charge is $0.05 per 100 M a
+    month.
+23. **A per-visitor limit.** Not possible without an identity; a WAF rate
+    rule on `/api/search` would bound Durable Object requests as well. Not
+    part of this slice.
+24. **The digest's neuron estimate is not calibrated.** Its 4,500 is an
+    estimate from the same token count; nothing measured it against the
+    gateway.
 
 Known limitations of the profile patterns (kept in slice 2a, see "Community
 profile fit"):
@@ -1453,9 +2243,12 @@ profile fit"):
 - Any cloud resource, deploy configuration, model call, or change to what
   Dev serves (slice 1). Slice 2a adds no cloud resource, binding, or model
   call and leaves `/api/search` on Dev at `@1`.
-- Calling the retriever from `/api/search`, any Pages binding, and any change
-  to a response (slice 3). Slice 2b sets no flag and embeds nothing on Dev or
-  Prod until H52; since H52 (2026-10-12) Dev embeds and Prod does not.
+- Slice 2b sets no flag and embeds nothing on Dev or Prod until H52; since
+  H52 (2026-10-12) Dev embeds and Prod does not.
+- Slice 3: enabling hybrid search anywhere; any binding, migration, flag, or
+  other change to a deployed configuration; any Cloudflare resource; a
+  per-visitor rate limit; a redesign of the search UI; a minimum similarity
+  (open question 15).
 - A real Workers AI or Vectorize call from a test or a developer machine.
 - Re-embedding to repair one vector: the unit of repair is `reset=1`.
 - A ranking change for the repeated thread title (open question 6, G31):

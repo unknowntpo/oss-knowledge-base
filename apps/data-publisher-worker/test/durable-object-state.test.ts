@@ -212,6 +212,35 @@ describe("Durable Object pipeline state", () => {
       globalThis.fetch = realFetch;
     }
   });
+
+  test("H66: the Worker hands its SEARCH_SHARD_ROOTS variable to the run, which fails closed on an unknown value", async () => {
+    const realFetch = globalThis.fetch;
+    let fetches = 0;
+    globalThis.fetch = (async () => { fetches += 1; return new Response("not found", { status: 404 }); }) as unknown as typeof fetch;
+    const alarm = async (variables: Readonly<Record<string, string>>) => {
+      const storage = new MemoryStorage();
+      fetches = 0;
+      await new PipelineState(
+        { storage: storage.asDurableObjectStorage() } as unknown as DurableObjectState,
+        { PUBLICATION_ENVIRONMENT: "development", GITHUB_SOURCE_TOKEN: "placeholder", ...variables } as never,
+      ).alarm();
+      return { status: await storage.get<{ readonly ok: boolean; readonly error: string }>("status"), fetches };
+    };
+    try {
+      const unknown = await alarm({ SEARCH_SHARD_ROOTS: "yes" });
+      expect(unknown.status).toMatchObject({ ok: false, failureKind: "pipeline" });
+      expect(unknown.status!.error).toContain('SEARCH_SHARD_ROOTS "yes" is not supported');
+      expect(unknown.fetches).toBe(0);
+      // Positive control: without the variable, and with `true`, the run reaches its sources.
+      for (const variables of [{}, { SEARCH_SHARD_ROOTS: "true" }] as Readonly<Record<string, string>>[]) {
+        const run = await alarm(variables);
+        expect(run.fetches).toBeGreaterThan(0);
+        expect(run.status!.error).not.toContain("SEARCH_SHARD_ROOTS");
+      }
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
 });
 
 async function health(storage: MemoryStorage): Promise<{

@@ -20,6 +20,9 @@ export interface SemanticReleaseView {
   /** For each ref, the release's own chunk of that project, record and ordinal, or `undefined`. */
   chunks(refs: readonly VectorChunkRef[], signal?: AbortSignal): Promise<readonly (SourceRecordChunkV1 | undefined)[]>;
 }
+// The Pages reader does not implement this view: it resolves matches inside its one pass over
+// the release's shards (Spec 016 Behavior 28). The view stays the seam of the retriever and its
+// contract tests.
 
 const key = (projectId: string, recordId: string, ordinal: number) => [projectId, recordId, ordinal].join("\u0000");
 

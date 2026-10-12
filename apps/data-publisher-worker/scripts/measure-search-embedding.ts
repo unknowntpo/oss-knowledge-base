@@ -13,7 +13,7 @@
  */
 import { parseArgs } from "node:util";
 
-import { estimateTokens, neurons, USD_PER_NEURON } from "@oss-knowledge-base/reference-pipeline";
+import { embeddingNeurons, estimateTokens, USD_PER_NEURON } from "@oss-knowledge-base/reference-pipeline";
 import { searchIdentifierProfiles } from "@oss-knowledge-base/reference-pipeline/search-profiles";
 import { chunkEmbeddingText } from "@oss-knowledge-base/search";
 import { resolveSearchEmbedding } from "@oss-knowledge-base/semantic-vectorize";
@@ -100,7 +100,7 @@ const perChunk = totalTokens / tokens.length;
 const scaledTokens = Math.round(perChunk * targetChunks);
 // Whichever bound fills a call first: 50 texts, or 20,000 estimated tokens.
 const scaledCalls = Math.max(Math.ceil(targetChunks / limits.batchTexts), Math.ceil(scaledTokens / limits.batchTokens));
-const scaledNeurons = Math.max(scaledCalls, neurons(model, scaledTokens, 0));
+const scaledNeurons = Math.max(scaledCalls, embeddingNeurons(model, scaledTokens));
 
 console.log(JSON.stringify({
   source: values.fixture ?? DEFAULT_FIXTURE,

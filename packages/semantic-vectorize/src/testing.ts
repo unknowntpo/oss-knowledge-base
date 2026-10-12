@@ -158,3 +158,41 @@ export async function storeChunkVectors(
     await index.upsert(records.slice(start, start + VECTOR_LIMITS.upsertBatch));
   }
 }
+
+/** Durable Object storage as the query gate uses it: strongly consistent, keys listed in order. */
+export class MemoryGateStorage {
+  readonly values = new Map<string, unknown>();
+  /** Return an error to make that write fail. */
+  failPut: (key: string) => Error | undefined = () => undefined;
+  /** Make every read and write take a turn of the event loop, as real storage I/O may. */
+  slow = false;
+
+  private async turn(): Promise<void> {
+    if (this.slow) await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  async get<T>(key: string): Promise<T | undefined> {
+    await this.turn();
+    return this.values.get(key) as T | undefined;
+  }
+
+  async put(key: string, value: unknown): Promise<void> {
+    await this.turn();
+    const error = this.failPut(key);
+    if (error !== undefined) throw error;
+    this.values.set(key, structuredClone(value));
+  }
+
+  async delete(keys: readonly string[]): Promise<void> {
+    for (const key of keys) this.values.delete(key);
+  }
+
+  async list<T>(options: { readonly prefix: string; readonly limit?: number }): Promise<Map<string, T>> {
+    const keys = [...this.values.keys()].filter((key) => key.startsWith(options.prefix)).sort();
+    return new Map(keys.slice(0, options.limit ?? keys.length).map((key) => [key, this.values.get(key) as T]));
+  }
+
+  keys(prefix: string): string[] {
+    return [...this.values.keys()].filter((key) => key.startsWith(prefix)).sort();
+  }
+}

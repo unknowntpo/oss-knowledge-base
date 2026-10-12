@@ -1,14 +1,18 @@
 <script setup lang="ts">
+import { computed } from "vue";
+
 import { useI18n } from "../i18n";
 import type { SearchResultV1 } from "../types";
 
-defineProps<{
+const props = defineProps<{
   readonly result: SearchResultV1;
   readonly rank: number;
   readonly projectLabel: string;
 }>();
 
 const { t } = useI18n();
+// Spec 016 Behavior 36: no word of the query located this thread; it was found by meaning alone.
+const semanticOnly = computed(() => props.result.matches.every((match) => match.signals.lexicalRank === undefined));
 </script>
 
 <template>
@@ -20,6 +24,7 @@ const { t } = useI18n();
     <div class="card-head">
       <span class="topic-id">#{{ rank }}</span>
       <span class="search-match-badge">{{ t("search.lexicalMatch") }}</span>
+      <span v-if="semanticOnly" class="search-match-badge semantic-match-badge">{{ t("search.semanticMatch") }}</span>
       <span v-if="result.projectStatus" class="status-badge" :class="`status-${result.projectStatus}`">{{ t(`status.${result.projectStatus}`) }}</span>
       <span class="card-project">{{ projectLabel }}</span>
     </div>

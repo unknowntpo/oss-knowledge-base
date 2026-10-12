@@ -11,7 +11,8 @@ import { R2PublicationDestination } from "./r2-destination";
 import { runPending } from "./run-schedule";
 import { healthBody } from "./health";
 import { runDataPublication, type PipelinePhaseMarker, type PipelineRunStatus } from "./pipeline";
-import type { EmbeddingAiBinding, VectorIndex } from "@oss-knowledge-base/semantic-vectorize";
+import { SEARCH_QUERY_GATE_OBJECT_NAME, unboundQueryGateHealth, type EmbeddingAiBinding, type SemanticQueryGate, type VectorIndex } from "@oss-knowledge-base/semantic-vectorize";
+import { createSearchQueryGate } from "./search-query/gate";
 import { SearchEmbeddingRunner, unboundSearchEmbeddingHealth } from "./search-embedding/runner";
 import { sanitizeErrorMessage } from "./search-embedding/sanitize";
 
@@ -49,6 +50,16 @@ interface Env {
   readonly SEARCH_VECTORS?: VectorIndex;
   /** Bound on Dev only; everything that reads it tolerates its absence. */
   readonly SEARCH_EMBEDDING_RUN?: DurableObjectNamespace;
+  /**
+   * Spec 016 slice 3: `true` makes a Search release declare each shard's first group root, which
+   * semantic candidates need. Unset writes the manifest as before.
+   */
+  readonly SEARCH_SHARD_ROOTS?: string;
+  /**
+   * Spec 016 slice 3: the query gate's namespace, bound here only so `/health` can read it. The
+   * Pages project reaches the same class through its own binding. Unbound until the enable.
+   */
+  readonly SEARCH_QUERY_GATE?: DurableObjectNamespace;
 }
 
 const sourceFetch = (url: string, init: { readonly headers: Readonly<Record<string, string>> }) =>
@@ -100,15 +111,18 @@ export function digestModel(env: Pick<Env, "DIGEST_MODEL" | "DIGEST_GATEWAY_ID" 
 /**
  * `/health`: the publisher's body, unchanged, plus `digest` (null when the digest object fails),
  * `reviewQueue`, the review queue's `last-run.json` (null before the first run or on a read error),
- * and `searchEmbedding` (null when the embedding object does not answer).
+ * `searchEmbedding` (null when the embedding object does not answer), and `searchQuery` (the query
+ * gate; null when it does not answer).
  */
-export function mergeHealth(publisher: unknown, digest: unknown, reviewQueue: unknown = null, searchEmbedding: unknown = null): unknown {
+export function mergeHealth(publisher: unknown, digest: unknown, reviewQueue: unknown = null, searchEmbedding: unknown = null, searchQuery: unknown = null): unknown {
   return {
     ...(publisher as Record<string, unknown>),
     digest: digest ?? null,
     reviewQueue: reviewQueue ?? null,
     // Spec 016 H51: the embedding object's health, or null when it does not answer.
     searchEmbedding: searchEmbedding ?? null,
+    // Spec 016 H69: the query gate's health, or null when it does not answer.
+    searchQuery: searchQuery ?? null,
   };
 }
 
@@ -178,7 +192,12 @@ export default {
         : await embedding.fetch("https://search-embedding.internal/status")
           .then((response) => (response.ok ? response.json() : null))
           .catch(() => null);
-      return Response.json(mergeHealth(await publisher.json(), digestHealth, reviewQueue, searchEmbedding));
+      const searchQuery = env.SEARCH_QUERY_GATE === undefined
+        ? unboundQueryGateHealth(new Date())
+        : await env.SEARCH_QUERY_GATE.get(env.SEARCH_QUERY_GATE.idFromName(SEARCH_QUERY_GATE_OBJECT_NAME)).fetch("https://search-query.internal/status")
+          .then((response) => (response.ok ? response.json() : null))
+          .catch(() => null);
+      return Response.json(mergeHealth(await publisher.json(), digestHealth, reviewQueue, searchEmbedding, searchQuery));
     }
     if (request.method === "POST" && url.pathname === "/search-embedding/run") {
       if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
@@ -273,6 +292,7 @@ export class PipelineState implements DurableObject {
         state: new DurableObjectPipelineState(this.ctx.storage),
         destination: new R2PublicationDestination(this.env.OSS_KB_BUCKET),
         ...(this.env.SEARCH_LEXICAL_REVISION === undefined ? {} : { searchLexicalRevision: this.env.SEARCH_LEXICAL_REVISION }),
+        ...(this.env.SEARCH_SHARD_ROOTS === undefined ? {} : { searchShardRoots: this.env.SEARCH_SHARD_ROOTS }),
         ...(onPublished === undefined ? {} : { onPublished }),
       });
     } finally {
@@ -373,5 +393,42 @@ export class SearchEmbeddingRun implements DurableObject {
 
   async alarm(): Promise<void> {
     await this.runner.alarm();
+  }
+}
+
+/**
+ * Spec 016 slice 3: the only place a search query may reach the embedding model or the vector
+ * index. Its own object, storage, and ledger, so query traffic cannot delay a publication or use
+ * the embedding job's caps. It has no public route: the Pages reader calls it through a Durable
+ * Object binding, and the Worker reads only its `/status`.
+ */
+export class SearchQueryGate implements DurableObject {
+  private readonly gate: SemanticQueryGate;
+
+  constructor(ctx: DurableObjectState, env: Env) {
+    this.gate = createSearchQueryGate({
+      storage: {
+        get: (key) => ctx.storage.get(key),
+        put: (key, value) => ctx.storage.put(key, value),
+        delete: async (keys) => { await ctx.storage.delete([...keys]); },
+        list: (options) => ctx.storage.list(options),
+      },
+      flag: env.SEARCH_EMBEDDING,
+      gatewayId: env.SEARCH_GATEWAY_ID,
+      digestGatewayId: env.DIGEST_GATEWAY_ID,
+      ai: env.AI as EmbeddingAiBinding | undefined,
+      index: env.SEARCH_VECTORS,
+      now: () => new Date(),
+    });
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    if (request.method === "GET" && url.pathname === "/status") return Response.json(await this.gate.health());
+    if (request.method === "POST" && url.pathname === "/query") {
+      const body = await request.json().catch(() => undefined);
+      return Response.json(await this.gate.query(body as Parameters<SemanticQueryGate["query"]>[0]));
+    }
+    return new Response("Not found", { status: 404 });
   }
 }

@@ -21,7 +21,10 @@ import {
   SEARCH_CURRENT_KEY,
   SEARCH_DETAIL_POOL,
   searchGroupsFromFeed,
+  isSearchReleaseManifest,
   searchProjectionObjects,
+  searchReleaseHasShardRoots,
+  searchShardForGroupRoot,
   searchTermsKey,
   sha256Digest,
   type EncodedProjectionObject,
@@ -34,6 +37,7 @@ import {
   type StreamedSearchRelease,
 } from "../src";
 import { feedFixture, fixtureGeneratedAt } from "./feed-fixture";
+import { testPlanRows as shardRootRows } from "./search-shard-roots.cases";
 import { testPlanRows } from "./search-shards.cases";
 
 const goldenPath = new URL("../../search/test/fixtures/golden-queries.v1.json", import.meta.url).pathname;
@@ -44,6 +48,71 @@ const release = {
   corpusRevision: "corpus-r1",
   generatedAt: fixtureGeneratedAt,
 } as const;
+
+describe("Spec 016 shard roots in the manifest", () => {
+  const parse = (groups: string) => groups.split(" ").filter(Boolean).map((token) => {
+    const [, projectId, root, chunks] = /^([^/]+)\/([^:]+):(\d+)$/u.exec(token)!;
+    return groupSource(projectId!, root!, Number(chunks));
+  });
+
+  test.each(shardRootRows)("$id: $case", async (row) => {
+    const { value } = await drain(searchProjectionObjects(release, parse(row.groups), { maxShardChunks: row.maxShardChunks, shardRoots: true }));
+    expect(value.manifest.shards.map((shard, index) => `${index} ${shard.projectId} ${shard.firstGroupRootRecordId}`).join("; ")).toBe(row.roots);
+    expect(searchReleaseHasShardRoots(value.manifest)).toBe(true);
+    const lookups = row.lookups.split(" ").map((token) => {
+      const [project, root] = token.split("=")[0]!.split("/");
+      const shard = searchShardForGroupRoot(value.manifest, project!, root!);
+      return `${project}/${root}=${shard ?? "none"}`;
+    });
+    expect(lookups.join(" ")).toBe(row.lookups);
+  });
+
+  test("H57: without the option every object is byte-identical to before; with it only the manifest changes, and older readers accept it", async () => {
+    const groups = parse("datafusion/m:2 kafka/b:2 kafka/d:2 kafka/f:2");
+    const plain = await drain(searchProjectionObjects(release, groups, { maxShardChunks: 4 }));
+    const off = await drain(searchProjectionObjects(release, groups, { maxShardChunks: 4, shardRoots: false }));
+    const on = await drain(searchProjectionObjects(release, groups, { maxShardChunks: 4, shardRoots: true }));
+
+    expect([...off.objects]).toEqual([...plain.objects]);
+    expect(plain.value.manifest.shards.every((shard) => !Object.hasOwn(shard, "firstGroupRootRecordId"))).toBe(true);
+    expect(searchReleaseHasShardRoots(plain.value.manifest)).toBe(false);
+    expect(searchShardForGroupRoot(plain.value.manifest, "kafka", "b")).toBeUndefined();
+
+    const manifestKey = [...on.objects.keys()].find((key) => key.endsWith("/manifest.json"))!;
+    expect([...on.objects.keys()]).toEqual([...plain.objects.keys()]);
+    for (const [key, body] of on.objects) expect(body === plain.objects.get(key)).toBe(key !== manifestKey);
+    expect(on.value.manifest).toEqual({
+      ...plain.value.manifest,
+      shards: plain.value.manifest.shards.map((shard, index) => ({ ...shard, firstGroupRootRecordId: ["m", "b", "f"][index]! })),
+    });
+    // A reader from before this slice validates a manifest by these fields only.
+    expect(isSearchReleaseManifest(JSON.parse(on.objects.get(manifestKey)!))).toBe(true);
+    // The declared first root is the shard's own first group.
+    for (const shard of on.value.manifest.shards) {
+      expect((JSON.parse(on.objects.get(shard.key)!) as SearchLexicalShardV2).groups[0]!.groupRootRecordId).toBe(shard.firstGroupRootRecordId!);
+    }
+  });
+
+  test("H57: a release is covered only when every shard declares a root; whole-release layouts never are", async () => {
+    const { value } = await drain(searchProjectionObjects(release, parse("kafka/b:2 kafka/d:3"), { maxShardChunks: 4, shardRoots: true }));
+    const [first, second] = value.manifest.shards;
+    expect(searchShardForGroupRoot(value.manifest, "kafka", "d")).toBe(1);
+    for (const shards of [
+      [first!, { projectId: second!.projectId, key: second!.key }],
+      [first!, { ...second!, firstGroupRootRecordId: "" }],
+      [first!, { ...second!, firstGroupRootRecordId: 7 as unknown as string }],
+    ]) {
+      const manifest = { ...value.manifest, shards };
+      expect(searchReleaseHasShardRoots(manifest)).toBe(false);
+      expect(searchShardForGroupRoot(manifest, "kafka", "d")).toBeUndefined();
+      // Still a valid manifest: such a release is served lexically, not refused.
+      expect(isSearchReleaseManifest(manifest)).toBe(true);
+    }
+    const legacy = { schema: "osskb.search-release.v2", indexRevision: "r", corpusRevision: "c", lexicalRevision: "bm25-reference@1", generatedAt: fixtureGeneratedAt, shardKeys: { kafka: "k" }, chunkCount: 0, groupCount: 0, objectDigests: {} } as const;
+    expect(searchReleaseHasShardRoots(legacy)).toBe(false);
+    expect(searchShardForGroupRoot(legacy, "kafka", "b")).toBeUndefined();
+  });
+});
 
 describe("Spec 013 lexical shard layout", () => {
   test.each(testPlanRows)("$id: $case", async (row) => {

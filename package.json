@@ -23,6 +23,8 @@
     "eval:search": "bun run --cwd packages/search eval",
     "measure:review-queue": "bun run --cwd apps/data-publisher-worker measure:review-queue",
     "measure:search-embedding": "bun run --cwd apps/data-publisher-worker measure:search-embedding",
+    "measure:search-hybrid": "bun run --cwd apps/web measure:search-hybrid",
+    "measure:search-query-budget": "bun run --cwd apps/data-publisher-worker measure:search-query-budget",
     "search:publish": "bun run --cwd apps/web search:publish",
     "dev": "bun apps/web/scripts/dev.ts",
     "e2e:prepare": "bun apps/web/scripts/prepare-e2e-r2.ts",

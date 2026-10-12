@@ -1013,6 +1013,27 @@ describe("Spec 016 embedding run", () => {
     expect(logged.some(leaked)).toBe(false);
   });
 
+  test("H67: a run's neurons, its ledger, its daily cap, and its estimate use the calibrated token estimate; tokens and batches do not", async () => {
+    // 4,000 characters are 1,000 estimated tokens: 1.091 neurons uncalibrated, 1.96 at 1.8.
+    const long = (recordId: string) => projectA(recordId, { title: "t", text: "word ".repeat(1_000).slice(0, 3_998) });
+    const chunks = [long("a1"), long("a2"), long("a3"), long("a4")];
+    const h = harness({ batchTexts: 2 });
+    publishRelease(h.bucket, "r1", chunks);
+
+    const dry = await h.run({ dryRun: true });
+    expect(dry.estimate).toMatchObject({ chunks: 4, calls: 2, inputTokens: 4_000, neurons: 8, usd: 0.000088 });
+    // Two calls of 2,000 estimated tokens: 4 neurons each, where the uncalibrated estimate said 2.
+    const capped = await h.run({ limits: { dailyNeuronCap: 7 } });
+    expect(capped).toMatchObject({ modelCalls: 1, embeddedThisRun: 2, estimatedInputTokens: 2_000, estimatedNeurons: 4, limited: "daily-neurons" });
+    expect(h.storage.values.get("spend:2026-10-10")).toEqual({ neurons: 4, calls: 1 });
+    const rest = await h.run({ limits: { dailyNeuronCap: 8 } });
+    expect(rest).toMatchObject({ modelCalls: 1, embeddedThisRun: 2, estimatedNeurons: 4, limited: null, pending: 0 });
+    expect(rest.spentToday).toEqual({ date: "2026-10-10", estimatedNeurons: 8, calls: 2 });
+    // Batches are still cut by the uncalibrated estimate: 20,000 tokens a call.
+    expect(h.model.calls.map((texts) => texts.length)).toEqual([2, 2]);
+    expect(DEFAULT_EMBEDDING_LIMITS).toMatchObject({ dailyNeuronCap: 2_500, batchTokens: 20_000, maxCallsPerDay: 400 });
+  });
+
   test("H51: a dry run reports what a run would do and cost, calling no model, mutating no vector, and writing no state", async () => {
     const h = harness({ batchTexts: 2, maxChunksPerRun: 3 });
     publishRelease(h.bucket, "r0", [...FIVE.slice(0, 2), projectA("gone")]);

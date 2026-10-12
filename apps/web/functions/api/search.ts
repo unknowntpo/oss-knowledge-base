@@ -1,7 +1,8 @@
 import { jsonResponse } from "../_shared/r2-projection";
 import { SearchClientError, searchR2Projection } from "../_shared/search-projection";
+import { semanticSearchOptions, type SemanticSearchEnv } from "../_shared/semantic-gate";
 
-interface Env { readonly OSS_KB_BUCKET: R2Bucket }
+interface Env extends SemanticSearchEnv { readonly OSS_KB_BUCKET: R2Bucket }
 
 export const onRequestGet: PagesFunction<Env> = async ({ env, request }) => {
   const url = new URL(request.url);
@@ -34,7 +35,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ env, request }) => {
               },
             }
       ),
-    }));
+    }, semanticSearchOptions(env, url)));
   } catch (error) {
     const clientError = error instanceof SearchClientError;
     return jsonResponse(
