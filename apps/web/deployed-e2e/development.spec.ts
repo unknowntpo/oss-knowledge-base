@@ -175,6 +175,25 @@ test("H42: Search serves the lexical revision the publisher last wrote, and at @
   expect(roots(plain!)).toEqual(roots(hyphenated!));
 });
 
+test("H52: the Dev publisher reports search embedding enabled with no configuration error", async ({ publisherRequest }) => {
+  // True from the deploy on, before any run: `enabled` and `configError` come from the Worker's
+  // variables and bindings. Progress (`lastRun`, `pending`) depends on later hourly runs and is
+  // read by hand (Spec 016 H52), not asserted here. `searchEmbedding` is null while the
+  // embedding object does not answer, hence the poll.
+  type Health = { readonly searchEmbedding: null | { readonly enabled: boolean; readonly configError?: string; readonly revision?: string } };
+  let health: Health | undefined;
+  await expect.poll(async () => {
+    const response = await publisherRequest.get(`${workerUrl}/health`);
+    health = response.status() === 200 ? await response.json() as Health : undefined;
+    return health?.searchEmbedding?.enabled;
+  }, {
+    message: "wait for /health to carry the embedding object's status",
+    timeout: 60 * 1_000,
+    intervals: [1_000, 5_000, 10_000],
+  }).toBe(true);
+  expect(health!.searchEmbedding!.configError).toBeUndefined();
+});
+
 test("This week renders the digest, or the no-digest notice while Dev has no digest pointer", async ({ page, request }) => {
   const api = await request.get("/api/digest?projectId=apache-kafka&locale=en");
   // 404 until the digest job publishes on Dev (Spec 014 slice 2b); never a 5xx.

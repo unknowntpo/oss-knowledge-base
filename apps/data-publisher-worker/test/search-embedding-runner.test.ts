@@ -106,7 +106,7 @@ describe("Spec 016 embedding object", () => {
     expect(h.storage.writes).toEqual([]);
   });
 
-  test("H45: the deployed configurations bind the index, the object and the search gateway on Dev only, and neither sets the flag", async () => {
+  test("H45: the deployed configurations bind the index, the object and the search gateway on Dev only; Dev sets the flag to bge-m3@1 and Prod does not", async () => {
     const config = async (environment: string) => JSON.parse(await Bun.file(new URL(`../wrangler.${environment}.jsonc`, import.meta.url)).text()) as {
       readonly vars: Readonly<Record<string, string>>;
       readonly vectorize?: readonly { readonly binding: string; readonly index_name: string }[];
@@ -117,20 +117,20 @@ describe("Spec 016 embedding object", () => {
     const development = await config("development");
     const production = await config("production");
 
-    for (const { vars } of [development, production]) {
-      expect(Object.hasOwn(vars, "SEARCH_EMBEDDING")).toBe(false);
-      expect(searchEmbeddingConfig({ flag: vars.SEARCH_EMBEDDING, gatewayId: vars.SEARCH_GATEWAY_ID, digestGatewayId: vars.DIGEST_GATEWAY_ID, ai: new FakeAi(), index: new FakeVectorIndex(DIMENSIONS) }))
-        .toEqual({ state: "off" });
-    }
+    const configured = ({ vars }: typeof development) => searchEmbeddingConfig({ flag: vars.SEARCH_EMBEDDING, gatewayId: vars.SEARCH_GATEWAY_ID, digestGatewayId: vars.DIGEST_GATEWAY_ID, ai: new FakeAi(), index: new FakeVectorIndex(DIMENSIONS) });
+    // Spec 016 H52: Dev embeds with bge-m3@1 (enabled 2026-10-12); Prod has no flag.
+    expect(development.vars.SEARCH_EMBEDDING).toBe("bge-m3@1");
+    expect(configured(development)).toMatchObject({ state: "on", profile: { key: "bge-m3@1", semanticRevision: SEMANTIC_REVISION } });
+    expect(Object.hasOwn(production.vars, "SEARCH_EMBEDDING")).toBe(false);
+    expect(configured(production)).toEqual({ state: "off" });
     expect(development.vars.SEARCH_GATEWAY_ID).toBe("osskb-search-dev");
     expect(development.vars.SEARCH_GATEWAY_ID).not.toBe(development.vars.DIGEST_GATEWAY_ID);
     expect(development.vectorize).toEqual([{ binding: "SEARCH_VECTORS", index_name: "osskb-search-dev" }]);
     expect(development.ai).toEqual({ binding: "AI" });
     expect(development.durable_objects.bindings).toContainEqual({ name: "SEARCH_EMBEDDING_RUN", class_name: "SearchEmbeddingRun" });
     expect(development.migrations.at(-1)).toEqual({ tag: "v3", new_sqlite_classes: ["SearchEmbeddingRun"] });
-    // Setting the flag on Dev, and nothing else, turns embeddings on.
-    expect(searchEmbeddingConfig({ flag: "bge-m3@1", gatewayId: development.vars.SEARCH_GATEWAY_ID, digestGatewayId: development.vars.DIGEST_GATEWAY_ID, ai: new FakeAi(), index: new FakeVectorIndex(DIMENSIONS) }))
-      .toMatchObject({ state: "on", profile: { key: "bge-m3@1", semanticRevision: SEMANTIC_REVISION } });
+    // The flag, and nothing else, is what turns Dev on: without it the same configuration is off.
+    expect(configured({ ...development, vars: { ...development.vars, SEARCH_EMBEDDING: "" } })).toEqual({ state: "off" });
 
     expect(JSON.stringify(production)).not.toMatch(/SEARCH_|vectorize|SearchEmbedding|"ai"/u);
     expect(production.durable_objects.bindings.map((binding) => binding.name)).toEqual(["PIPELINE_STATE", "DIGEST_RUN"]);

@@ -384,20 +384,22 @@ the two `viewer/` items below.
 - **Layer:** measurement.
 - **Source:** Spec 016 slice 2a.
 
-### G40. `SEARCH_EMBEDDING` is a rollout flag; embedding is built but off
+### G40. `SEARCH_EMBEDDING` is a rollout flag; on for Dev, off for Prod
 - **Where:** `searchEmbeddingConfig`
   (`apps/data-publisher-worker/src/search-embedding/runner.ts`),
   `searchEmbeddingTrigger` (`src/index.ts`), the `H45` configuration test in
   `test/search-embedding-runner.test.ts`, `wrangler.development.jsonc`
-  (binding, object, and gateway id without the flag).
-- **Why:** slice 2b ships the embedding run without a real Workers AI or
+  (binding, object, gateway id, and since 2026-10-12 the flag).
+- **Why:** slice 2b shipped the embedding run without a real Workers AI or
   Vectorize call ever having been made, so the first one happens on Dev by a
-  one-line change (H52), after a dry run. Until then a Durable Object class
-  and a Vectorize binding are deployed and unused.
-- **Fix:** Spec 016 H52 sets the variable for Dev and updates the H45 test.
-  When slice 3 reads the vectors and Prod has its own index and gateway,
-  decide whether the flag stays as the profile selector or becomes a default.
-- **Layer:** test (H45) now.
+  one-line change (H52), after a dry run. Dev sets `bge-m3@1` since
+  2026-10-12; nothing reads the vectors before slice 3, and Prod has no
+  index, gateway, or flag.
+- **Fix:** record the H52 observations in Spec 016 Results. When slice 3
+  reads the vectors and Prod has its own index and gateway, decide whether
+  the flag stays as the profile selector or becomes a default.
+- **Layer:** test (H45: Dev `bge-m3@1`, Prod unset) and the deployed E2E
+  (`enabled`, no `configError`).
 - **Source:** Spec 016 slice 2b.
 
 ### G41. Embedding bounds and the fake index rest on documentation, not measurement
