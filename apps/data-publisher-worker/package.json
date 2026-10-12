@@ -10,7 +10,8 @@
     "measure:memory": "bun scripts/measure-publication-memory.ts",
     "measure:search-latency": "bun scripts/measure-search-latency.ts",
     "measure:review-queue": "bun scripts/measure-review-queue.ts",
-    "measure:search-embedding": "bun scripts/measure-search-embedding.ts"
+    "measure:search-embedding": "bun scripts/measure-search-embedding.ts",
+    "measure:search-query-budget": "bun scripts/measure-search-query-budget.ts"
   },
   "dependencies": {
     "@oss-knowledge-base/domain": "workspace:*",
