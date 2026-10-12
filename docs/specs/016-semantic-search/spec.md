@@ -368,7 +368,8 @@ Serving `bm25-reference@2` (slice 2a):
     manifest. Any other value fails the run before a source is polled or an
     object written, and `/health` shows the error. Slice 2a set the variable
     in neither deployed configuration; since the switch (H42) the development
-    configuration sets `bm25-reference@2` and production still sets none. A successful run records
+    configuration sets `bm25-reference@2` (`bm25-reference@3` since Spec 017
+    N17) and production still sets none. A successful run records
     `lastRun.search { lexicalRevision, chunkCount, shardCount, shardBytes,
     largestShardBytes, termsBytes }` from the manifest and object sizes of the
     release it wrote.
@@ -1392,7 +1393,7 @@ Not decided here:
 6. **Thread-title repetition** (Results). Answered by
    [Spec 017](../017-lexical-ranking/spec.md): `bm25-reference@3` bounds a
    thread's score and adds a phrase bonus, measured on a snapshot of the Dev
-   release. It is implemented behind the flag and not switched on.
+   release. Dev writes `@3` since Spec 017 N17.
 7. **Labels.** Should `RequestManager` and `request manager` carry the
    Release Manager negative, and is "top 3" the right bound for the three
    expected threads? Still open; Spec 017 (open questions 1 and 2) adds the

@@ -53,8 +53,9 @@ any other value fails the run before polling and `/health` `lastRun.error`
 names it. `/health` `lastRun.search.lexicalRevision` shows what the last run
 wrote; `/api/search` `retrieval.lexicalRevision` shows what is served.
 
-Development sets `bm25-reference@2` (`wrangler.development.jsonc`, Spec 016
-H42); production does not set the variable and writes `@1`.
+Development sets `bm25-reference@3` (`wrangler.development.jsonc`; `@2` from
+Spec 016 H42, `@3` from Spec 017 N17); production does not set the variable
+and writes `@1`.
 
 - Set `bm25-reference@2` only when the environment's Pages are at or after
   Spec 016 slice 2a. Older Pages answer every search with HTTP 503 for an
@@ -66,7 +67,7 @@ H42); production does not set the variable and writes `@1`.
 - Before rolling Pages back below slice 2a, return to `@1` first and wait for
   `lastRun.search.lexicalRevision` to read `bm25-reference@1`.
 - `bm25-reference@3` (Spec 017) stores what `@2` stores and ranks threads
-  differently. No environment sets it yet. Set it only when the
+  differently. Development sets it. Set it only when the
   environment's Pages are at or after Spec 017; to turn it off, set
   `bm25-reference@2` again. Before rolling Pages back below Spec 017, return
   to `@2` first and wait for `lastRun.search.lexicalRevision` to read it.

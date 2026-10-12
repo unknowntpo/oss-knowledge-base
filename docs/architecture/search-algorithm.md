@@ -28,7 +28,7 @@
 | 精確比對 | 結構化查詢（如 `KAFKA-1234`）命中時加 1000 分 |
 | thread 分數 | `@1`、`@2`：最佳 chunk + 其他命中 chunk × 0.25。`@3`：chunk 依分數由高到低排列，第 i 個（從 0 起算）乘 0.25^i，所以 thread 分數低於最佳 chunk 的 4/3 |
 | 詞組加分 | 只有 `@3`：查詢中相鄰的兩個字，若在 chunk 的標題或內文中也相鄰且順序相同，加上兩字 IDF 的平均；出現在標題時再乘 4。`HeartbeatRequestManager` 與 `heartbeat request manager` 視為相同的三個字 |
-| 版本 | `bm25-reference@1`（Prod）、`@2`（Dev：camelCase 拆字、編號正規化）、`@3`（Spec 017：索引與 `@2` 相同，只改排序；已實作，尚無環境啟用） |
+| 版本 | `bm25-reference@1`（Prod）、`@2`（camelCase 拆字、編號正規化）、`@3`（Spec 017：索引與 `@2` 相同，只改排序；Dev 自 Spec 017 N17 起發布 `@3`） |
 | 儲存 | v3 release：每專案多個 shard（每個 ≤ 1,000 chunk）+ `terms.json` |
 | 延遲 | Dev 中位數約 1.04 秒（Spec 013 前約 4 秒） |
 
@@ -133,7 +133,7 @@ Spec 017 另外加入真實語料的評估：`real-corpus-snapshot.v1.json` 取�
 4. slice 2b：發布時為每個 chunk 算 embedding 並寫入 Vectorize。
 5. slice 3：查詢時算 embedding，在 `/api/search` 以開關啟用混合檢索。
 6. slice 4：用真實模型量 v2 標準查詢，比較 BM25 與混合檢索，再決定是否加入重排。
-7. Spec 017（已實作，未啟用）：`bm25-reference@3`。thread 分數改為等比遞減，並加入詞組加分；儲存的 shard 與 `terms.json` 和 `@2` 相同，只有 manifest 的 `lexicalRevision` 不同。啟用方式與 `@2` 相同：另開 PR 把 Dev 的 `SEARCH_LEXICAL_REVISION` 設為 `bm25-reference@3`。
+7. Spec 017（已實作；Dev 已切換，N17）：`bm25-reference@3`。thread 分數改為等比遞減，並加入詞組加分；儲存的 shard 與 `terms.json` 和 `@2` 相同，只有 manifest 的 `lexicalRevision` 不同。Dev 的 `SEARCH_LEXICAL_REVISION` 設為 `bm25-reference@3`，部署後的下一次發布起生效；改回 `bm25-reference@2` 即可復原。已知限制：查詢的字在標題中不相鄰或順序相反時沒有詞組加分，例如 `manager request` 仍由長 thread 排第一（Spec 017 Results 的 guard rows）。
 8. 視需要做「問答」：用檢索結果讓模型附引用回答（RAG，另立規格）。檢索品質是它的上限。
 
 ## 營運限制
