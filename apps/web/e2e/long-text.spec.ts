@@ -160,7 +160,6 @@ const searchRows: readonly Row[] = [
   { selector: ".search-card .card-summary", within: ".search-card", contains: "https://cwiki" },
   { selector: ".search-card .evidence-text", within: ".search-card", contains: "https://cwiki" },
   { selector: ".search-card .evidence-meta", within: ".search-card" },
-  { selector: ".search-card .search-match-badge", within: ".search-card", contains: "" },
 ];
 const detailRows: readonly Row[] = [
   { selector: "#topic-title", within: ".topic-wrap" },

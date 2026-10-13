@@ -144,6 +144,52 @@ publication. It is not a claim that deployed Feed R2 becomes canonical Search
 input; the target processing pipeline invokes the same materializer before the
 independent Feed and Search publishers.
 
+## Result list presentation (owner decision, 2026-10-13)
+
+After searching `KIP770` on Dev (20 cards, each badged "Evidence search";
+header "20 related entries · 63 matching source records" beside a project
+facet of 152), the owner decided: readers do not care how a result was
+found. Show the exact matches first, then whatever else matched. This is
+presentation only; `SearchResponseV1` and the ranking are unchanged.
+
+## S16 — A result card names no search method
+
+**Given** results found by words alone, by meaning alone, or by both  
+**When** they are shown in English or Traditional Chinese  
+**Then** no card carries a method badge ("Evidence search" / 「證據搜尋」,
+"Similar meaning" / 「意思相近」), and a search detail's header names none  
+**And** an exact identifier match keeps its "Exact match" / 「精確命中」
+marker as text.
+
+## S17 — Exact matches first, then the rest
+
+**Given** a response whose first results are exact identifier matches and
+whose later results are not  
+**When** the list is shown at 375 px or on desktop  
+**Then** the cards keep the response's order  
+**And** one heading, "Other related results" / 「其他相關結果」, sits between
+the last exact card and the first other card  
+**And** there is no heading when every result or no result is exact  
+**And** non-exact results of an identifier query are not hidden.
+
+## S18 — The count line says what is shown
+
+**Given** a response with `results` and `facets.projects[]`  
+**When** the list is shown  
+**Then** the line counts the cards shown and, when more threads match than
+are shown, the total: "Showing 20 of 152 matching threads"  
+**And** the total is the selected project's facet count, or the sum of the
+facet counts when no project is selected (a facet counts a project's
+matching threads before the project filter and the limit)  
+**And** exact matches are counted first when some but not all shown results
+are exact: "1 exact match · showing 20 of 152 matching threads"  
+**And** zero results read "No matching threads"  
+**And** a total the response does not give, or one below the shown count, is
+not shown: "Showing 20 matching threads"  
+**And** the line is empty while a search is loading or has failed.
+
+The rows are the test plan in [`spec.md`](spec.md#result-list-test-plan).
+
 ## Future phase gates, not required for Phase 1
 
 Before Phase 2 semantic retrieval can replace lexical-only production ranking:
@@ -182,13 +228,17 @@ Before Phase 4 learned reranking or LLM answers can ship:
 
 - **Unit:** deterministic tokenization, chunk IDs, exact recognition, BM25
   ordering, filtering, deduplication, stable tie-breaking, request bounds, and
-  golden-query membership (`S1`, `S2`, `S5`-`S8`, `S11`-`S13`).
+  golden-query membership (`S1`, `S2`, `S5`-`S8`, `S11`-`S13`); the result
+  card, the divider position and the count line rendered in Bun
+  (`S16`-`S18`, `apps/web/test/search-results-view.test.ts`).
 - **Integration:** fixed records through index publication, Pages Functions,
   `SearchResultV1`, and `FeedDetail` hydration; no network or real GitHub token
   (`S3`, `S4`, `S9`, `S10`, `S15`).
 - **E2E:** a recorded Kafka/DataFusion fixture served from a recreated local R2
   namespace through Wrangler, then exercised in desktop and mobile Chromium
-  (`S14`, plus the visible path of `S3` and `S4`).
+  (`S14`, plus the visible path of `S3` and `S4`); the result list in both
+  locales at 375 px and 1280 px (`S16`-`S18`,
+  `apps/web/e2e/search-semantic.spec.ts`, `apps/web/e2e-lexical2/search.spec.ts`).
 - **Public smoke:** after an explicit deployment, run only the minimum requests
   needed to verify Search and immutable FeedDetail hydration. This is a
   functional check, not a load or latency benchmark, and is never scheduled.

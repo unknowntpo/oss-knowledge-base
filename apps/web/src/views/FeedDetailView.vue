@@ -53,7 +53,8 @@ function searchIndexEntry(value: FeedDetail): FeedIndexEntry {
     displayId: value.displayId ?? root?.title.split(":", 1)[0] ?? value.entry.sourceTitleRecordId,
     projectKey,
     status: root?.artifactStatus ?? "",
-    releaseLabel: "Evidence search",
+    // A search detail has no source label of its own (a Feed entry's is "Jira KAFKA-1", "dev@kafka.apache.org", …).
+    releaseLabel: "",
     authors: [...new Set(records.map((record) => record.author))],
     tags: [],
     links: Object.fromEntries(records.map((record) => [record.source, record.canonicalUrl])),
@@ -124,7 +125,7 @@ function jumpToEvidence(id: string) {
         <p class="topic-lede">{{ item.entry.summary }}</p>
         <div class="topic-meta">
           <span><span class="k">{{ t("topic.proposer") }}</span>{{ item.authors.join("、") }}</span>
-          <span><span class="k">{{ t("topic.release") }}</span>{{ item.releaseLabel }}</span>
+          <span v-if="item.releaseLabel"><span class="k">{{ t("topic.release") }}</span>{{ item.releaseLabel }}</span>
           <span><span class="k">{{ t("topic.records") }}</span>{{ t("topic.recordCount", { count: records.length }) }}</span>
         </div>
         <div class="source-links">

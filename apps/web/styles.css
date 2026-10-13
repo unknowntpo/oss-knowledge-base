@@ -646,7 +646,6 @@ main { flex: 1 0 auto; }
   box-shadow: 0 0 0 3px #f8e7e1;
 }
 
-.search-match-badge,
 .exact-match {
   font-family: var(--font-mono);
   font-size: 10px;
@@ -657,10 +656,23 @@ main { flex: 1 0 auto; }
   color: var(--accent);
 }
 
-/* Spec 016: a thread found by meaning alone; set apart from the accent-coloured match badges. */
-.semantic-match-badge {
-  background: transparent;
-  box-shadow: inset 0 0 0 1px var(--accent-tint-2);
+/* Spec 005 S17: between the exact matches and the rest of a search result list. */
+.results-divider {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted-1);
+}
+
+.results-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border-1);
 }
 
 .search-card .card-summary {

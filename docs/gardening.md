@@ -776,3 +776,16 @@ the two `viewer/` items below.
   D26 and D60.
 - **Layer:** test.
 - **Source:** R2 call audit, 2026-10-13.
+
+### G61. The Feed count line is hard-coded English, beside unused count strings
+- **Where:** `apps/web/src/views/FeedView.vue` (`.results-count` without a
+  query renders `${visibleEntries.length} entries` in both locales);
+  `apps/web/i18n.js` keeps `results.related`, `results.hits`,
+  `results.filtered`, `results.all`, which no component reads.
+- **Why:** a zh-Hant reader sees "12 entries"; the unused keys look like
+  the strings to edit. The search count line was moved to `results.search.*`
+  on 2026-10-13 (Spec 005 S18); the Feed's was left as it was.
+- **Fix:** render the Feed count from `results.all` / `results.filtered`
+  (plain text, no `<strong>`), delete the keys still unused.
+- **Layer:** test (a unit row per locale, as S18 has).
+- **Source:** search result cards change, 2026-10-13.

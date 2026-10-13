@@ -484,3 +484,33 @@ and Top-K remain bounded API inputs; shard size and latency are telemetry rather
 than release gates until measured operational pressure justifies a new
 decision. This does not authorize weakening the accepted deterministic
 behavior.
+
+### Result list test plan
+
+S18's count line (acceptance S16–S18, owner decision 2026-10-13). Generated
+from `apps/web/test/search-results-view.cases.ts` by `bun run docs:test-plan`;
+the unit tests run exactly these rows. Edit the case file, not this table.
+`exact` and `shown` are counted over the response's results; `total` is the
+sum of `facets.projects[].count`, or the selected project's count; `—` means
+the response does not give it.
+
+<!-- test-plan:start apps/web/test/search-results-view.cases.ts -->
+| id | case | exact | shown | total | en | zh |
+| --- | --- | --- | --- | --- | --- | --- |
+| S18 | exact and others, more than the page (Dev, KIP770) | 1 | 20 | 152 | 1 exact match · showing 20 of 152 matching threads | 1 個精確命中 · 顯示 152 個相符討論中的前 20 個 |
+| S18 | several exact and others, more than the page | 2 | 20 | 152 | 2 exact matches · showing 20 of 152 matching threads | 2 個精確命中 · 顯示 152 個相符討論中的前 20 個 |
+| S18 | no exact match, more than the page | 0 | 20 | 152 | Showing 20 of 152 matching threads | 顯示 152 個相符討論中的前 20 個 |
+| S18 | one more thread than the page | 0 | 20 | 21 | Showing 20 of 21 matching threads | 顯示 21 個相符討論中的前 20 個 |
+| S18 | exactly the page | 0 | 20 | 20 | 20 matching threads | 20 個相符的討論 |
+| S18 | fewer than the page | 0 | 7 | 7 | 7 matching threads | 7 個相符的討論 |
+| S18 | fewer than the page, exact and others (local fixture, KIP770) | 2 | 7 | 7 | 2 exact matches · 7 matching threads | 2 個精確命中 · 7 個相符的討論 |
+| S18 | fewer than the page, exact and others (Dev, 770) | 1 | 2 | 2 | 1 exact match · 2 matching threads | 1 個精確命中 · 2 個相符的討論 |
+| S18 | one thread | 0 | 1 | 1 | 1 matching thread | 1 個相符的討論 |
+| S18 | every thread is exact | 3 | 3 | 3 | 3 exact matches | 3 個精確命中 |
+| S18 | the one thread is exact | 1 | 1 | 1 | 1 exact match | 1 個精確命中 |
+| S18 | a full page of exact matches: how many more are exact is unknown | 20 | 20 | 152 | Showing 20 of 152 matching threads | 顯示 152 個相符討論中的前 20 個 |
+| S18 | zero results | 0 | 0 | 0 | No matching threads | 沒有相符的討論 |
+| S18 | total not in the response | 0 | 20 | — | Showing 20 matching threads | 顯示 20 個相符的討論 |
+| S18 | total not in the response, exact and others | 1 | 20 | — | 1 exact match · showing 20 matching threads | 1 個精確命中 · 顯示 20 個相符的討論 |
+| S18 | a total below the shown count is not used | 0 | 20 | 5 | Showing 20 matching threads | 顯示 20 個相符的討論 |
+<!-- test-plan:end -->
