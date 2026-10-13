@@ -1,6 +1,6 @@
 # Spec 016: Semantic candidates and hybrid fusion for Search
 
-Status: Draft for human review — decisions of 2026-10-08..12 recorded below; slices 1, 2a, 2b and 3 implemented (3: query-time hybrid search in the web API, behind `SEARCH_SEMANTIC`, off in every deployed configuration), Dev switched to `@2` (H42) and `@3` (Spec 017), embeddings enabled on Dev (`SEARCH_EMBEDDING=bge-m3@1`, owner's approval 2026-10-12), the query gate and shard roots enabled on the Dev publisher (enable step 1, owner's approval 2026-10-13), hybrid search enabled on Dev Pages (enable step 3, 2026-10-13; H31 and H32 observed after its deploy), fusion `rrf-group@2` implemented behind the same flag after the 2026-10-13 measurement (Dev stays at `rrf-group@1` until rollout step 7, H79), Prod has no flag, slice 4's rerank decision pending
+Status: Draft for human review — decisions of 2026-10-08..12 recorded below; slices 1, 2a, 2b and 3 implemented (3: query-time hybrid search in the web API, behind `SEARCH_SEMANTIC`, off in every deployed configuration), Dev switched to `@2` (H42) and `@3` (Spec 017), embeddings enabled on Dev (`SEARCH_EMBEDDING=bge-m3@1`, owner's approval 2026-10-12), the query gate and shard roots enabled on the Dev publisher (enable step 1, owner's approval 2026-10-13), hybrid search enabled on Dev Pages (enable step 3, 2026-10-13; H31 and H32 observed after its deploy), fusion `rrf-group@2` implemented behind the same flag after the 2026-10-13 measurement and Dev switched to it (rollout step 7, 2026-10-13; H79 observed after its deploy), Prod has no flag, slice 4's rerank decision pending
 Date: 2026-10-13
 Traceability: enforced
 Builds on: Spec 005 (Phases 2 and 3, LLM boundary), Spec 013 (lexical shards, `bm25-reference@1`), Spec 014 (community profile `proposal`), Spec 015 (profile blocks, ADR-0016)
@@ -1000,7 +1000,17 @@ Fusion `rrf-group@2` (2026-10-13):
     has no word any passage holds (a Chinese query), the order is
     `rrf-group@1`'s; and that a thread found by meaning alone is never
     shown above a leading full match. The function is pure and reads no
-    similarity.
+    similarity. Two consequences that are easy to miss:
+    - **A one-word query with any lexical hit is lexical-first.** Every
+      lexical thread holds the one word, so the whole lexical ranking is
+      kept and semantic threads are appended after it (`txn`: the 8 lexical
+      threads, then the threads found by meaning alone). Semantic retrieval
+      cannot reorder such a query; it can only add to it.
+    - **The rule engages only when the first lexical thread holds every
+      query word in one passage.** When it does not, nothing is kept and
+      the order is `rrf-group@1`'s, with its failure intact: a lexical
+      first result that is not a semantic candidate still falls behind
+      threads found twice (Results, "The verifier's clean set").
 39. **Selecting the revision.** `SEARCH_SEMANTIC` names it: `rrf-group@1`
     or `rrf-group@2`, exactly, after trimming. Any other value answers
     lexically with `failed` (Behavior 28). `retrieval.fusionRevision` is
@@ -1354,8 +1364,8 @@ class and the caps as shipped on 2026-10-13.
 6. **Prod** gets none of this until it has an index, a gateway, and the
    embedding flag (open question 16).
 
-7. **Switch Dev to `rrf-group@2` (a separate PR, after this one is
-   verified; H79).** No precondition beyond this change being deployed: the
+7. **Switch Dev to `rrf-group@2` (done 2026-10-13, a separate PR after
+   PR #57 was verified and deployed; H79).** No precondition beyond this change being deployed: the
    embeddings, the gate, and its caches are the same for both revisions.
    - The PR: in `apps/web/wrangler.development.jsonc`, `"SEARCH_SEMANTIC":
      "rrf-group@2"`; in `apps/web/test/search-hybrid.test.ts`, the `H66`
@@ -2876,6 +2886,31 @@ eval:search-fusion --rows`):
 - **Not measured**: a similarity threshold (open question 15), and
   `rrf-group@2` live (H79). The replay is exact for its first 50 results
   given the same lexical ranking and candidates.
+
+### The verifier's clean set (PR #57, 2026-10-13)
+
+The independent verifier wrote 20 queries of its own before running
+`rrf-group@2` (9 where lexical search is right, 8 gap, 3 Chinese; labelled
+by the verifier) and compared the revisions on live candidates. Its finding
+narrows what this revision is: `rrf-group@2` is never worse than
+`rrf-group@1` on any measured row, and on those 20 queries it changed
+almost nothing: 19 ties with `rrf-group@1`, and threads were kept in only 2
+queries. Three of the 9 lexical-right queries stay worse than lexical-only
+under both revisions, because their first lexical thread does not hold
+every query word in one passage (expected threads' ranks, lexical-only →
+fused):
+
+| query | lexical only | `rrf-group@1` and `rrf-group@2` |
+| --- | --- | --- |
+| `LogManager cleanup` | 1, 3, 2, 4 | 23, 3, 1, 6 |
+| `StreamsPartitionAssignor` | 2, 8, 1 | 26, 7, 6 |
+| `deduplicate strings when spilling` | 4, 1 | 1, 21 |
+
+So `rrf-group@2` fixes the case it was fitted to see (a complete lexical
+match at the head) and not the mechanism in general. These three rows are
+known limitations of `rrf-group@2`; the next lever is the similarity of a
+candidate, measurable now that `signals.semanticScore` is served (open
+question 15).
 
 ### Cost
 

@@ -315,16 +315,25 @@ test("H32: Dev serves hybrid search: the gate is enabled, a text query carries a
     match.signals.lexicalRank !== undefined || match.signals.semanticRank !== undefined))).toBe(true);
   expect(fused.results.map((result) => result.matches[0]!.signals.fusedRank)).toEqual(fused.results.map((_, index) => index + 1));
   // H78: a thread semantic retrieval returned reports its similarity, and no other thread does.
-  // Asked again (the gate answers from its cache) until the Pages deployment that serves the
-  // field answers; a repeat that is not fused is not judged.
-  await expect.poll(async () => {
+  // Asked again (the gate answers from its cache) for up to a minute, until the Pages deployment
+  // that serves the field answers. Only a fused answer is judged: a repeat that timed out, found
+  // the budget spent, or met a release without shard roots is recorded and ends the check, as in
+  // the block above, so a budget that runs out mid-test cannot fail `main`.
+  const scored = (body: Search) => body.results.flatMap((result) => result.matches.map((match) => match.signals)).every((signal) => (signal.semanticRank === undefined
+    ? signal.semanticScore === undefined
+    : typeof signal.semanticScore === "number" && signal.semanticScore > 0 && signal.semanticScore <= 1.0001));
+  let similarity: "served" | "missing" | string = scored(fused) ? "served" : "missing";
+  for (const wait of [2_000, 5_000, 10_000, 10_000, 10_000, 10_000, 10_000]) {
+    if (similarity !== "missing") break;
+    await new Promise((resolve) => setTimeout(resolve, wait));
     const body = await search(`q=${encodeURIComponent(TEXT_QUERY)}&limit=5`);
-    if (body.retrieval.semantic?.status !== "ok") return "not fused";
-    const signals = body.results.flatMap((result) => result.matches.map((match) => match.signals));
-    return signals.every((signal) => (signal.semanticRank === undefined
-      ? signal.semanticScore === undefined
-      : typeof signal.semanticScore === "number" && signal.semanticScore > 0 && signal.semanticScore <= 1.0001));
-  }, { message: "wait for the Pages deployment that serves signals.semanticScore", timeout: 60 * 1_000, intervals: [2_000, 5_000, 10_000] }).toBe(true);
+    const status = body.retrieval.semantic?.status;
+    expect(LEGITIMATE, `status ${status}`).toContain(status);
+    similarity = status !== "ok" ? `not judged: ${status}` : scored(body) ? "served" : "missing";
+  }
+  testInfo.annotations.push({ type: "signals.semanticScore", description: similarity });
+  // Fused for a minute and never with a valid similarity on every semantic thread: the contract is broken.
+  expect(similarity, "signals.semanticScore on a fused response").not.toBe("missing");
 });
 
 test("This week renders the digest, or the no-digest notice while Dev has no digest pointer", async ({ page, request }) => {
