@@ -3,10 +3,22 @@
   "name": "oss-knowledge-base-dev",
   "compatibility_date": "2026-08-21",
   "pages_build_output_dir": "dist",
+  "vars": {
+    "SEARCH_SEMANTIC": "rrf-group@1"
+  },
   "r2_buckets": [
     {
       "binding": "OSS_KB_BUCKET",
       "bucket_name": "oss-knowledge-base-dev"
     }
-  ]
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SEARCH_QUERY_GATE",
+        "class_name": "SearchQueryGate",
+        "script_name": "oss-knowledge-base-data-dev"
+      }
+    ]
+  }
 }

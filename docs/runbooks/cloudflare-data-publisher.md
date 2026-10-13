@@ -203,7 +203,7 @@ rollback, repeat from step 1.
 
 ## Hybrid search at query time (Spec 016 slice 3)
 
-Step 1 of the enable (the Worker half) is done for Dev since 2026-10-13: the publisher writes shard roots and the gate is bound and enabled. Step 2 (Pages) is not: no visitor reaches the gate and `/api/search` is lexical. With it on, `/api/search`
+Enabled on Dev since 2026-10-13, in two steps: the Worker (shard roots, the gate) and then Pages (the flag and the binding). Prod has none of it. With it on, `/api/search`
 fuses lexical results with semantic candidates; whenever semantic retrieval
 is missing it answers lexically and says why.
 
@@ -254,14 +254,29 @@ index queries plus the stored vectors are 40.7 M of Vectorize's included
    after minute 7 of the next hour `run.search.shardRoots: true` and the
    embedding run `ok` with `pending: 0`; `retrieval` with four fields and no
    `semantic`.
-2. **Pages**, only after step 1 is deployed (CI deploys Pages before the
-   Worker). In `apps/web/wrangler.development.jsonc` add `"vars": {
+2. **Pages (done 2026-10-13)**, only after step 1 is deployed (CI deploys
+   Pages before the Worker) and a release with shard roots is current
+   (`/health` `lastRun.search.shardRoots: true`). In `apps/web/wrangler.development.jsonc` add `"vars": {
    "SEARCH_SEMANTIC": "rrf-group@1" }` and `"durable_objects": { "bindings":
    [{ "name": "SEARCH_QUERY_GATE", "class_name": "SearchQueryGate",
    "script_name": "oss-knowledge-base-data-dev" }] }`; update the `H66`
    configuration test in `search-hybrid.test.ts` and the deployed E2E's
    `H32` test (it asserts that `/api/search` has no hybrid field).
-3. First observations (Spec 016 H31, H32):
+3. First observations (Spec 016 H31, H32). The deployed E2E checks the
+   shape on every deploy and costs the gate at most 3 model calls ever and
+   6 index queries a run; the commands:
+
+   ```sh
+   P=https://oss-knowledge-base-dev.pages.dev
+   W=https://oss-knowledge-base-data-dev.unknowntpo.workers.dev
+   curl -sS -G "$P/api/search" --data-urlencode 'q=交易逾時' -d limit=5 | jq '{semantic: .retrieval.semantic, revision: .retrieval.semanticRevision, results: [.results[] | {title: .entry.title, signals: .matches[0].signals}]}'
+   curl -sS -G "$P/api/search" --data-urlencode 'q=交易逾時' -d limit=5 | jq .retrieval.semantic      # cached: true
+   curl -sS "$P/api/search?q=KIP770&limit=1" | jq .retrieval.semantic                               # skipped
+   curl -sS -G "$P/api/search" --data-urlencode 'q=交易逾時' -d semantic=off | jq .retrieval.semantic  # disabled
+   curl -sS $W/health | jq '.searchQuery | {enabled, configError, today, pausedUntil, lastError, sinceStart}'
+   bun run measure:search-hybrid -- --out report.json   # 144 GETs, about 7 minutes; at most 48 model calls and 96 index queries
+   ```
+
    - `GET /api/search?q=交易逾時` → `retrieval.semantic { status: "ok",
      candidates, cached: false }` and results; again → `cached: true`.
    - `/health` `searchQuery.today`: 1 neuron, 1 model call, 2 index queries.
@@ -271,8 +286,8 @@ index queries plus the stored vectors are 40.7 M of Vectorize's included
      without semantic retrieval, statuses, and the added latency. Compare
      with the estimate in Spec 016 Results (slice 3).
 
-Revert the Pages PR when: more than about 30% of the uncached queries of
-`measure:search-hybrid` are `timed-out` (or raise the timeout first);
+Revert the Pages PR when: `timedOutShare` in the summary of
+`measure:search-hybrid` is above about 0.3 (or raise the timeout first);
 `searchQuery.lastError.kind` is `model` or `vector-store` on the first
 queries; or `pausedUntil` is set repeatedly. `over-budget` alone is the cap
 working.
@@ -305,8 +320,10 @@ where it is not bound.
 
 ### Turn off
 
-- Remove `SEARCH_SEMANTIC` from the Pages configuration and deploy (revert
-  the Pages PR). `/api/search` is the lexical reader again, byte for byte.
+- Revert the Pages enable PR as a whole and let CI deploy. `/api/search` is
+  the lexical reader again, byte for byte. Removing only `SEARCH_SEMANTIC`
+  leaves `main` red: the deployed E2E's `H32` test and the `H66`
+  configuration test expect the hybrid configuration.
 - Nothing needs doing in a hurry: a failing gate, a spent budget, and a
   timeout already answer lexically.
 - Removing `SEARCH_SHARD_ROOTS` makes the next release `uncovered`. The
