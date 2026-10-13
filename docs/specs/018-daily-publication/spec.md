@@ -23,8 +23,9 @@ publish on demand.
   in the owner's morning). Prod: `37 22 * * *`, so that a future Prod launch
   does not go hourly by accident.
 - Rationale: an hourly publication cost about 8,150 R2 Class A operations per
-  run (≈ $22 a month); a separate hotfix removes most of that, and the
-  schedule is reduced as well.
+  run (≈ $22 a month); PR #60 removed most of that (about 40 Class A and
+  8,200 Class B a run), and the schedule is reduced as well: a month of daily
+  runs is about 1.2 thousand Class A and 0.25 million Class B.
 - What it trades: the site's data is up to about 24 h old (it was up to about
   1 h old).
 - How to go back: set `crons` to `7 * * * *` / `37 * * * *` and
@@ -241,7 +242,7 @@ publication against in-memory upstreams, state and bucket).
 
 | What | Where | Cadence | Reads / writes | Cost per run | Needed | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- |
-| Publisher Cron, Dev | `apps/data-publisher-worker/wrangler.development.jsonc` → `scheduled` → `PipelineState` alarm | `7 22 * * *` (was `7 * * * *`) | GitHub, Pony Mail, Jira → Durable Object state → R2 Feed and Search releases, pointers, evidence | 13 upstream pages in an hourly run; R2 Class A about 8,150 before the cost hotfix (owner's figure), 48 new objects; no model | Yes | Keep (this spec) |
+| Publisher Cron, Dev | `apps/data-publisher-worker/wrangler.development.jsonc` → `scheduled` → `PipelineState` alarm | `7 22 * * *` (was `7 * * * *`) | GitHub, Pony Mail, Jira → Durable Object state → R2 Feed and Search releases, pointers, evidence | 13 upstream pages in an hourly run; R2 about 40 Class A (new objects + 3) and about 8,200 Class B a run since PR #60 (8,150 Class A before it); `lastRun.r2` reports both; no model | Yes | Keep (this spec) |
 | Publisher Cron, Prod | `wrangler.production.jsonc` | `37 22 * * *` (was `37 * * * *`); the Worker has never been deployed | as Dev, Prod bucket | none today | Not until Prod data goes live | Keep the entry; it starts with the next `v*` tag |
 | Publisher follow-ups | `PipelineState` alarm (`planFollowUp`) | 5 min after a truncated run (≤ 5); 10, 30, 60 min after a failure (≤ 3) | as a publication | one publication each | Yes, with a daily Cron | Keep |
 | Runtime alarm retry | Workers runtime | when an alarm handler dies (for example out of memory); exponential backoff, up to 6 retries (Cloudflare's documented behavior); an alarm 30 min overdue is treated as gone (`STALE_ALARM_MS`) | as a publication, under a new release id (Spec 009 M10) | one publication | Yes | Keep |

@@ -737,7 +737,48 @@ the two `viewer/` items below.
 - **Layer:** test today (the limits are pinned).
 - **Source:** Spec 016 fusion `rrf-group@3`, 2026-10-13.
 
-### G59. The review queue's hourly decision and its 2 h check predate the daily publication
+### G59. A reused object still costs one R2 request per run
+- **Where:** `apps/data-publisher-worker/src/r2-destination.ts`
+  (`putVerifiedImmutableIfAbsent`), `packages/serving-contract/src/publication-set.ts`
+  (`promoteVerified`).
+- **Why:** since the Class A incident of 2026-10-13 (Spec 008 C8) an
+  existing object costs one `head` (Class B) instead of a failed conditional
+  put (Class A). That is still about 8,150 requests an hour on Dev: 6.0 of
+  the 10 million Class B a month, and 8,225 of the run's 20,000 subrequests.
+  Both grow with the corpus; a second environment of the same size leaves
+  the included Class B ($0.36 per further million).
+- **Fix:** own spec. Skip the request for a key the previous successful
+  release already lists (its publication-set evidence, or the Search
+  manifest's `objectDigests` and the Feed detail map): 0 requests for a
+  reused object, about 80 a run. To decide there: a previous run that failed
+  midway (its evidence was never written, so its objects are simply checked
+  again), a pointer rolled back to an older release, objects deleted by a
+  future retention job (G9: a skipped key that was deleted publishes a
+  release with a missing detail, so retention and this list must agree), an
+  evidence object of an older layout, and the memory of holding 8,000 keys
+  (Spec 009).
+- **Layer:** test (`C8` bounds Class A today; add the Class B bound) plus
+  measurement (`/health` `lastRun.r2`).
+- **Source:** Spec 008 "R2 operations", 2026-10-13.
+
+### G60. Jobs that write R2 objects whose content did not change
+- **Where:** `apps/data-publisher-worker/src/digest/run.ts` (the pointer is
+  put again when the pair is reused; one `list` a run, also on a dry run),
+  `apps/data-publisher-worker/src/review-queue/run.ts` (the object embeds
+  `generatedAt`, so every run writes a new object, the pointer, and
+  `last-run.json`).
+- **Why:** 2–4 Class A operations a run each. Both run only by hand today
+  (`DIGEST_CRON` and `REVIEW_QUEUE_CRON` are unset), so the cost is nil; an
+  hourly cron would add about 5,000 Class A a month, 0.5% of the included
+  million. Spec 014 D26 counts the `list` among "R2 reads" and D60 says a
+  dry run makes "0 R2 writes": the `list` is a Class A operation.
+- **Fix:** when a cron is set for either job: skip the pointer put when its
+  bytes are unchanged (as the publisher's `switchPointer` does), and correct
+  D26 and D60.
+- **Layer:** test.
+- **Source:** R2 call audit, 2026-10-13.
+
+### G61. The review queue's hourly decision and its 2 h check predate the daily publication
 - **Where:** `docs/specs/015-review-queue/spec.md` (Decision 6 "Hourly", crons
   `27 * * * *` / `57 * * * *`, "stale after `STALE_AFTER_MS` (3 h)");
   `REVIEW_QUEUE_MAX_AGE_MS = 2 h` in `scripts/verify/args.ts`; ADR-0016.
@@ -750,7 +791,7 @@ the two `viewer/` items below.
 - **Layer:** spec decision, then a config test like Spec 018 T2.
 - **Source:** Spec 018, 2026-10-13.
 
-### G60. The Confluence ingest runs daily and the deployed site does not read it
+### G62. The Confluence ingest runs daily and the deployed site does not read it
 - **Where:** `.github/workflows/ingest.yml` (03:17 UTC), `tools/ingest/`,
   `vault/`, branch `automation/confluence-ingest`, issue #12;
   `.github/workflows/backfill.yml` (manual).
@@ -762,7 +803,7 @@ the two `viewer/` items below.
 - **Layer:** owner decision.
 - **Source:** Spec 018 inventory, 2026-10-13.
 
-### G61. Specs and ADRs written under the hourly publication still say "hourly"
+### G63. Specs and ADRs written under the hourly publication still say "hourly"
 - **Where:** Specs 008, 009, 012, 013, 014, 015, 016, 017, ADR-0013,
   ADR-0014, ADR-0016: phrases such as "hourly run", "the next hourly
   publication", "minute 7"; the helper `hourly` and "6 days of hourly runs"
@@ -777,7 +818,7 @@ the two `viewer/` items below.
 - **Layer:** rule (this entry).
 - **Source:** Spec 018, 2026-10-13.
 
-### G62. A retry run republishes everything to retry one source
+### G64. A retry run republishes everything to retry one source
 - **Where:** `planFollowUp` in `apps/data-publisher-worker/src/run-schedule.ts`.
 - **Why:** when one source fails and the others succeed, the retry (10, 30,
   60 minutes later) is a whole publication: every source is polled again and

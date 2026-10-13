@@ -22,7 +22,8 @@ time and R2 requests and push runs toward the 15-minute alarm limit.
   lists the digests it references; readers resolve a detail only through that
   list.
 - Promotion writes a pool object only when absent and reuses an existing key
-  without reading it back.
+  without reading it back. Existence is asked with a `head`: a conditional
+  put that fails is billed as a write (Spec 008 C8, 2026-10-13).
 - Bump the Feed manifest to `feed-manifest.v3` and the Search release to
   `search-release.v2`; readers keep serving older releases.
 
