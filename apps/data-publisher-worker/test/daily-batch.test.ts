@@ -198,7 +198,7 @@ describe("Spec 018 a day's batch against the per-run caps", () => {
     }
     // Everything upstream is stored, the cursors are at the newest update, and nothing is left scheduled.
     expect([w.stored("kafka:github"), w.stored("datafusion:github"), w.stored("kafka:jira")]).toEqual([315, 475, 235]);
-    expect(runs.at(-1)!.status.sources?.github?.cursor).toBe(iso(at).replace(".000Z", "Z"));
+    expect(runs.at(-1)!.status.sources?.github?.cursor).toBe(iso(at));
     expect(w.storage.alarm).toBeNull();
     expect(w.storage.values.has(FOLLOW_UP_KEY)).toBe(false);
   });
