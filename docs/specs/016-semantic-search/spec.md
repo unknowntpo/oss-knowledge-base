@@ -1,7 +1,7 @@
 # Spec 016: Semantic candidates and hybrid fusion for Search
 
-Status: Draft for human review — decisions of 2026-10-08..12 recorded below; slices 1, 2a, 2b and 3 implemented (3: query-time hybrid search in the web API, behind `SEARCH_SEMANTIC`, off in every deployed configuration), Dev switched to `@2` (H42) and `@3` (Spec 017), embeddings enabled on Dev (`SEARCH_EMBEDDING=bge-m3@1`, owner's approval 2026-10-12), Prod has no flag, hybrid search not enabled anywhere (H31, H32), slice 4 pending
-Date: 2026-10-12
+Status: Draft for human review — decisions of 2026-10-08..12 recorded below; slices 1, 2a, 2b and 3 implemented (3: query-time hybrid search in the web API, behind `SEARCH_SEMANTIC`, off in every deployed configuration), Dev switched to `@2` (H42) and `@3` (Spec 017), embeddings enabled on Dev (`SEARCH_EMBEDDING=bge-m3@1`, owner's approval 2026-10-12), the query gate and shard roots enabled on the Dev publisher (enable step 1, owner's approval 2026-10-13), Prod has no flag, hybrid search not yet served anywhere (the Pages flag is enable step 2; H31, H32), slice 4 pending
+Date: 2026-10-13
 Traceability: enforced
 Builds on: Spec 005 (Phases 2 and 3, LLM boundary), Spec 013 (lexical shards, `bm25-reference@1`), Spec 014 (community profile `proposal`), Spec 015 (profile blocks, ADR-0016)
 
@@ -1041,38 +1041,68 @@ are unchanged numbers). `/api/search` answers byte for byte as before; no
 release object changes; nothing is embedded or queried at query time.
 
 Enabling hybrid search on Dev. Nothing is created by hand: both steps are
-configuration PRs that CI deploys. Preconditions: slice 3 is deployed (the
-Worker exports the class) and `/health` `searchEmbedding.lastRun.pending`
-is 0.
+configuration PRs that CI deploys. The owner approved the `SearchQueryGate`
+class and the caps as shipped on 2026-10-13.
 
-1. **Estimate (no deployment).** `bun run measure:search-query-budget`
-   prints the caps and what they can cost; `bun run measure:search-hybrid`
-   records the lexical baseline (Example, slice 3).
-2. **Worker PR.** In `apps/data-publisher-worker/wrangler.development.jsonc`:
-   `"SEARCH_SHARD_ROOTS": "true"` under `vars`; `{ "name":
-   "SEARCH_QUERY_GATE", "class_name": "SearchQueryGate" }` under
-   `durable_objects.bindings`; `{ "tag": "v4", "new_sqlite_classes":
-   ["SearchQueryGate"] }` under `migrations`; and the H66 configuration test
-   pinned to that. Observe: `/health` `searchQuery.enabled` is `true` with no
-   `configError` and zero spend; after the next publication
-   `lastRun.search.shardRoots` is `true`. No visitor can reach the gate yet.
-3. **Pages PR**, after step 2 is deployed (CI deploys Pages before the
-   Worker, so the binding must not arrive in the same deploy as the class).
-   In `apps/web/wrangler.development.jsonc`: `"vars": { "SEARCH_SEMANTIC":
-   "rrf-group@1" }` and `"durable_objects": { "bindings": [{ "name":
-   "SEARCH_QUERY_GATE", "class_name": "SearchQueryGate", "script_name":
-   "oss-knowledge-base-data-dev" }] }`; and the H66 Pages configuration test
-   pinned to that. Observe (H31, H32): `GET /api/search?q=交易逾時` has
-   `retrieval.semantic.status` `ok` and results; the same query again says
-   `cached: true`; `/health` `searchQuery.today` shows 1 neuron and 2 index
-   queries; the gateway `osskb-search-dev` shows the call and
-   `osskb-digest-dev` does not; then `bun run measure:search-hybrid`.
+1. **Estimate (done 2026-10-12, no deployment).** `bun run
+   measure:search-query-budget` prints the caps and what they can cost; `bun
+   run measure:search-hybrid` recorded the lexical baseline (Example,
+   slice 3).
+2. **Worker PR (this change, 2026-10-13).**
+   `apps/data-publisher-worker/wrangler.development.jsonc` sets
+   `"SEARCH_SHARD_ROOTS": "true"`, binds `{ "name": "SEARCH_QUERY_GATE",
+   "class_name": "SearchQueryGate" }`, and adds the migration `{ "tag": "v4",
+   "new_sqlite_classes": ["SearchQueryGate"] }`; the H66 configuration test
+   pins Dev to that and Prod to none of it. The Pages configuration is not
+   touched: no visitor can reach the gate. To observe after the deploy
+   (H32, first half), through public endpoints only:
+   - `/health` `searchQuery.enabled` is `true`, with no `configError`,
+     `semanticRevision` `@cf/baai/bge-m3@1:1024:title-text@1`, and `today`
+     all zero. The deployed E2E asserts this on every run.
+   - After the next publication (minute 7 of the hour): `/health`
+     `lastRun.ok` is `true` and `lastRun.search.shardRoots` is `true`. The
+     manifest itself is not served by any public route; `shardRoots` is
+     computed from the manifest the run wrote (H57).
+   - `/api/search` is unchanged for visitors: `retrieval` holds exactly
+     `indexRevision`, `lexicalRevision`, `generatedAt`, `stale`, with or
+     without `semantic=off` (asserted by the deployed E2E), and
+     `searchQuery.sinceStart.requests` stays 0.
+   - The embedding job is unaffected: after that publication
+     `searchEmbedding.lastRun.ok` is `true` with `pending: 0` and no new
+     `lastError`; `searchEmbedding.today` grows only by that run's calls.
+   - Roll back: revert the PR. The next release has no shard roots and the
+     gate is no longer bound for `/health`; the class stays deployed, and
+     removing it later needs a `deleted_classes` migration.
+3. **Pages PR (next, not done)**, only after step 2 is deployed and observed
+   (CI deploys Pages before the Worker, so the binding must not arrive in
+   the same deploy as the class). Its whole content:
+   - `apps/web/wrangler.development.jsonc`: `"vars": { "SEARCH_SEMANTIC":
+     "rrf-group@1" }` and `"durable_objects": { "bindings": [{ "name":
+     "SEARCH_QUERY_GATE", "class_name": "SearchQueryGate", "script_name":
+     "oss-knowledge-base-data-dev" }] }`. `wrangler.production.jsonc` and
+     the local `wrangler.jsonc` stay as they are.
+   - The H66 Pages configuration test in `search-hybrid.test.ts` pinned to
+     that for Dev; the deployed E2E's H32 test changed to expect
+     `retrieval.semantic` on Dev; `docs/feature-map.md` and this section.
+   - Observe (H31, H32): `GET /api/search?q=交易逾時` has
+     `retrieval.semantic.status` `ok` and results; the same query again says
+     `cached: true`; `/health` `searchQuery.today` shows 1 neuron, 1 model
+     call, and 2 index queries; the gateway `osskb-search-dev` shows the
+     call and `osskb-digest-dev` does not; `KIP-770` says `skipped`; then
+     `bun run measure:search-hybrid -- --out report.json`.
+   - Revert the Pages PR when (verifier, PR #54): more than about 30% of
+     the uncached queries of `measure:search-hybrid` are `timed-out` and
+     raising the timeout is not acceptable (otherwise raise it first);
+     `searchQuery.lastError.kind` is `model` or `vector-store` on the first
+     queries; or `searchQuery.pausedUntil` is set repeatedly (the platform
+     keeps refusing). `over-budget` alone is not a reason: it is the cap
+     working.
 4. **Turn off.** Remove `SEARCH_SEMANTIC` (revert the Pages PR): the next
    Pages deploy answers lexically, byte for byte as before. Without a
    deploy: every response already degrades by itself when the gate fails or
    the budget is spent. Removing `SEARCH_SHARD_ROOTS` makes the next release
    `uncovered`. The class and its stored cache may stay; deleting the class
-   is a migration of its own.
+   needs a `deleted_classes` migration.
 5. **Pages rolled back below slice 3** answers lexically and ignores the
    binding, the flag, and the manifest field. **A release rollback** to a
    release without shard roots is `uncovered` until the next publication.
@@ -1616,7 +1646,9 @@ Items tagged `[pending]` belong to slice 4.
   `/health` `lastRun.search.shardRoots` is `true`, and a later run without
   it leaves them out again → evidence: `search-shards.test.ts`,
   `pipeline.test.ts`.
-- H58: given a match, it becomes a result only as the release's own chunk:
+- H58: given a match, it becomes a result only as the release's own chunk
+  (a gate answer holding null or malformed matches, or no list, does not
+  fail the search: they are dropped):
   a fingerprint of other text or another group, a record or ordinal the
   release lacks, a group root that names another shard or none, the record
   under another project, and an unknown project are dropped, and a result's
@@ -1721,15 +1753,18 @@ Items tagged `[pending]` belong to slice 4.
   anything but `true`, the run fails before a source is polled or an object
   written and `/health` names the value, and the Worker passes its variable
   to the run; no deployed Pages configuration sets the flag or binds the
-  gate, and neither deployed publisher configuration sets
-  `SEARCH_SHARD_ROOTS`, binds `SEARCH_QUERY_GATE`, or migrates the class →
+  gate; since enable step 2 the development publisher sets
+  `SEARCH_SHARD_ROOTS=true`, binds `SEARCH_QUERY_GATE`, and migrates the
+  class (`v4`), every bound class being exported and migrated once, and the
+  production publisher has none of them →
   evidence: `search-hybrid.test.ts`, `pipeline.test.ts`,
   `durable-object-state.test.ts`, `search-query-gate.test.ts`.
 - H67: given the embedding job, a run's neurons, its ledger, its daily cap,
   and its estimate use the token estimate times 1.8 (`EMBEDDING_TOKEN_CALIBRATION`,
   from the 2026-10-12 backfill), while tokens and batch sizes do not; the
-  digest's 4,500, the job's 2,500, and the gate's 1,000 are 8,000 of the
-  10,000 neurons a day; 31 days of 1,000 index queries and the stored
+  digest's 4,500 at its measured cost (× 1.28, `DIGEST_NEURON_CALIBRATION`:
+  5,760), the job's 2,500, and the gate's 1,000 are 9,260 of the 10,000
+  neurons a day; 31 days of 1,000 index queries and the stored
   vectors are within Vectorize's 50 M queried dimensions up to 17,828
   chunks; the gate's hourly calls and two embedding runs are under the
   gateway's 600 requests an hour → evidence: `search-embedding-run.test.ts`,
@@ -1768,11 +1803,16 @@ Items tagged `[pending]` belong to slice 4.
   is `disabled`, and given an unsupported profile, no gateway id, the
   digest's gateway, no AI binding, or no index it is `failed`, names it in
   `/health`, and calls nothing → evidence: `search-query-gate.test.ts`.
-- H32: [deploy] on Dev after the enable, `/api/search`
-  `retrieval.semantic.status` is `ok` for a Chinese query and `cached` on
-  its repeat, `/health` `searchQuery.today` counts the call, and the
-  gateway `osskb-search-dev` shows it while `osskb-digest-dev` does not →
-  the enable PR's post-merge checks.
+- H32: [deploy] on Dev after enable step 2 (the Worker), `/health`
+  `searchQuery.enabled` is `true` with no `configError`, after the next
+  publication `lastRun.search.shardRoots` is `true`, `/api/search` still has
+  no hybrid field, and the embedding job's `lastRun` stays `ok` (the
+  deployed E2E asserts the first and the third on every run); after enable
+  step 3 (Pages), `/api/search` `retrieval.semantic.status` is `ok` for a
+  Chinese query and `cached` on its repeat, `/health` `searchQuery.today`
+  counts the call, and the gateway `osskb-search-dev` shows it while
+  `osskb-digest-dev` does not → the post-merge checks of each enable PR
+  (rollout steps 2 and 3).
 - H69: given the gate object, `/health` `searchQuery` is the object's own
   answer when bound, `null` when it does not answer, and a disabled block
   with the caps when not bound; the object answers `POST /query` and `GET
@@ -2012,13 +2052,36 @@ neurons or dollars; token counts and batch sizes are unchanged.
 
 `bun run measure:search-query-budget` (H68):
 
-| Workers AI, neurons per UTC day | |
-| --- | --- |
-| Digest (Spec 014, unchanged) | 4,500 |
-| Embedding job (calibrated) | 2,500 |
-| Query gate | 1,000 |
-| Total | 8,000 of the 10,000 included |
-| Headroom | 2,000: the digest's estimate is not calibrated, and 1.8 is one measurement |
+| Workers AI, neurons per UTC day | Cap as counted | What the cap can cost |
+| --- | --- | --- |
+| Digest (Spec 014; its ledger is unchanged) | 4,500 in its own estimate | 5,760 (× 1.28) |
+| Embedding job | 2,500, calibrated (× 1.8 inside) | 2,500 |
+| Query gate | 1,000, an upper bound | 1,000 |
+| Total | 8,000 | 9,260 of the 10,000 included |
+| Headroom | | 740 |
+
+The digest's row was wrong in the first version of this table, which added
+its 4,500 as if its estimate were exact and reported 2,000 of headroom (the
+verifier of PR #54: at the embedding ratio of 1.8 the three caps would be
+11,600). The digest's estimate was measured on 2026-10-08: three Dev dry
+runs estimated at 4,507 neurons were 109 calls costing $0.06306 on the
+gateway `osskb-digest-dev`, 5,733 neurons at $0.011 per 1,000, a ratio of
+1.272. `DIGEST_NEURON_CALIBRATION` is 1.28. It is applied to the budget
+arithmetic only: the digest's own ledger, cap, and `/health` numbers still
+count its estimate, so its behaviour is unchanged.
+
+| | Before | After |
+| --- | --- | --- |
+| Digest cap, as its ledger counts | 4,500 | 4,500 |
+| Digest cap, what it can cost | taken as 4,500 | 5,760 |
+| Sum of the three caps | 8,000 | 9,260 |
+| Headroom under 10,000 | 2,000 (overstated) | 740 |
+
+740 is 7% and rests on one measurement each of two ratios. What makes it
+enough today: the digest has no cron on Dev and one run is about 1,500
+estimated neurons (1,920 calibrated); the embedding job's steady state is
+about 240 a day; a day of ordinary queries is about 20 real neurons. If the
+digest gets a daily cron, measure both ratios again first.
 
 | One query embedding | Calibrated estimate | Upper bound | Charged |
 | --- | --- | --- | --- |
@@ -2027,8 +2090,18 @@ neurons or dollars; token counts and batch sizes are unchanged.
 | 500 ASCII characters, the longest accepted | 0.25 | 0.55 | 1 |
 | 500 CJK characters | 0.98 | 0.55 | 1 |
 
-The upper bound is characters + 3 tokens: the model's tokenizer emits no
-more pieces than the normalized text has characters. So the 1,000-neuron
+The upper bound is characters + 3 tokens: the model's tokenizer
+(SentencePiece) cuts the normalized text into pieces of at least one
+character each and adds a word-start marker and two sentence markers. On the
+last row the calibrated estimate (0.98) is above that bound (0.55), which
+shows the estimate's limit, not the bound's: `estimateTokens` already counts
+one token per CJK character, and the factor 1.8 was measured on English
+titles and excerpts, where a token is taken as four characters. For CJK text
+the factor overcounts. Whichever is right, 1 neuron is charged, which is
+above both; a text of 500 characters cannot be billed more than 503 tokens,
+0.55 neurons. That the gateway bills by the tokenizer's count is assumed
+from the backfill, not measured for single queries (open question 18).
+So the 1,000-neuron
 cap is at most 1,000 model calls a day and at most 550 real neurons; a day
 of ordinary queries is about 20. At $0.011 per 1,000 neurons the whole cap
 would be $0.011 a day if it were billed; inside the included 10,000 it is
@@ -2218,9 +2291,10 @@ Raised by slice 3:
 23. **A per-visitor limit.** Not possible without an identity; a WAF rate
     rule on `/api/search` would bound Durable Object requests as well. Not
     part of this slice.
-24. **The digest's neuron estimate is not calibrated.** Its 4,500 is an
-    estimate from the same token count; nothing measured it against the
-    gateway.
+24. **The digest's neuron estimate.** Answered: measured at 1.272 on
+    2026-10-08 and applied to the budget as `DIGEST_NEURON_CALIBRATION`
+    (Results, "Query budget"). The headroom is 740 neurons; both ratios are
+    one measurement each.
 
 Known limitations of the profile patterns (kept in slice 2a, see "Community
 profile fit"):
@@ -2245,8 +2319,9 @@ profile fit"):
   call and leaves `/api/search` on Dev at `@1`.
 - Slice 2b sets no flag and embeds nothing on Dev or Prod until H52; since
   H52 (2026-10-12) Dev embeds and Prod does not.
-- Slice 3: enabling hybrid search anywhere; any binding, migration, flag, or
-  other change to a deployed configuration; any Cloudflare resource; a
+- Slice 3 itself changed no deployed configuration; enable step 2 changes
+  the Dev publisher's only. Still not done: the Pages flag and binding
+  (enable step 3), anything on Prod, any Cloudflare resource made by hand; a
   per-visitor rate limit; a redesign of the search UI; a minimum similarity
   (open question 15).
 - A real Workers AI or Vectorize call from a test or a developer machine.

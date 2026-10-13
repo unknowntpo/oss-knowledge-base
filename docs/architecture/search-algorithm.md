@@ -5,7 +5,7 @@
 
 ## 一句話
 
-搜尋分兩步：先用便宜的方法從全部資料抓出幾十筆候選（檢索），再用比較貴但比較準的方法把候選排好（重排）。線上目前只有第一步（BM25）。語意檢索與 RRF 合併已實作（Spec 016 slice 3），以開關控制，Dev 與 Prod 都尚未啟用；重排排在混合檢索之後，量測顯示需要才加。
+搜尋分兩步：先用便宜的方法從全部資料抓出幾十筆候選（檢索），再用比較貴但比較準的方法把候選排好（重排）。線上目前只有第一步（BM25）。語意檢索與 RRF 合併已實作（Spec 016 slice 3），以開關控制。Dev 自 2026-10-13 起已啟用 Worker 端（manifest 的 shard root 與查詢 gate），Pages 端的開關尚未設定，所以訪客看到的仍是 BM25 結果；Prod 沒有任何設定；重排排在混合檢索之後，量測顯示需要才加。
 
 ## 使用情境（2026-10-08 決定）
 
@@ -86,7 +86,7 @@ Clef 是 decision model：給定「狀態」與「選項」，回傳每個選項
 
 Clef-flash 的限制：在 Workers AI 上，長輸入會被截斷（約 2K tokens），所以每筆候選只送標題與一小段摘錄。
 
-## 混合檢索的查詢流程（Spec 016 slice 3，尚未啟用）
+## 混合檢索的查詢流程（Spec 016 slice 3，Pages 端尚未啟用）
 
 ```text
 查詢 → 讀 pointer、manifest
@@ -109,7 +109,7 @@ Clef-flash 的限制：在 Workers AI 上，長輸入會被截斷（約 2K token
 | 退回 | gate 失敗、逾時（1,000 ms）、超過預算、release 沒有 shard root：一律回 BM25 結果，HTTP 200，狀態寫在 `retrieval.semantic.status` |
 | 畫面 | 只由語意檢索找到的結果多一個「意思相近」標記 |
 
-費用估算（`bun run measure:search-query-budget`）：摘要 4,500、embedding 發布 2,500、查詢 1,000，合計 8,000 neurons，低於方案內含的每日 10,000。embedding 發布的估算值自 slice 3 起乘上 1.8：2026-10-12 的回填估計 $0.0088，gateway 實際計為 $0.0157。Vectorize 以（儲存向量數 + 查詢數）× 維度計費，每月上限 31,000 次查詢加上 8,780 個向量約 4,070 萬維，低於內含的 5,000 萬維。
+費用估算（`bun run measure:search-query-budget`）：摘要的上限 4,500 是它自己的估算值，依 2026-10-08 的量測（估算 4,507、gateway 計為 5,733 neurons）實際約為 1.28 倍，即 5,760；加上 embedding 發布 2,500 與查詢 1,000，合計 9,260 neurons，低於方案內含的每日 10,000，餘裕 740。embedding 發布的估算值自 slice 3 起乘上 1.8：2026-10-12 的回填估計 $0.0088，gateway 實際計為 $0.0157。Vectorize 以（儲存向量數 + 查詢數）× 維度計費，每月上限 31,000 次查詢加上 8,780 個向量約 4,070 萬維，低於內含的 5,000 萬維。
 
 延遲尚未實測。gate 的詢問與 shard 讀取同時進行，預期字面有命中的查詢多 0–0.3 秒，快取命中時幾乎不增加；字面沒有命中的查詢（例如中文）要多讀候選所在的 shard，預期由 0.7 秒增加到 1.2–2.5 秒。啟用後以 `bun run measure:search-hybrid` 量測。
 
@@ -158,7 +158,7 @@ Spec 017 另外加入真實語料的評估：`real-corpus-snapshot.v1.json` 取�
 2. slice 2a（已實作）：編號樣式移到社群 profile（`packages/reference-pipeline/src/search/profiles.ts`，發布端與 Pages 讀取端共用）；讀取端依 manifest 的 `lexicalRevision` 同時支援 `@1` 與 `@2`，其他版本回 503；發布端在 Worker 變數 `SEARCH_LEXICAL_REVISION=bm25-reference@2` 時才寫 `@2`，slice 2a 合併時兩個環境都未設定。
 3. 切換（已完成，Spec 016 H42）：Dev 的 Worker 設定已加上該變數，部署後的下一次發布起 Dev 為 `@2`；Prod 未設定，仍是 `@1`。移除變數即回到 `@1`。
 4. slice 2b（已實作；Dev 自 2026-10-12 啟用）：發布時為每個 chunk 算 embedding 並寫入 Vectorize。Dev 目前 8,780 個 chunk 全部完成。
-5. slice 3（已實作，尚未啟用）：查詢時算 embedding，在 `/api/search` 以開關啟用混合檢索（見「混合檢索的查詢流程」）。啟用 Dev 需要兩個設定 PR：先 Worker（shard root、gate 的 class 與 binding），再 Pages（binding 與 `SEARCH_SEMANTIC`）。
+5. slice 3（已實作；Dev 的 Worker 端已於 2026-10-13 啟用，Pages 端尚未）：查詢時算 embedding，在 `/api/search` 以開關啟用混合檢索（見「混合檢索的查詢流程」）。啟用 Dev 需要兩個設定 PR：先 Worker（shard root、gate 的 class 與 binding），再 Pages（binding 與 `SEARCH_SEMANTIC`）。
 6. slice 4：啟用後以 `bun run measure:search-hybrid` 比較 BM25 與混合檢索，再決定是否加入重排。暫定規則（待 owner 確認）：有合併結果的查詢中，至少 30% 的預期 thread 全部進前 20 名但有一筆落在標註的名次之外，才考慮重排。
 7. Spec 017（已實作；Dev 已切換，N17）：`bm25-reference@3`。thread 分數改為等比遞減，並加入詞組加分；儲存的 shard 與 `terms.json` 和 `@2` 相同，只有 manifest 的 `lexicalRevision` 不同。Dev 的 `SEARCH_LEXICAL_REVISION` 設為 `bm25-reference@3`，部署後的下一次發布起生效；改回 `bm25-reference@2` 即可復原。已知限制：查詢的字在標題中不相鄰或順序相反時沒有詞組加分，例如 `manager request` 仍由長 thread 排第一（Spec 017 Results 的 guard rows）。
 8. 視需要做「問答」：用檢索結果讓模型附引用回答（RAG，另立規格）。檢索品質是它的上限。
