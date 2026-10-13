@@ -1,35 +1,38 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 
-import { acceptanceItems } from "../check-spec-traceability";
-
 /**
  * docs/feature-map.md drifts when a change forgets it. These checks catch the mechanical part:
- * a route, a deployed variable or binding, a verification command, or a spec's newest acceptance
- * ID that the map does not name. They cannot tell whether what the map says about it is true.
+ * a route without a row in its API table, a deployed variable or binding, a verification command,
+ * or a spec's newest acceptance ID that the map does not name. They cannot tell whether what the map says about it is true.
  */
 const root = join(import.meta.dir, "..", "..");
 const read = (path: string) => Bun.file(join(root, path)).text();
 const map = await read("docs/feature-map.md");
+const rows = map.split("\n").filter((line) => line.startsWith("| "));
 
 describe("feature map", () => {
-  test("names every Pages Function route", async () => {
+  test("has a row for every Pages Function route", async () => {
     const routes: string[] = [];
     for await (const file of new Bun.Glob("**/*.ts").scan({ cwd: join(root, "apps/web/functions/api") })) {
       routes.push(`/api/${file.replace(/\.ts$/u, "").replace(/\/\[(\w+)\]$/u, "/:$1")}`);
     }
     expect(routes.length).toBeGreaterThanOrEqual(5);
-    expect(routes.filter((route) => !map.includes(`\`${route}`))).toEqual([]);
+    // The row itself, in the Web API table: a mention elsewhere in the map is not enough.
+    const hasRow = (route: string) => rows.some((row) => row.startsWith(`| \`${route}`) && !/[\w-]/u.test(row.charAt(route.length + 3)));
+    expect(routes.filter((route) => !hasRow(route))).toEqual([]);
+    // Positive control: a route that shares a prefix with a listed one has no row of its own.
+    expect(hasRow("/api/search-det")).toBe(false);
   });
 
-  test("names every public route of the data Worker", async () => {
+  test("has a row for every public route of the data Worker", async () => {
     const source = await read("apps/data-publisher-worker/src/index.ts");
     // The default export's handlers; the Durable Object classes below it have internal routes.
     const handler = source.slice(source.indexOf("export default {"), source.indexOf("satisfies ExportedHandler"));
     const routes = [...new Set([...handler.matchAll(/url\.pathname === "([^"]+)"/gu)].map((match) => match[1]!))];
     expect(routes).toContain("/health");
     expect(routes.length).toBeGreaterThanOrEqual(5);
-    expect(routes.filter((route) => !new RegExp(`\`(GET|POST) ${route}[\`\\[]`, "u").test(map))).toEqual([]);
+    expect(routes.filter((route) => !rows.some((row) => new RegExp(`^\\| \`(GET|POST) ${route}[\`\\[]`, "u").test(row)))).toEqual([]);
   });
 
   test("names every variable and binding of the deployed configurations", async () => {
@@ -66,15 +69,23 @@ describe("feature map", () => {
     expect(scripts.filter((name) => !map.includes(name))).toEqual([]);
   });
 
-  test("gives each enforced spec's newest acceptance ID in its row", async () => {
+  test("gives each spec's newest acceptance ID in its row", async () => {
     const stale: string[] = [];
     let checked = 0;
     for await (const path of new Bun.Glob("docs/specs/[0-9]*/spec.md").scan({ cwd: root })) {
-      const ids = acceptanceItems(path, await read(path)).map((item) => item.id);
+      const directory = path.slice(0, path.lastIndexOf("/"));
+      const number = directory.split("/")[2]!.slice(0, 3);
+      // Two styles: `- H12: …` items under `## Acceptance` of spec.md (enforced or not), and
+      // `## R7 — …` headings of an older spec's acceptance.md.
+      const spec = await read(path);
+      const start = spec.search(/^## Acceptance\s*$/mu);
+      const section = start < 0 ? "" : spec.slice(start).replace(/\n## (?!Acceptance)[\s\S]*$/u, "");
+      const ids = [...section.matchAll(/^- ([A-Z]+\d+):/gmu)].map((match) => match[1]!);
+      const acceptance = Bun.file(join(root, directory, "acceptance.md"));
+      if (await acceptance.exists()) ids.push(...[...(await acceptance.text()).matchAll(/^#{2,3} ([A-Z]+\d+)\b/gmu)].map((match) => match[1]!));
       if (ids.length === 0) continue;
       checked += 1;
-      const number = path.split("/")[2]!.slice(0, 3);
-      const row = map.split("\n").find((line) => line.startsWith(`| [${number}](`));
+      const row = rows.find((line) => line.startsWith(`| [${number}](`));
       // The most numerous prefix is the spec's own (a spec may cite another's ID in passing).
       const prefixes = new Map<string, number[]>();
       for (const id of ids) {
@@ -85,7 +96,8 @@ describe("feature map", () => {
       const newest = `${prefix}${Math.max(...numbers)}`;
       if (row === undefined || !new RegExp(`${prefix}1–${newest}(?!\\d)`, "u").test(row)) stale.push(`${number}: the row should read ${prefix}1–${newest}`);
     }
-    expect(checked).toBeGreaterThan(5);
+    // Every spec from 001 on has acceptance items in one of the two styles.
+    expect(checked).toBeGreaterThanOrEqual(17);
     expect(stale).toEqual([]);
   });
 });

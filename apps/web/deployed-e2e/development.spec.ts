@@ -199,29 +199,110 @@ test("H52: the Dev publisher reports search embedding enabled with no configurat
   expect(health!.searchEmbedding!.configError).toBeUndefined();
 });
 
-test("H32: the Dev query gate reports enabled with no configuration error, and visitors still get the lexical response", async ({ publisherRequest, request }) => {
-  // True from the Worker deploy on: `enabled` and `configError` come from the Worker's variables
-  // and bindings. `searchQuery` is null while the gate object does not answer, hence the poll.
-  type Health = { readonly searchQuery: null | { readonly enabled: boolean; readonly configError?: string; readonly semanticRevision: string | null; readonly today: { readonly neuronCap: number; readonly indexQueryCap: number; readonly hourModelCallCap: number } } };
+test("H32: Dev serves hybrid search: the gate is enabled, a text query carries a semantic status, an identifier and `semantic=off` never reach the gate", async ({ publisherRequest, request }, testInfo) => {
+  // What this test spends at the query gate: one fixed text query (`交易逾時`), so its embedding is
+  // cached after the first run ever and its matches for an hour. Per CI run: 0 model calls and
+  // at most 2 index queries (one per project, when the hour-old matches have expired); the
+  // first run, and a run after the 7-day embedding cache lapsed, add 1 model call (1 neuron).
+  // The other tests' `Kafka Streams` and `request manager` cost the same each.
+  const TEXT_QUERY = "交易逾時";
+  type GateHealth = {
+    readonly enabled: boolean;
+    readonly configError?: string;
+    readonly semanticRevision: string | null;
+    readonly today: { readonly neurons: number; readonly neuronCap: number; readonly indexQueries: number; readonly indexQueryCap: number; readonly hourModelCallCap: number };
+    readonly pausedUntil: string | null;
+    readonly lastError: null | { readonly kind: string; readonly message: string; readonly at: string };
+  };
+  type Health = { readonly searchQuery: null | GateHealth };
+  type Search = {
+    readonly results: readonly { readonly matches: readonly { readonly signals: { readonly lexicalRank?: number; readonly semanticRank?: number; readonly fusedRank: number } }[] }[];
+    readonly retrieval: {
+      readonly lexicalRevision: string;
+      readonly fusionRevision?: string;
+      readonly semanticRevision?: string;
+      readonly semantic?: { readonly status: string; readonly reason?: string; readonly candidates?: number; readonly cached?: boolean };
+    };
+  };
+  const readHealth = async () => {
+    const response = await publisherRequest.get(`${workerUrl}/health`);
+    return response.status() === 200 ? await response.json() as Health : undefined;
+  };
+  const search = async (query: string) => {
+    const response = await request.get(`/api/search?${query}`);
+    expect(response.status(), query).toBe(200);
+    return await response.json() as Search;
+  };
+
+  // The gate: true from the Worker deploy on. `searchQuery` is null while the object does not answer.
   let health: Health | undefined;
   await expect.poll(async () => {
-    const response = await publisherRequest.get(`${workerUrl}/health`);
-    health = response.status() === 200 ? await response.json() as Health : undefined;
+    health = await readHealth();
     return health?.searchQuery?.enabled;
-  }, {
-    message: "wait for /health to carry the query gate's status",
-    timeout: 60 * 1_000,
-    intervals: [1_000, 5_000, 10_000],
-  }).toBe(true);
+  }, { message: "wait for /health to carry the query gate's status", timeout: 60 * 1_000, intervals: [1_000, 5_000, 10_000] }).toBe(true);
   expect(health!.searchQuery!.configError).toBeUndefined();
   expect(health!.searchQuery!.semanticRevision).toBe("@cf/baai/bge-m3@1:1024:title-text@1");
   expect(health!.searchQuery!.today).toMatchObject({ neuronCap: 1_000, indexQueryCap: 1_000, hourModelCallCap: 100 });
 
-  // The Pages flag is still off (the second enable PR sets it): no hybrid field, with or without `semantic=off`.
-  for (const query of ["q=txn", "q=txn&semantic=off"]) {
-    const body = await (await request.get(`/api/search?${query}`)).json() as { readonly retrieval: Record<string, unknown> };
-    expect(Object.keys(body.retrieval).sort()).toEqual(["generatedAt", "indexRevision", "lexicalRevision", "stale"]);
+  // An identifier query is answered lexically and never asks the gate. The field's presence also
+  // shows that the Pages deployment with the flag is the one answering, hence the poll.
+  let identifier: Search | undefined;
+  await expect.poll(async () => {
+    identifier = await search("q=KIP770&limit=5");
+    return identifier.retrieval.semantic?.status;
+  }, { message: "wait for the Pages deployment that sets SEARCH_SEMANTIC", timeout: 60 * 1_000, intervals: [1_000, 5_000, 10_000] }).toBe("skipped");
+  expect(identifier!.retrieval.semantic).toEqual({ status: "skipped", reason: "identifier-query" });
+  expect(identifier!.retrieval.fusionRevision).toBe("rrf-group@1");
+  expect(identifier!.retrieval.semanticRevision).toBeUndefined();
+
+  // `semantic=off`: the lexical ranking, said to be so, with the four lexical fields unchanged.
+  const off = await search(`q=${encodeURIComponent(TEXT_QUERY)}&limit=5&semantic=off`);
+  expect(off.retrieval.semantic).toEqual({ status: "disabled" });
+  expect(Object.keys(off.retrieval).sort()).toEqual(["fusionRevision", "generatedAt", "indexRevision", "lexicalRevision", "semantic", "stale"]);
+  expect(off.results.every((result) => result.matches.every((match) => match.signals.semanticRank === undefined && match.signals.lexicalRank !== undefined))).toBe(true);
+
+  // A text query. Live, every one of these is a legitimate answer: a cold query may time out
+  // once and be cached on its repeat, the day's budget may be spent, a release may lack shard
+  // roots right after a rollback. So the same query is asked up to four times for `ok`.
+  const LEGITIMATE = ["ok", "timed-out", "over-budget", "failed", "uncovered"];
+  const seen: string[] = [];
+  let fused: Search | undefined;
+  for (let attempt = 0; attempt < 4 && fused === undefined; attempt += 1) {
+    if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 2_000));
+    const body = await search(`q=${encodeURIComponent(TEXT_QUERY)}&limit=5`);
+    const semantic = body.retrieval.semantic;
+    // Hard signals: the field is missing, or a status this query cannot have.
+    expect(semantic, "retrieval.semantic").toBeDefined();
+    expect(LEGITIMATE, `status ${semantic!.status}`).toContain(semantic!.status);
+    expect(body.retrieval.fusionRevision).toBe("rrf-group@1");
+    seen.push(`${semantic!.status}${semantic!.cached === true ? " (cached)" : ""}`);
+    if (semantic!.status === "ok") fused = body;
   }
+  const after = (await readHealth())?.searchQuery ?? null;
+  testInfo.annotations.push({ type: `semantic status of ${TEXT_QUERY}, per attempt`, description: seen.join(", ") });
+  testInfo.annotations.push({ type: "searchQuery after", description: JSON.stringify(after === null ? null : { today: after.today, pausedUntil: after.pausedUntil, lastError: after.lastError }) });
+  // A gate that lost its configuration is a hard failure whatever the statuses were.
+  expect(after?.enabled, "the gate is still enabled").toBe(true);
+  expect(after?.configError).toBeUndefined();
+  expect(after!.today.neurons).toBeLessThanOrEqual(after!.today.neuronCap);
+  expect(after!.today.indexQueries).toBeLessThanOrEqual(after!.today.indexQueryCap);
+  // `failed` every time is a hard signal too: a missing Pages binding, or a model or index that
+  // does not answer at all (`lastError` above says which). One `failed` among other answers is not.
+  expect(seen.every((status) => status === "failed"), `every attempt failed: ${JSON.stringify(after?.lastError ?? null)}`).toBe(false);
+  if (fused === undefined) {
+    // Not fused in four attempts and no hard signal: recorded for whoever reads the run, not failed.
+    // Persistent `timed-out`, `failed`, or a set `pausedUntil` are the revert thresholds of Spec 016
+    // rollout step 3, judged by a person with `bun run measure:search-hybrid`.
+    console.log(`Dev did not fuse ${TEXT_QUERY} in four attempts: ${seen.join(", ")}; searchQuery ${JSON.stringify(after)}`);
+    return;
+  }
+  expect(fused.retrieval.semanticRevision).toBe("@cf/baai/bge-m3@1:1024:title-text@1");
+  expect(typeof fused.retrieval.semantic!.candidates).toBe("number");
+  expect(typeof fused.retrieval.semantic!.cached).toBe("boolean");
+  // Every result was returned by lexical retrieval, semantic retrieval, or both.
+  expect(fused.results.every((result) => result.matches.length > 0 && result.matches.every((match) =>
+    match.signals.lexicalRank !== undefined || match.signals.semanticRank !== undefined))).toBe(true);
+  expect(fused.results.map((result) => result.matches[0]!.signals.fusedRank)).toEqual(fused.results.map((_, index) => index + 1));
 });
 
 test("This week renders the digest, or the no-digest notice while Dev has no digest pointer", async ({ page, request }) => {

@@ -549,17 +549,17 @@ the two `viewer/` items below.
 - **Layer:** test (the R7 row for this endpoint).
 - **Source:** [PR #47](https://github.com/unknowntpo/oss-knowledge-base/pull/47).
 
-### G47. Hybrid search is three rollout flags and a binding; the Pages half is off
+### G47. Hybrid search is three rollout flags and a binding, all set on Dev
 - **Where:** Pages `SEARCH_SEMANTIC` and the `SEARCH_QUERY_GATE` binding
-  (`apps/web/functions/_shared/semantic-gate.ts`), neither deployed; Worker
+  (`apps/web/functions/_shared/semantic-gate.ts`), Worker
   `SEARCH_SHARD_ROOTS` (`apps/data-publisher-worker/src/pipeline.ts`) and
-  the `SearchQueryGate` class, set and bound on Dev since 2026-10-13.
-- **Why:** Spec 016 slice 3 shipped the code with nothing enabled; Dev is
-  enabled by two configuration PRs, the Worker's first (done), the Pages'
-  after it is observed.
-- **Fix:** after the Pages enable and slice 4, write shard roots always
-  (delete `SEARCH_SHARD_ROOTS` and its off path) and fold `SEARCH_SEMANTIC`
-  into the presence of the binding, or keep one flag and say why.
+  the `SearchQueryGate` class. All set and bound on Dev since 2026-10-13,
+  none on Prod.
+- **Why:** Spec 016 slice 3 shipped the code with nothing enabled and Dev
+  was enabled by two configuration PRs.
+- **Fix:** after slice 4, write shard roots always (delete
+  `SEARCH_SHARD_ROOTS` and its off path) and fold `SEARCH_SEMANTIC` into
+  the presence of the binding, or keep one flag and say why.
 - **Layer:** structure (fewer flags), then test (the `H66` pins).
 - **Source:** Spec 016 slice 3.
 
@@ -633,4 +633,21 @@ the two `viewer/` items below.
   can drift.
 - **Layer:** test today; generation when fixed.
 - **Source:** owner's instruction of 2026-10-13.
+
+### G53. The deployed E2E and the measurement spend the visitors' query budget
+- **Where:** `apps/web/deployed-e2e/development.spec.ts` (`H32`, and the
+  older tests' `Kafka Streams` and `request manager`),
+  `apps/web/scripts/measure-search-hybrid.ts`.
+- **Why:** on Dev every text query, a test's included, goes through the
+  query gate. The E2E uses three fixed strings, so it costs at most 6 index
+  queries a deploy and no model call once cached; one measurement run costs
+  at most 48 model calls and 96 index queries. Both come out of the same
+  1,000 a day and 100 model calls an hour that visitors use, and the E2E's
+  status check is deliberately lenient (`timed-out`, `over-budget`, and one
+  `failed` do not fail it).
+- **Fix:** if the budget ever matters, give tests their own allowance in
+  the gate; if leniency hides a real regression, add a threshold to the
+  E2E from what `measure:search-hybrid` shows on Dev.
+- **Layer:** test.
+- **Source:** Spec 016 enable step 3.
 

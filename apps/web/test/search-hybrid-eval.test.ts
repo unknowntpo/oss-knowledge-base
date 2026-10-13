@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import type { SearchResponseV1 } from "@oss-knowledge-base/serving-contract";
 
-import { evalQueries, ranksOf, renderTable, reportQuery, RERANK_SHARE, summarize, type EvalQuery } from "../scripts/measure-search-hybrid";
+import { evalQueries, GATE_QUERIES_AT_MOST, HOURLY_CALLS_LEFT_FOR_A_RUN, PROBE_QUERIES, ranksOf, renderTable, reportQuery, RERANK_SHARE, summarize, type EvalQuery } from "../scripts/measure-search-hybrid";
 import { testPlanRows } from "./search-hybrid-eval.cases";
 
 const snapshotPath = new URL("../../../packages/search/test/fixtures/real-corpus-snapshot.v1.json", import.meta.url);
@@ -46,10 +46,47 @@ describe("Spec 016 hybrid measurement (slice 4 preparation)", () => {
     expect(testPlanRows.filter((row) => row.kind === "chinese")).toHaveLength(8);
     expect(testPlanRows.filter((row) => row.kind === "vocabulary-gap")).toHaveLength(8);
     expect(testPlanRows.filter((row) => row.kind === "chinese").every((row) => /\p{Script=Han}/u.test(row.query))).toBe(true);
-    expect([count("real-corpus"), count("guard"), count("chinese"), count("vocabulary-gap")]).toEqual([21, 6, 8, 8]);
+    expect([count("real-corpus"), count("guard"), count("chinese"), count("vocabulary-gap"), count("probe")]).toEqual([21, 6, 8, 8, 5]);
     expect(new Set(queries.map((item) => item.query)).size).toBe(queries.length);
     expect(queries.find((item) => item.labels === "owner")).toMatchObject({ query: "consumer network thread request manager", within: 3 });
-    expect(queries.every((item) => item.expected.length > 0)).toBe(true);
+    expect(queries.filter((item) => item.kind !== "probe").every((item) => item.expected.length > 0)).toBe(true);
+  });
+
+  test("H71: the owner's abbreviation probes are asked unlabelled, and one run fits the gate's hourly and daily caps", () => {
+    expect(PROBE_QUERIES).toEqual(["RM", "ISR", "HW", "EOS", "LSO"]);
+    const queries = evalQueries();
+    // `txn`, the sixth abbreviation, is a labelled Spec 017 row.
+    expect(queries.filter((item) => item.query === "txn").map((item) => item.kind)).toEqual(["real-corpus"]);
+    expect(queries.filter((item) => item.kind === "probe")).toEqual(PROBE_QUERIES.map((query) => ({ kind: "probe", labels: "unlabelled", query, expected: [], acceptable: [], within: 0 })));
+    // At most one model call a query and two index queries (two projects): 48 and 96.
+    expect(GATE_QUERIES_AT_MOST).toBe(48);
+    expect(GATE_QUERIES_AT_MOST).toBeLessThanOrEqual(HOURLY_CALLS_LEFT_FOR_A_RUN);
+    expect(HOURLY_CALLS_LEFT_FOR_A_RUN).toBeLessThan(100);
+    expect(2 * GATE_QUERIES_AT_MOST).toBeLessThan(1_000);
+
+    // A probe is reported with its first threads and is never met, a regression, or a rerank candidate.
+    const probe = queries.find((item) => item.kind === "probe")!;
+    const titled = (threads: readonly string[], semantic?: { status: "ok"; cached: boolean }) => {
+      const body = response(threads, semantic);
+      return { ...body, results: body.results.map((result) => ({ ...result, entry: { ...result.entry, title: `Title of ${result.entry.sourceTitleRecordId}` } })) };
+    };
+    const report = reportQuery(probe, { response: titled(["a"]), ms: 10 }, { response: titled(["b", "a", "c", "d", "e", "f"], { status: "ok", cached: false }), ms: 20 });
+    expect(report).toMatchObject({ kind: "probe", lexicalTop: ["a Title of a"], hybridTop: ["b Title of b", "a Title of a", "c Title of c", "d Title of d", "e Title of e"], rerankCandidate: false });
+    const summary = summarize([report]);
+    expect(summary).toMatchObject({ queries: 1, statuses: { ok: 1 }, lexicalMet: 0, hybridMet: null, regressions: [], rerankCandidates: [], rerank: "not measured", uncachedAsked: 1, timedOut: 0, timedOutShare: 0 });
+    // A labelled row carries no first-thread lists.
+    expect(reportQuery(query(3, ["a"]), { response: titled(["a"]), ms: 1 })).not.toHaveProperty("lexicalTop");
+  });
+
+  test("H71: the timed-out share counts only cold requests that reached the gate", () => {
+    const lexical = { response: response([]), ms: 1 };
+    const cold = (status: "ok" | "timed-out" | "failed" | "over-budget" | "skipped" | "uncovered" | "disabled", cached?: boolean) =>
+      reportQuery(query(3, [`x-${status}-${cached}`]), lexical, { response: response([], { status, ...(cached === undefined ? {} : { cached }) }), ms: 1 });
+    const summary = summarize([cold("ok", false), cold("ok", false), cold("timed-out"), cold("failed"), cold("over-budget"), cold("ok", true), cold("skipped"), cold("uncovered"), cold("disabled")]);
+    // Asked: two fused, one timed out, one failed, one over budget. Not asked: cached, skipped, uncovered, disabled.
+    expect([summary.uncachedAsked, summary.timedOut, summary.timedOutShare]).toEqual([5, 1, 0.2]);
+    expect(summarize([cold("skipped")])).toMatchObject({ uncachedAsked: 0, timedOutShare: null });
+    expect(summarize([cold("timed-out"), cold("timed-out"), cold("ok", false)]).timedOutShare).toBe(0.67);
   });
 
   test("H71: ranks are 1-based, and null beyond what the response holds", () => {
@@ -97,6 +134,7 @@ describe("Spec 016 hybrid measurement (slice 4 preparation)", () => {
     expect(summary).toEqual({
       queries: 5, hybrid: true, statuses: { ok: 4, "over-budget": 1 }, lexicalMet: 2, hybridMet: 1,
       regressions: ["q d 3"], rerankCandidates: ["q b 3", "q d 3"], rerank: "consider rerank", notRetrieved: ["q c 3"],
+      uncachedAsked: 5, timedOut: 0, timedOutShare: 0,
       medianLexicalMs: 1_000, medianHybridMs: 1_200, medianCachedMs: 1_000, medianAddedMs: 200,
     });
     expect(RERANK_SHARE).toBe(0.3);

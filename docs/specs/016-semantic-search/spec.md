@@ -1,6 +1,6 @@
 # Spec 016: Semantic candidates and hybrid fusion for Search
 
-Status: Draft for human review — decisions of 2026-10-08..12 recorded below; slices 1, 2a, 2b and 3 implemented (3: query-time hybrid search in the web API, behind `SEARCH_SEMANTIC`, off in every deployed configuration), Dev switched to `@2` (H42) and `@3` (Spec 017), embeddings enabled on Dev (`SEARCH_EMBEDDING=bge-m3@1`, owner's approval 2026-10-12), the query gate and shard roots enabled on the Dev publisher (enable step 1, owner's approval 2026-10-13), Prod has no flag, hybrid search not yet served anywhere (the Pages flag is enable step 2; H31, H32), slice 4 pending
+Status: Draft for human review — decisions of 2026-10-08..12 recorded below; slices 1, 2a, 2b and 3 implemented (3: query-time hybrid search in the web API, behind `SEARCH_SEMANTIC`, off in every deployed configuration), Dev switched to `@2` (H42) and `@3` (Spec 017), embeddings enabled on Dev (`SEARCH_EMBEDDING=bge-m3@1`, owner's approval 2026-10-12), the query gate and shard roots enabled on the Dev publisher (enable step 1, owner's approval 2026-10-13), hybrid search enabled on Dev Pages (enable step 3, 2026-10-13; H31 and H32 observed after its deploy), Prod has no flag, slice 4 pending
 Date: 2026-10-13
 Traceability: enforced
 Builds on: Spec 005 (Phases 2 and 3, LLM boundary), Spec 013 (lexical shards, `bm25-reference@1`), Spec 014 (community profile `proposal`), Spec 015 (profile blocks, ADR-0016)
@@ -1073,32 +1073,75 @@ class and the caps as shipped on 2026-10-13.
    - Roll back: revert the PR. The next release has no shard roots and the
      gate is no longer bound for `/health`; the class stays deployed, and
      removing it later needs a `deleted_classes` migration.
-3. **Pages PR (next, not done)**, only after step 2 is deployed and observed
-   (CI deploys Pages before the Worker, so the binding must not arrive in
-   the same deploy as the class). Its whole content:
-   - `apps/web/wrangler.development.jsonc`: `"vars": { "SEARCH_SEMANTIC":
-     "rrf-group@1" }` and `"durable_objects": { "bindings": [{ "name":
-     "SEARCH_QUERY_GATE", "class_name": "SearchQueryGate", "script_name":
-     "oss-knowledge-base-data-dev" }] }`. `wrangler.production.jsonc` and
-     the local `wrangler.jsonc` stay as they are.
-   - The H66 Pages configuration test in `search-hybrid.test.ts` pinned to
-     that for Dev; the deployed E2E's H32 test changed to expect
-     `retrieval.semantic` on Dev; `docs/feature-map.md` and this section.
-   - Observe (H31, H32): `GET /api/search?q=交易逾時` has
-     `retrieval.semantic.status` `ok` and results; the same query again says
-     `cached: true`; `/health` `searchQuery.today` shows 1 neuron, 1 model
-     call, and 2 index queries; the gateway `osskb-search-dev` shows the
-     call and `osskb-digest-dev` does not; `KIP-770` says `skipped`; then
-     `bun run measure:search-hybrid -- --out report.json`.
-   - Revert the Pages PR when (verifier, PR #54): more than about 30% of
-     the uncached queries of `measure:search-hybrid` are `timed-out` and
-     raising the timeout is not acceptable (otherwise raise it first);
-     `searchQuery.lastError.kind` is `model` or `vector-store` on the first
-     queries; or `searchQuery.pausedUntil` is set repeatedly (the platform
-     keeps refusing). `over-budget` alone is not a reason: it is the cap
-     working.
-4. **Turn off.** Remove `SEARCH_SEMANTIC` (revert the Pages PR): the next
-   Pages deploy answers lexically, byte for byte as before. Without a
+3. **Pages PR (this change, 2026-10-13).** Precondition for merging: a
+   release with shard roots is current on Dev (`/health`
+   `lastRun.search.shardRoots: true`; the first is the publication after
+   step 2's deploy). Without it every text query is `uncovered` until the
+   next publication, which is harmless but shows nothing.
+   - `apps/web/wrangler.development.jsonc` sets `"vars": {
+     "SEARCH_SEMANTIC": "rrf-group@1" }` and `"durable_objects": {
+     "bindings": [{ "name": "SEARCH_QUERY_GATE", "class_name":
+     "SearchQueryGate", "script_name": "oss-knowledge-base-data-dev" }] }`.
+     `wrangler.production.jsonc`, the local `wrangler.jsonc`, and both
+     Worker configurations are untouched. The H66 test pins this.
+   - What changes for visitors of Dev: a text query is fused with semantic
+     candidates; a Chinese query that returned nothing returns threads; a
+     thread found by meaning alone carries the "Similar meaning" badge.
+     Identifier queries and every failure mode answer as before.
+   - The deployed E2E (`H32`) after each Dev deploy: the gate is enabled
+     with no `configError`; `KIP770` is `skipped` (`identifier-query`);
+     `交易逾時&semantic=off` is `disabled` with the lexical fields; `交易逾時`
+     carries `fusionRevision` and a status among `ok`, `timed-out`,
+     `over-budget`, `failed`, `uncovered`, asked up to four times, 2 s
+     apart, for `ok`. It fails on a hard signal only: the field missing
+     after 60 s, another status, the gate no longer enabled or with a
+     `configError`, a ledger over its cap, or `failed` on every attempt.
+     Otherwise it records the statuses and `/health` `searchQuery` as
+     annotations. When fused, it also checks `semanticRevision`,
+     `candidates`, `cached`, and that every result has a lexical or a
+     semantic rank.
+   - What the deployed E2E spends at the gate: three fixed text queries
+     (`交易逾時`, and the older tests' `Kafka Streams` and `request manager`).
+     The first run ever: 3 model calls (3 neurons) and 6 index queries.
+     Every later run: 0 model calls while the embeddings are cached (at
+     least 7 days) and at most 6 index queries, none when the previous run
+     was within the hour. A day of ten deploys is at most 60 of the 1,000
+     index queries.
+   - Observe by hand after the deploy (H31, H32): `GET
+     /api/search?q=交易逾時` has `retrieval.semantic.status` `ok` and
+     results; the same query again says `cached: true`; `/health`
+     `searchQuery.today` counts the calls and `lastError` is null; the
+     gateway `osskb-search-dev` shows the calls and `osskb-digest-dev` does
+     not; the badge shows on that query in the browser; then the
+     measurement below.
+   - Measurement (H31, and the input to H33): `bun run measure:search-hybrid
+     -- --out <file>` against the public Dev API. 48 queries: the 21
+     Spec 017 rows (the owner's query and `txn` among them), its 6 guard
+     rows, the 16 implementer-labelled Chinese and vocabulary-gap queries,
+     and 5 unlabelled abbreviation probes the owner asked about (`RM`,
+     `ISR`, `HW`, `EOS`, `LSO`; with `txn` that is six abbreviations). Each
+     is asked with `semantic=off`, hybrid, and hybrid again: 144 GETs, one a
+     second. It reports ranks lexical against hybrid, statuses, latencies
+     (cold, cached, added), `timedOutShare` (timed-out among the cold
+     requests that reached the gate), regressions, the rerank rule, and for
+     each probe the first five threads of both answers. Cost at the gate:
+     at most 48 model calls (48 neurons; the four identifier rows make
+     none, so 44 in fact) and 96 index queries, under the hourly 100 and the
+     daily 1,000 and 1,000; a second run within 7 days makes no model call.
+     The script refuses to start if its list could need more than 80 model
+     calls in an hour.
+   - Revert this PR when (verifier, PR #54): `timedOutShare` is above about
+     0.3 and raising the timeout is not acceptable (otherwise raise it
+     first); `searchQuery.lastError.kind` is `model` or `vector-store` on
+     the first queries; or `searchQuery.pausedUntil` is set repeatedly (the
+     platform keeps refusing). `over-budget` alone is not a reason: it is
+     the cap working.
+   - Rollback: revert the whole PR. `/api/search` is the lexical reader
+     again, byte for byte. Removing only the variable is not enough for a
+     green `main`: the deployed E2E's `H32` test and the H66 pin expect the
+     hybrid configuration, so they have to go back with it.
+4. **Turn off.** Revert the Pages PR (step 3): the next Pages deploy
+   answers lexically, byte for byte as before. Without a
    deploy: every response already degrades by itself when the gate fails or
    the budget is spent. Removing `SEARCH_SHARD_ROOTS` makes the next release
    `uncovered`. The class and its stored cache may stay; deleting the class
@@ -1722,7 +1765,10 @@ Items tagged `[pending]` belong to slice 4.
   status, and latencies, marks a query as a rerank candidate when every
   expected thread is in the hybrid top 20 and one is outside its bound
   (each side of both bounds), lists regressions and threads not retrieved,
-  applies the 30% rule to fused queries only, and reports lexical ranks
+  applies the 30% rule to fused queries only, reports the timed-out share
+  of the cold requests that reached the gate, asks the five unlabelled
+  abbreviation probes without counting them as met or missed, fits the
+  gate's hourly and daily caps in one run (at most 48 model calls), and reports lexical ranks
   alone against a deployment without hybrid search → evidence:
   `search-hybrid-eval.test.ts`.
 
@@ -1752,8 +1798,9 @@ Items tagged `[pending]` belong to slice 4.
   reads a malformed body as `failed`; given `SEARCH_SHARD_ROOTS` set to
   anything but `true`, the run fails before a source is polled or an object
   written and `/health` names the value, and the Worker passes its variable
-  to the run; no deployed Pages configuration sets the flag or binds the
-  gate; since enable step 2 the development publisher sets
+  to the run; since enable step 3 the development Pages configuration sets
+  the flag and binds the gate of `oss-knowledge-base-data-dev`, and the
+  production and local Pages configurations do neither; since enable step 2 the development publisher sets
   `SEARCH_SHARD_ROOTS=true`, binds `SEARCH_QUERY_GATE`, and migrates the
   class (`v4`), every bound class being exported and migrated once, and the
   production publisher has none of them →
@@ -1786,10 +1833,12 @@ Items tagged `[pending]` belong to slice 4.
   `@2` for the same Feed → `bun run measure:search-revisions` (Results,
   slice 2a); on Dev, `/health` `lastRun.search` before and after the switch.
 - H31: [deploy] added median latency of hybrid search on Dev against the
-  `semantic=off` response of the same query, cold and cached, and the model
-  calls and index queries per query from `/health` `searchQuery.today` →
-  `bun run measure:search-hybrid` after the enable (Results, slice 3, gives
-  the estimate it is compared with).
+  `semantic=off` response of the same query, cold and cached, the share of
+  uncached queries that time out, and the model calls and index queries the
+  run cost from `/health` `searchQuery.today` → `bun run
+  measure:search-hybrid -- --out <file>` after enable step 3 (rollout
+  step 3 lists what it asks and costs; Results, slice 3, gives the estimate
+  it is compared with).
 - H68: [measure] the query budget: neurons charged per query against the
   calibrated estimate and the upper bound, the three daily neuron caps
   against the included 10,000, index queries and stored vectors against
@@ -1811,8 +1860,10 @@ Items tagged `[pending]` belong to slice 4.
   step 3 (Pages), `/api/search` `retrieval.semantic.status` is `ok` for a
   Chinese query and `cached` on its repeat, `/health` `searchQuery.today`
   counts the call, and the gateway `osskb-search-dev` shows it while
-  `osskb-digest-dev` does not → the post-merge checks of each enable PR
-  (rollout steps 2 and 3).
+  `osskb-digest-dev` does not; the deployed E2E asserts on every run that
+  an identifier query is `skipped`, `semantic=off` is `disabled`, and a
+  text query carries a legitimate status, failing only on a hard signal →
+  the post-merge checks of each enable PR (rollout steps 2 and 3).
 - H69: given the gate object, `/health` `searchQuery` is the object's own
   answer when bound, `null` when it does not answer, and a disabled block
   with the caps when not bound; the object answers `POST /query` and `GET
@@ -2319,9 +2370,9 @@ profile fit"):
   call and leaves `/api/search` on Dev at `@1`.
 - Slice 2b sets no flag and embeds nothing on Dev or Prod until H52; since
   H52 (2026-10-12) Dev embeds and Prod does not.
-- Slice 3 itself changed no deployed configuration; enable step 2 changes
-  the Dev publisher's only. Still not done: the Pages flag and binding
-  (enable step 3), anything on Prod, any Cloudflare resource made by hand; a
+- Slice 3 itself changed no deployed configuration; enable steps 2 and 3
+  change Dev's only. Still not done: anything on Prod, any Cloudflare
+  resource made by hand; a
   per-visitor rate limit; a redesign of the search UI; a minimum similarity
   (open question 15).
 - A real Workers AI or Vectorize call from a test or a developer machine.

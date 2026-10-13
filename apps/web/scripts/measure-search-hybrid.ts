@@ -8,6 +8,13 @@
  *
  * On a deployment where hybrid search is off, the response has no `retrieval.semantic`: the
  * script then reports the lexical ranks alone (the baseline) and says so.
+ *
+ * Cost of one run against the query gate's caps (1,000 neurons and 1,000 index queries a UTC day,
+ * 100 model calls a clock hour): each query that is not an identifier is embedded once (the
+ * repeat is answered from the cache) and asks two project namespaces, so at most
+ * `GATE_QUERIES_AT_MOST` model calls and twice as many index queries; a second run within the
+ * embedding cache's 7 days makes no model call. The script refuses to start when its list could
+ * pass `HOURLY_CALLS_LEFT_FOR_A_RUN`, the hourly cap less room for visitors and the deployed E2E.
  */
 import type { SearchResponseV1 } from "@oss-knowledge-base/serving-contract";
 
@@ -26,6 +33,16 @@ export interface EvalQuery {
 
 const ids = (cell: string | null) => (cell === null || cell === "" ? [] : cell.split(" "));
 
+/**
+ * Abbreviations the owner asked about (2026-10-13). Unlabelled: nobody has said which threads
+ * they should find, so they are reported (first threads, lexical against hybrid) and never
+ * counted as met, as a regression, or for the rerank rule. `txn` is a Spec 017 row already.
+ */
+export const PROBE_QUERIES: readonly string[] = ["RM", "ISR", "HW", "EOS", "LSO"];
+
+/** Model calls a run may need in one clock hour: the gate allows 100. */
+export const HOURLY_CALLS_LEFT_FOR_A_RUN = 80;
+
 /** The Spec 017 rows, its guard rows, and this spec's Chinese and vocabulary-gap rows, each query once. */
 export function evalQueries(): readonly EvalQuery[] {
   const queries: EvalQuery[] = [
@@ -33,9 +50,13 @@ export function evalQueries(): readonly EvalQuery[] {
     ...guardRows.map((row) => ({ kind: "guard", labels: "implementer", query: row.query, expected: ids(row.expected), acceptable: [], within: row.within })),
     ...hybridRows.map((row) => ({ kind: row.kind, labels: row.labels, query: row.query, expected: ids(row.expected), acceptable: ids(row.acceptable), within: row.within })),
   ];
+  queries.push(...PROBE_QUERIES.map((query) => ({ kind: "probe", labels: "unlabelled", query, expected: [], acceptable: [], within: 0 })));
   const seen = new Set<string>();
   return queries.filter((query) => !seen.has(query.query) && seen.add(query.query) !== undefined);
 }
+
+/** The most model calls one run can make: one per distinct query (identifier queries make none). */
+export const GATE_QUERIES_AT_MOST = evalQueries().length;
 
 /** The API returns at most 50 threads. */
 export const DEPTH = 50;
@@ -66,6 +87,9 @@ export interface QueryReport {
   /** Expected threads all within the top 20, and at least one outside `within`: what a reranker could fix. */
   readonly rerankCandidate: boolean | null;
   readonly semanticOnlyResults: number | null;
+  /** Probe rows only: the first five threads of each response, `id title`. */
+  readonly lexicalTop?: readonly string[];
+  readonly hybridTop?: readonly string[] | null;
   readonly lexicalMs: number;
   readonly hybridMs: number | null;
   /** The same hybrid query asked again: its embedding and matches are cached. */
@@ -73,6 +97,7 @@ export interface QueryReport {
 }
 
 const met = (ranks: readonly (number | null)[], within: number) => ranks.every((rank) => rank !== null && rank <= within);
+const top = (response: SearchResponseV1) => response.results.slice(0, 5).map((result) => `${result.entry.sourceTitleRecordId} ${result.entry.title ?? ""}`.trim());
 
 export function reportQuery(
   query: EvalQuery,
@@ -95,6 +120,7 @@ export function reportQuery(
     hybridMet: hybridRanks === null ? null : met(hybridRanks, query.within),
     rerankCandidate: hybridRanks === null ? null : met(hybridRanks, RERANK_DEPTH) && !met(hybridRanks, query.within),
     semanticOnlyResults: on ? hybrid.response.results.filter((result) => result.matches.every((match) => match.signals.lexicalRank === undefined)).length : null,
+    ...(query.kind === "probe" ? { lexicalTop: top(lexical.response), hybridTop: on ? top(hybrid.response) : null } : {}),
     lexicalMs: Math.round(lexical.ms),
     hybridMs: on ? Math.round(hybrid.ms) : null,
     cachedMs: on && hybrid.cachedMs !== undefined ? Math.round(hybrid.cachedMs) : null,
@@ -124,6 +150,11 @@ export interface Summary {
   readonly rerank: "not measured" | "consider rerank" | "no case for rerank";
   /** Expected threads missing from the hybrid top 20: retrieval, not ranking, is the limit. */
   readonly notRetrieved: readonly string[];
+  /** Cold hybrid requests that reached the gate (not skipped, not answered from its cache), and how many timed out. */
+  readonly uncachedAsked: number;
+  readonly timedOut: number;
+  /** `timedOut / uncachedAsked`; above about 0.3 raise the timeout or revert (Spec 016 rollout step 3). */
+  readonly timedOutShare: number | null;
   readonly medianLexicalMs: number | null;
   readonly medianHybridMs: number | null;
   readonly medianCachedMs: number | null;
@@ -131,15 +162,20 @@ export interface Summary {
   readonly medianAddedMs: number | null;
 }
 
-export function summarize(reports: readonly QueryReport[]): Summary {
+export function summarize(all: readonly QueryReport[]): Summary {
+  // Probes have no labels: they count for statuses and latency, never for what is met.
+  const reports = all.filter((report) => report.kind !== "probe");
+  const everyMeasured = all.filter((report) => report.hybridRanks !== null);
   const measured = reports.filter((report) => report.hybridRanks !== null);
   const fused = measured.filter((report) => report.semantic?.status === "ok");
+  const asked = everyMeasured.filter((report) => ["timed-out", "failed", "over-budget"].includes(report.semantic!.status) || (report.semantic!.status === "ok" && report.semantic!.cached !== true));
+  const timedOut = asked.filter((report) => report.semantic!.status === "timed-out").length;
   const statuses: Record<string, number> = {};
-  for (const report of measured) statuses[report.semantic!.status] = (statuses[report.semantic!.status] ?? 0) + 1;
+  for (const report of everyMeasured) statuses[report.semantic!.status] = (statuses[report.semantic!.status] ?? 0) + 1;
   const rerankCandidates = fused.filter((report) => report.rerankCandidate).map((report) => report.query);
   return {
-    queries: reports.length,
-    hybrid: measured.length > 0,
+    queries: all.length,
+    hybrid: everyMeasured.length > 0,
     statuses,
     lexicalMet: reports.filter((report) => report.lexicalMet).length,
     hybridMet: measured.length === 0 ? null : measured.filter((report) => report.hybridMet).length,
@@ -147,7 +183,10 @@ export function summarize(reports: readonly QueryReport[]): Summary {
     rerankCandidates,
     rerank: fused.length === 0 ? "not measured" : rerankCandidates.length / fused.length >= RERANK_SHARE ? "consider rerank" : "no case for rerank",
     notRetrieved: fused.filter((report) => !met(report.hybridRanks!, RERANK_DEPTH)).map((report) => report.query),
-    medianLexicalMs: median(reports.map((report) => report.lexicalMs)),
+    uncachedAsked: asked.length,
+    timedOut,
+    timedOutShare: asked.length === 0 ? null : Math.round((timedOut / asked.length) * 100) / 100,
+    medianLexicalMs: median(all.map((report) => report.lexicalMs)),
     medianHybridMs: median(fused.map((report) => report.hybridMs!)),
     medianCachedMs: median(fused.filter((report) => report.cachedMs !== null).map((report) => report.cachedMs!)),
     medianAddedMs: median(fused.map((report) => report.hybridMs! - report.lexicalMs)),
@@ -185,6 +224,9 @@ if (import.meta.main) {
     return { response: body, ms: performance.now() - started };
   };
 
+  if (GATE_QUERIES_AT_MOST > HOURLY_CALLS_LEFT_FOR_A_RUN) {
+    throw new Error(`${GATE_QUERIES_AT_MOST} queries could pass the gate's hourly cap; split the list or pace the run`);
+  }
   const reports: QueryReport[] = [];
   let hybridOn: boolean | undefined;
   let release = "";
@@ -211,6 +253,9 @@ if (import.meta.main) {
   console.log(`${base} release ${release} at ${new Date().toISOString()}`);
   if (!summary.hybrid) console.log("Hybrid search is off on this deployment: lexical ranks only.");
   console.log(renderTable(reports));
+  for (const report of reports.filter((item) => item.kind === "probe")) {
+    console.log(`\nprobe ${report.query} (${report.semantic?.status ?? "lexical only"})\n  lexical: ${report.lexicalTop!.join("\n           ") || "(nothing)"}\n  hybrid:  ${report.hybridTop?.join("\n           ") || "(nothing)"}`);
+  }
   console.log(JSON.stringify(summary, null, 2));
   const out = option("--out");
   if (out !== undefined) await Bun.write(out, `${JSON.stringify({ base, release, measuredAt: new Date().toISOString(), summary, reports }, null, 2)}\n`);

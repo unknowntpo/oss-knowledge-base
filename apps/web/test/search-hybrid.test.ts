@@ -346,10 +346,31 @@ describe("Spec 016 hybrid search: the flag, the binding, and `semantic=off`", ()
       .toEqual({ status: "over-budget", retryAfterMs: 9 });
   });
 
-  test("H66: no deployed Pages configuration sets the flag or binds the gate", async () => {
-    for (const name of ["wrangler.jsonc", "wrangler.development.jsonc", "wrangler.production.jsonc"]) {
-      const config = JSON.parse(await Bun.file(new URL(`../${name}`, import.meta.url)).text()) as Record<string, unknown>;
+  test("H66: the development Pages configuration sets the flag and binds the data Worker's gate; production and local do neither", async () => {
+    const read = async (name: string) => JSON.parse(await Bun.file(new URL(`../${name}`, import.meta.url)).text()) as Record<string, unknown> & { readonly name: string };
+    const development = await read("wrangler.development.jsonc");
+    expect(Object.keys(development).sort()).toEqual(["$schema", "compatibility_date", "durable_objects", "name", "pages_build_output_dir", "r2_buckets", "vars"]);
+    expect(development.vars).toEqual({ SEARCH_SEMANTIC: "rrf-group@1" });
+    expect(development.durable_objects).toEqual({ bindings: [{ name: "SEARCH_QUERY_GATE", class_name: "SearchQueryGate", script_name: "oss-knowledge-base-data-dev" }] });
+    // The binding names the Dev publisher, which exports and migrates that class.
+    const worker = JSON.parse(await Bun.file(new URL("../../data-publisher-worker/wrangler.development.jsonc", import.meta.url)).text()) as {
+      readonly name: string;
+      readonly migrations: readonly { readonly new_sqlite_classes: readonly string[] }[];
+    };
+    expect(worker.name).toBe("oss-knowledge-base-data-dev");
+    expect(worker.migrations.flatMap((migration) => migration.new_sqlite_classes)).toContain("SearchQueryGate");
+    // What the handler makes of exactly these values: hybrid search through the bound gate.
+    const options = semanticSearchOptions(
+      { SEARCH_SEMANTIC: (development.vars as { SEARCH_SEMANTIC: string }).SEARCH_SEMANTIC, SEARCH_QUERY_GATE: namespaceOf(untouchableGate) },
+      new URL("https://dev.example/api/search?q=txn"),
+    );
+    expect(options).toMatchObject({ off: false });
+    expect(options !== undefined && "gate" in options).toBe(true);
+
+    for (const name of ["wrangler.jsonc", "wrangler.production.jsonc"]) {
+      const config = await read(name);
       expect(Object.keys(config).sort()).toEqual(["$schema", "compatibility_date", "name", "pages_build_output_dir", "r2_buckets"]);
+      expect(JSON.stringify(config)).not.toMatch(/SEARCH_SEMANTIC|SEARCH_QUERY_GATE|SearchQueryGate/u);
     }
   });
 });
