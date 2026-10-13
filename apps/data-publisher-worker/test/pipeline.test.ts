@@ -34,6 +34,8 @@ import {
   type PublicationDestination,
 } from "../src/pipeline";
 import { GitHubFetchTransport } from "../src/github-transport";
+import { R2PublicationDestination } from "../src/r2-destination";
+import { CountingR2Bucket } from "./support/counting-r2-bucket";
 
 describe("Cloudflare data publication", () => {
   test.each([500, 502, 503, 504, 524])("bounds retries for HTTP %s", async (status) => {
@@ -213,6 +215,141 @@ describe("Cloudflare data publication", () => {
     expect(second.ok).toBe(true);
     expect(createdDetails(destination, FEED_DETAIL_POOL)).toHaveLength(1);
     expect(createdDetails(destination, SEARCH_DETAIL_POOL)).toHaveLength(1);
+  });
+});
+
+describe("Spec 008 R2 operations of a publication (2026-10 Class A incident)", () => {
+  // Every put is billed as Class A, also one whose if-none-match precondition fails.
+  const POINTER_AND_EVIDENCE_WRITES = 3;
+
+  async function publishToBucket(bucket: CountingR2Bucket, events: readonly DomainEventV1[], materializedAt: string) {
+    const state = new MemoryState();
+    const status = await runDataPublication({
+      environment: "development",
+      materializedAt,
+      connector: connectorSuccess(events),
+      state,
+      destination: new R2PublicationDestination(bucket.asBucket(), async () => undefined),
+    });
+    return { status, state };
+  }
+
+  test("C8: a publication over an unchanged corpus spends Class A operations only on the objects it writes", async () => {
+    const bucket = new CountingR2Bucket();
+    const events = fixture.events as DomainEventV1[];
+    const { status: first } = await publishToBucket(bucket, events, fixture.config.materializedAt);
+    if (!first.ok) throw new Error(first.error);
+    // Positive control: a first release writes every object, each with one put.
+    expect(first.reusedObjectCount).toBe(0);
+    expect(bucket.classA).toBe(first.copiedObjectCount + POINTER_AND_EVIDENCE_WRITES);
+    const poolObjects = [...bucket.objects.keys()].filter((key) => key.includes("/objects/details/")).length;
+    expect(poolObjects).toBeGreaterThan(0);
+    bucket.reset();
+
+    const { status: second } = await publishToBucket(bucket, events, laterHour(fixture.config.materializedAt));
+
+    if (!second.ok) throw new Error(second.error);
+    expect(second.reusedObjectCount).toBe(poolObjects);
+    expect(second.copiedObjectCount).toBeGreaterThan(0);
+    expect(bucket.classA).toBe(second.copiedObjectCount + POINTER_AND_EVIDENCE_WRITES);
+    expect(bucket.count("put", FEED_DETAIL_POOL) + bucket.count("put", SEARCH_DETAIL_POOL)).toBe(0);
+    // One existence check per object, the two pointer reads, and the evidence read.
+    expect(bucket.classB).toBe(second.copiedObjectCount + second.reusedObjectCount + POINTER_AND_EVIDENCE_WRITES);
+    expect(bucket.maxInFlight).toBeLessThanOrEqual(16);
+    expect(bucket.maxInFlight).toBeGreaterThan(1);
+  });
+
+  test("C8: a changed thread costs one put per new object; each new object is put once with if-none-match and its sha256", async () => {
+    const bucket = new CountingR2Bucket();
+    const events = fixture.events as DomainEventV1[];
+    await publishToBucket(bucket, events, fixture.config.materializedAt);
+    bucket.reset();
+    const changed = events.map((event): DomainEventV1 => event.entityId === "kafka:github:issue:42"
+      ? { ...event, data: { ...event.data, excerpt: "The coordinator recovery path is now bounded." } } as DomainEventV1
+      : event);
+
+    const { status } = await publishToBucket(bucket, changed, laterHour(fixture.config.materializedAt));
+
+    if (!status.ok) throw new Error(status.error);
+    const detailPuts = bucket.calls.filter((call) => call.op === "put" && call.key.includes("/objects/details/"));
+    expect(detailPuts).toHaveLength(2);
+    for (const put of detailPuts) {
+      expect(new Headers(put.options!.onlyIf as HeadersInit).get("if-none-match")).toBe("*");
+      expect(put.key.endsWith(`/${put.options!.sha256 as string}.json`)).toBe(true);
+    }
+    expect(new Set(bucket.calls.filter((call) => call.op === "put").map((call) => call.key)).size).toBe(bucket.classA);
+    expect(bucket.classA).toBe(status.copiedObjectCount + POINTER_AND_EVIDENCE_WRITES);
+  });
+
+  test("C8: an existing release key with different bytes still fails the run as a destination conflict and keeps the pointers", async () => {
+    const bucket = new CountingR2Bucket();
+    const events = fixture.events as DomainEventV1[];
+    await publishToBucket(bucket, events, fixture.config.materializedAt);
+    const later = laterHour(fixture.config.materializedAt);
+    const pointers = [MANIFEST_KEY, SEARCH_CURRENT_KEY].map((key) => bucket.objects.get(key));
+    const probe = new CountingR2Bucket();
+    await publishToBucket(probe, events, later);
+    const releaseKey = [...probe.objects.keys()].find((key) => key.endsWith("/feed/index.json") && !bucket.objects.has(key))!;
+    bucket.objects.set(releaseKey, new TextEncoder().encode("{\"other\":true}"));
+
+    const { status } = await publishToBucket(bucket, events, later);
+
+    expect(status.ok).toBe(false);
+    if (!status.ok) expect(status.error).toContain("destination-conflict");
+    expect([MANIFEST_KEY, SEARCH_CURRENT_KEY].map((key) => bucket.objects.get(key))).toEqual(pointers);
+    expect(new TextDecoder().decode(bucket.objects.get(releaseKey))).toBe("{\"other\":true}");
+  });
+
+  test("C8: an existing pool key is reused by name without reading it back", async () => {
+    const bucket = new CountingR2Bucket();
+    const events = fixture.events as DomainEventV1[];
+    await publishToBucket(bucket, events, fixture.config.materializedAt);
+    bucket.reset();
+
+    const { status } = await publishToBucket(bucket, events, laterHour(fixture.config.materializedAt));
+
+    expect(status.ok).toBe(true);
+    expect(bucket.count("get", FEED_DETAIL_POOL) + bucket.count("get", SEARCH_DETAIL_POOL)).toBe(0);
+    expect(bucket.count("head", FEED_DETAIL_POOL) + bucket.count("head", SEARCH_DETAIL_POOL)).toBeGreaterThan(0);
+  });
+
+  test("C9: /health lastRun.r2 reports the Class A and Class B requests the run made, also for a failed run", async () => {
+    const bucket = new CountingR2Bucket();
+    const events = fixture.events as DomainEventV1[];
+    const { status, state } = await publishToBucket(bucket, events, fixture.config.materializedAt);
+
+    expect(status.r2).toEqual({ classA: bucket.classA, classB: bucket.classB });
+    expect(status.r2!.classA).toBeGreaterThan(0);
+    const health = healthBody({ environment: "development", running: false, scheduled: false, phase: undefined, status: state.statuses.at(-1) });
+    expect(health.lastRun?.r2).toEqual(status.r2!);
+
+    bucket.reset();
+    bucket.failures.push(...[1, 2, 3].map(() => ({ op: "put" as const, message: "put: internal error (10001)" })));
+    const failed = await publishToBucket(bucket, events, laterHour(fixture.config.materializedAt));
+    expect(failed.status.ok).toBe(false);
+    expect(failed.status.r2).toEqual({ classA: bucket.classA, classB: bucket.classB });
+    expect(failed.status.r2!.classA).toBeGreaterThanOrEqual(3);
+  });
+
+  test("C9: lastRun.r2 counts one run, also when a destination serves several runs", async () => {
+    const bucket = new CountingR2Bucket();
+    const destination = new R2PublicationDestination(bucket.asBucket(), async () => undefined);
+    const events = fixture.events as DomainEventV1[];
+    const run = (materializedAt: string) => runDataPublication({
+      environment: "development", materializedAt, connector: connectorSuccess(events), state: new MemoryState(), destination,
+    });
+    await run(fixture.config.materializedAt);
+    bucket.reset();
+
+    const second = await run(laterHour(fixture.config.materializedAt));
+
+    expect(second.r2).toEqual({ classA: bucket.classA, classB: bucket.classB });
+  });
+
+  test("C9: a destination that does not count requests leaves the status without r2", async () => {
+    const status = await publishAt(new MemoryDestination(), fixture.events as DomainEventV1[], fixture.config.materializedAt);
+    expect(status.ok).toBe(true);
+    expect("r2" in status).toBe(false);
   });
 });
 

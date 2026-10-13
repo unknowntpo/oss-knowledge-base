@@ -33,6 +33,49 @@ Poll `/health` for the result. Use it once after initial secret
 provisioning, then confirm Feed and Search both changed to complete releases
 before relying on the Cron.
 
+## R2 operations and cost
+
+R2 bills requests by class, for the whole account (both buckets):
+
+| Class | Requests | Price | Included a month |
+| --- | --- | --- | --- |
+| A | `put`, `list`, copy, multipart | $4.50 per million | 1 million |
+| B | `get`, `head` | $0.36 per million | 10 million |
+
+A conditional put whose precondition fails (`if-none-match: *` on an existing
+key) is still a Class A operation. Deletes are free.
+
+`/health` `lastRun.r2 { classA, classB }` is what the last run's publication
+sent, retries included (Spec 008 C9). Expected for a steady hourly run:
+`classA` = `copiedObjectCount + 3` (two pointers, one evidence object) and
+`classB` = `copiedObjectCount + reusedObjectCount + 3`.
+
+```sh
+curl -sS https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/health | jq '.lastRun | {ok, completedAt, copiedObjectCount, reusedObjectCount, r2}'
+```
+
+| Who | When | Class A | Class B |
+| --- | --- | --- | --- |
+| Publication | hourly, each environment | new objects + 3 (Dev: about 40) | objects + 3 (Dev: about 8,200) |
+| Embedding job | after each publication, Dev | 0 | 2 + shards (about 12) |
+| Digest | manual `POST /digest/run` | 2–4 (one `list`, the pointer, two objects when new) | up to 300 |
+| Review queue | manual `POST /review-queue/run` | 3–4 | 4–5 |
+| `/health` | per request | 0 | 1 |
+| Pages `/api/*` | per request | 0 | 2–3; `/api/search` at most 13 on Dev |
+| CI `bootstrap-r2` | manual workflow | one per object | 0 |
+
+A month of hourly Dev publications is about 28 thousand Class A and 6.0
+million Class B. Act when:
+
+- `lastRun.r2.classA` is far above `copiedObjectCount + 3`: something writes
+  what already exists (the incident of 2026-10-13, Spec 008 "R2 operations":
+  8,150 failed conditional puts an hour, $4.50 in six days).
+- `lastRun.r2.classB` passes about 13,700 a run in one environment, or the
+  two environments together pass it: Class B leaves the included 10 million
+  ($0.36 per further million). The fix is gardening G59.
+- `classA + classB` nears 20,000: that is the run's R2 requests against the
+  Worker's `limits.subrequests`.
+
 ## Failure and rollback
 
 - A GitHub error, incomplete page sequence, validation error, or R2 error keeps
