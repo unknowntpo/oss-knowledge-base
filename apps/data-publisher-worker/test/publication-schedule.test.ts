@@ -39,6 +39,9 @@ class FakeStorage {
   async delete(key: string): Promise<boolean> { return this.values.delete(key); }
   async getAlarm(): Promise<number | null> { return this.alarm; }
   async setAlarm(time: number): Promise<void> { this.alarm = time; }
+  async list<T>(options: { readonly prefix: string }): Promise<Map<string, T>> {
+    return new Map([...this.values].filter(([key]) => key.startsWith(options.prefix)) as [string, T][]);
+  }
 }
 
 async function crons(environment: "development" | "production"): Promise<readonly string[]> {
@@ -134,10 +137,37 @@ describe("Spec 018 daily publication schedule", () => {
   });
 
   function pipelineObject(storage: FakeStorage) {
-    const env = { PUBLICATION_ENVIRONMENT: "development" } as unknown as ConstructorParameters<typeof PipelineState>[1];
+    const env = { PUBLICATION_ENVIRONMENT: "development", GITHUB_SOURCE_TOKEN: "github_pat_test" } as unknown as ConstructorParameters<typeof PipelineState>[1];
     return new PipelineState({ storage } as unknown as ConstructorParameters<typeof PipelineState>[0], env);
   }
   const post = () => new Request("https://pipeline.internal/run", { method: "POST", headers: { "x-scheduled-at": "2026-10-13T23:00:00.000Z" } });
+
+  test("T7: the object's alarm schedules the retry itself when every source is unreachable", async () => {
+    const storage = new FakeStorage();
+    const object = pipelineObject(storage);
+    const realFetch = globalThis.fetch;
+    const requested: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      requested.push(new URL(String(input instanceof Request ? input.url : input)).host);
+      return new Response("not found", { status: 404 });
+    }) as typeof fetch;
+    try {
+      expect((await object.fetch(post())).status).toBe(202);
+      storage.alarm = null; // the runtime clears an alarm when it fires
+      const before = Date.now();
+      await object.alarm();
+      const health = await (await object.fetch(new Request("https://pipeline.internal/status"))).json() as { scheduled: boolean; lastRun: { ok: boolean }; followUp: FollowUpMarker };
+      expect(new Set(requested)).toEqual(new Set(["api.github.com", "lists.apache.org", "issues.apache.org"]));
+      expect(health.lastRun.ok).toBe(false);
+      expect(health.followUp).toMatchObject({ reason: "retry", catchUps: 0, retries: 1 });
+      expect(health.scheduled).toBe(true);
+      expect(storage.alarm).toBeGreaterThanOrEqual(before + 10 * MINUTE);
+      expect(storage.alarm).toBeLessThanOrEqual(Date.now() + 10 * MINUTE);
+      expect(Date.parse(health.followUp.at)).toBe(storage.alarm!);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
 
   test("T9: POST /run while a follow-up waits runs now and starts a new count; while a run is due it answers 409", async () => {
     const storage = new FakeStorage();
