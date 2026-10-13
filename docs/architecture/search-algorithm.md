@@ -93,6 +93,7 @@ Dev 啟用 `rrf-group@1`（k = 60）後，以 `bun run measure:search-hybrid` �
 - 字面第 1 名不是完整命中，或查詢的字沒有任何段落命中（例如中文查詢）時，結果與 `rrf-group@1` 相同，所以中文題與詞彙落差題的改善全部保留。
 - 以 2026-10-13 的錄製資料重放（`bun run eval:search-fusion`）：57 題中，比字面檢索差的題數由 10 題降為 0 題；43 題原始標註的答對數為字面 26、`@1` 22、`@2` 30。
 - 放棄的部分：`manager request`、`storage tiered` 這類字序相反的查詢。`@1` 靠語意名次把預期 thread 往前排，`@2` 因為前幾名都含有兩個字而維持字面名次。
+- 適用範圍有限：規則只在字面第 1 名是完整命中時生效。只有一個字的查詢只要字面有命中，整份字面排名都會保留，語意結果一律接在後面。驗證者另寫的 20 題中，`@2` 有 19 題與 `@1` 結果相同，其中 3 題字面檢索原本正確、合併後仍然變差（`LogManager cleanup` 由 1、3、2、4 名變為 23、3、1、6 名；`StreamsPartitionAssignor` 由 2、8、1 變為 26、7、6；`deduplicate strings when spilling` 由 4、1 變為 1、21）。
 - 未解決：owner 的查詢 `consumer network thread request manager` 沒有任何段落同時含五個字，結果與 `@1` 相同（字面 2、21、9 名，合併後 3、39、24 名）。
 
 加權 RRF、減少語意候選數、固定保留前 3 名、語意結果一律排在字面之後，都在同一份資料上比較過，各自仍有變差的題目或失去原有的改善（Spec 016 Results 的 ablation 表）。相似度門檻尚未比較：錄製當時回應沒有相似度，本次新增 `signals.semanticScore` 供下次錄製使用。
@@ -143,7 +144,7 @@ Dev 的回應自 PR #57 起帶有 `signals.semanticScore`（thread 最佳段落�
 
 | 項目 | 做法 |
 |---|---|
-| 開關 | Pages 變數 `SEARCH_SEMANTIC` 加上 Durable Object binding `SEARCH_QUERY_GATE`。變數的值就是合併規則的版本：`rrf-group@1`、`rrf-group@2` 或 `rrf-group@3`（尚未在任何環境啟用），其他值一律回 BM25 結果並標示 `failed`。Dev 目前是 `rrf-group@1`。未設定時，回應與 slice 3 之前逐位元組相同 |
+| 開關 | Pages 變數 `SEARCH_SEMANTIC` 加上 Durable Object binding `SEARCH_QUERY_GATE`。變數的值就是合併規則的版本：`rrf-group@1`、`rrf-group@2` 或 `rrf-group@3`（尚未在任何環境啟用），其他值一律回 BM25 結果並標示 `failed`。Dev 自 2026-10-13 起是 `rrf-group@2`。未設定時，回應與 slice 3 之前逐位元組相同 |
 | gate | data Worker 的 `SearchQueryGate`：唯一可以呼叫 embedding 模型與 Vectorize 的地方，內含每日帳本與快取；沒有公開路由 |
 | 找 chunk | manifest 的每個 shard 記錄第一個 group root（發布端 `SEARCH_SHARD_ROOTS=true`）。向量帶有 group root，可直接算出所在 shard，不需額外讀取 |
 | 一致性 | 向量可變、release 不可變。候選必須在目前的 release 找到相同專案、紀錄、序號的 chunk，且指紋相同；結果的欄位一律取自 release |

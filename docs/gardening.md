@@ -655,7 +655,14 @@ the two `viewer/` items below.
 - **Where:** `packages/search/src/fusion.ts` (`isFullLexicalMatch`),
   `apps/web/test/search-fusion-replay.test.ts` (the reversed guard queries).
 - **Why:** the rule keeps the leading lexical threads that hold every query
-  word in one passage. For `manager request` and `storage tiered` those
+  word in one passage, and engages only when the first lexical thread does.
+  A one-word query with any lexical hit is therefore lexical-first
+  (semantic threads appended), and a query whose first lexical thread
+  misses a word gets no protection: on the verifier's 20 clean queries
+  `rrf-group@2` tied `rrf-group@1` on 19, and three lexical-right queries
+  stay worse than lexical-only under both (`LogManager cleanup` 1, 3, 2, 4
+  → 23, 3, 1, 6; `StreamsPartitionAssignor` 2, 8, 1 → 26, 7, 6;
+  `deduplicate strings when spilling` 4, 1 → 1, 21). For `manager request` and `storage tiered` those
   threads hold the words apart, lexical search ranks them without its
   phrase bonus, and `rrf-group@1` had ranked the expected threads higher
   (1, 4, 8, 6, 9 against 7, 9, 12, 10, 13). The response and the replay
