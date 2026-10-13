@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { STALE_AFTER_MS } from "../src/freshness";
 import { testPlanRows } from "../test/freshness.cases";
 
 // Spec 011: a stalled publication is visible on narrow screens on every view.
@@ -8,7 +9,8 @@ const generatedAt = Date.parse("2026-08-25T12:00:00Z");
 const hour = 60 * 60_000;
 // Expected texts come from Spec 010's case file so the plans cannot disagree.
 const staleRow = testPlanRows.find((row) => row.id === "F2" && row.stale === true)!;
-const boundaryRow = testPlanRows.find((row) => row.id === "F2" && row.stale === false)!;
+// The row at exactly the threshold: the last F2 row that is not stale.
+const boundaryRow = testPlanRows.filter((row) => row.id === "F2" && row.stale === false).at(-1)!;
 const staleText = { en: staleRow.en, "zh-Hant": staleRow.zh } as const;
 
 type Locale = keyof typeof staleText;
@@ -66,7 +68,7 @@ async function expectStalePillInside(page: Page, locale: Locale, width: number):
 for (const width of [320, 375, 420]) {
   for (const locale of ["en", "zh-Hant"] as const) {
     test(`V1: stale pill at ${width} px, ${locale}, on every view`, async ({ page }) => {
-      await prepare(page, locale, width, generatedAt + 3 * hour + 1_000);
+      await prepare(page, locale, width, generatedAt + STALE_AFTER_MS + 1_000);
       for (const view of ["feed", "feed detail", "search detail"] as const) {
         await test.step(view, async () => {
           await open(page, view);
@@ -77,9 +79,9 @@ for (const width of [320, 375, 420]) {
   }
 }
 
-test("V2: at exactly three hours the narrow pill stays hidden", async ({ page }) => {
+test("V2: at exactly the stale threshold the narrow pill stays hidden", async ({ page }) => {
   // Control: above 420 px the same page shows the pill, so "hidden" is not "never rendered".
-  await prepare(page, "en", 421, generatedAt + 3 * hour, true);
+  await prepare(page, "en", 421, generatedAt + STALE_AFTER_MS, true);
   await open(page, "feed");
   await expect(page.locator(".demo-pill")).toBeVisible();
   await expect(page.locator(".demo-pill")).toHaveText(boundaryRow.en);
@@ -90,7 +92,7 @@ test("V2: at exactly three hours the narrow pill stays hidden", async ({ page })
 });
 
 test("V3: an open narrow page shows the stall without a reload", async ({ page }) => {
-  await prepare(page, "en", 375, generatedAt + 3 * hour - 30_000);
+  await prepare(page, "en", 375, generatedAt + STALE_AFTER_MS - 30_000);
   await open(page, "feed");
   await expect(page.locator(".demo-pill")).toBeHidden();
   await page.clock.runFor(60_000);
@@ -99,7 +101,7 @@ test("V3: an open narrow page shows the stall without a reload", async ({ page }
 
 test("V4: an unparsable generatedAt shows no stall on a narrow screen", async ({ page }) => {
   // Control: the same width and path show the pill for a stale generatedAt.
-  await prepare(page, "en", 375, generatedAt + 3 * hour + 1_000);
+  await prepare(page, "en", 375, generatedAt + STALE_AFTER_MS + 1_000);
   await open(page, "feed");
   await expectStalePillInside(page, "en", 375);
 

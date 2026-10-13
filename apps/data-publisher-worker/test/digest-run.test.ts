@@ -479,7 +479,7 @@ const cases: Record<string, () => Promise<string>> = {
     const second = await instance.request(false);
     return first.status === 202 && second.status === 409 ? `409 ${(second.body as { skipped: string }).skipped}` : `${second.status}`;
   },
-  "run control|constructed: digest cron unset; cron 7 * * * * fires": async () => cronTarget("7 * * * *", undefined),
+  "run control|constructed: digest cron unset; cron 7 22 * * * fires": async () => cronTarget("7 22 * * *", undefined),
   "run control|constructed: digest cron 37 1 * * * set; it fires": async () => cronTarget("37 1 * * *", "37 1 * * *"),
   // D60
   "dry run|constructed: POST /digest/run?dryRun=1": async () => {
@@ -550,7 +550,7 @@ const cases: Record<string, () => Promise<string>> = {
     return !result.ok && result.failureKind === "source-read" && bucket.writes.length === 0 ? "source-read failure; nothing written" : `${result.failureKind}`;
   },
   // Added after the PR #35 verifier mutation pass.
-  "run control|constructed: DIGEST_CRON 37 1 * * * set; the publisher cron 7 * * * * fires": async () => cronTarget("7 * * * *", "37 1 * * *"),
+  "run control|constructed: DIGEST_CRON 37 1 * * * set; the publisher cron 7 22 * * * fires": async () => cronTarget("7 22 * * *", "37 1 * * *"),
   "dry run|constructed: two dry runs on the same UTC day": async () => {
     const bucket = new MemoryBucket();
     await publish(bucket);
@@ -1253,7 +1253,7 @@ describe("Spec 014 slice 2 named tests", () => {
       .replace(/^\s*\/\/.*$/gmu, "")) as Config;
     const dev = await read("wrangler.development.jsonc");
     const prod = await read("wrangler.production.jsonc");
-    for (const [config, publisherCron] of [[dev, "7 * * * *"], [prod, "37 * * * *"]] as const) {
+    for (const [config, publisherCron] of [[dev, "7 22 * * *"], [prod, "37 22 * * *"]] as const) {
       const crons = config.triggers?.crons ?? [];
       const digestCron = config.vars?.DIGEST_CRON;
       // A cron entry without DIGEST_CRON would start an extra publication; DIGEST_CRON without its entry never fires.

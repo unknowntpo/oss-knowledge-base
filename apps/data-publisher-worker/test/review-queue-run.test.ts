@@ -438,9 +438,9 @@ const cases: Record<string, () => Promise<string>> = {
     return object!.roster === null && row.tally!.text.endsWith("roster unavailable") ? "no roster; tallies use the seen wording (Q29)" : row.tally!.text;
   },
   // Q57
-  "cron|constructed: REVIEW_QUEUE_CRON unset; cron 7 * * * * fires": async () => cronTarget("7 * * * *", undefined, undefined),
+  "cron|constructed: REVIEW_QUEUE_CRON unset; cron 7 22 * * * fires": async () => cronTarget("7 22 * * *", undefined, undefined),
   "cron|constructed: REVIEW_QUEUE_CRON 27 * * * * set; it fires": async () => cronTarget("27 * * * *", undefined, "27 * * * *"),
-  "cron|constructed: REVIEW_QUEUE_CRON 27 * * * * set; the publisher cron 7 * * * * fires": async () => cronTarget("7 * * * *", undefined, "27 * * * *"),
+  "cron|constructed: REVIEW_QUEUE_CRON 27 * * * * set; the publisher cron 7 22 * * * fires": async () => cronTarget("7 22 * * *", undefined, "27 * * * *"),
   "cron|constructed: DIGEST_CRON 37 1 * * * and REVIEW_QUEUE_CRON 27 * * * * set; 37 1 * * * fires": async () => cronTarget("37 1 * * *", "37 1 * * *", "27 * * * *"),
   "cron|constructed: DIGEST_CRON and REVIEW_QUEUE_CRON both 27 * * * * (misconfigured); it fires": async () => cronTarget("27 * * * *", "27 * * * *", "27 * * * *"),
   // Q58

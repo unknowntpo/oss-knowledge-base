@@ -139,7 +139,8 @@ the two `viewer/` items below.
 ### G9. No R2 retention or garbage collection
 - **Where:** `public/v2/releases/*`, `public/v2/objects/details/*`,
   `public/search/v1/releases/*` in every bucket.
-- **Why:** every hourly run adds a release and new pool objects; nothing is
+- **Why:** every run (one a day since Spec 018, plus follow-ups and manual
+  runs) adds a release and new pool objects; nothing is
   deleted, so storage and list cost grow without bound.
 - **Fix:** own spec: keep the last N releases plus anything reachable from
   them; mark-and-sweep with a dry-run report first.
@@ -735,3 +736,54 @@ the two `viewer/` items below.
   the revision if it still shows no gain then.
 - **Layer:** test today (the limits are pinned).
 - **Source:** Spec 016 fusion `rrf-group@3`, 2026-10-13.
+
+### G59. The review queue's hourly decision and its 2 h check predate the daily publication
+- **Where:** `docs/specs/015-review-queue/spec.md` (Decision 6 "Hourly", crons
+  `27 * * * *` / `57 * * * *`, "stale after `STALE_AFTER_MS` (3 h)");
+  `REVIEW_QUEUE_MAX_AGE_MS = 2 h` in `scripts/verify/args.ts`; ADR-0016.
+- **Why:** Spec 018 made the publication daily. The review queue is not
+  scheduled, so nothing is wrong today, but enabling it as specified would
+  run it hourly against a Feed release up to a day old, and its page would
+  inherit a 27 h stale rule it was not designed for.
+- **Fix:** the owner decides the cadence (Spec 018, open decision 1); then
+  the spec, the cron, the 2 h check and the page's stale rule follow.
+- **Layer:** spec decision, then a config test like Spec 018 T2.
+- **Source:** Spec 018, 2026-10-13.
+
+### G60. The Confluence ingest runs daily and the deployed site does not read it
+- **Where:** `.github/workflows/ingest.yml` (03:17 UTC), `tools/ingest/`,
+  `vault/`, branch `automation/confluence-ingest`, issue #12;
+  `.github/workflows/backfill.yml` (manual).
+- **Why:** nothing under `apps/` or `packages/` reads its output; only the
+  legacy `viewer/` does. It force-pushes an automation branch and edits an
+  issue every day a KIP page changed.
+- **Fix:** the owner decides: keep, make manual, or remove with the legacy
+  viewer (Spec 018, open decision 2).
+- **Layer:** owner decision.
+- **Source:** Spec 018 inventory, 2026-10-13.
+
+### G61. Specs and ADRs written under the hourly publication still say "hourly"
+- **Where:** Specs 008, 009, 012, 013, 014, 015, 016, 017, ADR-0013,
+  ADR-0014, ADR-0016: phrases such as "hourly run", "the next hourly
+  publication", "minute 7"; the helper `hourly` and "6 days of hourly runs"
+  in `apps/data-publisher-worker/test/search-embedding-run.test.ts`
+  (H56) and the comment in `publication-parity.test.ts`.
+- **Why:** Spec 018 put a dated note at the top of each affected spec and
+  rewrote only the sentences an operator acts on; the rest is history of the
+  measurements. For the embedding tests "hourly" is still right: it is the
+  continuation's pace (Spec 016 Behavior 46).
+- **Fix:** rewrite a passage when its spec is next edited; do not copy the
+  hourly wording into new text.
+- **Layer:** rule (this entry).
+- **Source:** Spec 018, 2026-10-13.
+
+### G62. A retry run republishes everything to retry one source
+- **Where:** `planFollowUp` in `apps/data-publisher-worker/src/run-schedule.ts`.
+- **Why:** when one source fails and the others succeed, the retry (10, 30,
+  60 minutes later) is a whole publication: every source is polled again and
+  a new release is written. Simple and bounded (3 per trigger), but it
+  spends R2 writes to retry one request.
+- **Fix:** only if the cost shows: poll the failed source alone and skip the
+  publication when it fails again.
+- **Layer:** measurement (`copiedObjectCount` of retry runs on Dev).
+- **Source:** Spec 018 simplification review, 2026-10-13.

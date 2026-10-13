@@ -5,6 +5,14 @@ Date: 2026-10-13
 Traceability: enforced
 Builds on: Spec 005 (Phases 2 and 3, LLM boundary), Spec 013 (lexical shards, `bm25-reference@1`), Spec 014 (community profile `proposal`), Spec 015 (profile blocks, ADR-0016)
 
+> **Amended 2026-10-13 by [Spec 018](../018-daily-publication/spec.md).**
+> Publication is daily, not hourly. The embedding job continues on its own
+> alarm while work is left (Behavior 46, H92, H93). "Hourly runs" in the
+> embedding tests and Results is the pace of that continuation; three
+> releases without a project (Behavior 23) is now three days. The query
+> gate's caches and caps, and the gateway's 600 requests an hour, do not
+> depend on the publisher's cadence.
+
 ## Intent
 
 A reader types what they remember: an identifier without its hyphen, a bare
@@ -238,7 +246,8 @@ project, and the separate gateway. These were left to the implementer:
 
 18. **Vectors of a missing project are kept** until three releases in a
     row hold none of its chunks (Behavior 23). Three, because the publisher
-    writes one release an hour and a source outage that empties a project is
+    wrote one release an hour when this was decided (one a day since Spec
+    018, so three days) and a source outage that empties a project is
     more likely than a project ending; counting releases rather than runs
     means repeated manual triggers cannot shorten the wait.
 19. **Quarantine is by time, not forever** (Behavior 24). A text that fails
@@ -881,7 +890,7 @@ Embedding publication and the Vectorize adapter (slice 2b):
     counts at least 1). The ledger is written before each model call, so a
     run that dies and is retried counts both attempts. A run that reaches a
     bound stops embedding, keeps what it recorded, reports `limited`, and the
-    next run continues from the state.
+    next run continues from the state (when that run starts: Behavior 46).
 20. **Failures.** A model call that fails is followed, after 5 seconds, by
     its halves (Behavior 25); a single text is retried once. Workers AI code
     3036, a gateway 429, and a spend-limit refusal stop model use for the run
@@ -925,7 +934,8 @@ Embedding publication and the Vectorize adapter (slice 2b):
     vectors, releases }`, and the run is still `ok`. Each further release
     without the project counts once, however many runs read it; at the third
     in a row the vectors are deleted like any other, and the count with them.
-    At one release an hour that is about three hours. A rollback to an older
+    At one release a day (Spec 018) that is about three days; it was about
+    three hours while publication was hourly. A rollback to an older
     release is a release like any other: it counts when it lacks the project
     and ends the count when it holds it. A release that holds the
     project again ends the count, and nothing is embedded again.
@@ -975,7 +985,7 @@ Embedding publication and the Vectorize adapter (slice 2b):
     | That text, first day | at most 19 |
     | All retries together | at most 10 calls a run and 100 of the day's 400, and none in a run that left healthy work |
     | Two bad texts in one batch | at most 33 (1 + 24 + probes) |
-    | The model down from the start | 4 a run (batch, two halves, probe); 3 for a single text; 96 a day at one run an hour; no strike |
+    | The model down from the start | 4 a run (batch, two halves, probe); 3 for a single text; 96 a day at one run an hour, which is the continuation's pace while the model is down (Behavior 46); no strike |
     | The model going down in mid-run | at most 4 after it stops (3 failures in a row, then the probe); no strike |
     | A transient error on one batch | 3 |
 26. **Retries of texts that failed alone.** A text with a strike is never
@@ -1190,6 +1200,31 @@ Fusion `rrf-group@3` (2026-10-13):
     separation of relevant from irrelevant candidates (by similarity, by
     distance to the best, by margin; by query type; Chinese against other
     queries) and the ablation of the score-aware alternatives by set.
+46. **Continuing without a publication (2026-10-13, Spec 018).** Until Spec
+    018 a publication started an embedding run every hour, and every "the
+    next run" above was at most an hour away. With one publication a day,
+    the embedding object sets its own alarm after a real run that left work
+    a later run can do:
+    - Work is: the run failed (any kind but `config`), or
+      `pending > quarantined`, or `deletePending > heldDeletes`. Quarantined
+      texts (they wait at least 24 hours) and held deletes (they wait for
+      further releases) are not work, and neither is a dry run.
+    - When: one hour after the run, which keeps the pace every number in
+      Behavior 19, 24 and 26 and the gateway's 600 requests an hour were
+      worked out for; or, when a UTC-day cap stopped the run
+      (`calls-per-day`, `daily-neurons`), at 00:05 UTC of the next day, when
+      the ledger is new.
+    - A trigger (a publication's or `POST /search-embedding/run`) while a
+      continuation waits replaces it and runs now; it answers 409 only while
+      a run is active or its alarm is due. `/health`
+      `searchEmbedding.scheduled` is `true` while a continuation waits.
+    - Nothing else changes: the bounds, the ledger, quarantine, and what a
+      run does are as before. The owner of this rule is the backfill and
+      failure arithmetic: a backfill of three runs takes about two hours
+      after the publication that started it instead of three days, and a
+      model outage is retried within the hour instead of the next evening.
+    Not continued: releases. Counting three releases without a project
+    (Behavior 23) now takes three days.
 
 ## Community profile fit
 
@@ -1296,8 +1331,8 @@ Slice 2a changes, all additive:
 - `SearchResponseV1`: unchanged.
 
 Rolling out `bm25-reference@2` changes the stored index. Pages and the Worker
-deploy from one CI job, Pages first, and the Worker's Cron (`7 * * * *`) can
-run at any time, so the order is enforced by a flag, not by timing
+deploy from one CI job, Pages first, and the Worker's Cron (`7 * * * *` then;
+`7 22 * * *` since Spec 018) or a manual `POST /run` can run at any time, so the order is enforced by a flag, not by timing
 (Spec 013 Behavior 7 gives the pattern):
 
 1. **Slice 2a merges.** Pages read `@1` and `@2`. The Worker can write `@2`
@@ -1312,8 +1347,9 @@ run at any time, so the order is enforced by a flag, not by timing
    own PR, before a release tag.
    Every commit that sets the variable also contains the dual reader and CI
    deploys Pages before the Worker, so no deployed reader meets a revision it
-   rejects. Each run writes a complete release, so the next hourly run
-   republishes every shard at `@2`; no backfill.
+   rejects. Each run writes a complete release, so the next run (the daily
+   Cron, or `POST /run` to have it now) republishes every shard at `@2`; no
+   backfill.
 3. **Turning `@2` off.** Remove the variable (revert the switch PR). The next
    run writes an `@1` release and moves `current.json`; the reader serves the
    `@2` release until then and `@1` after. Releases are immutable and
@@ -1430,7 +1466,8 @@ class and the caps as shipped on 2026-10-13.
    - `/health` `searchQuery.enabled` is `true`, with no `configError`,
      `semanticRevision` `@cf/baai/bge-m3@1:1024:title-text@1`, and `today`
      all zero. The deployed E2E asserts this on every run.
-   - After the next publication (minute 7 of the hour): `/health`
+   - After the next publication (22:07 UTC since Spec 018, or `POST /run`
+     to have it now; minute 7 of the hour when this was written): `/health`
      `lastRun.ok` is `true` and `lastRun.search.shardRoots` is `true`. The
      manifest itself is not served by any public route; `shardRoots` is
      computed from the manifest the run wrote (H57).
@@ -1448,7 +1485,8 @@ class and the caps as shipped on 2026-10-13.
    release with shard roots is current on Dev (`/health`
    `lastRun.search.shardRoots: true`; the first is the publication after
    step 2's deploy). Without it every text query is `uncovered` until the
-   next publication, which is harmless but shows nothing.
+   next publication (up to a day since Spec 018; `POST /run` publishes now),
+   which is harmless but shows nothing.
    - `apps/web/wrangler.development.jsonc` sets `"vars": {
      "SEARCH_SEMANTIC": "rrf-group@1" }` and `"durable_objects": {
      "bindings": [{ "name": "SEARCH_QUERY_GATE", "class_name":
@@ -1519,7 +1557,8 @@ class and the caps as shipped on 2026-10-13.
    needs a `deleted_classes` migration.
 5. **Pages rolled back below slice 3** answers lexically and ignores the
    binding, the flag, and the manifest field. **A release rollback** to a
-   release without shard roots is `uncovered` until the next publication.
+   release without shard roots is `uncovered` until the next publication
+   (`POST /run` to have it now).
 6. **Prod** gets none of this until it has an index, a gateway, and the
    embedding flag (open question 16).
 
@@ -2124,6 +2163,18 @@ Items tagged `[pending]` belong to slice 4.
   a failed retry doubles the quarantine from 24 hours up to 30 days; the
   day's ledger equals the calls made and names the retry calls → evidence:
   `search-embedding-run.test.ts`.
+- H92: given a real run that a per-run bound stopped with chunks pending,
+  the object sets its own alarm one hour later and the following runs embed
+  the rest with no publication in between, after which no alarm is set;
+  a run that finishes everything sets none; a trigger while a continuation
+  waits answers 202 and runs now, and the next one answers 409 → evidence:
+  `search-embedding-runner.test.ts`.
+- H93: given a run a UTC-day cap stopped, the next alarm is 00:05 UTC of the
+  next day; given the model down, it is one hour later and the run after it
+  recovers; given only quarantined texts or held deletes left, a
+  configuration error, or a dry run, no alarm is set, while one chunk or one
+  delete more than that, or a failed release read, sets it → evidence:
+  `search-embedding-runner.test.ts`.
 - H49: given an index that accepts mutations without applying them, the run
   records each chunk as embedded, a second run embeds nothing, and `/health`
   reports the last mutation id and that the index has not processed it; once
@@ -2585,9 +2636,10 @@ Items tagged `[pending]` belong to slice 4.
   the gateway's reported tokens to the estimate is recorded in Results. The
   deployed E2E (`development.spec.ts`) asserts on every run that `/health`
   `searchEmbedding.enabled` is `true` with no `configError`; it cannot
-  assert progress, which depends on later hourly runs. To observe after the
-  enable deploy, from the first run after the next publication (minute 7)
-  on, and to record in Results:
+  assert progress, which depends on later runs. To observe after the
+  enable deploy, from the first run after the next publication (minute 7
+  of the hour at the time; 22:07 UTC since Spec 018) on, and to record in
+  Results:
   - `/health` `searchEmbedding.lastRun`: `ok`, `embeddedThisRun`,
     `modelCalls`, `modelErrors`, `limited`; `searchEmbedding.lastError`;
   - `lastRun.index.mutationsProcessed` and the index's dimensions (1,024);
@@ -2606,7 +2658,7 @@ Items tagged `[pending]` belong to slice 4.
   (`development.spec.ts`) asserts on every run that the served
   `retrieval.lexicalRevision` equals `/health` `lastRun.search.lexicalRevision`
   and, once that is `@2`, that `KIP770` returns the threads of `KIP-770`. It
-  cannot require `@2`: it runs right after the deploy, before the next hourly
+  cannot require `@2`: it runs right after the deploy, before the next
   publication.
 
 ## Results (slice 1, 2026-10-10)
@@ -2702,7 +2754,9 @@ in-memory index under the default bounds:
 
 The three-run backfill is also a test: 8,586 synthetic chunks finish in runs
 of 3,000, 3,000, and 2,586 chunks with 60, 60, and 52 calls
-(`search-embedding-run.test.ts`).
+(`search-embedding-run.test.ts`). Since Spec 018 the three runs are one hour
+apart on the object's own alarm (Behavior 46, H92): about two hours after
+the publication that starts them, not three publications.
 
 With bad texts (test `H56`, default bounds, hourly runs from 00:00 UTC):
 8,586 chunks with one failing text in every batch of 50 (172 bad) have all
@@ -2783,6 +2837,10 @@ neurons or dollars; token counts and batch sizes are unchanged.
 | Embedding job, daily cap | 2,500 estimated (4,500 at the measured ratio; "twice it" was allowed for) | 2,500 calibrated |
 | What the cap admits in a day | 3.1 backfills | 1.7 backfills (15,000 chunks) |
 | Steady state (about 60 new chunks an hour) | about 135 a day | about 240 a day |
+
+Since Spec 018 a day's new and changed chunks arrive in one run: at most
+about 1,440 at that rate (7 in the hourly run observed on 2026-10-13), which
+is under one run's 3,000 chunks and 80 calls and the same neurons a day.
 
 ### Query budget
 

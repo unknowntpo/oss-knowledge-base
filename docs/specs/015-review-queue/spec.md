@@ -5,6 +5,15 @@ Date: 2026-10-08
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 009 (bounded memory), Spec 010 (freshness), Spec 012 (dev@ and Jira, ADR-0014), Spec 014 (topic digest, profile `proposal`), ADR-0016
 
+> **Note 2026-10-13 ([Spec 018](../018-daily-publication/spec.md)).** The
+> publisher now runs once a day (Dev 22:07 UTC), not hourly. This spec's
+> Decision 6 ("Hourly"), its proposed crons (`27 * * * *`, `57 * * * *`, "20
+> min after each environment's publication cron"), the 2 h missing-run check
+> and the page's `STALE_AFTER_MS` (3 h when written, 27 h now) assumed an
+> hourly publication. **Open for the owner** (Spec 018, open decision 1):
+> keep the review queue hourly, or run it once a day after the publication.
+> Until then the job stays unscheduled and nothing here is changed.
+
 ## Intent
 
 A Kafka maintainer's scarce resource is review time. apache/kafka has 625 open
@@ -795,9 +804,9 @@ Slice 2, the job in the data Worker:
 | Q52 | roster cache | constructed: stored roster fetched exactly 24 h ago | refetched; 2 roster requests |
 | Q52 | roster cache | constructed: stored roster 30 h old, refetch fails | stored roster and its fetchedAt kept |
 | Q52 | roster cache | constructed: no stored roster, refetch fails | no roster; tallies use the seen wording (Q29) |
-| Q57 | cron | constructed: REVIEW_QUEUE_CRON unset; cron 7 * * * * fires | publisher |
+| Q57 | cron | constructed: REVIEW_QUEUE_CRON unset; cron 7 22 * * * fires | publisher |
 | Q57 | cron | constructed: REVIEW_QUEUE_CRON 27 * * * * set; it fires | review-queue |
-| Q57 | cron | constructed: REVIEW_QUEUE_CRON 27 * * * * set; the publisher cron 7 * * * * fires | publisher |
+| Q57 | cron | constructed: REVIEW_QUEUE_CRON 27 * * * * set; the publisher cron 7 22 * * * fires | publisher |
 | Q57 | cron | constructed: DIGEST_CRON 37 1 * * * and REVIEW_QUEUE_CRON 27 * * * * set; 37 1 * * * fires | digest |
 | Q57 | cron | constructed: DIGEST_CRON and REVIEW_QUEUE_CRON both 27 * * * * (misconfigured); it fires | digest |
 | Q58 | manual run | constructed: run with dryRun | counts returned; 0 R2 writes |

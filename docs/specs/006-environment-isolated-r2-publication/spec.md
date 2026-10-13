@@ -231,7 +231,8 @@ canonical event checkpoint is durable.
   live GitHub, Cloudflare R2, LLM, embedding, or paid load-test calls.
 - Scheduled runs are serialized. Their cadence is operational configuration and
   is enabled only after a manual run records source requests, R2 writes, bytes,
-  and outcome.
+  and outcome. The cadence is once a day since 2026-10-13
+  ([Spec 018](../018-daily-publication/spec.md)).
 - Re-promoting an already-current publication set performs validation but no
   duplicate object writes.
 

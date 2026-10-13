@@ -5,6 +5,11 @@
 - Spec: Spec 015 (review queue for PRs and KIPs)
 - Related: ADR-0012 (independent data crons), ADR-0014 (per-source publication), Spec 014 (profiles, cron dispatch)
 
+> Note 2026-10-13: the publication is daily since Spec 018, so "the hourly
+> publication alarm" and "20 minutes after the publication" below describe
+> the schedule at the time; the review queue's own cadence is an open
+> decision (Spec 018, open decision 1).
+
 ## Context
 
 Maintainers want to see what is waiting for review: open PRs without a

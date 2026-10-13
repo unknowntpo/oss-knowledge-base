@@ -30,7 +30,7 @@ export const testPlanRows = [
   { id: "D59", rule: "deferral", input: "constructed: publisher running at 4 consecutive alarms", expected: "re-armed 15 min later each time; no run" },
   { id: "D59", rule: "deferral", input: "constructed: publisher still running at the 5th alarm", expected: "runs; lastRun.deferred 4" },
   { id: "D22", rule: "run control", input: "constructed: POST /digest/run while an alarm is pending", expected: "409 already-running" },
-  { id: "D22", rule: "run control", input: "constructed: digest cron unset; cron 7 * * * * fires", expected: "publisher" },
+  { id: "D22", rule: "run control", input: "constructed: digest cron unset; cron 7 22 * * * fires", expected: "publisher" },
   { id: "D22", rule: "run control", input: "constructed: digest cron 37 1 * * * set; it fires", expected: "digest" },
   { id: "D60", rule: "dry run", input: "constructed: POST /digest/run?dryRun=1", expected: "returns en and zh-Hant; 0 R2 writes; spend added to today; lastRun.dryRun true" },
   // Rows added after the slice 2 mutation run.
@@ -40,7 +40,7 @@ export const testPlanRows = [
   { id: "D37", rule: "highlights", input: "constructed: one highlight cites a thread that no kept sentence cites", expected: "that highlight dropped; the other 2 shown" },
   { id: "D20", rule: "publication", input: "constructed: the detail map names a different release than the manifest", expected: "source-read failure; nothing written" },
   // Rows from the PR #35 verifier mutation pass.
-  { id: "D22", rule: "run control", input: "constructed: DIGEST_CRON 37 1 * * * set; the publisher cron 7 * * * * fires", expected: "publisher" },
+  { id: "D22", rule: "run control", input: "constructed: DIGEST_CRON 37 1 * * * set; the publisher cron 7 22 * * * fires", expected: "publisher" },
   { id: "D60", rule: "dry run", input: "constructed: two dry runs on the same UTC day", expected: "today.estimatedNeurons is the sum of both runs" },
   { id: "D60", rule: "dry run", input: "constructed: a dry run's stored lastRun", expected: "no objects stored; R2 keys unchanged" },
   { id: "D55", rule: "highlights call", input: "constructed: the highlights call fails; same release runs again", expected: "fallbacks counted; the next run is not a reuse" },

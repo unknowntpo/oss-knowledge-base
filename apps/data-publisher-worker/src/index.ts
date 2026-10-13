@@ -8,7 +8,7 @@ import { WorkersAiModel, type AiBinding } from "./digest/workers-ai";
 import { DurableObjectPipelineState } from "./durable-object-state";
 import { GitHubFetchTransport } from "./github-transport";
 import { R2PublicationDestination } from "./r2-destination";
-import { runPending } from "./run-schedule";
+import { FOLLOW_UP_KEY, runPending, runStarting, scheduleFollowUp, type FollowUpMarker } from "./run-schedule";
 import { healthBody } from "./health";
 import { runDataPublication, type PipelinePhaseMarker, type PipelineRunStatus } from "./pipeline";
 import { SEARCH_QUERY_GATE_OBJECT_NAME, unboundQueryGateHealth, type EmbeddingAiBinding, type SemanticQueryGate, type VectorIndex } from "@oss-knowledge-base/semantic-vectorize";
@@ -76,8 +76,8 @@ function searchEmbeddingObject(env: Pick<Env, "SEARCH_EMBEDDING_RUN">): DurableO
 /**
  * Spec 016 Behavior 15: what a successful publication does next. `undefined` when the flag is
  * blank or the object is not bound, so a publisher without embeddings calls nothing. The answer
- * is logged, not acted on: 409 means a run is already pending, and any failure waits for the
- * next publication.
+ * is logged, not acted on: 409 means a run is already starting, and a run that leaves work
+ * continues on its own alarm (Behavior 46).
  */
 export function searchEmbeddingTrigger(
   env: Pick<Env, "SEARCH_EMBEDDING" | "SEARCH_EMBEDDING_RUN">,
@@ -166,7 +166,7 @@ export default {
       method: "POST",
       headers: { "x-scheduled-at": new Date(controller.scheduledTime).toISOString() },
     }).then(async (response) => {
-      // 409 means a run is already scheduled or active; the next Cron tick picks up the rest.
+      // 409 means a run is active or about to start; it reads the same sources this tick would have.
       if (!response.ok && response.status !== 409) {
         throw new Error(`Scheduling publication failed: ${await response.text()}`);
       }
@@ -255,15 +255,18 @@ export class PipelineState implements DurableObject {
         scheduled: runPending(false, await this.ctx.storage.getAlarm(), Date.now()),
         phase,
         status,
+        followUp: await this.ctx.storage.get<FollowUpMarker>(FOLLOW_UP_KEY),
       }));
     }
     if (request.method !== "POST" || path !== "/run") return new Response("Not found", { status: 404 });
-    // A stale alarm (its retries exhausted) is overwritten below instead of blocking every trigger.
-    if (runPending(this.running, await this.ctx.storage.getAlarm(), Date.now())) {
+    // A stale alarm (its retries exhausted) and a follow-up waiting for later (Spec 018) are
+    // overwritten below instead of blocking the trigger; the trigger starts a new follow-up count.
+    if (runStarting(this.running, await this.ctx.storage.getAlarm(), Date.now())) {
       return Response.json({ ok: false, skipped: "already-running" }, { status: 409 });
     }
     await this.ctx.storage.put("requested-at", request.headers.get("x-scheduled-at") ?? new Date().toISOString());
     await this.ctx.storage.delete("run-lease"); // written by the pre-alarm implementation
+    await this.ctx.storage.delete(FOLLOW_UP_KEY);
     await this.ctx.storage.setAlarm(Date.now());
     return Response.json({ ok: true, scheduled: true }, { status: 202 });
   }
@@ -277,7 +280,7 @@ export class PipelineState implements DurableObject {
       await this.ctx.storage.delete("requested-at");
       const materializedAt = requestedAt ?? new Date().toISOString();
       const onPublished = searchEmbeddingTrigger(this.env);
-      await runDataPublication({
+      const status = await runDataPublication({
         environment: this.env.PUBLICATION_ENVIRONMENT,
         materializedAt,
         connector: new GitHubConnector({
@@ -295,6 +298,10 @@ export class PipelineState implements DurableObject {
         ...(this.env.SEARCH_SHARD_ROOTS === undefined ? {} : { searchShardRoots: this.env.SEARCH_SHARD_ROOTS }),
         ...(onPublished === undefined ? {} : { onPublished }),
       });
+      // Spec 018: the Cron fires once a day, so a truncated or failed run schedules its own
+      // follow-up. A failure here must not throw: the runtime would run the publication again.
+      await scheduleFollowUp(this.ctx.storage, status, Date.now())
+        .catch((error: unknown) => console.error(`Scheduling the follow-up run failed: ${error instanceof Error ? error.message : String(error)}`));
     } finally {
       this.running = false;
     }

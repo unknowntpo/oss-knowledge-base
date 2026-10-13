@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { feedFreshness, freshnessText } from "../src/freshness";
+import { feedFreshness, freshnessText, PUBLICATION_CADENCE_MS, STALE_AFTER_MS, STALE_GRACE_MS } from "../src/freshness";
 import { testPlanRows } from "./freshness.cases";
 import { loadTranslations } from "./i18n-harness";
 
@@ -14,8 +14,17 @@ describe("Spec 010 feed freshness", () => {
     expect(freshness === undefined ? null : freshnessText(freshness, translations("zh-Hant"))).toBe(row.zh);
   });
 
+  test("F2: the stale threshold is the publication cadence plus the grace, 27 h, not a number of its own", () => {
+    expect(PUBLICATION_CADENCE_MS).toBe(24 * 60 * 60_000);
+    expect(STALE_GRACE_MS).toBe(3 * 60 * 60_000);
+    expect(STALE_AFTER_MS).toBe(PUBLICATION_CADENCE_MS + STALE_GRACE_MS);
+    const published = Date.parse("2026-10-13T22:07:00Z");
+    expect(feedFreshness("2026-10-13T22:07:00Z", published + STALE_AFTER_MS)?.stale).toBe(false);
+    expect(feedFreshness("2026-10-13T22:07:00Z", published + STALE_AFTER_MS + 1)?.stale).toBe(true);
+  });
+
   test("F4: control — the same timestamp path reports an age when it parses", () => {
     // Without this, an implementation that never reports freshness would pass the F4 row.
-    expect(feedFreshness("2026-10-03T23:07:13Z", Date.parse("2026-10-04T01:07:13Z"))).toBeDefined();
+    expect(feedFreshness("2026-10-13T22:07:00Z", Date.parse("2026-10-14T00:07:00Z"))).toBeDefined();
   });
 });
