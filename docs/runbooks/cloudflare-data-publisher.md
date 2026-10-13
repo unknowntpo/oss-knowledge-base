@@ -182,7 +182,10 @@ rollback, repeat from step 1.
 `SEARCH_SEMANTIC` names how lexical and semantic rankings are fused
 (Spec 016 Behavior 38, 39). The code runs `rrf-group@1` (plain RRF) and
 `rrf-group@2` (the leading lexical threads that hold every query word keep
-their places); any other value answers lexically with `failed`. The gate,
+their places), and `rrf-group@3` (`rrf-group@2`, and only a semantic thread
+whose similarity stands out passes the first three lexical threads;
+implemented, enabled nowhere, and not recommended yet: Spec 016 Decision 50
+keeps Dev on `rrf-group@2` until the embedding text has been revisited); any other value answers lexically with `failed`. The gate,
 its caches, and the embeddings are the same for both, so a switch costs no
 model call and no index query, and nothing stored changes.
 
@@ -190,12 +193,13 @@ Compare offline first (no network):
 
 ```sh
 bun run eval:search-fusion --rows     # both revisions over the committed capture
+bun run eval:search-similarity --rows # rrf-group@3 and the similarity report, over the scored capture
 ```
 
 Switch (one PR; Dev is at `rrf-group@2` since Spec 016 rollout step 7, 2026-10-13, so the steps below name the value to change to):
 
 1. `apps/web/wrangler.development.jsonc`: `"SEARCH_SEMANTIC": "<revision>"`
-   (`rrf-group@1` or `rrf-group@2`).
+   (`rrf-group@1`, `rrf-group@2`, or `rrf-group@3`).
 2. `apps/web/test/search-hybrid.test.ts`: the `H66` pin of that value.
 3. The `SEARCH_SEMANTIC` row of `docs/feature-map.md`, the table above, and
    the status of Spec 016. The deployed E2E reads the revision from the

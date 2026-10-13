@@ -7,6 +7,7 @@ import {
   defaultFusionConfig,
   hybridSearch,
   leadingFullMatchFusionConfig,
+  lexicalHeadFusionConfig,
   lexicalQueryTerms,
   lexicalQueryWords,
   lexicalSearchConfigFor,
@@ -323,7 +324,7 @@ describe("Spec 016 hybrid search: the flag, the binding, and `semantic=off`", ()
   });
 
   test.each([
-    ["an unknown flag value", { SEARCH_SEMANTIC: "rrf-group@3" }, true],
+    ["an unknown flag value", { SEARCH_SEMANTIC: "rrf-group@4" }, true],
     ["a known revision in another spelling", { SEARCH_SEMANTIC: "RRF-GROUP@2" }, true],
     ["`true`", { SEARCH_SEMANTIC: "true" }, true],
     ["the flag without the binding", { SEARCH_SEMANTIC: "rrf-group@1" }, false],
@@ -492,6 +493,92 @@ describe("Spec 016 fusion revision: selected by the flag", () => {
     // An `ok` answer without a single candidate is the lexical order too: the rule never reorders on its own.
     const empty = await searchR2Projection(new MemoryBucket(objects).asR2(), { query: QUERY, limit: 20 }, { gate: new RecordingGate(async () => okAnswer([])), fusion: at2 });
     expect(empty.retrieval.semantic).toEqual({ status: "ok", candidates: 0, cached: false });
+    expect(withoutSemantic(empty)).toEqual(expected);
+  });
+});
+
+describe("Spec 016 fusion revision rrf-group@3: selected by the flag", () => {
+  const QUERY = "consumer network thread request manager";
+  /**
+   * A gate proposing the threads lexical search ranks 5th to 8th for the owner's query, the first
+   * with a similarity far above the others: one standout and three threads of the pack.
+   */
+  async function standoutGate(objects: readonly ProjectionObject[]) {
+    const chunks = chunksOf(objects);
+    const lexicalRoots = roots(await lexical(objects, { query: QUERY, limit: 20 }));
+    const proposed = lexicalRoots.slice(4, 8);
+    const similarities = [0.9, 0.52, 0.51, 0.5];
+    const matches = await Promise.all(proposed.map((root, index) => matchFor(chunks.find((chunk) => chunk.groupRootRecordId === root)!, similarities[index]!)));
+    return { chunks, lexicalRoots, proposed, similarities, gate: new RecordingGate(async () => okAnswer(matches)) };
+  }
+
+  test("H87: `SEARCH_SEMANTIC=rrf-group@3` lets the standout pass the first three lexical threads and no thread of the pack", async () => {
+    const objects = await goldenRelease();
+    const { lexicalRoots, proposed, gate } = await standoutGate(objects);
+    expect(lexicalRoots.length).toBeGreaterThanOrEqual(8);
+    const ask = async (flag: string) => {
+      const seen = { names: [] as string[], urls: [] as string[], bodies: [] as unknown[] };
+      const response = await request(`https://dev.example/api/search?q=${encodeURIComponent(QUERY)}`, { OSS_KB_BUCKET: new MemoryBucket(objects).asR2(), SEARCH_SEMANTIC: flag, SEARCH_QUERY_GATE: namespaceOf(gate, seen) });
+      expect(response.status).toBe(200);
+      return { body: await response.json() as SearchResponseV1, seen };
+    };
+    const two = await ask("rrf-group@2");
+    const three = await ask("rrf-group@3");
+    expect(three.body.retrieval.fusionRevision).toBe("rrf-group@3");
+    // No passage holds the five words, so rrf-group@2 keeps nothing: the four threads found twice lead.
+    expect(roots(two.body).slice(0, 8)).toEqual([...proposed, ...lexicalRoots.slice(0, 4)]);
+    // rrf-group@3: the standout stays first; the three head threads precede the pack; the fourth lexical thread is not protected.
+    expect(roots(three.body).slice(0, 8)).toEqual([proposed[0]!, ...lexicalRoots.slice(0, 3), ...proposed.slice(1), lexicalRoots[3]!]);
+    expect(roots(three.body).slice().sort()).toEqual(roots(two.body).slice().sort());
+    expect(three.body.results.map((result) => result.matches[0]!.signals.fusedRank)).toEqual(three.body.results.map((_, index) => index + 1));
+    // The same question to the gate, the same facets, and the same response but for the order and the name.
+    expect(three.seen).toEqual(two.seen);
+    expect(three.body.facets).toEqual(two.body.facets);
+    expect({ ...three.body.retrieval, fusionRevision: "rrf-group@2" }).toEqual(two.body.retrieval);
+    expect(semanticSearchOptions({ SEARCH_SEMANTIC: "rrf-group@3", SEARCH_QUERY_GATE: namespaceOf(gate) }, new URL("https://dev.example/api/search?q=txn"))).toMatchObject({ fusion: lexicalHeadFusionConfig, off: false });
+  });
+
+  test("H87: at rrf-group@3 the reader ranks as `hybridSearch` does, and every missing semantic answer is the lexical response naming the revision", async () => {
+    const objects = await goldenRelease();
+    const config = lexicalSearchConfigFor("bm25-reference@3", searchIdentifierProfiles);
+    const { chunks, proposed, similarities, gate } = await standoutGate(objects);
+    const index = buildLexicalIndex({ indexRevision: "oracle", chunks, config });
+    const candidates = proposed.map((root, position) => {
+      const chunk = chunks.find((item) => item.groupRootRecordId === root)!;
+      return { chunkId: chunk.id, recordId: chunk.recordId, groupRootRecordId: root, projectId: chunk.projectId, score: similarities[position]! };
+    });
+    let changed = 0;
+    for (const item of [QUERY, "request manager", "manager request", "release manager", "network thread", "交易逾時"].flatMap((query) => [{ query, limit: 20 }, { query, limit: 2 }])) {
+      const response = await searchR2Projection(new MemoryBucket(objects).asR2(), item, { gate, fusion: lexicalHeadFusionConfig });
+      const input = {
+        query: item.query,
+        lexical: searchLexicalIndex(index, { ...item, limit: HYBRID_LEXICAL_DEPTH }),
+        semantic: { retrieve: async () => ({ semanticRevision: fakeProfile.semanticRevision, candidates }) },
+        limit: item.limit,
+        queryWords: lexicalQueryWords(item.query, config),
+      };
+      expect([item, roots(response)]).toEqual([item, (await hybridSearch({ ...input, config: lexicalHeadFusionConfig })).results.map((result) => result.groupRootRecordId)]);
+      if (JSON.stringify(roots(response)) !== JSON.stringify((await hybridSearch({ ...input, config: leadingFullMatchFusionConfig })).results.map((result) => result.groupRootRecordId))) changed += 1;
+    }
+    expect(changed).toBeGreaterThan(1);
+    const expected = await lexical(objects, { query: QUERY, limit: 20 });
+    const original = console.error;
+    console.error = () => undefined;
+    try {
+      for (const [status, options] of [
+        ["failed", { gate: new RecordingGate(async () => { throw new Error("down"); }), fusion: lexicalHeadFusionConfig }],
+        ["timed-out", { gate: new RecordingGate(never), fusion: lexicalHeadFusionConfig, timeoutMs: 20 }],
+        ["over-budget", { gate: new RecordingGate(async () => ({ status: "over-budget", retryAfterMs: 1 })), fusion: lexicalHeadFusionConfig }],
+        ["disabled", { gate: untouchableGate, fusion: lexicalHeadFusionConfig, off: true }],
+      ] as readonly [string, SemanticSearchOptions][]) {
+        const response = await searchR2Projection(new MemoryBucket(objects).asR2(), { query: QUERY, limit: 20 }, options);
+        expect([status, response.retrieval.semantic!.status, response.retrieval.fusionRevision]).toEqual([status, status, "rrf-group@3"]);
+        expect(withoutSemantic(response)).toEqual(expected);
+      }
+    } finally {
+      console.error = original;
+    }
+    const empty = await searchR2Projection(new MemoryBucket(objects).asR2(), { query: QUERY, limit: 20 }, { gate: new RecordingGate(async () => okAnswer([])), fusion: lexicalHeadFusionConfig });
     expect(withoutSemantic(empty)).toEqual(expected);
   });
 });

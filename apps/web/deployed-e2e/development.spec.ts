@@ -261,7 +261,7 @@ test("H32: Dev serves hybrid search: the gate is enabled, a text query carries a
   // An identifier query is answered lexically and never asks the gate. The field's presence also
   // shows that the Pages deployment with the flag is the one answering, hence the poll.
   let identifier: Search | undefined;
-  expect(["rrf-group@1", "rrf-group@2"]).toContain(FUSION_REVISION);
+  expect(["rrf-group@1", "rrf-group@2", "rrf-group@3"]).toContain(FUSION_REVISION);
   // The status alone does not show the new deployment (the previous one skips too): the revision
   // must be the committed one. A deployment that never answers with it fails here after the bound.
   await expect.poll(async () => {
