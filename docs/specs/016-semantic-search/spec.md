@@ -1,6 +1,6 @@
 # Spec 016: Semantic candidates and hybrid fusion for Search
 
-Status: Draft for human review — decisions of 2026-10-08..12 recorded below; slices 1, 2a, 2b and 3 implemented (3: query-time hybrid search in the web API, behind `SEARCH_SEMANTIC`, off in every deployed configuration), Dev switched to `@2` (H42) and `@3` (Spec 017), embeddings enabled on Dev (`SEARCH_EMBEDDING=bge-m3@1`, owner's approval 2026-10-12), the query gate and shard roots enabled on the Dev publisher (enable step 1, owner's approval 2026-10-13), hybrid search enabled on Dev Pages (enable step 3, 2026-10-13; H31 and H32 observed after its deploy), fusion `rrf-group@2` implemented behind the same flag after the 2026-10-13 measurement and Dev switched to it (rollout step 7, 2026-10-13; H79 observed after its deploy), fusion `rrf-group@3` (only a semantic standout passes the first three lexical threads) implemented behind the same flag and not enabled anywhere, Prod has no flag, slice 4's rerank decision pending
+Status: Draft for human review — decisions of 2026-10-08..12 recorded below; slices 1, 2a, 2b and 3 implemented (3: query-time hybrid search in the web API, behind `SEARCH_SEMANTIC`, off in every deployed configuration), Dev switched to `@2` (H42) and `@3` (Spec 017), embeddings enabled on Dev (`SEARCH_EMBEDDING=bge-m3@1`, owner's approval 2026-10-12), the query gate and shard roots enabled on the Dev publisher (enable step 1, owner's approval 2026-10-13), hybrid search enabled on Dev Pages (enable step 3, 2026-10-13; H31 and H32 observed after its deploy), fusion `rrf-group@2` implemented behind the same flag after the 2026-10-13 measurement and Dev switched to it (rollout step 7, 2026-10-13; H79 observed after its deploy), fusion `rrf-group@3` (only a semantic standout passes the first three lexical threads) implemented behind the same flag and kept off by decision of 2026-10-13 (Dev remains on `rrf-group@2`; fusion tuning stops; the next lever is the embedding text), Prod has no flag, slice 4's rerank decision pending
 Date: 2026-10-13
 Traceability: enforced
 Builds on: Spec 005 (Phases 2 and 3, LLM boundary), Spec 013 (lexical shards, `bm25-reference@1`), Spec 014 (community profile `proposal`), Spec 015 (profile blocks, ADR-0016)
@@ -557,8 +557,8 @@ text without changing it. Left to the implementer, to confirm:
 43. **What the similarity separates** (Results, "What the similarity
     says"). Over 112 hand-labelled candidates:
     - **No absolute floor.** Relevant candidates range from 0.466 to 0.658
-      and irrelevant ones from 0.383 to 0.620 (AUC 0.737). A floor of 0.50
-      already loses 2 of 19 relevant candidates and keeps 55 of 70
+      and irrelevant ones from 0.383 to 0.620 (AUC 0.736). A floor of 0.50
+      already loses 2 of 19 relevant candidates and keeps 58 of 73
       irrelevant ones. The level belongs to the query, not to relevance:
       every candidate of `txn` is below 0.50 and every candidate of `kafka
       release` is between 0.555 and 0.598, and none of the labelled ones
@@ -566,12 +566,12 @@ text without changing it. Left to the implementer, to confirm:
     - **Chinese queries are not scored lower.** Median best similarity
       0.582 against 0.592 for other queries; median 20th 0.524 against
       0.512. No separate threshold is needed for them.
-    - **The distance to the best candidate** is little better (AUC 0.759).
+    - **The distance to the best candidate** is little better (AUC 0.762).
     - **A margin over the query's own background does separate the
-      candidates that stand out** (AUC 0.876). With the background taken
+      candidates that stand out** (AUC 0.871). With the background taken
       as the similarity of the query's 20th semantic thread, a margin of
-      0.05 keeps 15 of 19 relevant candidates and 1 of 70 irrelevant ones;
-      0.04 keeps 17 and 16.
+      0.05 keeps 15 of 19 relevant candidates and 3 of 73 irrelevant ones;
+      0.04 keeps 17 and 19.
     - **It finds standouts, not relevance.** Of the 148 expected threads
       that have a similarity, 77 are 0.04 above their background; the
       median margin is 0.041. Half of the right threads sit in the pack
@@ -601,7 +601,7 @@ text without changing it. Left to the implementer, to confirm:
     margins of 0.03 and 0.04 are the only variants with no row worse than
     `rrf-group@2` and fewer rows worse than lexical-only; they agree on
     every row's status. 0.04 rather than 0.03 because it admits half as
-    many irrelevant candidates (16 against 34 of 70) for the same 17
+    many irrelevant candidates (19 against 37 of 73) for the same 17
     relevant ones; 3 rather than 2 with no evidence either way. The
     reference is where the hand labels were measured; it was not varied.
     These are three numbers fitted on few rows: owner to confirm, and
@@ -623,8 +623,28 @@ text without changing it. Left to the implementer, to confirm:
 48. **The embedding text is the larger lever, and is not changed here**
     (Results, "The owner's query and the embedding text"; open question
     29).
-49. **Dev's configuration is not changed in this PR.** A switch to
-    `rrf-group@3` is rollout step 8.
+49. **Dev's configuration is not changed in this PR.**
+50. **DECISION (2026-10-13): `rrf-group@3` is implemented and stays OFF;
+    Dev remains on `rrf-group@2`; fusion tuning stops here.** The deciding
+    evidence is the verifier's fresh clean set for PR #59 (Results, "The
+    verifier's clean set for `rrf-group@3`"): 15 new queries written for
+    the class `rrf-group@2` cannot fix, on which `rrf-group@3` is better
+    than `rrf-group@2` on 1, worse on 2, and the same on 11. What it shows:
+    - `rrf-group@3` protects lexical ranks 1 to 3 **regardless of
+      relevance**. When those threads are right it helps; when they are
+      not, it lifts irrelevant lexical threads above relevant ones. Its
+      gain over `rrf-group@2` is therefore small and two-sided.
+    - The constants sit on a plateau (head 2 to 3 × reference 20 to 30 ×
+      margin 0.02 to 0.04 are equivalent; a margin of 0.05 or more, or a
+      head of 4 or more, is worse on some set), so the result is not an
+      accident of the three numbers; but the benefit is about zero on
+      genuinely new queries.
+    - The next lever is the embedding text (a follow-up spec,
+      `title-text@2`; Decision 48, open question 29). After it,
+      `rrf-group@3` may be re-evaluated, because richer vectors change
+      what stands out.
+    This supersedes the implementer's earlier recommendation to switch
+    (open question 31) and rollout step 8.
 
 ### Simplification review (fusion `rrf-group@3`)
 
@@ -1531,16 +1551,16 @@ class and the caps as shipped on 2026-10-13.
      `rrf-group@1`. Nothing stored changes in either direction. Step 4
      still turns hybrid search off altogether.
 
-8. **Switch Dev to `rrf-group@3` (optional, a separate PR; not done).**
-   The same one-value change as step 7 (`"SEARCH_SEMANTIC":
-   "rrf-group@3"`, the `H66` pin, the feature map, the runbook, this
-   status), with the same properties: no model call, no index query, no
-   stored change, and a rollback by reverting it. After the deploy:
-   `fusionRevision: rrf-group@3`; `LogManager cleanup` shows KAFKA-20390
-   in the first three results (23rd under `rrf-group@2`);
-   `StreamsPartitionAssignor` shows KAFKA-20790 third; then `bun run
-   measure:search-hybrid`, which must show no Spec 017 or guard regression.
-   Revert when a row is worse than under `rrf-group@2` at its bound.
+8. **`rrf-group@3` is not switched on (Decision 50, 2026-10-13).** Dev
+   remains on `rrf-group@2`. The value is accepted by the code and set
+   nowhere. Do not switch until the embedding text has been revisited
+   (open question 29) and `rrf-group@3` re-evaluated on a new capture. If
+   it is ever switched, it is the same one-value change as step 7
+   (`"SEARCH_SEMANTIC": "rrf-group@3"`, the `H66` pin, the feature map,
+   the runbook, this status): no model call, no index query, no stored
+   change, rollback by reverting it; then `bun run measure:search-hybrid`
+   must show no Spec 017 or guard regression and no row worse than under
+   `rrf-group@2` at its bound.
 
 ## Test plan
 
@@ -1840,7 +1860,7 @@ irrelevant), judged from titles before any score-aware rule was tried.
 | H88 | english phrase | tiered storage | PPRRRRR |
 | H88 | class name | CommitRequestManager | IIIPIIR |
 | H88 | class name | StreamsPartitionAssignor | PPPPIPP |
-| H88 | class name | LogManager cleanup | RPPPIII |
+| H88 | class name | LogManager cleanup | RIIIIII |
 | H88 | chinese | 交易逾時 | RPIIPIP |
 | H88 | chinese | 重新認證失敗後 CPU 使用率過高 | RRIIIII |
 | H88 | chinese | 分區領導者選舉 | RIIIIII |
@@ -2458,10 +2478,10 @@ Items tagged `[pending]` belong to slice 4.
   higher → evidence: `search-fusion-clean3.test.ts`,
   `search-fusion-scores.test.ts`.
 - H88: given the 112 hand-labelled candidates (16 queries of five types),
-  the AUC of relevant against irrelevant is 0.737 by similarity, 0.759 by
-  distance to the best, and 0.876 by margin over the 20th thread; a floor
-  of 0.50 keeps 17 of 19 relevant and 55 of 70 irrelevant candidates; a
-  margin of 0.03, 0.04, 0.05 keeps 17, 17, 15 relevant and 34, 16, 1
+  the AUC of relevant against irrelevant is 0.736 by similarity, 0.762 by
+  distance to the best, and 0.871 by margin over the 20th thread; a floor
+  of 0.50 keeps 17 of 19 relevant and 58 of 73 irrelevant candidates; a
+  margin of 0.03, 0.04, 0.05 keeps 17, 17, 15 relevant and 37, 19, 3
   irrelevant; 77 of the 148 expected threads with a similarity are 0.04
   above their background; Chinese queries' best and 20th similarities are
   within 0.02 of other queries' at the median; the committed report is what
@@ -3268,44 +3288,44 @@ The labels are the implementer's, from titles (Test plan):
 
 ```text
 Similarity of semantic candidates, capture of feed-2026-10-13T02-07-01-000Z (2026-10-13T02:41:14.143Z).
-Hand labels: the first 7 semantic threads of 16 queries, 112 candidates: R relevant 19, P partly 23, I irrelevant 70.
+Hand labels: the first 7 semantic threads of 16 queries, 112 candidates: R relevant 19, P partly 20, I irrelevant 73.
 margin: similarity minus the similarity of the query's 20th semantic thread. below best: the best similarity of the query minus this one.
 
 similarity
   R  n  19  min 0.466  p25 0.541  median 0.582  p75 0.594  max 0.658
-  P  n  23  min 0.506  p25 0.544  median 0.557  p75 0.575  max 0.611
-  I  n  70  min 0.383  p25 0.502  median 0.537  p75 0.562  max 0.620
-  AUC, R against I: 0.737
+  P  n  20  min 0.506  p25 0.544  median 0.558  p75 0.580  max 0.611
+  I  n  73  min 0.383  p25 0.503  median 0.538  p75 0.562  max 0.620
+  AUC, R against I: 0.736
 below best
   R  n  19  min 0.000  p25 0.000  median 0.016  p75 0.020  max 0.052
-  P  n  23  min 0.000  p25 0.001  median 0.026  p75 0.032  max 0.064
-  I  n  70  min 0.000  p25 0.016  median 0.032  p75 0.064  max 0.123
-  AUC, R against I: 0.759
+  P  n  20  min 0.000  p25 0.000  median 0.024  p75 0.032  max 0.064
+  I  n  73  min 0.000  p25 0.017  median 0.032  p75 0.064  max 0.123
+  AUC, R against I: 0.762
 margin
   R  n  19  min 0.012  p25 0.052  median 0.081  p75 0.090  max 0.122
-  P  n  23  min 0.017  p25 0.029  median 0.035  p75 0.059  max 0.141
-  I  n  70  min 0.012  p25 0.020  median 0.029  p75 0.039  max 0.061
-  AUC, R against I: 0.876
+  P  n  20  min 0.017  p25 0.027  median 0.033  p75 0.057  max 0.141
+  I  n  73  min 0.012  p25 0.021  median 0.032  p75 0.041  max 0.061
+  AUC, R against I: 0.871
 
 kept by an absolute floor
-  similarity >= 0.45  R 19/19  P 23/23  I 66/70
-  similarity >= 0.50  R 17/19  P 23/23  I 55/70
-  similarity >= 0.52  R 16/19  P 22/23  I 47/70
-  similarity >= 0.54  R 15/19  P 20/23  I 33/70
-  similarity >= 0.56  R 13/19  P 9/23  I 21/70
-  similarity >= 0.58  R 10/19  P 6/23  I 8/70
-  similarity >= 0.60  R 4/19  P 1/23  I 1/70
+  similarity >= 0.45  R 19/19  P 20/20  I 69/73
+  similarity >= 0.50  R 17/19  P 20/20  I 58/73
+  similarity >= 0.52  R 16/19  P 19/20  I 50/73
+  similarity >= 0.54  R 15/19  P 17/20  I 36/73
+  similarity >= 0.56  R 13/19  P 9/20  I 21/73
+  similarity >= 0.58  R 10/19  P 6/20  I 8/73
+  similarity >= 0.60  R 4/19  P 1/20  I 1/73
 kept by a margin over the query's 20th semantic thread
-  margin >= 0.02  R 17/19  P 21/23  I 55/70
-  margin >= 0.03  R 17/19  P 17/23  I 34/70
-  margin >= 0.04  R 17/19  P 11/23  I 16/70
-  margin >= 0.05  R 15/19  P 10/23  I 1/70
-  margin >= 0.06  R 14/19  P 6/23  I 1/70
-  margin >= 0.08  R 10/19  P 4/23  I 0/70
+  margin >= 0.02  R 17/19  P 18/20  I 58/73
+  margin >= 0.03  R 17/19  P 14/20  I 37/73
+  margin >= 0.04  R 17/19  P 8/20  I 19/73
+  margin >= 0.05  R 15/19  P 8/20  I 3/73
+  margin >= 0.06  R 14/19  P 5/20  I 2/73
+  margin >= 0.08  R 10/19  P 4/20  I 0/73
 
 by query type: similarity of R | of I
   english phrase  R n   5  min 0.541  p25 0.573  median 0.577  p75 0.579  max 0.588 | I n   8  min 0.553  p25 0.573  median 0.575  p75 0.580  max 0.598
-  class name      R n   2  min 0.525  p25 0.525  median 0.525  p75 0.525  max 0.584 | I n   9  min 0.528  p25 0.530  median 0.533  p75 0.553  max 0.562
+  class name      R n   2  min 0.525  p25 0.525  median 0.525  p75 0.525  max 0.584 | I n  12  min 0.528  p25 0.530  median 0.537  p75 0.556  max 0.562
   chinese         R n   5  min 0.501  p25 0.582  median 0.594  p75 0.640  max 0.658 | I n  20  min 0.493  p25 0.500  median 0.505  p75 0.583  max 0.620
   paraphrase      R n   5  min 0.550  p25 0.588  median 0.599  p75 0.606  max 0.618 | I n  22  min 0.527  p25 0.535  median 0.548  p75 0.555  max 0.571
   one word        R n   2  min 0.466  p25 0.466  median 0.466  p75 0.466  max 0.483 | I n  11  min 0.383  p25 0.399  median 0.472  p75 0.474  max 0.491
@@ -3456,6 +3476,44 @@ eval:search-similarity --rows`):
 | clean-3 | gap | why does the controller not retry registering | 5 | 1, 2 | 1, 2 | 1, 2 | 1, 2 |
 | clean-3 | gap | 安全性政策 | 5 | >50, >50 | 2, 1 | 2, 1 | 2, 1 |
 | clean-3 | gap | CPU busy loop after login failure | 5 | 7, 8 | 3, 2 | 3, 2 | 3, 2 |
+
+### The verifier's clean set for `rrf-group@3` (PR #59): the deciding evidence
+
+Recorded as the verifier reported it. 15 new queries (14 labelled),
+written for the class `rrf-group@2` cannot fix; the reconstruction is
+exact (the replayed `rrf-group@2` order equals the live `rrf-group@2`
+top 50 on 15 of 15).
+
+| | lexical only | `rrf-group@1` | `rrf-group@2` | `rrf-group@3` |
+| --- | --- | --- | --- | --- |
+| rows met, of 14 | 6 | 4 | 4 | 5 |
+| rows worse than lexical-only at the bound | | | 2 | 1 |
+
+`rrf-group@3` against `rrf-group@2`: better 1, worse 2, same 11.
+
+- Better: `log cleaner threads tuning`, 4 → 2.
+- Worse: `GroupMetadataManager cleanup`, pull request 23530 from 3 to 4.
+- Worse: `consumer close hangs forever`, 7, 4, 3, 2 → 9, 6, 5, 2:
+  `rrf-group@3` lifts two irrelevant lexical head threads above the
+  relevant ones.
+
+Conclusions (Decision 50): `rrf-group@3` protects lexical ranks 1 to 3
+regardless of relevance, so its gain over `rrf-group@2` is small and
+two-sided. Its constants sit on a plateau (head 2 to 3 × reference 20 to
+30 × margin 0.02 to 0.04 equivalent; a margin of 0.05 or more or a head of
+4 or more worse on some set), and the benefit is about zero on genuinely
+new queries. It stays off; Dev remains on `rrf-group@2`; fusion tuning
+stops here; the next lever is the embedding text, after which
+`rrf-group@3` may be re-evaluated. These 15 queries are the verifier's
+evidence and are not in this repository's fixtures.
+
+The verifier also corrected three hand labels of `LogManager cleanup`
+(semantic ranks 2 to 4, partly → irrelevant: `LogCleaner` and the log
+directory are not `LogManager`). Applied: partly 23 → 20, irrelevant 70 →
+73; AUC by similarity 0.737 → 0.736, by distance to the best 0.759 →
+0.762, by margin 0.876 → 0.871; irrelevant candidates kept by a margin of
+0.03, 0.04, 0.05: 34, 16, 1 of 70 → 37, 19, 3 of 73. No conclusion
+changes; the margin of 0.05 is less clean than first reported.
 
 ### What `rrf-group@3` does not fix, and what it costs
 
@@ -3703,11 +3761,10 @@ Raised by slice 3:
 30. **The three constants of `rrf-group@3`** (head 3, reference 20, margin
     0.04) come from 76 rows and 112 hand labels. Revisit with the next
     capture; a head of 2 and a margin of 0.03 are indistinguishable here.
-31. **Should Dev switch to `rrf-group@3`** (rollout step 8)? It is never
-    worse than `rrf-group@2` at a bound on 86 rows and fixes two of the
-    verifier's four failures, and it lowers seven threads within their
-    bounds. The implementer's recommendation is yes, after verification,
-    and that the embedding text matters more.
+31. **Should Dev switch to `rrf-group@3`?** Answered 2026-10-13: no
+    (Decision 50). The implementer had recommended yes on the 86 rows
+    captured for this change; the verifier's 15 fresh queries showed the
+    gain is two-sided and about zero on new queries.
 
 Known limitations of the profile patterns (kept in slice 2a, see "Community
 profile fit"):

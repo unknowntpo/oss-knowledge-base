@@ -381,6 +381,10 @@ describe("Spec 016 fusion rrf-group@3: only a semantic standout passes the first
     expect(run(0.55)).toEqual(["a", "s", "b"]);
     expect(run(0.54)).toEqual(["a", "s", "b"]);
     expect(run(0.5399)).toEqual(["a", "b", "s"]);
+    // Exactly at the margin: 0.08 - 0.04 is 0.04 in floating point too, and stands out; a hair below does not.
+    expect(0.08 - 0.04).toBe(0.04);
+    expect(run(0.08, 0.04)).toEqual(["a", "s", "b"]);
+    expect(run(0.0799999, 0.04)).toEqual(["a", "b", "s"]);
     // The reference is the 20th semantic thread: with a 21st, lower one, the background does not move.
     expect(order(fuseRankings({ lexical: lexicalRanking, semantic: scored(["s", 0.5399], ...pack(19, 0.5), ["low", 0.3]), queryWords: words, config: at3 })).slice(0, 3)).toEqual(["a", "b", "s"]);
     // With fewer than 20 semantic threads the last one is the background.

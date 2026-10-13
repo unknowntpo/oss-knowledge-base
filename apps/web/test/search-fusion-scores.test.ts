@@ -93,22 +93,22 @@ describe("Spec 016 fusion: what the similarity separates", () => {
   test("H88: an absolute floor does not separate relevant from irrelevant candidates; a margin over the query's 20th does, for those that stand out", async () => {
     const judged = await judgedCandidates();
     const count = (judgement: string, keep: (item: (typeof judged)[number]) => boolean = () => true) => judged.filter((item) => item.judgement === judgement && keep(item)).length;
-    expect([judged.length, count("R"), count("P"), count("I")]).toEqual([112, 19, 23, 70]);
+    expect([judged.length, count("R"), count("P"), count("I")]).toEqual([112, 19, 20, 73]);
     const relevant = judged.filter((item) => item.judgement === "R");
     const irrelevant = judged.filter((item) => item.judgement === "I");
-    expect(auc(relevant.map((item) => item.similarity), irrelevant.map((item) => item.similarity))).toBeCloseTo(0.737, 3);
-    expect(auc(relevant.map((item) => -item.belowBest), irrelevant.map((item) => -item.belowBest))).toBeCloseTo(0.759, 3);
-    expect(auc(relevant.map((item) => item.margin), irrelevant.map((item) => item.margin))).toBeCloseTo(0.876, 3);
+    expect(auc(relevant.map((item) => item.similarity), irrelevant.map((item) => item.similarity))).toBeCloseTo(0.736, 3);
+    expect(auc(relevant.map((item) => -item.belowBest), irrelevant.map((item) => -item.belowBest))).toBeCloseTo(0.762, 3);
+    expect(auc(relevant.map((item) => item.margin), irrelevant.map((item) => item.margin))).toBeCloseTo(0.871, 3);
     // No floor: 0.50 already loses relevant candidates and keeps four fifths of the irrelevant ones.
-    expect([count("R", (item) => item.similarity >= 0.5), count("I", (item) => item.similarity >= 0.5)]).toEqual([17, 55]);
+    expect([count("R", (item) => item.similarity >= 0.5), count("I", (item) => item.similarity >= 0.5)]).toEqual([17, 58]);
     expect([count("R", (item) => item.similarity >= 0.56), count("I", (item) => item.similarity >= 0.56)]).toEqual([13, 21]);
     // An irrelevant candidate of one query is above the relevant one of another.
     expect(Math.max(...irrelevant.map((item) => item.similarity))).toBeGreaterThan(0.6);
     expect(Math.min(...relevant.map((item) => item.similarity))).toBeLessThan(0.47);
     // The margin, on each side of the chosen 0.04.
-    expect([count("R", (item) => item.margin >= 0.03), count("I", (item) => item.margin >= 0.03)]).toEqual([17, 34]);
-    expect([count("R", (item) => item.margin >= 0.04), count("I", (item) => item.margin >= 0.04)]).toEqual([17, 16]);
-    expect([count("R", (item) => item.margin >= 0.05), count("I", (item) => item.margin >= 0.05)]).toEqual([15, 1]);
+    expect([count("R", (item) => item.margin >= 0.03), count("I", (item) => item.margin >= 0.03)]).toEqual([17, 37]);
+    expect([count("R", (item) => item.margin >= 0.04), count("I", (item) => item.margin >= 0.04)]).toEqual([17, 19]);
+    expect([count("R", (item) => item.margin >= 0.05), count("I", (item) => item.margin >= 0.05)]).toEqual([15, 3]);
     // What the margin cannot do: half of all expected threads with a similarity are in the pack.
     const expected = rows.filter((item) => item.set !== "clean-3").flatMap((item) => item.expected.map((id) => ({ item, thread: item.replay.threads.find((thread) => thread[0] === id) })))
       .filter((entry) => entry.thread !== undefined && entry.thread[7] !== null);

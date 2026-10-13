@@ -183,8 +183,9 @@ rollback, repeat from step 1.
 (Spec 016 Behavior 38, 39). The code runs `rrf-group@1` (plain RRF) and
 `rrf-group@2` (the leading lexical threads that hold every query word keep
 their places), and `rrf-group@3` (`rrf-group@2`, and only a semantic thread
-whose similarity stands out passes the first three lexical threads; enabled
-nowhere); any other value answers lexically with `failed`. The gate,
+whose similarity stands out passes the first three lexical threads;
+implemented, enabled nowhere, and not recommended yet: Spec 016 Decision 50
+keeps Dev on `rrf-group@2` until the embedding text has been revisited); any other value answers lexically with `failed`. The gate,
 its caches, and the embeddings are the same for both, so a switch costs no
 model call and no index query, and nothing stored changes.
 

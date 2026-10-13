@@ -707,6 +707,8 @@ the two `viewer/` items below.
   of them are not among the 100 semantic candidates and the third is 28th.
   No fusion rule can rank a thread retrieval did not return (Spec 016
   Results, "The owner's query and the embedding text").
+- **Priority:** the next lever for Search quality (Spec 016 Decision 50);
+  fusion tuning has stopped.
 - **Fix:** a follow-up spec for the embedding text (`title-text@2`): what
   is embedded per record, measured on a capture before any re-embedding
   (about $0.08 and three days of the job's cap for text five times longer).
@@ -721,7 +723,15 @@ the two `viewer/` items below.
   lexical-right queries are still worse than lexical-only at their bound
   (`LogManager cleanup` 3, 4, 1, 7; `ListingTable partition pruning` 6, 1,
   3, 2, 5), and on ten clean queries the rule changed one rank.
-- **Fix:** capture again with more labelled queries before trusting or
-  changing the constants; do not add a fourth.
+- **Decision (2026-10-13, Spec 016 Decision 50):** stays off; Dev remains
+  on `rrf-group@2`. The verifier's 15 fresh queries: better than
+  `rrf-group@2` on 1, worse on 2, same on 11. The rule protects lexical
+  ranks 1 to 3 whether or not they are relevant, so it lifts irrelevant
+  head threads too (`consumer close hangs forever` 7, 4, 3, 2 → 9, 6, 5,
+  2). The constants are on a plateau (head 2 to 3, reference 20 to 30,
+  margin 0.02 to 0.04); the benefit on new queries is about zero.
+- **Fix:** none in fusion: tuning stops here. Re-evaluate after G57 (the
+  embedding text), because richer vectors change what stands out; delete
+  the revision if it still shows no gain then.
 - **Layer:** test today (the limits are pinned).
 - **Source:** Spec 016 fusion `rrf-group@3`, 2026-10-13.
