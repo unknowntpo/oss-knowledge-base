@@ -42,6 +42,17 @@ export interface PipelineStateRepository {
 
 export interface PublicationDestination extends PublicationObjectStore {
   putEvidence(key: string, body: Uint8Array): Promise<void>;
+  /** Requests sent to the store so far, by R2 billing class; absent when the store does not count. */
+  operationCounts?(): R2OperationCounts;
+}
+
+/**
+ * R2 requests by billing class (Spec 008 C9). Class A: writes and lists, including a conditional
+ * put whose precondition fails. Class B: reads (`get`, `head`).
+ */
+export interface R2OperationCounts {
+  readonly classA: number;
+  readonly classB: number;
 }
 
 export interface PollingConnector {
@@ -85,6 +96,8 @@ export type PipelineRunStatus =
       readonly copiedObjectCount: number;
       readonly reusedObjectCount: number;
       readonly search: SearchReleaseStatus;
+      /** What this run's publication requested from R2; the other jobs are not included. */
+      readonly r2?: R2OperationCounts;
       readonly sources?: Readonly<Record<string, SourceRunStatus>>;
     }
   | {
@@ -94,6 +107,7 @@ export type PipelineRunStatus =
       readonly failureKind: string;
       readonly error: string;
       readonly retryAfterSeconds: number;
+      readonly r2?: R2OperationCounts;
       readonly sources?: Readonly<Record<string, SourceRunStatus>>;
     };
 
@@ -190,6 +204,13 @@ export async function runDataPublication(input: {
     });
   };
   const sourceKeys = ["github", ...(input.sources ?? []).map((source) => source.key)];
+  const r2Before = input.destination.operationCounts?.();
+  const r2 = (): { readonly r2?: R2OperationCounts } => {
+    const now = input.destination.operationCounts?.();
+    return r2Before === undefined || now === undefined
+      ? {}
+      : { r2: { classA: now.classA - r2Before.classA, classB: now.classB - r2Before.classB } };
+  };
   let previousStatus: PipelineRunStatus | undefined;
   let previousCheckpoint: GitHubCheckpointV1 | undefined;
   try {
@@ -257,6 +278,7 @@ export async function runDataPublication(input: {
       copiedObjectCount: published.copiedObjectCount,
       reusedObjectCount: published.reusedObjectCount,
       search: published.search(),
+      ...r2(),
       ...withSources(sourceStatuses(polls, previousStatus, previousCheckpoint, input.materializedAt, conflicts, publishedBySource)),
     });
     await notifyPublished(input.onPublished, status, input.onPublishedTimeoutMs ?? ON_PUBLISHED_TIMEOUT_MS);
@@ -269,6 +291,7 @@ export async function runDataPublication(input: {
       failureKind: "pipeline",
       error: error instanceof Error ? error.message : String(error),
       retryAfterSeconds: 300,
+      ...r2(),
       // Nothing was committed, so every source keeps its stored cursor and last success.
       ...withSources(sourceStatuses(
         sourceKeys.map((key) => ({ key, durationMs: 0, poll: { complete: false, events: [], error: "publication failed", failureKind: "pipeline", retryAfterSeconds: 300 } })),
