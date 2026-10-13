@@ -215,3 +215,29 @@ test("S18: zero results read as no matching threads, and the unfiltered count is
   expect(total).toBeGreaterThanOrEqual(2);
   await expect(page.locator(".results-count")).toHaveText(`${total} matching threads`);
 });
+
+test("S18: the count line is empty while a search is loading and after it failed", async ({ page }) => {
+  // Positive control: an answered search has a count line, so the empty ones below are not a missing element.
+  await search(page, "en", "kafka");
+  await expect(page.locator(".results-count")).toHaveText(/matching threads$/u);
+
+  // The next search is held open, then answered 503. The previous response is still in memory.
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  let asked = false;
+  await page.route("**/api/search?*", async (route: Route) => {
+    asked = true;
+    await held;
+    await route.fulfill({ status: 503, json: { error: "unavailable" } });
+  });
+  await page.locator("#q").fill("storage");
+  await expect.poll(() => asked).toBe(true);
+  await expect(page.locator(".empty")).toHaveText("Searching source evidence…");
+  await expect(page.locator(".results-count")).toHaveText("");
+  await expect(page.locator(".results-count")).toHaveCount(1);
+
+  release();
+  await expect(page.locator(".load-error")).toBeVisible();
+  await expect(page.locator(".search-card")).toHaveCount(0);
+  await expect(page.locator(".results-count")).toHaveText("");
+});

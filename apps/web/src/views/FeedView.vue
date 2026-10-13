@@ -153,9 +153,9 @@ const visibleEntries = computed(() => {
 });
 
 const activeFilterCount = computed(() => Number(project.value !== "") + Number(source.value !== "") + Number(status.value !== "") + Number(timeWindow.value !== "") + tags.value.size);
-// Spec 005 S17–S18. While a search is loading or failed there is no list to count.
+// Spec 005 S17–S18. While a search is loading there is no list to count; a failed search clears the response.
 const otherResultsIndex = computed(() => otherResultsStart(searchResponse.value?.results ?? []));
-const searchCountLine = computed(() => searchLoading.value || searchError.value !== undefined || searchResponse.value === undefined
+const searchCountLine = computed(() => searchLoading.value || searchResponse.value === undefined
   ? ""
   : searchCountText(searchCount(searchResponse.value, selectedProjectId.value), t));
 
