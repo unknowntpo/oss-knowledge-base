@@ -192,9 +192,10 @@ Compare offline first (no network):
 bun run eval:search-fusion --rows     # both revisions over the committed capture
 ```
 
-Switch (one PR; Dev is at `rrf-group@1` until Spec 016 rollout step 7):
+Switch (one PR; Dev is at `rrf-group@2` since Spec 016 rollout step 7, 2026-10-13, so the steps below name the value to change to):
 
-1. `apps/web/wrangler.development.jsonc`: `"SEARCH_SEMANTIC": "rrf-group@2"`.
+1. `apps/web/wrangler.development.jsonc`: `"SEARCH_SEMANTIC": "<revision>"`
+   (`rrf-group@1` or `rrf-group@2`).
 2. `apps/web/test/search-hybrid.test.ts`: the `H66` pin of that value.
 3. The `SEARCH_SEMANTIC` row of `docs/feature-map.md`, the table above, and
    the status of Spec 016. The deployed E2E reads the revision from the
@@ -250,7 +251,7 @@ is missing it answers lexically and says why.
 | --- | --- | --- |
 | Shard roots in the Search manifest | publisher | Worker var `SEARCH_SHARD_ROOTS=true` |
 | Query gate (`SearchQueryGate`, one Durable Object: ledger and caches) | data Worker | class migration `v4`; Worker binding `SEARCH_QUERY_GATE` (for `/health`) |
-| Hybrid search in `/api/search` | Pages Function | Pages var `SEARCH_SEMANTIC=rrf-group@1` (the value names the fusion revision; see "Switch the fusion revision"); Pages Durable Object binding `SEARCH_QUERY_GATE` → `SearchQueryGate` of `oss-knowledge-base-data-dev` |
+| Hybrid search in `/api/search` | Pages Function | Pages var `SEARCH_SEMANTIC=rrf-group@2` (the value names the fusion revision; see "Switch the fusion revision"); Pages Durable Object binding `SEARCH_QUERY_GATE` → `SearchQueryGate` of `oss-knowledge-base-data-dev` |
 
 The gate uses the embedding job's profile, gateway (`osskb-search-dev`), and
 index. It has no public route. Nothing is created by hand: no index, gateway,

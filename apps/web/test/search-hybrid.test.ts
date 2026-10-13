@@ -354,7 +354,7 @@ describe("Spec 016 hybrid search: the flag, the binding, and `semantic=off`", ()
     const read = async (name: string) => JSON.parse(await Bun.file(new URL(`../${name}`, import.meta.url)).text()) as Record<string, unknown> & { readonly name: string };
     const development = await read("wrangler.development.jsonc");
     expect(Object.keys(development).sort()).toEqual(["$schema", "compatibility_date", "durable_objects", "name", "pages_build_output_dir", "r2_buckets", "vars"]);
-    expect(development.vars).toEqual({ SEARCH_SEMANTIC: "rrf-group@1" });
+    expect(development.vars).toEqual({ SEARCH_SEMANTIC: "rrf-group@2" });
     expect(development.durable_objects).toEqual({ bindings: [{ name: "SEARCH_QUERY_GATE", class_name: "SearchQueryGate", script_name: "oss-knowledge-base-data-dev" }] });
     // The binding names the Dev publisher, which exports and migrates that class.
     const worker = JSON.parse(await Bun.file(new URL("../../data-publisher-worker/wrangler.development.jsonc", import.meta.url)).text()) as {
