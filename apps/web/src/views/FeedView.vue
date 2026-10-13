@@ -5,6 +5,7 @@ import FeedCard from "../components/FeedCard.vue";
 import SearchResultCard from "../components/SearchResultCard.vue";
 import { fetchEvidenceSearch } from "../api";
 import { useI18n } from "../i18n";
+import { otherResultsStart, searchCount, searchCountText } from "../search-results";
 import { useFeedStore } from "../store";
 import type { FeedIndexEntry, SearchResponseV1 } from "../types";
 
@@ -152,10 +153,11 @@ const visibleEntries = computed(() => {
 });
 
 const activeFilterCount = computed(() => Number(project.value !== "") + Number(source.value !== "") + Number(status.value !== "") + Number(timeWindow.value !== "") + tags.value.size);
-const matchingRecordCount = computed(() => searchResponse.value?.results.reduce(
-  (total, result) => total + result.matches.length,
-  0,
-) ?? 0);
+// Spec 005 S17–S18. While a search is loading or failed there is no list to count.
+const otherResultsIndex = computed(() => otherResultsStart(searchResponse.value?.results ?? []));
+const searchCountLine = computed(() => searchLoading.value || searchError.value !== undefined || searchResponse.value === undefined
+  ? ""
+  : searchCountText(searchCount(searchResponse.value, selectedProjectId.value), t));
 
 function projectLabel(projectId: string): string {
   const indexEntry = payload.value?.entries.find((entry) => entry.entry.projectId === projectId);
@@ -271,18 +273,15 @@ function reset() {
           </label>
         </div>
         <p class="results-count" aria-live="polite">
-          {{ query ? `${searchResponse?.results.length ?? 0} related entries · ${matchingRecordCount} matching source records` : `${visibleEntries.length} entries` }}
+          {{ query ? searchCountLine : `${visibleEntries.length} entries` }}
         </p>
         <div v-if="query && searchLoading" class="empty"><p>{{ t("search.loading") }}</p></div>
         <div v-else-if="query && searchError" class="load-error"><p>{{ t("search.failed") }}</p><code>{{ searchError }}</code></div>
         <div v-else-if="query && searchResponse?.results.length" class="cards search-results">
-          <SearchResultCard
-            v-for="(result, index) in searchResponse.results"
-            :key="result.detailRef"
-            :result="result"
-            :rank="index + 1"
-            :project-label="projectLabel(result.entry.projectId)"
-          />
+          <template v-for="(result, index) in searchResponse.results" :key="result.detailRef">
+            <h3 v-if="index === otherResultsIndex" class="results-divider">{{ t("results.search.others") }}</h3>
+            <SearchResultCard :result="result" :rank="index + 1" :project-label="projectLabel(result.entry.projectId)" />
+          </template>
         </div>
         <div v-else-if="!query && visibleEntries.length" class="cards">
           <FeedCard

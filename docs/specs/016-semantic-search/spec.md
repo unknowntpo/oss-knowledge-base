@@ -395,7 +395,7 @@ Left to the implementer, to confirm:
      shares the gateway's 600 requests an hour.
    - `retrieval.semantic`: owned by Observability; `semantic=off` by
      slice 4's comparison.
-   - The badge: owned by the reader, who otherwise sees a result that holds
+   - The badge (removed 2026-10-13, Behavior 36): owned by the reader, who otherwise sees a result that holds
      none of the words typed.
    - `/health` `searchQuery`: owned by the operator; without it the budget
      is invisible.
@@ -1106,9 +1106,15 @@ Query-time hybrid search (slice 3):
     `pausedUntil`, `lastError { kind, message, at }` (sanitized as in
     Behavior 24), and `sinceStart { requests, cached, embedded, overBudget,
     failed }`, counted in memory since the object last started.
-36. **The badge.** A result none of whose matches has a `lexicalRank` shows
-    a second badge beside "Evidence search": "Similar meaning" / 「意思相近」.
-    Nothing else in the UI reads the new fields.
+36. **No method badge (superseded 2026-10-13).** As first built, a result
+    none of whose matches has a `lexicalRank` showed a second badge beside
+    "Evidence search": "Similar meaning" / 「意思相近」. The owner, after
+    searching `KIP770` on Dev: readers do not care how a result was found;
+    put the exact matches first and whatever else matched after them. Both
+    badges are removed. A result card names no search method, and nothing
+    in the UI reads `lexicalRank`, `semanticRank`, `semanticScore`, or
+    `retrieval.semantic`; the response still carries them unchanged. The
+    result list is owned by Spec 005 (S16–S18).
 37. **Flags.** Pages: `SEARCH_SEMANTIC` (`rrf-group@1`) and the Durable
     Object binding `SEARCH_QUERY_GATE`. Worker: `SEARCH_SHARD_ROOTS`
     (`true`), the binding `SEARCH_QUERY_GATE` for `/health`, and the class's
@@ -1457,7 +1463,8 @@ class and the caps as shipped on 2026-10-13.
      Worker configurations are untouched. The H66 test pins this.
    - What changes for visitors of Dev: a text query is fused with semantic
      candidates; a Chinese query that returned nothing returns threads; a
-     thread found by meaning alone carries the "Similar meaning" badge.
+     thread found by meaning alone carries the "Similar meaning" badge
+     (removed 2026-10-13, Behavior 36).
      Identifier queries and every failure mode answer as before.
    - The deployed E2E (`H32`) after each Dev deploy: the gate is enabled
      with no `configError`; `KIP770` is `skipped` (`identifier-query`);
@@ -2266,14 +2273,18 @@ Items tagged `[pending]` belong to slice 4.
   gate's ledger is its own key in its own object and its cap is the
   `searchQuery` share of the daily budget → evidence: `query-gate.test.ts`,
   `search-query-gate.test.ts`.
-- H70: given a response in which result 2 has no `lexicalRank`, at 375 px
-  in English and zh-Hant that card alone shows "Similar meaning" /
-  「意思相近」 beside its "Evidence search" badge, the badge and a long
-  unbreakable title stay inside the card, the page does not scroll
-  sideways, and the card opens its detail; given a response whose semantic
-  status is `over-budget`, `timed-out`, `failed`, or `skipped`, the lexical
-  cards render with no badge and no error → evidence:
-  `apps/web/e2e/search-semantic.spec.ts`.
+- H70: (changed 2026-10-13 by the owner's decision, Behavior 36: it used to
+  assert the "Similar meaning" badge) given a response in which result 1
+  has both ranks, result 2 has no `lexicalRank`, and result 3 has only a
+  `lexicalRank`, at 375 px in English and zh-Hant no card shows a method
+  badge or the words "Evidence search" / 「證據搜尋」 / "Similar meaning" /
+  「意思相近」, the semantic-only card shows its title and excerpt, a long
+  unbreakable title stays inside the card, the page does not scroll
+  sideways, and the card opens its detail, whose header names no method
+  either; given a response whose semantic status is `over-budget`,
+  `timed-out`, `failed`, or `skipped`, the lexical cards render with no
+  badge and no error → evidence: `apps/web/e2e/search-semantic.spec.ts`,
+  `apps/web/test/search-results-view.test.ts` (Spec 005 S16).
 - H71: given the labelled queries, each names threads of the Dev snapshot
   and a rank bound; the list holds 8 Chinese and 8 vocabulary-gap queries
   beside the 21 Spec 017 rows and 6 guard rows, each query once; the
