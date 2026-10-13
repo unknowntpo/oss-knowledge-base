@@ -3694,6 +3694,23 @@ and a thread judged by its worst passage.
 
 ## Open questions
 
+> **Owner decision 2026-10-13: fixture update pending.** For the owner's
+> query `consumer network thread request manager`, the KIP-1371 threads
+> ("Explicit Wait Conditions for Consumer Request Managers") **are a correct
+> answer**: Jira `KAFKA-20995` and the dev@ thread `KAFKA-MAIL-540e8110`
+> ("[DISCUSS] KIP-1371: …"). Add both as expected for that query in the
+> golden labels (the table under "The human labelled one query on
+> 2026-10-09", `golden-queries.v2.json`, the real-corpus evaluation and the
+> fusion replay rows that pin this query). Nothing was changed in fixtures or
+> tests when this note was written (recorded in the docs-only PR of
+> [Spec 019](../019-contributor-profile/spec.md)); the next Search PR applies
+> it and re-measures G56 and G57. The owner did not state a grade or a
+> position relative to KAFKA-19804, KAFKA-20765 and KAFKA-19738; confirm when
+> applying (suggested: grade 2, no required order against the other three).
+> Both threads were last active on 2026-09-21 and 2026-09-23, so they leave
+> the 35-day release around 2026-10-26 to 2026-10-28; `real-corpus-snapshot.v1.json`
+> already contains them.
+
 Not decided here:
 
 1. **Workers Paid plan.** Decided: the account is Workers Paid (10 M stored
