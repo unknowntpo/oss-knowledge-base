@@ -15,7 +15,8 @@
     "DIGEST_MODEL": "workers-ai",
     "DIGEST_GATEWAY_ID": "osskb-digest-dev",
     "SEARCH_GATEWAY_ID": "osskb-search-dev",
-    "SEARCH_EMBEDDING": "bge-m3@1"
+    "SEARCH_EMBEDDING": "bge-m3@1",
+    "SEARCH_SHARD_ROOTS": "true"
   },
   "ai": {
     "binding": "AI"
@@ -48,6 +49,10 @@
       {
         "name": "SEARCH_EMBEDDING_RUN",
         "class_name": "SearchEmbeddingRun"
+      },
+      {
+        "name": "SEARCH_QUERY_GATE",
+        "class_name": "SearchQueryGate"
       }
     ]
   },
@@ -63,6 +68,10 @@
     {
       "tag": "v3",
       "new_sqlite_classes": ["SearchEmbeddingRun"]
+    },
+    {
+      "tag": "v4",
+      "new_sqlite_classes": ["SearchQueryGate"]
     }
   ]
 }

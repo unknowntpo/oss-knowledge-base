@@ -7,7 +7,7 @@
  */
 import { parseArgs } from "node:util";
 
-import { DAILY_NEURON_BUDGET, EMBEDDING_TOKEN_CALIBRATION, estimateTokens, PRICES, USD_PER_NEURON } from "@oss-knowledge-base/reference-pipeline";
+import { DAILY_NEURON_BUDGET, DIGEST_NEURON_CALIBRATION, EMBEDDING_TOKEN_CALIBRATION, estimateTokens, PRICES, USD_PER_NEURON } from "@oss-knowledge-base/reference-pipeline";
 import { DEFAULT_QUERY_GATE_LIMITS, MAX_SEMANTIC_QUERY_CHARACTERS, queryNeuronCharge, resolveSearchEmbedding } from "@oss-knowledge-base/semantic-vectorize";
 
 import { DEFAULT_EMBEDDING_LIMITS } from "../src/search-embedding/run";
@@ -33,7 +33,7 @@ const INCLUDED_STORED_DIMENSIONS = 10_000_000;
 const dimensions = profile.revision.dimensions;
 const DAYS = 31;
 const monthlyQueried = (chunks + DAYS * limits.maxIndexQueriesPerDay) * dimensions;
-const total = DAILY_NEURON_BUDGET.digest + DAILY_NEURON_BUDGET.searchEmbedding + DAILY_NEURON_BUDGET.searchQuery;
+const total = DAILY_NEURON_BUDGET.digestCalibrated + DAILY_NEURON_BUDGET.searchEmbedding + DAILY_NEURON_BUDGET.searchQuery;
 
 console.log(JSON.stringify({
   model: profile.revision.model,
@@ -45,7 +45,9 @@ console.log(JSON.stringify({
     sample(`the longest accepted text, CJK (${MAX_SEMANTIC_QUERY_CHARACTERS} characters)`, "交".repeat(MAX_SEMANTIC_QUERY_CHARACTERS)),
   ],
   workersAiNeuronsPerDay: {
-    digest: DAILY_NEURON_BUDGET.digest,
+    digestCapInItsOwnEstimate: DAILY_NEURON_BUDGET.digest,
+    digestCalibration: DIGEST_NEURON_CALIBRATION,
+    digest: DAILY_NEURON_BUDGET.digestCalibrated,
     searchEmbedding: DAILY_NEURON_BUDGET.searchEmbedding,
     searchQuery: DAILY_NEURON_BUDGET.searchQuery,
     total,

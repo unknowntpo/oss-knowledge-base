@@ -203,7 +203,7 @@ rollback, repeat from step 1.
 
 ## Hybrid search at query time (Spec 016 slice 3)
 
-Off everywhere until the two enable PRs below. With it on, `/api/search`
+Step 1 of the enable (the Worker half) is done for Dev since 2026-10-13: the publisher writes shard roots and the gate is bound and enabled. Step 2 (Pages) is not: no visitor reaches the gate and `/api/search` is lexical. With it on, `/api/search`
 fuses lexical results with semantic candidates; whenever semantic retrieval
 is missing it answers lexically and says why.
 
@@ -226,14 +226,15 @@ bun run measure:search-hybrid                # lexical baseline of the labelled 
 
 The caps: per UTC day 1,000 neurons of query embeddings (1 a query) and
 1,000 index queries (2 a search on Dev, so 500 uncached searches); 100 model
-calls a clock hour. With the digest's 4,500 and the embedding job's 2,500
-that is 8,000 of the 10,000 neurons a day the plan includes; 31 days of
+calls a clock hour. With the digest's 4,500 at its measured cost (× 1.28 = 5,760)
+and the embedding job's 2,500 that is 9,260 of the 10,000 neurons a day the
+plan includes (740 of headroom); 31 days of
 index queries plus the stored vectors are 40.7 M of Vectorize's included
 50 M dimensions.
 
 ### Enable on Dev (two PRs, in this order)
 
-1. **Worker.** In `apps/data-publisher-worker/wrangler.development.jsonc`
+1. **Worker (done 2026-10-13).** In `apps/data-publisher-worker/wrangler.development.jsonc`
    add `"SEARCH_SHARD_ROOTS": "true"` to `vars`, `{ "name":
    "SEARCH_QUERY_GATE", "class_name": "SearchQueryGate" }` to
    `durable_objects.bindings`, and `{ "tag": "v4", "new_sqlite_classes":
@@ -241,13 +242,25 @@ index queries plus the stored vectors are 40.7 M of Vectorize's included
    test in `search-query-gate.test.ts`. After the deploy `/health`
    `searchQuery.enabled` is `true` with no `configError`; after the next
    publication `lastRun.search.shardRoots` is `true`. Visitors cannot reach
-   the gate yet.
+   the gate yet. Check with:
+
+   ```sh
+   W=https://oss-knowledge-base-data-dev.unknowntpo.workers.dev
+   curl -sS $W/health | jq '{gate: .searchQuery | {enabled, configError, semanticRevision, today}, run: .lastRun | {ok, completedAt, search}, embedding: .searchEmbedding | {enabled, lastError, lastRun: (.lastRun | {ok, releaseId, pending, limited})}}'
+   curl -sS 'https://oss-knowledge-base-dev.pages.dev/api/search?q=txn&limit=1' | jq .retrieval
+   ```
+
+   Expected: `gate.enabled: true`, no `configError`, `today` all zero;
+   after minute 7 of the next hour `run.search.shardRoots: true` and the
+   embedding run `ok` with `pending: 0`; `retrieval` with four fields and no
+   `semantic`.
 2. **Pages**, only after step 1 is deployed (CI deploys Pages before the
    Worker). In `apps/web/wrangler.development.jsonc` add `"vars": {
    "SEARCH_SEMANTIC": "rrf-group@1" }` and `"durable_objects": { "bindings":
    [{ "name": "SEARCH_QUERY_GATE", "class_name": "SearchQueryGate",
    "script_name": "oss-knowledge-base-data-dev" }] }`; update the `H66`
-   configuration test in `search-hybrid.test.ts`.
+   configuration test in `search-hybrid.test.ts` and the deployed E2E's
+   `H32` test (it asserts that `/api/search` has no hybrid field).
 3. First observations (Spec 016 H31, H32):
    - `GET /api/search?q=交易逾時` → `retrieval.semantic { status: "ok",
      candidates, cached: false }` and results; again → `cached: true`.
@@ -257,6 +270,12 @@ index queries plus the stored vectors are 40.7 M of Vectorize's included
    - `bun run measure:search-hybrid -- --out report.json`: ranks with and
      without semantic retrieval, statuses, and the added latency. Compare
      with the estimate in Spec 016 Results (slice 3).
+
+Revert the Pages PR when: more than about 30% of the uncached queries of
+`measure:search-hybrid` are `timed-out` (or raise the timeout first);
+`searchQuery.lastError.kind` is `model` or `vector-store` on the first
+queries; or `pausedUntil` is set repeatedly. `over-budget` alone is the cap
+working.
 
 ### Reading the response and `/health`
 

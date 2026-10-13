@@ -199,6 +199,31 @@ test("H52: the Dev publisher reports search embedding enabled with no configurat
   expect(health!.searchEmbedding!.configError).toBeUndefined();
 });
 
+test("H32: the Dev query gate reports enabled with no configuration error, and visitors still get the lexical response", async ({ publisherRequest, request }) => {
+  // True from the Worker deploy on: `enabled` and `configError` come from the Worker's variables
+  // and bindings. `searchQuery` is null while the gate object does not answer, hence the poll.
+  type Health = { readonly searchQuery: null | { readonly enabled: boolean; readonly configError?: string; readonly semanticRevision: string | null; readonly today: { readonly neuronCap: number; readonly indexQueryCap: number; readonly hourModelCallCap: number } } };
+  let health: Health | undefined;
+  await expect.poll(async () => {
+    const response = await publisherRequest.get(`${workerUrl}/health`);
+    health = response.status() === 200 ? await response.json() as Health : undefined;
+    return health?.searchQuery?.enabled;
+  }, {
+    message: "wait for /health to carry the query gate's status",
+    timeout: 60 * 1_000,
+    intervals: [1_000, 5_000, 10_000],
+  }).toBe(true);
+  expect(health!.searchQuery!.configError).toBeUndefined();
+  expect(health!.searchQuery!.semanticRevision).toBe("@cf/baai/bge-m3@1:1024:title-text@1");
+  expect(health!.searchQuery!.today).toMatchObject({ neuronCap: 1_000, indexQueryCap: 1_000, hourModelCallCap: 100 });
+
+  // The Pages flag is still off (the second enable PR sets it): no hybrid field, with or without `semantic=off`.
+  for (const query of ["q=txn", "q=txn&semantic=off"]) {
+    const body = await (await request.get(`/api/search?${query}`)).json() as { readonly retrieval: Record<string, unknown> };
+    expect(Object.keys(body.retrieval).sort()).toEqual(["generatedAt", "indexRevision", "lexicalRevision", "stale"]);
+  }
+});
+
 test("This week renders the digest, or the no-digest notice while Dev has no digest pointer", async ({ page, request }) => {
   const api = await request.get("/api/digest?projectId=apache-kafka&locale=en");
   // 404 until the digest job publishes on Dev (Spec 014 slice 2b); never a 5xx.

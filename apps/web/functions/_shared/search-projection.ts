@@ -23,6 +23,7 @@ import {
 import {
   acceptSemanticMatch,
   errorText,
+  parseSemanticMatch,
   type SemanticMatchV1,
   type SemanticQueryAnswerV1,
   type SemanticQueryPort,
@@ -393,7 +394,10 @@ async function rankShardedRelease(
   // The shard of each semantic match, known once the gate has answered (Behavior 27).
   const matchesByShard = outcome?.then((settled) => {
     const byShard = new Map<number, SemanticMatchV1[]>();
-    for (const match of settled.status === "ok" ? settled.matches : []) {
+    // The gate's client parses its answer; a port that does not must still not fail a search.
+    for (const item of settled.status === "ok" && Array.isArray(settled.matches) ? settled.matches : []) {
+      const match = parseSemanticMatch(item);
+      if (match === undefined) continue;
       const shard = searchShardForGroupRoot(manifest, match.projectId, match.groupRootRecordId);
       if (shard === undefined) continue;
       byShard.set(shard, [...byShard.get(shard) ?? [], match]);

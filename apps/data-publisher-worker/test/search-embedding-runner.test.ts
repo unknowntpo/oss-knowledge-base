@@ -128,7 +128,7 @@ describe("Spec 016 embedding object", () => {
     expect(development.vectorize).toEqual([{ binding: "SEARCH_VECTORS", index_name: "osskb-search-dev" }]);
     expect(development.ai).toEqual({ binding: "AI" });
     expect(development.durable_objects.bindings).toContainEqual({ name: "SEARCH_EMBEDDING_RUN", class_name: "SearchEmbeddingRun" });
-    expect(development.migrations.at(-1)).toEqual({ tag: "v3", new_sqlite_classes: ["SearchEmbeddingRun"] });
+    expect(development.migrations).toContainEqual({ tag: "v3", new_sqlite_classes: ["SearchEmbeddingRun"] });
     // The flag, and nothing else, is what turns Dev on: without it the same configuration is off.
     expect(configured({ ...development, vars: { ...development.vars, SEARCH_EMBEDDING: "" } })).toEqual({ state: "off" });
 

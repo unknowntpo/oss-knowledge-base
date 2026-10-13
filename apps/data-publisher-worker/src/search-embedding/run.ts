@@ -35,8 +35,8 @@ export interface EmbeddingLimits {
   readonly maxCallsPerDay: number;
   /**
    * Estimated neurons per UTC day, at the calibrated estimate (`EMBEDDING_TOKEN_CALIBRATION`).
-   * With the digest's 4,500 and the query gate's 1,000 it is 8,000 of the 10,000 neurons a day
-   * the plan includes (`DAILY_NEURON_BUDGET`).
+   * With the digest's cap at its calibrated cost (5,760) and the query gate's 1,000 it is 9,260
+   * of the 10,000 neurons a day the plan includes (`DAILY_NEURON_BUDGET`).
    */
   readonly dailyNeuronCap: number;
   readonly batchTexts: number;

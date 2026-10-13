@@ -549,17 +549,17 @@ the two `viewer/` items below.
 - **Layer:** test (the R7 row for this endpoint).
 - **Source:** [PR #47](https://github.com/unknowntpo/oss-knowledge-base/pull/47).
 
-### G47. Hybrid search is three rollout flags and a binding, all off
+### G47. Hybrid search is three rollout flags and a binding; the Pages half is off
 - **Where:** Pages `SEARCH_SEMANTIC` and the `SEARCH_QUERY_GATE` binding
-  (`apps/web/functions/_shared/semantic-gate.ts`), Worker
+  (`apps/web/functions/_shared/semantic-gate.ts`), neither deployed; Worker
   `SEARCH_SHARD_ROOTS` (`apps/data-publisher-worker/src/pipeline.ts`) and
-  the `SearchQueryGate` class, exported and not bound
-  (`apps/data-publisher-worker/src/index.ts`).
-- **Why:** Spec 016 slice 3 ships the code with nothing enabled; Dev is
-  enabled by two configuration PRs after the owner sees the estimate.
-- **Fix:** after the enable and slice 4, write shard roots always (delete
-  `SEARCH_SHARD_ROOTS` and its off path) and fold `SEARCH_SEMANTIC` into the
-  presence of the binding, or keep one flag and say why.
+  the `SearchQueryGate` class, set and bound on Dev since 2026-10-13.
+- **Why:** Spec 016 slice 3 shipped the code with nothing enabled; Dev is
+  enabled by two configuration PRs, the Worker's first (done), the Pages'
+  after it is observed.
+- **Fix:** after the Pages enable and slice 4, write shard roots always
+  (delete `SEARCH_SHARD_ROOTS` and its off path) and fold `SEARCH_SEMANTIC`
+  into the presence of the binding, or keep one flag and say why.
 - **Layer:** structure (fewer flags), then test (the `H66` pins).
 - **Source:** Spec 016 slice 3.
 
@@ -604,4 +604,33 @@ the two `viewer/` items below.
   `acceptSemanticMatch`.
 - **Layer:** structure.
 - **Source:** Spec 016 slice 3.
+
+### G51. The daily neuron budget leaves 740 of headroom on two single measurements
+- **Where:** `DAILY_NEURON_BUDGET`, `DIGEST_NEURON_CALIBRATION` (1.28) and
+  `EMBEDDING_TOKEN_CALIBRATION` (1.8) in
+  `packages/reference-pipeline/src/digest/estimate.ts`.
+- **Why:** the digest's cap (4,500 in its own estimate) can cost 5,760
+  neurons; with the embedding job's 2,500 and the query gate's 1,000 the
+  caps are 9,260 of the 10,000 included. Each ratio was measured once
+  (2026-10-08 and 2026-10-12). The digest's ledger and `/health` still show
+  its uncalibrated estimate.
+- **Fix:** before the digest gets a cron on Dev, measure both ratios again
+  from the gateways; then either apply the digest's factor inside its
+  ledger (so its cap is in real neurons, like the embedding job's) or lower
+  a cap until the headroom is at least 1,500.
+- **Layer:** measurement, then the constants and the `H67` test.
+- **Source:** verifier of PR #54.
+
+### G52. The feature map is checked for names, not for truth
+- **Where:** `scripts/test/feature-map.test.ts`, `docs/feature-map.md`.
+- **Why:** the test fails when a Pages or Worker route, a deployed variable
+  or binding, a verification command, or a spec's newest acceptance ID is
+  not named in the map. It cannot tell whether the sentence around the name
+  is still right: the map said Dev was behind Access and that nothing read
+  the vectors long after both were false.
+- **Fix:** keep stating environment facts in the one "Deployed
+  configuration" table and derive it from the wrangler files, so only prose
+  can drift.
+- **Layer:** test today; generation when fixed.
+- **Source:** owner's instruction of 2026-10-13.
 
