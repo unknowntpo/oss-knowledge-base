@@ -173,6 +173,7 @@ by `bun run docs:test-plan`; the unit tests run exactly these rows.
 | T5 | ok, truncated, jira failed | 0 catch-ups, 3 retries | catch-up in 5 min |
 | T7 | ok, truncated, jira failed | 5 catch-ups, 0 retries | retry in 10 min |
 | T7 | failed | 5 catch-ups, 0 retries | retry in 10 min |
+| T7 | failed, truncated | 0 catch-ups, 0 retries | retry in 10 min |
 <!-- test-plan:end -->
 
 Named tests: `apps/data-publisher-worker/test/publication-schedule.test.ts`
