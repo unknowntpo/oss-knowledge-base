@@ -177,6 +177,45 @@ rollback, repeat from step 1.
    multiplied by 1.8 since (`EMBEDDING_TOKEN_CALIBRATION`). Measure again
    and change the constant if a later month's ratio leaves 1.5–2.1.
 
+### Switch the fusion revision
+
+`SEARCH_SEMANTIC` names how lexical and semantic rankings are fused
+(Spec 016 Behavior 38, 39). The code runs `rrf-group@1` (plain RRF) and
+`rrf-group@2` (the leading lexical threads that hold every query word keep
+their places); any other value answers lexically with `failed`. The gate,
+its caches, and the embeddings are the same for both, so a switch costs no
+model call and no index query, and nothing stored changes.
+
+Compare offline first (no network):
+
+```sh
+bun run eval:search-fusion --rows     # both revisions over the committed capture
+```
+
+Switch (one PR; Dev is at `rrf-group@1` until Spec 016 rollout step 7):
+
+1. `apps/web/wrangler.development.jsonc`: `"SEARCH_SEMANTIC": "rrf-group@2"`.
+2. `apps/web/test/search-hybrid.test.ts`: the `H66` pin of that value.
+3. The `SEARCH_SEMANTIC` row of `docs/feature-map.md`, the table above, and
+   the status of Spec 016. The deployed E2E reads the revision from the
+   committed configuration and needs no edit.
+
+After the deploy:
+
+```sh
+P=https://oss-knowledge-base-dev.pages.dev
+curl -sS "$P/api/search?q=transaction+manager&limit=5" | jq '{fusion: .retrieval.fusionRevision, semantic: .retrieval.semantic, top: [.results[] | {title: .entry.title, signals: .matches[0].signals}]}'
+bun run measure:search-hybrid -- --out /tmp/hybrid-report.json    # no model call within 7 days of the last run
+bun run capture:search-replay -- --out /tmp/hybrid-replay.json    # records signals.semanticScore
+```
+
+Expected: `fusion: rrf-group@2`; the two KAFKA-20237 threads first; no
+Spec 017 or guard row in the report's `regressions`; `/health`
+`searchQuery.today.modelCalls` unchanged by cached queries.
+
+Roll back: revert that PR. The next Pages deploy answers with
+`rrf-group@1`; no cache, vector, or release is touched.
+
 ### Turn off or roll back
 
 - Remove `SEARCH_EMBEDDING` and deploy (on Dev: revert the enable PR, which
@@ -211,7 +250,7 @@ is missing it answers lexically and says why.
 | --- | --- | --- |
 | Shard roots in the Search manifest | publisher | Worker var `SEARCH_SHARD_ROOTS=true` |
 | Query gate (`SearchQueryGate`, one Durable Object: ledger and caches) | data Worker | class migration `v4`; Worker binding `SEARCH_QUERY_GATE` (for `/health`) |
-| Hybrid search in `/api/search` | Pages Function | Pages var `SEARCH_SEMANTIC=rrf-group@1`; Pages Durable Object binding `SEARCH_QUERY_GATE` → `SearchQueryGate` of `oss-knowledge-base-data-dev` |
+| Hybrid search in `/api/search` | Pages Function | Pages var `SEARCH_SEMANTIC=rrf-group@1` (the value names the fusion revision; see "Switch the fusion revision"); Pages Durable Object binding `SEARCH_QUERY_GATE` → `SearchQueryGate` of `oss-knowledge-base-data-dev` |
 
 The gate uses the embedding job's profile, gateway (`osskb-search-dev`), and
 index. It has no public route. Nothing is created by hand: no index, gateway,

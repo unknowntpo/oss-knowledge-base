@@ -1,6 +1,6 @@
 # 搜尋演算法筆記
 
-狀態：討論中（2026-10-12 更新）。這份文件記錄搜尋的現況、概念與下一步，隨討論更新。
+狀態：討論中（2026-10-13 更新）。這份文件記錄搜尋的現況、概念與下一步，隨討論更新。
 規格出處：[Spec 005](../specs/005-evidence-search/spec.md)、[Spec 013](../specs/013-search-streaming/spec.md)、[Spec 016](../specs/016-semantic-search/spec.md)、[Spec 017](../specs/017-lexical-ranking/spec.md)。
 
 ## 一句話
@@ -69,6 +69,34 @@ RRF(文件) = Σ 1 / (60 + 該文件在各排名中的名次)
 
 只看名次、不看原始分數，所以兩種分數不需要換算到同一個尺度。
 
+#### 單純的 RRF 在這裡失效的原因（2026-10-13 量測）
+
+Dev 啟用 `rrf-group@1`（k = 60）後，以 `bun run measure:search-hybrid` 量測 48 題：字面檢索原本答對的 Spec 017 題目由 20 題降為 13 題，中文題由 1 題升為 3 題，詞彙落差題由 2 題升為 4 題。例如 `transaction manager` 的兩個預期 thread 由第 1、2 名降到第 20、21 名。
+
+原因在於兩份排名的性質不同，而 RRF 把它們的名次視為等值：
+
+- 語意排名的長度固定。每個專案向 Vectorize 取 50 個段落，共 100 個，不論相似度高低。字面排名的前 50 個 thread 中，平均有 35% 同時出現在語意排名。
+- k = 60 時，只出現在一份排名的 thread 最高得 1/61 = 0.0164；同時出現在兩份排名的 thread 最低也有 1/110 + 1/160 = 0.0153，字面第 30 名加語意第 30 名則是 2/90 = 0.0222。兩份排名都只排在中段的 thread，因此排在字面第 1 名之前。
+- 語意名次不代表相似。`transaction manager` 的語意第 9 名是 DataFusion 的 `Push down topk through join`。
+- 在字面排名滿 50 筆的 31 題中，有 6 題的字面第 1 名不在語意候選內，合併後落到第 7 至 20 名。
+
+`rrf-group@2`（Spec 016 Behavior 38）加入一條規則，其餘不變：
+
+```text
+查詢的字   = 查詢正規化後的相異字（RequestManager → request、manager）
+完整命中   = 字面檢索回傳的某一個段落含有查詢的每一個字
+保留的 thread = 字面排名從第 1 名起連續的完整命中，到第一個不是完整命中的 thread 為止
+排序       = 精確編號命中 → 保留的 thread（依字面名次）→ 其餘 thread（依 RRF 分數）
+```
+
+- 沒有語意候選時，結果就是字面排名，因此各種退回情形的結果不變。
+- 字面第 1 名不是完整命中，或查詢的字沒有任何段落命中（例如中文查詢）時，結果與 `rrf-group@1` 相同，所以中文題與詞彙落差題的改善全部保留。
+- 以 2026-10-13 的錄製資料重放（`bun run eval:search-fusion`）：57 題中，比字面檢索差的題數由 10 題降為 0 題；43 題原始標註的答對數為字面 26、`@1` 22、`@2` 30。
+- 放棄的部分：`manager request`、`storage tiered` 這類字序相反的查詢。`@1` 靠語意名次把預期 thread 往前排，`@2` 因為前幾名都含有兩個字而維持字面名次。
+- 未解決：owner 的查詢 `consumer network thread request manager` 沒有任何段落同時含五個字，結果與 `@1` 相同（字面 2、21、9 名，合併後 3、39、24 名）。
+
+加權 RRF、減少語意候選數、固定保留前 3 名、語意結果一律排在字面之後，都在同一份資料上比較過，各自仍有變差的題目或失去原有的改善（Spec 016 Results 的 ablation 表）。相似度門檻尚未比較：錄製當時回應沒有相似度，本次新增 `signals.semanticScore` 供下次錄製使用。
+
 ### 重排與 Clef
 
 尚未採用（見「決定」）；以下是日後評估時的筆記。
@@ -93,18 +121,18 @@ Clef-flash 的限制：在 Workers AI 上，長輸入會被截斷（約 2K token
      ├→ 詢問 gate（Durable Object）：查詢 embedding（有快取）→ 每個專案向 Vectorize 取 50 筆
      └→ 讀 terms.json 與含查詢字的 shard（與上一行同時進行）
    → 每個 shard 只讀一次：BM25 計分，並把語意候選對回 release 裡的 chunk
-   → 再讀只含語意候選的 shard → RRF 合併 → 結果
+   → 再讀只含語意候選的 shard → 合併（`rrf-group@1` 或 `rrf-group@2`）→ 結果
 ```
 
 | 項目 | 做法 |
 |---|---|
-| 開關 | Pages 變數 `SEARCH_SEMANTIC=rrf-group@1` 加上 Durable Object binding `SEARCH_QUERY_GATE`。未設定時，回應與 slice 3 之前逐位元組相同 |
+| 開關 | Pages 變數 `SEARCH_SEMANTIC` 加上 Durable Object binding `SEARCH_QUERY_GATE`。變數的值就是合併規則的版本：`rrf-group@1` 或 `rrf-group@2`，其他值一律回 BM25 結果並標示 `failed`。Dev 目前是 `rrf-group@1`。未設定時，回應與 slice 3 之前逐位元組相同 |
 | gate | data Worker 的 `SearchQueryGate`：唯一可以呼叫 embedding 模型與 Vectorize 的地方，內含每日帳本與快取；沒有公開路由 |
 | 找 chunk | manifest 的每個 shard 記錄第一個 group root（發布端 `SEARCH_SHARD_ROOTS=true`）。向量帶有 group root，可直接算出所在 shard，不需額外讀取 |
 | 一致性 | 向量可變、release 不可變。候選必須在目前的 release 找到相同專案、紀錄、序號的 chunk，且指紋相同；結果的欄位一律取自 release |
 | 候選數 | 每個專案最多 50 個段落；BM25 固定取前 50 個 thread 的名次，與 `limit` 無關 |
 | 不算 embedding 的查詢 | 可精確比對的查詢（編號、純數字、符號）與少於兩個字母或數字的查詢 |
-| 快取 | key 是語意版本與正規化後的查詢（NFKC、空白合併，保留大小寫）。embedding 保留至少 7 天，各專案的候選保留 1 小時 |
+| 快取 | key 是語意版本與正規化後的查詢（NFKC、空白合併，保留大小寫），不含合併規則的版本，因此切換 `rrf-group@1` 與 `rrf-group@2` 不產生模型呼叫或 Vectorize 查詢。embedding 保留至少 7 天，各專案的候選保留 1 小時 |
 | 預算 | 每個 UTC 日：查詢 embedding 1,000 neurons（每次 1）、Vectorize 查詢 1,000 次；每小時 100 次模型呼叫。超過時回 BM25 結果，`retrieval.semantic.status` 為 `over-budget` |
 | 退回 | gate 失敗、逾時（1,000 ms）、超過預算、release 沒有 shard root：一律回 BM25 結果，HTTP 200，狀態寫在 `retrieval.semantic.status` |
 | 畫面 | 只由語意檢索找到的結果多一個「意思相近」標記 |
@@ -136,7 +164,7 @@ Spec 017 另外加入真實語料的評估：`real-corpus-snapshot.v1.json` 取�
 
 | 項目 | 決定 |
 |---|---|
-| 檢索 | BM25 + 語意檢索，用 RRF（k = 60）合併；合併規則有版本號 |
+| 檢索 | BM25 + 語意檢索，用 RRF（k = 60）合併；合併規則有版本號。2026-10-13 新增 `rrf-group@2`：字面排名開頭的完整命中維持原名次 |
 | 退回 | 語意檢索停用或失敗時，只回 BM25 結果 |
 | embedding 單位 | chunk（與 BM25 同一批 chunk），結果依 thread 合併，可引用段落 |
 | 模型 | 多語言 `@cf/baai/bge-m3`（1,024 維），發布與查詢用同一個模型；模型與版本隨向量記錄，換模型就全部重算 |
@@ -159,7 +187,7 @@ Spec 017 另外加入真實語料的評估：`real-corpus-snapshot.v1.json` 取�
 3. 切換（已完成，Spec 016 H42）：Dev 的 Worker 設定已加上該變數，部署後的下一次發布起 Dev 為 `@2`；Prod 未設定，仍是 `@1`。移除變數即回到 `@1`。
 4. slice 2b（已實作；Dev 自 2026-10-12 啟用）：發布時為每個 chunk 算 embedding 並寫入 Vectorize。Dev 目前 8,780 個 chunk 全部完成。
 5. slice 3（已實作；Dev 已於 2026-10-13 啟用）：查詢時算 embedding，在 `/api/search` 以開關啟用混合檢索（見「混合檢索的查詢流程」）。啟用 Dev 需要兩個設定 PR：先 Worker（shard root、gate 的 class 與 binding），再 Pages（binding 與 `SEARCH_SEMANTIC`）。
-6. slice 4：啟用後以 `bun run measure:search-hybrid` 比較 BM25 與混合檢索，再決定是否加入重排。暫定規則（待 owner 確認）：有合併結果的查詢中，至少 30% 的預期 thread 全部進前 20 名但有一筆落在標註的名次之外，才考慮重排。
+6. slice 4：啟用後以 `bun run measure:search-hybrid` 比較 BM25 與混合檢索，再決定是否加入重排。2026-10-13 在 `rrf-group@1` 量測的結果是「不需要重排」（43 題中 9 題符合條件，21%），但其中 7 題是 `rrf-group@2` 修正的退步，因此以 Dev 切換到 `rrf-group@2`（Spec 016 rollout step 7）之後的量測為準。暫定規則（待 owner 確認）：有合併結果的查詢中，至少 30% 的預期 thread 全部進前 20 名但有一筆落在標註的名次之外，才考慮重排。
 7. Spec 017（已實作；Dev 已切換，N17）：`bm25-reference@3`。thread 分數改為等比遞減，並加入詞組加分；儲存的 shard 與 `terms.json` 和 `@2` 相同，只有 manifest 的 `lexicalRevision` 不同。Dev 的 `SEARCH_LEXICAL_REVISION` 設為 `bm25-reference@3`，部署後的下一次發布起生效；改回 `bm25-reference@2` 即可復原。已知限制：查詢的字在標題中不相鄰或順序相反時沒有詞組加分，例如 `manager request` 仍由長 thread 排第一（Spec 017 Results 的 guard rows）。
 8. 視需要做「問答」：用檢索結果讓模型附引用回答（RAG，另立規格）。檢索品質是它的上限。
 
