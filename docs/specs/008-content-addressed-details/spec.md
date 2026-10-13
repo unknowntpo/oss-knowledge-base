@@ -4,6 +4,13 @@ Status: Implemented (PR #21, merged 2026-09-30); C8–C10 added 2026-10-13 (R2 C
 Date: 2026-09-30
 Amends: ADR-0004, ADR-0007, ADR-0010 (via ADR-0013); Spec 003 key layout; Spec 006 P3
 
+> **Note 2026-10-13 ([Spec 018](../018-daily-publication/spec.md)).**
+> Publication is daily, not hourly: "a steady-state hourly run" below is a
+> daily run, which carries a day's changes, so its `copiedObjectCount` (and
+> with it Class A) is about a day's worth of new objects rather than an
+> hour's. C10's rule, Class A = new objects + 3, does not depend on the
+> cadence.
+
 ## Intent
 
 Stop rewriting every detail object on every publication. A release keeps its

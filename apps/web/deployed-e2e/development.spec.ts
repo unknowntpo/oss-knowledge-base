@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import type { Page } from "@playwright/test";
 
+import { STALE_AFTER_MS } from "../src/freshness";
 import { expect, test } from "./fixtures";
 
 const workerUrl = process.env.DEV_WORKER_URL
@@ -58,7 +59,8 @@ test("development cron data reaches Feed, Search, facets, and immutable detail",
   expect(health.environment).toBe("development");
   expect(health.lastRun.ok).toBe(true);
   expect(health.lastRun.logicalEventCount).toBeGreaterThan(0);
-  expect(Date.now() - Date.parse(health.lastRun.completedAt)).toBeLessThan(2 * 60 * 60 * 1_000);
+  // Spec 018: one publication a day, so "recent" is the page's own stale rule (cadence plus grace).
+  expect(Date.now() - Date.parse(health.lastRun.completedAt)).toBeLessThanOrEqual(STALE_AFTER_MS);
 
   await expect.poll(async () => {
     const [feedResponse, searchResponse] = await Promise.all([
@@ -177,7 +179,7 @@ test("H42: Search serves the lexical revision the publisher last wrote, and at @
   expect(health!.lastRun!.search?.lexicalRevision).toBe(served);
   testInfo.annotations.push({ type: "lexicalRevision", description: served });
   if (served === "bm25-reference@1") {
-    // The first deploy after the switch runs before the next hourly publication; a rollback
+    // The first deploy after the switch runs before the next daily publication; a rollback
     // (variable removed) also lands here. `/health` `lastRun.search` is the runtime check.
     console.log(`Dev Search still serves ${served}; the @2 identifier check is skipped until an @2 release is current`);
     return;
@@ -192,7 +194,7 @@ test("H42: Search serves the lexical revision the publisher last wrote, and at @
 
 test("H52: the Dev publisher reports search embedding enabled with no configuration error", async ({ publisherRequest }) => {
   // True from the deploy on, before any run: `enabled` and `configError` come from the Worker's
-  // variables and bindings. Progress (`lastRun`, `pending`) depends on later hourly runs and is
+  // variables and bindings. Progress (`lastRun`, `pending`) depends on later runs and is
   // read by hand (Spec 016 H52), not asserted here. `searchEmbedding` is null while the
   // embedding object does not answer, hence the poll.
   type Health = { readonly searchEmbedding: null | { readonly enabled: boolean; readonly configError?: string; readonly revision?: string } };

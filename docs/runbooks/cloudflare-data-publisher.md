@@ -4,8 +4,13 @@
 
 | Environment | Worker | Cron (UTC) | State | R2 target | Code release |
 | --- | --- | --- | --- | --- | --- |
-| Development | `oss-knowledge-base-data-dev` | `7 * * * *` | environment-local Durable Object | `oss-knowledge-base-dev` | push to `main` |
-| Production | `oss-knowledge-base-data-prod` | `37 * * * *` | environment-local Durable Object | `oss-knowledge-base-prod` | reachable `vX.Y.Z` tag |
+| Development | `oss-knowledge-base-data-dev` | `7 22 * * *` (daily, 06:07 Asia/Taipei) | environment-local Durable Object | `oss-knowledge-base-dev` | push to `main` |
+| Production | `oss-knowledge-base-data-prod` | `37 22 * * *` (daily; this Worker has not been deployed yet) | environment-local Durable Object | `oss-knowledge-base-prod` | reachable `vX.Y.Z` tag |
+
+Publication is **once a day** (Spec 018, owner's decision of 2026-10-13; it
+was hourly). A change that needs a new release — a new lexical revision, a
+flag, a fixed source — is otherwise visible only after the next 22:07 UTC.
+**To publish now, use the manual run below.**
 
 The Workers require the Standard (paid) Workers limits. Each environment needs
 two Worker secrets:
@@ -27,11 +32,45 @@ Object and return; the run itself executes in the object's alarm. The runtime
 never runs two alarms at once and retries an alarm that dies, so no lock has to
 expire before the next run. An alarm has a 15-minute wall-time limit.
 
-An authorized manual run calls `POST /run` with
-`Authorization: Bearer <MANUAL_TRIGGER_TOKEN>`; HTTP 202 means it was scheduled.
-Poll `/health` for the result. Use it once after initial secret
-provisioning, then confirm Feed and Search both changed to complete releases
-before relying on the Cron.
+### Publish now (manual run)
+
+```sh
+curl -sS -X POST -H "Authorization: Bearer $MANUAL_TRIGGER_TOKEN" \
+  https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/run
+# 202 {"ok":true,"scheduled":true}; then, until running is false:
+curl -sS https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/health
+```
+
+HTTP 202 means the run was scheduled; it starts within seconds and takes a
+few minutes. It is done when `/health` shows `running: false` and
+`lastRun.completedAt` is the time of the request; `/api/feed` serves it
+within 150 seconds. A manual run is a full publication: it costs what a
+Cron run costs and starts the embedding job like one. Use it
+
+- after a deploy whose effect needs a new release (wherever a runbook or
+  spec says "the next publication" or "the next run");
+- after the deploy that moved the Cron to once a day, so that Dev is not
+  left without an update until 22:07 UTC;
+- once after initial secret provisioning, then confirm Feed and Search both
+  changed to complete releases before relying on the Cron.
+
+### Follow-up runs (Spec 018)
+
+The Cron fires once a day, so a run that left work behind schedules its own
+follow-up on the same alarm:
+
+| After a run that | The object runs again | At most |
+| --- | --- | --- |
+| published but was cut short by a per-run cap (`lastRun.pollTruncated: true`) | 5 minutes later | 5 times per trigger |
+| failed (`lastRun.ok: false`) or published while a source failed (`sources.<key>.ok: false`) | after 10, then 30, then 60 minutes | 3 times per trigger |
+
+`/health` `followUp` shows the one that is waiting
+(`{reason, at, catchUps, retries}`) and `scheduled` is `true`; `null` means
+nothing will run before the next Cron tick. A Cron tick or `POST /run`
+replaces a waiting follow-up and starts new counts. When the retries are
+used up and `lastRun.ok` is still `false`, fix the cause and publish
+manually; otherwise the next attempt is the next day's tick, and the page
+shows the stale warning 27 hours after the last good publication.
 
 ## R2 operations and cost
 
@@ -46,7 +85,7 @@ A conditional put whose precondition fails (`if-none-match: *` on an existing
 key) is still a Class A operation. Deletes are free.
 
 `/health` `lastRun.r2 { classA, classB }` is what the last run's publication
-sent, retries included (Spec 008 C9). Expected for a steady hourly run:
+sent, retries included (Spec 008 C9). Expected for a steady daily run:
 `classA` = `copiedObjectCount + 3` (two pointers, one evidence object) and
 `classB` = `copiedObjectCount + reusedObjectCount + 3`.
 
@@ -56,16 +95,16 @@ curl -sS https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/health | jq 
 
 | Who | When | Class A | Class B |
 | --- | --- | --- | --- |
-| Publication | hourly, each environment | new objects + 3 (Dev: about 40) | objects + 3 (Dev: about 8,200) |
-| Embedding job | after each publication, Dev | 0 | 2 + shards (about 12) |
+| Publication | once a day, each environment (Spec 018), plus follow-up and manual runs | new objects + 3 (Dev: about 40) | objects + 3 (Dev: about 8,200) |
+| Embedding job | after each publication, and hourly while work is left, Dev | 0 | 2 + shards (about 12) |
 | Digest | manual `POST /digest/run` | 2–4 (one `list`, the pointer, two objects when new) | up to 300 |
 | Review queue | manual `POST /review-queue/run` | 3–4 | 4–5 |
 | `/health` | per request | 0 | 1 |
 | Pages `/api/*` | per request | 0 | 2–3; `/api/search` at most 13 on Dev |
 | CI `bootstrap-r2` | manual workflow | one per object | 0 |
 
-A month of hourly Dev publications is about 28 thousand Class A and 6.0
-million Class B. Act when:
+A month of daily Dev publications is about 1.2 thousand Class A and 0.25
+million Class B (hourly, until Spec 018: about 28 thousand and 6.0 million). Act when:
 
 - `lastRun.r2.classA` is far above `copiedObjectCount + 3`: something writes
   what already exists (the incident of 2026-10-13, Spec 008 "R2 operations":
@@ -80,8 +119,9 @@ million Class B. Act when:
 
 - A GitHub error, incomplete page sequence, validation error, or R2 error keeps
   the previous complete pointers readable.
-- HTTP 409 from a manual run means a run is already scheduled or active; do not
-  start another retry.
+- HTTP 409 from a manual run means a run is active or about to start; do not
+  start another. A follow-up that is only waiting does not cause 409: the
+  manual run replaces it.
 - To hold a rollback, pause the affected Cron first. Verify every immutable
   object for the chosen release, restore its Feed/Search pointers, and only then
   re-enable the Cron.
@@ -118,7 +158,10 @@ and writes `@1`.
 ## Search embeddings (Spec 016 slice 2b)
 
 `SearchEmbeddingRun` is a separate Durable Object. After each successful
-publication the publisher asks it to run; it embeds the current Search
+publication (once a day, Spec 018) the publisher asks it to run, and while a
+run leaves work it runs again by itself an hour later (00:05 UTC of the next
+day after a day cap; Spec 016 Behavior 46), so "the next run" below is at
+most an hour away, not a day; it embeds the current Search
 release's chunks with `@cf/baai/bge-m3` through the AI Gateway named by
 `SEARCH_GATEWAY_ID` and stores one vector per passage in the Vectorize index
 bound as `SEARCH_VECTORS`, one namespace per project. It cannot fail, delay,
@@ -161,8 +204,8 @@ day.
 
 - `heldDeletes` / `absentProjects`: the release holds no chunk of a project
   (or none at all), so its vectors were kept. They are deleted only at the
-  third release in a row without it: about three hours at one release an
-  hour. A rollback to an older release counts as a release too. Check the
+  third release in a row without it: about three days at one release a
+  day. A rollback to an older release counts as a release too. Check the
   publisher's sources first.
 - `quarantined`: texts that failed alone in three runs in a row; they are
   skipped for 24 hours and then tried once (at most 2 calls); each further
@@ -208,11 +251,13 @@ rollback, repeat from step 1.
    `"SEARCH_EMBEDDING": "bge-m3@1"` to `vars`, update the `H45` configuration
    test, and merge. Any other value fails the embedding run (not the
    publication) and `/health` `searchEmbedding.configError` names it.
-3. The next publication (minute 7 of the hour) starts a run; `POST
+3. The next publication (22:07 UTC, or `POST /run` to publish now) starts a
+   run, which continues hourly by itself until `pending` is 0; `POST
    /search-embedding/run` with the bearer token starts one at once (202;
    409 means one is pending).
 4. Watch `searchEmbedding.lastRun` until `pending` is 0 and, a run later,
-   `index.mutationsProcessed` is `true`. Check the gateway `osskb-search-dev`
+   `index.mutationsProcessed` is `true` (once nothing is pending the next
+   run is the next publication's, or `POST /search-embedding/run`). Check the gateway `osskb-search-dev`
    for the requests; `osskb-digest-dev` must show none of them.
 5. After the first real run, compare the cost the gateway reports with
    `lastRun.estimatedNeurons`. Done for the backfill of 2026-10-12: $0.0157
@@ -338,7 +383,7 @@ index queries plus the stored vectors are 40.7 M of Vectorize's included
    ```
 
    Expected: `gate.enabled: true`, no `configError`, `today` all zero;
-   after minute 7 of the next hour `run.search.shardRoots: true` and the
+   after the next publication (22:07 UTC, or `POST /run`) `run.search.shardRoots: true` and the
    embedding run `ok` with `pending: 0`; `retrieval` with four fields and no
    `semantic`.
 2. **Pages (done 2026-10-13)**, only after step 1 is deployed (CI deploys

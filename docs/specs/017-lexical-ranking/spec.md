@@ -5,6 +5,10 @@ Date: 2026-10-12
 Traceability: enforced
 Builds on: Spec 005 (lexical search, exact identifiers first), Spec 013 (streaming reader, stored statistics), Spec 016 (`bm25-reference@2`, the revision flag, golden v2, open questions 6 and 7)
 
+> **Note 2026-10-13 ([Spec 018](../018-daily-publication/spec.md)).** "The
+> next hourly run" below is the next daily run (22:07 UTC on Dev), or
+> `POST /run` to publish at once.
+
 ## Intent
 
 A reader types two or three words of what they remember: `request manager`,

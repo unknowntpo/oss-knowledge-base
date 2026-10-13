@@ -1,12 +1,14 @@
 import { expect, test } from "@playwright/test";
 
+import { STALE_AFTER_MS } from "../src/freshness";
 import { testPlanRows } from "../test/freshness.cases";
 
 // The E2E Feed fixture was generated at this time (packages/reference-pipeline/test/fixtures).
 const generatedAt = Date.parse("2026-08-25T12:00:00Z");
 const hour = 60 * 60_000;
 // Expected texts come from the case file so the E2E and unit plans cannot disagree.
-const freshText = testPlanRows.find((row) => row.id === "F1" && row.en === "Updated 2 h ago")!.en;
+// The last text before the boundary: 30 s short of 27 h still reads 26 h.
+const freshText = testPlanRows.find((row) => row.id === "F2" && row.en === "Updated 26 h ago")!.en;
 const staleText = testPlanRows.find((row) => row.id === "F2" && row.stale === true)!.en;
 
 test.beforeEach(async ({ page }, testInfo) => {
@@ -15,8 +17,8 @@ test.beforeEach(async ({ page }, testInfo) => {
   await page.addInitScript(() => window.localStorage.setItem("community-kb-locale", "en"));
 });
 
-test("F3: an open page turns stale when the three-hour mark passes", async ({ page }) => {
-  await page.clock.install({ time: generatedAt + 3 * hour - 30_000 });
+test("F3: an open page turns stale when the stale threshold (one day and three hours) passes", async ({ page }) => {
+  await page.clock.install({ time: generatedAt + STALE_AFTER_MS - 30_000 });
   await page.goto("/#/kafka/threads");
   const pill = page.locator(".demo-pill");
   await expect(pill).toHaveText(freshText);

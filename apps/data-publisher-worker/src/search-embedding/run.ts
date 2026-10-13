@@ -2,7 +2,7 @@
  * Spec 016 slice 2b: one embedding run (Behavior 16–20). Pins the current Search release, embeds
  * the chunks the state does not hold at the profile's revision, upserts them into the project's
  * namespace, and deletes the vectors of chunks the release no longer holds. Every bound stops the
- * run with its progress recorded; the next run continues from the state.
+ * run with its progress recorded; the next run continues from the state (`embeddingContinuation`).
  */
 import { DAILY_NEURON_BUDGET, embeddingNeurons, estimateTokens, PRICES, USD_PER_NEURON, type PricedModel } from "@oss-knowledge-base/reference-pipeline";
 import { chunkEmbeddingText, type SourceRecordChunkV1 } from "@oss-knowledge-base/search";
@@ -165,6 +165,27 @@ export interface EmbeddingRunResult {
   readonly index: { readonly vectorCount: number; readonly mutationsProcessed: boolean | null } | null;
   readonly lastMutationId: string | null;
   readonly estimate: EmbeddingEstimate;
+}
+
+/** Spec 016 Behavior 46: how long after a run that left work the object runs again by itself. */
+export const CONTINUE_AFTER_MS = 60 * 60_000;
+/** A run a day cap stopped continues this long into the next UTC day, when the ledger is new. */
+const AFTER_MIDNIGHT_MS = 5 * 60_000;
+
+/**
+ * Spec 016 Behavior 46: when the embedding object should run again without a publication, or
+ * `undefined` when a later run could do nothing more. Publications come once a day (Spec 018), so
+ * a backlog, a bound, or a failure must not wait for the next one. Quarantined texts and held
+ * deletes are not work: the first wait at least a day, the second for further releases.
+ */
+export function embeddingContinuation(result: EmbeddingRunResult, now: Date): number | undefined {
+  if (result.dryRun || result.failureKind === "config") return undefined;
+  const workLeft = !result.ok || result.pending > result.quarantined || result.deletePending > result.heldDeletes;
+  if (!workLeft) return undefined;
+  if (result.limited === "calls-per-day" || result.limited === "daily-neurons") {
+    return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1) + AFTER_MIDNIGHT_MS;
+  }
+  return now.getTime() + CONTINUE_AFTER_MS;
 }
 
 export interface ReleaseReader {

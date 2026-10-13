@@ -26,6 +26,11 @@ data, and R2 is not the canonical event store.
   `oss-knowledge-base-dev`.
 - Production runs at minute 37 of every UTC hour and writes only
   `oss-knowledge-base-prod`.
+- **Amended 2026-10-13 (owner; Spec 018):** both run once a day instead,
+  development at 22:07 UTC (`7 22 * * *`) and production at 22:37 UTC
+  (`37 22 * * *`), because the upstream sources change too little for 24
+  publications a day. A truncated or failed run schedules its own follow-up.
+  The rest of this decision is unchanged.
 - A push to `main` may deploy the development Worker. Only a version tag whose
   commit is reachable from `main` may deploy the production Worker. Therefore
   development code changes do not reach the production Cron until an explicit

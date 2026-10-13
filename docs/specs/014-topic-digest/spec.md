@@ -5,6 +5,13 @@ Date: 2026-10-06 (amended 2026-10-08 after design review)
 Traceability: enforced
 Builds on: Spec 002, Spec 005, Spec 008 (ADR-0013), Spec 010, Spec 011, Spec 012 (ADR-0014), Spec 013
 
+> **Note 2026-10-13 ([Spec 018](../018-daily-publication/spec.md)).** The
+> publisher now runs once a day (Dev 22:07 UTC), not hourly; "the hourly
+> publication run" below is that daily run and `7 * * * *` in the examples
+> is `7 22 * * *`. The digest is still started by no cron. If it is enabled,
+> a time after the publication reads the day's release (Spec 018, open
+> decision 3). Nothing else in this spec changes.
+
 ## Intent
 
 A Kafka maintainer opens the home page to learn what the Apache Kafka
@@ -1322,7 +1329,7 @@ synthetic; the others use values captured from Dev.
 | D59 | deferral | constructed: publisher running at 4 consecutive alarms | re-armed 15 min later each time; no run |
 | D59 | deferral | constructed: publisher still running at the 5th alarm | runs; lastRun.deferred 4 |
 | D22 | run control | constructed: POST /digest/run while an alarm is pending | 409 already-running |
-| D22 | run control | constructed: digest cron unset; cron 7 * * * * fires | publisher |
+| D22 | run control | constructed: digest cron unset; cron 7 22 * * * fires | publisher |
 | D22 | run control | constructed: digest cron 37 1 * * * set; it fires | digest |
 | D60 | dry run | constructed: POST /digest/run?dryRun=1 | returns en and zh-Hant; 0 R2 writes; spend added to today; lastRun.dryRun true |
 | D14 | rate limit | constructed: today's estimated spend already at the Dev cap (4,500) | no model call; limited true; rules features and fallback cards |
@@ -1330,7 +1337,7 @@ synthetic; the others use values captured from Dev.
 | D50 | translate | constructed: the translation drops one item's placeholder | that item Not translated (English kept); no placeholder text in zh-Hant |
 | D37 | highlights | constructed: one highlight cites a thread that no kept sentence cites | that highlight dropped; the other 2 shown |
 | D20 | publication | constructed: the detail map names a different release than the manifest | source-read failure; nothing written |
-| D22 | run control | constructed: DIGEST_CRON 37 1 * * * set; the publisher cron 7 * * * * fires | publisher |
+| D22 | run control | constructed: DIGEST_CRON 37 1 * * * set; the publisher cron 7 22 * * * fires | publisher |
 | D60 | dry run | constructed: two dry runs on the same UTC day | today.estimatedNeurons is the sum of both runs |
 | D60 | dry run | constructed: a dry run's stored lastRun | no objects stored; R2 keys unchanged |
 | D55 | highlights call | constructed: the highlights call fails; same release runs again | fallbacks counted; the next run is not a reuse |

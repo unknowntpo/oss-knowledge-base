@@ -13,11 +13,11 @@ test("verify:ui captures the stale pill on Feed and Search detail at 375 px", ({
   execFileSync(
     "bun",
     ["scripts/verify/ui.ts", "--target", "local", "--view", "feed,search-detail", "--width", "375",
-      "--locale", "en", "--at", "+3h1s", "--out", out],
+      "--locale", "en", "--at", "+27h1s", "--out", out],
     { cwd: repoRoot, stdio: "pipe", timeout: 90_000 },
   );
   const summary = JSON.parse(readFileSync(resolve(out, "summary.json"), "utf8"));
-  expect(summary.clock).toBe("2026-08-25T15:00:01.000Z");
+  expect(summary.clock).toBe("2026-08-26T15:00:01.000Z");
   expect(summary.captures.map((capture: { view: string }) => capture.view)).toEqual(["feed", "search-detail"]);
   for (const capture of summary.captures) {
     expect(existsSync(capture.screenshot)).toBe(true);

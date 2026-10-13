@@ -4,6 +4,14 @@ Status: Implemented (PR #23, merged 2026-10-02)
 Date: 2026-10-02
 Builds on: Spec 006, Spec 008, ADR-0012, ADR-0013
 
+> **Amended 2026-10-13 by [Spec 018](../018-daily-publication/spec.md).**
+> Publication is daily, not hourly; "hourly run" below reads "a run". The
+> per-run caps are unchanged, so the memory measurements stand. Behavior 8 and
+> M9 still hold for an alarm that is due or overdue; an alarm set for a later
+> time is a Spec 018 follow-up, which `POST /run` replaces (202) instead of
+> answering 409 (Spec 018 T9). M6's "24 consecutive hours" was observed under
+> the hourly Cron.
+
 ## Intent
 
 An hourly publication run must fit the Durable Object's 128 MB isolate at the

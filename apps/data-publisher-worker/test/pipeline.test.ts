@@ -97,11 +97,11 @@ describe("Cloudflare data publication", () => {
     expect(development.name).toBe("oss-knowledge-base-data-dev");
     expect(development.vars.PUBLICATION_ENVIRONMENT).toBe("development");
     expect(development.r2_buckets[0]?.bucket_name).toBe("oss-knowledge-base-dev");
-    expect(development.triggers.crons).toEqual(["7 * * * *"]);
+    expect(development.triggers.crons).toEqual(["7 22 * * *"]);
     expect(production.name).toBe("oss-knowledge-base-data-prod");
     expect(production.vars.PUBLICATION_ENVIRONMENT).toBe("production");
     expect(production.r2_buckets[0]?.bucket_name).toBe("oss-knowledge-base-prod");
-    expect(production.triggers.crons).toEqual(["37 * * * *"]);
+    expect(production.triggers.crons).toEqual(["37 22 * * *"]);
     expect(development.name).not.toBe(production.name);
     expect(development.r2_buckets[0]?.bucket_name).not.toBe(production.r2_buckets[0]?.bucket_name);
   });

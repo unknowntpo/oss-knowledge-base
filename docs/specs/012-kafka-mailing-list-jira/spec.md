@@ -5,6 +5,15 @@ Date: 2026-10-06
 Traceability: enforced
 Builds on: Spec 004, Spec 005, Spec 008, Spec 009; `docs/domain/community-model.md`
 
+> **Amended 2026-10-13 by [Spec 018](../018-daily-publication/spec.md).**
+> Publication is daily, not hourly. A day's updates fit the per-run caps (48
+> Jira issues against 200; one Pony Mail request with a 2–3 day window).
+> Where this spec says a backlog is "read across runs" or "later runs catch
+> up", those runs now follow by themselves 5 minutes apart (at most 5), and a
+> failed source is retried after 10, 30 and 60 minutes, instead of waiting
+> for the next hourly tick (Spec 018 Behavior 4–5). Staleness "for more than
+> 3 hours" reads 27 hours (Spec 010).
+
 ## Intent
 
 A Kafka maintainer wants to see what the Kafka community is discussing now:

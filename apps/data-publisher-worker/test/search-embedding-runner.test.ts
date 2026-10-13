@@ -4,7 +4,7 @@ import { FakeVectorIndex } from "@oss-knowledge-base/semantic-vectorize/testing"
 import worker, { mergeHealth, SearchEmbeddingRun, searchEmbeddingTrigger } from "../src/index";
 import type { PipelineRunStatus } from "../src/pipeline";
 import { STALE_ALARM_MS } from "../src/run-schedule";
-import { DEFAULT_EMBEDDING_LIMITS, type EmbeddingRunResult } from "../src/search-embedding/run";
+import { CONTINUE_AFTER_MS, DEFAULT_EMBEDDING_LIMITS, embeddingContinuation, type EmbeddingRunResult } from "../src/search-embedding/run";
 import { searchEmbeddingConfig, SearchEmbeddingRunner, unboundSearchEmbeddingHealth, type SearchEmbeddingHealth, type SearchEmbeddingRunnerDeps } from "../src/search-embedding/runner";
 import { EmbeddingState } from "../src/search-embedding/state";
 import { DAY_1, FIVE, MemoryBucket, MemoryStorage, projectA, publishRelease } from "./support/search-embedding";
@@ -373,6 +373,76 @@ describe("Spec 016 embedding object", () => {
     expect(await afterRestart.health()).toMatchObject({ running: false, interrupted: { startedAt: "2026-10-10T08:00:00.000Z" }, lastRun: null, today: { calls: 1 } });
     await afterRestart.alarm();
     expect(await afterRestart.health()).toMatchObject({ interrupted: null, lastRun: { ok: true, embedded: 5 }, today: { calls: 4 } });
+  });
+
+  /** Fires the alarm as the runtime does (it clears the alarm first) and returns when the object asked to run again. */
+  async function fire(h: ReturnType<typeof setup>): Promise<number | null> {
+    h.storage.alarm = null;
+    await h.runner.alarm();
+    return h.storage.alarm;
+  }
+
+  test("H92: a run a per-run bound stopped continues on its own alarm an hour later until nothing is pending, with no publication in between", async () => {
+    const h = setup({ limits: { batchTexts: 2, maxChunksPerRun: 2 } });
+    expect((await h.runner.request()).status).toBe(202);
+    const runs: string[] = [];
+    for (let run = 0; run < 5; run += 1) {
+      const next = await fire(h);
+      const last = (await h.runner.health()).lastRun!;
+      runs.push(`${last.embedded}/${last.chunks} ${last.limited ?? "done"} ${next === null ? "idle" : `+${(next - h.clock.now) / 60_000} min`}`);
+      if (next === null) break;
+      expect((await h.runner.health()).scheduled).toBe(true);
+      h.clock.now = next;
+    }
+    expect(runs).toEqual(["2/5 chunks-per-run +60 min", "4/5 chunks-per-run +60 min", "5/5 done idle"]);
+    expect(CONTINUE_AFTER_MS).toBe(60 * 60_000);
+    expect(h.index.vectors.size).toBe(5);
+    // Control: a run that finishes everything at once never sets an alarm.
+    const whole = setup();
+    expect(await fire(whole)).toBeNull();
+  });
+
+  test("H92: a trigger while a continuation waits runs now instead of being refused", async () => {
+    const h = setup({ limits: { batchTexts: 2, maxChunksPerRun: 2 } });
+    expect(await fire(h)).toBe(DAY_1 + CONTINUE_AFTER_MS);
+    h.clock.now = DAY_1 + 10 * 60_000;
+    expect(await h.runner.request()).toEqual({ status: 202, body: { ok: true, scheduled: true } });
+    expect(h.storage.alarm).toBe(h.clock.now);
+    // Now the alarm is due, so a second trigger is refused as before.
+    expect((await h.runner.request()).status).toBe(409);
+  });
+
+  test("H93: a day cap continues five minutes into the next UTC day; a model that is down is asked again in an hour", async () => {
+    const capped = setup({ limits: { batchTexts: 2, maxCallsPerDay: 1 } });
+    expect(await fire(capped)).toBe(Date.parse("2026-10-11T00:05:00.000Z"));
+    expect((await capped.runner.health()).lastRun).toMatchObject({ limited: "calls-per-day", pending: 3 });
+    capped.clock.now = Date.parse("2026-10-11T00:05:00.000Z");
+    // The new day has one call again, so the next continuation is the day after.
+    expect(await fire(capped)).toBe(Date.parse("2026-10-12T00:05:00.000Z"));
+
+    const down = setup();
+    down.ai.fail = new Error("boom");
+    expect(await fire(down)).toBe(DAY_1 + CONTINUE_AFTER_MS);
+    expect((await down.runner.health()).lastRun).toMatchObject({ ok: false, limited: "model-down", pending: 5 });
+    down.ai.fail = undefined;
+    down.clock.now = DAY_1 + CONTINUE_AFTER_MS;
+    expect(await fire(down)).toBeNull();
+    expect((await down.runner.health()).lastRun).toMatchObject({ ok: true, pending: 0 });
+  });
+
+  test("H93: nothing continues for work a later run cannot do: quarantined texts, held deletes, a configuration error, a dry run", async () => {
+    const done = (await (async () => { const h = setup(); await fire(h); return (await h.runner.health()).lastRun!; })());
+    const at = new Date(DAY_1);
+    expect(embeddingContinuation(done, at)).toBeUndefined();
+    expect(embeddingContinuation({ ...done, pending: 2, quarantined: 2 }, at)).toBeUndefined();
+    expect(embeddingContinuation({ ...done, deletePending: 7, heldDeletes: 7 }, at)).toBeUndefined();
+    expect(embeddingContinuation({ ...done, ok: false, failureKind: "config", pending: 5 }, at)).toBeUndefined();
+    expect(embeddingContinuation({ ...done, dryRun: true, pending: 5 }, at)).toBeUndefined();
+    // Controls: one chunk or one delete more than that is work, and so is a run that failed.
+    expect(embeddingContinuation({ ...done, pending: 3, quarantined: 2 }, at)).toBe(DAY_1 + CONTINUE_AFTER_MS);
+    expect(embeddingContinuation({ ...done, deletePending: 8, heldDeletes: 7 }, at)).toBe(DAY_1 + CONTINUE_AFTER_MS);
+    expect(embeddingContinuation({ ...done, ok: false, failureKind: "release-read" }, at)).toBe(DAY_1 + CONTINUE_AFTER_MS);
+    expect(embeddingContinuation({ ...done, pending: 1, limited: "daily-neurons" }, at)).toBe(Date.parse("2026-10-11T00:05:00.000Z"));
   });
 
   test("H51: /health carries searchEmbedding beside the publisher's fields, and says disabled where the object is not bound", () => {

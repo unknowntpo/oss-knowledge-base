@@ -12,7 +12,7 @@
     "PUBLICATION_ENVIRONMENT": "production"
   },
   "triggers": {
-    "crons": ["37 * * * *"]
+    "crons": ["37 22 * * *"]
   },
   "r2_buckets": [
     {

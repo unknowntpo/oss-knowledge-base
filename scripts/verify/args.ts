@@ -43,7 +43,7 @@ export interface UiOptions {
   readonly width: number;
   readonly height: number;
   readonly locale: "en" | "zh-Hant";
-  /** "now" (real clock), an ISO time, or an offset from the feed's generatedAt such as "+3h1s". */
+  /** "now" (real clock), an ISO time, or an offset from the feed's generatedAt such as "+27h1s". */
   readonly at: string;
   /** Freeze the clock instead of letting it run from `at`. */
   readonly frozen: boolean;
@@ -162,7 +162,7 @@ export function parseAt(value: string): ClockSpec {
     const time = Date.parse(value);
     if (!Number.isNaN(time)) return { kind: "absolute", time };
   }
-  throw new UsageError(`--at must be now, an ISO time with zone, or an offset like +3h1s, got ${value}`);
+  throw new UsageError(`--at must be now, an ISO time with zone, or an offset like +27h1s, got ${value}`);
 }
 
 /** The browser clock to install, or undefined for the real clock. */
@@ -254,7 +254,7 @@ export interface HealthVerdict {
   readonly staleInUi: boolean | undefined;
 }
 
-/** Same release on both sides, and the page's 3 h stale rule (apps/web/src/freshness.ts). */
+/** Same release on both sides, and the page's stale rule (`STALE_AFTER_MS`, apps/web/src/freshness.ts). */
 export function judgeHealth(report: HealthReport, staleAfterMs: number): HealthVerdict {
   const generated = report.feed.generatedAt ? Date.parse(report.feed.generatedAt) : Number.NaN;
   const age = Number.isNaN(generated) ? undefined : Math.max(0, Date.parse(report.now) - generated);

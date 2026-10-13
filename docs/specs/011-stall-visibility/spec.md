@@ -1,6 +1,6 @@
 # Spec 011: Stalled publication visible everywhere
 
-Status: Accepted 2026-10-06, design delegated by the human
+Status: Accepted 2026-10-06, design delegated by the human; amended 2026-10-13 by Spec 018 (the stall boundary is 27 h)
 Date: 2026-10-06
 Traceability: enforced
 Builds on: Spec 010
@@ -9,7 +9,13 @@ Builds on: Spec 010
 
 When the data pipeline stalls, anyone looking at the Dashboard sees it, on
 every view and on a phone. "Stalled" is Spec 010's rule: the newest
-publication is more than three hours old. No push notification is needed.
+publication is older than `STALE_AFTER_MS`, which since Spec 018 (one
+publication a day) is 27 hours: the daily cadence plus three hours of grace.
+A healthy daily pipeline is therefore never shown as stalled. No push
+notification is needed.
+
+The Evidence and Example below were captured while publication was hourly
+and the boundary was 3 h; the rule and the tests use the current boundary.
 
 ## Evidence
 
@@ -99,37 +105,37 @@ Captured from Dev at 2026-10-06T07:22:48Z:
 
 ## Test plan
 
-No new case file: texts and the 3 h boundary come from Spec 010's generated
+No new case file: texts and the boundary (27 h) come from Spec 010's generated
 table (`apps/web/test/freshness.cases.ts`). Named E2E tests in
 `apps/web/e2e/stall-visibility.spec.ts`, run at fixed viewport widths with a
 controlled clock on the E2E fixture (`generatedAt` 2026-08-25T12:00:00Z):
 
 | ID | Scenario | Expected |
 | --- | --- | --- |
-| V1 | Widths 320, 375, 420; clock 3 h 1 s after `generatedAt`; Feed, Feed detail, Search detail; en and zh-Hant | pill visible with the Spec 010 F2 stale text and stale styling, fully inside the viewport, text not clipped (pill `scrollWidth` ≤ `clientWidth`), ending left of the locale select; topbar `scrollWidth` ≤ `clientWidth` |
-| V2 | Widths 375, 420; clock exactly 3 h after `generatedAt` (F2 boundary) | pill hidden; control: at width 421 the same pill is visible with "Updated 3 h ago" |
-| V3 | Width 375; page opened 30 s before the 3 h mark, clock advances 60 s | pill goes from hidden to visible with the stale text, without a reload |
+| V1 | Widths 320, 375, 420; clock 27 h 1 s after `generatedAt`; Feed, Feed detail, Search detail; en and zh-Hant | pill visible with the Spec 010 F2 stale text and stale styling, fully inside the viewport, text not clipped (pill `scrollWidth` ≤ `clientWidth`), ending left of the locale select; topbar `scrollWidth` ≤ `clientWidth` |
+| V2 | Widths 375, 420; clock exactly 27 h after `generatedAt` (F2 boundary) | pill hidden; control: at width 421 the same pill is visible with "Updated 27 h ago" |
+| V3 | Width 375; page opened 30 s before the 27 h mark, clock advances 60 s | pill goes from hidden to visible with the stale text, without a reload |
 | V4 | Width 375; `/api/feed` `generatedAt` is "not-a-time"; control: same width with a stale `generatedAt` shows the pill | Feed cards render; pill hidden |
 | V6 | Width 375; fresh `generatedAt` (2 h); `/api/feed` `metadata.stale` is `true`; control: same page without it hides the pill | pill visible with stale styling |
 
 ## Acceptance
 
 ### Behavior
-- V1: with the newest publication more than 3 h old, at widths 320, 375
+- V1: with the newest publication more than 27 h old, at widths 320, 375
   and 420 px, opening Feed, Feed detail, or Search detail in en or zh-Hant
   shows the pill with Spec 010's full stale text and styling inside the
   viewport: the text is not clipped by the pill, the pill ends before the
   locale select, and the topbar has no horizontal overflow → evidence: E2E
   V1.
-- V2: with the newest publication exactly 3 h old, at 375 and 420 px the
-  pill is hidden, while at 421 px it shows "Updated 3 h ago" → evidence:
+- V2: with the newest publication exactly 27 h old, at 375 and 420 px the
+  pill is hidden, while at 421 px it shows "Updated 27 h ago" → evidence:
   E2E V2.
 - V6: with `metadata.stale` `true` and a fresh `generatedAt`, at 375 px the
   pill is shown with stale styling, while the same page without
   `metadata.stale` hides it → evidence: E2E V6.
 
 ### Failure and retry
-- V3: with a narrow page left open across the 3 h mark, the stale pill
+- V3: with a narrow page left open across the 27 h mark, the stale pill
   appears within one minute without a reload → evidence: E2E V3.
 - V4: with an unparsable `generatedAt` at 375 px, the Feed renders and no
   pill is shown (no false stall), while a stale `generatedAt` on the same
@@ -139,7 +145,7 @@ controlled clock on the E2E fixture (`generatedAt` 2026-08-25T12:00:00Z):
 - Not applicable: CSS only; no request, payload, or server work is added.
 
 ### Observability
-- V5: [deploy] on Dev at 375 px with the browser clock more than 3 h after
+- V5: [deploy] on Dev at 375 px with the browser clock more than 27 h after
   `/health` `lastRun.completedAt`, Feed, Feed detail, and Search detail show
   the stale pill; with the real clock (fresh data) they do not.
 

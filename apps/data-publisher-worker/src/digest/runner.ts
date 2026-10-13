@@ -30,7 +30,7 @@ export interface DigestRunnerDeps {
   readonly model?: DigestModel;
   readonly now: () => Date;
   readonly delay: (ms: number) => Promise<void>;
-  /** Whether the hourly publisher reports a running publication (`/health.running`). */
+  /** Whether the publisher reports a running publication (`/health.running`). */
   readonly publisherRunning: () => Promise<boolean>;
 }
 

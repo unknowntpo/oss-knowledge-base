@@ -13,9 +13,10 @@ import {
   type VectorIndex,
 } from "@oss-knowledge-base/semantic-vectorize";
 
-import { runPending } from "../run-schedule";
+import { runPending, runStarting } from "../run-schedule";
 import {
   DEFAULT_EMBEDDING_LIMITS,
+  embeddingContinuation,
   failedEmbeddingRun,
   runSearchEmbedding,
   type EmbeddingLimits,
@@ -151,7 +152,8 @@ export class SearchEmbeddingRunner {
     if (options.dryRun === true && options.reset === true) return { status: 400, body: { ok: false, error: "reset cannot be combined with dryRun" } };
     if (config.state === "off") return this.requestWhileOff(options);
     if (config.state === "error") return { status: 500, body: await this.recordConfigError(config, options.dryRun === true) };
-    if (runPending(this.running, await this.deps.storage.getAlarm(), this.deps.now().getTime())) {
+    // An alarm set for later is a continuation (Behavior 46); a trigger replaces it and runs now.
+    if (runStarting(this.running, await this.deps.storage.getAlarm(), this.deps.now().getTime())) {
       return { status: 409, body: { ok: false, skipped: "already-running" } };
     }
     if (options.dryRun === true) {
@@ -187,7 +189,10 @@ export class SearchEmbeddingRunner {
         await this.recordConfigError(config, false);
         return;
       }
-      await this.execute(config, false);
+      const result = await this.execute(config, false);
+      // Behavior 46: work that is left does not wait for the next day's publication.
+      const again = embeddingContinuation(result, this.deps.now());
+      if (again !== undefined) await this.deps.storage.setAlarm(again);
     } catch (error) {
       const text = errorText(error);
       console.error(`search embedding run failed: ${text}`);
