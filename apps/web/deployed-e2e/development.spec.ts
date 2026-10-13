@@ -238,8 +238,12 @@ test("H32: Dev serves hybrid search: the gate is enabled, a text query carries a
     const response = await publisherRequest.get(`${workerUrl}/health`);
     return response.status() === 200 ? await response.json() as Health : undefined;
   };
+  // `/api/search` answers `max-age=30, stale-while-revalidate=120`: a cache between the test and
+  // the function may hold the previous deployment's body for 150 s. The test asks for a fresh one,
+  // and still waits (below) in case a cache ignores that.
+  const STALE_FOR_AT_MOST_MS = 180 * 1_000;
   const search = async (query: string) => {
-    const response = await request.get(`/api/search?${query}`);
+    const response = await request.get(`/api/search?${query}`, { headers: { "cache-control": "no-cache", pragma: "no-cache" } });
     expect(response.status(), query).toBe(200);
     return await response.json() as Search;
   };
@@ -257,20 +261,27 @@ test("H32: Dev serves hybrid search: the gate is enabled, a text query carries a
   // An identifier query is answered lexically and never asks the gate. The field's presence also
   // shows that the Pages deployment with the flag is the one answering, hence the poll.
   let identifier: Search | undefined;
+  expect(["rrf-group@1", "rrf-group@2"]).toContain(FUSION_REVISION);
+  // The status alone does not show the new deployment (the previous one skips too): the revision
+  // must be the committed one. A deployment that never answers with it fails here after the bound.
   await expect.poll(async () => {
     identifier = await search("q=KIP770&limit=5");
-    return identifier.retrieval.semantic?.status;
-  }, { message: "wait for the Pages deployment that sets SEARCH_SEMANTIC", timeout: 60 * 1_000, intervals: [1_000, 5_000, 10_000] }).toBe("skipped");
+    return `${identifier.retrieval.semantic?.status} ${identifier.retrieval.fusionRevision}`;
+  }, { message: `wait for the Pages deployment that sets SEARCH_SEMANTIC=${FUSION_REVISION}`, timeout: STALE_FOR_AT_MOST_MS, intervals: [1_000, 5_000, 10_000] }).toBe(`skipped ${FUSION_REVISION}`);
   expect(identifier!.retrieval.semantic).toEqual({ status: "skipped", reason: "identifier-query" });
-  expect(["rrf-group@1", "rrf-group@2"]).toContain(FUSION_REVISION);
   expect(identifier!.retrieval.fusionRevision).toBe(FUSION_REVISION);
   expect(identifier!.retrieval.semanticRevision).toBeUndefined();
 
   // `semantic=off`: the lexical ranking, said to be so, with the four lexical fields unchanged.
-  const off = await search(`q=${encodeURIComponent(TEXT_QUERY)}&limit=5&semantic=off`);
-  expect(off.retrieval.semantic).toEqual({ status: "disabled" });
-  expect(Object.keys(off.retrieval).sort()).toEqual(["fusionRevision", "generatedAt", "indexRevision", "lexicalRevision", "semantic", "stale"]);
-  expect(off.results.every((result) => result.matches.every((match) => match.signals.semanticRank === undefined && match.signals.lexicalRank !== undefined))).toBe(true);
+  // Each URL is cached by itself, so this one waits for the revision too; it never reaches the gate.
+  let off: Search | undefined;
+  await expect.poll(async () => {
+    off = await search(`q=${encodeURIComponent(TEXT_QUERY)}&limit=5&semantic=off`);
+    return off.retrieval.fusionRevision;
+  }, { message: `wait for semantic=off to answer with ${FUSION_REVISION}`, timeout: STALE_FOR_AT_MOST_MS, intervals: [1_000, 5_000, 10_000] }).toBe(FUSION_REVISION);
+  expect(off!.retrieval.semantic).toEqual({ status: "disabled" });
+  expect(Object.keys(off!.retrieval).sort()).toEqual(["fusionRevision", "generatedAt", "indexRevision", "lexicalRevision", "semantic", "stale"]);
+  expect(off!.results.every((result) => result.matches.every((match) => match.signals.semanticRank === undefined && match.signals.lexicalRank !== undefined))).toBe(true);
 
   // A text query. Live, every one of these is a legitimate answer: a cold query may time out
   // once and be cached on its repeat, the day's budget may be spent, a release may lack shard
@@ -278,6 +289,9 @@ test("H32: Dev serves hybrid search: the gate is enabled, a text query carries a
   const LEGITIMATE = ["ok", "timed-out", "over-budget", "failed", "uncovered"];
   const seen: string[] = [];
   let fused: Search | undefined;
+  // A body of another revision is a cached body of the previous deployment: it did not reach the
+  // function or the gate, so it is waited out (within the bound) and is not one of the four attempts.
+  const staleUntil = Date.now() + STALE_FOR_AT_MOST_MS;
   for (let attempt = 0; attempt < 4 && fused === undefined; attempt += 1) {
     if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 2_000));
     const body = await search(`q=${encodeURIComponent(TEXT_QUERY)}&limit=5`);
@@ -285,6 +299,12 @@ test("H32: Dev serves hybrid search: the gate is enabled, a text query carries a
     // Hard signals: the field is missing, or a status this query cannot have.
     expect(semantic, "retrieval.semantic").toBeDefined();
     expect(LEGITIMATE, `status ${semantic!.status}`).toContain(semantic!.status);
+    if (body.retrieval.fusionRevision !== FUSION_REVISION && Date.now() < staleUntil) {
+      seen.push(`stale (${body.retrieval.fusionRevision})`);
+      await new Promise((resolve) => setTimeout(resolve, 10_000));
+      attempt -= 1;
+      continue;
+    }
     expect(body.retrieval.fusionRevision).toBe(FUSION_REVISION);
     seen.push(`${semantic!.status}${semantic!.cached === true ? " (cached)" : ""}`);
     if (semantic!.status === "ok") fused = body;
