@@ -4,8 +4,11 @@ import { searchIdentifierProfiles } from "@oss-knowledge-base/reference-pipeline
 import {
   buildLexicalIndex,
   createInMemorySemanticRetriever,
+  defaultFusionConfig,
   hybridSearch,
+  leadingFullMatchFusionConfig,
   lexicalQueryTerms,
+  lexicalQueryWords,
   lexicalSearchConfigFor,
   parseSearchGoldenFixtureV2,
   searchLexicalIndex,
@@ -115,7 +118,7 @@ describe("Spec 016 hybrid search through the Pages reader", () => {
     }
   });
 
-  test("H28: the response adds only `fusionRevision`, `semanticRevision`, `semantic`, and `signals.semanticRank`", async () => {
+  test("H28: the response adds only `fusionRevision`, `semanticRevision`, `semantic`, `signals.semanticRank`, and `signals.semanticScore`", async () => {
     const objects = await goldenRelease();
     const { gate } = await fakeGate(chunksOf(objects));
     const response = await searchR2Projection(new MemoryBucket(objects).asR2(), { query: "txn", limit: 20 }, { gate });
@@ -133,9 +136,9 @@ describe("Spec 016 hybrid search through the Pages reader", () => {
     });
     const [both, onlySemantic] = response.results;
     // KAFKA-20785 holds `EndTxn`: lexical rank 1, and the second-nearest passage.
-    expect(both!.matches.map((match) => match.signals)).toEqual([{ exactIdentifier: false, lexicalRank: 1, semanticRank: 2, fusedRank: 1 }]);
+    expect(both!.matches.map((match) => match.signals)).toEqual([{ exactIdentifier: false, lexicalRank: 1, semanticRank: 2, semanticScore: expect.any(Number), fusedRank: 1 }]);
     expect(both!.matches[0]!.matchedTerms).toEqual(["txn"]);
-    expect(onlySemantic!.matches.map((match) => match.signals)).toEqual([{ exactIdentifier: false, semanticRank: 1, fusedRank: 2 }]);
+    expect(onlySemantic!.matches.map((match) => match.signals)).toEqual([{ exactIdentifier: false, semanticRank: 1, semanticScore: expect.any(Number), fusedRank: 2 }]);
     for (const result of response.results) {
       expect(Object.keys(result).sort()).toEqual(["detailRef", "entry", "matches"]);
       expect(Object.keys(result.matches[0]!).sort())
@@ -198,7 +201,7 @@ describe("Spec 016 hybrid search through the Pages reader", () => {
       expect(oracle.retrieval.semantic).toBe("ok");
       expect(roots(response)).toEqual(oracle.results.map((result) => result.groupRootRecordId));
       expect(response.results.map((result) => {
-        const { exactIdentifier: _exact, ...signals } = result.matches[0]!.signals;
+        const { exactIdentifier: _exact, semanticScore: _score, ...signals } = result.matches[0]!.signals;
         return signals;
       })).toEqual(oracle.results.map((result) => result.signals));
       expect(response.results.map((result) => result.matches.map((match) => match.chunkId)))
@@ -320,7 +323,8 @@ describe("Spec 016 hybrid search: the flag, the binding, and `semantic=off`", ()
   });
 
   test.each([
-    ["an unknown flag value", { SEARCH_SEMANTIC: "rrf-group@2" }, true],
+    ["an unknown flag value", { SEARCH_SEMANTIC: "rrf-group@3" }, true],
+    ["a known revision in another spelling", { SEARCH_SEMANTIC: "RRF-GROUP@2" }, true],
     ["`true`", { SEARCH_SEMANTIC: "true" }, true],
     ["the flag without the binding", { SEARCH_SEMANTIC: "rrf-group@1" }, false],
   ])("H66: %s answers lexically with `failed` and asks nothing", async (_, flags, bound) => {
@@ -372,6 +376,171 @@ describe("Spec 016 hybrid search: the flag, the binding, and `semantic=off`", ()
       expect(Object.keys(config).sort()).toEqual(["$schema", "compatibility_date", "name", "pages_build_output_dir", "r2_buckets"]);
       expect(JSON.stringify(config)).not.toMatch(/SEARCH_SEMANTIC|SEARCH_QUERY_GATE|SearchQueryGate/u);
     }
+  });
+});
+
+describe("Spec 016 fusion revision: selected by the flag", () => {
+  const at2 = leadingFullMatchFusionConfig;
+  const QUERY = "request manager";
+  /** A gate proposing, best first, the threads lexical search ranks 5th to 8th for `request manager`: none holds both words. */
+  async function partialMatchesGate(objects: readonly ProjectionObject[]) {
+    const chunks = chunksOf(objects);
+    const lexicalRoots = roots(await lexical(objects, { query: QUERY, limit: 20 }));
+    const proposed = lexicalRoots.slice(4, 8);
+    const matches = await Promise.all(proposed.map((root, index) => matchFor(chunks.find((chunk) => chunk.groupRootRecordId === root)!, 0.9 - index / 10)));
+    return { lexicalRoots, proposed, gate: new RecordingGate(async () => okAnswer(matches)) };
+  }
+
+  test("H77: `SEARCH_SEMANTIC=rrf-group@2` keeps the threads holding every query word first, where rrf-group@1 puts them behind threads found twice", async () => {
+    const objects = await goldenRelease();
+    const { lexicalRoots, proposed, gate } = await partialMatchesGate(objects);
+    expect(lexicalRoots).toHaveLength(8);
+    const ask = async (flag: string) => {
+      const seen = { names: [] as string[], urls: [] as string[], bodies: [] as unknown[] };
+      const response = await request(`https://dev.example/api/search?q=${encodeURIComponent(QUERY)}`, { OSS_KB_BUCKET: new MemoryBucket(objects).asR2(), SEARCH_SEMANTIC: flag, SEARCH_QUERY_GATE: namespaceOf(gate, seen) });
+      expect(response.status).toBe(200);
+      return { body: await response.json() as SearchResponseV1, seen };
+    };
+    const one = await ask("rrf-group@1");
+    const two = await ask(" rrf-group@2 ");
+    expect(one.body.retrieval.fusionRevision).toBe("rrf-group@1");
+    expect(two.body.retrieval.fusionRevision).toBe("rrf-group@2");
+    // The measured failure, through the reader: four threads found by both retrievers pass the four best lexical ones.
+    expect(roots(one.body)).toEqual([...proposed, ...lexicalRoots.slice(0, 4)]);
+    // rrf-group@2: the four leading threads hold `request` and `manager` in one passage and keep their places.
+    expect(roots(two.body)).toEqual(lexicalRoots);
+    expect(two.body.results.map((result) => result.matches[0]!.signals)).toEqual(lexicalRoots.map((_, index) => ({
+      exactIdentifier: false,
+      lexicalRank: index + 1,
+      ...(index < 4 ? {} : { semanticRank: index - 3, semanticScore: 0.9 - (index - 4) / 10 }),
+      fusedRank: index + 1,
+    })));
+    // Everything but the order and the revision's name is the same response, and the gate is asked the same thing:
+    // its caches do not know the fusion revision, so switching costs no model call and no index query.
+    expect(two.seen).toEqual(one.seen);
+    expect(two.seen.bodies).toEqual([{ query: QUERY, projectIds: ["apache-datafusion", "apache-kafka"] }]);
+    const sorted = (body: SearchResponseV1) => body.results.map((result) => ({ ...result, matches: result.matches.map(({ signals: _signals, ...match }) => match) }))
+      .sort((left, right) => left.entry.sourceTitleRecordId.localeCompare(right.entry.sourceTitleRecordId));
+    expect(sorted(two.body)).toEqual(sorted(one.body));
+    expect(two.body.facets).toEqual(one.body.facets);
+    expect({ ...two.body.retrieval, fusionRevision: "rrf-group@1" }).toEqual(one.body.retrieval);
+    expect(semanticSearchOptions({ SEARCH_SEMANTIC: "rrf-group@2", SEARCH_QUERY_GATE: namespaceOf(gate) }, new URL("https://dev.example/api/search?q=txn"))).toMatchObject({ fusion: at2, off: false });
+    expect(semanticSearchOptions({ SEARCH_SEMANTIC: "rrf-group@1", SEARCH_QUERY_GATE: namespaceOf(gate) }, new URL("https://dev.example/api/search?q=txn"))).toMatchObject({ fusion: defaultFusionConfig });
+  });
+
+  test("H77: at rrf-group@2 every request ranks as `hybridSearch` over the whole corpus does, whatever the limit and the filters", async () => {
+    const objects = await goldenRelease();
+    const chunks = chunksOf(objects);
+    const config = lexicalSearchConfigFor("bm25-reference@3", searchIdentifierProfiles);
+    const index = buildLexicalIndex({ indexRevision: "oracle", chunks, config });
+    const { proposed, gate } = await partialMatchesGate(objects);
+    const candidates = proposed.map((root, position) => {
+      const chunk = chunks.find((item) => item.groupRootRecordId === root)!;
+      return { chunkId: chunk.id, recordId: chunk.recordId, groupRootRecordId: root, projectId: chunk.projectId, score: 0.9 - position / 10 };
+    });
+    const requests: { readonly query: string; readonly limit: number; readonly filters?: SearchFiltersV1 }[] = [
+      ...[QUERY, "manager request", "release manager", "request", "consumer network thread request manager", "RequestManager", "transaction timeout", "交易逾時"]
+        .flatMap((query) => [{ query, limit: 20 }, { query, limit: 3 }, { query, limit: 1 }]),
+      { query: QUERY, limit: 20, filters: { projectIds: ["apache-kafka"] } },
+      { query: QUERY, limit: 20, filters: { projectIds: ["apache-datafusion"] } },
+    ];
+    let changed = 0;
+    for (const item of requests) {
+      const response = await searchR2Projection(new MemoryBucket(objects).asR2(), item, { gate, fusion: at2 });
+      const input = {
+        query: item.query,
+        ...(item.filters === undefined ? {} : { filters: item.filters }),
+        lexical: searchLexicalIndex(index, { ...item, limit: HYBRID_LEXICAL_DEPTH }),
+        semantic: { retrieve: async () => ({ semanticRevision: fakeProfile.semanticRevision, candidates }) },
+        limit: item.limit,
+      };
+      const oracle = await hybridSearch({ ...input, config: at2, queryWords: lexicalQueryWords(item.query, config) });
+      expect(response.retrieval.fusionRevision).toBe("rrf-group@2");
+      expect([item, roots(response)]).toEqual([item, oracle.results.map((result) => result.groupRootRecordId)]);
+      if (JSON.stringify(roots(response)) !== JSON.stringify((await hybridSearch(input)).results.map((result) => result.groupRootRecordId))) changed += 1;
+    }
+    // Positive control: on these requests the two revisions do not agree everywhere.
+    expect(changed).toBeGreaterThan(3);
+    expect(changed).toBeLessThan(requests.length);
+  });
+
+  test("H77: at rrf-group@2 every way semantic retrieval can be missing is still the lexical response, naming the revision", async () => {
+    const objects = await goldenRelease();
+    const expected = await lexical(objects, { query: QUERY, limit: 20 });
+    const cases: readonly [string, SemanticSearchOptions, readonly ProjectionObject[], string][] = [
+      ["failed", { gate: new RecordingGate(async () => { throw new Error("down"); }), fusion: at2 }, objects, QUERY],
+      ["timed-out", { gate: new RecordingGate(never), fusion: at2, timeoutMs: 20 }, objects, QUERY],
+      ["over-budget", { gate: new RecordingGate(async () => ({ status: "over-budget", retryAfterMs: 1 })), fusion: at2 }, objects, QUERY],
+      ["disabled", { gate: new RecordingGate(async () => ({ status: "disabled" })), fusion: at2 }, objects, QUERY],
+      ["disabled", { gate: untouchableGate, fusion: at2, off: true }, objects, QUERY],
+      ["uncovered", { gate: untouchableGate, fusion: at2 }, await goldenRelease({ shardRoots: false }), QUERY],
+      ["skipped", { gate: untouchableGate, fusion: at2 }, objects, "KIP770"],
+    ];
+    const original = console.error;
+    console.error = () => undefined;
+    try {
+      for (const [status, options, release, query] of cases) {
+        const response = await searchR2Projection(new MemoryBucket(release).asR2(), { query, limit: 20 }, options);
+        expect([status, response.retrieval.semantic!.status]).toEqual([status, status]);
+        expect(response.retrieval.fusionRevision).toBe("rrf-group@2");
+        expect(withoutSemantic(response)).toEqual(query === QUERY && release === objects ? expected : await lexical(release, { query, limit: 20 }));
+        expect(JSON.stringify(response)).not.toContain("semanticScore");
+      }
+    } finally {
+      console.error = original;
+    }
+    // An `ok` answer without a single candidate is the lexical order too: the rule never reorders on its own.
+    const empty = await searchR2Projection(new MemoryBucket(objects).asR2(), { query: QUERY, limit: 20 }, { gate: new RecordingGate(async () => okAnswer([])), fusion: at2 });
+    expect(empty.retrieval.semantic).toEqual({ status: "ok", candidates: 0, cached: false });
+    expect(withoutSemantic(empty)).toEqual(expected);
+  });
+});
+
+describe("Spec 016 hybrid search: the similarity a result reports", () => {
+  test("H78: `signals.semanticScore` is the similarity of the thread's best passage, present exactly when `semanticRank` is", async () => {
+    const objects = await goldenRelease();
+    const chunks = chunksOf(objects);
+    const chunk = (recordId: string) => chunks.find((item) => item.recordId === recordId)!;
+    const t20785 = chunk("kafka:jira:issue:KAFKA-20785");
+    const reply = chunk("kafka:mail:kip-405-compaction");
+    const root = chunks.find((item) => item.groupRootRecordId === reply.groupRootRecordId && item.id !== reply.id)!;
+    // Two passages of one thread (0.4 and 0.75) and one of another (0.5), in no particular order.
+    const gate = new RecordingGate(async () => okAnswer([await matchFor(root, 0.4), await matchFor(t20785, 0.5), await matchFor(reply, 0.75)]));
+    for (const fusion of [defaultFusionConfig, leadingFullMatchFusionConfig]) {
+      const response = await searchR2Projection(new MemoryBucket(objects).asR2(), { query: "txn", limit: 20 }, { gate, fusion });
+      const signals = Object.fromEntries(response.results.map((result) => [result.entry.sourceTitleRecordId, result.matches.map((match) => match.signals)]));
+      // `txn` is in KAFKA-20785 only: lexical rank 1, and the second semantic thread.
+      expect(signals[t20785.groupRootRecordId]).toEqual([{ exactIdentifier: false, lexicalRank: 1, semanticRank: 2, semanticScore: 0.5, fusedRank: 1 }]);
+      // The other thread shows both passages; each carries the thread's rank and its best similarity.
+      expect(signals[reply.groupRootRecordId]).toEqual([
+        { exactIdentifier: false, semanticRank: 1, semanticScore: 0.75, fusedRank: 2 },
+        { exactIdentifier: false, semanticRank: 1, semanticScore: 0.75, fusedRank: 2 },
+      ]);
+      for (const result of response.results) {
+        for (const match of result.matches) {
+          expect("semanticScore" in match.signals).toBe(match.signals.semanticRank !== undefined);
+        }
+      }
+    }
+  });
+
+  test("H78: a lexical thread without a semantic rank, a lexical response, and a flag-off response carry no similarity", async () => {
+    const objects = await goldenRelease();
+    const chunks = chunksOf(objects);
+    const { gate } = await fakeGate(chunks);
+    const hybrid = await searchR2Projection(new MemoryBucket(objects).asR2(), { query: "cold data", limit: 20 }, { gate });
+    const withRank = hybrid.results.filter((result) => result.matches[0]!.signals.semanticRank !== undefined);
+    const without = hybrid.results.filter((result) => result.matches[0]!.signals.semanticRank === undefined);
+    expect([withRank.length, without.length]).toEqual([1, 4]);
+    expect(withRank[0]!.matches[0]!.signals.semanticScore).toBeGreaterThan(0);
+    expect(JSON.stringify(without)).not.toContain("semanticScore");
+    expect(JSON.stringify(await searchR2Projection(new MemoryBucket(objects).asR2(), { query: "cold data", limit: 20 }, { gate, off: true }))).not.toContain("semanticScore");
+    expect(JSON.stringify(await lexical(objects, { query: "cold data", limit: 20 }))).not.toContain("semanticScore");
+    // A similarity the gate's client would refuse never reaches a response: the match is dropped whole (H58).
+    const poisoned = new RecordingGate(async () => ({ ...okAnswer([]), matches: [{ ...await matchFor(chunks[0]!, 0.5), score: Number.NaN }, { ...await matchFor(chunks[0]!, 0.5), score: "0.9" }] }) as never);
+    const dropped = await searchR2Projection(new MemoryBucket(objects).asR2(), { query: "cold data", limit: 20 }, { gate: poisoned });
+    expect(dropped.retrieval.semantic).toEqual({ status: "ok", candidates: 0, cached: false });
+    expect(JSON.stringify(dropped)).not.toContain("semanticScore");
   });
 });
 
@@ -694,7 +863,7 @@ describe("Spec 016 hybrid search: filters, facets, and what a semantic result sh
       occurredAt: chunk.occurredAt,
       sourceVersion: chunk.sourceVersion,
       matchedTerms: [],
-      signals: { exactIdentifier: false, semanticRank: 1, fusedRank: 1 },
+      signals: { exactIdentifier: false, semanticRank: 1, semanticScore: expect.any(Number), fusedRank: 1 },
     }]);
     expect(result.matches[0]!.excerpt.length).toBeGreaterThan(20);
     expect(result.matches[0]!.canonicalUrl).toMatch(/^https:\/\//u);

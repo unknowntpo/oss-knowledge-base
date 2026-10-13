@@ -1,13 +1,13 @@
-import { DEFAULT_FUSION_REVISION } from "@oss-knowledge-base/search";
+import { fusionConfigFor, SUPPORTED_FUSION_REVISIONS } from "@oss-knowledge-base/search";
 import { parseSemanticQueryAnswer, sanitizeErrorMessage, SEARCH_QUERY_GATE_OBJECT_NAME, type SemanticQueryPort } from "@oss-knowledge-base/semantic-vectorize";
 
 import type { SemanticSearchOptions } from "./search-projection";
 
 export interface SemanticSearchEnv {
   /**
-   * Spec 016 slice 3: unset or blank is lexical search, exactly as before. `rrf-group@1` turns
-   * hybrid search on. Any other value, or the flag without the gate binding, answers lexically
-   * and says `failed`.
+   * Spec 016 slice 3: unset or blank is lexical search, exactly as before. A fusion revision this
+   * code runs (`rrf-group@1`, `rrf-group@2`) turns hybrid search on with that fusion. Any other
+   * value, or the flag without the gate binding, answers lexically and says `failed`.
    */
   readonly SEARCH_SEMANTIC?: string;
   /** The data Worker's `SearchQueryGate` Durable Object, the only way to the model and the index. */
@@ -41,11 +41,12 @@ const refusal = { until: 0 };
 export function semanticSearchOptions(env: SemanticSearchEnv, url: URL): SemanticSearchOptions | undefined {
   const flag = env.SEARCH_SEMANTIC?.trim() ?? "";
   if (flag === "") return undefined;
-  if (flag !== DEFAULT_FUSION_REVISION || env.SEARCH_QUERY_GATE === undefined) {
-    console.error(sanitizeErrorMessage(flag !== DEFAULT_FUSION_REVISION
-      ? `SEARCH_SEMANTIC "${flag}" is not supported (${DEFAULT_FUSION_REVISION})`
+  const fusion = fusionConfigFor(flag);
+  if (fusion === undefined || env.SEARCH_QUERY_GATE === undefined) {
+    console.error(sanitizeErrorMessage(fusion === undefined
+      ? `SEARCH_SEMANTIC "${flag}" is not supported (${SUPPORTED_FUSION_REVISIONS.join(", ")})`
       : "SEARCH_SEMANTIC is set but the SEARCH_QUERY_GATE binding is missing"));
     return { unavailable: true };
   }
-  return { gate: durableObjectSemanticGate(env.SEARCH_QUERY_GATE), off: url.searchParams.get("semantic") === "off", refusal };
+  return { gate: durableObjectSemanticGate(env.SEARCH_QUERY_GATE), off: url.searchParams.get("semantic") === "off", refusal, fusion };
 }

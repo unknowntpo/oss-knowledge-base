@@ -2,12 +2,13 @@ import type { FeedDetail } from "@oss-knowledge-base/domain";
 import { searchIdentifierProfiles } from "@oss-knowledge-base/reference-pipeline/search-profiles";
 import {
   buildLexicalIndex,
-  DEFAULT_FUSION_REVISION,
+  defaultFusionConfig,
   DEFAULT_SEMANTIC_TIMEOUT_MS,
   facetLexicalIndexByProject,
   fuseRankings,
   isExactLexicalQuery,
   lexicalQueryTerms,
+  lexicalQueryWords,
   lexicalSearchConfigFor,
   passageExcerpt,
   rankLexicalShard,
@@ -15,6 +16,7 @@ import {
   selectLexicalResults,
   SUPPORTED_LEXICAL_REVISIONS,
   validateSearchFilters,
+  type FusionConfigV1,
   type LexicalSearchConfigV1,
   type LexicalSearchResultV1,
   type SearchFiltersV1,
@@ -82,10 +84,12 @@ export type SemanticSearchOptions =
       readonly timeoutMs?: number;
       /** Remembers, per isolate, until when the gate said its budget is spent, so it is not asked again. */
       readonly refusal?: { until: number };
+      /** The fusion revision of the deployment; `rrf-group@1` when absent. */
+      readonly fusion?: FusionConfigV1;
       readonly now?: () => number;
     };
 
-/** Lexical threads ranked per request when hybrid search is on: the depth RRF reads lexical ranks to. */
+/** Lexical threads ranked per request when hybrid search is on: the depth fusion reads lexical ranks to. */
 export const HYBRID_LEXICAL_DEPTH = 50;
 
 /** A semantic passage the served release holds, with what a result needs to show it. */
@@ -176,7 +180,7 @@ export async function searchR2Projection(
     ? await rankShardedRelease(bucket, manifest, query, request, config, outcome)
     : await rankWholeRelease(bucket, manifest, query, request, config);
 
-  const lexicalResult = ({ result, group, shard }: RankedRelease["results"][number], ranks: { readonly lexicalRank: number; readonly semanticRank?: number; readonly fusedRank: number }) => {
+  const lexicalResult = ({ result, group, shard }: RankedRelease["results"][number], ranks: { readonly lexicalRank: number; readonly semanticRank?: number; readonly semanticScore?: number; readonly fusedRank: number }) => {
     const matchedRecordIds = [...new Set(result.matches.map((match) => match.recordId))];
     return {
       entry: searchMatchEntry(group, query, matchedRecordIds),
@@ -194,6 +198,7 @@ export async function searchR2Projection(
           exactIdentifier: match.exactMatch,
           lexicalRank: ranks.lexicalRank,
           ...(ranks.semanticRank === undefined ? {} : { semanticRank: ranks.semanticRank }),
+          ...(ranks.semanticScore === undefined ? {} : { semanticScore: ranks.semanticScore }),
           fusedRank: ranks.fusedRank,
         },
       })),
@@ -220,6 +225,7 @@ export async function searchR2Projection(
     stale: false,
   };
 
+  const fusion = semantic !== undefined && "gate" in semantic && semantic.fusion !== undefined ? semantic.fusion : defaultFusionConfig;
   const settled = outcome === undefined ? undefined : await outcome;
   if (settled === undefined || settled.status !== "ok") {
     return {
@@ -229,7 +235,7 @@ export async function searchR2Projection(
       facets: facets(),
       retrieval: settled === undefined ? retrieval : {
         ...retrieval,
-        fusionRevision: DEFAULT_FUSION_REVISION,
+        fusionRevision: fusion.revision,
         semantic: { status: settled.status, ...(settled.reason === undefined ? {} : { reason: settled.reason }) },
       },
     };
@@ -251,6 +257,9 @@ export async function searchR2Projection(
       projectId: chunk.projectId,
       score,
     })),
+    config: fusion,
+    // `rrf-group@2` keeps the leading threads that hold every word of the query (Behavior 38).
+    ...(fusion.keepLeadingFullMatches === true ? { queryWords: lexicalQueryWords(query, config) } : {}),
   }).slice(0, request.limit);
   // A thread only semantic retrieval found is counted in its project's facet, before the project filter.
   const semanticOnly: Record<string, Set<string>> = {};
@@ -263,7 +272,11 @@ export async function searchR2Projection(
     schema: SEARCH_RESPONSE_SCHEMA,
     query,
     results: fused.map((item) => {
-      const ranks = { ...(item.signals.semanticRank === undefined ? {} : { semanticRank: item.signals.semanticRank }), fusedRank: item.signals.fusedRank };
+      // The score of the thread's best passage: a validated match of this release, never index metadata.
+      const ranks = {
+        ...(item.signals.semanticRank === undefined ? {} : { semanticRank: item.signals.semanticRank, semanticScore: item.semanticMatches[0]!.score }),
+        fusedRank: item.signals.fusedRank,
+      };
       const lexical = byRoot.get(item.groupRootRecordId);
       if (lexical !== undefined) return lexicalResult(lexical, { lexicalRank: item.signals.lexicalRank!, ...ranks });
       const shown = item.semanticMatches.map((match) => byChunk.get(match.chunkId)!);
@@ -297,7 +310,7 @@ export async function searchR2Projection(
     facets: facets(Object.fromEntries(Object.entries(semanticOnly).map(([projectId, roots]) => [projectId, roots.size]))),
     retrieval: {
       ...retrieval,
-      fusionRevision: DEFAULT_FUSION_REVISION,
+      fusionRevision: fusion.revision,
       semanticRevision: settled.semanticRevision,
       semantic: { status: "ok", candidates: passages.length, cached: settled.cached },
     },

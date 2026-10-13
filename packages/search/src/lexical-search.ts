@@ -395,6 +395,20 @@ export function lexicalQueryTerms(
 }
 
 /**
+ * The distinct words of a query, in query order, as the phrase bonus reads it: after identifier
+ * normalization, every raw token cut at dots, hyphens, and case boundaries. Under a code-text
+ * revision each word is also a query term, so a passage whose matched terms hold every word holds
+ * the whole query (Spec 016 fusion `rrf-group@2`).
+ */
+export function lexicalQueryWords(
+  query: string,
+  config: LexicalSearchConfigV1 = defaultLexicalSearchConfig,
+): readonly string[] {
+  validateConfig(config);
+  return lexicalAnalyzer(config).words(query);
+}
+
+/**
  * Whether a query can match exactly under this config: one canonical identifier, a bare number,
  * or a structured symbol (`KAFKA-1`, `a.b()`). Only such a query yields `exactMatch` results, so
  * hybrid search answers it lexically and embeds nothing (Spec 016 Behavior 30).
@@ -544,6 +558,8 @@ interface LexicalAnalyzer {
   /** Title tokens, followed by the identifiers a profile recognizes in the title or record id. */
   readonly titleTokens: (chunk: SourceRecordChunkV1) => readonly string[];
   readonly query: (query: string) => AnalyzedQuery;
+  /** The distinct words of the query after identifier canonicalization. */
+  readonly words: (query: string) => readonly string[];
 }
 
 function lexicalAnalyzer(config: LexicalSearchConfigV1): LexicalAnalyzer {
@@ -568,6 +584,7 @@ function lexicalAnalyzer(config: LexicalSearchConfigV1): LexicalAnalyzer {
         const exact = structured(query);
         return phrased({ terms: [...new Set(tokenizeText(query))], ...(exact === undefined ? {} : { exact }) }, query);
       },
+      words: (query) => [...new Set(lexicalWords(query))],
     };
   }
   return {
@@ -606,6 +623,7 @@ function lexicalAnalyzer(config: LexicalSearchConfigV1): LexicalAnalyzer {
       const exact = structured(canonical);
       return phrased({ terms, ...(exact === undefined ? {} : { exact }) }, canonical);
     },
+    words: (query) => [...new Set(lexicalWords(profiles.canonicalizeQuery(query).trim()))],
   };
 }
 

@@ -1,0 +1,1603 @@
+{
+  "base": "https://oss-knowledge-base-dev.pages.dev",
+  "release": "feed-2026-10-13T01-07-01-000Z",
+  "measuredAt": "2026-10-13T01:26:01.987Z",
+  "summary": {
+    "queries": 48,
+    "hybrid": true,
+    "statuses": {
+      "ok": 43,
+      "timed-out": 1,
+      "skipped": 4
+    },
+    "lexicalMet": 26,
+    "hybridMet": 23,
+    "regressions": [
+      "CommitRequestManager",
+      "AsyncKafkaConsumer",
+      "txn",
+      "disk manager",
+      "transaction manager",
+      "SortMergeJoinExec",
+      "tiered storage",
+      "kafka release"
+    ],
+    "rerankCandidates": [
+      "CommitRequestManager",
+      "AsyncKafkaConsumer",
+      "txn",
+      "disk manager",
+      "SortMergeJoinExec",
+      "tiered storage",
+      "kafka release",
+      "storage tiered",
+      "重新認證失敗後 CPU 使用率過高"
+    ],
+    "rerank": "no case for rerank",
+    "notRetrieved": [
+      "consumer network thread request manager",
+      "transaction manager",
+      "controller kraft",
+      "交易逾時",
+      "消費者重新平衡很慢",
+      "分層儲存的配額沒有生效",
+      "排序合併連接溢出到磁碟時遺失資料列",
+      "SMJ spill",
+      "two-phase commit",
+      "client spins at 100% cpu",
+      "mark directory as failed on disk error"
+    ],
+    "uncachedAsked": 40,
+    "timedOut": 1,
+    "timedOutShare": 0.03,
+    "medianLexicalMs": 1547,
+    "medianHybridMs": 1923,
+    "medianCachedMs": 1799,
+    "medianAddedMs": 313
+  },
+  "reports": [
+    {
+      "kind": "real-corpus",
+      "labels": "owner",
+      "query": "consumer network thread request manager",
+      "within": 3,
+      "expected": [
+        "kafka:jira:issue:KAFKA-19804",
+        "kafka:github:pull:22747",
+        "kafka:jira:issue:KAFKA-19738"
+      ],
+      "lexicalRanks": [
+        2,
+        21,
+        9
+      ],
+      "hybridRanks": [
+        3,
+        39,
+        24
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": true
+      },
+      "lexicalMet": false,
+      "hybridMet": false,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 16,
+      "lexicalMs": 1903,
+      "hybridMs": 2067,
+      "cachedMs": 1739
+    },
+    {
+      "kind": "real-corpus",
+      "labels": "implementer",
+      "query": "request manager",
+      "within": 9,
+      "expected": [
+        "kafka:jira:issue:KAFKA-19804",
+        "kafka:github:pull:23687",
+        "kafka:jira:issue:KAFKA-19738",
+        "kafka:github:pull:22667",
+        "kafka:github:pull:20964"
+      ],
+      "lexicalRanks": [
+        1,
+        5,
+        2,
+        3,
+        4
+      ],
+      "hybridRanks": [
+        1,
+        2,
+        3,
+        4,
+        8
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": true
+      },
+      "lexicalMet": true,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 21,
+      "lexicalMs": 1728,
+      "hybridMs": 1794,
+      "cachedMs": 1718
+    },
+    {
+      "kind": "real-corpus",
+      "labels": "implementer",
+      "query": "RequestManager",
+      "within": 9,
+      "expected": [
+        "kafka:jira:issue:KAFKA-19804",
+        "kafka:github:pull:23687",
+        "kafka:jira:issue:KAFKA-19738",
+        "kafka:github:pull:22667",
+        "kafka:github:pull:20964"
+      ],
+      "lexicalRanks": [
+        1,
+        5,
+        2,
+        3,
+        4
+      ],
+      "hybridRanks": [
+        1,
+        5,
+        2,
+        3,
+        4
+      ],
+      "semantic": {
+        "status": "timed-out"
+      },
+      "lexicalMet": true,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 0,
+      "lexicalMs": 1657,
+      "hybridMs": 2325,
+      "cachedMs": 1791
+    },
+    {
+      "kind": "real-corpus",
+      "labels": "implementer",
+      "query": "OffsetsRequestManager",
+      "within": 2,
+      "expected": [
+        "kafka:jira:issue:KAFKA-19738",
+        "kafka:github:pull:22667"
+      ],
+      "lexicalRanks": [
+        1,
+        2
+      ],
+      "hybridRanks": [
+        1,
+        2
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 19,
+      "lexicalMs": 1830,
+      "hybridMs": 2035,
+      "cachedMs": 2125
+    },
+    {
+      "kind": "real-corpus",
+      "labels": "implementer",
+      "query": "CommitRequestManager",
+      "within": 3,
+      "expected": [
+        "kafka:jira:issue:KAFKA-20765",
+        "kafka:github:pull:22747",
+        "kafka:jira:issue:KAFKA-21249"
+      ],
+      "lexicalRanks": [
+        3,
+        2,
+        1
+      ],
+      "hybridRanks": [
+        5,
+        16,
+        1
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": false,
+      "rerankCandidate": true,
+      "semanticOnlyResults": 20,
+      "lexicalMs": 1624,
+      "hybridMs": 1882,
+      "cachedMs": 1798
+    },
+    {
+      "kind": "real-corpus",
+      "labels": "implementer",
+      "query": "AsyncKafkaConsumer",
+      "within": 7,
+      "expected": [
+        "kafka:github:pull:23423",
+        "kafka:github:pull:23123",
+        "kafka:github:pull:23756",
+        "kafka:jira:issue:KAFKA-20187",
+        "kafka:jira:issue:KAFKA-21248",
+        "kafka:jira:issue:KAFKA-20765",
+        "kafka:jira:issue:KAFKA-21229"
+      ],
+      "lexicalRanks": [
+        6,
+        2,
+        1,
+        5,
+        4,
+        7,
+        3
+      ],
+      "hybridRanks": [
+        5,
+        2,
+        1,
+        7,
+        4,
+        12,
+        3
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": false,
+      "rerankCandidate": true,
+      "semanticOnlyResults": 13,
+      "lexicalMs": 1802,
+      "hybridMs": 1797,
+      "cachedMs": 2123
+    },
+    {
+      "kind": "real-corpus",
+      "labels": "implementer",
+      "query": "heartbeat request manager",
+      "within": 3,
+      "expected": [
+        "kafka:jira:issue:KAFKA-19804",
+        "kafka:github:pull:23687",
+        "kafka:github:pull:20964"
+      ],
+      "lexicalRanks": [
+        1,
+        2,
+        3
+      ],
+      "hybridRanks": [
+        2,
+        1,
+        3
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 11,
+      "lexicalMs": 1596,
+      "hybridMs": 1739,
+      "cachedMs": 1663
+    },
+    {
+      "kind": "real-corpus",
+      "labels": "implementer",
+      "query": "release manager",
+      "within": 1,
+      "expected": [
+        "kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2"
+      ],
+      "lexicalRanks": [
+        1
+      ],
+      "hybridRanks": [
+        1
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 21,
+      "lexicalMs": 1574,
+      "hybridMs": 1923,
+      "cachedMs": 1667
+    },
+    {
+      "kind": "real-corpus",
+      "labels": "implementer",
+      "query": "log manager",
+      "within": 7,
+      "expected": [
+        "kafka:jira:issue:KAFKA-20390",
+        "kafka:github:pull:23772",
+        "kafka:github:pull:23385",
+        "kafka:jira:issue:KAFKA-21038"
+      ],
+      "lexicalRanks": [
+        1,
+        4,
+        3,
+        5
+      ],
+      "hybridRanks": [
+        3,
+        2,
+        1,
+        6
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 10,
+      "lexicalMs": 1775,
+      "hybridMs": 2606,
+      "cachedMs": 1685
+    },
+    {
+      "kind": "real-corpus",
+      "labels": "implementer",
+      "query": "KIP770",
+      "within": 1,
+      "expected": [
+        "kafka:github:pull:22458"
+      ],
+      "lexicalRanks": [
+        1
+      ],
+      "hybridRanks": [
+        1
+      ],
+      "semantic": {
+        "status": "skipped",
+        "reason": "identifier-query"
+      },
+      "lexicalMet": true,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 0,
+      "lexicalMs": 1020,
+      "hybridMs": 1137,
+      "cachedMs": 1099
+    },
+    {
+      "kind": "real-corpus",
+      "labels": "implementer",
+      "query": "KIP-770",
+      "within": 1,
+      "expected": [
+        "kafka:github:pull:22458"
+      ],
+      "lexicalRanks": [
+        1
+      ],
+      "hybridRanks": [
+        1
+      ],
+      "semantic": {
+        "status": "skipped",
+        "reason": "identifier-query"
+      },
+      "lexicalMet": true,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 0,
+      "lexicalMs": 1206,
+      "hybridMs": 1097,
+      "cachedMs": 1105
+    },
+    {
+      "kind": "real-corpus",
+      "labels": "implementer",
+      "query": "770",
+      "within": 1,
+      "expected": [
+        "kafka:github:pull:22458"
+      ],
+      "lexicalRanks": [
+        1
+      ],
+      "hybridRanks": [
+        1
+      ],
+      "semantic": {
+        "status": "skipped",
+        "reason": "identifier-query"
+      },
+      "lexicalMet": true,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 0,
+      "lexicalMs": 1104,
+      "hybridMs": 1299,
+      "cachedMs": 1232
+    },
+    {
+      "kind": "real-corpus",
+      "labels": "implementer",
+      "query": "txn",
+      "within": 5,
+      "expected": [
+        "kafka:jira:issue:KAFKA-20785",
+        "kafka:github:pull:23204",
+        "kafka:github:pull:23539",
+        "kafka:jira:issue:KAFKA-21137",
+        "kafka:github:pull:23538"
+      ],
+      "lexicalRanks": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "hybridRanks": [
+        3,
+        8,
+        2,
+        4,
+        1
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": false,
+      "rerankCandidate": true,
+      "semanticOnlyResults": 42,
+      "lexicalMs": 1036,
+      "hybridMs": 2080,
+      "cachedMs": 1866
+    },
+    {
+      "kind": "real-corpus",
+      "labels": "implementer",
+      "query": "KAFKA-19804",
+      "within": 2,
+      "expected": [
+        "kafka:jira:issue:KAFKA-19804",
+        "kafka:github:pull:23687"
+      ],
+      "lexicalRanks": [
+        1,
+        2
+      ],
+      "hybridRanks": [
+        1,
+        2
+      ],
+      "semantic": {
+        "status": "skipped",
+        "reason": "identifier-query"
+      },
+      "lexicalMet": true,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 0,
+      "lexicalMs": 1190,
+      "hybridMs": 1293,
+      "cachedMs": 1215
+    },
+    {
+      "kind": "real-corpus",
+      "labels": "implementer",
+      "query": "disk manager",
+      "within": 3,
+      "expected": [
+        "datafusion:github:pull:26110",
+        "datafusion:github:pull:23139",
+        "datafusion:github:pull:22246"
+      ],
+      "lexicalRanks": [
+        1,
+        2,
+        3
+      ],
+      "hybridRanks": [
+        4,
+        2,
+        1
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": false,
+      "rerankCandidate": true,
+      "semanticOnlyResults": 20,
+      "lexicalMs": 1675,
+      "hybridMs": 2193,
+      "cachedMs": 1818
+    },
+    {
+      "kind": "real-corpus",
+      "labels": "implementer",
+      "query": "transaction manager",
+      "within": 3,
+      "expected": [
+        "kafka:github:pull:23547",
+        "kafka:jira:issue:KAFKA-20237"
+      ],
+      "lexicalRanks": [
+        1,
+        2
+      ],
+      "hybridRanks": [
+        20,
+        21
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": false,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 17,
+      "lexicalMs": 1316,
+      "hybridMs": 1958,
+      "cachedMs": 1957
+    },
+    {
+      "kind": "real-corpus",
+      "labels": "implementer",
+      "query": "remote log manager",
+      "within": 3,
+      "expected": [
+        "kafka:github:pull:23604",
+        "kafka:jira:issue:KAFKA-20967",
+        "kafka:github:pull:23211"
+      ],
+      "lexicalRanks": [
+        1,
+        2,
+        3
+      ],
+      "hybridRanks": [
+        1,
+        2,
+        3
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 11,
+      "lexicalMs": 1497,
+      "hybridMs": 1871,
+      "cachedMs": 1572
+    },
+    {
+      "kind": "real-corpus",
+      "labels": "implementer",
+      "query": "SortMergeJoinExec",
+      "within": 6,
+      "expected": [
+        "datafusion:github:issue:25205",
+        "datafusion:github:issue:25546",
+        "datafusion:github:pull:24517",
+        "datafusion:github:pull:24593",
+        "datafusion:github:pull:25490",
+        "datafusion:github:pull:26090"
+      ],
+      "lexicalRanks": [
+        4,
+        6,
+        3,
+        5,
+        1,
+        2
+      ],
+      "hybridRanks": [
+        2,
+        15,
+        1,
+        4,
+        3,
+        5
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": false,
+      "rerankCandidate": true,
+      "semanticOnlyResults": 13,
+      "lexicalMs": 1595,
+      "hybridMs": 1794,
+      "cachedMs": 1520
+    },
+    {
+      "kind": "real-corpus",
+      "labels": "implementer",
+      "query": "GroupMetadataManager",
+      "within": 2,
+      "expected": [
+        "kafka:jira:issue:KAFKA-21176"
+      ],
+      "lexicalRanks": [
+        1
+      ],
+      "hybridRanks": [
+        2
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 16,
+      "lexicalMs": 1515,
+      "hybridMs": 2085,
+      "cachedMs": 1754
+    },
+    {
+      "kind": "real-corpus",
+      "labels": "implementer",
+      "query": "tiered storage",
+      "within": 5,
+      "expected": [
+        "kafka:github:pull:21108",
+        "kafka:github:pull:23456",
+        "kafka:jira:issue:KAFKA-20047",
+        "kafka:jira:issue:KAFKA-17665",
+        "kafka:jira:issue:KAFKA-19968"
+      ],
+      "lexicalRanks": [
+        1,
+        2,
+        4,
+        3,
+        5
+      ],
+      "hybridRanks": [
+        2,
+        3,
+        1,
+        4,
+        6
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": false,
+      "rerankCandidate": true,
+      "semanticOnlyResults": 19,
+      "lexicalMs": 1784,
+      "hybridMs": 1658,
+      "cachedMs": 1743
+    },
+    {
+      "kind": "real-corpus",
+      "labels": "implementer",
+      "query": "KRaft controller",
+      "within": 4,
+      "expected": [
+        "kafka:github:pull:19321",
+        "kafka:jira:issue:KAFKA-18874",
+        "kafka:jira:issue:KAFKA-20839",
+        "kafka:jira:issue:KAFKA-21129"
+      ],
+      "lexicalRanks": [
+        4,
+        1,
+        2,
+        3
+      ],
+      "hybridRanks": [
+        3,
+        1,
+        2,
+        4
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 12,
+      "lexicalMs": 995,
+      "hybridMs": 1996,
+      "cachedMs": 1703
+    },
+    {
+      "kind": "guard",
+      "labels": "implementer",
+      "query": "manager release",
+      "within": 1,
+      "expected": [
+        "kafka:mail:dev:message:gt2zkzgfdx9n0yocy7x2zxcr61z1zto2"
+      ],
+      "lexicalRanks": [
+        1
+      ],
+      "hybridRanks": [
+        1
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 19,
+      "lexicalMs": 1547,
+      "hybridMs": 1860,
+      "cachedMs": 1563
+    },
+    {
+      "kind": "guard",
+      "labels": "implementer",
+      "query": "kafka release",
+      "within": 3,
+      "expected": [
+        "kafka:mail:dev:message:tj10yosjhl359dylxqw430hb7rmbqnts",
+        "kafka:mail:dev:message:rjvjnr2y63t0tkhysjtoq5znz57cg2lj",
+        "kafka:mail:dev:message:2d84s3w41gkpldz9hx0fv5ofx9yv223k"
+      ],
+      "lexicalRanks": [
+        1,
+        2,
+        3
+      ],
+      "hybridRanks": [
+        2,
+        1,
+        16
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": false,
+      "rerankCandidate": true,
+      "semanticOnlyResults": 16,
+      "lexicalMs": 5507,
+      "hybridMs": 1999,
+      "cachedMs": 1965
+    },
+    {
+      "kind": "guard",
+      "labels": "implementer",
+      "query": "manager log",
+      "within": 7,
+      "expected": [
+        "kafka:jira:issue:KAFKA-20390",
+        "kafka:github:pull:23772",
+        "kafka:github:pull:23385",
+        "kafka:jira:issue:KAFKA-21038"
+      ],
+      "lexicalRanks": [
+        1,
+        5,
+        3,
+        6
+      ],
+      "hybridRanks": [
+        6,
+        5,
+        3,
+        7
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 13,
+      "lexicalMs": 1883,
+      "hybridMs": 1992,
+      "cachedMs": 1824
+    },
+    {
+      "kind": "guard",
+      "labels": "implementer",
+      "query": "storage tiered",
+      "within": 5,
+      "expected": [
+        "kafka:github:pull:21108",
+        "kafka:github:pull:23456",
+        "kafka:jira:issue:KAFKA-20047",
+        "kafka:jira:issue:KAFKA-17665",
+        "kafka:jira:issue:KAFKA-19968"
+      ],
+      "lexicalRanks": [
+        3,
+        5,
+        18,
+        7,
+        20
+      ],
+      "hybridRanks": [
+        3,
+        2,
+        5,
+        4,
+        8
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": false,
+      "hybridMet": false,
+      "rerankCandidate": true,
+      "semanticOnlyResults": 20,
+      "lexicalMs": 1858,
+      "hybridMs": 1897,
+      "cachedMs": 1822
+    },
+    {
+      "kind": "guard",
+      "labels": "implementer",
+      "query": "controller kraft",
+      "within": 4,
+      "expected": [
+        "kafka:github:pull:19321",
+        "kafka:jira:issue:KAFKA-18874",
+        "kafka:jira:issue:KAFKA-20839",
+        "kafka:jira:issue:KAFKA-21129"
+      ],
+      "lexicalRanks": [
+        9,
+        1,
+        2,
+        6
+      ],
+      "hybridRanks": [
+        27,
+        2,
+        3,
+        6
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": false,
+      "hybridMet": false,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 15,
+      "lexicalMs": 1015,
+      "hybridMs": 1811,
+      "cachedMs": 1906
+    },
+    {
+      "kind": "guard",
+      "labels": "implementer",
+      "query": "manager request",
+      "within": 9,
+      "expected": [
+        "kafka:jira:issue:KAFKA-19804",
+        "kafka:github:pull:23687",
+        "kafka:jira:issue:KAFKA-19738",
+        "kafka:github:pull:22667",
+        "kafka:github:pull:20964"
+      ],
+      "lexicalRanks": [
+        7,
+        21,
+        11,
+        18,
+        19
+      ],
+      "hybridRanks": [
+        1,
+        4,
+        8,
+        6,
+        9
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": false,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 20,
+      "lexicalMs": 1944,
+      "hybridMs": 2073,
+      "cachedMs": 1787
+    },
+    {
+      "kind": "chinese",
+      "labels": "implementer",
+      "query": "交易逾時",
+      "within": 10,
+      "expected": [
+        "kafka:jira:issue:KAFKA-20237",
+        "kafka:github:pull:23547"
+      ],
+      "lexicalRanks": [
+        null,
+        null
+      ],
+      "hybridRanks": [
+        null,
+        null
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": true
+      },
+      "lexicalMet": false,
+      "hybridMet": false,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 50,
+      "lexicalMs": 741,
+      "hybridMs": 1973,
+      "cachedMs": 1799
+    },
+    {
+      "kind": "chinese",
+      "labels": "implementer",
+      "query": "消費者重新平衡很慢",
+      "within": 10,
+      "expected": [
+        "kafka:jira:issue:KAFKA-21249",
+        "kafka:github:pull:23760"
+      ],
+      "lexicalRanks": [
+        null,
+        null
+      ],
+      "hybridRanks": [
+        null,
+        null
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": true
+      },
+      "lexicalMet": false,
+      "hybridMet": false,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 50,
+      "lexicalMs": 753,
+      "hybridMs": 1703,
+      "cachedMs": 1728
+    },
+    {
+      "kind": "chinese",
+      "labels": "implementer",
+      "query": "分層儲存的配額沒有生效",
+      "within": 5,
+      "expected": [
+        "kafka:jira:issue:KAFKA-19968",
+        "kafka:github:pull:21108"
+      ],
+      "lexicalRanks": [
+        null,
+        null
+      ],
+      "hybridRanks": [
+        8,
+        null
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": false,
+      "hybridMet": false,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 50,
+      "lexicalMs": 717,
+      "hybridMs": 2238,
+      "cachedMs": 1904
+    },
+    {
+      "kind": "chinese",
+      "labels": "implementer",
+      "query": "重新認證失敗後 CPU 使用率過高",
+      "within": 5,
+      "expected": [
+        "kafka:github:pull:21714"
+      ],
+      "lexicalRanks": [
+        null
+      ],
+      "hybridRanks": [
+        13
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": false,
+      "hybridMet": false,
+      "rerankCandidate": true,
+      "semanticOnlyResults": 20,
+      "lexicalMs": 1744,
+      "hybridMs": 2123,
+      "cachedMs": 2005
+    },
+    {
+      "kind": "chinese",
+      "labels": "implementer",
+      "query": "反向 DNS 查詢阻塞網路執行緒",
+      "within": 5,
+      "expected": [
+        "kafka:jira:issue:KAFKA-19919",
+        "kafka:github:pull:22569"
+      ],
+      "lexicalRanks": [
+        7,
+        3
+      ],
+      "hybridRanks": [
+        5,
+        2
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": false,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 37,
+      "lexicalMs": 1041,
+      "hybridMs": 1717,
+      "cachedMs": 2017
+    },
+    {
+      "kind": "chinese",
+      "labels": "implementer",
+      "query": "心跳請求的初始間隔",
+      "within": 5,
+      "expected": [
+        "kafka:jira:issue:KAFKA-19804",
+        "kafka:github:pull:23687"
+      ],
+      "lexicalRanks": [
+        null,
+        null
+      ],
+      "hybridRanks": [
+        2,
+        1
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": false,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 50,
+      "lexicalMs": 673,
+      "hybridMs": 2041,
+      "cachedMs": 1573
+    },
+    {
+      "kind": "chinese",
+      "labels": "implementer",
+      "query": "排序合併連接溢出到磁碟時遺失資料列",
+      "within": 5,
+      "expected": [
+        "datafusion:github:pull:24056"
+      ],
+      "lexicalRanks": [
+        null
+      ],
+      "hybridRanks": [
+        null
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": false,
+      "hybridMet": false,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 50,
+      "lexicalMs": 678,
+      "hybridMs": 2300,
+      "cachedMs": 1871
+    },
+    {
+      "kind": "chinese",
+      "labels": "implementer",
+      "query": "發布流程移除 MD5 校驗檔",
+      "within": 5,
+      "expected": [
+        "kafka:github:pull:23654"
+      ],
+      "lexicalRanks": [
+        3
+      ],
+      "hybridRanks": [
+        4
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 38,
+      "lexicalMs": 1437,
+      "hybridMs": 2292,
+      "cachedMs": 2264
+    },
+    {
+      "kind": "vocabulary-gap",
+      "labels": "implementer",
+      "query": "controller sign-up retried after timing out",
+      "within": 5,
+      "expected": [
+        "kafka:github:pull:19321"
+      ],
+      "lexicalRanks": [
+        24
+      ],
+      "hybridRanks": [
+        3
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": false,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 23,
+      "lexicalMs": 1690,
+      "hybridMs": 1862,
+      "cachedMs": 1765
+    },
+    {
+      "kind": "vocabulary-gap",
+      "labels": "implementer",
+      "query": "SMJ spill",
+      "within": 10,
+      "expected": [
+        "datafusion:github:pull:24056",
+        "datafusion:github:pull:23988",
+        "datafusion:github:pull:22230"
+      ],
+      "lexicalRanks": [
+        50,
+        null,
+        30
+      ],
+      "hybridRanks": [
+        16,
+        35,
+        14
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": false,
+      "hybridMet": false,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 8,
+      "lexicalMs": 1430,
+      "hybridMs": 1870,
+      "cachedMs": 2030
+    },
+    {
+      "kind": "vocabulary-gap",
+      "labels": "implementer",
+      "query": "two-phase commit",
+      "within": 5,
+      "expected": [
+        "kafka:github:pull:21735"
+      ],
+      "lexicalRanks": [
+        null
+      ],
+      "hybridRanks": [
+        null
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": false,
+      "hybridMet": false,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 13,
+      "lexicalMs": 1724,
+      "hybridMs": 1790,
+      "cachedMs": 1863
+    },
+    {
+      "kind": "vocabulary-gap",
+      "labels": "implementer",
+      "query": "client spins at 100% cpu",
+      "within": 10,
+      "expected": [
+        "kafka:github:pull:21714",
+        "kafka:jira:issue:KAFKA-21031",
+        "kafka:github:pull:23357",
+        "kafka:github:pull:23348"
+      ],
+      "lexicalRanks": [
+        3,
+        null,
+        null,
+        null
+      ],
+      "hybridRanks": [
+        1,
+        null,
+        null,
+        null
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": false,
+      "hybridMet": false,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 18,
+      "lexicalMs": 1950,
+      "hybridMs": 2163,
+      "cachedMs": 1939
+    },
+    {
+      "kind": "vocabulary-gap",
+      "labels": "implementer",
+      "query": "remote storage file handle not closed",
+      "within": 5,
+      "expected": [
+        "kafka:jira:issue:KAFKA-20967",
+        "kafka:github:pull:23211"
+      ],
+      "lexicalRanks": [
+        7,
+        2
+      ],
+      "hybridRanks": [
+        3,
+        5
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": false,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 18,
+      "lexicalMs": 1850,
+      "hybridMs": 1915,
+      "cachedMs": 1748
+    },
+    {
+      "kind": "vocabulary-gap",
+      "labels": "implementer",
+      "query": "hash join that fits in limited RAM",
+      "within": 5,
+      "expected": [
+        "datafusion:github:issue:24768"
+      ],
+      "lexicalRanks": [
+        2
+      ],
+      "hybridRanks": [
+        1
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 21,
+      "lexicalMs": 1796,
+      "hybridMs": 1800,
+      "cachedMs": 1828
+    },
+    {
+      "kind": "vocabulary-gap",
+      "labels": "implementer",
+      "query": "mark directory as failed on disk error",
+      "within": 5,
+      "expected": [
+        "kafka:jira:issue:KAFKA-16304",
+        "kafka:github:pull:23697"
+      ],
+      "lexicalRanks": [
+        1,
+        null
+      ],
+      "hybridRanks": [
+        4,
+        41
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": false,
+      "hybridMet": false,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 20,
+      "lexicalMs": 1920,
+      "hybridMs": 1800,
+      "cachedMs": 1747
+    },
+    {
+      "kind": "vocabulary-gap",
+      "labels": "implementer",
+      "query": "HB interval",
+      "within": 5,
+      "expected": [
+        "kafka:jira:issue:KAFKA-19804",
+        "kafka:github:pull:23687"
+      ],
+      "lexicalRanks": [
+        1,
+        2
+      ],
+      "hybridRanks": [
+        1,
+        2
+      ],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 16,
+      "lexicalMs": 1621,
+      "hybridMs": 2219,
+      "cachedMs": 1917
+    },
+    {
+      "kind": "probe",
+      "labels": "unlabelled",
+      "query": "RM",
+      "within": 0,
+      "expected": [],
+      "lexicalRanks": [],
+      "hybridRanks": [],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 44,
+      "lexicalTop": [
+        "kafka:github:pull:22102 KAFKA-20464: Fix topology corruption when ConnectedStoreProviders share a StoreBuilder",
+        "kafka:github:pull:23123 KAFKA-20187: Fix for AsyncKafkaConsumer not clearing endOffsetRequested flag",
+        "kafka:jira:issue:KAFKA-21173 KAFKA-21173: Consider adding `--no-parallel` to release.py to avoid multiple staging repositories being built",
+        "kafka:jira:issue:KAFKA-21183 KAFKA-21183: Remove MD5 and SHA-1 checksum files from our release process",
+        "kafka:github:pull:21428 KAFKA-20150: Add Structurizr  scaffolding for C4 Diagrams"
+      ],
+      "hybridTop": [
+        "kafka:github:pull:22102 KAFKA-20464: Fix topology corruption when ConnectedStoreProviders share a StoreBuilder",
+        "kafka:github:pull:23123 KAFKA-20187: Fix for AsyncKafkaConsumer not clearing endOffsetRequested flag",
+        "kafka:jira:issue:KAFKA-21173 KAFKA-21173: Consider adding `--no-parallel` to release.py to avoid multiple staging repositories being built",
+        "kafka:github:pull:23464 KAFKA-21096: Deregister SharePartition metrics on teardown to fix leak",
+        "kafka:jira:issue:KAFKA-21183 KAFKA-21183: Remove MD5 and SHA-1 checksum files from our release process"
+      ],
+      "lexicalMs": 1156,
+      "hybridMs": 1950,
+      "cachedMs": 1775
+    },
+    {
+      "kind": "probe",
+      "labels": "unlabelled",
+      "query": "ISR",
+      "within": 0,
+      "expected": [],
+      "lexicalRanks": [],
+      "hybridRanks": [],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 44,
+      "lexicalTop": [
+        "kafka:jira:issue:KAFKA-20235 KAFKA-20235: Expose EffectiveMinIsr as a Partition metric",
+        "kafka:mail:dev:message:90m0lh4bp26xxb3564gt6fz5jm2s5h4q [DISCUSS] KIP-1163: Diskless Core",
+        "kafka:jira:issue:KAFKA-21110 KAFKA-21110: Document that min.insync.replicas is bounded by the replica count",
+        "kafka:jira:issue:KAFKA-21022 KAFKA-21022: Broker Crash During ZK-to-KRaft Migration Due to Missing Topic ID in Empty Log Directory",
+        "kafka:github:pull:23529 KAFKA-21110: Document that min.insync.replicas is bounded by the replica count"
+      ],
+      "hybridTop": [
+        "kafka:mail:dev:message:90m0lh4bp26xxb3564gt6fz5jm2s5h4q [DISCUSS] KIP-1163: Diskless Core",
+        "kafka:jira:issue:KAFKA-21110 KAFKA-21110: Document that min.insync.replicas is bounded by the replica count",
+        "kafka:github:pull:23529 KAFKA-21110: Document that min.insync.replicas is bounded by the replica count",
+        "kafka:jira:issue:KAFKA-20235 KAFKA-20235: Expose EffectiveMinIsr as a Partition metric",
+        "kafka:jira:issue:KAFKA-21022 KAFKA-21022: Broker Crash During ZK-to-KRaft Migration Due to Missing Topic ID in Empty Log Directory"
+      ],
+      "lexicalMs": 1070,
+      "hybridMs": 1884,
+      "cachedMs": 1835
+    },
+    {
+      "kind": "probe",
+      "labels": "unlabelled",
+      "query": "HW",
+      "within": 0,
+      "expected": [],
+      "lexicalRanks": [],
+      "hybridRanks": [],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 50,
+      "lexicalTop": [],
+      "hybridTop": [
+        "datafusion:github:issue:26071 BaselineMetrics output_bytes converts every column to ArrayData for every batch",
+        "datafusion:github:pull:25278 chore: Update sqlparser to 0.63.0",
+        "datafusion:github:pull:22966 chore(deps): bump pyjwt from 2.12.0 to 2.13.0",
+        "datafusion:github:pull:26133 perf: Partitioned topk emit row number",
+        "datafusion:github:issue:26055 Remove the deprecated bundled statistics providers"
+      ],
+      "lexicalMs": 673,
+      "hybridMs": 2105,
+      "cachedMs": 1544
+    },
+    {
+      "kind": "probe",
+      "labels": "unlabelled",
+      "query": "EOS",
+      "within": 0,
+      "expected": [],
+      "lexicalRanks": [],
+      "hybridRanks": [],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 41,
+      "lexicalTop": [
+        "kafka:jira:issue:KAFKA-20416 KAFKA-20416: RocksDB loses entries during broker patches.",
+        "kafka:github:pull:23600 KAFKA-21149: Speed up JoinGracePeriodDurabilityIntegrationTest",
+        "kafka:github:pull:23570 KAFKA-20416: Clear consumed offsets on task close",
+        "kafka:github:pull:23766 KAFKA-18002: Pass group.protocol through test_exactly_once_source",
+        "kafka:github:pull:23339 KAFKA-20416: Source changelog committed offset retry"
+      ],
+      "hybridTop": [
+        "kafka:jira:issue:KAFKA-20416 KAFKA-20416: RocksDB loses entries during broker patches.",
+        "kafka:github:pull:23339 KAFKA-20416: Source changelog committed offset retry",
+        "kafka:github:pull:23570 KAFKA-20416: Clear consumed offsets on task close",
+        "kafka:github:pull:23766 KAFKA-18002: Pass group.protocol through test_exactly_once_source",
+        "kafka:github:pull:22357 KAFKA-19883: [DRAFT] KIP-1289 — Transactional acknowledgments for share groups (state + client API + wire schema)"
+      ],
+      "lexicalMs": 1100,
+      "hybridMs": 1685,
+      "cachedMs": 1843
+    },
+    {
+      "kind": "probe",
+      "labels": "unlabelled",
+      "query": "LSO",
+      "within": 0,
+      "expected": [],
+      "lexicalRanks": [],
+      "hybridRanks": [],
+      "semantic": {
+        "status": "ok",
+        "candidates": 100,
+        "cached": false
+      },
+      "lexicalMet": true,
+      "hybridMet": true,
+      "rerankCandidate": false,
+      "semanticOnlyResults": 50,
+      "lexicalTop": [],
+      "hybridTop": [
+        "kafka:github:pull:23601 KAFKA-19034: Complete RemoteTopicCrudTest migration",
+        "kafka:github:pull:23660 KAFKA-21183: Remove MD5 and SHA-1 checksum files from our release process",
+        "kafka:github:pull:23691 KAFKA-21205 Preserve Markdown when formatting PR descriptions",
+        "kafka:github:pull:23690 MINOR: Limit ConsoleConsumerTest to KRaft mode only",
+        "kafka:github:pull:23671 KAFKA-21134 Fix all hardcoded version links included images"
+      ],
+      "lexicalMs": 665,
+      "hybridMs": 2072,
+      "cachedMs": 1589
+    }
+  ]
+}

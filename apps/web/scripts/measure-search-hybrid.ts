@@ -230,6 +230,7 @@ if (import.meta.main) {
   const reports: QueryReport[] = [];
   let hybridOn: boolean | undefined;
   let release = "";
+  let fusion: string | undefined;
   for (const query of evalQueries()) {
     const lexical = await ask(query.query, true);
     release = lexical.response.retrieval.indexRevision;
@@ -241,6 +242,7 @@ if (import.meta.main) {
     const hybrid = await ask(query.query, false);
     await pause();
     hybridOn ??= hybrid.response.retrieval.semantic !== undefined;
+    fusion ??= hybrid.response.retrieval.fusionRevision;
     if (!hybridOn) {
       reports.push(reportQuery(query, lexical));
       continue;
@@ -250,7 +252,7 @@ if (import.meta.main) {
     reports.push(reportQuery(query, lexical, { ...hybrid, cachedMs: cached.ms }));
   }
   const summary = summarize(reports);
-  console.log(`${base} release ${release} at ${new Date().toISOString()}`);
+  console.log(`${base} release ${release}${fusion === undefined ? "" : ` fusion ${fusion}`} at ${new Date().toISOString()}`);
   if (!summary.hybrid) console.log("Hybrid search is off on this deployment: lexical ranks only.");
   console.log(renderTable(reports));
   for (const report of reports.filter((item) => item.kind === "probe")) {
@@ -258,5 +260,5 @@ if (import.meta.main) {
   }
   console.log(JSON.stringify(summary, null, 2));
   const out = option("--out");
-  if (out !== undefined) await Bun.write(out, `${JSON.stringify({ base, release, measuredAt: new Date().toISOString(), summary, reports }, null, 2)}\n`);
+  if (out !== undefined) await Bun.write(out, `${JSON.stringify({ base, release, ...(fusion === undefined ? {} : { fusionRevision: fusion }), measuredAt: new Date().toISOString(), summary, reports }, null, 2)}\n`);
 }

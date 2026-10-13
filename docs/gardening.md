@@ -651,3 +651,42 @@ the two `viewer/` items below.
 - **Layer:** test.
 - **Source:** Spec 016 enable step 3.
 
+### G54. Fusion `rrf-group@2` cannot tell an adjacent word pair from a scattered one
+- **Where:** `packages/search/src/fusion.ts` (`isFullLexicalMatch`),
+  `apps/web/test/search-fusion-replay.test.ts` (the reversed guard queries).
+- **Why:** the rule keeps the leading lexical threads that hold every query
+  word in one passage. For `manager request` and `storage tiered` those
+  threads hold the words apart, lexical search ranks them without its
+  phrase bonus, and `rrf-group@1` had ranked the expected threads higher
+  (1, 4, 8, 6, 9 against 7, 9, 12, 10, 13). The response and the replay
+  fixture do not say whether a thread earned the phrase bonus.
+- **Fix:** expose that evidence to fusion and to the fixture, then compare
+  "kept only when the pair is adjacent" on the replay before changing the
+  rule (Spec 016 open question 26).
+- **Layer:** test today (the trade is pinned); structure when fixed.
+- **Source:** Spec 016 fusion, 2026-10-13.
+
+### G55. The similarity threshold was not evaluated, and the replay cannot see past 50 results
+- **Where:** `apps/web/test/fixtures/hybrid-replay.2026-10-13.json` (every
+  similarity is `null`), `apps/web/scripts/capture-search-replay.ts`.
+- **Why:** the capture predates `signals.semanticScore`, so no cut-off on
+  weak semantic neighbours could be compared; and `/api/search` returns at
+  most 50 threads, so semantic candidates below them are placeholders in
+  the replay. The alternatives of the ablation other than `rrf-group@1` and
+  `rrf-group@2` are approximate for that reason.
+- **Fix:** after the next Dev deploy, capture again (no model call while
+  the embeddings are cached) and add threshold rows to
+  `eval:search-fusion` (Spec 016 open question 15).
+- **Layer:** measurement.
+- **Source:** Spec 016 fusion, 2026-10-13.
+
+### G56. The owner's query is no better under hybrid search than under lexical search
+- **Where:** `apps/web/test/search-fusion-replay.test.ts` (the owner's row).
+- **Why:** `consumer network thread request manager` ranks its threads 2,
+  21, 9 lexically and 3, 39, 24 under either fusion revision: no passage
+  holds its five words, and two of the three threads are not semantic
+  candidates at all.
+- **Fix:** none known that keeps the vocabulary-gap gains; candidates are
+  the threshold (G55) and a reranker (Spec 016 H33).
+- **Layer:** test (pinned as a known limitation).
+- **Source:** Spec 016 fusion, 2026-10-13.

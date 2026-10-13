@@ -4,6 +4,8 @@ import type { SemanticCandidateV1, SemanticRetriever } from "./semantic";
 
 /** Reciprocal-rank fusion of group rankings, exact identifier matches first (Spec 016 Behavior 8). */
 export const DEFAULT_FUSION_REVISION = "rrf-group@1";
+/** `rrf-group@1` below the leading full lexical matches, which keep their places (Spec 016 Behavior 38). */
+export const LEADING_FULL_MATCH_FUSION_REVISION = "rrf-group@2";
 export const DEFAULT_SEMANTIC_TIMEOUT_MS = 1_000;
 
 export interface FusionConfigV1 {
@@ -12,6 +14,13 @@ export interface FusionConfigV1 {
   readonly k: number;
   /** Semantic passages kept per group as evidence. */
   readonly maxSemanticMatches: number;
+  /**
+   * `rrf-group@2`: a lexical group is a full match when one of its returned passages matched every
+   * word of the query. The full matches that lead the lexical ranking, up to its first group that
+   * is not one, keep their lexical places; every other group follows in score order. Needs
+   * `queryWords`. Absent: `rrf-group@1`, where only the score decides.
+   */
+  readonly keepLeadingFullMatches?: true;
 }
 
 export const defaultFusionConfig: FusionConfigV1 = {
@@ -19,6 +28,21 @@ export const defaultFusionConfig: FusionConfigV1 = {
   k: 60,
   maxSemanticMatches: 5,
 };
+
+export const leadingFullMatchFusionConfig: FusionConfigV1 = {
+  ...defaultFusionConfig,
+  revision: LEADING_FULL_MATCH_FUSION_REVISION,
+  keepLeadingFullMatches: true,
+};
+
+export const SUPPORTED_FUSION_REVISIONS: readonly string[] = [DEFAULT_FUSION_REVISION, LEADING_FULL_MATCH_FUSION_REVISION];
+
+/** The config of a fusion revision this code can run, or `undefined` for any other name. */
+export function fusionConfigFor(revision: string): FusionConfigV1 | undefined {
+  if (revision === DEFAULT_FUSION_REVISION) return defaultFusionConfig;
+  if (revision === LEADING_FULL_MATCH_FUSION_REVISION) return leadingFullMatchFusionConfig;
+  return undefined;
+}
 
 export interface FusedSearchResultV1 {
   readonly groupRootRecordId: string;
@@ -44,11 +68,32 @@ export interface FuseRankingsInputV1 {
   /** Semantic chunks, best first; a group takes the rank of its first chunk. */
   readonly semantic: readonly SemanticCandidateV1[];
   readonly config?: FusionConfigV1;
+  /**
+   * The distinct words of the query (`lexicalQueryWords`). Read only by a config with
+   * `keepLeadingFullMatches`, which requires it; with no word no group is a full match.
+   */
+  readonly queryWords?: readonly string[];
+}
+
+/** Whether one returned passage of a lexical group matched every word of the query. */
+export function isFullLexicalMatch(result: LexicalSearchResultV1, queryWords: readonly string[]): boolean {
+  if (queryWords.length === 0) return false;
+  return result.matches.some((match) => queryWords.every((word) => match.matchedTerms.includes(word)));
+}
+
+/**
+ * How many groups at the head of a lexical ranking are full matches: the length of its longest
+ * prefix in which every group is one.
+ */
+export function leadingFullMatches(lexical: readonly LexicalSearchResultV1[], queryWords: readonly string[]): number {
+  const first = lexical.findIndex((result) => !isFullLexicalMatch(result, queryWords));
+  return first < 0 ? lexical.length : first;
 }
 
 /**
  * Pure: the same rankings always fuse to the same list. With no semantic candidates the result
- * keeps the lexical order, so a failed semantic retriever cannot reorder lexical results.
+ * keeps the lexical order under every revision, so a failed semantic retriever cannot reorder
+ * lexical results.
  */
 export function fuseRankings(input: FuseRankingsInputV1): readonly FusedSearchResultV1[] {
   const config = input.config ?? defaultFusionConfig;
@@ -57,6 +102,10 @@ export function fuseRankings(input: FuseRankingsInputV1): readonly FusedSearchRe
   if (!Number.isInteger(config.maxSemanticMatches) || config.maxSemanticMatches <= 0) {
     throw new Error("maxSemanticMatches must be a positive integer");
   }
+  if (config.keepLeadingFullMatches === true && input.queryWords === undefined) {
+    throw new Error(`Fusion ${config.revision} needs the query's words`);
+  }
+  const kept = config.keepLeadingFullMatches === true ? leadingFullMatches(input.lexical, input.queryWords!) : 0;
 
   interface Fused {
     groupRootRecordId: string;
@@ -105,10 +154,14 @@ export function fuseRankings(input: FuseRankingsInputV1): readonly FusedSearchRe
     .map((group) => ({
       group,
       exactMatch: group.lexical?.exactMatch ?? false,
+      kept: group.lexicalRank !== undefined && group.lexicalRank <= kept,
       score: contribution(group.lexicalRank) + contribution(group.semanticRank),
     }))
     .sort((left, right) =>
       Number(right.exactMatch) - Number(left.exactMatch) ||
+      // `rrf-group@2`: the leading full matches are never demoted, and keep the lexical order.
+      Number(right.kept) - Number(left.kept) ||
+      (left.kept && right.kept ? left.group.lexicalRank! - right.group.lexicalRank! : 0) ||
       right.score - left.score ||
       // Equal scores: the lexical order decides before the id, so passthrough keeps lexical ties.
       (left.group.lexicalRank ?? Infinity) - (right.group.lexicalRank ?? Infinity) ||
@@ -144,6 +197,8 @@ export interface HybridSearchInputV1 {
   readonly semanticDepth?: number;
   readonly timeoutMs?: number;
   readonly config?: FusionConfigV1;
+  /** Passed to `fuseRankings`: required by a config with `keepLeadingFullMatches`. */
+  readonly queryWords?: readonly string[];
 }
 
 export interface HybridSearchOutputV1 {
@@ -175,8 +230,9 @@ export async function hybridSearch(input: HybridSearchInputV1): Promise<HybridSe
     throw new Error("Semantic depth must be a positive integer");
   }
 
+  const queryWords = input.queryWords === undefined ? {} : { queryWords: input.queryWords };
   const lexicalOnly = (semantic: Exclude<SemanticStatusV1, "ok">, semanticError?: string): HybridSearchOutputV1 => ({
-    results: fuseRankings({ lexical: input.lexical, semantic: [], config }).slice(0, limit),
+    results: fuseRankings({ lexical: input.lexical, semantic: [], config, ...queryWords }).slice(0, limit),
     retrieval: {
       fusionRevision: config.revision,
       semantic,
@@ -214,7 +270,7 @@ export async function hybridSearch(input: HybridSearchInputV1): Promise<HybridSe
       (projectIds === undefined || projectIds.includes(candidate.projectId)) &&
       (eligible === undefined || eligible.has(candidate.groupRootRecordId)));
     return {
-      results: fuseRankings({ lexical: input.lexical, semantic: candidates, config }).slice(0, limit),
+      results: fuseRankings({ lexical: input.lexical, semantic: candidates, config, ...queryWords }).slice(0, limit),
       retrieval: { fusionRevision: config.revision, semanticRevision, semantic: "ok" },
     };
   } catch (error) {

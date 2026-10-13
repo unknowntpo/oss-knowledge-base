@@ -188,6 +188,11 @@ export interface SearchEvidenceMatchV1 {
     readonly lexicalRank?: number;
     /** The thread's rank among semantic candidates; present only when semantic retrieval returned it. */
     readonly semanticRank?: number;
+    /**
+     * The similarity of the thread's best semantic passage, as the vector index reported it;
+     * present exactly when `semanticRank` is. For measurement: no fusion revision reads it.
+     */
+    readonly semanticScore?: number;
     readonly fusedRank: number;
   };
 }

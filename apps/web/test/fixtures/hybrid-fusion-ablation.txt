@@ -1,0 +1,52 @@
+Replayed over the capture of feed-2026-10-13T01-07-01-000Z (apps/web/test/fixtures/hybrid-replay*.json). met: rows whose expected threads all rank within the bound,
+by kind (rc real-corpus, ow owner, gd guard, zh chinese, vg vocabulary-gap, lr lexical-right, gp gap). worse: rows with an expected thread that
+lexical-only ranks within the bound and this does not. lowered: expected threads ranked below their lexical-only rank. lost: wins of @1 not kept.
+Candidate 3 (a similarity threshold) is not in the table: the response did not serve the similarity when this was captured.
+
+tuning (31 rows)
+variant                                     met                                       worse  lowered  lost  nDCG@10  MRR
+lexical only (semantic=off)                 rc 14/14 ow 0/1 gd 2/4 zh 1/6 vg 1/6      0      0        6     0.6719   0.6906
+rrf-group@1 (k 60)                          rc 8/14 ow 0/1 gd 1/4 zh 2/6 vg 3/6       7      31       0     0.6521   0.6822
+1 weighted: semantic x 0.5                  rc 9/14 ow 0/1 gd 1/4 zh 1/6 vg 3/6       6      22       2     0.6696   0.7032
+1 weighted: semantic x 0.25                 rc 10/14 ow 0/1 gd 1/4 zh 1/6 vg 2/6      5      13       3     0.6992   0.7434
+k 10 for both rankings                      rc 10/14 ow 0/1 gd 1/4 zh 3/6 vg 3/6      5      30       0     0.6930   0.7099
+2 lexical first, semantic appended          rc 14/14 ow 0/1 gd 2/4 zh 1/6 vg 1/6      0      0        6     0.6766   0.6906
+2 first 3 lexical threads kept              rc 11/14 ow 0/1 gd 2/4 zh 1/6 vg 3/6      3      11       2     0.6793   0.6991
+5 first 20 semantic threads only            rc 9/14 ow 0/1 gd 1/4 zh 3/6 vg 3/6       7      32       0     0.6662   0.6790
+5 first 10 semantic threads only            rc 9/14 ow 0/1 gd 1/4 zh 3/6 vg 2/6       8      35       2     0.6763   0.6995
+4 every full match first                    rc 14/14 ow 0/1 gd 2/4 zh 2/6 vg 3/6      0      6        0     0.6840   0.6930
+4 leading full matches kept = rrf-group@2   rc 14/14 ow 0/1 gd 2/4 zh 2/6 vg 3/6      0      6        0     0.6840   0.6930
+rrf-group@2 with k 10                       rc 14/14 ow 0/1 gd 2/4 zh 3/6 vg 3/6      0      6        0     0.7063   0.7207
+rrf-group@2 with semantic x 0.75            rc 14/14 ow 0/1 gd 2/4 zh 2/6 vg 3/6      0      5        0     0.6869   0.6994
+
+held-out (12 rows)
+variant                                     met                                       worse  lowered  lost  nDCG@10  MRR
+lexical only (semantic=off)                 rc 6/6 gd 1/2 zh 0/2 vg 1/2               0      0        3     0.6256   0.6369
+rrf-group@1 (k 60)                          rc 4/6 gd 2/2 zh 1/2 vg 1/2               2      8        0     0.6839   0.6674
+1 weighted: semantic x 0.5                  rc 4/6 gd 2/2 zh 1/2 vg 1/2               2      7        0     0.6760   0.6267
+1 weighted: semantic x 0.25                 rc 4/6 gd 1/2 zh 1/2 vg 1/2               2      6        0     0.7067   0.6715
+k 10 for both rankings                      rc 4/6 gd 1/2 zh 1/2 vg 1/2               2      12       0     0.6643   0.6229
+2 lexical first, semantic appended          rc 6/6 gd 1/2 zh 1/2 vg 1/2               0      0        1     0.7256   0.7307
+2 first 3 lexical threads kept              rc 6/6 gd 1/2 zh 1/2 vg 1/2               0      3        1     0.7574   0.7396
+5 first 20 semantic threads only            rc 4/6 gd 1/2 zh 1/2 vg 1/2               2      12       0     0.6567   0.6701
+5 first 10 semantic threads only            rc 4/6 gd 0/2 zh 1/2 vg 1/2               3      12       0     0.6713   0.6725
+4 every full match first                    rc 6/6 gd 1/2 zh 1/2 vg 1/2               0      0        0     0.7643   0.7723
+4 leading full matches kept = rrf-group@2   rc 6/6 gd 1/2 zh 1/2 vg 1/2               0      1        0     0.7728   0.7723
+rrf-group@2 with k 10                       rc 6/6 gd 1/2 zh 1/2 vg 1/2               0      1        0     0.7643   0.7723
+rrf-group@2 with semantic x 0.75            rc 6/6 gd 1/2 zh 1/2 vg 1/2               0      1        0     0.7731   0.7723
+
+new (14 rows)
+variant                                     met                                       worse  lowered  lost  nDCG@10  MRR
+lexical only (semantic=off)                 lr 7/7 gp 1/7                             0      0        0     0.5722   0.5536
+rrf-group@1 (k 60)                          lr 6/7 gp 2/7                             1      2        0     0.6446   0.6621
+1 weighted: semantic x 0.5                  lr 6/7 gp 2/7                             1      2        0     0.6233   0.6264
+1 weighted: semantic x 0.25                 lr 7/7 gp 2/7                             0      1        0     0.6113   0.6145
+k 10 for both rankings                      lr 6/7 gp 2/7                             1      2        0     0.6440   0.6621
+2 lexical first, semantic appended          lr 7/7 gp 1/7                             0      0        0     0.5878   0.5728
+2 first 3 lexical threads kept              lr 7/7 gp 2/7                             0      0        0     0.5929   0.5728
+5 first 20 semantic threads only            lr 6/7 gp 2/7                             1      2        0     0.6440   0.6603
+5 first 10 semantic threads only            lr 6/7 gp 1/7                             1      3        0     0.6178   0.6548
+4 every full match first                    lr 7/7 gp 2/7                             0      0        0     0.6585   0.6621
+4 leading full matches kept = rrf-group@2   lr 7/7 gp 2/7                             0      0        0     0.6585   0.6621
+rrf-group@2 with k 10                       lr 7/7 gp 2/7                             0      0        0     0.6527   0.6621
+rrf-group@2 with semantic x 0.75            lr 7/7 gp 2/7                             0      0        0     0.6321   0.6264

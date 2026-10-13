@@ -1,9 +1,19 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import type { Page } from "@playwright/test";
 
 import { expect, test } from "./fixtures";
 
 const workerUrl = process.env.DEV_WORKER_URL
   ?? "https://oss-knowledge-base-data-dev.unknowntpo.workers.dev";
+
+/**
+ * The fusion revision the committed Dev Pages configuration sets (Spec 016 H77): the deployment
+ * must answer with it, so switching the revision is a change to that one file. Run from the
+ * repository root, as `bun run test:e2e:development` does.
+ */
+const FUSION_REVISION = (JSON.parse(readFileSync(join(process.cwd(), "apps/web/wrangler.development.jsonc"), "utf8")) as { readonly vars: { readonly SEARCH_SEMANTIC: string } }).vars.SEARCH_SEMANTIC;
 
 function collectBrowserProblems(page: Page): string[] {
   const problems: string[] = [];
@@ -216,7 +226,7 @@ test("H32: Dev serves hybrid search: the gate is enabled, a text query carries a
   };
   type Health = { readonly searchQuery: null | GateHealth };
   type Search = {
-    readonly results: readonly { readonly matches: readonly { readonly signals: { readonly lexicalRank?: number; readonly semanticRank?: number; readonly fusedRank: number } }[] }[];
+    readonly results: readonly { readonly matches: readonly { readonly signals: { readonly lexicalRank?: number; readonly semanticRank?: number; readonly semanticScore?: number; readonly fusedRank: number } }[] }[];
     readonly retrieval: {
       readonly lexicalRevision: string;
       readonly fusionRevision?: string;
@@ -252,7 +262,8 @@ test("H32: Dev serves hybrid search: the gate is enabled, a text query carries a
     return identifier.retrieval.semantic?.status;
   }, { message: "wait for the Pages deployment that sets SEARCH_SEMANTIC", timeout: 60 * 1_000, intervals: [1_000, 5_000, 10_000] }).toBe("skipped");
   expect(identifier!.retrieval.semantic).toEqual({ status: "skipped", reason: "identifier-query" });
-  expect(identifier!.retrieval.fusionRevision).toBe("rrf-group@1");
+  expect(["rrf-group@1", "rrf-group@2"]).toContain(FUSION_REVISION);
+  expect(identifier!.retrieval.fusionRevision).toBe(FUSION_REVISION);
   expect(identifier!.retrieval.semanticRevision).toBeUndefined();
 
   // `semantic=off`: the lexical ranking, said to be so, with the four lexical fields unchanged.
@@ -274,7 +285,7 @@ test("H32: Dev serves hybrid search: the gate is enabled, a text query carries a
     // Hard signals: the field is missing, or a status this query cannot have.
     expect(semantic, "retrieval.semantic").toBeDefined();
     expect(LEGITIMATE, `status ${semantic!.status}`).toContain(semantic!.status);
-    expect(body.retrieval.fusionRevision).toBe("rrf-group@1");
+    expect(body.retrieval.fusionRevision).toBe(FUSION_REVISION);
     seen.push(`${semantic!.status}${semantic!.cached === true ? " (cached)" : ""}`);
     if (semantic!.status === "ok") fused = body;
   }
@@ -303,6 +314,17 @@ test("H32: Dev serves hybrid search: the gate is enabled, a text query carries a
   expect(fused.results.every((result) => result.matches.length > 0 && result.matches.every((match) =>
     match.signals.lexicalRank !== undefined || match.signals.semanticRank !== undefined))).toBe(true);
   expect(fused.results.map((result) => result.matches[0]!.signals.fusedRank)).toEqual(fused.results.map((_, index) => index + 1));
+  // H78: a thread semantic retrieval returned reports its similarity, and no other thread does.
+  // Asked again (the gate answers from its cache) until the Pages deployment that serves the
+  // field answers; a repeat that is not fused is not judged.
+  await expect.poll(async () => {
+    const body = await search(`q=${encodeURIComponent(TEXT_QUERY)}&limit=5`);
+    if (body.retrieval.semantic?.status !== "ok") return "not fused";
+    const signals = body.results.flatMap((result) => result.matches.map((match) => match.signals));
+    return signals.every((signal) => (signal.semanticRank === undefined
+      ? signal.semanticScore === undefined
+      : typeof signal.semanticScore === "number" && signal.semanticScore > 0 && signal.semanticScore <= 1.0001));
+  }, { message: "wait for the Pages deployment that serves signals.semanticScore", timeout: 60 * 1_000, intervals: [2_000, 5_000, 10_000] }).toBe(true);
 });
 
 test("This week renders the digest, or the no-digest notice while Dev has no digest pointer", async ({ page, request }) => {
