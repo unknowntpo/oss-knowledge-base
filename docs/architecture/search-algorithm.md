@@ -154,7 +154,7 @@ Dev 的回應自 PR #57 起帶有 `signals.semanticScore`（thread 最佳段落�
 | 快取 | key 是語意版本與正規化後的查詢（NFKC、空白合併，保留大小寫），不含合併規則的版本，因此切換 `rrf-group@1` 與 `rrf-group@2` 不產生模型呼叫或 Vectorize 查詢。embedding 保留至少 7 天，各專案的候選保留 1 小時 |
 | 預算 | 每個 UTC 日：查詢 embedding 1,000 neurons（每次 1）、Vectorize 查詢 1,000 次；每小時 100 次模型呼叫。超過時回 BM25 結果，`retrieval.semantic.status` 為 `over-budget` |
 | 退回 | gate 失敗、逾時（1,000 ms）、超過預算、release 沒有 shard root：一律回 BM25 結果，HTTP 200，狀態寫在 `retrieval.semantic.status` |
-| 畫面 | 只由語意檢索找到的結果多一個「意思相近」標記 |
+| 畫面 | 結果卡片不標示檢索方式（2026-10-13 移除「證據搜尋」與「意思相近」標記）；精確命中排在最前，其後以「其他相關結果」分隔 |
 
 費用估算（`bun run measure:search-query-budget`）：摘要的上限 4,500 是它自己的估算值，依 2026-10-08 的量測（估算 4,507、gateway 計為 5,733 neurons）實際約為 1.28 倍，即 5,760；加上 embedding 發布 2,500 與查詢 1,000，合計 9,260 neurons，低於方案內含的每日 10,000，餘裕 740。embedding 發布的估算值自 slice 3 起乘上 1.8：2026-10-12 的回填估計 $0.0088，gateway 實際計為 $0.0157。Vectorize 以（儲存向量數 + 查詢數）× 維度計費，每月上限 31,000 次查詢加上 8,780 個向量約 4,070 萬維，低於內含的 5,000 萬維。
 

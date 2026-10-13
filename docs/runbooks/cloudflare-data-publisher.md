@@ -85,7 +85,7 @@ A conditional put whose precondition fails (`if-none-match: *` on an existing
 key) is still a Class A operation. Deletes are free.
 
 `/health` `lastRun.r2 { classA, classB }` is what the last run's publication
-sent, retries included (Spec 008 C9). Expected for a steady hourly run:
+sent, retries included (Spec 008 C9). Expected for a steady daily run:
 `classA` = `copiedObjectCount + 3` (two pointers, one evidence object) and
 `classB` = `copiedObjectCount + reusedObjectCount + 3`.
 

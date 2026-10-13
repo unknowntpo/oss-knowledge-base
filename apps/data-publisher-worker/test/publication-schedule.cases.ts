@@ -3,7 +3,8 @@
  * for the table in docs/specs/018-daily-publication/spec.md (`bun run docs:test-plan`).
  *
  * - `run`: how the publication that just ended went. `truncated` is `lastRun.pollTruncated`;
- *   `jira failed` is a run that published while one source failed.
+ *   `jira failed` is a run that published while one source failed. `failed, truncated` is a
+ *   status with `ok: false` and `pollTruncated: true`: only a publication that succeeded catches up.
  * - `before`: follow-up runs already made since the last Cron tick or `POST /run`.
  * - `expected`: the follow-up the object schedules, and when, or `none` (wait for the next tick).
  */
@@ -21,4 +22,5 @@ export const testPlanRows = [
   { id: "T5", run: "ok, truncated, jira failed", before: "0 catch-ups, 3 retries", expected: "catch-up in 5 min" },
   { id: "T7", run: "ok, truncated, jira failed", before: "5 catch-ups, 0 retries", expected: "retry in 10 min" },
   { id: "T7", run: "failed", before: "5 catch-ups, 0 retries", expected: "retry in 10 min" },
+  { id: "T7", run: "failed, truncated", before: "0 catch-ups, 0 retries", expected: "retry in 10 min" },
 ] as const;

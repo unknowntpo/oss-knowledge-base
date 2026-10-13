@@ -23,7 +23,7 @@ const now = Date.parse("2026-10-13T22:07:00Z");
 function statusOf(run: string) {
   const parts = run.split(", ");
   const sources = { github: { ok: true }, mail: { ok: true }, jira: { ok: !parts.includes("jira failed") } };
-  return parts[0] === "failed" ? { ok: false as const, sources } : { ok: true as const, pollTruncated: parts.includes("truncated"), sources };
+  return { ok: parts[0] !== "failed", pollTruncated: parts.includes("truncated"), sources };
 }
 
 function countOf(before: string) {

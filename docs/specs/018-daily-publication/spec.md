@@ -204,7 +204,8 @@ publication against in-memory upstreams, state and bucket).
 ### Failure and retry
 - T6: after 5 catch-up runs a truncated run plans nothing more.
 - T7: a failed run, and a run with a failed source, is retried after 10, 30
-  and 60 minutes; a truncated run with a failed source catches up first.
+  and 60 minutes; a truncated run with a failed source catches up first; a
+  failed run is retried, not caught up, even if its status says truncated.
 - T8: after the third retry nothing is planned and the record is cleared.
 - T9: a future alarm reads as `scheduled` and does not block a trigger;
   `POST /run` while a follow-up waits answers 202, runs now and clears the
@@ -235,6 +236,25 @@ publication against in-memory upstreams, state and bucket).
   publication less than 27 h old, the topbar pill is not stale; with the
   clock 27 h 1 s after `lastRun.completedAt` it is
   (`bun run verify:ui -- --target dev --at +27h1s`).
+
+## Known limits (independent verification of PR #62, 2026-10-13)
+
+1. **A missed daily run is not visible before the 27 h mark.** Between hour
+   24 and hour 27 after a missed run a visitor sees "Updated 24 h ago" to
+   "Updated 26 h ago" with live styling and no warning. `/health`
+   `followUp` and a failed run (`lastRun.ok: false`) are not shown in the UI
+   at all. The owner's standing rule is that a stall must be visible in the
+   UI; this spec does **not** meet it for that window, it only keeps a
+   healthy day from being flagged. Open follow-up: show a failed or overdue
+   publication in the UI before the 27 h mark (gardening G66).
+2. **CI does not detect a stalled daily run.** The deployed E2E runs only
+   after a Dev deploy, so on a day without a deploy nothing checks that the
+   22:07 UTC run happened; the page's stale pill at 27 h is the only signal.
+3. **Exactly 200 updates in one repository cause one empty catch-up.** The
+   GitHub read stops at the cap and reports `pollTruncated` when the last
+   page is full, even if nothing more exists, so one extra publication runs
+   5 minutes later and reads nothing new. Rare (a day is 66 and 96 updates)
+   and cheap (about 40 Class A).
 
 ## Everything that is scheduled (2026-10-13)
 

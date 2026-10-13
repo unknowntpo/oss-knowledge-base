@@ -778,7 +778,20 @@ the two `viewer/` items below.
 - **Layer:** test.
 - **Source:** R2 call audit, 2026-10-13.
 
-### G61. The review queue's hourly decision and its 2 h check predate the daily publication
+### G61. The Feed count line is hard-coded English, beside unused count strings
+- **Where:** `apps/web/src/views/FeedView.vue` (`.results-count` without a
+  query renders `${visibleEntries.length} entries` in both locales);
+  `apps/web/i18n.js` keeps `results.related`, `results.hits`,
+  `results.filtered`, `results.all`, which no component reads.
+- **Why:** a zh-Hant reader sees "12 entries"; the unused keys look like
+  the strings to edit. The search count line was moved to `results.search.*`
+  on 2026-10-13 (Spec 005 S18); the Feed's was left as it was.
+- **Fix:** render the Feed count from `results.all` / `results.filtered`
+  (plain text, no `<strong>`), delete the keys still unused.
+- **Layer:** test (a unit row per locale, as S18 has).
+- **Source:** search result cards change, 2026-10-13.
+
+### G62. The review queue's hourly decision and its 2 h check predate the daily publication
 - **Where:** `docs/specs/015-review-queue/spec.md` (Decision 6 "Hourly", crons
   `27 * * * *` / `57 * * * *`, "stale after `STALE_AFTER_MS` (3 h)");
   `REVIEW_QUEUE_MAX_AGE_MS = 2 h` in `scripts/verify/args.ts`; ADR-0016.
@@ -791,7 +804,7 @@ the two `viewer/` items below.
 - **Layer:** spec decision, then a config test like Spec 018 T2.
 - **Source:** Spec 018, 2026-10-13.
 
-### G62. The Confluence ingest runs daily and the deployed site does not read it
+### G63. The Confluence ingest runs daily and the deployed site does not read it
 - **Where:** `.github/workflows/ingest.yml` (03:17 UTC), `tools/ingest/`,
   `vault/`, branch `automation/confluence-ingest`, issue #12;
   `.github/workflows/backfill.yml` (manual).
@@ -803,7 +816,7 @@ the two `viewer/` items below.
 - **Layer:** owner decision.
 - **Source:** Spec 018 inventory, 2026-10-13.
 
-### G63. Specs and ADRs written under the hourly publication still say "hourly"
+### G64. Specs and ADRs written under the hourly publication still say "hourly"
 - **Where:** Specs 008, 009, 012, 013, 014, 015, 016, 017, ADR-0013,
   ADR-0014, ADR-0016: phrases such as "hourly run", "the next hourly
   publication", "minute 7"; the helper `hourly` and "6 days of hourly runs"
@@ -818,7 +831,7 @@ the two `viewer/` items below.
 - **Layer:** rule (this entry).
 - **Source:** Spec 018, 2026-10-13.
 
-### G64. A retry run republishes everything to retry one source
+### G65. A retry run republishes everything to retry one source
 - **Where:** `planFollowUp` in `apps/data-publisher-worker/src/run-schedule.ts`.
 - **Why:** when one source fails and the others succeed, the retry (10, 30,
   60 minutes later) is a whole publication: every source is polled again and
@@ -828,3 +841,19 @@ the two `viewer/` items below.
   publication when it fails again.
 - **Layer:** measurement (`copiedObjectCount` of retry runs on Dev).
 - **Source:** Spec 018 simplification review, 2026-10-13.
+
+### G66. A failed or overdue daily publication is not shown in the UI before 27 h
+- **Where:** `apps/web/src/freshness.ts` (`STALE_AFTER_MS` 27 h),
+  `apps/web/src/App.vue` (`.demo-pill`); `/health` `lastRun.ok`, `followUp`.
+- **Why:** with one publication a day the pill warns only 27 h after the last
+  good run, so for three hours after a missed run it reads "Updated 24–26 h
+  ago" with live styling, and a failed run or a waiting retry is visible
+  only in `/health`. The standing rule is that a stall shows in the UI
+  (Spec 011); Spec 018 does not meet it for that window. The deployed E2E
+  runs only on deploys, so CI does not notice a missed daily run either.
+- **Fix:** own spec: let the page learn the publisher's state (for example
+  the last run's outcome or the next expected run in `/api/feed` metadata)
+  and warn as soon as a run is overdue or failed; consider a scheduled
+  check of `/health`.
+- **Layer:** spec, then E2E with a controlled clock.
+- **Source:** independent verifier of PR #62, Spec 018 "Known limits".
