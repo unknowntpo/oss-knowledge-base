@@ -13,6 +13,7 @@ import {
   isFullLexicalMatch,
   leadingFullMatches,
   leadingFullMatchFusionConfig,
+  lexicalHeadFusionConfig,
   lexicalQueryWords,
   lexicalSearchConfigFor,
   searchLexicalIndex,
@@ -321,12 +322,135 @@ describe("Spec 016 fusion revisions", () => {
   });
 
   test("H74: a revision name selects its config, and an unknown name selects nothing", () => {
-    expect(SUPPORTED_FUSION_REVISIONS).toEqual(["rrf-group@1", "rrf-group@2"]);
+    expect(SUPPORTED_FUSION_REVISIONS).toEqual(["rrf-group@1", "rrf-group@2", "rrf-group@3"]);
+    expect(fusionConfigFor("rrf-group@3")).toBe(lexicalHeadFusionConfig);
     expect(fusionConfigFor("rrf-group@1")).toBe(defaultFusionConfig);
     expect(fusionConfigFor("rrf-group@2")).toBe(leadingFullMatchFusionConfig);
     expect(LEADING_FULL_MATCH_FUSION_REVISION).toBe("rrf-group@2");
     expect(leadingFullMatchFusionConfig).toEqual({ revision: "rrf-group@2", k: 60, maxSemanticMatches: 5, keepLeadingFullMatches: true });
-    for (const name of ["rrf-group@3", "rrf-group", "RRF-GROUP@2", " rrf-group@2", "true", ""]) expect(fusionConfigFor(name)).toBeUndefined();
+    for (const name of ["rrf-group@4", "rrf-group", "RRF-GROUP@2", " rrf-group@2", "true", ""]) expect(fusionConfigFor(name)).toBeUndefined();
+  });
+});
+
+describe("Spec 016 fusion rrf-group@3: only a semantic standout passes the first lexical threads", () => {
+  const at3 = lexicalHeadFusionConfig;
+  const words = ["log", "manager", "cleanup"];
+  const two = ["log", "manager"];
+  /** Semantic threads with these similarities, best first; `x0`, `x1`, … fill the list to the reference rank. */
+  const scored = (...entries: readonly (readonly [string, number])[]) => entries.map(([id, score]) => ({ ...candidate(id), score }));
+  const pack = (count: number, score: number) => Array.from({ length: count }, (_, index) => [`x${String(index).padStart(2, "0")}`, score] as const);
+
+  test("H85: its config is rrf-group@2 with a head of 3, the 20th semantic thread as background, and a margin of 0.04", () => {
+    expect(at3).toEqual({ revision: "rrf-group@3", k: 60, maxSemanticMatches: 5, keepLeadingFullMatches: true, lexicalHead: { threads: 3, reference: 20, margin: 0.04 } });
+  });
+
+  test("H85: a head thread semantic retrieval missed is passed by a standout and by no thread of the pack", () => {
+    // No lexical thread holds `cleanup`, so rrf-group@2 keeps nothing. `a` (lexical 1) is not a
+    // semantic candidate. `d` (lexical 4) is the best semantic thread, 0.10 above the background
+    // of 0.50; `e` and `f` (lexical 5, 6) are in the pack, 0.02 above it.
+    const input = {
+      lexical: [matched("a", two), matched("b", two), matched("c", two), matched("d", two), matched("e", two), matched("f", two)],
+      semantic: scored(["d", 0.6], ["e", 0.52], ["f", 0.52], ["c", 0.51], ...pack(16, 0.5)),
+      queryWords: words,
+    };
+    // rrf-group@2 = rrf-group@1 here: d, e, c, f are in both lists and precede a; b is behind the pack's first threads.
+    const at2 = order(fuseRankings({ ...input, config: leadingFullMatchFusionConfig }));
+    expect(at2.slice(0, 5)).toEqual(["d", "e", "c", "f", "a"]);
+    expect(at2).toEqual(order(fuseRankings(input)));
+    // rrf-group@3: d stands out and stays first; before e (not a standout) the head threads lexical
+    // search ranks above it, a, b, c, are placed in lexical order.
+    const fused = fuseRankings({ ...input, config: at3 });
+    expect(order(fused).slice(0, 6)).toEqual(["d", "a", "b", "c", "e", "f"]);
+    expect(fused.slice(0, 4).map((result) => result.signals)).toEqual([
+      { lexicalRank: 4, semanticRank: 1, fusedRank: 1 },
+      { lexicalRank: 1, fusedRank: 2 },
+      { lexicalRank: 2, fusedRank: 3 },
+      { lexicalRank: 3, semanticRank: 4, fusedRank: 4 },
+    ]);
+    // Nothing is dropped, and the threads behind the head keep their rrf-group@2 order.
+    expect(order(fused).filter((id) => !["a", "b", "c"].includes(id))).toEqual(at2.filter((id) => !["a", "b", "c"].includes(id)));
+  });
+
+  test("H85: the margin is measured from the semantic thread at the reference rank, on each side of 0.04", () => {
+    const lexicalRanking = [matched("a", two), matched("b", two)];
+    const run = (similarity: number, background = 0.5, fill = 19) =>
+      order(fuseRankings({ lexical: lexicalRanking, semantic: scored(["s", similarity], ...pack(fill, background)), queryWords: words, config: at3 })).slice(0, 3);
+    // A thread found by meaning alone, first semantically: 1/61 ties with lexical rank 1 and loses the tie.
+    // Under rrf-group@2 it is second; rrf-group@3 lets it stay there only when it stands out.
+    expect(order(fuseRankings({ lexical: lexicalRanking, semantic: scored(["s", 0.55], ...pack(19, 0.5)), queryWords: words, config: leadingFullMatchFusionConfig })).slice(0, 3)).toEqual(["a", "s", "b"]);
+    expect(run(0.55)).toEqual(["a", "s", "b"]);
+    expect(run(0.54)).toEqual(["a", "s", "b"]);
+    expect(run(0.5399)).toEqual(["a", "b", "s"]);
+    // The reference is the 20th semantic thread: with a 21st, lower one, the background does not move.
+    expect(order(fuseRankings({ lexical: lexicalRanking, semantic: scored(["s", 0.5399], ...pack(19, 0.5), ["low", 0.3]), queryWords: words, config: at3 })).slice(0, 3)).toEqual(["a", "b", "s"]);
+    // With fewer than 20 semantic threads the last one is the background.
+    expect(run(0.5399, 0.5, 3)).toEqual(["a", "b", "s"]);
+    expect(run(0.5399, 0.4, 3)).toEqual(["a", "s", "b"]);
+    // A lone candidate is its own background and never stands out.
+    expect(run(0.9, 0.5, 0)).toEqual(["a", "b", "s"]);
+  });
+
+  test("H85: only the first three lexical threads are protected, and a thread never passes one it outranks lexically", () => {
+    const lexicalRanking = ["a", "b", "c", "d", "e"].map((id) => matched(id, two));
+    const fused = order(fuseRankings({ lexical: lexicalRanking, semantic: scored(["e", 0.52], ["x", 0.52], ...pack(18, 0.5)), queryWords: words, config: at3 }));
+    // e (lexical 5, in the pack) scores 1/65 + 1/61 and would lead; a, b, c come first. d (lexical 4) is not
+    // protected: it stays where its score puts it, behind e, x, and the third semantic thread (a tie at 1/64 is d's).
+    expect(fused.slice(0, 8)).toEqual(["a", "b", "c", "e", "x", "x00", "d", "x01"]);
+    // b in the pack with a better semantic rank than a: b is preceded by a, which lexical search ranks above it.
+    expect(order(fuseRankings({ lexical: lexicalRanking, semantic: scored(["b", 0.52], ...pack(19, 0.5)), queryWords: words, config: at3 })).slice(0, 3)).toEqual(["a", "b", "c"]);
+    // A standout among the head threads passes the others: semantic evidence still reorders the head.
+    expect(order(fuseRankings({ lexical: lexicalRanking, semantic: scored(["c", 0.6], ...pack(19, 0.5)), queryWords: words, config: at3 })).slice(0, 3)).toEqual(["c", "a", "b"]);
+  });
+
+  test("H85: kept full matches and exact matches stay where rrf-group@2 puts them, and without candidates the order is lexical", () => {
+    const exact: LexicalSearchResultV1 = { ...matched("exact", ["log"]), exactMatch: true };
+    // s is found by meaning alone and stands out: it passes the head threads a and b, and never the exact match.
+    const withExact = [exact, matched("a", two), matched("b", two), matched("c", two)];
+    expect(order(fuseRankings({ lexical: withExact, semantic: scored(["s", 0.7], ...pack(19, 0.5)), queryWords: words, config: at3 })).slice(0, 4)).toEqual(["exact", "s", "a", "b"]);
+    // a holds every word and leads: rrf-group@2 keeps it, and not even a standout passes it.
+    const withFull = [matched("a", words), matched("b", two), matched("c", two)];
+    expect(order(fuseRankings({ lexical: withFull, semantic: scored(["c", 0.6], ...pack(19, 0.5)), queryWords: words, config: at3 })).slice(0, 3)).toEqual(["a", "c", "b"]);
+    expect(order(fuseRankings({ lexical: withFull, semantic: scored(["c", 0.52], ...pack(19, 0.5)), queryWords: words, config: at3 })).slice(0, 3)).toEqual(["a", "b", "c"]);
+    expect(order(fuseRankings({ lexical: withExact, semantic: [], queryWords: words, config: at3 }))).toEqual(["exact", "a", "b", "c"]);
+    // An exact match is first even when a head thread outranks it lexically and nothing stands out.
+    expect(order(fuseRankings({ lexical: [matched("a", two), exact, matched("b", two)], semantic: scored(...pack(20, 0.5)), queryWords: words, config: at3 })).slice(0, 3)).toEqual(["exact", "a", "b"]);
+    // A thread stands out by its best passage: 0.56 and 0.40 against a background of 0.50.
+    const passages = [{ ...candidate("s", "0"), score: 0.56 }, { ...candidate("s", "1"), score: 0.4 }, ...scored(...pack(19, 0.5))];
+    expect(order(fuseRankings({ lexical: [matched("a", two), matched("b", two)], semantic: passages, queryWords: words, config: at3 })).slice(0, 3)).toEqual(["a", "s", "b"]);
+    // A Chinese query: no lexical thread, so there is no head and the semantic order stands.
+    expect(order(fuseRankings({ lexical: [], semantic: scored(["s1", 0.6], ["s2", 0.5]), queryWords: ["交易逾時"], config: at3 }))).toEqual(["s1", "s2"]);
+  });
+
+  test("H89: a similarity that is not a finite number never stands out, an invalid head is rejected, and rrf-group@2 reads no similarity", () => {
+    const lexicalRanking = [matched("a", two), matched("b", two)];
+    const semantic = (score: number) => [{ ...candidate("s"), score }, ...scored(...pack(19, 0.5))];
+    for (const poisoned of [Number.NaN, Number.POSITIVE_INFINITY, undefined as unknown as number, "0.9" as unknown as number]) {
+      expect(order(fuseRankings({ lexical: lexicalRanking, semantic: semantic(poisoned), queryWords: words, config: at3 })).slice(0, 3)).toEqual(["a", "b", "s"]);
+    }
+    // A background that is not a number: nothing stands out, and nothing is thrown.
+    const brokenBackground = [{ ...candidate("s"), score: 0.9 }, ...Array.from({ length: 19 }, (_, index) => ({ ...candidate(`y${index}`), score: Number.NaN }))];
+    expect(order(fuseRankings({ lexical: lexicalRanking, semantic: brokenBackground, queryWords: words, config: at3 })).slice(0, 3)).toEqual(["a", "b", "s"]);
+    // Positive control: the same thread with a valid similarity stands out.
+    expect(order(fuseRankings({ lexical: lexicalRanking, semantic: semantic(0.9), queryWords: words, config: at3 })).slice(0, 3)).toEqual(["a", "s", "b"]);
+    for (const lexicalHead of [{ threads: 0, reference: 20, margin: 0.04 }, { threads: 3, reference: 0, margin: 0.04 }, { threads: 3, reference: 20, margin: 0 }, { threads: 1.5, reference: 20, margin: 0.04 }]) {
+      expect(() => fuseRankings({ lexical: lexicalRanking, semantic: [], queryWords: words, config: { ...at3, lexicalHead } })).toThrow("lexicalHead needs positive integer threads and reference, and a positive margin");
+    }
+    expect(() => fuseRankings({ lexical: lexicalRanking, semantic: [], config: at3 })).toThrow("Fusion rrf-group@3 needs the query's words");
+    // rrf-group@1 and @2 are unchanged by any similarity.
+    for (const config of [undefined, leadingFullMatchFusionConfig]) {
+      const base = order(fuseRankings({ lexical: lexicalRanking, semantic: semantic(0.9), queryWords: words, ...(config === undefined ? {} : { config }) }));
+      expect(order(fuseRankings({ lexical: lexicalRanking, semantic: semantic(0.1), queryWords: words, ...(config === undefined ? {} : { config }) }))).toEqual(base);
+    }
+  });
+
+  test("H89: fusion at rrf-group@3 is deterministic and returns every thread once", () => {
+    const lexicalRanking = ["a", "b", "c", "d"].map((id) => matched(id, two));
+    const semantic = scored(["d", 0.6], ["c", 0.52], ["s", 0.56], ...pack(17, 0.5));
+    const first = fuseRankings({ lexical: lexicalRanking, semantic, queryWords: words, config: at3 });
+    expect(fuseRankings({ lexical: lexicalRanking, semantic, queryWords: words, config: at3 })).toEqual(first);
+    expect(new Set(order(first)).size).toBe(first.length);
+    expect(first).toHaveLength(4 + 1 + 17);
+    expect(first.map((result) => result.signals.fusedRank)).toEqual(first.map((_, index) => index + 1));
   });
 });
 

@@ -262,7 +262,7 @@ test("H32: Dev serves hybrid search: the gate is enabled, a text query carries a
     return identifier.retrieval.semantic?.status;
   }, { message: "wait for the Pages deployment that sets SEARCH_SEMANTIC", timeout: 60 * 1_000, intervals: [1_000, 5_000, 10_000] }).toBe("skipped");
   expect(identifier!.retrieval.semantic).toEqual({ status: "skipped", reason: "identifier-query" });
-  expect(["rrf-group@1", "rrf-group@2"]).toContain(FUSION_REVISION);
+  expect(["rrf-group@1", "rrf-group@2", "rrf-group@3"]).toContain(FUSION_REVISION);
   expect(identifier!.retrieval.fusionRevision).toBe(FUSION_REVISION);
   expect(identifier!.retrieval.semanticRevision).toBeUndefined();
 

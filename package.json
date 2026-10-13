@@ -26,6 +26,7 @@
     "measure:search-hybrid": "bun run --cwd apps/web measure:search-hybrid",
     "capture:search-replay": "bun run --cwd apps/web capture:search-replay",
     "eval:search-fusion": "bun run --cwd apps/web eval:search-fusion",
+    "eval:search-similarity": "bun run --cwd apps/web eval:search-similarity",
     "measure:search-query-budget": "bun run --cwd apps/data-publisher-worker measure:search-query-budget",
     "search:publish": "bun run --cwd apps/web search:publish",
     "dev": "bun apps/web/scripts/dev.ts",

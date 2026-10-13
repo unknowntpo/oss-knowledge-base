@@ -19,6 +19,7 @@ import {
   defaultFusionConfig,
   fuseRankings,
   leadingFullMatchFusionConfig,
+  lexicalHeadFusionConfig,
   type FusionConfigV1,
   type LexicalSearchResultV1,
   type SemanticCandidateV1,
@@ -95,11 +96,14 @@ export function fusionInput(replay: ReplayQuery, projects: readonly string[]): {
   }));
   const ranked = new Map(replay.threads.filter((thread) => thread[3] > 0).map((thread) => [thread[3], thread]));
   const semantic: SemanticCandidateV1[] = [];
+  let similarity = 1;
   for (let rank = 1; rank <= Math.max(0, ...ranked.keys()); rank += 1) {
     const thread = ranked.get(rank);
-    // A rank the response did not show is a thread only semantic retrieval returned, below its 50 results.
+    // A rank the response did not show is a thread only semantic retrieval returned, below its 50
+    // results. Its similarity is at most that of the shown thread before it, which it is given.
     const id = thread?.[0] ?? `unseen:semantic:${rank}`;
-    semantic.push({ chunkId: `${id}#s`, recordId: id, groupRootRecordId: id, projectId: projects[thread?.[1] ?? 0]!, score: thread?.[7] ?? 1 / rank });
+    similarity = thread?.[7] ?? similarity;
+    semantic.push({ chunkId: `${id}#s`, recordId: id, groupRootRecordId: id, projectId: projects[thread?.[1] ?? 0]!, score: similarity });
   }
   return { lexical, semantic };
 }
@@ -312,7 +316,7 @@ if (import.meta.main) {
     const inputs = rows.filter((row) => row.replay.semantic === "ok").map((row) => ({ ...fusionInput(row.replay, row.projects), queryWords: row.replay.words }));
     const rounds = 200;
     // Twice each, interleaved: the first pass warms the code up.
-    for (const config of [defaultFusionConfig, leadingFullMatchFusionConfig, defaultFusionConfig, leadingFullMatchFusionConfig]) {
+    for (const config of [defaultFusionConfig, leadingFullMatchFusionConfig, lexicalHeadFusionConfig, defaultFusionConfig, leadingFullMatchFusionConfig, lexicalHeadFusionConfig]) {
       const started = performance.now();
       for (let round = 0; round < rounds; round += 1) for (const input of inputs) fuseRankings({ ...input, config });
       console.log(`${config.revision}: ${((performance.now() - started) / (rounds * inputs.length) * 1_000).toFixed(1)} µs a fusion (${inputs.length} captured queries x ${rounds})`);

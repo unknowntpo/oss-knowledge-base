@@ -6,7 +6,19 @@ import type { SemanticCandidateV1, SemanticRetriever } from "./semantic";
 export const DEFAULT_FUSION_REVISION = "rrf-group@1";
 /** `rrf-group@1` below the leading full lexical matches, which keep their places (Spec 016 Behavior 38). */
 export const LEADING_FULL_MATCH_FUSION_REVISION = "rrf-group@2";
+/** `rrf-group@2`, and only a semantic standout may pass the first lexical threads (Spec 016 Behavior 43). */
+export const LEXICAL_HEAD_FUSION_REVISION = "rrf-group@3";
 export const DEFAULT_SEMANTIC_TIMEOUT_MS = 1_000;
+
+/** `rrf-group@3`: which lexical threads are the head, and which semantic threads stand out. */
+export interface LexicalHeadConfigV1 {
+  /** The lexical threads at ranks 1 to `threads` are the head. */
+  readonly threads: number;
+  /** The semantic thread at this rank gives the query's background similarity (the last one, when there are fewer). */
+  readonly reference: number;
+  /** A semantic thread stands out when its similarity is at least this far above the background. */
+  readonly margin: number;
+}
 
 export interface FusionConfigV1 {
   readonly revision: string;
@@ -21,6 +33,12 @@ export interface FusionConfigV1 {
    * `queryWords`. Absent: `rrf-group@1`, where only the score decides.
    */
   readonly keepLeadingFullMatches?: true;
+  /**
+   * `rrf-group@3`: a head thread is preceded only by threads lexical search ranks above it and by
+   * semantic standouts. A thread semantic retrieval did not return, or returned without standing
+   * out, is missing evidence about the head, not evidence against it. Absent: no thread is moved.
+   */
+  readonly lexicalHead?: LexicalHeadConfigV1;
 }
 
 export const defaultFusionConfig: FusionConfigV1 = {
@@ -35,12 +53,19 @@ export const leadingFullMatchFusionConfig: FusionConfigV1 = {
   keepLeadingFullMatches: true,
 };
 
-export const SUPPORTED_FUSION_REVISIONS: readonly string[] = [DEFAULT_FUSION_REVISION, LEADING_FULL_MATCH_FUSION_REVISION];
+export const lexicalHeadFusionConfig: FusionConfigV1 = {
+  ...leadingFullMatchFusionConfig,
+  revision: LEXICAL_HEAD_FUSION_REVISION,
+  lexicalHead: { threads: 3, reference: 20, margin: 0.04 },
+};
+
+export const SUPPORTED_FUSION_REVISIONS: readonly string[] = [DEFAULT_FUSION_REVISION, LEADING_FULL_MATCH_FUSION_REVISION, LEXICAL_HEAD_FUSION_REVISION];
 
 /** The config of a fusion revision this code can run, or `undefined` for any other name. */
 export function fusionConfigFor(revision: string): FusionConfigV1 | undefined {
   if (revision === DEFAULT_FUSION_REVISION) return defaultFusionConfig;
   if (revision === LEADING_FULL_MATCH_FUSION_REVISION) return leadingFullMatchFusionConfig;
+  if (revision === LEXICAL_HEAD_FUSION_REVISION) return lexicalHeadFusionConfig;
   return undefined;
 }
 
@@ -105,6 +130,10 @@ export function fuseRankings(input: FuseRankingsInputV1): readonly FusedSearchRe
   if (config.keepLeadingFullMatches === true && input.queryWords === undefined) {
     throw new Error(`Fusion ${config.revision} needs the query's words`);
   }
+  const head = config.lexicalHead;
+  if (head !== undefined && !(Number.isInteger(head.threads) && head.threads > 0 && Number.isInteger(head.reference) && head.reference > 0 && head.margin > 0)) {
+    throw new Error("lexicalHead needs positive integer threads and reference, and a positive margin");
+  }
   const kept = config.keepLeadingFullMatches === true ? leadingFullMatches(input.lexical, input.queryWords!) : 0;
 
   interface Fused {
@@ -150,7 +179,7 @@ export function fuseRankings(input: FuseRankingsInputV1): readonly FusedSearchRe
   }
 
   const contribution = (rank: number | undefined) => rank === undefined ? 0 : 1 / (config.k + rank);
-  return [...groups.values()]
+  const ordered = [...groups.values()]
     .map((group) => ({
       group,
       exactMatch: group.lexical?.exactMatch ?? false,
@@ -165,7 +194,8 @@ export function fuseRankings(input: FuseRankingsInputV1): readonly FusedSearchRe
       right.score - left.score ||
       // Equal scores: the lexical order decides before the id, so passthrough keeps lexical ties.
       (left.group.lexicalRank ?? Infinity) - (right.group.lexicalRank ?? Infinity) ||
-      left.group.groupRootRecordId.localeCompare(right.group.groupRootRecordId))
+      left.group.groupRootRecordId.localeCompare(right.group.groupRootRecordId));
+  return (head === undefined ? ordered : protectLexicalHead(ordered, head))
     .map(({ group, exactMatch, score }, index) => ({
       groupRootRecordId: group.groupRootRecordId,
       projectId: group.projectId,
@@ -179,6 +209,43 @@ export function fuseRankings(input: FuseRankingsInputV1): readonly FusedSearchRe
       ...(group.lexical === undefined ? {} : { lexical: group.lexical }),
       semanticMatches: group.semanticMatches,
     }));
+}
+
+/**
+ * `rrf-group@3`. A semantic thread stands out when the similarity of its best passage is at least
+ * `margin` above the background: the similarity of the semantic thread at rank `reference`. The
+ * fused order is walked once; before a thread that does not stand out, every head thread that
+ * lexical search ranks above it (or any head thread, when it has no lexical rank) is placed.
+ * Exact matches are never preceded. A similarity that is not a finite number never stands out.
+ */
+function protectLexicalHead<Item extends {
+  readonly exactMatch: boolean;
+  readonly group: { readonly lexicalRank?: number; readonly semanticRank?: number; readonly semanticMatches: readonly SemanticCandidateV1[] };
+}>(ordered: readonly Item[], head: LexicalHeadConfigV1): readonly Item[] {
+  const semantic = ordered.filter((item) => item.group.semanticRank !== undefined).sort((left, right) => left.group.semanticRank! - right.group.semanticRank!);
+  const background = semantic[Math.min(head.reference, semantic.length) - 1]?.group.semanticMatches[0]?.score;
+  const standsOut = (item: Item) => {
+    const score = item.group.semanticMatches[0]?.score;
+    return typeof score === "number" && typeof background === "number" && Number.isFinite(score) && Number.isFinite(background) && score - background >= head.margin;
+  };
+  const protectedThreads = ordered.filter((item) => item.group.lexicalRank !== undefined && item.group.lexicalRank <= head.threads)
+    .sort((left, right) => left.group.lexicalRank! - right.group.lexicalRank!);
+  const placed = new Set<Item>();
+  const result: Item[] = [];
+  const place = (item: Item) => {
+    if (placed.has(item)) return;
+    placed.add(item);
+    result.push(item);
+  };
+  for (const item of ordered) {
+    if (!item.exactMatch && !standsOut(item)) {
+      for (const thread of protectedThreads) {
+        if (item.group.lexicalRank === undefined || thread.group.lexicalRank! < item.group.lexicalRank) place(thread);
+      }
+    }
+    place(item);
+  }
+  return result;
 }
 
 /** Why a response is or is not hybrid; `ok` is the only state with a `semanticRevision`. */

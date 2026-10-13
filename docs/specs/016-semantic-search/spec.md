@@ -1,6 +1,6 @@
 # Spec 016: Semantic candidates and hybrid fusion for Search
 
-Status: Draft for human review — decisions of 2026-10-08..12 recorded below; slices 1, 2a, 2b and 3 implemented (3: query-time hybrid search in the web API, behind `SEARCH_SEMANTIC`, off in every deployed configuration), Dev switched to `@2` (H42) and `@3` (Spec 017), embeddings enabled on Dev (`SEARCH_EMBEDDING=bge-m3@1`, owner's approval 2026-10-12), the query gate and shard roots enabled on the Dev publisher (enable step 1, owner's approval 2026-10-13), hybrid search enabled on Dev Pages (enable step 3, 2026-10-13; H31 and H32 observed after its deploy), fusion `rrf-group@2` implemented behind the same flag after the 2026-10-13 measurement (Dev stays at `rrf-group@1` until rollout step 7, H79), Prod has no flag, slice 4's rerank decision pending
+Status: Draft for human review — decisions of 2026-10-08..12 recorded below; slices 1, 2a, 2b and 3 implemented (3: query-time hybrid search in the web API, behind `SEARCH_SEMANTIC`, off in every deployed configuration), Dev switched to `@2` (H42) and `@3` (Spec 017), embeddings enabled on Dev (`SEARCH_EMBEDDING=bge-m3@1`, owner's approval 2026-10-12), the query gate and shard roots enabled on the Dev publisher (enable step 1, owner's approval 2026-10-13), hybrid search enabled on Dev Pages (enable step 3, 2026-10-13; H31 and H32 observed after its deploy), fusion `rrf-group@2` implemented behind the same flag after the 2026-10-13 measurement (Dev stays at `rrf-group@1` until rollout step 7, H79), fusion `rrf-group@3` (only a semantic standout passes the first three lexical threads) implemented behind the same flag and not enabled anywhere, Prod has no flag, slice 4's rerank decision pending
 Date: 2026-10-13
 Traceability: enforced
 Builds on: Spec 005 (Phases 2 and 3, LLM boundary), Spec 013 (lexical shards, `bm25-reference@1`), Spec 014 (community profile `proposal`), Spec 015 (profile blocks, ADR-0016)
@@ -542,6 +542,117 @@ this PR. Left to the implementer, to confirm:
 5. **Automate last.** No CI job: the ablation is a text file the unit tests
    compare, like Spec 017's.
 
+## Decisions (fusion `rrf-group@3`, 2026-10-13)
+
+The verifier of PR #57 found that `rrf-group@2` is a narrow fix: on its own
+20 queries it tied `rrf-group@1` on 19, and three queries lexical search
+answers stay worse than lexical-only, because the rule engages only when
+the first lexical thread holds every query word. Decided by the owner
+before this change: capture the similarities now that the response serves
+them, look at what they separate before designing anything, stop with a
+recommendation if they separate nothing, never change `rrf-group@1` or
+`rrf-group@2`, leave Dev's configuration alone, and write up the embedding
+text without changing it. Left to the implementer, to confirm:
+
+43. **What the similarity separates** (Results, "What the similarity
+    says"). Over 112 hand-labelled candidates:
+    - **No absolute floor.** Relevant candidates range from 0.466 to 0.658
+      and irrelevant ones from 0.383 to 0.620 (AUC 0.737). A floor of 0.50
+      already loses 2 of 19 relevant candidates and keeps 55 of 70
+      irrelevant ones. The level belongs to the query, not to relevance:
+      every candidate of `txn` is below 0.50 and every candidate of `kafka
+      release` is between 0.555 and 0.598, and none of the labelled ones
+      of either is relevant.
+    - **Chinese queries are not scored lower.** Median best similarity
+      0.582 against 0.592 for other queries; median 20th 0.524 against
+      0.512. No separate threshold is needed for them.
+    - **The distance to the best candidate** is little better (AUC 0.759).
+    - **A margin over the query's own background does separate the
+      candidates that stand out** (AUC 0.876). With the background taken
+      as the similarity of the query's 20th semantic thread, a margin of
+      0.05 keeps 15 of 19 relevant candidates and 1 of 70 irrelevant ones;
+      0.04 keeps 17 and 16.
+    - **It finds standouts, not relevance.** Of the 148 expected threads
+      that have a similarity, 77 are 0.04 above their background; the
+      median margin is 0.041. Half of the right threads sit in the pack
+      with the wrong ones, so no rule that drops or down-weights the pack
+      can be right.
+44. **The rule: only a standout passes the first lexical threads**
+    (Behavior 43). The similarity is used for the one thing it supports: a
+    thread may precede one of the first three lexical threads only if
+    lexical search ranks it above that thread or it stands out. A thread
+    semantic retrieval did not return is thereby treated as missing
+    evidence about the lexical head, not as evidence against it, which is
+    the failure the verifier found. Nothing is dropped and no score is
+    reweighted. Rejected, on the same capture (ablation, Results):
+    - an absolute floor: no effect at 0.45 and 0.50; at 0.54 it loses rows
+      in three sets;
+    - a distance to the best candidate: every value tried makes a row
+      worse than `rrf-group@2`;
+    - weighting or gating the semantic contribution by the margin: each
+      makes rows worse than `rrf-group@2` in two or more sets, because the
+      pack holds right threads too (Decision 43);
+    - a neutral semantic rank for an absent lexical thread: at rank 50 or
+      30 it changes no verifier row and makes tuning rows worse;
+    - a head of 1 leaves the owner's row worse; a head of 5 or 10, or a
+      margin of 0.05, loses a gain of `rrf-group@2`.
+45. **The constants: head 3, reference 20, margin 0.04.** On the 76
+    labelled rows captured before the rule existed, heads of 2 and 3 with
+    margins of 0.03 and 0.04 are the only variants with no row worse than
+    `rrf-group@2` and fewer rows worse than lexical-only; they agree on
+    every row's status. 0.04 rather than 0.03 because it admits half as
+    many irrelevant candidates (16 against 34 of 70) for the same 17
+    relevant ones; 3 rather than 2 with no evidence either way. The
+    reference is where the hand labels were measured; it was not varied.
+    These are three numbers fitted on few rows: owner to confirm, and
+    open question 30.
+46. **Shipped, although one acceptance criterion is not met.** The owner's
+    criterion "no lexical-right query of the verifier's set worse than
+    lexical-only at its bound" holds for 7 of the 9, not 9: the rows worse
+    than lexical-only fall from 4 to 2 (Results, known limitations). The
+    other criteria hold: no row of any set worse than `rrf-group@2` at its
+    bound, no gain of `rrf-group@2` lost, rows met not lower in any set.
+    The implementer's judgement is that this is a small, safe improvement
+    rather than a fix: it is behind the flag, off, and the report says so.
+47. **Clean evidence: ten more queries.** The rule was designed after
+    reading the verifier's set, so that set no longer proves anything
+    about fitting. Ten queries were written and labelled after the
+    constants were fixed and before the rule ran on them (H84): 9 tie
+    `rrf-group@2`, 1 has a thread one rank higher, none is worse. The
+    honest reading is that the rule does no harm there and rarely acts.
+48. **The embedding text is the larger lever, and is not changed here**
+    (Results, "The owner's query and the embedding text"; open question
+    29).
+49. **Dev's configuration is not changed in this PR.** A switch to
+    `rrf-group@3` is rollout step 8.
+
+### Simplification review (fusion `rrf-group@3`)
+
+1. **Question every requirement.**
+   - The scored capture and `eval:search-similarity`: owned by Decision 43,
+     which must be repeatable from committed data.
+   - The hand labels: owned by the same decision; without them "separates"
+     has no meaning.
+   - The rule and its three constants: owned by the verifier's finding.
+   - The verifier's rows and the ten clean rows: owned by Decisions 46, 47.
+2. **Delete.**
+   - No floor, no distance to the best, no weighting, no neutral rank.
+   - No threshold for Chinese queries.
+   - No new response field: a reader does not need to know which thread
+     stood out, and the capture already holds the similarities.
+   - No change to the gate, the candidates, or the embedding.
+   - No second copy of the replay harness: the scored evaluation imports
+     the first one's judges.
+   - Deleted and added back: the similarity of semantic threads the
+     response did not show. Without a value for them the 20th thread, and
+     so the background, would be read from the wrong thread.
+3. **Simplify.** One pass over the `rrf-group@2` order; the background is
+   one array lookup; the rule moves threads and never rescores them.
+4. **Shorten the cycle.** 0.5 s offline for the separation report and the
+   ablation over 86 fused queries.
+5. **Automate last.** No CI job: the report is a text file the unit tests
+   compare.
+
 ## Simplification review
 
 1. **Question every requirement.**
@@ -1022,6 +1133,34 @@ Fusion `rrf-group@2` (2026-10-13):
     `bun run eval:search-fusion` replays the revisions and the weighed
     alternatives over the committed capture and prints the ablation.
 
+Fusion `rrf-group@3` (2026-10-13):
+
+43. **Fusion `rrf-group@3`.** `rrf-group@2`, then one pass over its order.
+    The **head** is the lexical threads at ranks 1 to 3. The **background**
+    of a query is the similarity of its 20th semantic thread, or of its
+    last one when there are fewer. A semantic thread **stands out** when
+    the similarity of its best passage is at least 0.04 above the
+    background. The order is walked from the top; before a thread that
+    does not stand out is placed, every head thread not yet placed that
+    lexical search ranks above it (every head thread, when it has no
+    lexical rank) is placed, in lexical order. So a head thread is
+    preceded only by threads lexical search ranks above it, by standouts,
+    and by exact matches; every other thread keeps its `rrf-group@2` order;
+    no thread is dropped and no score changes. Kept full matches and exact
+    matches are where `rrf-group@2` puts them. With no semantic candidate
+    the order is the lexical one. A similarity that is not a finite number
+    never stands out. A query whose every semantic thread is within 0.04
+    of its 20th (`kafka release`, `txn`) has no standout: its three best
+    lexical threads then lead in lexical order.
+44. **Selecting it.** `SEARCH_SEMANTIC=rrf-group@3`, as Behavior 39. The
+    gate is asked the same question; nothing else in the response changes.
+45. **The scored capture and its report.** `bun run capture:search-replay`
+    now records `signals.semanticScore`. `bun run eval:search-similarity`
+    reads the committed capture and the hand labels and prints the
+    separation of relevant from irrelevant candidates (by similarity, by
+    distance to the best, by margin; by query type; Chinese against other
+    queries) and the ablation of the score-aware alternatives by set.
+
 ## Community profile fit
 
 Checked: `packages/reference-pipeline/src/digest/profiles.ts` (Spec 014,
@@ -1382,6 +1521,17 @@ class and the caps as shipped on 2026-10-13.
      `rrf-group@1`. Nothing stored changes in either direction. Step 4
      still turns hybrid search off altogether.
 
+8. **Switch Dev to `rrf-group@3` (optional, a separate PR; not done).**
+   The same one-value change as step 7 (`"SEARCH_SEMANTIC":
+   "rrf-group@3"`, the `H66` pin, the feature map, the runbook, this
+   status), with the same properties: no model call, no index query, no
+   stored change, and a rollback by reverting it. After the deploy:
+   `fusionRevision: rrf-group@3`; `LogManager cleanup` shows KAFKA-20390
+   in the first three results (23rd under `rrf-group@2`);
+   `StreamsPartitionAssignor` shows KAFKA-20790 third; then `bun run
+   measure:search-hybrid`, which must show no Spec 017 or guard regression.
+   Revert when a row is worse than under `rrf-group@2` at its bound.
+
 ## Test plan
 
 Generated by `bun run docs:test-plan`. Edit the case files, not these tables.
@@ -1613,6 +1763,84 @@ should help. **Every row is implementer-labelled, owner to confirm**:
 | H76 | gap | implementer | commit markers lost when a partition is unavailable | kafka:jira:issue:KAFKA-20734 | 5 | KAFKA-20734: Offline partition can cause loss of transaction markers. |
 | H76 | gap | implementer | how to report a vulnerability | datafusion:github:pull:25917 | 5 | DataFusion: Add SECURITY.md for DataFusion; no title says vulnerability. |
 | H76 | gap | implementer | 用戶端配額數值檢查 | kafka:github:pull:23646 | 5 | Chinese for: client quota value validation (MINOR: Validate client quota values and cap throttle time to int range). |
+<!-- test-plan:end -->
+
+The verifier's clean set for PR #57, from
+`apps/web/test/search-fusion-verifier.cases.ts`: 20 queries the verifier
+wrote before running `rrf-group@2`, with its expected threads, copied
+unchanged. The bound of 5 is the implementer's; **labelled by the
+verifier, owner to confirm**:
+
+<!-- test-plan:start apps/web/test/search-fusion-verifier.cases.ts -->
+| id | kind | labels | query | expected | within |
+| --- | --- | --- | --- | --- | --- |
+| H83 | lexical-right | verifier | LogManager cleanup | kafka:jira:issue:KAFKA-20390 kafka:github:pull:23772 kafka:github:pull:23385 kafka:jira:issue:KAFKA-21038 | 5 |
+| H83 | lexical-right | verifier | ReplicaManager fetch | — | 5 |
+| H83 | lexical-right | verifier | StreamsPartitionAssignor | kafka:jira:issue:KAFKA-20790 kafka:github:pull:23597 kafka:github:pull:23706 | 5 |
+| H83 | lexical-right | verifier | max.poll.interval.ms | kafka:jira:issue:KAFKA-19804 kafka:github:pull:23348 | 5 |
+| H83 | lexical-right | verifier | remote.log.storage.enable | kafka:github:pull:23626 kafka:github:pull:23569 kafka:jira:issue:KAFKA-17249 | 5 |
+| H83 | lexical-right | verifier | SortMergeJoinExec spill | datafusion:github:pull:23988 datafusion:github:issue:25205 | 5 |
+| H83 | lexical-right | verifier | ListingTable partition pruning | datafusion:github:pull:25212 datafusion:github:issue:26130 datafusion:github:pull:25819 datafusion:github:issue:23341 datafusion:github:pull:23402 | 5 |
+| H83 | lexical-right | verifier | unclean leader election | kafka:github:pull:23680 kafka:github:pull:20610 | 5 |
+| H83 | lexical-right | verifier | offset commit callback | kafka:github:pull:21359 kafka:jira:issue:KAFKA-21229 kafka:github:pull:23725 | 5 |
+| H83 | gap | verifier | consumer stuck after network timeout | kafka:jira:issue:KAFKA-17734 kafka:jira:issue:KAFKA-21220 kafka:github:pull:23714 | 5 |
+| H83 | gap | verifier | broker runs out of file descriptors | kafka:jira:issue:KAFKA-20967 kafka:github:pull:23211 kafka:github:pull:23604 | 5 |
+| H83 | gap | verifier | slow group rebalance memory | kafka:jira:issue:KAFKA-21230 | 5 |
+| H83 | gap | verifier | producer blocked on metadata | kafka:github:pull:23474 kafka:github:pull:23753 kafka:jira:issue:KAFKA-21243 | 5 |
+| H83 | gap | verifier | deduplicate strings when spilling | datafusion:github:pull:23565 datafusion:github:pull:25716 | 5 |
+| H83 | gap | verifier | config value validation for client quotas | kafka:github:pull:23640 kafka:github:pull:23641 | 5 |
+| H83 | gap | verifier | merge join loses rows | datafusion:github:issue:26115 datafusion:github:pull:24336 datafusion:github:issue:25957 | 5 |
+| H83 | gap | verifier | vulnerability disclosure process | datafusion:github:pull:25917 | 5 |
+| H83 | chinese | verifier | 日誌管理器 | kafka:jira:issue:KAFKA-20390 kafka:github:pull:23772 kafka:github:pull:23385 kafka:jira:issue:KAFKA-21038 | 5 |
+| H83 | chinese | verifier | 分區領導者選舉 | kafka:github:pull:20610 kafka:github:pull:23680 | 5 |
+| H83 | chinese | verifier | 遠端儲存指標 | kafka:github:pull:23463 kafka:github:pull:23508 | 5 |
+<!-- test-plan:end -->
+
+Ten clean queries for `rrf-group@3`, from
+`apps/web/test/search-fusion-clean3.cases.ts`, written and labelled after
+its constants were fixed and before it ran on them. **Implementer-labelled,
+owner to confirm**:
+
+<!-- test-plan:start apps/web/test/search-fusion-clean3.cases.ts -->
+| id | kind | labels | query | expected | within |
+| --- | --- | --- | --- | --- | --- |
+| H84 | lexical-right | implementer | AsyncKafkaConsumer bug | kafka:github:pull:23756 kafka:github:pull:23123 kafka:jira:issue:KAFKA-21229 | 5 |
+| H84 | lexical-right | implementer | ClientQuotaMetadataManager migration | kafka:jira:issue:KAFKA-19818 kafka:github:pull:23555 | 5 |
+| H84 | lexical-right | implementer | LogManagerBuilder removal | kafka:github:pull:23385 kafka:jira:issue:KAFKA-21038 | 5 |
+| H84 | lexical-right | implementer | stale coordinator cache fix | kafka:github:pull:23630 kafka:jira:issue:KAFKA-21181 | 5 |
+| H84 | lexical-right | implementer | windowed restore optimisation backport | kafka:github:pull:23434 kafka:jira:issue:KAFKA-20876 kafka:github:pull:23435 | 5 |
+| H84 | lexical-right | implementer | push down topk join benchmark | datafusion:github:pull:25093 datafusion:github:pull:21621 datafusion:github:pull:22760 | 5 |
+| H84 | lexical-right | implementer | heartbeat request manager performance | kafka:jira:issue:KAFKA-19804 kafka:github:pull:23687 kafka:github:pull:20964 | 5 |
+| H84 | gap | implementer | why does the controller not retry registering | kafka:jira:issue:KAFKA-18874 kafka:github:pull:19321 | 5 |
+| H84 | gap | implementer | 安全性政策 | datafusion:github:issue:25916 datafusion:github:pull:25917 | 5 |
+| H84 | gap | implementer | CPU busy loop after login failure | kafka:github:pull:21714 kafka:jira:issue:KAFKA-20253 | 5 |
+<!-- test-plan:end -->
+
+Hand labels of semantic candidates, from
+`apps/web/test/search-similarity-labels.cases.ts`: one letter for each of
+a query's first seven semantic threads (`R` relevant, `P` partly, `I`
+irrelevant), judged from titles before any score-aware rule was tried.
+**Implementer-labelled, owner to confirm**:
+
+<!-- test-plan:start apps/web/test/search-similarity-labels.cases.ts -->
+| id | type | query | judgements |
+| --- | --- | --- | --- |
+| H88 | english phrase | transaction manager | PIPPPPP |
+| H88 | english phrase | kafka release | IIIIIII |
+| H88 | english phrase | tiered storage | PPRRRRR |
+| H88 | class name | CommitRequestManager | IIIPIIR |
+| H88 | class name | StreamsPartitionAssignor | PPPPIPP |
+| H88 | class name | LogManager cleanup | RPPPIII |
+| H88 | chinese | 交易逾時 | RPIIPIP |
+| H88 | chinese | 重新認證失敗後 CPU 使用率過高 | RRIIIII |
+| H88 | chinese | 分區領導者選舉 | RIIIIII |
+| H88 | chinese | 日誌管理器 | IIRIIII |
+| H88 | paraphrase | controller sign-up retried after timing out | RRIIIII |
+| H88 | paraphrase | broker runs out of file descriptors | IIIIIII |
+| H88 | paraphrase | how to report a vulnerability | RIIPIII |
+| H88 | paraphrase | consumer network thread request manager | RRIIIII |
+| H88 | one word | txn | IIIIIII |
+| H88 | one word | ISR | PRRIIII |
 <!-- test-plan:end -->
 
 ## Acceptance
@@ -2164,6 +2392,83 @@ Items tagged `[pending]` belong to slice 4.
   100 semantic ones) takes the same CPU time at both revisions → `bun run
   eval:search-fusion --time` (Results: 24 to 25 µs each); a switch makes no
   model call and no index query (H77).
+
+### Behavior (fusion `rrf-group@3`)
+- H85: given hand-computed rankings, a head thread that semantic retrieval
+  missed is passed by a standout and by no thread of the pack, and the
+  threads behind the head keep their `rrf-group@2` order; the margin is
+  measured from the 20th semantic thread, on each side of 0.04, from the
+  last thread when there are fewer, and a lone candidate never stands out;
+  only the first three lexical threads are protected, a thread never
+  passes a head thread it does not outrank lexically, and a standout
+  among the head threads passes the others; exact matches and kept full
+  matches stay where `rrf-group@2` puts them; a thread stands out by its
+  best passage; without candidates the order is lexical → evidence:
+  `fusion.test.ts`.
+- H86: given the scored replay, `StreamsPartitionAssignor` (2, 8, 1 →
+  26, 7, 6) and `deduplicate strings when spilling` (4, 1 → 1, 21) are
+  worse than lexical-only at `rrf-group@2` and not at `rrf-group@3` (3, 8,
+  2 and 1, 2), and `LogManager cleanup` (1, 3, 2, 4 → 23, 3, 1, 6) becomes
+  3, 4, 1, 7, still worse by one thread; rows worse than lexical-only fall
+  from 4 to 2 on the verifier's set and none appears in another set; no
+  row of any set is worse than `rrf-group@2` at its bound and rows met do
+  not fall in any set; the owner's first thread is back at its lexical
+  rank; ten gains of `rrf-group@2` on Chinese and gap rows keep their
+  ranks and six lowered threads stay within their bounds; the
+  alternatives' scorer agrees with `fuseRankings`; only a head of 2 or 3
+  at a margin of 0.03 or 0.04 has no row worse than `rrf-group@2` and
+  fewer worse than lexical-only → evidence: `search-fusion-scores.test.ts`.
+
+### Failure and retry (fusion `rrf-group@3`)
+- H87: given `SEARCH_SEMANTIC=rrf-group@3` and the binding, the handler
+  lets a standout pass the first three lexical threads and no thread of
+  the pack, names the revision, returns the same threads and facets as
+  `rrf-group@2`, and asks the gate the same question; the reader ranks as
+  `hybridSearch` does at `rrf-group@3`; `failed`, `timed-out`,
+  `over-budget`, `semantic=off`, and an `ok` answer without candidates are
+  the lexical response naming `rrf-group@3`; an unknown revision
+  (`rrf-group@4`) answers lexically with `failed` (the `H66` rows) →
+  evidence: `search-hybrid.test.ts`.
+- H89: given a similarity that is NaN, infinite, absent, or a string, or a
+  background that is not a number, nothing stands out and nothing is
+  thrown; an invalid head (zero or fractional threads or reference, a zero
+  margin) and missing query words are rejected; `rrf-group@1` and
+  `rrf-group@2` read no similarity; fusion at `rrf-group@3` is
+  deterministic and returns every thread once → evidence: `fusion.test.ts`.
+
+### Evidence (fusion `rrf-group@3`)
+- H83: given the verifier's 20 queries with the verifier's labels (9
+  lexical-right, 8 gap, 3 Chinese, one unlabelled), each is in the scored
+  capture, and none is worse under `rrf-group@3` than under `rrf-group@2`
+  at its bound → evidence: `search-fusion-verifier.test.ts`,
+  `search-fusion-scores.test.ts`.
+- H84: given the ten clean queries written after the constants were fixed,
+  none asked before, each is met and not worse than lexical-only or than
+  `rrf-group@2`; nine tie `rrf-group@2` and one has a thread one rank
+  higher → evidence: `search-fusion-clean3.test.ts`,
+  `search-fusion-scores.test.ts`.
+- H88: given the 112 hand-labelled candidates (16 queries of five types),
+  the AUC of relevant against irrelevant is 0.737 by similarity, 0.759 by
+  distance to the best, and 0.876 by margin over the 20th thread; a floor
+  of 0.50 keeps 17 of 19 relevant and 55 of 70 irrelevant candidates; a
+  margin of 0.03, 0.04, 0.05 keeps 17, 17, 15 relevant and 34, 16, 1
+  irrelevant; 77 of the 148 expected threads with a similarity are 0.04
+  above their background; Chinese queries' best and 20th similarities are
+  within 0.02 of other queries' at the median; the committed report is what
+  the capture computes → evidence: `search-similarity-labels.test.ts`,
+  `search-fusion-scores.test.ts`.
+- H90: given the scored capture (82 queries) and the clean one (10), each
+  is dated, names the release and revisions, is under 330,000 and 50,000
+  bytes with no title or excerpt, holds a similarity in (0, 1] exactly for
+  the threads with a semantic rank, never rising with the rank;
+  `rrf-group@1` replays every live rank; the 20th semantic thread was shown
+  for at least 80 of the 86 fused queries → evidence:
+  `search-fusion-scores.test.ts`.
+
+### Budget (fusion `rrf-group@3`)
+- H91: [measure] one fusion of a captured query at `rrf-group@3` → `bun run
+  eval:search-fusion --time` (Results: 34 to 35 µs against 24 at the other
+  revisions); a switch makes no model call and no index query (H87).
 
 ### Behavior (later slices)
 - H33: [pending] given the labelled queries and the real model,
@@ -2904,6 +3209,327 @@ reason the duplicate check in `hybridSearch` was deleted. One mutant
 survived a first pass and got a test: words not deduplicated without
 identifier profiles.
 
+## Results (similarity and fusion `rrf-group@3`, 2026-10-13)
+
+### The scored capture
+
+`bun run capture:search-replay` against Dev at 02:41 UTC, after PR #57 was
+deployed (the response serves `signals.semanticScore`), release
+`feed-2026-10-13T02-07-01-000Z`, fusion `rrf-group@1`: the 48 measured
+queries, the 14 new ones, and the verifier's 20, each already embedded, so
+0 model calls and 98 index queries. 76 are fused (6 are identifier
+queries). The ten clean queries followed at 02:52 (10 model calls, 20
+index queries). Committed: `apps/web/test/fixtures/hybrid-replay.scored.2026-10-13.json`
+(322 KB) and `hybrid-replay.clean-3.2026-10-13.json`. The similarity of a
+semantic thread the response did not show (below its 50 results) is not
+recorded; the 20th semantic thread was shown for at least 80 of the 86
+fused queries, and where it was not the background is an upper bound.
+
+### What the similarity says
+
+`bun run eval:search-similarity`, committed as
+`apps/web/test/fixtures/hybrid-similarity-report.txt` and compared in CI.
+The labels are the implementer's, from titles (Test plan):
+
+```text
+Similarity of semantic candidates, capture of feed-2026-10-13T02-07-01-000Z (2026-10-13T02:41:14.143Z).
+Hand labels: the first 7 semantic threads of 16 queries, 112 candidates: R relevant 19, P partly 23, I irrelevant 70.
+margin: similarity minus the similarity of the query's 20th semantic thread. below best: the best similarity of the query minus this one.
+
+similarity
+  R  n  19  min 0.466  p25 0.541  median 0.582  p75 0.594  max 0.658
+  P  n  23  min 0.506  p25 0.544  median 0.557  p75 0.575  max 0.611
+  I  n  70  min 0.383  p25 0.502  median 0.537  p75 0.562  max 0.620
+  AUC, R against I: 0.737
+below best
+  R  n  19  min 0.000  p25 0.000  median 0.016  p75 0.020  max 0.052
+  P  n  23  min 0.000  p25 0.001  median 0.026  p75 0.032  max 0.064
+  I  n  70  min 0.000  p25 0.016  median 0.032  p75 0.064  max 0.123
+  AUC, R against I: 0.759
+margin
+  R  n  19  min 0.012  p25 0.052  median 0.081  p75 0.090  max 0.122
+  P  n  23  min 0.017  p25 0.029  median 0.035  p75 0.059  max 0.141
+  I  n  70  min 0.012  p25 0.020  median 0.029  p75 0.039  max 0.061
+  AUC, R against I: 0.876
+
+kept by an absolute floor
+  similarity >= 0.45  R 19/19  P 23/23  I 66/70
+  similarity >= 0.50  R 17/19  P 23/23  I 55/70
+  similarity >= 0.52  R 16/19  P 22/23  I 47/70
+  similarity >= 0.54  R 15/19  P 20/23  I 33/70
+  similarity >= 0.56  R 13/19  P 9/23  I 21/70
+  similarity >= 0.58  R 10/19  P 6/23  I 8/70
+  similarity >= 0.60  R 4/19  P 1/23  I 1/70
+kept by a margin over the query's 20th semantic thread
+  margin >= 0.02  R 17/19  P 21/23  I 55/70
+  margin >= 0.03  R 17/19  P 17/23  I 34/70
+  margin >= 0.04  R 17/19  P 11/23  I 16/70
+  margin >= 0.05  R 15/19  P 10/23  I 1/70
+  margin >= 0.06  R 14/19  P 6/23  I 1/70
+  margin >= 0.08  R 10/19  P 4/23  I 0/70
+
+by query type: similarity of R | of I
+  english phrase  R n   5  min 0.541  p25 0.573  median 0.577  p75 0.579  max 0.588 | I n   8  min 0.553  p25 0.573  median 0.575  p75 0.580  max 0.598
+  class name      R n   2  min 0.525  p25 0.525  median 0.525  p75 0.525  max 0.584 | I n   9  min 0.528  p25 0.530  median 0.533  p75 0.553  max 0.562
+  chinese         R n   5  min 0.501  p25 0.582  median 0.594  p75 0.640  max 0.658 | I n  20  min 0.493  p25 0.500  median 0.505  p75 0.583  max 0.620
+  paraphrase      R n   5  min 0.550  p25 0.588  median 0.599  p75 0.606  max 0.618 | I n  22  min 0.527  p25 0.535  median 0.548  p75 0.555  max 0.571
+  one word        R n   2  min 0.466  p25 0.466  median 0.466  p75 0.466  max 0.483 | I n  11  min 0.383  p25 0.399  median 0.472  p75 0.474  max 0.491
+
+every fused query: similarity of its best and of its 20th semantic thread
+  queries with Han characters  best n  14  min 0.516  p25 0.573  median 0.582  p75 0.594  max 0.691 | 20th n  14  min 0.461  p25 0.483  median 0.524  p75 0.538  max 0.559
+  other queries                best n  62  min 0.432  p25 0.567  median 0.592  p75 0.633  max 0.722 | 20th n  62  min 0.365  p25 0.499  median 0.512  p75 0.525  max 0.586
+
+expected threads of the labelled rows: 189; with a similarity 148; lexical only (no semantic rank) 22; in neither response 19
+  similarity n 148  min 0.428  p25 0.524  median 0.560  p75 0.619  max 0.722
+  margin     n 148  min -0.031  p25 0.012  median 0.041  p75 0.083  max 0.243
+  margin >= 0.04: 77 of 148
+
+Score-aware alternatives on top of rrf-group@2. Per set: rows met / rows, w = rows worse than lexical-only at the bound,
+b = rows worse than rrf-group@2 at the bound, and nDCG@10.
+
+variant                             tuning                  held-out                new                     verifier                clean-3                 
+lexical only (semantic=off)         18/31 w0 b3 0.672       8/12 w0 b2 0.626        8/14 w0 b1 0.572        7/19 w0 b6 0.513        8/10 w0 b2 0.840        
+rrf-group@1                         14/31 w7 b7 0.652       8/12 w2 b2 0.684        8/14 w1 b1 0.645        7/19 w4 b0 0.610        10/10 w0 b0 0.964       
+rrf-group@2                         21/31 w0 b0 0.684       9/12 w0 b0 0.773        9/14 w0 b0 0.658        7/19 w4 b0 0.610        10/10 w0 b0 0.964       
+floor: similarity >= 0.45           21/31 w0 b0 0.688       9/12 w0 b0 0.773        9/14 w0 b0 0.658        7/19 w4 b0 0.610        10/10 w0 b0 0.964       
+floor: similarity >= 0.50           21/31 w0 b0 0.682       9/12 w0 b0 0.766        9/14 w0 b0 0.658        7/19 w4 b0 0.606        10/10 w0 b0 0.964       
+floor: similarity >= 0.54           20/31 w1 b1 0.693       9/12 w0 b0 0.765        8/14 w0 b1 0.631        6/19 w5 b3 0.561        10/10 w0 b0 0.956       
+within 0.08 of the best             22/31 w2 b2 0.690       9/12 w0 b0 0.766        9/14 w0 b0 0.658        7/19 w4 b0 0.623        9/10 w1 b1 0.957        
+within 0.06 of the best             22/31 w1 b1 0.705       9/12 w0 b0 0.773        9/14 w0 b0 0.658        8/19 w3 b1 0.638        10/10 w0 b0 0.964       
+within 0.04 of the best             20/31 w1 b2 0.721       9/12 w0 b0 0.765        8/14 w0 b1 0.631        3/19 w5 b5 0.605        8/10 w1 b2 0.922        
+weight by margin / 0.05             21/31 w2 b2 0.706       9/12 w0 b1 0.764        8/14 w0 b1 0.645        7/19 w4 b1 0.632        9/10 w1 b1 0.960        
+counted only at margin >= 0.04      22/31 w0 b0 0.710       9/12 w0 b0 0.741        8/14 w0 b1 0.628        6/19 w4 b3 0.620        9/10 w1 b1 0.963        
+absent lexical thread = rank 50     21/31 w1 b1 0.681       9/12 w0 b0 0.773        9/14 w0 b0 0.658        7/19 w4 b0 0.616        10/10 w0 b0 0.964       
+absent lexical thread = rank 30     21/31 w2 b2 0.676       9/12 w0 b0 0.766        9/14 w0 b0 0.658        7/19 w4 b0 0.634        10/10 w0 b0 0.964       
+head 1, margin 0.04                 21/31 w1 b1 0.688       9/12 w0 b0 0.773        9/14 w0 b0 0.653        8/19 w3 b0 0.634        10/10 w0 b0 0.964       
+head 2, margin 0.04                 21/31 w0 b0 0.688       9/12 w0 b0 0.773        9/14 w0 b0 0.653        8/19 w2 b0 0.644        10/10 w0 b0 0.966       
+head 3, margin 0.03                 21/31 w0 b0 0.688       9/12 w0 b0 0.773        9/14 w0 b0 0.650        8/19 w2 b0 0.649        10/10 w0 b0 0.964       
+head 3, margin 0.04 = rrf-group@3   21/31 w0 b0 0.688       9/12 w0 b0 0.773        9/14 w0 b0 0.650        8/19 w2 b0 0.643        10/10 w0 b0 0.966       
+head 3, margin 0.05                 20/31 w0 b1 0.689       9/12 w0 b0 0.773        9/14 w0 b0 0.634        8/19 w2 b0 0.645        10/10 w0 b0 0.966       
+head 5, margin 0.04                 20/31 w0 b1 0.687       9/12 w0 b0 0.773        8/14 w0 b1 0.646        8/19 w2 b1 0.642        10/10 w0 b0 0.966       
+head 10, margin 0.04                20/31 w0 b1 0.692       9/12 w0 b0 0.765        8/14 w0 b1 0.645        8/19 w2 b1 0.642        10/10 w0 b0 0.966       
+```
+
+Read (Decision 43): the similarity has no floor that separates relevant
+from irrelevant candidates and is not lower for Chinese queries; what
+separates is how far a candidate stands above its own query's background,
+and that marks about half of the right threads.
+
+### `rrf-group@3` on the scored replay
+
+Rows met (H86), lexical-only / `rrf-group@1` / `rrf-group@2` / `rrf-group@3`:
+
+| set | rows | lexical only | `rrf-group@1` | `rrf-group@2` | `rrf-group@3` |
+| --- | --- | --- | --- | --- | --- |
+| tuning | 31 | 18 | 14 | 21 | 21 |
+| held-out | 12 | 8 | 8 | 9 | 9 |
+| new (H76) | 14 | 8 | 8 | 9 | 9 |
+| verifier (H83) | 19 | 7 | 7 | 7 | 8 |
+| clean-3 (H84) | 10 | 8 | 10 | 10 | 10 |
+| all | 86 | 49 | 47 | 56 | 57 |
+| rows worse than lexical-only | | 0 | 14 | 4 | 2 |
+| rows worse than `rrf-group@2` at the bound | | 14 | 10 | 0 | 0 |
+
+Each row's expected threads, in their listed order (`bun run
+eval:search-similarity --rows`):
+
+| set | kind | query | within | lexical only | rrf-group@1 | rrf-group@2 | rrf-group@3 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| tuning | owner | consumer network thread request manager | 3 | 2, 21, 9 | 3, 39, 24 | 3, 39, 24 | 2, 39, 24 |
+| tuning | real-corpus | request manager | 9 | 1, 5, 2, 3, 4 | 1, 2, 3, 4, 8 | 1, 5, 2, 3, 4 | 1, 5, 2, 3, 4 |
+| tuning | real-corpus | RequestManager | 9 | 1, 5, 2, 3, 4 | 15, 4, 1, 2, 6 | 1, 5, 2, 3, 4 | 1, 5, 2, 3, 4 |
+| held-out | real-corpus | OffsetsRequestManager | 2 | 1, 2 | 1, 2 | 1, 2 | 1, 2 |
+| tuning | real-corpus | CommitRequestManager | 3 | 3, 2, 1 | 5, 16, 1 | 3, 2, 1 | 3, 2, 1 |
+| tuning | real-corpus | AsyncKafkaConsumer | 7 | 6, 2, 1, 5, 4, 7, 3 | 5, 2, 1, 7, 4, 12, 3 | 6, 2, 1, 5, 4, 7, 3 | 6, 2, 1, 5, 4, 7, 3 |
+| held-out | real-corpus | heartbeat request manager | 3 | 1, 2, 3 | 2, 1, 3 | 1, 2, 3 | 1, 2, 3 |
+| tuning | real-corpus | release manager | 1 | 1 | 1 | 1 | 1 |
+| tuning | real-corpus | log manager | 7 | 1, 4, 3, 5 | 3, 2, 1, 6 | 1, 4, 3, 5 | 1, 4, 3, 5 |
+| held-out | real-corpus | KIP770 | 1 | 1 | 1 | 1 | 1 |
+| tuning | real-corpus | KIP-770 | 1 | 1 | 1 | 1 | 1 |
+| tuning | real-corpus | 770 | 1 | 1 | 1 | 1 | 1 |
+| held-out | real-corpus | txn | 5 | 1, 2, 3, 4, 5 | 3, 8, 2, 4, 1 | 1, 2, 3, 4, 5 | 1, 2, 3, 4, 5 |
+| tuning | real-corpus | KAFKA-19804 | 2 | 1, 2 | 1, 2 | 1, 2 | 1, 2 |
+| tuning | real-corpus | disk manager | 3 | 1, 2, 3 | 4, 2, 1 | 1, 2, 3 | 1, 2, 3 |
+| held-out | real-corpus | transaction manager | 3 | 1, 2 | 20, 21 | 1, 2 | 1, 2 |
+| tuning | real-corpus | remote log manager | 3 | 1, 2, 3 | 1, 2, 3 | 1, 2, 3 | 1, 2, 3 |
+| tuning | real-corpus | SortMergeJoinExec | 6 | 4, 6, 3, 5, 1, 2 | 2, 15, 1, 4, 3, 5 | 4, 6, 3, 5, 1, 2 | 4, 6, 3, 5, 1, 2 |
+| held-out | real-corpus | GroupMetadataManager | 2 | 1 | 2 | 1 | 1 |
+| tuning | real-corpus | tiered storage | 5 | 1, 2, 4, 3, 5 | 2, 3, 1, 4, 6 | 1, 2, 4, 3, 5 | 1, 2, 4, 3, 5 |
+| tuning | real-corpus | KRaft controller | 4 | 4, 1, 2, 3 | 3, 1, 2, 4 | 4, 1, 2, 3 | 4, 1, 2, 3 |
+| tuning | guard | manager release | 1 | 1 | 1 | 1 | 1 |
+| tuning | guard | kafka release | 3 | 1, 2, 3 | 2, 1, 16 | 1, 2, 3 | 1, 2, 3 |
+| held-out | guard | manager log | 7 | 1, 5, 3, 6 | 6, 5, 3, 7 | 1, 5, 3, 6 | 1, 5, 3, 6 |
+| tuning | guard | storage tiered | 5 | 3, 5, 18, 7, 20 | 3, 2, 5, 4, 8 | 3, 5, 18, 7, 20 | 3, 5, 18, 7, 20 |
+| tuning | guard | controller kraft | 4 | 9, 1, 2, 6 | 27, 2, 3, 6 | 9, 1, 2, 6 | 9, 1, 2, 6 |
+| held-out | guard | manager request | 9 | 7, 21, 11, 18, 19 | 1, 4, 8, 6, 9 | 7, 9, 12, 10, 13 | 7, 9, 12, 10, 13 |
+| tuning | chinese | 交易逾時 | 10 | >50, >50 | >50, >50 | >50, >50 | >50, >50 |
+| tuning | chinese | 消費者重新平衡很慢 | 10 | >50, >50 | >50, >50 | >50, >50 | >50, >50 |
+| held-out | chinese | 分層儲存的配額沒有生效 | 5 | >50, >50 | 8, >50 | 8, >50 | 8, >50 |
+| tuning | chinese | 重新認證失敗後 CPU 使用率過高 | 5 | >50 | 13 | 13 | 15 |
+| tuning | chinese | 反向 DNS 查詢阻塞網路執行緒 | 5 | 7, 3 | 5, 2 | 5, 2 | 5, 2 |
+| held-out | chinese | 心跳請求的初始間隔 | 5 | >50, >50 | 2, 1 | 2, 1 | 2, 1 |
+| tuning | chinese | 排序合併連接溢出到磁碟時遺失資料列 | 5 | >50 | >50 | >50 | >50 |
+| tuning | chinese | 發布流程移除 MD5 校驗檔 | 5 | 3 | 4 | 4 | 4 |
+| tuning | vocabulary-gap | controller sign-up retried after timing out | 5 | 24 | 3 | 3 | 5 |
+| tuning | vocabulary-gap | SMJ spill | 10 | 50, >50, 30 | 16, 35, 14 | 16, 35, 14 | 16, 35, 14 |
+| held-out | vocabulary-gap | two-phase commit | 5 | >50 | >50 | >50 | >50 |
+| tuning | vocabulary-gap | client spins at 100% cpu | 10 | 3, >50, >50, >50 | 1, >50, >50, >50 | 1, >50, >50, >50 | 3, >50, >50, >50 |
+| tuning | vocabulary-gap | remote storage file handle not closed | 5 | 7, 2 | 3, 5 | 3, 5 | 3, 4 |
+| held-out | vocabulary-gap | hash join that fits in limited RAM | 5 | 2 | 1 | 1 | 1 |
+| tuning | vocabulary-gap | mark directory as failed on disk error | 5 | 1, >50 | 4, 41 | 4, 41 | 1, 41 |
+| tuning | vocabulary-gap | HB interval | 5 | 1, 2 | 1, 2 | 1, 2 | 1, 2 |
+| new | lexical-right | ClientQuotaMetadataManager | 2 | 1, 2 | 1, 2 | 1, 2 | 1, 2 |
+| new | lexical-right | LogManagerBuilder | 2 | 2, 1 | 2, 1 | 2, 1 | 2, 1 |
+| new | lexical-right | stale transaction coordinator cache | 3 | 1, 2 | 1, 2 | 1, 2 | 1, 2 |
+| new | lexical-right | record collector offsets | 3 | 1, 2 | 1, 8 | 1, 2 | 1, 2 |
+| new | lexical-right | push down topk through join | 3 | 1, 2 | 2, 1 | 1, 2 | 1, 2 |
+| new | lexical-right | windowed restore optimisation | 3 | 1 | 1 | 1 | 1 |
+| new | lexical-right | PartitionsWithLateTransactionsCount | 1 | 1 | 1 | 1 | 1 |
+| new | gap | 交易協調器回傳過期的快取結果 | 5 | >50, >50 | 6, 29 | 6, 29 | 6, 29 |
+| new | gap | 長時間重新平衡造成記憶體不足 | 5 | >50 | 39 | 39 | 39 |
+| new | gap | out of memory during a long rebalance | 5 | >50 | >50 | >50 | >50 |
+| new | gap | abandon a hanging transaction from the command line | 5 | 8, 2 | 2, 1 | 2, 1 | 4, 1 |
+| new | gap | commit markers lost when a partition is unavailable | 5 | 4 | 1 | 1 | 1 |
+| new | gap | how to report a vulnerability | 5 | >50 | >50 | >50 | >50 |
+| new | gap | 用戶端配額數值檢查 | 5 | >50 | 13 | 13 | 13 |
+| verifier | lexical-right | LogManager cleanup | 5 | 1, 3, 2, 4 | 23, 3, 1, 6 | 23, 3, 1, 6 | 3, 4, 1, 7 |
+| verifier | lexical-right | StreamsPartitionAssignor | 5 | 2, 8, 1 | 26, 7, 6 | 26, 7, 6 | 3, 8, 2 |
+| verifier | lexical-right | max.poll.interval.ms | 5 | 6, 8 | 6, 8 | 6, 8 | 6, 8 |
+| verifier | lexical-right | remote.log.storage.enable | 5 | 1, 6, 8 | 1, 6, 8 | 1, 6, 8 | 1, 6, 8 |
+| verifier | lexical-right | SortMergeJoinExec spill | 5 | 8, 4 | 4, 1 | 4, 1 | 4, 1 |
+| verifier | lexical-right | ListingTable partition pruning | 5 | 1, 2, 3, 6, 7 | 7, 1, 3, 2, 5 | 7, 1, 3, 2, 5 | 6, 1, 3, 2, 5 |
+| verifier | lexical-right | unclean leader election | 5 | 5, 2 | 4, 1 | 4, 1 | 5, 1 |
+| verifier | lexical-right | offset commit callback | 5 | 1, 2, 4 | 1, 2, 3 | 1, 2, 3 | 1, 2, 3 |
+| verifier | gap | consumer stuck after network timeout | 5 | 3, 2, 4 | 5, 1, 3 | 5, 1, 3 | 5, 1, 3 |
+| verifier | gap | broker runs out of file descriptors | 5 | >50, >50, >50 | >50, >50, >50 | >50, >50, >50 | >50, >50, >50 |
+| verifier | gap | slow group rebalance memory | 5 | >50 | >50 | >50 | >50 |
+| verifier | gap | producer blocked on metadata | 5 | 3, 1, 4 | 3, 2, 1 | 3, 2, 1 | 4, 2, 1 |
+| verifier | gap | deduplicate strings when spilling | 5 | 4, 1 | 1, 21 | 1, 21 | 1, 2 |
+| verifier | gap | config value validation for client quotas | 5 | 7, 8 | 2, 4 | 2, 4 | 2, 4 |
+| verifier | gap | merge join loses rows | 5 | 2, 3, 5 | 1, 4, 2 | 1, 4, 2 | 2, 4, 3 |
+| verifier | gap | vulnerability disclosure process | 5 | >50 | 14 | 14 | 14 |
+| verifier | chinese | 日誌管理器 | 5 | >50, >50, >50, >50 | 3, 8, >50, >50 | 3, 8, >50, >50 | 3, 8, >50, >50 |
+| verifier | chinese | 分區領導者選舉 | 5 | >50, >50 | 1, >50 | 1, >50 | 1, >50 |
+| verifier | chinese | 遠端儲存指標 | 5 | >50, >50 | 2, 8 | 2, 8 | 2, 8 |
+| clean-3 | lexical-right | AsyncKafkaConsumer bug | 5 | 1, 2, 3 | 1, 2, 3 | 1, 2, 3 | 1, 2, 3 |
+| clean-3 | lexical-right | ClientQuotaMetadataManager migration | 5 | 1, 2 | 1, 2 | 1, 2 | 1, 2 |
+| clean-3 | lexical-right | LogManagerBuilder removal | 5 | 1, 2 | 1, 2 | 1, 2 | 1, 2 |
+| clean-3 | lexical-right | stale coordinator cache fix | 5 | 1, 2 | 1, 2 | 1, 2 | 1, 2 |
+| clean-3 | lexical-right | windowed restore optimisation backport | 5 | 3, 1, 2 | 2, 1, 5 | 2, 1, 5 | 2, 1, 4 |
+| clean-3 | lexical-right | push down topk join benchmark | 5 | 1, 2, 3 | 1, 2, 3 | 1, 2, 3 | 1, 2, 3 |
+| clean-3 | lexical-right | heartbeat request manager performance | 5 | 1, 2, 3 | 1, 2, 3 | 1, 2, 3 | 1, 2, 3 |
+| clean-3 | gap | why does the controller not retry registering | 5 | 1, 2 | 1, 2 | 1, 2 | 1, 2 |
+| clean-3 | gap | 安全性政策 | 5 | >50, >50 | 2, 1 | 2, 1 | 2, 1 |
+| clean-3 | gap | CPU busy loop after login failure | 5 | 7, 8 | 3, 2 | 3, 2 | 3, 2 |
+
+### What `rrf-group@3` does not fix, and what it costs
+
+- **Two of the verifier's nine lexical-right queries are still worse than
+  lexical-only at the bound of 5** (the owner's criterion asked for none):
+  `LogManager cleanup` is 3, 4, 1, 7 (lexical 1, 3, 2, 4; 23, 3, 1, 6
+  under `rrf-group@2`): its fourth thread is lexical 4, outside the head
+  of three. `ListingTable partition pruning` is 6, 1, 3, 2, 5 (lexical 1,
+  2, 3, 6, 7): five semantic standouts precede its first lexical thread,
+  and four of them are expected threads, so the row holds four expected
+  threads in its first five where lexical search holds three.
+- **The owner's query**: 2, 39, 24 (lexical 2, 21, 9). Its first thread is
+  back at its lexical rank; the other two are not semantic candidates and
+  are outside the head.
+- **Threads `rrf-group@2` ranked higher**, each within its bound either
+  way: `controller sign-up retried after timing out` 3 → 5; `重新認證失敗後
+  CPU 使用率過高` 13 → 15; `client spins at 100% cpu` 1 → 3; `abandon a
+  hanging transaction from the command line` 2 → 4; `producer blocked on
+  metadata` 3 → 4; `unclean leader election` 4 → 5; `merge join loses
+  rows` 1, 4, 2 → 2, 4, 3. In each a thread of the pack had passed a head
+  thread and no longer does.
+- **It rarely acts on new queries**: 9 of the 10 clean queries are the
+  `rrf-group@2` order.
+- **Three constants fitted on 76 rows** (Decision 45).
+- **Not measured live**: `rrf-group@3` has not answered a request on Dev.
+  The replay through `fuseRankings` is exact for threads the response
+  showed; the background is an upper bound in at most 6 of 86 queries.
+
+### The owner's query and the embedding text
+
+`consumer network thread request manager` (the owner's labels: KAFKA-19804,
+pull request 22747 of KAFKA-20765, KAFKA-19738). What the release stores
+for those records, read from the public `/api/search-detail` on
+2026-10-13: a record's text is its title and one `excerpt`, cut at about
+280 characters.
+
+| record | title | excerpt (the whole stored text) |
+| --- | --- | --- |
+| KAFKA-19804 | Improve heartbeat request manager initial HB interval | 280 characters: "With KIP-848, consumer HB interval config moved to the broker, so currently, the consumer HB request manager starts with a 0ms interval…" |
+| pull 22747 | KAFKA-20765: Fix OffsetFetch stale-epoch retry spinning in dedup loop | 358 characters: "Fixes KAFKA 20765. The issue In the async consumer (AsyncKafkaConsumer), when an in flight OffsetFetch fails with STALE MEMBER EPOCH… CommitRequestManager correctly classifies the error as retriable…", and a comment "backport to 4.3" |
+| KAFKA-19738 | Improve testing of OffsetsRequestManager to better match OffsetFetcher | 273 characters: "OffsetsRequestManager lacks the same level of testing compared to the code it eventually intends to replace, OffsetFetcher…" |
+
+None of the three says `network thread`; two say `request manager` only
+inside a class name. Their similarities: KAFKA-19804 is the 28th semantic
+thread (0.507, 0.002 below the 20th); the other two are not among the 100
+candidates. The first five semantic threads, with the implementer's
+judgement:
+
+| semantic | similarity | thread | judgement |
+| --- | --- | --- | --- |
+| 1 | 0.588 | KAFKA-20995: KIP-1371: Explicit Wait Conditions for Consumer Request Managers | relevant by its title: the consumer's request managers as a design |
+| 2 | 0.550 | [DISCUSS] KIP-1371: Explicit Wait Conditions for Consumer Request Managers | relevant: the same proposal's discussion |
+| 3 | 0.548 | pull 21041, KAFKA-10549: Add topic ID support to ListOffsets - client | not relevant |
+| 4 | 0.538 | pull 23463, KAFKA-20047: Add per-client-id remote fetch metrics | not relevant |
+| 5 | 0.531 | pull 23664, MINOR: Resilience improvements on leadership change | not relevant |
+
+Questions for the owner:
+
+- **Is the label too narrow?** KIP-1371 is the one thread whose title is
+  about the consumer's request managers as a design, and semantic
+  retrieval ranks it and its discussion first and second, 0.079 above the
+  background. Spec 017 lists KIP-1371 as acceptable for `request manager`
+  and not for this query. If it is an answer here, hybrid search already
+  finds something lexical search ranks 33rd.
+- **Would richer text help?** Plausibly, and unproven. All three excerpts
+  are cut mid-sentence, so whatever the source says after the first 280
+  characters is neither indexed nor embedded; the paths a pull request
+  touches and its component labels would name the consumer's internals
+  where a title does not. Whether any of that says `network thread` for
+  these records is not known: the full bodies are not in the release, and
+  nothing was embedded to try it.
+- **What re-embedding costs**, at the measured prices: the backfill of
+  8,780 chunks was billed $0.0157 (about 1,430 neurons), and they are 8.99
+  M of the 10 M stored dimensions the plan includes. Text five times
+  longer is about five times the chunks: about $0.08 once and three days
+  of the job's 2,500-neuron daily cap, 45 M stored dimensions ($0.02 a
+  month above the included 10 M), larger shards for the reader (18 MB
+  today, the real constraint), and a new text-assembly revision, which
+  invalidates every vector (Behavior 6). Query cost does not change.
+
+Recommendation: a follow-up spec for the embedding text
+(`title-text@2`), measured the way this change was: capture, labels,
+replay, before any switch. It should decide what is embedded per record
+(full first part, touched paths, component labels) separately from what
+the lexical index stores, since the reader's shard budget limits the
+second and not the first.
+
+### Cost
+
+`bun run eval:search-fusion --time`: 34 to 35 µs a fusion at
+`rrf-group@3`, 24 at the other two (53 captured queries × 200). No read,
+gate request, model call, or index query is added.
+
+Spent on Dev for this change and the switch PR (`/health`
+`searchQuery.today`, 2026-10-13): before 78 neurons, 78 model calls, 172
+index queries; after 88, 88, 294. The 10 clean queries are the 10 model
+calls; the scored capture of 82 known queries cost 98 index queries and
+none of the others' 24 a model call.
+
+### Tests
+
+Fail first: the three rows the verifier named are asserted worse than
+lexical-only at `rrf-group@2` before their `rrf-group@3` ranks (H86), and
+the reader test shows four threads found twice passing the lexical head at
+`rrf-group@2` before the fix (H87). Mutation pass: 20 mutants over the
+rule, its constants, the flag, and the report; all caught. Two survived a
+first pass and each got a test: an exact match preceded by a head thread,
+and a thread judged by its worst passage.
+
 ## Open questions
 
 Not decided here:
@@ -2958,7 +3584,10 @@ Raised by slice 2b:
     Worker with a Vectorize binding.
 14. **An empty release.** Answered: guarded (Behavior 23, owner's answer
     f).
-15. **A minimum similarity** (2026-10-13: still open, now measurable).
+15. **A minimum similarity** (answered 2026-10-13, Decision 43: there is
+    no usable floor, for any query type; a margin over the query's own
+    background marks standouts only, and `rrf-group@3` uses it for that).
+    Earlier text: still open, now measurable.
     `signals.semanticScore` is served from this change on (Behavior 40), so
     the next capture records the similarity of every shown candidate and a
     floor, a gap to the best match, or a knee can be compared on the replay
@@ -3031,6 +3660,20 @@ Raised by slice 3:
     place, and no lexical signal in the response separates this query from
     the vocabulary-gap queries that need them.
 
+29. **The embedding text** (Results, "The owner's query and the embedding
+    text"). A record is embedded as its title and a 280-character excerpt.
+    A follow-up spec should measure a richer text (`title-text@2`) before
+    anything is re-embedded. Is the owner's label for `consumer network
+    thread request manager` too narrow, given that KIP-1371 is found first?
+30. **The three constants of `rrf-group@3`** (head 3, reference 20, margin
+    0.04) come from 76 rows and 112 hand labels. Revisit with the next
+    capture; a head of 2 and a margin of 0.03 are indistinguishable here.
+31. **Should Dev switch to `rrf-group@3`** (rollout step 8)? It is never
+    worse than `rrf-group@2` at a bound on 86 rows and fixes two of the
+    verifier's four failures, and it lowers seven threads within their
+    bounds. The implementer's recommendation is yes, after verification,
+    and that the embedding text matters more.
+
 Known limitations of the profile patterns (kept in slice 2a, see "Community
 profile fit"):
 
@@ -3063,6 +3706,9 @@ profile fit"):
   RRF constant changes; no reranker; no change to lexical ranking, filters,
   facets, statuses, the gate, or its caches; and no change to what Dev
   serves, which stays at `rrf-group@1` until rollout step 7.
+- Fusion `rrf-group@3` (2026-10-13): no floor, no weighting, no dropped
+  candidate, no threshold per language, no new response field, no change
+  to the embedding or its text, and no change to what Dev serves.
 - A real Workers AI or Vectorize call from a test or a developer machine.
 - Re-embedding to repair one vector: the unit of repair is `reset=1`.
 - A ranking change for the repeated thread title (open question 6, G31):

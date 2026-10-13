@@ -182,7 +182,9 @@ rollback, repeat from step 1.
 `SEARCH_SEMANTIC` names how lexical and semantic rankings are fused
 (Spec 016 Behavior 38, 39). The code runs `rrf-group@1` (plain RRF) and
 `rrf-group@2` (the leading lexical threads that hold every query word keep
-their places); any other value answers lexically with `failed`. The gate,
+their places), and `rrf-group@3` (`rrf-group@2`, and only a semantic thread
+whose similarity stands out passes the first three lexical threads; enabled
+nowhere); any other value answers lexically with `failed`. The gate,
 its caches, and the embeddings are the same for both, so a switch costs no
 model call and no index query, and nothing stored changes.
 
@@ -190,6 +192,7 @@ Compare offline first (no network):
 
 ```sh
 bun run eval:search-fusion --rows     # both revisions over the committed capture
+bun run eval:search-similarity --rows # rrf-group@3 and the similarity report, over the scored capture
 ```
 
 Switch (one PR; Dev is at `rrf-group@1` until Spec 016 rollout step 7):

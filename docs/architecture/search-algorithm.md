@@ -114,6 +114,23 @@ Clef 是 decision model：給定「狀態」與「選項」，回傳每個選項
 
 Clef-flash 的限制：在 Workers AI 上，長輸入會被截斷（約 2K tokens），所以每筆候選只送標題與一小段摘錄。
 
+#### 相似度能分辨什麼（2026-10-13，`rrf-group@3`）
+
+Dev 的回應自 PR #57 起帶有 `signals.semanticScore`（thread 最佳段落的 cosine 相似度）。以 86 題的錄製資料與 112 個人工標註的語意候選（16 題、每題前 7 名，由實作者依標題標註）分析：
+
+- 相似度沒有可用的絕對門檻。相關候選的範圍是 0.466 至 0.658，不相關候選是 0.383 至 0.620（AUC 0.737）；門檻設在 0.50 會去掉 19 個相關候選中的 2 個，卻保留 70 個不相關候選中的 55 個。相似度的高低取決於查詢本身：`txn` 的候選全部低於 0.50，`kafka release` 的候選集中在 0.555 至 0.598。
+- 中文查詢的相似度沒有比較低：最佳候選的中位數是 0.582，其他查詢是 0.592。
+- 有鑑別力的是候選相對於同一題背景值的差距。背景值取該題語意第 20 名的相似度；差距至少 0.05 時保留 19 個相關候選中的 15 個、70 個不相關候選中的 1 個（AUC 0.876）。
+- 這個差距只能找出「明顯突出」的候選。有相似度的 148 個預期 thread 中，只有 77 個高出背景值 0.04 以上；其餘與不相關候選混在一起。因此任何刪除或降低中段候選權重的規則，都會同時去掉正確答案。
+
+`rrf-group@3`（Spec 016 Behavior 43）據此只加一條規則：字面排名的前 3 個 thread，只能被字面名次更前的 thread 或「突出」的語意候選（相似度高出背景值至少 0.04）排到前面。不在語意候選內的 thread 視為缺少證據，而不是反面證據。沒有任何候選被刪除，分數也不變。
+
+- 驗證者的 20 題中，比字面檢索差的題數由 4 題降為 2 題：`StreamsPartitionAssignor` 由 26、7、6 名回到 3、8、2 名，`deduplicate strings when spilling` 由 1、21 回到 1、2；`LogManager cleanup` 由 23、3、1、6 改善為 3、4、1、7，第 4 個 thread 仍在界限外。
+- 86 題中沒有任何一題在界限內比 `rrf-group@2` 差；7 個 thread 的名次比 `@2` 低，但都還在各自的界限內。
+- 規則確定後另寫的 10 題中，9 題結果與 `@2` 相同，1 題有一個 thread 前進一名。
+- 三個常數（3、20、0.04）是由 76 題決定的，樣本很小。
+- owner 的查詢沒有解決：預期的三個 thread 中有兩個不在 100 個語意候選內。儲存的文字只有標題與約 280 字元的摘錄，都沒有出現 `network thread`。這是 embedding 文字的問題，合併規則無法補救，需另立規格評估（Spec 016 open question 29）。
+
 ## 混合檢索的查詢流程（Spec 016 slice 3，Dev 已啟用）
 
 ```text
@@ -126,7 +143,7 @@ Clef-flash 的限制：在 Workers AI 上，長輸入會被截斷（約 2K token
 
 | 項目 | 做法 |
 |---|---|
-| 開關 | Pages 變數 `SEARCH_SEMANTIC` 加上 Durable Object binding `SEARCH_QUERY_GATE`。變數的值就是合併規則的版本：`rrf-group@1` 或 `rrf-group@2`，其他值一律回 BM25 結果並標示 `failed`。Dev 目前是 `rrf-group@1`。未設定時，回應與 slice 3 之前逐位元組相同 |
+| 開關 | Pages 變數 `SEARCH_SEMANTIC` 加上 Durable Object binding `SEARCH_QUERY_GATE`。變數的值就是合併規則的版本：`rrf-group@1`、`rrf-group@2` 或 `rrf-group@3`（尚未在任何環境啟用），其他值一律回 BM25 結果並標示 `failed`。Dev 目前是 `rrf-group@1`。未設定時，回應與 slice 3 之前逐位元組相同 |
 | gate | data Worker 的 `SearchQueryGate`：唯一可以呼叫 embedding 模型與 Vectorize 的地方，內含每日帳本與快取；沒有公開路由 |
 | 找 chunk | manifest 的每個 shard 記錄第一個 group root（發布端 `SEARCH_SHARD_ROOTS=true`）。向量帶有 group root，可直接算出所在 shard，不需額外讀取 |
 | 一致性 | 向量可變、release 不可變。候選必須在目前的 release 找到相同專案、紀錄、序號的 chunk，且指紋相同；結果的欄位一律取自 release |

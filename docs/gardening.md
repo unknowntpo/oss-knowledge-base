@@ -666,17 +666,18 @@ the two `viewer/` items below.
 - **Layer:** test today (the trade is pinned); structure when fixed.
 - **Source:** Spec 016 fusion, 2026-10-13.
 
-### G55. The similarity threshold was not evaluated, and the replay cannot see past 50 results
-- **Where:** `apps/web/test/fixtures/hybrid-replay.2026-10-13.json` (every
-  similarity is `null`), `apps/web/scripts/capture-search-replay.ts`.
-- **Why:** the capture predates `signals.semanticScore`, so no cut-off on
-  weak semantic neighbours could be compared; and `/api/search` returns at
-  most 50 threads, so semantic candidates below them are placeholders in
-  the replay. The alternatives of the ablation other than `rrf-group@1` and
-  `rrf-group@2` are approximate for that reason.
-- **Fix:** after the next Dev deploy, capture again (no model call while
-  the embeddings are cached) and add threshold rows to
-  `eval:search-fusion` (Spec 016 open question 15).
+### G55. The replay cannot see past 50 results
+- **Where:** `apps/web/scripts/capture-search-replay.ts`,
+  `apps/web/scripts/eval-search-similarity.ts` (`backgroundOf`).
+- **Why:** `/api/search` returns at most 50 threads, so semantic candidates
+  below them have no recorded rank or similarity and are placeholders in
+  the replay. The threshold question this entry first recorded is answered
+  (Spec 016 Decision 43: no usable floor). What remains: alternatives that
+  admit unseen candidates are approximate, and the background of
+  `rrf-group@3` is an upper bound in the few queries whose 20th semantic
+  thread was not shown.
+- **Fix:** none needed while the 20th thread is shown; a capture endpoint
+  would be a contract change and is not proposed.
 - **Layer:** measurement.
 - **Source:** Spec 016 fusion, 2026-10-13.
 
@@ -690,3 +691,30 @@ the two `viewer/` items below.
   the threshold (G55) and a reranker (Spec 016 H33).
 - **Layer:** test (pinned as a known limitation).
 - **Source:** Spec 016 fusion, 2026-10-13.
+
+### G57. A record is embedded as its title and a 280-character excerpt
+- **Where:** `packages/search/src/semantic.ts` (`title-text@1`), the
+  publisher's record `excerpt`.
+- **Why:** the owner's query `consumer network thread request manager`
+  expects three threads whose stored text never says `network thread`; two
+  of them are not among the 100 semantic candidates and the third is 28th.
+  No fusion rule can rank a thread retrieval did not return (Spec 016
+  Results, "The owner's query and the embedding text").
+- **Fix:** a follow-up spec for the embedding text (`title-text@2`): what
+  is embedded per record, measured on a capture before any re-embedding
+  (about $0.08 and three days of the job's cap for text five times longer).
+- **Layer:** measurement, then data.
+- **Source:** Spec 016 fusion `rrf-group@3`, 2026-10-13.
+
+### G58. Fusion `rrf-group@3` rests on three constants fitted on few rows
+- **Where:** `packages/search/src/fusion.ts` (`lexicalHeadFusionConfig`:
+  head 3, reference 20, margin 0.04).
+- **Why:** chosen on 76 labelled rows and 112 hand labels; a head of 2 and
+  a margin of 0.03 are indistinguishable on them. Two of the verifier's
+  lexical-right queries are still worse than lexical-only at their bound
+  (`LogManager cleanup` 3, 4, 1, 7; `ListingTable partition pruning` 6, 1,
+  3, 2, 5), and on ten clean queries the rule changed one rank.
+- **Fix:** capture again with more labelled queries before trusting or
+  changing the constants; do not add a fourth.
+- **Layer:** test today (the limits are pinned).
+- **Source:** Spec 016 fusion `rrf-group@3`, 2026-10-13.
