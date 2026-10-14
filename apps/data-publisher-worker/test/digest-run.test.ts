@@ -189,7 +189,7 @@ function canaryAnswer(size: number, p = 0.97) {
 }
 
 function input(bucket: MemoryBucket, overrides: Partial<DigestRunInput> = {}): DigestRunInput {
-  return { bucket, profile: KAFKA_DIGEST_PROFILE, now: () => NOW, delay: noDelay, spentToday: 0, cap: 4_500, dryRun: false, ...overrides };
+  return { bucket, profile: KAFKA_DIGEST_PROFILE, now: () => NOW, delay: noDelay, spentToday: 0, cap: DAILY_CAP.dev, dryRun: false, ...overrides };
 }
 
 async function objects(bucket: MemoryBucket, result: DigestRunResult): Promise<{ en: DigestV1; zh: DigestV1 }> {
@@ -507,7 +507,7 @@ const cases: Record<string, () => Promise<string>> = {
   // Added after the slice 2 mutation run.
   "rate limit|constructed: today's estimated spend already at the daily cap": async () => {
     const model = new FakeModel();
-    const { bucket, result } = await published(model, { spentToday: 4_500 });
+    const { bucket, result } = await published(model, { spentToday: DAILY_CAP.dev });
     const { en } = await objects(bucket, result);
     return model.calls.length === 0 && result.limited && Object.values(en.features).every((item) => item.source === "rules") && en.cards.every((card) => card.status === "fallback")
       ? "no model call; limited true; rules features and fallback cards" : `${model.calls.length}`;
@@ -1181,21 +1181,22 @@ const cases: Record<string, () => Promise<string>> = {
   "cron|Dev config: the tick 47 22 * * * fires": async () => cronTarget("47 22 * * *", (await deployConfig("development")).vars?.DIGEST_CRON),
   "cron|Dev config: the publisher tick 7 22 * * * fires": async () => cronTarget("7 22 * * *", (await deployConfig("development")).vars?.DIGEST_CRON),
   "cron|Prod config: the tick 47 22 * * * fires": async () => cronTarget("47 22 * * *", (await deployConfig("production")).vars?.DIGEST_CRON),
-  "deferral|publisher status {running: false, followUp: {reason: catch-up}}": async () => busy({ running: false, followUp: { reason: "catch-up", at: "2026-10-14T22:15:00.000Z", catchUps: 1, retries: 0 } }),
-  "deferral|publisher status {running: false, followUp: {reason: retry}}": async () => busy({ running: false, followUp: { reason: "retry", at: "2026-10-14T22:20:00.000Z", catchUps: 0, retries: 1 } }),
-  "deferral|publisher status {running: true, followUp: null}": async () => busy({ running: true, followUp: null }),
-  "deferral|publisher status {running: false, followUp: null}": async () => busy({ running: false, followUp: null }),
-  "deferral|publisher status {running: false} (no followUp field)": async () => busy({ running: false }),
+  "deferral|publisher status {running: false, scheduled: true, followUp: {reason: catch-up}}": async () => busy({ running: false, scheduled: true, followUp: { reason: "catch-up", at: "2026-10-14T22:15:00.000Z", catchUps: 1, retries: 0 } }),
+  "deferral|publisher status {running: false, scheduled: true, followUp: {reason: retry}}": async () => busy({ running: false, scheduled: true, followUp: { reason: "retry", at: "2026-10-14T22:20:00.000Z", catchUps: 0, retries: 1 } }),
+  "deferral|publisher status {running: false, scheduled: true, followUp: null} (its alarm is due)": async () => busy({ running: false, scheduled: true, followUp: null }),
+  "deferral|publisher status {running: true, scheduled: false, followUp: null}": async () => busy({ running: true, scheduled: false, followUp: null }),
+  "deferral|publisher status {running: false, scheduled: false, followUp: null}": async () => busy({ running: false, scheduled: false, followUp: null }),
+  "deferral|publisher status {running: false, scheduled: false, followUp: {reason: retry}} (the alarm was lost)": async () => busy({ running: false, scheduled: false, followUp: { reason: "retry", at: "2026-10-14T22:20:00.000Z", catchUps: 0, retries: 1 } }),
   "deferral|constructed: a catch-up is waiting at the first alarm and gone 15 min later": async () => {
     const bucket = new MemoryBucket();
     await publish(bucket);
     const storage = new MemoryStorage();
-    let status: unknown = { running: false, followUp: { reason: "catch-up", at: "2026-10-07T01:42:00.000Z", catchUps: 1, retries: 0 } };
+    let status: unknown = { running: false, scheduled: true, followUp: { reason: "catch-up", at: "2026-10-07T01:42:00.000Z", catchUps: 1, retries: 0 } };
     const { instance, advance } = runner(bucket, storage, async () => publisherBusy(status));
     await instance.alarm();
     const rearmed = storage.alarm! - NOW.getTime();
     const ranEarly = storage.values.has("lastRun");
-    status = { running: false, followUp: null };
+    status = { running: false, scheduled: false, followUp: null };
     advance(DEFER_MS);
     await instance.alarm();
     const lastRun = (await instance.health()).lastRun;

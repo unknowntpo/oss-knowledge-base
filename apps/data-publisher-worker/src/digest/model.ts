@@ -5,7 +5,7 @@
  * tests use a fake. Error shapes and token estimates are checked on Dev (D35).
  */
 import {
-  callEstimate, clefRequestTokens, estimateTokens, neurons, settledNeurons,
+  callEstimate, clefRequestTokens, digestLedgerNeurons, estimateTokens, neurons, settledNeurons,
   type ClefModel, type ClefRequest, type ClefResponse, type PricedModel,
 } from "@oss-knowledge-base/reference-pipeline";
 
@@ -27,8 +27,9 @@ export class ModelCallError extends Error {
 }
 
 /**
- * 3036 (daily allocation), a gateway 429 (rate limit), and a gateway spend-limit refusal stop the
- * run's model use; anything else is retried once.
+ * 3036 (daily allocation), a gateway 429 (rate limit; the binding reports it as
+ * `2003: Rate limited`, D88), and a gateway spend-limit refusal stop the run's model use;
+ * anything else is retried once.
  */
 export function modelErrorKind(error: unknown): "limit" | "retry" {
   if (error instanceof ModelCallError && (error.code === 3036 || error.status === 429 || /spend limit/iu.test(error.message))) return "limit";
@@ -41,7 +42,7 @@ export const MAX_CALLS_PER_RUN = 50;
 const MAX_RECORDED_ERRORS = 10;
 
 export interface SpendLedger {
-  /** Estimated neurons already spent today (UTC). */
+  /** Calibrated neurons already spent today (UTC) and the cap in the same unit (D90). */
   readonly spent: number;
   readonly cap: number;
 }
@@ -154,15 +155,17 @@ export class ModelCalls {
     }, () => estimate, true);
   }
 
+  /** `priceTableEstimate` and `settle` are price-table neurons; the ledger counts them calibrated (D90). */
   private async attempt<T>(
     model: PricedModel,
-    estimate: number,
+    priceTableEstimate: number,
     estimatedInputTokens: number,
     invoke: () => Promise<{ value: T; usage: ModelUsage | undefined }>,
     settle: (value: T) => number,
     clef: boolean,
   ): Promise<T | undefined> {
     if (this.model === undefined || this.limited) return undefined;
+    const estimate = digestLedgerNeurons(priceTableEstimate);
     if (this.total + estimate > this.ledger.cap) {
       this.limited = true;
       return undefined;
@@ -176,7 +179,7 @@ export class ModelCalls {
       try {
         const { value, usage } = await invoke();
         const reported = typeof usage?.prompt_tokens === "number" ? usage.prompt_tokens : undefined;
-        this.total += settle(value);
+        this.total += digestLedgerNeurons(settle(value));
         this.records.push({ model, estimatedInputTokens, clef, ...(reported === undefined ? {} : { reportedInputTokens: reported }) });
         return value;
       } catch (error) {

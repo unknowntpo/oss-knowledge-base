@@ -190,8 +190,9 @@ publication against in-memory upstreams, state and bucket).
 ## Acceptance
 
 ### Behavior
-- T1: the Dev configuration has exactly the cron `7 22 * * *` and the Prod
-  configuration exactly `37 22 * * *`.
+- T1: the Dev configuration has exactly one publisher cron, `7 22 * * *`,
+  and the Prod configuration exactly `37 22 * * *`. (Dev's `47 22 * * *`
+  is the digest's, Spec 014 D86.)
 - T2: the cadence of each configured cron equals `PUBLICATION_CADENCE_MS`;
   the same check tells an hourly cron from a daily one.
 - T3: both crons dispatch to the publisher, also when `DIGEST_CRON` and
@@ -292,7 +293,8 @@ publication against in-memory upstreams, state and bucket).
 2. **Confluence ingest.** It runs daily and nothing on the deployed site uses
    its output. Options: keep (if the legacy viewer and vault are still
    wanted), reduce to manual, or remove with the legacy viewer.
-3. **Digest schedule.** If the digest is enabled, a time after 22:07 UTC
+3. **Digest schedule.** Decided 2026-10-14: Dev `47 22 * * *` (Spec 014,
+   "Schedule on Dev"). Before: if the digest is enabled, a time after 22:07 UTC
    (for example 22:37 on Dev) makes it read the day's release; `37 1 * * *`
    in Spec 014's examples would read a release about 3.5 h old.
 

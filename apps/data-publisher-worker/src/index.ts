@@ -1,6 +1,6 @@
 import { GitHubConnector } from "@oss-knowledge-base/github-publisher/github-connector";
 import { asfRosterAdapter, JiraConnector, KAFKA_DIGEST_PROFILE, KAFKA_REVIEW_PROFILE, PonyMailConnector } from "@oss-knowledge-base/reference-pipeline";
-import { DigestRunner } from "./digest/runner";
+import { DigestRunner, publisherBusy } from "./digest/runner";
 import { R2DigestBucket } from "./digest/store";
 import { runReviewQueue } from "./review-queue/run";
 import { R2ReviewQueueBucket, reviewQueueLastRunKey } from "./review-queue/store";
@@ -23,7 +23,7 @@ interface Env {
   readonly OSS_KB_BUCKET: R2Bucket;
   readonly PIPELINE_STATE: DurableObjectNamespace;
   readonly DIGEST_RUN: DurableObjectNamespace;
-  /** Spec 014: the digest's cron expression. Unset until a Dev dry run is reviewed, so no cron starts a digest. */
+  /** Spec 014: the digest's cron expression (Dev `47 22 * * *`, D86). Unset on Prod, so no cron starts a digest there. */
   readonly DIGEST_CRON?: string;
   /** Spec 015: the review queue's cron expression. Unset until a Dev dry run is measured. */
   readonly REVIEW_QUEUE_CRON?: string;
@@ -331,10 +331,9 @@ export class DigestRun implements DurableObject {
       ...(digestModel(env) === undefined ? {} : { model: digestModel(env)! }),
       now: () => new Date(),
       delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-      publisherRunning: async () => {
+      publisherBusy: async () => {
         const publisher = env.PIPELINE_STATE.get(env.PIPELINE_STATE.idFromName(STATE_OBJECT_NAME));
-        const status = await publisher.fetch("https://pipeline.internal/status").then((response) => response.json() as Promise<{ running?: boolean }>);
-        return status.running === true;
+        return publisherBusy(await publisher.fetch("https://pipeline.internal/status").then((response) => response.json()));
       },
     });
   }

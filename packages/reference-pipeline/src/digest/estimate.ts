@@ -20,8 +20,12 @@ export type PricedModel = keyof typeof PRICES;
 /** Workers AI bills $0.011 per 1,000 neurons. */
 export const USD_PER_NEURON = 0.011 / 1_000;
 
-/** The digest's daily cap, in neurons of its own estimate (see `DIGEST_NEURON_CALIBRATION`). */
-export const DAILY_CAP = { prod: 5_000, dev: 4_500 } as const;
+/**
+ * The digest's daily cap in calibrated neurons, which is what its ledger counts (Spec 014 D90,
+ * D91; see `digestLedgerNeurons`). Dev was 4,500 price-table neurons, up to 5,760 real, until
+ * slice 2e.
+ */
+export const DAILY_CAP = { prod: 5_000, dev: 5_000 } as const;
 /** Slice 2c raised card, proposal, highlights and translation after JSON was cut on Dev (Behavior 15). */
 export const MAX_TOKENS = { classify: 800, card: 500, proposal: 160, highlights: 800, translation: 4_000 } as const;
 
@@ -63,30 +67,28 @@ export function embeddingNeurons(model: PricedModel, estimatedTokens: number): n
 }
 
 /**
- * How many neurons the digest really spends for each neuron its ledger counts. Measured once: on
- * 2026-10-08 three Dev dry runs were estimated at 4,507 neurons, and the AI Gateway
+ * How many neurons the digest really spends for each neuron the price table estimates. Measured
+ * once: on 2026-10-08 three Dev dry runs were estimated at 4,507 neurons, and the AI Gateway
  * `osskb-digest-dev` logged their 109 calls at $0.06306, which is 5,733 neurons at $0.011 per
- * 1,000: 1.272, rounded up. The digest's ledger and cap still count its own estimate; this
- * constant only says what that cap can cost.
+ * 1,000: 1.272, rounded up. The digest's ledger applies it (`digestLedgerNeurons`).
  */
 export const DIGEST_NEURON_CALIBRATION = 1.28;
 
-/** STUB (old behaviour, for the fail-first run). */
+/**
+ * Spec 014 D90: what the digest's ledger adds for a call the price table puts at
+ * `priceTableNeurons`, before the call (its estimate) and after it (the settled amount).
+ */
 export function digestLedgerNeurons(priceTableNeurons: number): number {
-  return priceTableNeurons;
+  return Math.ceil(priceTableNeurons * DIGEST_NEURON_CALIBRATION);
 }
 
-const DEV_DIGEST_CAP = 4_500;
-
 /**
- * What a UTC day may spend on Dev, by spender. `digest` is the digest's cap in its own
- * estimate and `digestCalibrated` what that cap can really cost; the embedding cap is already
- * calibrated and the query cap is an upper bound. The calibrated three are 9,260 of the 10,000
- * neurons a day the plan includes (Spec 016 Results, slice 3).
+ * What a UTC day may spend on Dev, by spender. The digest's and the embedding job's caps are in
+ * calibrated neurons and the query cap is an upper bound. The three are 8,500 of the 10,000
+ * neurons a day the plan includes (Spec 014 D91).
  */
 export const DAILY_NEURON_BUDGET = {
-  digest: DEV_DIGEST_CAP,
-  digestCalibrated: Math.ceil(DEV_DIGEST_CAP * DIGEST_NEURON_CALIBRATION),
+  digest: DAILY_CAP.dev,
   searchEmbedding: 2_500,
   searchQuery: 1_000,
   included: 10_000,

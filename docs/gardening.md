@@ -606,19 +606,18 @@ the two `viewer/` items below.
 - **Layer:** structure.
 - **Source:** Spec 016 slice 3.
 
-### G51. The daily neuron budget leaves 740 of headroom on two single measurements
+### G51. The daily neuron budget rests on two single measurements (headroom 1,500)
 - **Where:** `DAILY_NEURON_BUDGET`, `DIGEST_NEURON_CALIBRATION` (1.28) and
   `EMBEDDING_TOKEN_CALIBRATION` (1.8) in
   `packages/reference-pipeline/src/digest/estimate.ts`.
-- **Why:** the digest's cap (4,500 in its own estimate) can cost 5,760
-  neurons; with the embedding job's 2,500 and the query gate's 1,000 the
-  caps are 9,260 of the 10,000 included. Each ratio was measured once
-  (2026-10-08 and 2026-10-12). The digest's ledger and `/health` still show
-  its uncalibrated estimate.
-- **Fix:** before the digest gets a cron on Dev, measure both ratios again
-  from the gateways; then either apply the digest's factor inside its
-  ledger (so its cap is in real neurons, like the embedding job's) or lower
-  a cap until the headroom is at least 1,500.
+- **Why:** each ratio was measured once (2026-10-08 and 2026-10-12). Since
+  Spec 014 slice 2e (2026-10-14) the digest's ledger applies its factor and
+  its cap is 5,000, so the caps are 8,500 of the 10,000 included. The Dev
+  digest cron was set without a second measurement.
+- **Fix:** measure the digest's ratio on the staged dry run (runbook,
+  "Topic digest": gateway cost over `estimatedNeurons`, expected 0.8–1.2)
+  and the embedding ratio from `osskb-search-dev`; change the constants if
+  either is outside.
 - **Layer:** measurement, then the constants and the `H67` test.
 - **Source:** verifier of PR #54.
 
@@ -767,16 +766,34 @@ the two `viewer/` items below.
   `apps/data-publisher-worker/src/review-queue/run.ts` (the object embeds
   `generatedAt`, so every run writes a new object, the pointer, and
   `last-run.json`).
-- **Why:** 2–4 Class A operations a run each. Both run only by hand today
-  (`DIGEST_CRON` and `REVIEW_QUEUE_CRON` are unset), so the cost is nil; an
+- **Why:** 2–4 Class A operations a run each. The digest runs once a day
+  on Dev since 2026-10-14 (about 120 Class A a month, 0.012% of the
+  included million; the unchanged pointer is put again only when a manual
+  run reuses a pair). The review queue runs only by hand
+  (`REVIEW_QUEUE_CRON` is unset); an
   hourly cron would add about 5,000 Class A a month, 0.5% of the included
   million. Spec 014 D26 counts the `list` among "R2 reads" and D60 says a
   dry run makes "0 R2 writes": the `list` is a Class A operation.
-- **Fix:** when a cron is set for either job: skip the pointer put when its
-  bytes are unchanged (as the publisher's `switchPointer` does), and correct
-  D26 and D60.
+- **Fix:** before either job runs more often than daily: skip the pointer
+  put when its bytes are unchanged (as the publisher's `switchPointer`
+  does), and correct D26 and D60.
 - **Layer:** test.
 - **Source:** R2 call audit, 2026-10-13.
+
+### G67. The digest runs daily on Dev with two D35 checks open
+- **Where:** Spec 014 D35 and "Schedule on Dev"; `DIGEST_CRON` in
+  `apps/data-publisher-worker/wrangler.development.jsonc`.
+- **Why:** the owner enabled the schedule on 2026-10-14. D35's canary probe
+  (four Clef requests of about 4,000 state tokens that must all miss) has
+  no recorded result, and whether the gateway's 60 requests an hour is a
+  fixed or a sliding window is unknown. A `limited` or failed scheduled
+  run shows only in `/health` `digest.lastRun` until the digest is 36 h
+  old (the page's stale rule); `bun run verify:health` does not print the
+  digest (D32 says it does).
+- **Fix:** run the probe once and record it in Spec 014; add the digest's
+  age and `lastRun.ok`/`limited` to `verify:health`.
+- **Layer:** measurement (the probe); verification kit (`verify:health`).
+- **Source:** Spec 014 slice 2e, 2026-10-14.
 
 ### G61. The Feed count line is hard-coded English, beside unused count strings
 - **Where:** `apps/web/src/views/FeedView.vue` (`.results-count` without a

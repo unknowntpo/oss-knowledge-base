@@ -5,7 +5,7 @@
  * named gateway (https://developers.cloudflare.com/ai-gateway/integrations/aig-workers-ai-binding/).
  * The Dev gateway is authenticated, rate-limited to 60 requests per hour, and has a monthly spend
  * limit; binding calls authenticate automatically. The exception shapes are not documented, so
- * they are mapped from the message here and confirmed on Dev (D35).
+ * they are mapped from the message here and confirmed on Dev (D35, D88).
  */
 import type { ClefModel, ClefRequest, ClefResponse, PricedModel } from "@oss-knowledge-base/reference-pipeline";
 import { ModelCallError, type DigestModel, type ModelUsage } from "./model";
@@ -15,12 +15,15 @@ export interface AiBinding {
   run(model: string, inputs: Record<string, unknown>, options?: Record<string, unknown>): Promise<unknown>;
 }
 
-/** Maps a thrown binding error to a code and status (`3036: …`, `… 429 …`, `Too Many Requests`). */
+/**
+ * Maps a thrown binding error to a code and status (`3036: …`, `… 429 …`, `Too Many Requests`).
+ * The gateway's rate-limit refusal reads `2003: Rate limited` (Dev, 2026-10-08) and is a 429 (D88).
+ */
 export function toModelCallError(error: unknown): ModelCallError {
   if (error instanceof ModelCallError) return error;
   const message = error instanceof Error ? error.message : String(error);
   const code = /\b(3\d{3}|5\d{3})\b/u.exec(message)?.[1];
-  const status = /\b429\b|too many requests/iu.test(message) ? 429 : undefined;
+  const status = /\b429\b|too many requests|rate limited/iu.test(message) ? 429 : undefined;
   return new ModelCallError(message, code === undefined ? undefined : Number(code), status);
 }
 

@@ -1417,11 +1417,12 @@ synthetic; the others use values captured from Dev.
 | D86 | cron | Dev config: the tick 47 22 * * * fires | digest |
 | D86 | cron | Dev config: the publisher tick 7 22 * * * fires | publisher |
 | D86 | cron | Prod config: the tick 47 22 * * * fires | publisher |
-| D87 | deferral | publisher status {running: false, followUp: {reason: catch-up}} | busy |
-| D87 | deferral | publisher status {running: false, followUp: {reason: retry}} | busy |
-| D87 | deferral | publisher status {running: true, followUp: null} | busy |
-| D87 | deferral | publisher status {running: false, followUp: null} | not busy |
-| D87 | deferral | publisher status {running: false} (no followUp field) | not busy |
+| D87 | deferral | publisher status {running: false, scheduled: true, followUp: {reason: catch-up}} | busy |
+| D87 | deferral | publisher status {running: false, scheduled: true, followUp: {reason: retry}} | busy |
+| D87 | deferral | publisher status {running: false, scheduled: true, followUp: null} (its alarm is due) | busy |
+| D87 | deferral | publisher status {running: true, scheduled: false, followUp: null} | busy |
+| D87 | deferral | publisher status {running: false, scheduled: false, followUp: null} | not busy |
+| D87 | deferral | publisher status {running: false, scheduled: false, followUp: {reason: retry}} (the alarm was lost) | not busy |
 | D87 | deferral | constructed: a catch-up is waiting at the first alarm and gone 15 min later | re-armed once; then runs; lastRun.deferred 1 |
 | D88 | errors | binding throws "2003: Rate limited" (Dev dry run 3, 2026-10-08) | status 429; limit |
 | D88 | rate limit | constructed: the gateway refuses the first card call with 2003: Rate limited | no retry; remaining calls skipped; limited true; modelErrors kind limit |
@@ -1604,9 +1605,11 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   - A `47 22 * * *` tick starts the digest and no publication; a
     `7 22 * * *` tick starts a publication and no digest.
   - Prod has no `DIGEST_CRON` and only its publisher cron.
-- D87: the digest alarm also defers while a publisher follow-up is waiting
-  (`followUp` not null in the publisher's status, Spec 018), under D59's
-  bound: 15 min, at most 4 times, then it runs.
+- D87: the digest alarm also defers while the publisher's alarm will still
+  start a run (`scheduled: true` in its status): a run that is due, or a
+  follow-up that is waiting (Spec 018). D59's bound holds: 15 min, at most
+  4 times, then it runs. A follow-up marker whose alarm was lost
+  (`scheduled: false`) does not defer it.
 - D66: a dry run returns `modelErrors` (the shape of each failed call, at
   most 10) and `calibration` (estimated against reported input tokens,
   plus `clefCalls` and `clefCallsWithUsage`, counted over Clef requests
@@ -1796,7 +1799,8 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   - The cap gate, `today.estimatedNeurons`, `lastRun.estimatedNeurons`,
     `lastRun.spentToday` and `coverage.estimatedNeurons` are in that unit.
   - D25's figures and `bun run digest -- measure` stay price-table
-    figures: cold 1,474 is 1,887 in the ledger, steady 1,101 is 1,410.
+    figures; × 1.28 gives the ledger's (measured 2026-10-14: cold 1,513
+    is 1,937, steady 1,147 is 1,469).
 - D91: the daily cap is 5,000 calibrated neurons on Dev and on Prod.
   - With the embedding job's 2,500 and the query gate's 1,000 the caps are
     8,500 of the 10,000 neurons a day; the headroom is 1,500.
@@ -2024,7 +2028,7 @@ is the dry run of decision 5, on a UTC day with no other digest run.
      neurons) over the ledger's 4,507 (Spec 016 Results, "Query budget").
    - One full run: 3,366 price-table neurons over the 83 calls of dry runs
      1 and 2, so 1,683 a run and 2,155 calibrated. The fixture measures
-     cold 1,474 (1,887) and steady 1,101 (1,410).
+     cold 1,513 (1,937) and steady 1,147 (1,469).
    - 4,500 calibrated would leave 190 after a staging day of two cold runs
      (4,310), about one card call's pre-call estimate. 5,000 leaves 690.
    - More than 5,000 would take the headroom under the 1,500 that
