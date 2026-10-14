@@ -28,7 +28,11 @@ Two loops, after Lauren Tan's published agent workflow
     their evidence — given only the spec and the commit. It reruns every acceptance item
     against the running system, attaches evidence (test output, screenshots,
     captured responses), and records pass, fail, or unverifiable per ID in the
-    PR. Any new commit invalidates the verdict and requires a rerun.
+    PR. Any new commit invalidates the verdict and requires a rerun. The one
+    exception is a branch update that only merges `main` into a verified head
+    without conflicts: it keeps the verdict once CI is green on the new head.
+    A merge that resolved conflicts needs the resolved delta re-verified,
+    because the resolution is new code nobody verified.
   - **Machines** run CI, traceability, test-plan consistency, and measurements.
   - **Runtime** (health fields, deployed checks) is the final judge.
 
@@ -36,11 +40,18 @@ Keep one intent per PR so a verdict, a revert, or a rollback stays small.
 
 Merge authority: the human aligns on core decisions only — new intent or
 product behavior, ADRs, data formats or contracts read by others, production
-deploys and release tags, credentials, permissions, cost, and irreversible
-operations (when unsure, treat it as core). Other changes merge without a
-human once gates are green and the verifier passed the final commit; each is
-reported afterwards in one line. A PR that changes only Markdown documentation
-(`docs/**`, `*.md`) needs green gates but no independent verifier.
+deploys and release tags, credentials, permissions, cost, public surfaces (a
+new public URL or site, making data public, a new external integration), and
+irreversible operations (when unsure, treat it as core). Other changes merge
+without a human once gates are green and the verifier passed the final commit;
+each is reported afterwards in one line. A PR that changes only Markdown
+documentation (`docs/**`, `*.md`) needs green gates but no independent
+verifier.
+
+A public surface needs the human's explicit approval of that specific
+publication even after the PR passed verification, because a passing verdict
+says the change works, not that it should be public (#66; the agent harness
+also blocks it).
 
 ## Stages
 
@@ -147,6 +158,45 @@ Verifiers do not rebuild a harness per PR. The repository keeps:
 
 The verifier uses the kit first. When it needs a missing capability, it adds
 the command or map entry and lists it in its report.
+
+- **Test external assumptions directly.** The verifier may make read-only
+  calls to public external APIs to check an assumption the code depends on,
+  and lists every call it made; fixtures only repeat what the implementer
+  believed (#72: GitHub returned 422 at page 15, which exposed a permanent
+  stall in the daily paging).
+- **Cost-bearing changes get a worst-case number.** For paid APIs, Workers AI
+  neurons, R2 or other storage operations, or anything with a free tier, the
+  verifier enumerates every path that can overshoot and states a concrete
+  worst case per day and per month against the free allowance; "cap
+  enforced" is not a verdict (#68: a mid-run crash lost unrecorded spend,
+  fixed by reserving before each call).
+
+## Merging, enabling, operating
+
+- **Merge one PR at a time.** With several open, order them by dependency and
+  conflict surface (#67 → #69 → #70). When a PR is BEHIND, merge `main` into
+  its branch (no rebase, no force-push), wait for CI on the new head, then
+  merge with `gh pr merge --match-head-commit <full sha>`, so a head pushed
+  after the check cannot slip in. Re-verification follows the exception in
+  [Roles and loops](#roles-and-loops).
+- **Reserve sequential numbers up front.** Gardening `G` numbers, spec
+  numbers, and acceptance prefixes collide across concurrent PRs (#66 and #68
+  both took G67). When briefing parallel agents, assign each its numbers;
+  otherwise the later-merging PR renumbers.
+- **Stacked PRs say so.** When PR B contains PR A's commits, both bodies state
+  it; merge A first, then merge `main` into B, so B's diff shows only its own
+  change (#71 → #72).
+- **Separate merge from enable.** New behavior ships behind a flag that is
+  off in every environment, so the merge PR changes nothing at runtime; a
+  second small PR per environment turns it on with its own operator sequence
+  (#70 merged off, #71 enabled on Dev only). Otherwise a rollback needs a
+  revert of the whole feature.
+- **Write the operator sequence before merging.** Every PR that changes
+  runtime behavior on deploy includes a post-merge sequence: ordered steps,
+  the exact `/health` values expected after each step, stop and rollback
+  conditions, and timing windows to avoid (#68: a dry run before the daily
+  cron; #71: two real runs before the #72 backfill). Without it the operator
+  learns the expected state from the incident.
 
 ## Gardening
 
