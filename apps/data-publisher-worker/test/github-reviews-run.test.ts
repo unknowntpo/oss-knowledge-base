@@ -509,6 +509,29 @@ describe("Spec 022 flag in the Worker", () => {
     expect("githubReviews" in empty && empty.githubReviews === null).toBe(true);
   });
 
+  test("RV26: Dev sets metadata@1 and Prod nothing; with Dev's value and an empty bucket the first tick reads one day back", async () => {
+    const vars = async (environment: "development" | "production") =>
+      (JSON.parse(await Bun.file(new URL(`../wrangler.${environment}.jsonc`, import.meta.url)).text()) as { vars?: Record<string, string> }).vars ?? {};
+    const dev = (await vars("development")).GITHUB_REVIEWS;
+    expect(dev).toBe("metadata@1");
+    expect("GITHUB_REVIEWS" in await vars("production")).toBe(false);
+
+    const first = environment(dev);
+    const before = Date.now();
+    await first.tick();
+    const after = Date.now();
+    expect(first.publisher).toEqual(["POST https://pipeline.internal/run"]);
+    // The Worker runs on the wall clock: each project lists from one day before the tick.
+    const since = first.outbound.filter((url) => url.startsWith("https://api.github.com/repos/")).map((url) => Date.parse(new URL(url).searchParams.get("since")!));
+    expect(since).toHaveLength(githubReviewsProjects.length);
+    for (const start of since) expect(start >= before - DAY && start <= after - DAY).toBe(true);
+    // An empty day writes each project's first cursor and the run record, nothing older.
+    expect(first.operations.filter((operation) => operation.startsWith("put "))).toEqual([
+      ...githubReviewsProjects.map((project) => `put ${githubReviewsStateKey(project.projectId)}`),
+      `put ${GITHUB_REVIEWS_LAST_RUN_KEY}`,
+    ]);
+  });
+
   test("RV7: every GitHub project is ingested, with its machine users", () => {
     expect(githubReviewsProjects.map((project) => [project.projectId, project.owner, project.repo])).toEqual([["apache-kafka", "apache", "kafka"], ["apache-datafusion", "apache", "datafusion"]]);
     expect(githubReviewsProjects.find((project) => project.projectId === "apache-datafusion")!.machineUsers).toContain("codecov-commenter");

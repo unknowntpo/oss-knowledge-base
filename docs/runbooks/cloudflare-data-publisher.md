@@ -200,7 +200,7 @@ curl -sS https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/health | jq 
 | Embedding job | after each publication, and hourly while work is left, Dev | 0 | 2 + shards (about 12) |
 | Digest | once a day on Dev (22:47 UTC), plus manual `POST /digest/run` | 2–4 (one `list`, the pointer, two objects when new) | up to 300 |
 | Review queue | manual `POST /review-queue/run` | 3–4 | 4–5 |
-| GitHub review ingestion (Spec 022) | off (`GITHUB_REVIEWS` unset); when on, each publisher tick | 5 (two month objects, two cursors, the run record); up to 9 | 4; up to 8 |
+| GitHub review ingestion (Spec 022) | Dev: each publisher tick (`GITHUB_REVIEWS=metadata@1`); Prod: off | 5 (two month objects, two cursors, the run record); up to 9 | 4; up to 8 |
 | `/health` | per request | 0 | 1 |
 | Pages `/api/*` | per request | 0 | 2–3; `/api/search` at most 13 on Dev |
 | CI `bootstrap-r2` | manual workflow | one per object | 0 |
@@ -570,10 +570,11 @@ where it is not bound.
 
 ## GitHub review ingestion (Spec 022)
 
-Off in both environments: `GITHUB_REVIEWS` is unset, so the Worker sends no
-request for it and `/health` has no `githubReviews` field. The steps to turn
-it on for Dev, the dry run that checks the token first, and the expected
-values are in
+On for Dev (`GITHUB_REVIEWS=metadata@1` since 2026-10-14, Spec 022
+decision 3); off on Prod, where the Worker sends no request for it and
+`/health` has no `githubReviews` field. The first Dev tick after the deploy
+reads one day back and stores `coverageFrom` there (RV26). The steps, the
+dry run that checks the token first, and the expected values are in
 [Spec 022, Enabling on Dev](../specs/022-github-reviews/spec.md#enabling-on-dev).
 
 Three checks when enabling, all in the spec's steps:
