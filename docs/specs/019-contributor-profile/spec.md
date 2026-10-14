@@ -1,7 +1,7 @@
 # Spec 019: Contributor profile
 
-Status: Draft for owner review (intent only; nothing is implemented)
-Date: 2026-10-13
+Status: Draft for owner review (intent only; nothing is implemented). Decision 7 decided 2026-10-14; decisions 1–6, 8 and 9 are open
+Date: 2026-10-13 (decision 7 recorded 2026-10-14)
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 008 (content-addressed objects), Spec 009 (bounded memory), Spec 012 (dev@ and Jira), Spec 014 (digest profiles), Spec 015 (governance profile and ASF roster), Spec 016/017 (search, "exact matches first"), Spec 018 (daily publication)
 
@@ -10,6 +10,10 @@ Builds on: Spec 004 (GitHub connector), Spec 008 (content-addressed objects), Sp
 > only the owner can make are collected in
 > [Open decisions for the owner](#open-decisions-for-the-owner), each with a
 > recommendation. Every acceptance item is `[pending]`: no code exists.
+>
+> **Decided so far.** Decision 7 (2026-10-14): GitHub reviews are ingested
+> first (Spec 022), then the profile is built. See
+> [Decisions made](#decisions-made). The other eight are still open.
 
 ## Intent
 
@@ -210,7 +214,7 @@ that is how thin 35 days is.
 
 | Wanted | State today | What it would take |
 | --- | --- | --- |
-| Reviews given and received (approve, request changes, inline comments) | Not ingested. The review-queue job (Spec 015) reads `latestReviews` for open PRs but keeps only a count | New ingestion: review events as metadata (who, which PR, state, when) |
+| Reviews given and received (approve, request changes, inline comments) | Not ingested. The review-queue job (Spec 015) reads `latestReviews` for open PRs but keeps only a count | New ingestion: review events as metadata (who, which PR, state, when). Decided 2026-10-14: this comes first, as Spec 022 (slice 1) |
 | A trajectory longer than 35 days | Records older than 35 days are deleted from the pipeline state | An activity log with a longer horizon (section below) |
 | When a PR or Jira issue was created | Root records carry the last-update time | Keep `createdAt` (already on `GitHubEventDataV1`; Jira `created` is fetched but not kept) |
 | One person across GitHub, Jira and dev@ | No link exists; GitHub numeric id, Jira account key and mail address are not kept | Identity rule and declared links (section below) |
@@ -441,7 +445,7 @@ first when the query is exactly an identity.
 | 5 | Areas: label → number of threads, process labels excluded; KIPs joined | "field" in the owner's request (U1) |
 | 6 | Threads: newest first, kind, title, the person's part in it ("author", "commented 3 times", "+1 (binding)"), date; paged | The evidence itself |
 | 7 | Works with: people who share threads, by relation ("commented on pull requests by", "commented on their pull requests", "same dev@ threads"), with the count of shared threads | Who reviews them, whom they review (U1, U2) |
-| 8 | How this is computed: sources, period, what is not counted (reviews until slice 3; anything before the log began), how to report a wrong link or ask for removal | Rule 3 of precision; guardrail |
+| 8 | How this is computed: sources, period, what is not counted (anything before the log began; reviews submitted before review ingestion began, with that date), how to report a wrong link or ask for removal | Rule 3 of precision; guardrail |
 
 ### Publish time, request time
 
@@ -620,16 +624,31 @@ decision, not an assumption that it is fine.
 
 ## Slices
 
-Smallest useful first. Each slice is one PR with its own verifier pass.
+Reviews first (decision 7, 2026-10-14), then the smallest useful page. Each
+slice is one PR with its own verifier pass.
 
 | Slice | Content | Proves | IDs |
 | --- | --- | --- | --- |
-| 1 | Activity log written at publish time from the events the pipeline already has; identity = (source, string); `/api/people/:project/:id`; the page with sections 1–6 and 8; author names link to it | A per-source profile is correct against the Example and grows by a day per day | W1–W6, W9–W13, W17–W19, W22, W23 |
-| 2 | Person result in Search on an exact identity match | A name leads to the page, thread ranking unchanged | W7 |
-| 3 | GitHub review events (metadata) | A reviewer's profile matches `reviewed-by:` upstream; "Works with" gains "reviewed by" | W8, W20 |
+| 1 | GitHub review ingestion (metadata): its own spec, **Spec 022** ([PR #70](https://github.com/unknowntpo/oss-knowledge-base/pull/70)), with its own acceptance items. It must be enabled on Dev and have run before slice 2 is shown | Reviews a person gave are stored per pull request with state and time, inside the request budget | W20; Spec 022's own items |
+| 2 | Activity log written at publish time from the events the pipeline already has, plus the review rows of slice 1; identity = (source, string); `/api/people/:project/:id`; the page with sections 1–8; author names link to it | A per-source profile, reviews included, is correct against the Example and grows by a day per day; "Works with" includes "reviewed by" | W1–W6, W8–W13, W17–W19, W22, W23 |
+| 3 | Person result in Search on an exact identity match | A name leads to the page, thread ranking unchanged | W7 |
 | 4 | Stable keys (GitHub id, Jira account key), roster links, `identityLinks`, the labelled sample, "possibly the same person" | Zero wrong merges on the sample | W14–W16 |
-| 5 | One-time backfill to the horizon (GitHub, Jira, Pony Mail by month) | A 12-month trajectory on day one; request budget respected | W21 |
+| 5 | One-time backfill to the horizon (GitHub, GitHub reviews, Jira, Pony Mail by month) | A 12-month trajectory on day one; request budget respected | W21 |
 | Later, own decision | Jira components as areas; all-time KIP threads (option C); a people directory | | |
+
+Changes of 2026-10-14, besides the order:
+
+- Section 7 ("Works with") was in no slice, although W12, assigned to the
+  first page, asserts on its lists. It now ships with the page (slice 2):
+  with reviews already ingested it has its "reviewed by" relation from the
+  first day, and W12 is testable in the slice it belongs to.
+- W8 moved to the page's slice: it asserts on profile rows and on "reviews
+  given", which exist only once the activity log does. Slice 1 is specified
+  and tested by Spec 022.
+- The Example was captured before any review was ingested, so
+  its "pull requests commented" figures stay as measured; W1 keeps them. The
+  review counts of the same people are added to the case file when slice 1
+  has data.
 
 ## Test plan
 
@@ -672,7 +691,7 @@ Each item: precondition → action → observable result → evidence. All are
 - W17: [measure] the activity write adds at most 2 Class A and 2 Class B operations per project per publication, and no per-identity object (limit: G59's one request per object; command to be added as `measure:people`).
 - W18: [measure] `/api/people` for the identity with the most rows over 12 months parses under 16 MB and answers under 500 ms in the Pages reader (limit 128 MB; command `measure:people`).
 - W19: [measure] the publisher's peak memory with the activity append stays within the Spec 009 budgets at 8,600 and 17,200 events (`measure:memory`).
-- W20: [measure] review ingestion adds at most one GitHub request per pull request updated that day, and a day's batch stays inside the hourly request limit (`measure:daily-volume`).
+- W20: [measure] review ingestion adds at most one GitHub request per pull request updated that day, and a day's batch stays inside the hourly request limit (slice 1; measured by Spec 022 RV21 and RV22 with `measure:github-reviews`).
 - W21: [measure] the one-time backfill states its request count per source before it runs and stays under each source's limit; it runs outside the publication.
 
 ### Observability
@@ -684,23 +703,32 @@ Each item: precondition → action → observable result → evidence. All are
 
 | Criterion | Measure |
 | --- | --- |
-| Counts are right | For 10 sampled identities, "pull requests authored" and (after slice 3) "pull requests reviewed" equal the GitHub search count for the same period exactly; any difference is explained on the page |
+| Counts are right | For 10 sampled identities, "pull requests authored" and "pull requests reviewed" equal the GitHub search count for the same period exactly (reviews: a period that starts after review ingestion began); any difference is explained on the page |
 | No wrong merge | Zero in the labelled sample (W16) |
 | Purpose is obvious | The first screen at 375 px names the person, the community, and the period, with no number that lacks a definition |
 | Cost | No new metered service; R2 operations within W17; no model calls |
 | Honest coverage | Every page states the days of data it covers and what is not counted |
 
+## Decisions made
+
+| # | Decision | Decided | Date | Reason | Consequence |
+| --- | --- | --- | --- | --- | --- |
+| 7 | Reviews before or after the first page | **Reviews first** ("先補"): ingest GitHub pull-request reviews, then build the profile | 2026-10-14 (owner) | Only conversation comments are ingested today; formal reviews (approve, request changes, comment) and inline review comments are not. `chia7712` shows comments on 46 pull requests against 168 reviewed upstream, so a page built now would misrepresent reviewers by about 3.6 times | Review ingestion is slice 1 and has its own spec (Spec 022, [PR #70](https://github.com/unknowntpo/oss-knowledge-base/pull/70)). The first visible page comes later and never carries a "reviews are not counted yet" note. The recommendation in the draft (page first, reviews in slice 3) is withdrawn |
+
 ## Open decisions for the owner
+
+Decision 7 is decided (above); its row is kept so the numbering holds. The
+other eight are open.
 
 | # | Decision | Recommendation | Cost of the alternative |
 | --- | --- | --- | --- |
-| 1 | Which use ranks first: U1 (know a person), U2 (my own trajectory), U3 (who is active in an area) | U1, then U2; defer U3 | U2 first makes slice 5 (backfill) and slice 3 (reviews) come before the page is public-worthy. U3 needs a list of people in an order, which conflicts with "no ranking" |
+| 1 | Which use ranks first: U1 (know a person), U2 (my own trajectory), U3 (who is active in an area) | U1, then U2; defer U3 | U2 first makes slice 5 (backfill) come before the page is public-worthy (reviews already come first, decision 7). U3 needs a list of people in an order, which conflicts with "no ranking" |
 | 2 | Scope: everyone who appears, or committers and PMC only | Everyone who appears, bots excluded. The owner is not a committer yet and is a main user | Committers only: about 73 Kafka pages instead of about 440 identities a month; simpler privacy story, but useless for U2 and for understanding new contributors; DataFusion has no roster configured at all |
 | 3 | Public or private | Dev only for now (the Dev site is public by URL but unlisted); `noindex`; decide on Prod after the terms are read | Private (behind access control): removes most privacy concerns, costs an auth setup and makes the page unlinkable from threads |
 | 4 | Horizon | Option B: activity log, 12 months, with the one-time backfill (slice 5) | No backfill: the page starts at 35 days and takes a year to become a trajectory. Option C (all-time KIP threads): 11 years of Pony Mail backfill, about 34,500 rows. Option D (search window of a year): breaks G10, G59, H67 |
 | 5 | Identity strictness | Strict: declared links only; roster name match for dev@; a hand-written, reviewed link list | Looser (merge equal display names across Jira and dev@; treat an ASF id equal to a GitHub login as a link): far fewer split profiles (37 Jira/dev@ name pairs and 14 id/login pairs today), with a real chance of a wrong merge on common names |
 | 6 | Areas | GitHub labels minus process labels, plus KIP numbers (already stored); Jira components as a later slice | Jira components now: one more Jira field, small. Digest topics: only the week's digest candidates are classified today; applying the title rules to every thread is cheap but they were tuned for Kafka titles and reach 12 coarse topics |
-| 7 | Reviews before or after the first page | Ship slice 1 with the "reviews are not counted yet" note, then slice 3 | Reviews first: the first visible page is later, but never under-states a reviewer by 3.6 times |
+| 7 | Reviews before or after the first page | **Decided 2026-10-14: reviews first.** See [Decisions made](#decisions-made) | — |
 | 8 | Terms and law check | Read GitHub's terms on user data, the ASF privacy policy, and get a view on data-protection duties before anything beyond Dev | Skipping it risks having to take the feature down |
 | 9 | Removal process | Issue or mail to the owner; honoured at the next daily publication | A self-service form needs authentication of the requester |
 
