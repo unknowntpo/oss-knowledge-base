@@ -45,6 +45,11 @@ export interface SpendLedger {
   /** Calibrated neurons already spent today (UTC) and the cap in the same unit (D90). */
   readonly spent: number;
   readonly cap: number;
+  /**
+   * D93: called before each request with today's spend including the requests in flight, so a
+   * run that dies leaves the spend it made. The request waits for it.
+   */
+  readonly reserve?: (spentWithInFlight: number) => Promise<void>;
 }
 
 /** D35: what a failed call looked like, so Behavior 14–15's matching can be confirmed. */
@@ -94,6 +99,8 @@ export class ModelCalls {
   /** Slice 2c: work skipped to keep the call budget (Clef overflow, cards past the reserve). */
   partial = false;
   private total: number;
+  /** Estimates of the requests in flight; they count toward the cap gate and the stored ledger (D93, D94). */
+  private inFlight = 0;
 
   constructor(
     private readonly model: DigestModel | undefined,
@@ -166,24 +173,31 @@ export class ModelCalls {
   ): Promise<T | undefined> {
     if (this.model === undefined || this.limited) return undefined;
     const estimate = digestLedgerNeurons(priceTableEstimate);
-    if (this.total + estimate > this.ledger.cap) {
-      this.limited = true;
-      return undefined;
-    }
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      if (this.calls >= this.maxCalls) {
+      // D94: every attempt, the retry included, must fit the cap together with the requests in flight.
+      if (this.limited) return undefined;
+      if (this.total + this.inFlight + estimate > this.ledger.cap || this.calls >= this.maxCalls) {
         this.limited = true;
         return undefined;
       }
       this.calls += 1;
+      this.inFlight += estimate;
+      let reserved = true;
+      const release = () => {
+        if (reserved) this.inFlight -= estimate;
+        reserved = false;
+      };
       try {
+        await this.ledger.reserve?.(this.total + this.inFlight);
         const { value, usage } = await invoke();
         const reported = typeof usage?.prompt_tokens === "number" ? usage.prompt_tokens : undefined;
+        release();
         this.total += digestLedgerNeurons(settle(value));
         this.records.push({ model, estimatedInputTokens, clef, ...(reported === undefined ? {} : { reportedInputTokens: reported }) });
         return value;
       } catch (error) {
         // Gardening G21: a failed call is charged its pre-call estimate.
+        release();
         this.total += estimate;
         const kind = modelErrorKind(error);
         if (this.errors.length < MAX_RECORDED_ERRORS) this.errors.push(errorShape(model, kind, error));

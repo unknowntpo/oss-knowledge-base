@@ -119,6 +119,8 @@ export class DigestRunner {
         delay: this.deps.delay,
         spentToday,
         cap: this.cap,
+        // D93: a run that dies must leave the spend it made for the alarm's retry.
+        reserveSpend: (spent) => this.deps.storage.put(`spend:${date}`, spent),
         dryRun,
         deferred,
       });

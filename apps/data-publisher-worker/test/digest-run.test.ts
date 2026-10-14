@@ -1291,16 +1291,14 @@ const cases: Record<string, () => Promise<string>> = {
     const dying: DigestModel = { run: async (name, prompt, maxTokens) => {
       if (dead) throw new ModelCallError("the object is gone", 3036);
       started += 1;
+      // Every request that started before the death may have been billed in full.
+      spentBeforeDeath += digestLedgerNeurons(callEstimate(name, prompt, maxTokens));
       if (started === 4) {
         dead = true;
         for (const [key, value] of storage.values) atDeath.values.set(key, value);
-        // The request that was in flight may have been billed in full.
-        spentBeforeDeath += digestLedgerNeurons(callEstimate(name, prompt, maxTokens));
         throw new ModelCallError("the object is gone", 3036);
       }
-      const text = await inner.run(name, prompt, maxTokens);
-      if (!dead) spentBeforeDeath += digestLedgerNeurons(settledNeurons(name, prompt, text));
-      return text;
+      return inner.run(name, prompt, maxTokens);
     } };
     await runner(bucket, storage, async () => false, dying).instance.alarm();
     const stored = atDeath.values.get(`spend:${date}`) as number;

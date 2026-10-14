@@ -46,6 +46,8 @@ export interface DigestRunInput {
   /** Estimated neurons already spent today and the environment's daily cap (Behavior 15). */
   readonly spentToday: number;
   readonly cap: number;
+  /** D93: stores today's spend, requests in flight included, before each model request. */
+  readonly reserveSpend?: (spentWithInFlight: number) => Promise<void>;
   readonly dryRun: boolean;
   readonly deferred?: number;
   /** Test and measure hooks: the per-run request ceiling and the Clef request cap. */
@@ -178,7 +180,8 @@ async function existingPairs(bucket: DigestBucket, prefix: string) {
 
 export async function runDigest(input: DigestRunInput): Promise<DigestRunResult> {
   const started = input.now();
-  const calls = new ModelCalls(input.model, { spent: input.spentToday, cap: input.cap }, input.delay, input.limits?.maxCalls);
+  const ledger = { spent: input.spentToday, cap: input.cap, ...(input.reserveSpend === undefined ? {} : { reserve: input.reserveSpend }) };
+  const calls = new ModelCalls(input.model, ledger, input.delay, input.limits?.maxCalls);
   const rejections: Record<string, number> = {};
   const samples = new RawSamples();
   let styled: GenerationReport["style"] = { sentences: 0, personLed: 0, contentFree: 0 };

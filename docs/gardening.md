@@ -780,7 +780,7 @@ the two `viewer/` items below.
 - **Layer:** test.
 - **Source:** R2 call audit, 2026-10-13.
 
-### G67. The digest runs daily on Dev with two D35 checks open
+### G70. The digest runs daily on Dev with two D35 checks open
 - **Where:** Spec 014 D35 and "Schedule on Dev"; `DIGEST_CRON` in
   `apps/data-publisher-worker/wrangler.development.jsonc`.
 - **Why:** the owner enabled the schedule on 2026-10-14. D35's canary probe

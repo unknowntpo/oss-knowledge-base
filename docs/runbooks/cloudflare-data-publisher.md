@@ -131,7 +131,10 @@ digest within 150 seconds.
 
 - `enabled`, `running`, `scheduled`: the flag, an active run, a pending
   alarm (also a deferred one).
-- `today {date, estimatedNeurons, cap}`: the UTC day's ledger.
+- `today {date, estimatedNeurons, cap}`: the UTC day's ledger. It is
+  stored before each model request (Spec 014 D93), so during a run it
+  includes the requests in flight, and a run that died leaves what it
+  spent: a retry starts from there.
 - `lastRun`: the last run, dry or real (`dryRun`).
   - `ok: true`, `limited: false`, `fallbacks: 0`: complete.
   - `limited: true`: the daily cap, the 50-request ceiling, or a platform

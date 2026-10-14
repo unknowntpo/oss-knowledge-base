@@ -1821,9 +1821,8 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
     the final ledger and `lastRun`.
 - D94: no request starts unless the settled spend, the estimates of the
   requests in flight, and its own estimate fit the cap; the retry of a
-  failed request is checked the same way. The ledger therefore never
-  passes the cap. (D35's "up to 3 more estimates in one wave" no longer
-  applies.)
+  failed request is checked the same way. No request starts past the cap.
+  (D35's "up to 3 more estimates in one wave" no longer applies.)
 - D26: [measure] the same command prints call and read counters:
   - model calls per cold run: at most 50. Measured 39 in slice 2b: 12 Clef
     requests, 12 cards, 12 proposal rows, 1 highlights call, and 2
