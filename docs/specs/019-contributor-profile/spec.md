@@ -1,19 +1,15 @@
 # Spec 019: Contributor profile
 
-Status: Draft for owner review (intent only; nothing is implemented). Decision 7 decided 2026-10-14; decisions 1–6, 8 and 9 are open
-Date: 2026-10-13 (decision 7 recorded 2026-10-14)
+Status: Accepted 2026-10-14 (all nine owner decisions recorded); slice 1 is Spec 022 (merged, flag off); slices 2–6 not implemented
+Date: 2026-10-13 (decisions recorded 2026-10-14)
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 008 (content-addressed objects), Spec 009 (bounded memory), Spec 012 (dev@ and Jira), Spec 014 (digest profiles), Spec 015 (governance profile and ASF roster), Spec 016/017 (search, "exact matches first"), Spec 018 (daily publication)
 
-> **How to read this draft.** Sections 1–3 are what the owner reviews: the
-> intent, the real-data Example, and the data-range estimate. The decisions
-> only the owner can make are collected in
-> [Open decisions for the owner](#open-decisions-for-the-owner), each with a
-> recommendation. Every acceptance item is `[pending]`: no code exists.
->
-> **Decided so far.** Decision 7 (2026-10-14): GitHub reviews are ingested
-> first (Spec 022), then the profile is built. See
-> [Decisions made](#decisions-made). The other eight are still open.
+> **How to read this spec.** Sections 1–3 are the intent, the real-data
+> Example, and the data-range estimate. The owner decided all nine open
+> questions on 2026-10-14; they are in [Decisions made](#decisions-made).
+> Every acceptance item is `[pending]` or tagged: no profile code exists.
+> Slice 1 (review ingestion) is Spec 022, merged with its flag off.
 
 ## Intent
 
@@ -24,14 +20,14 @@ The owner's words (2026-10-09, 2026-10-13): search a person's name, see their
 contribution trajectory (fields, PRs across a time interval) on a personal
 panel; "要能精確了解每個 contributor 的貢獻軌跡".
 
-Three likely uses. The owner is asked to rank them, because they pull the
-design in different directions:
+Three likely uses. The owner decided which are in scope (decision 1,
+2026-10-14):
 
-| # | Use | What it needs most | Recommended rank |
+| # | Use | What it needs most | Decided 2026-10-14 |
 | --- | --- | --- | --- |
-| U1 | Know a person before asking them for a review, or before reviewing their PR: what do they work on, what did they touch recently | Areas, recent threads, review activity | 1 |
-| U2 | Track my own road to committer: is my activity broad and steady, who reviews me, whom do I review | A long time axis (a year or more), reviews given and received | 2 |
-| U3 | Find who is active in an area | A list of people per area | 3, deferred: a list of people sorted by activity is a ranking (see Non-goals) |
+| U1 | Know a person before asking them for a review, or before reviewing their PR: what do they work on, what did they touch recently | Areas, recent threads, review activity | In scope |
+| U2 | Track my own road to committer: is my activity broad and steady, who reviews me, whom do I review | A long time axis (a year or more), reviews given and received | In scope |
+| U3 | Find who is active in an area | A list of people per area | Deferred: "most active in an area" is a ranking (see Non-goals) |
 
 "Precise" (精確) is the governing word. This spec reads it as three rules:
 
@@ -538,7 +534,8 @@ Phone (375 px): one column, same order; tables become two-line rows.
 **Conclusion.** Everything shown is already public upstream, but putting one
 person's public traces on one page changes what they are. The page must read
 as a record with sources, not as an assessment. The guardrails below are
-proposed defaults; the owner may tighten them.
+the defaults; decisions 2, 3, 8 and 9 (2026-10-14) confirmed P-c, P-e, P-g,
+P-h, P-i and P-j.
 
 | # | Guardrail | Proposed default |
 | --- | --- | --- |
@@ -548,18 +545,18 @@ proposed defaults; the owner may tighten them.
 | P-d | "How this is computed" on every page | Sources, period, what is missing, the basis of every identity link |
 | P-e | Removal and correction | A person (or anyone, for a wrong link) opens an issue in this repository or writes to the owner. Suppression is honoured at the next daily publication: the identity gets no page and no person result, and is left out of "Works with". Threads keep showing the author as upstream does. The suppression list stores a salted hash of the identity key, not the name |
 | P-f | No inactivity shaming | Say "Data covers … to …" and "Most recent activity in this data: <date>". Never "inactive", "last seen", "gone" |
-| P-g | Dev only | No Prod exposure until the owner decides (Prod's data Worker has never been deployed anyway) |
+| P-g | Dev only | Decided (3): Dev only, not on Prod. Going beyond Dev needs the terms check of decision 8 first |
 | P-h | Not indexable | `/api/people/*` answers with `X-Robots-Tag: noindex`; pages are hash routes, which crawlers do not treat as separate pages |
 | P-i | Bots are not people | Identities on the profile's bot list get no page |
-| P-j | Scope of people | See open decision 2 (everyone who appears, or committers only) |
+| P-j | Scope of people | Decided (2): everyone who appears, bots excluded |
 | P-k | No derived attributes | No employer, location, time zone, hours-of-day chart |
 
-Terms and law: **not checked.** This draft did not read, and so does not
+Terms and law: **not checked yet.** This spec does not read, and so does not
 cite, the GitHub Terms of Service or Acceptable Use Policies (their rules on
 using API data about users), the ASF privacy policy, the Pony Mail archive
 terms, or data-protection law (the GDPR applies to public personal data too).
-They must be read before any exposure beyond Dev; this is a listed open
-decision, not an assumption that it is fine.
+Decision 8 (2026-10-14): they must be checked before anything goes beyond
+Dev. Until then the feature exists on Dev only.
 
 ## Simplification review
 
@@ -612,8 +609,9 @@ decision, not an assumption that it is fine.
 2. Rows live in one object per project per month. A row is keyed by record
    id: writing it again replaces it. Past months are not rewritten except by
    an explicit backfill.
-3. Rows are appended before the state is compacted. The horizon is a number
-   of months in the community profile; months beyond it are not read (and may
+3. Rows are appended before the state is compacted. The horizon is 12
+   months for all activity (decision 4), set in the community profile;
+   months beyond it are not read (and may
    be deleted by a later, separately approved, spec).
 4. Root records keep both creation time and last-update time; counts use
    creation time for "authored" and event time for everything else.
@@ -639,11 +637,12 @@ slice is one PR with its own verifier pass.
 
 | Slice | Content | Proves | IDs |
 | --- | --- | --- | --- |
-| 1 | GitHub review ingestion (metadata): its own spec, **Spec 022** ([PR #70](https://github.com/unknowntpo/oss-knowledge-base/pull/70)), with its own acceptance items. It must be enabled on Dev and have run before slice 2 is shown | Reviews a person gave are stored per pull request with state and time, inside the request budget | W20; Spec 022's own items |
-| 2 | Activity log written at publish time from the events the pipeline already has; review activity read from slice 1's month objects (`internal/github-reviews/v1/<projectId>/<YYYY-MM>.json`), not stored a second time; identity = (source, string); `/api/people/:project/:id`; the page with sections 1–8; author names link to it | A per-source profile, reviews included, is correct against the Example and grows by a day per day; "Works with" includes "reviewed by" | W1–W6, W8–W13, W17–W19, W22, W23 |
+| 1 | GitHub review ingestion (metadata): its own spec, **Spec 022** ([PR #70](https://github.com/unknowntpo/oss-knowledge-base/pull/70), merged 2026-10-14 with `GITHUB_REVIEWS` off), with its own acceptance items. It must be enabled on Dev and have run before slice 2 is shown | Reviews a person gave are stored per pull request with state and time, inside the request budget | W20; Spec 022's own items |
+| 2 | Activity log written at publish time from the events the pipeline already has; review activity read from slice 1's month objects (`internal/github-reviews/v1/<projectId>/<YYYY-MM>.json`), not stored a second time; identity = (source, string); `/api/people/:project/:id`; the page with sections 1–8; author names link to it | A per-source profile, reviews included, is correct against the Example and grows by a day per day; "Works with" includes "reviewed by" | W1–W6, W8–W13, W17–W19, W22–W26 |
 | 3 | Person result in Search on an exact identity match | A name leads to the page, thread ranking unchanged | W7 |
 | 4 | Stable keys (GitHub id, Jira account key), roster links, `identityLinks`, the labelled sample, "possibly the same person" | Zero wrong merges on the sample | W14–W16 |
-| 5 | One-time backfill to the horizon (GitHub, GitHub reviews, Jira, Pony Mail by month) | A 12-month trajectory on day one; request budget respected | W21 |
+| 5 | 12-month backfill of reviews: Spec 022's store, filled by its own PR (the start-date change proposed in Spec 022; about 509 requests, 20 runs, about 8 MB, measured from search totals) | Review activity reaches back 12 months | Spec 022's items |
+| 6 | 12-month backfill of the activity log: GitHub issues, pull requests and conversation comments; Jira; dev@. **Cost not measured.** dev@: 12 monthly archives (one Pony Mail request per month; message count and bytes unknown). Jira: unknown (issues updated in 12 months, pages of 100, comments inline). GitHub: listing 3,668 Kafka and 9,032 DataFusion items (GitHub search totals, 2026-10-14) plus one comment request per item with comments, unmeasured. **This is the next measurement**, before the slice is specified | A 12-month trajectory on day one for every source; request budget respected | W21 |
 | Later, own decision | Jira components as areas; all-time KIP threads (option C); a people directory | | |
 
 Changes of 2026-10-14, besides the order:
@@ -655,6 +654,10 @@ Changes of 2026-10-14, besides the order:
 - W8 moved to the page's slice: it asserts on profile rows and on "reviews
   given", which exist only once the activity log does. Slice 1 is specified
   and tested by Spec 022.
+- Decision 4 (12 months) splits the old backfill slice: reviews (slice 5,
+  Spec 022's store) and the other sources (slice 6, cost not yet measured).
+- Decision 3 adds W24 (`noindex`) and W25 (not on Prod); decision 4 adds W26
+  (12-month horizon).
 - The Example was captured before any review was ingested, so
   its "pull requests commented" figures stay as measured; W1 keeps them. The
   review counts of the same people are added to the case file when slice 1
@@ -695,6 +698,9 @@ Each item: precondition → action → observable result → evidence. All are
 - W14: [pending] given two identities with the same display name and no declared link, counts are not summed and each page shows the "possibly the same person" hint → case rows on each side (with and without a `declared` link).
 - W15: [pending] given a roster with two entries of the same name, no dev@ name is linked to either → case row; positive control with a unique name.
 - W16: [pending] given the labelled sample, no pair labelled "different" is linked → test iterating the sample file.
+- W24: [pending] given any `/api/people/*` response (200, 404, error), it carries `X-Robots-Tag: noindex` → API test over each status.
+- W25: [pending] given the Prod configuration, `/api/people` is not served and no author name links to a people page; given the Dev configuration, both are → configuration test on both sides.
+- W26: [pending] given activity and review month objects for 13 months, `/api/people` reads and counts only the newest 12, and the header's period says so → API test, with a positive control at exactly 12 months.
 
 ### Budget
 
@@ -702,7 +708,7 @@ Each item: precondition → action → observable result → evidence. All are
 - W18: [measure] `/api/people` for the identity with the most rows over 12 months parses under 16 MB and answers under 500 ms in the Pages reader (limit 128 MB; command `measure:people`).
 - W19: [measure] the publisher's peak memory with the activity append stays within the Spec 009 budgets at 8,600 and 17,200 events (`measure:memory`).
 - W20: [measure] review ingestion adds at most one GitHub request per pull request updated that day, and a day's batch stays inside the hourly request limit (slice 1; measured by Spec 022 RV21 and RV22 with `measure:github-reviews`).
-- W21: [measure] the one-time backfill states its request count per source before it runs and stays under each source's limit; it runs outside the publication.
+- W21: [measure] the 12-month backfill of slice 6 states its request count and stored size per source (GitHub, Jira, dev@'s 12 monthly archives) before it runs, measured, not estimated, and stays under each source's limit; it runs outside the publication.
 
 ### Observability
 
@@ -721,29 +727,26 @@ Each item: precondition → action → observable result → evidence. All are
 
 ## Decisions made
 
-| # | Decision | Decided | Date | Reason | Consequence |
-| --- | --- | --- | --- | --- | --- |
-| 7 | Reviews before or after the first page | **Reviews first** ("先補"): ingest GitHub pull-request reviews, then build the profile | 2026-10-14 (owner) | Only conversation comments are ingested today; formal reviews (approve, request changes, comment) and inline review comments are not. `chia7712` shows comments on 46 pull requests against 168 reviewed upstream, so a page built now would misrepresent reviewers by about 3.6 times | Review ingestion is slice 1 and has its own spec (Spec 022, [PR #70](https://github.com/unknowntpo/oss-knowledge-base/pull/70)). The first visible page comes later and never carries a "reviews are not counted yet" note. The recommendation in the draft (page first, reviews in slice 3) is withdrawn |
+All nine, by the owner, 2026-10-14. Each matches the draft's recommendation;
+the rejected alternative is kept for the record.
 
-## Open decisions for the owner
+| # | Decision | Decided | Consequence in this spec | Rejected alternative |
+| --- | --- | --- | --- | --- |
+| 1 | Which uses | **U1** (understand a person) and **U2** (track one's own trajectory). **U3** ("most active in an area") deferred: it is ranking-like | Sections and slices serve U1 and U2; no list of people in any order | U3 needs people sorted by activity, which conflicts with "no ranking" |
+| 2 | Scope | **Everyone who appears, bots excluded** | P-j; W12 | Committers only: about 73 Kafka pages instead of about 440 identities a month; useless for U2 and for new contributors; DataFusion has no roster |
+| 3 | Visibility | **Dev only, `noindex`, not on Prod** | P-g, P-h; W24, W25 | Private behind access control: an auth setup, and the page could not be linked from threads |
+| 4 | Horizon | **12 months for all activity.** Reviews come from Spec 022's store (its 12-month backfill is a separate PR); dev@, Jira and GitHub comments need their own 12-month backfill | Behavior 3; slices 5 and 6; W18, W21, W26. Slice 6's cost is unmeasured and is the next measurement | No backfill (35 days, a year to become a trajectory); option C (all-time KIP threads, 11 years of Pony Mail); option D (a searchable year: breaks G10, G59, H67) |
+| 5 | Identity | **Strict.** Link only declared or roster-backed identities; otherwise "possibly the same person". No fuzzy matching, no email | Identity resolution rule; W14–W16; W13 (no address anywhere) | Merging equal display names, or an ASF id equal to a GitHub login: fewer split profiles (37 and 14 pairs today), with a real chance of a wrong merge |
+| 6 | Areas | **GitHub labels (minus process labels) and KIP numbers first; Jira components later.** File paths are not available: Spec 022 counts inline comments and does not store them | Behavior 6; W4; "Later" slice | Jira components now (one more Jira field); digest topics (12 coarse, Kafka-tuned) |
+| 7 | Reviews before or after the first page | **Reviews first** ("先補") | Slice 1 is Spec 022; no "reviews are not counted yet" note | Page first: under-states a reviewer by about 3.6 times (`chia7712`: 46 pull requests commented, 168 reviewed upstream) |
+| 8 | Terms and policy | **GitHub Terms of Service, the ASF privacy policy and the GDPR must be checked before anything goes beyond Dev** | Privacy section; Non-goals (no Prod) | Skipping it risks having to take the feature down |
+| 9 | Removal | **By issue or email; removed at the next daily publication** | P-e; W12 | A self-service form needs authentication of the requester |
 
-Decision 7 is decided (above); its row is kept so the numbering holds. The
-other eight are open.
+## Could not be verified
 
-| # | Decision | Recommendation | Cost of the alternative |
-| --- | --- | --- | --- |
-| 1 | Which use ranks first: U1 (know a person), U2 (my own trajectory), U3 (who is active in an area) | U1, then U2; defer U3 | U2 first makes slice 5 (backfill) come before the page is public-worthy (reviews already come first, decision 7). U3 needs a list of people in an order, which conflicts with "no ranking" |
-| 2 | Scope: everyone who appears, or committers and PMC only | Everyone who appears, bots excluded. The owner is not a committer yet and is a main user | Committers only: about 73 Kafka pages instead of about 440 identities a month; simpler privacy story, but useless for U2 and for understanding new contributors; DataFusion has no roster configured at all |
-| 3 | Public or private | Dev only for now (the Dev site is public by URL but unlisted); `noindex`; decide on Prod after the terms are read | Private (behind access control): removes most privacy concerns, costs an auth setup and makes the page unlinkable from threads |
-| 4 | Horizon | Option B: activity log, 12 months, with the one-time backfill (slice 5) | No backfill: the page starts at 35 days and takes a year to become a trajectory. Option C (all-time KIP threads): 11 years of Pony Mail backfill, about 34,500 rows. Option D (search window of a year): breaks G10, G59, H67 |
-| 5 | Identity strictness | Strict: declared links only; roster name match for dev@; a hand-written, reviewed link list | Looser (merge equal display names across Jira and dev@; treat an ASF id equal to a GitHub login as a link): far fewer split profiles (37 Jira/dev@ name pairs and 14 id/login pairs today), with a real chance of a wrong merge on common names |
-| 6 | Areas | GitHub labels minus process labels, plus KIP numbers (already stored); Jira components as a later slice | Jira components now: one more Jira field, small. Digest topics: only the week's digest candidates are classified today; applying the title rules to every thread is cheap but they were tuned for Kafka titles and reach 12 coarse topics |
-| 7 | Reviews before or after the first page | **Decided 2026-10-14: reviews first.** See [Decisions made](#decisions-made) | — |
-| 8 | Terms and law check | Read GitHub's terms on user data, the ASF privacy policy, and get a view on data-protection duties before anything beyond Dev | Skipping it risks having to take the feature down |
-| 9 | Removal process | Issue or mail to the owner; honoured at the next daily publication | A self-service form needs authentication of the requester |
-
-## Could not be verified in this draft
-
+- **The 12-month backfill cost of dev@, Jira and GitHub comments (slice 6).**
+  dev@ is 12 monthly archives; Jira and the GitHub comment requests are
+  unknown. This is the next measurement.
 - Whether a public ASF endpoint publishes committers' GitHub usernames.
 - Why Dev holds 404 Jira issues when Jira reports 474 updated in 30 days (570
   in 35), and 71 of the 112 issues `chia7712` reported that were updated in
