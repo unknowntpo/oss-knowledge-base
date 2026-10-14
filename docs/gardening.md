@@ -508,18 +508,15 @@ the two `viewer/` items below.
   after it was submitted keeps its stored verdict; a pull request with more
   than 100 reviews is read partially (`reviewsTruncated`); a deleted review
   keeps its row; nothing prunes months (Behavior 14, about 8 MB a year).
-  The daily run still pages its listing by offset: GitHub refused page 15
-  of a 12-month listing with 422 (page 10 answered, 2026-10-14), so a daily
-  backlog needing more than about 10 pages (about 1,000 listed items) would
-  fail as `transport` on every tick; the cap (500 pull requests, about 8
-  DataFusion pages) keeps it under that today.
+  (Fixed: both runs now page the listing by key, so GitHub's 422 for deep
+  offsets, seen at page 15 on 2026-10-14, cannot stop the daily run after a
+  day of more than about 1,000 updated issues; RV9.)
 - **Fix:** run the backfill by the runbook ("GitHub review ingestion
   (Spec 022)", "Backfill") and record RV35 with
-  `bun run measure:github-reviews -- --backfill-from 2025-10-14`; move the
-  daily listing to the backfill's keyed paging (`nextKeysetPage`) if
-  `githubReviews` ever shows a 422; pruning only when a reader needs it.
-- **Layer:** operator run, then measured evidence; a run test for the
-  daily paging if it changes.
+  `bun run measure:github-reviews -- --backfill-from 2025-10-14`; pruning
+  only when a reader needs it. GitHub's native `after`/`before` cursors
+  are a later option for the listing.
+- **Layer:** operator run, then measured evidence.
 - **Source:** Spec 022 "Known limits" and Behavior 13–14, 2026-10-14.
 
 ## CI evidence

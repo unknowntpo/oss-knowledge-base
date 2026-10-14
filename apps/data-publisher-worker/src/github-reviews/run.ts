@@ -193,11 +193,12 @@ async function listPage(deps: GithubReviewsDeps, counter: Counter, url: string):
 }
 
 /**
- * The ascending "updated since" listing. The daily run pages by offset (one or two pages a day);
- * the backfill pages by key (`nextKeysetPage`), because over hundreds of pages an item updated
- * meanwhile would shift the offsets and one item would be skipped.
+ * Behavior 3: the ascending "updated since" listing, paged by key (`nextKeysetPage`) for both the
+ * daily run and the backfill. Offset pages shift when an item already listed is updated meanwhile
+ * (one item would be skipped), and GitHub answers 422 past about page 10 of a large listing, which
+ * a day of more than about 1,000 updated issues would reach on every later run.
  */
-async function listUpdated(deps: GithubReviewsDeps, counter: Counter, project: GithubReviewsProject, since: string, previousCursor: string, maxPulls: number, keyset = false) {
+async function listUpdated(deps: GithubReviewsDeps, counter: Counter, project: GithubReviewsProject, since: string, previousCursor: string, maxPulls: number) {
   const items: UpdatedItem[] = [];
   const seen = new Set<string>();
   // Only pull requests newer than the cursor count against the cap (see `selectUpdatedPulls`).
@@ -213,7 +214,7 @@ async function listUpdated(deps: GithubReviewsDeps, counter: Counter, project: G
     pulls += fresh.filter((item) => item.pull_request !== undefined && item.updated_at > previousCursor).length;
     if (values.length < LIST_PAGE_SIZE) return { items, morePages: false };
     if (pulls >= maxPulls || pages >= MAX_LIST_PAGES) return { items, morePages: true };
-    request = keyset ? nextKeysetPage(request, values) : { since, page: request.page + 1 };
+    request = nextKeysetPage(request, values);
   }
 }
 
@@ -444,7 +445,7 @@ async function runBackfillProject(deps: GithubReviewsDeps, project: GithubReview
     run.cursor = progress.cursor;
     if (progress.cursor !== from) since = iso(Date.parse(progress.cursor) - CURSOR_OVERLAP_MS);
 
-    const listing = await listUpdated(deps, rest, project, since, progress.cursor, maxPulls, true);
+    const listing = await listUpdated(deps, rest, project, since, progress.cursor, maxPulls);
     const selected = selectUpdatedPulls(listing.items, { maxPulls, morePages: listing.morePages, previousCursor: progress.cursor });
     run.listed = listing.items.length;
     run.pulls = selected.numbers.length;

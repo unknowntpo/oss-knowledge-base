@@ -122,6 +122,8 @@ class FakeGitHub {
     const since = url.searchParams.get("since")!;
     const size = Number(url.searchParams.get("per_page"));
     const page = Number(url.searchParams.get("page"));
+    // GitHub refuses deep offsets of a large listing (seen 2026-10-14: page 10 answered, page 15 refused).
+    if (page > 10) return Response.json({ message: "Pagination with the page parameter is not supported for large datasets, please use cursor based pagination (after/before)" }, { status: 422 });
     const all = (this.items.get(repo) ?? []).filter((item) => Date.parse(item.updated_at) >= Date.parse(since))
       .sort((a, b) => (a.updated_at === b.updated_at ? a.number - b.number : a.updated_at < b.updated_at ? -1 : 1));
     // A real listing item carries a title and a body; the job must not keep them.
@@ -427,7 +429,19 @@ describe("Spec 022 review ingestion run", () => {
     const backlog = world();
     for (let index = 1; index <= 700; index += 1) backlog.github.add("kafka", index, at(NOW - DAY + index * 1_000), []);
     const capped = (await backlog.run()).projects[KAFKA.projectId]!;
-    expect(capped).toMatchObject({ pulls: 500, truncated: true, restRequests: 5, graphqlRequests: 20 });
+    expect(capped).toMatchObject({ pulls: 500, truncated: true, restRequests: 6, graphqlRequests: 20 }); // keyed pages repeat their last second: 99 new items a page
+  });
+
+  test("RV9: a day with more than 1,000 updated items (a stale-bot sweep of issues) is listed by key and does not fail on deep pages", async () => {
+    const w = world();
+    for (let index = 1; index <= 1_200; index += 1) w.github.add("datafusion", 10_000 + index, at(NOW - DAY + 1_000 + index * 30_000), null);
+    for (let index = 1; index <= 3; index += 1) w.github.add("datafusion", index, at(NOW - 120_000 + index * 1_000), [review(index, at(NOW - 120_000 + index * 1_000))]);
+    const run = (await w.run()).projects[DATAFUSION.projectId]!;
+    expect(run).toMatchObject({ ok: true, pulls: 3, added: 3, truncated: false, listed: 1_203 });
+    const pages = w.github.calls.filter((call) => call.repo === "datafusion" && call.kind === "list").map((call) => new URL(call.url).searchParams);
+    expect(pages.length).toBeGreaterThan(10);
+    expect(pages.every((params) => params.get("page") === "1")).toBe(true);
+    expect(w.state(DATAFUSION.projectId)!.updatedAt).toBe(at(NOW - 117_000));
   });
 
   test("RV24: the run record names, per project, the cursor, coverage, counts and requests", async () => {

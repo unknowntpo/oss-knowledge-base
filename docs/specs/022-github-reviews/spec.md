@@ -10,9 +10,9 @@ Builds on: Spec 004 (GitHub connector), Spec 009 (bounded memory), Spec 015 (rev
 > This spec is that ingestion. The code merged switched off: with
 > `GITHUB_REVIEWS` unset the Worker sends no extra request and `/health` is
 > byte-identical. On 2026-10-14 the owner decided to enable it on Dev
-> (decision 3); Prod stays off. Five choices are the owner's and are listed
-> in [Decisions needed from owner](#decisions-needed-from-owner), each with a
-> recommendation; the implementation follows the recommendations.
+> (decision 3); Prod stays off. The five choices listed in
+> [Decisions needed from owner](#decisions-needed-from-owner) were all
+> decided by the owner on 2026-10-14 (decision 5: a 12-month backfill).
 
 ## Intent
 
@@ -285,8 +285,15 @@ object is a contract Spec 019 will read, so it is listed as decision 4.
    last day; a later run lists from the stored cursor minus 300 s (the
    connector's rule). The first run's start is kept as `coverageFrom`.
 3. **Listing and cap.** `GET /repos/{o}/{r}/issues?state=all&sort=updated&direction=asc&since=…`,
-   100 a page. Only the number, the update time and whether it is a pull
-   request are kept. At most 500 pull requests newer than the cursor are
+   100 a page, paged by key: every request is `page=1` with `since` one
+   second before the last item received (the repeated second is
+   deduplicated; a page entirely inside one second moves to `page=2`).
+   Offset pages shift when an item is updated during the listing, and
+   GitHub answers 422 past about page 10 of a large listing, which a day
+   of more than about 1,000 updated issues would otherwise reach on every
+   later run. (GitHub's message points to native `after`/`before` cursors;
+   a later option, not used.) Only the number, the update time and whether
+   it is a pull request are kept. At most 500 pull requests newer than the cursor are
    read per project per run; those inside the 300 s overlap are read again
    on top and do not count, so a run always moves on. At most 20 pages are
    listed. The cursor moves to the newest item read, never backwards; when
@@ -343,11 +350,10 @@ object is a contract Spec 019 will read, so it is listed as decision 4.
       `coverageFrom` when the backfill started; the daily cursor's
       `updatedAt` is never written by a backfill;
     - lists what GitHub updated since its cursor (the first call: since
-      `from`; later calls: cursor minus 300 s), oldest first, **by key**:
-      every request is `page=1` with `since` one second before the last
-      item received, so an item updated during the walk cannot shift
-      another off a page, and GitHub's refusal of deep offsets (422 past
-      about page 10, observed 2026-10-14) never applies;
+      `from`; later calls: cursor minus 300 s), oldest first, by key like
+      the daily run (Behavior 3), so an item updated during the walk cannot
+      shift another off a page, and GitHub's refusal of deep offsets (422
+      past about page 10, observed 2026-10-14) never applies;
     - reads at most 500 new pull requests (the daily cap), 25 per GraphQL
       request, and stores reviews submitted in [`from`, `until`) into the
       same month objects, merged by `reviewId`, each write conditional on
@@ -437,7 +443,7 @@ project last updated mid-window: 93 and 53 reviews in the window):
 | Issues in the same listing | 0 | 3,194 | 3,194 |
 | Calls of 500 pull requests | 8 | 12 | **12 calls** (each call serves both; Kafka is done after 8) |
 | Listing requests (99 new items a keyed page, plus one a call) | about 46 | about 104 | about 150 |
-| GraphQL requests, about 1 point each (25 pull requests, plus the one re-read at each cursor) | about 155 | about 246 | about 400 |
+| GraphQL requests, about 1 point each (25 pull requests a request; each call after the first also re-reads every pull request updated in the 300 s before its cursor, usually one or two, at most a listing page: up to 4 more requests a call) | about 155 (bound about 185) | about 246 (bound about 290) | about 400 (bound about 475) |
 | Reviews per pull request (sample) | 4.65 | 2.65 | |
 | Rows | about 17,100 | about 15,500 (18,300 by the measured week) | about 33,000 |
 | Month objects | 13, about 3.8 MB | 13, 3.5 to 4.1 MB | about 8 MB |
@@ -449,7 +455,7 @@ Per call, per project, at most 500 pull requests: about 8 listing pages and
 20 GraphQL requests, about 35 s (the measured 35-day run cut at the cap:
 34.8 s and 35.2 s). A call serving both projects takes about 70 s; calls 9
 to 12 serve DataFusion only, about 35 s. The whole backfill is about
-12 minutes of calls.
+12 minutes of calls, about 14 with the dry call and the checks.
 
 | Budget | Per call | Whole 12-month backfill | Limit |
 | --- | --- | --- | --- |
@@ -463,7 +469,7 @@ to 12 serve DataFusion only, about 35 s. The whole backfill is about
 Even all 12 calls inside one hour use about 3% of the REST and 8% of the
 GraphQL budget, so the chunk (the daily cap of 500) cannot starve the daily
 publication; the binding limit is the call's wall time, which is why the
-chunk is not larger. Calls are not made between 22:00 and 22:30 UTC, so
+chunk is not larger. The calls finish before 22:00 UTC or start after 22:30 UTC, so
 they do not overlap the daily tick (an overlap is safe, a `conflict` the
 next call repairs, but wastes a call).
 
@@ -554,7 +560,7 @@ set wrongly.
 | RV13 | GraphQL answers 502 twice for one project | That project fails and writes nothing; the other completes; the next run reads the same day |
 | RV15 | The cursor write fails after the month write | The next run adds nothing, writes no month, moves the cursor |
 | RV16 | Another run writes the month in between | `conflict`; the other run's object stays; the cursor stays |
-| RV22 | The busiest measured day; 700 pull requests | 3 listing pages and 7 GraphQL requests; 500 read, 5 pages and 20 GraphQL requests |
+| RV22 | The busiest measured day; 700 pull requests | 3 listing pages and 7 GraphQL requests; 500 read, 6 keyed pages and 20 GraphQL requests |
 | RV26 | Both Wrangler files; a Dev tick on an empty bucket | Dev `metadata@1`, Prod unset; each project lists from one day back |
 | RV27 | The backfill route: wrong token, flag unset, `from` missing, malformed or too old, a dry call, a real call | 401, 403, 400 with nothing sent, 200 writing nothing, 200 with both projects done |
 | RV28 | Six months of history after a first day, cap 5 | Four calls read 5, 6, 6 and 3 pull requests; reviews before `from` and at or after `until` are not stored; `coverageFrom` moves to `from`, `updatedAt` does not |
@@ -578,7 +584,7 @@ Each item: precondition → action → observable result → evidence.
 - RV6: given the recorded DataFusion #25716, its dismissed review is a row in state `DISMISSED`; given a stored `APPROVED` row read again as `DISMISSED`, the row keeps `stateBefore: APPROVED` → case rows and run test.
 - RV7: given type `Bot` without a `[bot]` suffix (recorded), a `[bot]` suffix, or a machine user of the project, the row has `isBot: true`; given `abbott`, or a machine user of another project, it has not; both GitHub projects are ingested with their machine users → case rows and Worker test.
 - RV8: given a review submitted by the pull request's author, the row has `reviewer` equal to `prAuthor`, and the run counts it under `selfReviews`, bots under `botReviews` → run test.
-- RV9: given more new pull requests than the cap, a run reads the cap's worth oldest first, reports `truncated`, and stops the cursor at the last one read; pull requests inside the overlap do not count against the cap; later runs read the rest and no review is lost → case rows and run test.
+- RV9: given more new pull requests than the cap, a run reads the cap's worth oldest first, reports `truncated`, and stops the cursor at the last one read; pull requests inside the overlap do not count against the cap; later runs read the rest and no review is lost; given a day of 1,200 updated issues and 3 pull requests against a GitHub that refuses pages past 10, the run lists by key (`page=1` only), reads the 3 and moves the cursor past them → case rows and run tests.
 - RV10: given the query and any run, no field named `body`, `bodyText`, `bodyHTML`, `path` or `diffHunk` is requested; a stored row has exactly the nine keys of the data model (`stateBefore` is the tenth, on a dismissed row only); nothing stored contains a listing item's title or body; every key is under `internal/github-reviews/v1/` → case rows and run test.
 - RV11: given the recorded fixture of 52 Kafka pull requests merged 2026-10-07 to 2026-10-13, the trailer comparison reports 51 with a trailer, 73 names, 69 matched, the 4 unmatched by name, and 14 approvers not named; the parser drops bracketed and bare addresses; the fixture contains no address → case rows.
 - RV12: given reviews submitted at 2026-09-30T23:59:59Z and 2026-10-01T00:00:00Z, they are stored in the objects of 2026-09 and 2026-10, each ordered by time then id; a month object of another project is refused → case rows and run test.
@@ -604,7 +610,7 @@ Each item: precondition → action → observable result → evidence.
 - RV33: given 700 pull requests updated since `from`, one call reads 500 of them with 6 keyed listing pages and 20 GraphQL requests, reads 5 and writes 5 R2 objects (Kafka: cursor, progress, one month read; month and progress written; DataFusion, with nothing to read, completes: cursor and progress read, cursor and progress written; the run record) → run test.
 - RV35: [measure] the 12-month backfill (`from` 2025-10-14): 3,674 Kafka and 5,843 DataFusion pull requests and 3,194 DataFusion issues to list (GitHub search, 2026-10-14), 12 calls, about 150 listing and 400 GraphQL requests, about 33,000 rows in 26 month objects of about 8 MB; `bun run measure:github-reviews -- --backfill-from 2025-10-14` measures it read-only (not yet run).
 - RV21: [measure] requests and time of one run against the live API: 10 requests, GraphQL cost 7, 10.5 s for a day of both projects; 31 requests for a week; 56 for a run cut at the cap (`bun run measure:github-reviews [-- --days N]`, 2026-10-14). Limits: 5,000 REST requests and 5,000 GraphQL points an hour for the token; 20,000 subrequests and 300,000 ms CPU per invocation.
-- RV22: given the busiest measured day (70 Kafka pull requests; 85 DataFusion pull requests and 30 issues), a run makes 1 + 3 and 2 + 4 GitHub requests and 4 bucket reads and 5 writes; given 700 new pull requests, a run reads 500 with 5 listing pages and 20 GraphQL requests → run test.
+- RV22: given the busiest measured day (70 Kafka pull requests; 85 DataFusion pull requests and 30 issues), a run makes 1 + 3 and 2 + 4 GitHub requests and 4 bucket reads and 5 writes; given 700 new pull requests, a run reads 500 with 6 keyed listing pages (99 new items a page) and 20 GraphQL requests → run test.
 - RV23: [measure] a row is 224 to 226 bytes; a month is about 322 KB (Kafka) and 343 KB (DataFusion), a year about 8 MB for both (`bun run measure:github-reviews -- --days 7`: 74,017 and 78,593 bytes for 329 and 351 rows).
 
 ### Observability
@@ -634,8 +640,7 @@ and 9 R2 requests a day, one `/health` field. Nothing in the publication.
 
 ## Enabling on Dev
 
-1. Owner approves decisions 1 to 4 below (decision 3, enable on Dev:
-   decided 2026-10-14).
+1. Decisions 1 to 5 below: decided by the owner on 2026-10-14.
 2. One PR sets `"GITHUB_REVIEWS": "metadata@1"` in `vars` of
    `apps/data-publisher-worker/wrangler.development.jsonc` and updates the
    `GITHUB_REVIEWS` row of `docs/feature-map.md`. CI deploys Dev on merge.
@@ -678,10 +683,10 @@ Prod stays off: its data Worker has never been deployed (Spec 018).
 
 | # | Decision | Recommendation | Cost of the alternative |
 | --- | --- | --- | --- |
-| 1 | Inline review comments: individual rows, grouped per review, or counted | **Counted on the review row** (implemented) | Individual rows with file paths: +3 requests a day, about 131 more rows a day, and the draft-time trap of `/pulls/comments?since=`; worth it only if the profile should show areas by file path |
-| 2 | Do reviews enter Feed, Detail and Search | **No: metadata only, no text fetched** (implemented). Searchable review text is a later decision of its own | As Feed records: +37% events and Search chunks (+83% with inline comments), six in ten of them empty, state at 65% of the measured memory limit |
+| 1 | Inline review comments: individual rows, grouped per review, or counted | **Decided 2026-10-14 (owner): counted on the review row** (implemented) | Individual rows with file paths: +3 requests a day, about 131 more rows a day, and the draft-time trap of `/pulls/comments?since=`; worth it only if the profile should show areas by file path |
+| 2 | Do reviews enter Feed, Detail and Search | **Decided 2026-10-14 (owner): no, metadata only, no text fetched** (implemented). Searchable review text is a later decision of its own | As Feed records: +37% events and Search chunks (+83% with inline comments), six in ten of them empty, state at 65% of the measured memory limit |
 | 3 | Enable on Dev | **Decided 2026-10-14: yes**, by the steps above; Prod stays off | Not enabling blocks Spec 019 slice 2; each day not enabled is a day of reviews a later backfill has to fetch |
-| 4 | The month object as the contract Spec 019 reads (`osskb.github-reviews.v1`, the nine fields, keys under `internal/`) | **Accept as proposed**; it is versioned, and Spec 019 slice 2 may ask for a field before anything reads it | Changing it after Spec 019 reads it needs a migration of stored months |
+| 4 | The month object as the contract Spec 019 reads (`osskb.github-reviews.v1`, the nine fields, keys under `internal/`) | **Decided 2026-10-14 (owner): accepted as proposed**; it is versioned, and Spec 019 slice 2 may ask for a field before anything reads it | Changing it after Spec 019 reads it needs a migration of stored months |
 | 5 | Backfill | **Decided 2026-10-14: 12 months** (2025-10-14 onwards), by the manual route of Behavior 13; the store keeps at least 13 months (Behavior 14). The owner leans to a 12-month horizon for Spec 019 too; that decision stays in PR #63 | 6 months: 5 and 8 calls. Re-measured 12 months: 12 calls, about 550 requests (the earlier 509 counted offset pages and no re-read at each cursor) |
 
 ## Could not be verified
@@ -714,8 +719,9 @@ Prod stays off: its data Worker has never been deployed (Spec 018).
   repeats the chunk.
 - GitHub's 422 for deep offset pages was seen past about page 10 of a
   12-month listing (page 10 answered, page 15 refused); the exact limit is
-  not documented. The daily run still pages by offset (at most 20 pages,
-  about 8 for 500 DataFusion pull requests); see gardening G72.
+  not documented. Both the daily run and the backfill page by key
+  (Behavior 3), so neither reaches it; a fake GitHub that refuses pages
+  past 10 tests a day of 1,203 listed items (RV9).
 - GitHub's terms for storing reviewer logins: Spec 019 decision 8 covers it;
   this spec stores logins the Feed already stores for authors.
 

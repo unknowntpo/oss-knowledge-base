@@ -202,7 +202,7 @@ curl -sS https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/health | jq 
 | Review queue | manual `POST /review-queue/run` | 3–4 | 4–5 |
 | GitHub review ingestion (Spec 022) | Dev: each publisher tick (`GITHUB_REVIEWS=metadata@1`); Prod: off | 5 (two month objects, two cursors, the run record); up to 9 | 4; up to 8 |
 | GitHub review backfill (Spec 022, once) | manual `POST /github-reviews/backfill`, about 12 calls | per call: months written (at most 13 per project), progress per project, the record; about 120 in all, bound about 300 | per call: cursor, progress, months read per project; at most about 300 in all |
-| `/health` | per request | 0 | 1 |
+| `/health` | per request | 0 | 1; 3 while `GITHUB_REVIEWS` is set (also `githubReviews` and `githubReviewsBackfill`) |
 | Pages `/api/*` | per request | 0 | 2–3; `/api/search` at most 13 on Dev |
 | CI `bootstrap-r2` | manual workflow | one per object | 0 |
 
@@ -624,8 +624,9 @@ Before the first call:
    passed the conflict check above (`monthsWritten` at least 1 or `changed`
    above 0, no `conflict`). The backfill replaces month objects with the
    same conditional write.
-2. It is not between 22:00 and 22:30 UTC (the daily tick). An overlap is
-   safe (a `conflict`, repaired by the next call) but wastes a call.
+2. The whole sequence takes about 14 minutes: finish before 22:00 UTC or
+   start after 22:30 UTC (the daily tick). An overlap is safe (a
+   `conflict`, repaired by the next call) but wastes a call.
 
 Dry call (reads GitHub, writes nothing; expect `ok: true`, each project
 `pulls` about 500, `done: false`):
@@ -638,7 +639,7 @@ curl -sS --max-time 300 -X POST -H "Authorization: Bearer $MANUAL_TRIGGER_TOKEN"
 
 Then the calls, about **12** (Kafka is done after about 8, DataFusion after
 about 12); each takes up to about 70 s while `curl` waits, about 12 minutes
-in all. In bash or zsh:
+of calls (about 14 with the dry call and checks). In bash or zsh:
 
 ```sh
 URL='https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/github-reviews/backfill?from=2025-10-14'
@@ -682,6 +683,6 @@ no row. A project that is done sends nothing to GitHub on later calls.
 
 Expected at the end: both projects `done: true`, about 17,000 Kafka and
 15,000 to 18,000 DataFusion rows added in all, 13 month objects per project
-(about 4 MB each project), about 150 listing and 400 GraphQL requests, and
+(about 4 MB each project), about 150 listing and 400 GraphQL requests (at most about 475 with the 300 s overlap), and
 R2 about 120 Class A (bound about 300) and at most about 300 Class B. Record
 the totals as RV35 evidence.
