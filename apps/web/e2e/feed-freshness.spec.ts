@@ -7,8 +7,8 @@ import { testPlanRows } from "../test/freshness.cases";
 const generatedAt = Date.parse("2026-08-25T12:00:00Z");
 const hour = 60 * 60_000;
 // Expected texts come from the case file so the E2E and unit plans cannot disagree.
-// The last text before the boundary: 30 s short of 27 h still reads 26 h.
-const freshText = testPlanRows.find((row) => row.id === "F2" && row.en === "Updated 26 h ago")!.en;
+// The last text before the boundary: 30 s short of 27 h still reads 26 h, as Spec 021's overdue warning.
+const overdueText = testPlanRows.find((row) => row.id === "F2" && row.now === "2026-10-15T01:06:30Z")!.en;
 const staleText = testPlanRows.find((row) => row.id === "F2" && row.stale === true)!.en;
 
 test.beforeEach(async ({ page }, testInfo) => {
@@ -21,8 +21,8 @@ test("F3: an open page turns stale when the stale threshold (one day and three h
   await page.clock.install({ time: generatedAt + STALE_AFTER_MS - 30_000 });
   await page.goto("/#/kafka/threads");
   const pill = page.locator(".demo-pill");
-  await expect(pill).toHaveText(freshText);
-  await expect(pill).toHaveClass(/is-live/u);
+  await expect(pill).toHaveText(overdueText);
+  await expect(pill).toHaveClass(/is-overdue/u);
 
   await page.clock.runFor(60_000);
   await expect(pill).toHaveText(staleText);

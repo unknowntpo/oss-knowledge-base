@@ -842,18 +842,22 @@ the two `viewer/` items below.
 - **Layer:** measurement (`copiedObjectCount` of retry runs on Dev).
 - **Source:** Spec 018 simplification review, 2026-10-13.
 
-### G66. A failed or overdue daily publication is not shown in the UI before 27 h
-- **Where:** `apps/web/src/freshness.ts` (`STALE_AFTER_MS` 27 h),
-  `apps/web/src/App.vue` (`.demo-pill`); `/health` `lastRun.ok`, `followUp`.
-- **Why:** with one publication a day the pill warns only 27 h after the last
-  good run, so for three hours after a missed run it reads "Updated 24–26 h
-  ago" with live styling, and a failed run or a waiting retry is visible
-  only in `/health`. The standing rule is that a stall shows in the UI
-  (Spec 011); Spec 018 does not meet it for that window. The deployed E2E
-  runs only on deploys, so CI does not notice a missed daily run either.
-- **Fix:** own spec: let the page learn the publisher's state (for example
-  the last run's outcome or the next expected run in `/api/feed` metadata)
-  and warn as soon as a run is overdue or failed; consider a scheduled
+### G66. After a follow-up or manual release, an overdue daily run shows late
+- **Where:** `apps/web/src/freshness.ts` (`OVERDUE_AFTER_MS`),
+  `apps/data-publisher-worker/src/pipeline.ts` (`generatedAt` =
+  `materializedAt`); `/health` `lastRun.ok`, `lastRun.sources`, `followUp`.
+- **Why:** Spec 021 shows "Daily update late" from 24 h 30 min after the
+  release the page has (issue #64). A release from a catch-up, retry or
+  `POST /run` carries that run's time, not the Cron tick's, so the next
+  day's missed run is shown later by that offset (up to 2 h 55 min after the
+  last retry; more after a manual run), at worst only by the stale pill. A
+  run that published while one source failed, and a waiting retry, are
+  still visible only in `/health`. The deployed E2E runs only on deploys,
+  so CI does not notice a missed daily run either.
+- **Fix:** put the Cron tick's time (or the next expected run) in the Feed
+  manifest, which is written anyway (no extra R2 write), and count from it;
+  a manifest contract change, so the owner decides. Consider a scheduled
   check of `/health`.
-- **Layer:** spec, then E2E with a controlled clock.
-- **Source:** independent verifier of PR #62, Spec 018 "Known limits".
+- **Layer:** spec (manifest contract), then the Spec 021 case file.
+- **Source:** independent verifier of PR #62, Spec 018 "Known limits";
+  Spec 021 "Known limits".
