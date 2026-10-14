@@ -12,6 +12,11 @@ import type { DigestBucket } from "./store";
 export const DEFER_MS = 15 * 60_000;
 export const MAX_DEFERRALS = 4;
 
+/** STUB (old behaviour, for the fail-first run). */
+export function publisherBusy(status: unknown): boolean {
+  return (status as { running?: unknown } | null)?.running === true;
+}
+
 export interface DigestStorage {
   get<T>(key: string): Promise<T | undefined>;
   put(key: string, value: unknown): Promise<void>;
@@ -30,8 +35,8 @@ export interface DigestRunnerDeps {
   readonly model?: DigestModel;
   readonly now: () => Date;
   readonly delay: (ms: number) => Promise<void>;
-  /** Whether the publisher reports a running publication (`/health.running`). */
-  readonly publisherRunning: () => Promise<boolean>;
+  /** Whether the publisher is running or has a follow-up waiting (`publisherBusy` of its status). */
+  readonly publisherBusy: () => Promise<boolean>;
 }
 
 export interface DigestHealth {
@@ -86,7 +91,7 @@ export class DigestRunner {
   async alarm(): Promise<void> {
     if (!this.deps.enabled) return;
     const deferrals = (await this.deps.storage.get<number>("deferrals")) ?? 0;
-    if (deferrals < MAX_DEFERRALS && await this.deps.publisherRunning()) {
+    if (deferrals < MAX_DEFERRALS && await this.deps.publisherBusy()) {
       await this.deps.storage.put("deferrals", deferrals + 1);
       await this.deps.storage.setAlarm(this.deps.now().getTime() + DEFER_MS);
       return;

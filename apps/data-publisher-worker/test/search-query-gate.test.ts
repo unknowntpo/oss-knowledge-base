@@ -99,21 +99,20 @@ describe("Spec 016 query gate of the data Worker", () => {
   });
 
   test("H67: the three daily caps fit the included neurons at their calibrated estimates, and the monthly index queries fit the included dimensions", () => {
-    const { digest, digestCalibrated, searchEmbedding, searchQuery, included } = DAILY_NEURON_BUDGET;
-    expect([digest, searchEmbedding, searchQuery, included]).toEqual([4_500, 2_500, 1_000, 10_000]);
+    const { digest, searchEmbedding, searchQuery, included } = DAILY_NEURON_BUDGET;
+    expect([digest, searchEmbedding, searchQuery, included]).toEqual([5_000, 2_500, 1_000, 10_000]);
     expect(digest).toBe(DAILY_CAP.dev);
-    // The digest's cap counts its own estimate, which undercounts: 2026-10-08, three dry runs
-    // estimated at 4,507 neurons cost $0.06306 on the gateway, 5,733 neurons, a ratio of 1.272.
+    // The digest's price-table estimate undercounts: 2026-10-08, three dry runs estimated at 4,507
+    // neurons cost $0.06306 on the gateway, 5,733 neurons, a ratio of 1.272. Since Spec 014 slice 2e
+    // its ledger applies the factor, so its cap is what it can cost (Spec 014 D90, D91).
     expect(Math.round(0.06306 / USD_PER_NEURON)).toBe(5_733);
     expect(Math.round((5_733 / 4_507) * 1_000) / 1_000).toBe(1.272);
     expect(DIGEST_NEURON_CALIBRATION).toBe(1.28);
-    expect(digestCalibrated).toBe(5_760);
-    expect(digestCalibrated).toBe(Math.ceil(digest * DIGEST_NEURON_CALIBRATION));
-    // The embedding cap is already calibrated and the query cap is an upper bound.
-    expect(digestCalibrated + searchEmbedding + searchQuery).toBe(9_260);
-    expect(included - (digestCalibrated + searchEmbedding + searchQuery)).toBe(740);
-    // Uncalibrated, the same caps read 8,000 and hid 1,260 neurons.
-    expect(digest + searchEmbedding + searchQuery).toBe(8_000);
+    // The embedding cap is calibrated too and the query cap is an upper bound.
+    expect(digest + searchEmbedding + searchQuery).toBe(8_500);
+    expect(included - (digest + searchEmbedding + searchQuery)).toBe(1_500);
+    // Before slice 2e the digest's 4,500 could cost 5,760, and the three caps 9,260.
+    expect(Math.ceil(4_500 * DIGEST_NEURON_CALIBRATION) + searchEmbedding + searchQuery).toBe(9_260);
     // Vectorize bills (stored vectors + queries) × dimensions; 50 M a month are included.
     const monthly = (chunks: number) => (chunks + 31 * DEFAULT_QUERY_GATE_LIMITS.maxIndexQueriesPerDay) * DIMENSIONS;
     expect(monthly(8_780)).toBe(40_734_720);

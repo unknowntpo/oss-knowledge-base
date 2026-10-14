@@ -71,6 +71,11 @@ export function embeddingNeurons(model: PricedModel, estimatedTokens: number): n
  */
 export const DIGEST_NEURON_CALIBRATION = 1.28;
 
+/** STUB (old behaviour, for the fail-first run). */
+export function digestLedgerNeurons(priceTableNeurons: number): number {
+  return priceTableNeurons;
+}
+
 const DEV_DIGEST_CAP = 4_500;
 
 /**

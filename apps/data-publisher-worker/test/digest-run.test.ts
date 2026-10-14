@@ -13,12 +13,12 @@ import { detailPoolKey, FEED_DETAIL_POOL, MANIFEST_KEY, sha256Digest } from "@os
 import fixtureJson from "../../../packages/reference-pipeline/test/fixtures/topic-digest-kafka-2026-10-06.json";
 import { testPlanRows } from "../../../packages/reference-pipeline/test/topic-digest-run.cases";
 import {
-  estimateTokens,
+  estimateTokens, DAILY_CAP, DAILY_NEURON_BUDGET, DIGEST_NEURON_CALIBRATION, digestLedgerNeurons, settledNeurons,
   callEstimate, CANARY_WORDS, canaryWord, clefRequest, CLEF_EXCERPT_CHARS, placement, clefStateTokens, type ClefModel, type ClefRequest, type ClefResponse,
 } from "@oss-knowledge-base/reference-pipeline";
 import { ModelCallError, ModelCalls, RETRY_DELAY_MS, type DigestModel } from "../src/digest/model";
 import { DIGEST_ROOT, reserveCalls, runDigest, TRANSLATE_BATCH, type DigestRunInput, type DigestRunResult } from "../src/digest/run";
-import { DEFER_MS, DigestRunner, type DigestStorage } from "../src/digest/runner";
+import { DEFER_MS, DigestRunner, publisherBusy, type DigestStorage } from "../src/digest/runner";
 import type { DigestBucket } from "../src/digest/store";
 import { cronTarget, digestModel, mergeHealth } from "../src/index";
 import { responseText, toModelCallError, WorkersAiModel, type AiBinding } from "../src/digest/workers-ai";
@@ -103,15 +103,17 @@ function kindOf(prompt: string): Kind {
 class FakeModel implements DigestModel {
   readonly calls: Kind[] = [];
   readonly prompts: string[] = [];
+  readonly modelsUsed: PricedModel[] = [];
   readonly maxTokens: [Kind, number][] = [];
   inFlight = 0;
   maxInFlight = 0;
   constructor(private readonly fail: (kind: Kind, index: number, prompt: string) => Error | string | undefined = () => undefined) {}
 
-  async run(_model: PricedModel, prompt: string, maxTokens: number): Promise<string> {
+  async run(model: PricedModel, prompt: string, maxTokens: number): Promise<string> {
     const kind = kindOf(prompt);
     const index = this.calls.filter((item) => item === kind).length;
     this.calls.push(kind);
+    this.modelsUsed.push(model);
     this.maxTokens.push([kind, maxTokens]);
     this.prompts.push(prompt);
     this.inFlight += 1;
@@ -214,12 +216,19 @@ class MemoryStorage implements DigestStorage {
   async setAlarm(time: number) { this.alarm = time; }
 }
 
-function runner(bucket: MemoryBucket, storage: MemoryStorage, publisherRunning: () => Promise<boolean> = async () => false, model?: DigestModel) {
+type DeployConfig = { triggers?: { crons?: string[] }; vars?: Record<string, string>; ai?: { binding?: string } };
+async function deployConfig(environment: "development" | "production"): Promise<DeployConfig> {
+  return JSON.parse((await Bun.file(new URL(`../wrangler.${environment}.jsonc`, import.meta.url)).text()).replace(/^\s*\/\/.*$/gmu, "")) as DeployConfig;
+}
+const busy = (status: unknown) => (publisherBusy(status) ? "busy" : "not busy");
+const LLAMA = "@cf/meta/llama-3.3-70b-instruct-fp8-fast" as const;
+
+function runner(bucket: MemoryBucket, storage: MemoryStorage, publisherBusy: () => Promise<boolean> = async () => false, model?: DigestModel) {
   let clock = NOW.getTime();
   const instance = new DigestRunner({
     storage, bucket, profile: KAFKA_DIGEST_PROFILE, environment: "development", enabled: true,
     ...(model === undefined ? {} : { model }),
-    now: () => new Date(clock), delay: noDelay, publisherRunning,
+    now: () => new Date(clock), delay: noDelay, publisherBusy,
   });
   return { instance, advance: (ms: number) => { clock += ms; } };
 }
@@ -496,7 +505,7 @@ const cases: Record<string, () => Promise<string>> = {
       ? "returns en and zh-Hant; 0 R2 writes; spend added to today; lastRun.dryRun true" : `${response.status} ${bucket.writes.length}`;
   },
   // Added after the slice 2 mutation run.
-  "rate limit|constructed: today's estimated spend already at the Dev cap (4,500)": async () => {
+  "rate limit|constructed: today's estimated spend already at the daily cap": async () => {
     const model = new FakeModel();
     const { bucket, result } = await published(model, { spentToday: 4_500 });
     const { en } = await objects(bucket, result);
@@ -644,7 +653,7 @@ const cases: Record<string, () => Promise<string>> = {
   },
   "spend|constructed: today's spend plus the next call's estimate equals the cap exactly": async () => {
     const prompt = "x".repeat(4_000);
-    const estimate = callEstimate("@cf/meta/llama-3.3-70b-instruct-fp8-fast", prompt, 300);
+    const estimate = digestLedgerNeurons(callEstimate("@cf/meta/llama-3.3-70b-instruct-fp8-fast", prompt, 300));
     const model: DigestModel = { run: async () => "ok" };
     const calls = new ModelCalls(model, { spent: 4_500 - estimate, cap: 4_500 }, noDelay);
     const output = await calls.call("@cf/meta/llama-3.3-70b-instruct-fp8-fast", prompt, 300);
@@ -654,7 +663,7 @@ const cases: Record<string, () => Promise<string>> = {
   },
   "spend|constructed: a call that fails twice": async () => {
     const prompt = "x".repeat(4_000);
-    const estimate = callEstimate("@cf/meta/llama-3.3-70b-instruct-fp8-fast", prompt, 300);
+    const estimate = digestLedgerNeurons(callEstimate("@cf/meta/llama-3.3-70b-instruct-fp8-fast", prompt, 300));
     const calls = new ModelCalls({ run: async () => { throw new Error("down"); } }, { spent: 100, cap: 4_500 }, noDelay);
     await calls.call("@cf/meta/llama-3.3-70b-instruct-fp8-fast", prompt, 300);
     return calls.spentToday === 100 + 2 * estimate && calls.calls === 2 ? "both attempts add the pre-call estimate to today's spend (G21)" : `${calls.spentToday}`;
@@ -1168,13 +1177,110 @@ const cases: Record<string, () => Promise<string>> = {
     const { result } = await published(model);
     return `style.contentFree ${result.style.contentFree} of ${result.style.sentences}`;
   },
+  // Slice 2e (the Dev schedule, 2026-10-14).
+  "cron|Dev config: the tick 47 22 * * * fires": async () => cronTarget("47 22 * * *", (await deployConfig("development")).vars?.DIGEST_CRON),
+  "cron|Dev config: the publisher tick 7 22 * * * fires": async () => cronTarget("7 22 * * *", (await deployConfig("development")).vars?.DIGEST_CRON),
+  "cron|Prod config: the tick 47 22 * * * fires": async () => cronTarget("47 22 * * *", (await deployConfig("production")).vars?.DIGEST_CRON),
+  "deferral|publisher status {running: false, followUp: {reason: catch-up}}": async () => busy({ running: false, followUp: { reason: "catch-up", at: "2026-10-14T22:15:00.000Z", catchUps: 1, retries: 0 } }),
+  "deferral|publisher status {running: false, followUp: {reason: retry}}": async () => busy({ running: false, followUp: { reason: "retry", at: "2026-10-14T22:20:00.000Z", catchUps: 0, retries: 1 } }),
+  "deferral|publisher status {running: true, followUp: null}": async () => busy({ running: true, followUp: null }),
+  "deferral|publisher status {running: false, followUp: null}": async () => busy({ running: false, followUp: null }),
+  "deferral|publisher status {running: false} (no followUp field)": async () => busy({ running: false }),
+  "deferral|constructed: a catch-up is waiting at the first alarm and gone 15 min later": async () => {
+    const bucket = new MemoryBucket();
+    await publish(bucket);
+    const storage = new MemoryStorage();
+    let status: unknown = { running: false, followUp: { reason: "catch-up", at: "2026-10-07T01:42:00.000Z", catchUps: 1, retries: 0 } };
+    const { instance, advance } = runner(bucket, storage, async () => publisherBusy(status));
+    await instance.alarm();
+    const rearmed = storage.alarm! - NOW.getTime();
+    const ranEarly = storage.values.has("lastRun");
+    status = { running: false, followUp: null };
+    advance(DEFER_MS);
+    await instance.alarm();
+    const lastRun = (await instance.health()).lastRun;
+    return rearmed === DEFER_MS && !ranEarly && lastRun?.ok === true && lastRun.deferred === 1
+      ? "re-armed once; then runs; lastRun.deferred 1" : `${rearmed} ${ranEarly} ${lastRun?.deferred}`;
+  },
+  "errors|binding throws \"2003: Rate limited\" (Dev dry run 3, 2026-10-08)": async () => {
+    const error = toModelCallError(new Error("2003: Rate limited"));
+    return `status ${error.status}; ${modelErrorKind(error)}`;
+  },
+  "rate limit|constructed: the gateway refuses the first card call with 2003: Rate limited": async () => {
+    const model = new FakeModel((kind, index) => (kind === "summarize" && index === 0 ? toModelCallError(new Error("2003: Rate limited")) : undefined));
+    const { result } = await published(model);
+    const after = model.calls.slice(model.calls.indexOf("summarize") + 1);
+    return after.length === 0 && result.limited && result.modelErrors.length === 1 && result.modelErrors[0]!.kind === "limit" && result.modelErrors[0]!.message === "2003: Rate limited"
+      ? "no retry; remaining calls skipped; limited true; modelErrors kind limit" : `${after.join()} ${JSON.stringify(result.modelErrors)}`;
+  },
+  "failed run|constructed: a digest is published; the next run cannot read the Feed manifest": async () => {
+    const bucket = new MemoryBucket();
+    await publish(bucket);
+    const storage = new MemoryStorage();
+    const { instance } = runner(bucket, storage);
+    await instance.alarm();
+    const pointer = bucket.objects.get(POINTER);
+    const manifest = bucket.objects.get(MANIFEST_KEY)!;
+    bucket.objects.delete(MANIFEST_KEY);
+    const before = JSON.stringify([...bucket.objects]);
+    const writes = bucket.writes.length;
+    await instance.alarm();
+    const failed = (await instance.health()).lastRun!;
+    const unchanged = pointer !== undefined && JSON.stringify([...bucket.objects]) === before && bucket.writes.length === writes;
+    // Control: the same runner moves the pointer once a release can be read again.
+    bucket.objects.set(MANIFEST_KEY, manifest);
+    await publish(bucket, { releaseId: "next-release" });
+    await instance.alarm();
+    const moved = bucket.objects.get(POINTER) !== pointer && (await instance.health()).lastRun!.ok;
+    return !failed.ok && failed.failureKind === "source-read" && unchanged && moved
+      ? "lastRun ok false, source-read; pointer and objects unchanged; the next good run moves the pointer" : `${failed.ok} ${failed.failureKind} ${unchanged} ${moved}`;
+  },
+  "spend|constructed: a text call the price table settles at N neurons": async () => {
+    const prompt = "x".repeat(40_000);
+    const raw = settledNeurons(LLAMA, prompt, "ok");
+    const calls = new ModelCalls({ run: async () => "ok" }, { spent: 0, cap: 1_000_000 }, noDelay);
+    await calls.call(LLAMA, prompt, 300);
+    return raw > 100 && DIGEST_NEURON_CALIBRATION === 1.28 && calls.spentToday === Math.ceil(raw * 1.28) ? "today's spend grows by ceil(N × 1.28)" : `${raw} ${calls.spentToday}`;
+  },
+  "spend|constructed: a call that fits the cap at its price-table estimate but not at × 1.28": async () => {
+    const prompt = "x".repeat(4_000);
+    const raw = callEstimate(LLAMA, prompt, 300);
+    const model: DigestModel = { run: async () => "ok" };
+    const calls = new ModelCalls(model, { spent: 5_000 - raw, cap: 5_000 }, noDelay);
+    const output = await calls.call(LLAMA, prompt, 300);
+    // Control: the same call runs when the calibrated estimate fits exactly.
+    const fits = new ModelCalls(model, { spent: 5_000 - Math.ceil(raw * 1.28), cap: 5_000 }, noDelay);
+    return output === undefined && calls.limited && calls.calls === 0 && await fits.call(LLAMA, prompt, 300) === "ok"
+      ? "call skipped; limited true" : `${output} ${calls.limited} ${calls.calls}`;
+  },
+  "spend|constructed: a Clef request the price table counts as 1 neuron": async () => {
+    const calls = new ModelCalls(new FakeDecider(), { spent: 0, cap: 5_000 }, noDelay);
+    // An empty batch prices at 0 and is floored to 1 before calibration.
+    const answered = await calls.decide("@cf/cloudflare/clef-flash", clefRequest([], KAFKA_DIGEST_PROFILE));
+    return answered !== undefined && calls.spentToday === 2 ? "today's spend grows by 2" : `${calls.spentToday}`;
+  },
+  "spend|constructed: a run with a fake model": async () => {
+    const prompts: [string, string][] = [];
+    const inner = new FakeModel();
+    const model: DigestModel = { run: async (name, prompt, maxTokens) => {
+      const text = await inner.run(name, prompt, maxTokens);
+      prompts.push([prompt, text]);
+      return text;
+    } };
+    const { bucket, result } = await published(model, { cap: 1_000_000 });
+    const { en, zh } = await objects(bucket, result);
+    const raw = prompts.reduce((sum, [prompt, text], index) => sum + settledNeurons(inner.modelsUsed[index]!, prompt, text), 0);
+    const ledger = prompts.reduce((sum, [prompt, text], index) => sum + Math.ceil(settledNeurons(inner.modelsUsed[index]!, prompt, text) * 1.28), 0);
+    return ledger > raw && result.estimatedNeurons === ledger && result.spentToday === ledger && en.coverage.estimatedNeurons === ledger && zh.coverage.estimatedNeurons === ledger
+      ? "lastRun.estimatedNeurons, spentToday and coverage.estimatedNeurons are the calibrated sum" : `${raw} ${ledger} ${result.estimatedNeurons} ${en.coverage.estimatedNeurons}`;
+  },
   "run control|DIGEST_ENABLED unset (Prod)": async () => {
     const bucket = new MemoryBucket();
     await publish(bucket);
     const storage = new MemoryStorage();
     const disabled = new DigestRunner({
       storage, bucket, profile: KAFKA_DIGEST_PROFILE, environment: "production", enabled: false,
-      now: () => NOW, delay: noDelay, publisherRunning: async () => false,
+      now: () => NOW, delay: noDelay, publisherBusy: async () => false,
     });
     const response = await disabled.request(false);
     await disabled.alarm();
@@ -1261,13 +1367,48 @@ describe("Spec 014 slice 2 named tests", () => {
       if (digestCron !== undefined) expect(crons).toContain(digestCron);
       expect(cronTarget(publisherCron, digestCron)).toBe("publisher");
     }
-    // Shipped disabled: no digest cron until a reviewed Dev dry run.
-    expect(dev.vars?.DIGEST_CRON).toBeUndefined();
     expect(dev.ai?.binding).toBe("AI");
     expect(dev.vars).toMatchObject({ DIGEST_ENABLED: "true", DIGEST_MODEL: "workers-ai", DIGEST_GATEWAY_ID: "osskb-digest-dev" });
     expect(prod.ai).toBeUndefined();
     expect(prod.vars?.DIGEST_ENABLED).toBeUndefined();
     expect(prod.vars?.DIGEST_MODEL).toBeUndefined();
+  });
+
+  test("D86: Dev has the publisher's cron and the digest's 47 22 * * *, kept apart from the other jobs; Prod has no digest cron", async () => {
+    const dev = await deployConfig("development");
+    const prod = await deployConfig("production");
+    expect(dev.triggers?.crons).toEqual(["7 22 * * *", "47 22 * * *"]);
+    expect(dev.vars?.DIGEST_CRON).toBe("47 22 * * *");
+    expect(prod.triggers?.crons).toEqual(["37 22 * * *"]);
+    expect(prod.vars?.DIGEST_CRON).toBeUndefined();
+    const [minute, hour] = dev.vars!.DIGEST_CRON!.split(" ").map(Number) as [number, number];
+    // The same UTC day as the publication, 40 minutes after its tick, and at most 4 deferrals from midnight.
+    expect(hour * 60 + minute - (22 * 60 + 7)).toBe(40);
+    expect(hour * 60 + minute + 4 * (DEFER_MS / 60_000)).toBeLessThan(24 * 60);
+    // Not a minute another job uses: the publishers (:07, :37), the embedding job after a day cap (:05), the review queue's proposal (:27, :57).
+    expect([5, 7, 27, 37, 57]).not.toContain(minute);
+  });
+
+  test("D91: the daily cap is 5,000 calibrated neurons on Dev and Prod, and the three caps leave 1,500 of the 10,000 included", async () => {
+    expect(DAILY_CAP).toEqual({ prod: 5_000, dev: 5_000 });
+    const { digest, searchEmbedding, searchQuery, included } = DAILY_NEURON_BUDGET;
+    expect([digest, searchEmbedding, searchQuery, included]).toEqual([5_000, 2_500, 1_000, 10_000]);
+    expect(digest + searchEmbedding + searchQuery).toBe(8_500);
+    expect(included - (digest + searchEmbedding + searchQuery)).toBe(1_500);
+    expect(DAILY_NEURON_BUDGET).not.toHaveProperty("digestCalibrated");
+    // 2026-10-08: dry runs 1 and 2 were 4,507 − 1,141 price-table neurons in 109 − 26 calls.
+    const perRun = digestLedgerNeurons((4_507 - 1_141) / 2);
+    expect(perRun).toBe(2_155);
+    expect(2 * perRun).toBe(4_310);
+    expect(2 * perRun).toBeLessThanOrEqual(DAILY_CAP.dev);
+    // What /health reports is the same cap, per environment.
+    for (const environment of ["development", "production"] as const) {
+      const instance = new DigestRunner({
+        storage: new MemoryStorage(), bucket: new MemoryBucket(), profile: KAFKA_DIGEST_PROFILE, environment, enabled: true,
+        now: () => NOW, delay: noDelay, publisherBusy: async () => false,
+      });
+      expect((await instance.health()).today.cap).toBe(5_000);
+    }
   });
 
   test("D31: /health keeps the publisher body and adds digest {running, scheduled, today, lastRun}", async () => {
@@ -1279,7 +1420,7 @@ describe("Spec 014 slice 2 named tests", () => {
     await instance.alarm();
     const digest = await instance.health();
     expect(Object.keys(digest)).toEqual(["enabled", "running", "scheduled", "today", "lastRun"]);
-    expect(digest.today).toEqual({ date: "2026-10-07", estimatedNeurons: 0, cap: 4_500 });
+    expect(digest.today).toEqual({ date: "2026-10-07", estimatedNeurons: 0, cap: 5_000 });
     const lastRun = digest.lastRun!;
     for (const field of ["ok", "completedAt", "durationMs", "sourceReleaseId", "objectKeys", "candidates", "cached", "modelCalls", "fallbacks", "limited", "deferred", "estimatedNeurons", "dryRun"]) {
       expect(lastRun).toHaveProperty(field);
