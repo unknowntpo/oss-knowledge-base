@@ -1275,6 +1275,80 @@ const cases: Record<string, () => Promise<string>> = {
     return ledger > raw && result.estimatedNeurons === ledger && result.spentToday === ledger && en.coverage.estimatedNeurons === ledger && zh.coverage.estimatedNeurons === ledger
       ? "lastRun.estimatedNeurons, spentToday and coverage.estimatedNeurons are the calibrated sum" : `${raw} ${ledger} ${result.estimatedNeurons} ${en.coverage.estimatedNeurons}`;
   },
+  "ledger|constructed: the object dies during the 4th model request of a run; the alarm is retried": async () => {
+    const bucket = new MemoryBucket();
+    await publish(bucket);
+    const date = NOW.toISOString().slice(0, 10);
+    const room = 2_500;
+    const storage = new MemoryStorage();
+    storage.values.set(`spend:${date}`, DAILY_CAP.dev - room);
+    // What the storage held when the object died: the retried alarm sees exactly this.
+    const atDeath = new MemoryStorage();
+    let started = 0;
+    let spentBeforeDeath = 0;
+    let dead = false;
+    const inner = new FakeModel();
+    const dying: DigestModel = { run: async (name, prompt, maxTokens) => {
+      if (dead) throw new ModelCallError("the object is gone", 3036);
+      started += 1;
+      if (started === 4) {
+        dead = true;
+        for (const [key, value] of storage.values) atDeath.values.set(key, value);
+        // The request that was in flight may have been billed in full.
+        spentBeforeDeath += digestLedgerNeurons(callEstimate(name, prompt, maxTokens));
+        throw new ModelCallError("the object is gone", 3036);
+      }
+      const text = await inner.run(name, prompt, maxTokens);
+      if (!dead) spentBeforeDeath += digestLedgerNeurons(settledNeurons(name, prompt, text));
+      return text;
+    } };
+    await runner(bucket, storage, async () => false, dying).instance.alarm();
+    const stored = atDeath.values.get(`spend:${date}`) as number;
+    const retry = runner(bucket, atDeath, async () => false, new FakeModel()).instance;
+    await retry.alarm();
+    const second = (await retry.health()).lastRun!;
+    const total = spentBeforeDeath + second.estimatedNeurons;
+    return spentBeforeDeath > 0 && stored >= DAILY_CAP.dev - room + spentBeforeDeath && total <= room && second.spentToday <= DAILY_CAP.dev
+      ? "the retry starts from the stored spend; both runs together stay within the cap" : `stored ${stored} before ${spentBeforeDeath} second ${second.estimatedNeurons} room ${room}`;
+  },
+  "ledger|constructed: a run of N model requests": async () => {
+    const bucket = new MemoryBucket();
+    await publish(bucket);
+    const storage = new MemoryStorage();
+    const date = NOW.toISOString().slice(0, 10);
+    const writes: number[] = [];
+    const put = storage.put.bind(storage);
+    storage.put = async (key, value) => {
+      if (key === `spend:${date}`) writes.push(value as number);
+      await put(key, value);
+    };
+    const model = new FakeModel();
+    const { instance } = runner(bucket, storage, async () => false, model);
+    await instance.alarm();
+    const lastRun = (await instance.health()).lastRun!;
+    const before = writes.slice(0, -1);
+    return model.calls.length > 5 && writes.length === model.calls.length + 1 && before.every((value) => value > 0) && writes.at(-1) === lastRun.spentToday && Math.max(...before) >= lastRun.spentToday
+      ? "N ledger writes before the requests, then the settled total" : `${writes.length} writes for ${model.calls.length} calls`;
+  },
+  "spend|constructed: a call that fits the cap once fails with a retryable error": async () => {
+    const prompt = "x".repeat(4_000);
+    const estimate = digestLedgerNeurons(callEstimate(LLAMA, prompt, 300));
+    const calls = new ModelCalls({ run: async () => { throw new Error("down"); } }, { spent: 5_000 - estimate, cap: 5_000 }, noDelay);
+    const output = await calls.call(LLAMA, prompt, 300);
+    return output === undefined && calls.calls === 1 && calls.limited && calls.spentToday === 5_000
+      ? "no retry; limited true; spend equals the cap" : `${calls.calls} ${calls.limited} ${calls.spentToday}`;
+  },
+  "spend|constructed: 4 calls started together, each fitting the cap alone, 2 fitting together": async () => {
+    const prompt = "x".repeat(4_000);
+    const estimate = digestLedgerNeurons(callEstimate(LLAMA, prompt, 300));
+    let ran = 0;
+    const model: DigestModel = { run: async () => { ran += 1; await new Promise((resolve) => setTimeout(resolve, 5)); return "x".repeat(4 * 300); } };
+    const calls = new ModelCalls(model, { spent: 5_000 - 2 * estimate - 1, cap: 5_000 }, noDelay);
+    const outputs = await Promise.all([0, 1, 2, 3].map(() => calls.call(LLAMA, prompt, 300)));
+    const skipped = outputs.filter((output) => output === undefined).length;
+    return ran === 2 && skipped === 2 && calls.limited && calls.spentToday <= 5_000
+      ? "2 run; 2 skipped; limited true; spend within the cap" : `${ran} ran ${skipped} skipped ${calls.spentToday}`;
+  },
   "run control|DIGEST_ENABLED unset (Prod)": async () => {
     const bucket = new MemoryBucket();
     await publish(bucket);

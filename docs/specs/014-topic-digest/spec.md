@@ -12,7 +12,7 @@ Builds on: Spec 002, Spec 005, Spec 008 (ADR-0013), Spec 010, Spec 011, Spec 012
 
 > **Note 2026-10-14 (slice 2e).** The Dev digest runs by cron at 22:47 UTC,
 > its ledger counts calibrated neurons, and its cap is 5,000: see
-> [Schedule on Dev](#schedule-on-dev-slice-2e-2026-10-14) and D86–D92.
+> [Schedule on Dev](#schedule-on-dev-slice-2e-2026-10-14) and D86–D94.
 > Where older text says 4,500 or "no digest cron", that section wins.
 
 ## Intent
@@ -1431,6 +1431,10 @@ synthetic; the others use values captured from Dev.
 | D90 | spend | constructed: a call that fits the cap at its price-table estimate but not at × 1.28 | call skipped; limited true |
 | D90 | spend | constructed: a Clef request the price table counts as 1 neuron | today's spend grows by 2 |
 | D90 | spend | constructed: a run with a fake model | lastRun.estimatedNeurons, spentToday and coverage.estimatedNeurons are the calibrated sum |
+| D93 | ledger | constructed: the object dies during the 4th model request of a run; the alarm is retried | the retry starts from the stored spend; both runs together stay within the cap |
+| D93 | ledger | constructed: a run of N model requests | N ledger writes before the requests, then the settled total |
+| D94 | spend | constructed: a call that fits the cap once fails with a retryable error | no retry; limited true; spend equals the cap |
+| D94 | spend | constructed: 4 calls started together, each fitting the cap alone, 2 fitting together | 2 run; 2 skipped; limited true; spend within the cap |
 <!-- test-plan:end -->
 
 **Slice 3: browser.** Case file
@@ -1807,6 +1811,19 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   - A staging day (a dry run and a real run, both cold) fits: the two full
     dry runs of 2026-10-08 were 3,366 price-table neurons, 2,155
     calibrated a run, 4,310 for two.
+- D93: the day's ledger is stored before each model request, not only when
+  a run ends: the stored figure is the settled spend plus the estimates of
+  the requests in flight.
+  - A run that dies (the object is evicted, the alarm is killed) leaves
+    that figure, so the alarm's retry and any later run that day start
+    from spend already made.
+  - Durable Object writes: one per model request (at most 50 a run), plus
+    the final ledger and `lastRun`.
+- D94: no request starts unless the settled spend, the estimates of the
+  requests in flight, and its own estimate fit the cap; the retry of a
+  failed request is checked the same way. The ledger therefore never
+  passes the cap. (D35's "up to 3 more estimates in one wave" no longer
+  applies.)
 - D26: [measure] the same command prints call and read counters:
   - model calls per cold run: at most 50. Measured 39 in slice 2b: 12 Clef
     requests, 12 cards, 12 proposal rows, 1 highlights call, and 2
@@ -1883,7 +1900,8 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
       requests in flight, up to 3 more pre-call estimates can pass the cap
       in one wave (about 30 neurons each on the captured week: 351 over 12
       requests). This overshoot is accepted; the gateway's $2/month spend
-      limit is the hard stop.
+      limit is the hard stop. Since slice 2e requests in flight count
+      toward the gate (D94), so there is no overshoot.
     - qwen3's `<think>` block consumes `max_tokens`. An unterminated block
       leaves no translation, so the sentence shows "Not translated". Watch
       `notTranslated` in the result; raise the translator's `max_tokens` if
@@ -1962,8 +1980,9 @@ built yet; the command rejects the flag.
      natural zh-Hant (D85). The cron stays off.
    - **2e** (2026-10-14, the owner approved the Dev schedule): the Dev
      cron, deferral behind publisher follow-ups, the calibrated ledger and
-     the 5,000 cap, and the gateway rate limit as a limit (D86–D92). See
-     Schedule on Dev.
+     the 5,000 cap, and the gateway rate limit as a limit (D86–D92); the
+     ledger stored before each request and a gate that cannot pass the
+     cap (D93, D94, from the verifier of PR #68). See Schedule on Dev.
 3. **Web:** routes, tabs, This week, Proposals, topic page, i18n, and
    `/api/digest`. The E2E moves are part of this slice.
 

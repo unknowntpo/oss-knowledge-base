@@ -137,4 +137,8 @@ export const testPlanRows = [
   { id: "D90", rule: "spend", input: "constructed: a call that fits the cap at its price-table estimate but not at × 1.28", expected: "call skipped; limited true" },
   { id: "D90", rule: "spend", input: "constructed: a Clef request the price table counts as 1 neuron", expected: "today's spend grows by 2" },
   { id: "D90", rule: "spend", input: "constructed: a run with a fake model", expected: "lastRun.estimatedNeurons, spentToday and coverage.estimatedNeurons are the calibrated sum" },
+  { id: "D93", rule: "ledger", input: "constructed: the object dies during the 4th model request of a run; the alarm is retried", expected: "the retry starts from the stored spend; both runs together stay within the cap" },
+  { id: "D93", rule: "ledger", input: "constructed: a run of N model requests", expected: "N ledger writes before the requests, then the settled total" },
+  { id: "D94", rule: "spend", input: "constructed: a call that fits the cap once fails with a retryable error", expected: "no retry; limited true; spend equals the cap" },
+  { id: "D94", rule: "spend", input: "constructed: 4 calls started together, each fitting the cap alone, 2 fitting together", expected: "2 run; 2 skipped; limited true; spend within the cap" },
 ] as const;
