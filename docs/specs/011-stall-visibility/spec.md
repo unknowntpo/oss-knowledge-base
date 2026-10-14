@@ -1,6 +1,6 @@
 # Spec 011: Stalled publication visible everywhere
 
-Status: Accepted 2026-10-06, design delegated by the human; amended 2026-10-13 by Spec 018 (the stall boundary is 27 h)
+Status: Accepted 2026-10-06, design delegated by the human; amended 2026-10-13 by Spec 018 (the stall boundary is 27 h) and 2026-10-14 by Spec 021 (the narrow pill also shows the overdue warning from 24 h 30 min)
 Date: 2026-10-06
 Traceability: enforced
 Builds on: Spec 010
@@ -113,8 +113,8 @@ controlled clock on the E2E fixture (`generatedAt` 2026-08-25T12:00:00Z):
 | ID | Scenario | Expected |
 | --- | --- | --- |
 | V1 | Widths 320, 375, 420; clock 27 h 1 s after `generatedAt`; Feed, Feed detail, Search detail; en and zh-Hant | pill visible with the Spec 010 F2 stale text and stale styling, fully inside the viewport, text not clipped (pill `scrollWidth` ≤ `clientWidth`), ending left of the locale select; topbar `scrollWidth` ≤ `clientWidth` |
-| V2 | Widths 375, 420; clock exactly 27 h after `generatedAt` (F2 boundary) | pill hidden; control: at width 421 the same pill is visible with "Updated 27 h ago" |
-| V3 | Width 375; page opened 30 s before the 27 h mark, clock advances 60 s | pill goes from hidden to visible with the stale text, without a reload |
+| V2 | Widths 375, 420; clock exactly 24 h 30 min after `generatedAt` (Spec 021's overdue mark; until 2026-10-14 the 27 h boundary) | pill hidden; control: at width 421 the same pill is visible with "Updated 24 h ago" |
+| V3 | Width 375; page opened 30 s before the 27 h mark, clock advances 60 s | pill goes from Spec 021's overdue warning to the stale text, without a reload |
 | V4 | Width 375; `/api/feed` `generatedAt` is "not-a-time"; control: same width with a stale `generatedAt` shows the pill | Feed cards render; pill hidden |
 | V6 | Width 375; fresh `generatedAt` (2 h); `/api/feed` `metadata.stale` is `true`; control: same page without it hides the pill | pill visible with stale styling |
 
@@ -127,16 +127,17 @@ controlled clock on the E2E fixture (`generatedAt` 2026-08-25T12:00:00Z):
   viewport: the text is not clipped by the pill, the pill ends before the
   locale select, and the topbar has no horizontal overflow → evidence: E2E
   V1.
-- V2: with the newest publication exactly 27 h old, at 375 and 420 px the
-  pill is hidden, while at 421 px it shows "Updated 27 h ago" → evidence:
-  E2E V2.
+- V2: with the newest publication exactly 24 h 30 min old (Spec 021's
+  overdue mark), at 375 and 420 px the pill is hidden, while at 421 px it
+  shows "Updated 24 h ago" → evidence: E2E V2.
 - V6: with `metadata.stale` `true` and a fresh `generatedAt`, at 375 px the
   pill is shown with stale styling, while the same page without
   `metadata.stale` hides it → evidence: E2E V6.
 
 ### Failure and retry
 - V3: with a narrow page left open across the 27 h mark, the stale pill
-  appears within one minute without a reload → evidence: E2E V3.
+  replaces the overdue one within one minute without a reload → evidence:
+  E2E V3.
 - V4: with an unparsable `generatedAt` at 375 px, the Feed renders and no
   pill is shown (no false stall), while a stale `generatedAt` on the same
   path shows it → evidence: E2E V4.

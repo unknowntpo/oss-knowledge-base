@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { STALE_AFTER_MS } from "../src/freshness";
+import { OVERDUE_AFTER_MS, STALE_AFTER_MS } from "../src/freshness";
 import { testPlanRows } from "../test/freshness.cases";
 
 // Spec 011: a stalled publication is visible on narrow screens on every view.
@@ -9,8 +9,8 @@ const generatedAt = Date.parse("2026-08-25T12:00:00Z");
 const hour = 60 * 60_000;
 // Expected texts come from Spec 010's case file so the plans cannot disagree.
 const staleRow = testPlanRows.find((row) => row.id === "F2" && row.stale === true)!;
-// The row at exactly the threshold: the last F2 row that is not stale.
-const boundaryRow = testPlanRows.filter((row) => row.id === "F2" && row.stale === false).at(-1)!;
+// A daily run still finishing (24 h 10 min): the last F2 row with the plain age.
+const freshRow = testPlanRows.filter((row) => row.id === "F2" && row.en.startsWith("Updated")).at(-1)!;
 const staleText = { en: staleRow.en, "zh-Hant": staleRow.zh } as const;
 
 type Locale = keyof typeof staleText;
@@ -79,12 +79,12 @@ for (const width of [320, 375, 420]) {
   }
 }
 
-test("V2: at exactly the stale threshold the narrow pill stays hidden", async ({ page }) => {
+test("V2: until the overdue mark (24 h 30 min) the narrow pill stays hidden", async ({ page }) => {
   // Control: above 420 px the same page shows the pill, so "hidden" is not "never rendered".
-  await prepare(page, "en", 421, generatedAt + STALE_AFTER_MS, true);
+  await prepare(page, "en", 421, generatedAt + OVERDUE_AFTER_MS, true);
   await open(page, "feed");
   await expect(page.locator(".demo-pill")).toBeVisible();
-  await expect(page.locator(".demo-pill")).toHaveText(boundaryRow.en);
+  await expect(page.locator(".demo-pill")).toHaveText(freshRow.en);
   for (const width of [375, 420]) {
     await page.setViewportSize({ width, height: 800 });
     await expect(page.locator(".demo-pill")).toBeHidden();
@@ -94,7 +94,8 @@ test("V2: at exactly the stale threshold the narrow pill stays hidden", async ({
 test("V3: an open narrow page shows the stall without a reload", async ({ page }) => {
   await prepare(page, "en", 375, generatedAt + STALE_AFTER_MS - 30_000);
   await open(page, "feed");
-  await expect(page.locator(".demo-pill")).toBeHidden();
+  // Since Spec 021 the pill is already visible here, as the overdue warning.
+  await expect(page.locator(".demo-pill")).toHaveClass(/is-overdue/u);
   await page.clock.runFor(60_000);
   await expectStalePillInside(page, "en", 375);
 });
