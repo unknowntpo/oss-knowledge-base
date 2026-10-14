@@ -274,7 +274,7 @@ publication against in-memory upstreams, state and bucket).
 | Web API cache | `cache-control` of `/api/*` | `max-age=30, stale-while-revalidate=120` | — | — | Yes | Keep; independent of the cadence (a new release shows within 150 s) |
 | R2 pointer cache | `current.json` objects | `max-age=30, must-revalidate`; immutable objects one year | — | — | Yes | Keep |
 | Page clock | `apps/web/src/App.vue`, `WeekView.vue` | every 60 s in an open page | nothing (recomputes the age) | — | Yes | Keep |
-| Confluence ingest (M1) | `.github/workflows/ingest.yml` | daily 03:17 UTC and manual | cwiki.apache.org for 9 followed KIPs → `vault/KIPs/*.md` frontmatter and `tools/ingest-*.json`; force-pushes the branch `automation/confluence-ingest` and edits issue #12; never commits to `main` | one GitHub Actions run a day (viewer tests, then the poll) | Nothing in `apps/` or `packages/` reads its output; only the legacy `viewer/` does | Open decision 2 |
+| Confluence ingest (M1) | `.github/workflows/ingest.yml` | manual only since 2026-10-14 (was daily 03:17 UTC and manual) | cwiki.apache.org for 9 followed KIPs → `vault/KIPs/*.md` frontmatter and `tools/ingest-*.json`; force-pushes the branch `automation/confluence-ingest` and edits issue #12; never commits to `main` | one GitHub Actions run per dispatch (viewer tests, then the poll) | Nothing in `apps/` or `packages/` reads its output; only the legacy `viewer/` does | Manual only (decision 2, decided 2026-10-14) |
 | Corpus backfill | `.github/workflows/backfill.yml` | manual only | Confluence and mail → the legacy viewer's corpus, branch `automation/corpus-backfill` | — | Legacy viewer only | Decide with the ingest |
 | CI and deploys | `.github/workflows/ci.yml` | on pull request, push to `main` (Dev deploy and deployed E2E), `v*` tag (Prod deploy) | no schedule; never calls `POST /run` | — | Yes | Keep |
 | Local feed poller | `apps/github-publisher/feed-poller.ts` | every 5 min in a local dev server | GitHub | — | Local only, not deployed | Keep |
@@ -289,9 +289,13 @@ publication against in-memory upstreams, state and bucket).
    the GitHub review section would still be hourly. Options: keep hourly for
    the review queue, or once a day after the publication. Not decided here;
    the job stays unscheduled and its 2 h check is unchanged.
-2. **Confluence ingest.** It runs daily and nothing on the deployed site uses
+2. **Confluence ingest.** It ran daily and nothing on the deployed site uses
    its output. Options: keep (if the legacy viewer and vault are still
    wanted), reduce to manual, or remove with the legacy viewer.
+   **Decided (owner, 2026-10-14): manual only.** The `schedule` trigger of
+   `.github/workflows/ingest.yml` is removed; `workflow_dispatch` stays.
+   Putting KIP bodies into search is not part of this decision and will be
+   a separate spec.
 3. **Digest schedule.** If the digest is enabled, a time after 22:07 UTC
    (for example 22:37 on Dev) makes it read the day's release; `37 1 * * *`
    in Spec 014's examples would read a release about 3.5 h old.

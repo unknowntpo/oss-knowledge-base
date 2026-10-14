@@ -135,7 +135,7 @@ in [Spec 018](specs/018-daily-publication/spec.md#everything-that-is-scheduled-2
 | Digest (`DigestRun` alarm) | none; `POST /digest/run` only | a cron entry equal to `DIGEST_CRON` (unset) |
 | Review queue | none; `POST /review-queue/run` only | a cron entry equal to `REVIEW_QUEUE_CRON` (unset); its cadence is an open decision (Spec 018) |
 | GitHub review ingestion (Spec 022) | none today; with the flag set, on each publisher tick (in the Worker invocation, not the Durable Object) and on `POST /github-reviews/run` | `GITHUB_REVIEWS` (unset in both environments) |
-| Confluence ingest (`.github/workflows/ingest.yml`) | daily 03:17 UTC | GitHub Actions `schedule`; not read by this site (legacy `viewer/` only) |
+| Confluence ingest (`.github/workflows/ingest.yml`) | none; manual only since 2026-10-14 (was daily 03:17 UTC) | GitHub Actions `workflow_dispatch`; not read by this site (legacy `viewer/` only) |
 
 ## Upstream sources
 
