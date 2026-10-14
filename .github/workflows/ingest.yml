@@ -6,9 +6,6 @@ name: Confluence ingest (M1)
 # when the working tree is actually dirty.
 
 on:
-  schedule:
-    # Daily at 03:17 UTC (off the top of the hour to be a polite neighbor).
-    - cron: "17 3 * * *"
   workflow_dispatch:
     inputs:
       dry_run:

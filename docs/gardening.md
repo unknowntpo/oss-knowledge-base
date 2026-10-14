@@ -804,17 +804,18 @@ the two `viewer/` items below.
 - **Layer:** spec decision, then a config test like Spec 018 T2.
 - **Source:** Spec 018, 2026-10-13.
 
-### G63. The Confluence ingest runs daily and the deployed site does not read it
-- **Where:** `.github/workflows/ingest.yml` (03:17 UTC), `tools/ingest/`,
+### G63. The Confluence ingest is manual only and the deployed site does not read it
+- **Where:** `.github/workflows/ingest.yml` (manual), `tools/ingest/`,
   `vault/`, branch `automation/confluence-ingest`, issue #12;
   `.github/workflows/backfill.yml` (manual).
 - **Why:** nothing under `apps/` or `packages/` reads its output; only the
-  legacy `viewer/` does. It force-pushes an automation branch and edits an
-  issue every day a KIP page changed.
-- **Fix:** the owner decides: keep, make manual, or remove with the legacy
-  viewer (Spec 018, open decision 2).
+  legacy `viewer/` does. A manual run force-pushes an automation branch and
+  edits an issue when a KIP page changed.
+- **Fix:** decided 2026-10-14 (owner; Spec 018, open decision 2): manual
+  only, the daily `schedule` is removed. Left: remove it with the legacy
+  viewer, or reuse it when KIP bodies go into search (a separate spec).
 - **Layer:** owner decision.
-- **Source:** Spec 018 inventory, 2026-10-13.
+- **Source:** Spec 018 inventory, 2026-10-13; updated 2026-10-14.
 
 ### G64. Specs and ADRs written under the hourly publication still say "hourly"
 - **Where:** Specs 008, 009, 012, 013, 014, 015, 016, 017, ADR-0013,
@@ -857,3 +858,40 @@ the two `viewer/` items below.
   check of `/health`.
 - **Layer:** spec, then E2E with a controlled clock.
 - **Source:** independent verifier of PR #62, Spec 018 "Known limits".
+
+### G67. The feature-map site parses a subset of Markdown with its own parser
+- **Where:** `scripts/feature-map-site/markdown.ts` (headings, pipe tables,
+  lists, fenced code, quotes, paragraphs; inline code, bold, links).
+- **Why:** no dependency, so the workflow needs no `bun install`. Anything
+  else (images, HTML, nested emphasis, tables without a leading pipe,
+  reference links) is shown as text, and a list item's nested block is
+  flattened. `docs/feature-map.md` and `docs/gardening.md` use none of these
+  today.
+- **Fix:** keep the sources inside the subset; replace the parser with a
+  library only if they outgrow it.
+- **Layer:** test (`B7` rows in `scripts/test/feature-map-site.test.ts`).
+- **Source:** Spec 020 simplification review, 2026-10-14.
+
+### G68. Spec 018's monthly Class A estimate used an hourly run's size
+- **Where:** `docs/specs/018-daily-publication/spec.md` (Decision rationale,
+  "about 1.2 thousand Class A" a month; "about 40 Class A" in the schedule
+  inventory and Known limit 3).
+- **Why:** a daily run writes a day's new objects, not an hour's: the first
+  daily run on Dev (2026-10-13 22:07 UTC) sent 391 Class A (388 new objects
+  + 3), so a month is about 12 thousand, ten times the estimate and still
+  1.2% of the included million. One run; the weekday pattern is unknown.
+- **Fix:** record a week of `lastRun.r2` and correct the spec's figures; the
+  runbook and the feature map already carry the measured run.
+- **Layer:** measurement (`/health` `lastRun.r2`).
+- **Source:** Spec 020 (found while regenerating the feature map), 2026-10-14.
+
+### G69. The generated site lacks live Dev status and the owner's pending decisions
+- **Where:** `scripts/feature-map-site/generate.ts`; Spec 020 "Proposed, not
+  built".
+- **Why:** neither is in the tree. The hand-made overview page had both, so
+  it cannot be retired without them or a decision to drop them.
+- **Fix:** `docs/decisions-pending.md` as a generated section; a client-side
+  read of Dev `/health` after the Worker sends a CORS header for the site's
+  origin (its own PR).
+- **Layer:** spec (Spec 020 Decisions 5 and 6).
+- **Source:** Spec 020 non-goals, 2026-10-14.

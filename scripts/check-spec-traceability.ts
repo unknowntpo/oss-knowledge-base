@@ -9,7 +9,7 @@
 import { dirname, join, relative } from "node:path";
 
 const root = join(import.meta.dir, "..");
-const testGlobs = ["apps/**/*.test.ts", "apps/**/*.spec.ts", "packages/**/*.test.ts"];
+const testGlobs = ["apps/**/*.test.ts", "apps/**/*.spec.ts", "packages/**/*.test.ts", "scripts/test/*.test.ts"];
 
 interface AcceptanceItem {
   readonly spec: string;

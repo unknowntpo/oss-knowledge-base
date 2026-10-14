@@ -1,0 +1,124 @@
+name: Feature map site
+
+# Spec 020. Builds the feature-map page of every ref (the default branch, release/* branches,
+# v* tags) with the generator of the default branch and publishes them as one GitHub Pages site.
+# A pull request builds the same site, plus its own tree, as a workflow artifact and publishes nothing.
+# No secret and no Cloudflare credential is used.
+
+on:
+  pull_request:
+  push:
+    branches: [main, "release/**"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One publishing run at a time, in the order they were queued: a run reads every ref when it starts,
+# so the run that starts last publishes the newest state. Pull request runs replace their own.
+concurrency:
+  group: feature-map-site-${{ github.event_name == 'pull_request' && github.ref || 'publish' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # The github-pages environment accepts deployments from the default branch only, and the site is
+  # always built by the default branch's generator. A push to a release branch or a v* tag therefore
+  # starts this workflow again on the default branch instead of building from its own ref.
+  redispatch:
+    name: Rebuild from the default branch
+    if: ${{ github.event_name == 'push' && github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Start this workflow on the default branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: gh workflow run feature-map-site.yml --repo "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH"
+
+  build:
+    name: Build the site
+    if: ${{ github.event_name != 'push' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: read
+    outputs:
+      default_sha: ${{ steps.built.outputs.default_sha }}
+      deploy: ${{ steps.gate.outputs.deploy == 'true' && github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Every branch and tag: each ref's docs are read from git, without a checkout.
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - name: Build every ref
+        id: built
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          PREVIEW_REF: ${{ github.event_name == 'pull_request' && github.head_ref || '' }}
+        run: |
+          bun scripts/feature-map-site/build.ts --out _site \
+            --repository "$GITHUB_REPOSITORY" --default-branch "$DEFAULT_BRANCH" \
+            --built-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --preview "$PREVIEW_REF"
+          echo "default_sha=$(jq -r '.refs[0].sha' _site/versions.json)" >> "$GITHUB_OUTPUT"
+      - name: Keep the built site
+        uses: actions/upload-artifact@v4
+        with:
+          name: feature-map-site-${{ github.sha }}
+          path: _site
+          if-no-files-found: error
+          retention-days: 7
+      - name: Require GitHub Pages with source GitHub Actions
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ELIGIBLE: ${{ github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+        run: |
+          status="$(curl -sS -o "$RUNNER_TEMP/pages.json" -w '%{http_code}' \
+            -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/pages")"
+          bun scripts/feature-map-site/build.ts pages-gate --status "$status" --body "$RUNNER_TEMP/pages.json" --eligible "$ELIGIBLE"
+      - name: Upload the Pages artifact
+        if: ${{ steps.gate.outputs.deploy == 'true' && github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    if: ${{ needs.build.outputs.deploy == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
+      - name: Check that the published site is the one this run built
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          BUILT_SHA: ${{ needs.build.outputs.default_sha }}
+        run: |
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            published="$(curl -fsS "${PAGE_URL}versions.json" | jq -r '.refs[0].sha' || true)"
+            if [ -n "$BUILT_SHA" ] && [ "$published" = "$BUILT_SHA" ]; then
+              echo "Published ${PAGE_URL}: default branch at $BUILT_SHA"
+              exit 0
+            fi
+            sleep 6
+          done
+          echo "::error title=Feature map site::${PAGE_URL}versions.json names '$published' for the default branch, not '$BUILT_SHA'"
+          exit 1
