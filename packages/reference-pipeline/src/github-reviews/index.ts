@@ -149,11 +149,11 @@ const isReviewState = (state: string): state is ReviewState => (REVIEW_STATES as
 
 /**
  * Behavior 5: the rows of one pull request. A review counts when it was submitted (pending reviews
- * have no time), carries an id, and is not older than `from`. `truncated` says the pull request has
+ * have no time), carries an id, is not older than `from` and, when `until` is given, is older than it. `truncated` says the pull request has
  * more reviews than were read and the oldest one read is still inside the window, so older reviews
  * inside the window may be missing.
  */
-export function reviewRows(pull: PullReviews, options: { readonly from: string; readonly machineUsers: readonly string[] }): {
+export function reviewRows(pull: PullReviews, options: { readonly from: string; readonly until?: string; readonly machineUsers: readonly string[] }): {
   readonly rows: readonly ReviewRow[];
   readonly truncated: boolean;
 } {
@@ -163,6 +163,8 @@ export function reviewRows(pull: PullReviews, options: { readonly from: string; 
     if (node.submittedAt === null || node.databaseId === null || !isReviewState(node.state)) continue;
     if (oldest === undefined || node.submittedAt < oldest) oldest = node.submittedAt;
     if (Date.parse(node.submittedAt) < Date.parse(options.from)) continue;
+    // Behavior 13: a backfill stores only what the daily run does not own (before its `coverageFrom`).
+    if (options.until !== undefined && Date.parse(node.submittedAt) >= Date.parse(options.until)) continue;
     rows.push({
       reviewId: node.databaseId,
       pr: pull.number,
@@ -270,6 +272,40 @@ export function selectUpdatedPulls(items: readonly UpdatedItem[], options: { rea
   const kept = last === undefined ? pulls : pulls.slice(0, pulls.indexOf(last) + 1);
   const cursor = (cut ? kept : items).reduce((latest, item) => (item.updated_at > latest ? item.updated_at : latest), options.previousCursor);
   return { numbers: [...new Set(kept.map((item) => item.number))], cursor, truncated: cut || options.morePages };
+}
+
+/** Behavior 13: the oldest start a backfill may ask for, about 13 months (the store keeps at least that much). */
+export const BACKFILL_MAX_LOOKBACK_DAYS = 395;
+
+/**
+ * Behavior 13: the `from` of a backfill request: a UTC date (`2026-04-14`) or an ISO time with a
+ * zone, in the past, and not before the floor. Anything else is refused before GitHub is called.
+ */
+export function resolveBackfillFrom(value: string | null | undefined, nowMs: number): { readonly ok: true; readonly from: string } | { readonly ok: false; readonly error: string } {
+  const text = value?.trim() ?? "";
+  if (text === "") return { ok: false, error: "from is required (an ISO date such as 2026-04-14)" };
+  if (!/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2}))?$/u.test(text) || Number.isNaN(Date.parse(text))) {
+    return { ok: false, error: `from "${text}" is not an ISO date (2026-04-14 or 2026-04-14T00:00:00Z)` };
+  }
+  const ms = Date.parse(/T/u.test(text) ? text : `${text}T00:00:00Z`);
+  if (ms >= nowMs) return { ok: false, error: `from ${new Date(ms).toISOString()} is not in the past` };
+  const floor = nowMs - BACKFILL_MAX_LOOKBACK_DAYS * 86_400_000;
+  if (ms < floor) return { ok: false, error: `from ${new Date(ms).toISOString()} is before the floor ${new Date(floor).toISOString()} (${BACKFILL_MAX_LOOKBACK_DAYS} days)` };
+  return { ok: true, from: new Date(ms).toISOString() };
+}
+
+/**
+ * Behavior 13: the next request of a keyset listing. Offset pages shift when an item already listed
+ * is updated meanwhile (it moves to the end) and the next page would skip one; a backfill lists
+ * hundreds of pages, so each page starts again at page 1 from one second before the last item it
+ * received (GitHub's `since` has second precision; the repeated second is deduplicated by the
+ * caller). Only when a whole page falls inside that second does it move to the next page instead.
+ */
+export function nextKeysetPage(current: { readonly since: string; readonly page: number }, items: readonly UpdatedItem[]): { readonly since: string; readonly page: number } {
+  const last = items.at(-1);
+  if (last === undefined) return current;
+  const next = Date.parse(last.updated_at) - 1_000;
+  return next > Date.parse(current.since) ? { since: new Date(next).toISOString(), page: 1 } : { since: current.since, page: current.page + 1 };
 }
 
 /**

@@ -499,18 +499,28 @@ the two `viewer/` items below.
 - **Layer:** owner decision, then deploy evidence.
 - **Source:** Spec 022, 2026-10-14.
 
-### G72. Review ingestion has no backfill and bounded hindsight
+### G72. Review ingestion: the 12-month backfill is built but not run; hindsight stays bounded
 - **Where:** `apps/data-publisher-worker/src/github-reviews/run.ts`
-  (`FIRST_RUN_LOOKBACK_MS`, `REVIEW_WINDOW_MS`).
-- **Why:** coverage starts one day before the first run (`coverageFrom`);
-  a review dismissed more than 35 days after it was submitted keeps its
-  stored verdict; a pull request with more than 100 reviews in 35 days is
-  read partially (`reviewsTruncated`); a deleted review keeps its row.
-- **Fix:** the backfill proposed in Spec 022 (an explicit start for a first
-  run), decided with Spec 019's horizon; the rest only if `/health`
-  `githubReviews` shows `reviewsTruncated` above 0.
-- **Layer:** spec decision, then a run test.
-- **Source:** Spec 022 "Known limits", 2026-10-14.
+  (`runGithubReviewsBackfill`, `REVIEW_WINDOW_MS`, `listUpdated`).
+- **Why:** until the backfill (Spec 022 Behavior 13, decision 5: 12 months
+  from 2025-10-14) has been run on Dev, coverage starts one day before the
+  first run (`coverageFrom`). After it: a review dismissed more than 35 days
+  after it was submitted keeps its stored verdict; a pull request with more
+  than 100 reviews is read partially (`reviewsTruncated`); a deleted review
+  keeps its row; nothing prunes months (Behavior 14, about 8 MB a year).
+  The daily run still pages its listing by offset: GitHub refused page 15
+  of a 12-month listing with 422 (page 10 answered, 2026-10-14), so a daily
+  backlog needing more than about 10 pages (about 1,000 listed items) would
+  fail as `transport` on every tick; the cap (500 pull requests, about 8
+  DataFusion pages) keeps it under that today.
+- **Fix:** run the backfill by the runbook ("GitHub review ingestion
+  (Spec 022)", "Backfill") and record RV35 with
+  `bun run measure:github-reviews -- --backfill-from 2025-10-14`; move the
+  daily listing to the backfill's keyed paging (`nextKeysetPage`) if
+  `githubReviews` ever shows a 422; pruning only when a reader needs it.
+- **Layer:** operator run, then measured evidence; a run test for the
+  daily paging if it changes.
+- **Source:** Spec 022 "Known limits" and Behavior 13–14, 2026-10-14.
 
 ## CI evidence
 

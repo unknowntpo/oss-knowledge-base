@@ -7,10 +7,12 @@ import {
   encodeReviewMonth,
   isReviewBot,
   mergeReviewRows,
+  nextKeysetPage,
   parsePullReviews,
   parseReviewMonth,
   parseReviewersTrailer,
   pullReviewsQuery,
+  resolveBackfillFrom,
   resolveGithubReviews,
   reviewMonth,
   reviewRows,
@@ -73,7 +75,33 @@ const dismissal = (stored: readonly ReviewRow[], incoming: ReviewRow) => {
 };
 const many = (oldest: string) => pull(Array.from({ length: 100 }, (_, index) => node(index + 1, index === 0 ? oldest : "2026-10-13T12:00:00Z")), 150);
 
+const BACKFILL_NOW = Date.parse("2026-10-14T12:00:00Z");
+const start = (value: string | null, now = BACKFILL_NOW) => {
+  const result = resolveBackfillFrom(value, now);
+  if (result.ok) return result.from;
+  return `error: ${/required/u.test(result.error) ? "required" : /ISO/u.test(result.error) ? "not an ISO date" : /floor/u.test(result.error) ? "before the floor" : /past/u.test(result.error) ? "not in the past" : result.error}`;
+};
+const keysetItems = (last: string, count = 100) => Array.from({ length: count }, (_, index) => ({ number: index + 1, updated_at: index === count - 1 ? last : "2026-10-13T10:29:59Z" }));
+const keyset = (since: string, page: number, items: readonly UpdatedItem[]) => {
+  const next = nextKeysetPage({ since, page }, items);
+  return `${next.since === since ? "same since" : `next since ${next.since.slice(11, 19)}`}; ${next.page === 1 ? "page 1" : "next page"}`;
+};
+
 const scenarios: Record<string, () => string> = {
+  "backfill start|constructed: from=2026-04-14, now 2026-10-14T12:00:00Z": () => start("2026-04-14"),
+  "backfill start|constructed: from=2026-04-14T06:30:00Z": () => start("2026-04-14T06:30:00Z"),
+  "backfill start|constructed: from missing": () => start(null),
+  "backfill start|constructed: from=14/04/2026": () => start("14/04/2026"),
+  "backfill start|constructed: from exactly 395 days back (about 13 months)": () => (start(new Date(BACKFILL_NOW - 395 * 86_400_000).toISOString()).startsWith("error") ? "refused" : "accepted"),
+  "backfill start|constructed: from 395 days and 1 s back": () => start(new Date(BACKFILL_NOW - 395 * 86_400_000 - 1_000).toISOString()),
+  "backfill start|constructed: from equal to now": () => start(new Date(BACKFILL_NOW).toISOString()),
+  "backfill window|constructed: window 2026-04-14..2026-10-13; reviews 1 s before from, at from, 1 s before until, at until": () => {
+    const { rows } = reviewRows(pull([node(1, "2026-04-13T23:59:59Z"), node(2, "2026-04-14T00:00:00Z"), node(3, "2026-10-12T23:59:59Z"), node(4, "2026-10-13T00:00:00Z")]),
+      { from: "2026-04-14T00:00:00.000Z", until: "2026-10-13T00:00:00.000Z", machineUsers: [] });
+    return `${rows.length} rows${rows.map((value) => value.reviewId).join(",") === "2,3" ? " (at from, 1 s before until)" : ` ${rows.map((value) => value.reviewId).join(",")}`}`;
+  },
+  "keyset|constructed: page of 100 ending at 10:30:00": () => keyset("2026-10-13T09:00:00Z", 1, keysetItems("2026-10-13T10:30:00Z")),
+  "keyset|constructed: page of 100 all inside 10:29:59..10:30:00, since 10:29:59": () => keyset("2026-10-13T10:29:59.000Z", 1, keysetItems("2026-10-13T10:30:00Z")),
   "flag|constructed: GITHUB_REVIEWS unset": () => flag(undefined),
   "flag|constructed: GITHUB_REVIEWS blank": () => flag("  "),
   "flag|constructed: GITHUB_REVIEWS metadata@1": () => flag("metadata@1"),

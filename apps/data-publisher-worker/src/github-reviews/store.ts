@@ -4,6 +4,9 @@ export const githubReviewsPrefix = (projectId: string) => `internal/github-revie
 export const githubReviewsMonthKey = (projectId: string, month: string) => `${githubReviewsPrefix(projectId)}${month}.json`;
 export const githubReviewsStateKey = (projectId: string) => `${githubReviewsPrefix(projectId)}state.json`;
 export const GITHUB_REVIEWS_LAST_RUN_KEY = "internal/github-reviews/v1/last-run.json";
+/** Behavior 13: the backfill's own progress, apart from the daily cursor, and its last run record. */
+export const githubReviewsBackfillKey = (projectId: string) => `${githubReviewsPrefix(projectId)}backfill.json`;
+export const GITHUB_REVIEWS_BACKFILL_LAST_RUN_KEY = "internal/github-reviews/v1/backfill-last-run.json";
 
 export interface GithubReviewsBucket {
   /** The object's text and ETag, or undefined when absent. */
