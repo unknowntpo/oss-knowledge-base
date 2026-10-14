@@ -857,3 +857,40 @@ the two `viewer/` items below.
   check of `/health`.
 - **Layer:** spec, then E2E with a controlled clock.
 - **Source:** independent verifier of PR #62, Spec 018 "Known limits".
+
+### G67. The feature-map site parses a subset of Markdown with its own parser
+- **Where:** `scripts/feature-map-site/markdown.ts` (headings, pipe tables,
+  lists, fenced code, quotes, paragraphs; inline code, bold, links).
+- **Why:** no dependency, so the workflow needs no `bun install`. Anything
+  else (images, HTML, nested emphasis, tables without a leading pipe,
+  reference links) is shown as text, and a list item's nested block is
+  flattened. `docs/feature-map.md` and `docs/gardening.md` use none of these
+  today.
+- **Fix:** keep the sources inside the subset; replace the parser with a
+  library only if they outgrow it.
+- **Layer:** test (`B7` rows in `scripts/test/feature-map-site.test.ts`).
+- **Source:** Spec 020 simplification review, 2026-10-14.
+
+### G68. Spec 018's monthly Class A estimate used an hourly run's size
+- **Where:** `docs/specs/018-daily-publication/spec.md` (Decision rationale,
+  "about 1.2 thousand Class A" a month; "about 40 Class A" in the schedule
+  inventory and Known limit 3).
+- **Why:** a daily run writes a day's new objects, not an hour's: the first
+  daily run on Dev (2026-10-13 22:07 UTC) sent 391 Class A (388 new objects
+  + 3), so a month is about 12 thousand, ten times the estimate and still
+  1.2% of the included million. One run; the weekday pattern is unknown.
+- **Fix:** record a week of `lastRun.r2` and correct the spec's figures; the
+  runbook and the feature map already carry the measured run.
+- **Layer:** measurement (`/health` `lastRun.r2`).
+- **Source:** Spec 020 (found while regenerating the feature map), 2026-10-14.
+
+### G69. The generated site lacks live Dev status and the owner's pending decisions
+- **Where:** `scripts/feature-map-site/generate.ts`; Spec 020 "Proposed, not
+  built".
+- **Why:** neither is in the tree. The hand-made overview page had both, so
+  it cannot be retired without them or a decision to drop them.
+- **Fix:** `docs/decisions-pending.md` as a generated section; a client-side
+  read of Dev `/health` after the Worker sends a CORS header for the site's
+  origin (its own PR).
+- **Layer:** spec (Spec 020 Decisions 5 and 6).
+- **Source:** Spec 020 non-goals, 2026-10-14.
