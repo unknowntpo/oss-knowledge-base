@@ -3,6 +3,9 @@ import { asfRosterAdapter, JiraConnector, KAFKA_DIGEST_PROFILE, KAFKA_REVIEW_PRO
 import { DigestRunner } from "./digest/runner";
 import { R2DigestBucket } from "./digest/store";
 import { runReviewQueue } from "./review-queue/run";
+import { githubReviewsProjects } from "./github-reviews/projects";
+import { runGithubReviews } from "./github-reviews/run";
+import { GITHUB_REVIEWS_LAST_RUN_KEY, R2GithubReviewsBucket } from "./github-reviews/store";
 import { R2ReviewQueueBucket, reviewQueueLastRunKey } from "./review-queue/store";
 import { WorkersAiModel, type AiBinding } from "./digest/workers-ai";
 import { DurableObjectPipelineState } from "./durable-object-state";
@@ -60,6 +63,12 @@ interface Env {
    * Pages project reaches the same class through its own binding. Unbound until the enable.
    */
   readonly SEARCH_QUERY_GATE?: DurableObjectNamespace;
+  /**
+   * Spec 022: `metadata@1` ingests GitHub pull-request reviews as metadata rows on each
+   * publication tick. Unset is off: no GitHub request, no R2 request, no `/health` field. Any
+   * other value fails the review run (never the publication) and is reported in `/health`.
+   */
+  readonly GITHUB_REVIEWS?: string;
 }
 
 const sourceFetch = (url: string, init: { readonly headers: Readonly<Record<string, string>> }) =>
@@ -112,9 +121,10 @@ export function digestModel(env: Pick<Env, "DIGEST_MODEL" | "DIGEST_GATEWAY_ID" 
  * `/health`: the publisher's body, unchanged, plus `digest` (null when the digest object fails),
  * `reviewQueue`, the review queue's `last-run.json` (null before the first run or on a read error),
  * `searchEmbedding` (null when the embedding object does not answer), and `searchQuery` (the query
- * gate; null when it does not answer).
+ * gate; null when it does not answer), and, only while `GITHUB_REVIEWS` is set, `githubReviews` (the
+ * review ingestion's `last-run.json`; null before the first run or on a read error).
  */
-export function mergeHealth(publisher: unknown, digest: unknown, reviewQueue: unknown = null, searchEmbedding: unknown = null, searchQuery: unknown = null): unknown {
+export function mergeHealth(publisher: unknown, digest: unknown, reviewQueue: unknown = null, searchEmbedding: unknown = null, searchQuery: unknown = null, githubReviews?: unknown): unknown {
   return {
     ...(publisher as Record<string, unknown>),
     digest: digest ?? null,
@@ -123,6 +133,8 @@ export function mergeHealth(publisher: unknown, digest: unknown, reviewQueue: un
     searchEmbedding: searchEmbedding ?? null,
     // Spec 016 H69: the query gate's health, or null when it does not answer.
     searchQuery: searchQuery ?? null,
+    // Spec 022 RV24: present only while `GITHUB_REVIEWS` is set; null before the first run.
+    ...(githubReviews === undefined ? {} : { githubReviews }),
   };
 }
 
@@ -134,6 +146,24 @@ function reviewQueueRun(env: Env, dryRun: boolean) {
     githubFetch: (url, init) => fetch(url, init),
     apacheFetch: (url, init) => fetch(url, init),
     rosterAdapter: asfRosterAdapter,
+    now: () => Date.now(),
+    delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    dryRun,
+  });
+}
+
+/** Spec 022 Behavior 1: the flag is "set" when it is not blank, whether or not its value is supported. */
+export function githubReviewsSet(env: Pick<Env, "GITHUB_REVIEWS">): boolean {
+  return (env.GITHUB_REVIEWS?.trim() ?? "") !== "";
+}
+
+function githubReviewsRun(env: Env, dryRun: boolean) {
+  return runGithubReviews({
+    flag: env.GITHUB_REVIEWS,
+    bucket: new R2GithubReviewsBucket(env.OSS_KB_BUCKET),
+    projects: githubReviewsProjects,
+    githubToken: env.GITHUB_SOURCE_TOKEN ?? "",
+    githubFetch: (url, init) => fetch(url, init),
     now: () => Date.now(),
     delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     dryRun,
@@ -171,6 +201,9 @@ export default {
         throw new Error(`Scheduling publication failed: ${await response.text()}`);
       }
     }));
+    // Spec 022: the review ingestion rides the publication tick but runs here, outside the
+    // publication's Durable Object, so neither can fail or slow the other.
+    if (githubReviewsSet(env)) context.waitUntil(githubReviewsRun(env, false).then(() => undefined));
   },
 
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -197,7 +230,12 @@ export default {
         : await env.SEARCH_QUERY_GATE.get(env.SEARCH_QUERY_GATE.idFromName(SEARCH_QUERY_GATE_OBJECT_NAME)).fetch("https://search-query.internal/status")
           .then((response) => (response.ok ? response.json() : null))
           .catch(() => null);
-      return Response.json(mergeHealth(await publisher.json(), digestHealth, reviewQueue, searchEmbedding, searchQuery));
+      const githubReviews = githubReviewsSet(env)
+        ? await env.OSS_KB_BUCKET.get(GITHUB_REVIEWS_LAST_RUN_KEY)
+          .then((object) => (object === null ? null : object.json()))
+          .catch(() => null)
+        : undefined;
+      return Response.json(mergeHealth(await publisher.json(), digestHealth, reviewQueue, searchEmbedding, searchQuery, githubReviews));
     }
     if (request.method === "POST" && url.pathname === "/search-embedding/run") {
       if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
@@ -219,6 +257,13 @@ export default {
       if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
       // Runs while the caller waits (about 1–3 min): no Durable Object holds this job (ADR-0016).
       const { lastRun } = await reviewQueueRun(env, url.searchParams.get("dryRun") === "1");
+      return Response.json(lastRun, { status: lastRun.ok ? 200 : 502 });
+    }
+    if (request.method === "POST" && url.pathname === "/github-reviews/run") {
+      if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
+      if (!githubReviewsSet(env)) return Response.json({ ok: false, disabled: true }, { status: 403 });
+      // Runs while the caller waits (seconds): no Durable Object holds this job.
+      const lastRun = await githubReviewsRun(env, url.searchParams.get("dryRun") === "1");
       return Response.json(lastRun, { status: lastRun.ok ? 200 : 502 });
     }
     if (request.method === "POST" && url.pathname === "/run") {

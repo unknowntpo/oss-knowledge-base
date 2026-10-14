@@ -135,6 +135,10 @@ the two `viewer/` items below.
 - **Progress:** Spec 015 slice 1 classifies GitHub reviewers and authors
   with `isMachineAuthor` plus GitHub's `Bot` type (`isMachineActor`); the
   publisher's `isBot` still uses the substring rule.
+- **Progress (Spec 022):** review rows classify with `isReviewBot` (GitHub's
+  `Bot` type, the `[bot]` suffix, the project's machine users). That is a
+  third copy of the rule; fold the three into one when the publisher's is
+  fixed.
 
 ### G9. No R2 retention or garbage collection
 - **Where:** `public/v2/releases/*`, `public/v2/objects/details/*`,
@@ -481,6 +485,33 @@ the two `viewer/` items below.
   unscored rows; drop the snapshot digests once `@2` is deleted (G45).
 - **Layer:** test rows (owner-confirmed labels).
 - **Source:** Spec 017.
+
+### G71. `GITHUB_REVIEWS` is a flag that is off in both environments
+- **Where:** `apps/data-publisher-worker/src/index.ts` (`githubReviewsSet`),
+  `apps/data-publisher-worker/src/github-reviews/`; in neither Wrangler
+  configuration.
+- **Why:** Spec 022 merged switched off so that the merge changes no
+  behaviour and no cost. Until it is set on Dev the code runs only in tests
+  and in `measure:github-reviews`, and the Dev token's GraphQL access is
+  unproven.
+- **Fix:** the owner decides (Spec 022 decisions 1 to 4); then set it on Dev
+  by the spec's enabling steps and record RV25. Delete this entry when the
+  flag is on wherever the publisher runs.
+- **Layer:** owner decision, then deploy evidence.
+- **Source:** Spec 022, 2026-10-14.
+
+### G72. Review ingestion has no backfill and bounded hindsight
+- **Where:** `apps/data-publisher-worker/src/github-reviews/run.ts`
+  (`FIRST_RUN_LOOKBACK_MS`, `REVIEW_WINDOW_MS`).
+- **Why:** coverage starts one day before the first run (`coverageFrom`);
+  a review dismissed more than 35 days after it was submitted keeps its
+  stored verdict; a pull request with more than 100 reviews in 35 days is
+  read partially (`reviewsTruncated`); a deleted review keeps its row.
+- **Fix:** the backfill proposed in Spec 022 (an explicit start for a first
+  run), decided with Spec 019's horizon; the rest only if `/health`
+  `githubReviews` shows `reviewsTruncated` above 0.
+- **Layer:** spec decision, then a run test.
+- **Source:** Spec 022 "Known limits", 2026-10-14.
 
 ## CI evidence
 
