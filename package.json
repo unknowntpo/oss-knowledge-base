@@ -22,6 +22,7 @@
     "measure:search-revisions": "bun run --cwd apps/web measure:search-revisions",
     "eval:search": "bun run --cwd packages/search eval",
     "measure:review-queue": "bun run --cwd apps/data-publisher-worker measure:review-queue",
+    "measure:github-reviews": "bun run --cwd apps/data-publisher-worker measure:github-reviews",
     "measure:search-embedding": "bun run --cwd apps/data-publisher-worker measure:search-embedding",
     "measure:search-hybrid": "bun run --cwd apps/web measure:search-hybrid",
     "capture:search-replay": "bun run --cwd apps/web capture:search-replay",

@@ -1,0 +1,5278 @@
+{
+ "capturedAt": "2026-10-14T01:40:25Z",
+ "source": "apache/kafka pull requests merged 2026-10-07..2026-10-13 (UTC): GitHub GraphQL pullRequests with reviews and mergeCommit.messageBody; display names from GET /users/{login}. Every address in a trailer is replaced with <redacted>; no review text.",
+ "displayNames": {
+  "AndrewJSchofield": "Andrew Schofield",
+  "FrankYang0529": "PoAn Yang",
+  "KhyatiVaghamshi": null,
+  "Russole": "Russole Chen",
+  "adikou": "Aditya Kousik",
+  "aliehsaeedii": "Alieh Saeedi",
+  "andyhuangdev": "Andy Huang",
+  "apoorvmittal10": "Apoorv Mittal",
+  "artemlivshits": "Artem Livshits",
+  "ashwinpankaj": null,
+  "bbejeck": "Bill Bejeck",
+  "brandboat": "Kuan-Po Tseng",
+  "chia7712": "Chia-Ping Tsai",
+  "clolov": "Christo Lolov",
+  "copilot-pull-request-reviewer": null,
+  "dajac": "David Jacot",
+  "ezhou413": "Evan Zhou",
+  "frankvicky": "TengYao Chi",
+  "fvaleri": "Federico Valeri",
+  "gabriellefu": "gabriellafu",
+  "harmadasg": "Gergely Harmadas",
+  "jim0987795064": "Chang-Chi Hsu",
+  "jolshan": "Justine Olshan",
+  "junrao": "Jun Rao",
+  "liuliuOD": "liuliu",
+  "lucasbru": "Lucas Brutschy",
+  "lucliu1108": "Lucy Liu",
+  "m1a2st": "Ken Huang",
+  "majialoong": "majialong",
+  "mimaison": "Mickael Maison",
+  "mingyen066": "Ming-Yen Chung",
+  "mjsax": "Matthias J. Sax",
+  "muralibasani": "Murali Basani",
+  "peterzdhuang": "Peter Huang",
+  "psiby": "Pranav Siby",
+  "rahul05ranjan": "Rahul",
+  "rishi-rana": null,
+  "rreddy-22": "Ritika Reddy",
+  "see-quick": "Maros Orsak",
+  "showuon": "Luke Chen",
+  "squah-confluent": "Sean Quah",
+  "suzhiking": "Gavin Wang",
+  "unknowntpo": "Eric Chang",
+  "uros-b": "Uros",
+  "viktorsomogyi": "Viktor Somogyi-Vass"
+ },
+ "pulls": [
+  {
+   "number": 22831,
+   "author": {
+    "login": "peterzdhuang",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-13T17:17:03Z",
+   "trailer": [
+    "Reviewers: Evan Zhou <redacted>, Bill Bejeck"
+   ],
+   "reviews": {
+    "totalCount": 6,
+    "nodes": [
+     {
+      "databaseId": 4739803522,
+      "author": {
+       "login": "ezhou413",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-07-20T23:45:10Z",
+      "commit": {
+       "oid": "e4aedb735fab3533f45ea504f0512ec5de26034e"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 4755648019,
+      "author": {
+       "login": "ezhou413",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-07-22T16:50:02Z",
+      "commit": {
+       "oid": "c304ade09b30937454600bfe1143359f99a9b1da"
+      },
+      "comments": {
+       "totalCount": 2
+      }
+     },
+     {
+      "databaseId": 4812263272,
+      "author": {
+       "login": "ezhou413",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-07-29T19:36:41Z",
+      "commit": {
+       "oid": "b491f04a350fbcb03f358f1e2762ef7256e58926"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5214243018,
+      "author": {
+       "login": "bbejeck",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-15T18:32:27Z",
+      "commit": {
+       "oid": "b491f04a350fbcb03f358f1e2762ef7256e58926"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5495551474,
+      "author": {
+       "login": "peterzdhuang",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T20:17:14Z",
+      "commit": {
+       "oid": "b491f04a350fbcb03f358f1e2762ef7256e58926"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5495886033,
+      "author": {
+       "login": "bbejeck",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-12T20:59:01Z",
+      "commit": {
+       "oid": "94cdead05abfa382ee653c991608f194033deb85"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23105,
+   "author": {
+    "login": "adikou",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-12T08:02:05Z",
+   "trailer": [
+    "Reviewers: Murali Basani <redacted>, Chia-Ping Tsai"
+   ],
+   "reviews": {
+    "totalCount": 7,
+    "nodes": [
+     {
+      "databaseId": 5448545095,
+      "author": {
+       "login": "muralibasani",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-07T21:24:51Z",
+      "commit": {
+       "oid": "8d2416a89eba1e197d0cff5c4d019a1d9e4662a8"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5448574657,
+      "author": {
+       "login": "muralibasani",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-07T21:27:48Z",
+      "commit": {
+       "oid": "8d2416a89eba1e197d0cff5c4d019a1d9e4662a8"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5457237107,
+      "author": {
+       "login": "AndrewJSchofield",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T13:21:27Z",
+      "commit": {
+       "oid": "8d2416a89eba1e197d0cff5c4d019a1d9e4662a8"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5473087416,
+      "author": {
+       "login": "adikou",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T17:06:36Z",
+      "commit": {
+       "oid": "8d2416a89eba1e197d0cff5c4d019a1d9e4662a8"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5473087598,
+      "author": {
+       "login": "adikou",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T17:06:37Z",
+      "commit": {
+       "oid": "8d2416a89eba1e197d0cff5c4d019a1d9e4662a8"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5482560883,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-11T08:32:41Z",
+      "commit": {
+       "oid": "7383f03615474c524c73dc5043a2ebbf3203a667"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5487761055,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-12T07:41:58Z",
+      "commit": {
+       "oid": "f019fbbe3bf19e26e366e0b0e126ea16d9bd542c"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23165,
+   "author": {
+    "login": "gabriellefu",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-07T08:48:38Z",
+   "trailer": [
+    "Reviewers: Chia-Ping Tsai <redacted>, Matthias J. Sax"
+   ],
+   "reviews": {
+    "totalCount": 28,
+    "nodes": [
+     {
+      "databaseId": 4940620848,
+      "author": {
+       "login": "gabriellefu",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-08-14T19:41:37Z",
+      "commit": {
+       "oid": "dfbfb2a94497b2b721d2e329a0e21406c5d2727f"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 4941028953,
+      "author": {
+       "login": "gabriellefu",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-08-14T20:39:56Z",
+      "commit": {
+       "oid": "4679f76dec537b8ac73e2dff2a115c76624a0110"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 4941032407,
+      "author": {
+       "login": "gabriellefu",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-08-14T20:40:32Z",
+      "commit": {
+       "oid": "4679f76dec537b8ac73e2dff2a115c76624a0110"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 4949350354,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-08-17T07:46:38Z",
+      "commit": {
+       "oid": "520af34491ed9b3c80395cf59bacff638e063ab6"
+      },
+      "comments": {
+       "totalCount": 2
+      }
+     },
+     {
+      "databaseId": 4978347000,
+      "author": {
+       "login": "mjsax",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-08-20T02:23:01Z",
+      "commit": {
+       "oid": "520af34491ed9b3c80395cf59bacff638e063ab6"
+      },
+      "comments": {
+       "totalCount": 4
+      }
+     },
+     {
+      "databaseId": 4996882283,
+      "author": {
+       "login": "gabriellefu",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-08-21T19:49:17Z",
+      "commit": {
+       "oid": "520af34491ed9b3c80395cf59bacff638e063ab6"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 4996913919,
+      "author": {
+       "login": "gabriellefu",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-08-21T19:53:44Z",
+      "commit": {
+       "oid": "520af34491ed9b3c80395cf59bacff638e063ab6"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 4997055000,
+      "author": {
+       "login": "gabriellefu",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-08-21T20:14:59Z",
+      "commit": {
+       "oid": "520af34491ed9b3c80395cf59bacff638e063ab6"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 4997090859,
+      "author": {
+       "login": "gabriellefu",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-08-21T20:19:36Z",
+      "commit": {
+       "oid": "520af34491ed9b3c80395cf59bacff638e063ab6"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5337602847,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-28T11:05:14Z",
+      "commit": {
+       "oid": "c4bb14b41524558db58fa1159a72342be732b0a4"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5337609000,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-28T11:05:46Z",
+      "commit": {
+       "oid": "c4bb14b41524558db58fa1159a72342be732b0a4"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5357751764,
+      "author": {
+       "login": "gabriellefu",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-29T20:05:10Z",
+      "commit": {
+       "oid": "520af34491ed9b3c80395cf59bacff638e063ab6"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5376196891,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-01T07:52:37Z",
+      "commit": {
+       "oid": "d2cc55fe3633c4cd41987665622f81ff8a9d9f5b"
+      },
+      "comments": {
+       "totalCount": 5
+      }
+     },
+     {
+      "databaseId": 5419073699,
+      "author": {
+       "login": "gabriellefu",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-05T18:42:46Z",
+      "commit": {
+       "oid": "d2cc55fe3633c4cd41987665622f81ff8a9d9f5b"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5419155594,
+      "author": {
+       "login": "gabriellefu",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-05T18:50:39Z",
+      "commit": {
+       "oid": "d2cc55fe3633c4cd41987665622f81ff8a9d9f5b"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5419218115,
+      "author": {
+       "login": "gabriellefu",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-05T18:56:46Z",
+      "commit": {
+       "oid": "d2cc55fe3633c4cd41987665622f81ff8a9d9f5b"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5419277405,
+      "author": {
+       "login": "gabriellefu",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-05T19:02:35Z",
+      "commit": {
+       "oid": "d2cc55fe3633c4cd41987665622f81ff8a9d9f5b"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5419282054,
+      "author": {
+       "login": "gabriellefu",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-05T19:03:03Z",
+      "commit": {
+       "oid": "d2cc55fe3633c4cd41987665622f81ff8a9d9f5b"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5425435734,
+      "author": {
+       "login": "copilot-pull-request-reviewer",
+       "__typename": "Bot"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T07:58:37Z",
+      "commit": {
+       "oid": "216be25a0854248a61376b8044ab91dfa484cdc8"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5425459798,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-06T08:01:05Z",
+      "commit": {
+       "oid": "216be25a0854248a61376b8044ab91dfa484cdc8"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5428934488,
+      "author": {
+       "login": "squah-confluent",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T13:50:19Z",
+      "commit": {
+       "oid": "216be25a0854248a61376b8044ab91dfa484cdc8"
+      },
+      "comments": {
+       "totalCount": 6
+      }
+     },
+     {
+      "databaseId": 5434319782,
+      "author": {
+       "login": "gabriellefu",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T20:39:59Z",
+      "commit": {
+       "oid": "216be25a0854248a61376b8044ab91dfa484cdc8"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5434371856,
+      "author": {
+       "login": "gabriellefu",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T20:45:15Z",
+      "commit": {
+       "oid": "216be25a0854248a61376b8044ab91dfa484cdc8"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5434374300,
+      "author": {
+       "login": "gabriellefu",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T20:45:30Z",
+      "commit": {
+       "oid": "216be25a0854248a61376b8044ab91dfa484cdc8"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5434467515,
+      "author": {
+       "login": "gabriellefu",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T20:55:03Z",
+      "commit": {
+       "oid": "216be25a0854248a61376b8044ab91dfa484cdc8"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5437883899,
+      "author": {
+       "login": "squah-confluent",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-07T05:11:07Z",
+      "commit": {
+       "oid": "85951453e9316740370bd9a5e7f270a3f2c6d50d"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5441233492,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-07T10:54:10Z",
+      "commit": {
+       "oid": "85951453e9316740370bd9a5e7f270a3f2c6d50d"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5446324265,
+      "author": {
+       "login": "gabriellefu",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-07T18:02:22Z",
+      "commit": {
+       "oid": "85951453e9316740370bd9a5e7f270a3f2c6d50d"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23268,
+   "author": {
+    "login": "psiby",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-09T14:55:41Z",
+   "trailer": [
+    "Reviewers: Mickael Maison <redacted>, ashwinpankaj <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 20,
+    "nodes": [
+     {
+      "databaseId": 5128611578,
+      "author": {
+       "login": "ashwinpankaj",
+       "__typename": "User"
+      },
+      "state": "CHANGES_REQUESTED",
+      "submittedAt": "2026-09-07T06:43:16Z",
+      "commit": {
+       "oid": "be383b74f8a7f3cb71a7c6f0c6799253a2499eca"
+      },
+      "comments": {
+       "totalCount": 3
+      }
+     },
+     {
+      "databaseId": 5138595653,
+      "author": {
+       "login": "psiby",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-08T07:22:11Z",
+      "commit": {
+       "oid": "be383b74f8a7f3cb71a7c6f0c6799253a2499eca"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5138595990,
+      "author": {
+       "login": "psiby",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-08T07:22:13Z",
+      "commit": {
+       "oid": "be383b74f8a7f3cb71a7c6f0c6799253a2499eca"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5138630194,
+      "author": {
+       "login": "psiby",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-08T07:26:26Z",
+      "commit": {
+       "oid": "be383b74f8a7f3cb71a7c6f0c6799253a2499eca"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5151283669,
+      "author": {
+       "login": "ashwinpankaj",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-09T07:47:14Z",
+      "commit": {
+       "oid": "be383b74f8a7f3cb71a7c6f0c6799253a2499eca"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5155126943,
+      "author": {
+       "login": "ashwinpankaj",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-09-09T13:41:08Z",
+      "commit": {
+       "oid": "c8c08aa39a683e221e24092f88d1fa369cac2263"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5459010173,
+      "author": {
+       "login": "mimaison",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T16:02:01Z",
+      "commit": {
+       "oid": "c8c08aa39a683e221e24092f88d1fa369cac2263"
+      },
+      "comments": {
+       "totalCount": 7
+      }
+     },
+     {
+      "databaseId": 5468905306,
+      "author": {
+       "login": "psiby",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T10:35:08Z",
+      "commit": {
+       "oid": "c8c08aa39a683e221e24092f88d1fa369cac2263"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5468914183,
+      "author": {
+       "login": "psiby",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T10:36:06Z",
+      "commit": {
+       "oid": "c8c08aa39a683e221e24092f88d1fa369cac2263"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5468927345,
+      "author": {
+       "login": "psiby",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T10:37:32Z",
+      "commit": {
+       "oid": "c8c08aa39a683e221e24092f88d1fa369cac2263"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5468935163,
+      "author": {
+       "login": "psiby",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T10:38:22Z",
+      "commit": {
+       "oid": "c8c08aa39a683e221e24092f88d1fa369cac2263"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5468940647,
+      "author": {
+       "login": "psiby",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T10:38:59Z",
+      "commit": {
+       "oid": "c8c08aa39a683e221e24092f88d1fa369cac2263"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5468949835,
+      "author": {
+       "login": "psiby",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T10:39:49Z",
+      "commit": {
+       "oid": "c8c08aa39a683e221e24092f88d1fa369cac2263"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5471689965,
+      "author": {
+       "login": "mimaison",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-09T14:53:17Z",
+      "commit": {
+       "oid": "9522c298316af81b978967c88eda838772dc8a36"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5473369370,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T18:03:32Z",
+      "commit": {
+       "oid": "9522c298316af81b978967c88eda838772dc8a36"
+      },
+      "comments": {
+       "totalCount": 5
+      }
+     },
+     {
+      "databaseId": 5489247605,
+      "author": {
+       "login": "psiby",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T10:06:09Z",
+      "commit": {
+       "oid": "9522c298316af81b978967c88eda838772dc8a36"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5489267352,
+      "author": {
+       "login": "psiby",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T10:08:12Z",
+      "commit": {
+       "oid": "9522c298316af81b978967c88eda838772dc8a36"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5489290432,
+      "author": {
+       "login": "psiby",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T10:10:39Z",
+      "commit": {
+       "oid": "9522c298316af81b978967c88eda838772dc8a36"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5489306448,
+      "author": {
+       "login": "psiby",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T10:12:22Z",
+      "commit": {
+       "oid": "9522c298316af81b978967c88eda838772dc8a36"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5500799004,
+      "author": {
+       "login": "psiby",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-13T08:28:47Z",
+      "commit": {
+       "oid": "9522c298316af81b978967c88eda838772dc8a36"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23280,
+   "author": {
+    "login": "KhyatiVaghamshi",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-08T07:43:04Z",
+   "trailer": [
+    "Reviewers: Uros (github:uros-b), Mickael Maison <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 4,
+    "nodes": [
+     {
+      "databaseId": 5059232840,
+      "author": {
+       "login": "uros-b",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-08-29T21:28:31Z",
+      "commit": {
+       "oid": "e6ce1dc3ed69da9acf05f90bfb9cd60a1da52aa4"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5440273110,
+      "author": {
+       "login": "mimaison",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-07T09:24:36Z",
+      "commit": {
+       "oid": "e6ce1dc3ed69da9acf05f90bfb9cd60a1da52aa4"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5446022306,
+      "author": {
+       "login": "KhyatiVaghamshi",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-07T17:35:37Z",
+      "commit": {
+       "oid": "d1e2cea410a77a279e371feb87474ec8bf3fe6e3"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5453328292,
+      "author": {
+       "login": "mimaison",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-08T07:40:29Z",
+      "commit": {
+       "oid": "d1e2cea410a77a279e371feb87474ec8bf3fe6e3"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23318,
+   "author": {
+    "login": "m1a2st",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-07T18:35:37Z",
+   "trailer": [
+    "Reviewers: Jun Rao <redacted>, Chia-Ping Tsai"
+   ],
+   "reviews": {
+    "totalCount": 15,
+    "nodes": [
+     {
+      "databaseId": 5272546022,
+      "author": {
+       "login": "junrao",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-22T21:11:47Z",
+      "commit": {
+       "oid": "7a1947fee160557160830b6e14be302aa582e6a8"
+      },
+      "comments": {
+       "totalCount": 7
+      }
+     },
+     {
+      "databaseId": 5325074746,
+      "author": {
+       "login": "m1a2st",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-26T07:35:42Z",
+      "commit": {
+       "oid": "7a1947fee160557160830b6e14be302aa582e6a8"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5325087214,
+      "author": {
+       "login": "m1a2st",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-26T07:41:55Z",
+      "commit": {
+       "oid": "7a1947fee160557160830b6e14be302aa582e6a8"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5342361021,
+      "author": {
+       "login": "junrao",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-28T21:47:18Z",
+      "commit": {
+       "oid": "b383fd9e7af8fb554048815b2b274768d0228a81"
+      },
+      "comments": {
+       "totalCount": 4
+      }
+     },
+     {
+      "databaseId": 5353813811,
+      "author": {
+       "login": "m1a2st",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-29T14:11:10Z",
+      "commit": {
+       "oid": "7a1947fee160557160830b6e14be302aa582e6a8"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5356000441,
+      "author": {
+       "login": "junrao",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-29T22:25:28Z",
+      "commit": {
+       "oid": "baede02e2fd1dc109d59c6ccbc5218874d22f2cd"
+      },
+      "comments": {
+       "totalCount": 6
+      }
+     },
+     {
+      "databaseId": 5371573688,
+      "author": {
+       "login": "junrao",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-09-30T20:25:55Z",
+      "commit": {
+       "oid": "6ce39134cb8e47554ec534d5a38e02bbf759316e"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5379091747,
+      "author": {
+       "login": "m1a2st",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-01T12:17:32Z",
+      "commit": {
+       "oid": "6ce39134cb8e47554ec534d5a38e02bbf759316e"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5382290161,
+      "author": {
+       "login": "junrao",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-01T16:24:05Z",
+      "commit": {
+       "oid": "33e524b158639d86a5e884f4806a3b7ccc2e449e"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5388298385,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-02T04:32:45Z",
+      "commit": {
+       "oid": "33e524b158639d86a5e884f4806a3b7ccc2e449e"
+      },
+      "comments": {
+       "totalCount": 2
+      }
+     },
+     {
+      "databaseId": 5393279972,
+      "author": {
+       "login": "m1a2st",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-02T14:55:54Z",
+      "commit": {
+       "oid": "33e524b158639d86a5e884f4806a3b7ccc2e449e"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5417720709,
+      "author": {
+       "login": "junrao",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-05T16:33:55Z",
+      "commit": {
+       "oid": "60bf65ac3e4ac95e5dacfb4c25694afb67148ffa"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5423780926,
+      "author": {
+       "login": "m1a2st",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T04:26:35Z",
+      "commit": {
+       "oid": "60bf65ac3e4ac95e5dacfb4c25694afb67148ffa"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5431110137,
+      "author": {
+       "login": "junrao",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-06T15:53:02Z",
+      "commit": {
+       "oid": "445c6ccea8d317de159b21297baf17ea4381b497"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5446530558,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-07T18:21:32Z",
+      "commit": {
+       "oid": "445c6ccea8d317de159b21297baf17ea4381b497"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23381,
+   "author": {
+    "login": "KhyatiVaghamshi",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-09T09:41:33Z",
+   "trailer": [
+    "Reviewers: ashwinpankaj <redacted>, Mickael Maison <redacted>, Chia-Ping Tsai <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 7,
+    "nodes": [
+     {
+      "databaseId": 5244534962,
+      "author": {
+       "login": "ashwinpankaj",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-18T05:26:40Z",
+      "commit": {
+       "oid": "d84767bf9a87f12a3657fc21e427809ecc9c9456"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5454560664,
+      "author": {
+       "login": "mimaison",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T09:40:19Z",
+      "commit": {
+       "oid": "6f627490805d4f62ffd49f457d70de5663df3572"
+      },
+      "comments": {
+       "totalCount": 2
+      }
+     },
+     {
+      "databaseId": 5460266925,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T17:08:55Z",
+      "commit": {
+       "oid": "6f627490805d4f62ffd49f457d70de5663df3572"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5464073772,
+      "author": {
+       "login": "KhyatiVaghamshi",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T23:31:10Z",
+      "commit": {
+       "oid": "76c6e3c7838c1dab4fe74f994471c45065588015"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5464073797,
+      "author": {
+       "login": "KhyatiVaghamshi",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T23:31:10Z",
+      "commit": {
+       "oid": "76c6e3c7838c1dab4fe74f994471c45065588015"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5464073936,
+      "author": {
+       "login": "KhyatiVaghamshi",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T23:31:11Z",
+      "commit": {
+       "oid": "76c6e3c7838c1dab4fe74f994471c45065588015"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5468384799,
+      "author": {
+       "login": "mimaison",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-09T09:40:11Z",
+      "commit": {
+       "oid": "76c6e3c7838c1dab4fe74f994471c45065588015"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23385,
+   "author": {
+    "login": "jim0987795064",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-08T06:04:05Z",
+   "trailer": [
+    "Reviewers: Chia-Ping Tsai <redacted>, Mickael Maison"
+   ],
+   "reviews": {
+    "totalCount": 6,
+    "nodes": [
+     {
+      "databaseId": 5125449933,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-06T13:31:39Z",
+      "commit": {
+       "oid": "2a5c447a1cca33de4bdba1ced527074abe4f66ca"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5125486461,
+      "author": {
+       "login": "jim0987795064",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-06T13:44:17Z",
+      "commit": {
+       "oid": "2a5c447a1cca33de4bdba1ced527074abe4f66ca"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5125506555,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-06T13:49:56Z",
+      "commit": {
+       "oid": "2a5c447a1cca33de4bdba1ced527074abe4f66ca"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5446632992,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-07T18:30:16Z",
+      "commit": {
+       "oid": "78bd2bb53626c6ae9cd46ad8769f272040fa01a0"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5449704309,
+      "author": {
+       "login": "jim0987795064",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-07T23:39:48Z",
+      "commit": {
+       "oid": "78bd2bb53626c6ae9cd46ad8769f272040fa01a0"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5452202933,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-08T05:59:07Z",
+      "commit": {
+       "oid": "ed9366b3eb16e6e7dcbf01639dd38ecf5bf00d6f"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23388,
+   "author": {
+    "login": "KhyatiVaghamshi",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-07T14:10:27Z",
+   "trailer": [
+    "Reviewers: Mickael Maison <redacted>, ashwinpankaj <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 3,
+    "nodes": [
+     {
+      "databaseId": 5244523922,
+      "author": {
+       "login": "ashwinpankaj",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-18T05:24:16Z",
+      "commit": {
+       "oid": "27d1a4bcc0c753bd9c14a41c45f39ddba2b17cbb"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5296171243,
+      "author": {
+       "login": "KhyatiVaghamshi",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-23T20:04:55Z",
+      "commit": {
+       "oid": "27d1a4bcc0c753bd9c14a41c45f39ddba2b17cbb"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5443557532,
+      "author": {
+       "login": "mimaison",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-07T14:08:27Z",
+      "commit": {
+       "oid": "a00915e6d432add2b44c03af2d01e80f94b09a30"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23427,
+   "author": {
+    "login": "majialoong",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-12T22:04:08Z",
+   "trailer": [
+    "Reviewers: Chia-Ping Tsai <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 3,
+    "nodes": [
+     {
+      "databaseId": 5170335045,
+      "author": {
+       "login": "majialoong",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-10T17:32:32Z",
+      "commit": {
+       "oid": "3af962fabb64a7693e1fe405c8452d9ef681b1d3"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5496081329,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T21:22:22Z",
+      "commit": {
+       "oid": "3af962fabb64a7693e1fe405c8452d9ef681b1d3"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5496361423,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-12T21:55:15Z",
+      "commit": {
+       "oid": "bf16de82a5737b0b49d2689a2fc5dad660310159"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23529,
+   "author": {
+    "login": "lucliu1108",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-11T08:45:06Z",
+   "trailer": [
+    "Reviewers: rishi-rana <redacted>, Chia-Ping Tsai"
+   ],
+   "reviews": {
+    "totalCount": 4,
+    "nodes": [
+     {
+      "databaseId": 5273106972,
+      "author": {
+       "login": "rishi-rana",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-22T00:22:23Z",
+      "commit": {
+       "oid": "e6f887b7da01ce29637d59d27a713190d7ab0150"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5460908007,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T18:05:06Z",
+      "commit": {
+       "oid": "e6f887b7da01ce29637d59d27a713190d7ab0150"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5461266498,
+      "author": {
+       "login": "lucliu1108",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T18:37:55Z",
+      "commit": {
+       "oid": "e6f887b7da01ce29637d59d27a713190d7ab0150"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5482603918,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-11T08:43:25Z",
+      "commit": {
+       "oid": "8146b73642c00a763c1dfc8b6c4d297ab6344467"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23531,
+   "author": {
+    "login": "egyedt",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-07T11:25:05Z",
+   "trailer": [],
+   "reviews": {
+    "totalCount": 2,
+    "nodes": [
+     {
+      "databaseId": 5441559710,
+      "author": {
+       "login": "viktorsomogyi",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-07T11:24:08Z",
+      "commit": {
+       "oid": "0dbfa4fa5a16ddb84bb1480e53774bf21edca57a"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5446138706,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-07T17:45:15Z",
+      "commit": {
+       "oid": "0dbfa4fa5a16ddb84bb1480e53774bf21edca57a"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23557,
+   "author": {
+    "login": "muralibasani",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-11T09:13:58Z",
+   "trailer": [
+    "Reviewers: Chia-Ping Tsai"
+   ],
+   "reviews": {
+    "totalCount": 14,
+    "nodes": [
+     {
+      "databaseId": 5284338983,
+      "author": {
+       "login": "muralibasani",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-22T22:03:23Z",
+      "commit": {
+       "oid": "97d0cee26bedc48e8da39317561c365199214944"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5315606086,
+      "author": {
+       "login": "rahul05ranjan",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-09-25T08:48:43Z",
+      "commit": {
+       "oid": "bb63b4cf71d84767f26b6d435ee6ccacf09f7c61"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5424308804,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T05:53:59Z",
+      "commit": {
+       "oid": "bb63b4cf71d84767f26b6d435ee6ccacf09f7c61"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5426939318,
+      "author": {
+       "login": "viktorsomogyi",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T10:19:10Z",
+      "commit": {
+       "oid": "bb63b4cf71d84767f26b6d435ee6ccacf09f7c61"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5433313745,
+      "author": {
+       "login": "muralibasani",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T19:04:14Z",
+      "commit": {
+       "oid": "97d0cee26bedc48e8da39317561c365199214944"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5433321843,
+      "author": {
+       "login": "muralibasani",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T19:04:58Z",
+      "commit": {
+       "oid": "bb63b4cf71d84767f26b6d435ee6ccacf09f7c61"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5441508791,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-07T11:25:35Z",
+      "commit": {
+       "oid": "4520445b141001fbdc9025f6d723e3e81a7e8170"
+      },
+      "comments": {
+       "totalCount": 2
+      }
+     },
+     {
+      "databaseId": 5448140615,
+      "author": {
+       "login": "muralibasani",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-07T20:46:07Z",
+      "commit": {
+       "oid": "4520445b141001fbdc9025f6d723e3e81a7e8170"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5448188213,
+      "author": {
+       "login": "muralibasani",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-07T20:50:19Z",
+      "commit": {
+       "oid": "4520445b141001fbdc9025f6d723e3e81a7e8170"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5456655450,
+      "author": {
+       "login": "viktorsomogyi",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-08T12:36:14Z",
+      "commit": {
+       "oid": "89affd35e6554f32b3a36aa82e041ead52af7ca9"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5459453346,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T16:01:42Z",
+      "commit": {
+       "oid": "89affd35e6554f32b3a36aa82e041ead52af7ca9"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5460764062,
+      "author": {
+       "login": "muralibasani",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T17:51:58Z",
+      "commit": {
+       "oid": "89affd35e6554f32b3a36aa82e041ead52af7ca9"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5482699712,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-11T09:10:02Z",
+      "commit": {
+       "oid": "5b29da09b9a8c6a61e24d0ba849a05f83315a18c"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5482701561,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-11T09:10:37Z",
+      "commit": {
+       "oid": "5b29da09b9a8c6a61e24d0ba849a05f83315a18c"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23560,
+   "author": {
+    "login": "see-quick",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-11T08:24:24Z",
+   "trailer": [
+    "Reviewers: Chia-Ping Tsai <redacted>, YANG-SYUAN CHOU"
+   ],
+   "reviews": {
+    "totalCount": 9,
+    "nodes": [
+     {
+      "databaseId": 5315587546,
+      "author": {
+       "login": "rahul05ranjan",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-09-25T08:46:21Z",
+      "commit": {
+       "oid": "8212281a0062b08d3869b3508fa6a181834529f5"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5431490454,
+      "author": {
+       "login": "fvaleri",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T16:22:19Z",
+      "commit": {
+       "oid": "cb21a331775f91c67be6763c84896d0ee4e033ef"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5439081621,
+      "author": {
+       "login": "showuon",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-07T07:42:25Z",
+      "commit": {
+       "oid": "cb21a331775f91c67be6763c84896d0ee4e033ef"
+      },
+      "comments": {
+       "totalCount": 2
+      }
+     },
+     {
+      "databaseId": 5467545879,
+      "author": {
+       "login": "see-quick",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T08:15:48Z",
+      "commit": {
+       "oid": "cb21a331775f91c67be6763c84896d0ee4e033ef"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5467553556,
+      "author": {
+       "login": "see-quick",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T08:16:32Z",
+      "commit": {
+       "oid": "cb21a331775f91c67be6763c84896d0ee4e033ef"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5467554602,
+      "author": {
+       "login": "see-quick",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T08:16:38Z",
+      "commit": {
+       "oid": "cb21a331775f91c67be6763c84896d0ee4e033ef"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5469650439,
+      "author": {
+       "login": "fvaleri",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-09T11:52:18Z",
+      "commit": {
+       "oid": "285385732da70cf8af3a1a6d717ed6c421002746"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5473905199,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-09T18:29:00Z",
+      "commit": {
+       "oid": "285385732da70cf8af3a1a6d717ed6c421002746"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5481916172,
+      "author": {
+       "login": "liuliuOD",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-11T04:38:44Z",
+      "commit": {
+       "oid": "285385732da70cf8af3a1a6d717ed6c421002746"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23572,
+   "author": {
+    "login": "unknowntpo",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-07T06:48:25Z",
+   "trailer": [
+    "Reviewers: Chia-Ping Tsai <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 4,
+    "nodes": [
+     {
+      "databaseId": 5315566333,
+      "author": {
+       "login": "rahul05ranjan",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-09-25T08:43:48Z",
+      "commit": {
+       "oid": "9d0a6fe3cea91db2432f9d4e733ebb547c748301"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5413089212,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-05T10:27:31Z",
+      "commit": {
+       "oid": "9d0a6fe3cea91db2432f9d4e733ebb547c748301"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5421936526,
+      "author": {
+       "login": "unknowntpo",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-05T23:30:50Z",
+      "commit": {
+       "oid": "9d0a6fe3cea91db2432f9d4e733ebb547c748301"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5438425861,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-07T06:22:16Z",
+      "commit": {
+       "oid": "357c88891cf8c4288618aede312cc81cc7a42bbe"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23590,
+   "author": {
+    "login": "nileshkumar3",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-07T07:09:36Z",
+   "trailer": [
+    "Reviewers: Apoorv Mittal <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 1,
+    "nodes": [
+     {
+      "databaseId": 5438819605,
+      "author": {
+       "login": "apoorvmittal10",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-07T07:08:20Z",
+      "commit": {
+       "oid": "139aa62d7357b38df9cdd3e6f06e1c8cbcd65916"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23596,
+   "author": {
+    "login": "muralibasani",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-09T14:14:16Z",
+   "trailer": [
+    "Reviewers: Chia-Ping Tsai <redacted>, Ken Huang"
+   ],
+   "reviews": {
+    "totalCount": 4,
+    "nodes": [
+     {
+      "databaseId": 5329979643,
+      "author": {
+       "login": "muralibasani",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-27T10:46:14Z",
+      "commit": {
+       "oid": "107a0130e8891eb0f52856ee1cd5a03f0c18f18b"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5423464193,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T03:25:43Z",
+      "commit": {
+       "oid": "107a0130e8891eb0f52856ee1cd5a03f0c18f18b"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5433099130,
+      "author": {
+       "login": "muralibasani",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T18:44:30Z",
+      "commit": {
+       "oid": "107a0130e8891eb0f52856ee1cd5a03f0c18f18b"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5439107185,
+      "author": {
+       "login": "m1a2st",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-07T07:39:15Z",
+      "commit": {
+       "oid": "a1f335f37d0c69be6bcdc8ad86bbbc9529639c2c"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23616,
+   "author": {
+    "login": "suzhiking",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-09T08:45:40Z",
+   "trailer": [
+    "Reviewers: Lucas Brutschy <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 5,
+    "nodes": [
+     {
+      "databaseId": 5440073755,
+      "author": {
+       "login": "copilot-pull-request-reviewer",
+       "__typename": "Bot"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-07T09:06:54Z",
+      "commit": {
+       "oid": "8bc7b70399018636833bed89283030791e26db29"
+      },
+      "comments": {
+       "totalCount": 2
+      }
+     },
+     {
+      "databaseId": 5440079105,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-07T12:32:59Z",
+      "commit": {
+       "oid": "8bc7b70399018636833bed89283030791e26db29"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5442322000,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-07T12:33:57Z",
+      "commit": {
+       "oid": "8bc7b70399018636833bed89283030791e26db29"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5452271889,
+      "author": {
+       "login": "suzhiking",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T06:06:48Z",
+      "commit": {
+       "oid": "8bc7b70399018636833bed89283030791e26db29"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5467821484,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-09T08:45:09Z",
+      "commit": {
+       "oid": "9f34c0b5ca2e4bea12cdffcfca6cf837e4222e2e"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23630,
+   "author": {
+    "login": "rreddy-22",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-08T20:44:56Z",
+   "trailer": [
+    "Reviewers: Justine Olshan <redacted>, Artem Livshits"
+   ],
+   "reviews": {
+    "totalCount": 16,
+    "nodes": [
+     {
+      "databaseId": 5369386701,
+      "author": {
+       "login": "jolshan",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-30T16:56:47Z",
+      "commit": {
+       "oid": "dadf89b5dc4da7b4f03ab4720dcaf5f99bcc7b88"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5369402060,
+      "author": {
+       "login": "jolshan",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-30T16:58:16Z",
+      "commit": {
+       "oid": "dadf89b5dc4da7b4f03ab4720dcaf5f99bcc7b88"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5369937094,
+      "author": {
+       "login": "rreddy-22",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-30T17:48:27Z",
+      "commit": {
+       "oid": "dadf89b5dc4da7b4f03ab4720dcaf5f99bcc7b88"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5370069022,
+      "author": {
+       "login": "rreddy-22",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-30T18:00:35Z",
+      "commit": {
+       "oid": "dadf89b5dc4da7b4f03ab4720dcaf5f99bcc7b88"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5372144882,
+      "author": {
+       "login": "rreddy-22",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-30T21:22:13Z",
+      "commit": {
+       "oid": "dadf89b5dc4da7b4f03ab4720dcaf5f99bcc7b88"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5372270053,
+      "author": {
+       "login": "jolshan",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-09-30T21:36:53Z",
+      "commit": {
+       "oid": "dadf89b5dc4da7b4f03ab4720dcaf5f99bcc7b88"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5375136311,
+      "author": {
+       "login": "artemlivshits",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-01T04:56:43Z",
+      "commit": {
+       "oid": "323c504152260e6234ec2c33bd98d6a3addbcabd"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5415992938,
+      "author": {
+       "login": "jolshan",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-05T14:21:38Z",
+      "commit": {
+       "oid": "323c504152260e6234ec2c33bd98d6a3addbcabd"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5417201256,
+      "author": {
+       "login": "rreddy-22",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-05T15:50:21Z",
+      "commit": {
+       "oid": "323c504152260e6234ec2c33bd98d6a3addbcabd"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5420792276,
+      "author": {
+       "login": "artemlivshits",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-05T21:30:12Z",
+      "commit": {
+       "oid": "323c504152260e6234ec2c33bd98d6a3addbcabd"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5433951194,
+      "author": {
+       "login": "rreddy-22",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T20:03:21Z",
+      "commit": {
+       "oid": "323c504152260e6234ec2c33bd98d6a3addbcabd"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5435417898,
+      "author": {
+       "login": "rreddy-22",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T22:54:36Z",
+      "commit": {
+       "oid": "323c504152260e6234ec2c33bd98d6a3addbcabd"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5435667347,
+      "author": {
+       "login": "jolshan",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T23:34:13Z",
+      "commit": {
+       "oid": "323c504152260e6234ec2c33bd98d6a3addbcabd"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5449135326,
+      "author": {
+       "login": "rreddy-22",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-07T22:23:41Z",
+      "commit": {
+       "oid": "323c504152260e6234ec2c33bd98d6a3addbcabd"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5461085354,
+      "author": {
+       "login": "artemlivshits",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T18:21:21Z",
+      "commit": {
+       "oid": "323c504152260e6234ec2c33bd98d6a3addbcabd"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5462531915,
+      "author": {
+       "login": "jolshan",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-08T20:34:28Z",
+      "commit": {
+       "oid": "323c504152260e6234ec2c33bd98d6a3addbcabd"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23661,
+   "author": {
+    "login": "clolov",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-12T20:24:34Z",
+   "trailer": [
+    "Reviewers: Chia-Ping Tsai <redacted>, Ming-Yen Chung"
+   ],
+   "reviews": {
+    "totalCount": 4,
+    "nodes": [
+     {
+      "databaseId": 5407566014,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-04T18:31:53Z",
+      "commit": {
+       "oid": "b0a9a4576379374eec6b770925e2c60271d377f9"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5414507897,
+      "author": {
+       "login": "clolov",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-05T12:31:15Z",
+      "commit": {
+       "oid": "b0a9a4576379374eec6b770925e2c60271d377f9"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5483334941,
+      "author": {
+       "login": "mingyen066",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-11T12:42:40Z",
+      "commit": {
+       "oid": "84fd80788594a01de7502cc3cb2a5a4b72de63f0"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5495608622,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-12T20:23:59Z",
+      "commit": {
+       "oid": "e2441e066e12f33a9c088974d0b508ff9101313c"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23670,
+   "author": {
+    "login": "lucasbru",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-08T10:00:45Z",
+   "trailer": [
+    "Reviewers: TengYao Chi <redacted>, Andy Huang"
+   ],
+   "reviews": {
+    "totalCount": 13,
+    "nodes": [
+     {
+      "databaseId": 5384060498,
+      "author": {
+       "login": "copilot-pull-request-reviewer",
+       "__typename": "Bot"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-01T18:54:58Z",
+      "commit": {
+       "oid": "d7fb24a7e367b89be5978c61ce43d4c48e3c1e80"
+      },
+      "comments": {
+       "totalCount": 3
+      }
+     },
+     {
+      "databaseId": 5387408919,
+      "author": {
+       "login": "andyhuangdev",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-02T01:26:38Z",
+      "commit": {
+       "oid": "d7fb24a7e367b89be5978c61ce43d4c48e3c1e80"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5390521367,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-02T09:57:54Z",
+      "commit": {
+       "oid": "bf44af797b526d6738493a85f4c58535b247022a"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5390521611,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-02T09:57:56Z",
+      "commit": {
+       "oid": "bf44af797b526d6738493a85f4c58535b247022a"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5390521929,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-02T09:57:58Z",
+      "commit": {
+       "oid": "bf44af797b526d6738493a85f4c58535b247022a"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5390522235,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-02T09:57:59Z",
+      "commit": {
+       "oid": "bf44af797b526d6738493a85f4c58535b247022a"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5390639085,
+      "author": {
+       "login": "copilot-pull-request-reviewer",
+       "__typename": "Bot"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-02T10:10:56Z",
+      "commit": {
+       "oid": "bf44af797b526d6738493a85f4c58535b247022a"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5391442386,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-02T11:54:41Z",
+      "commit": {
+       "oid": "7eecd47236d416cde30a82b6c3d7aba82d2cfc98"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5391540173,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-02T12:08:11Z",
+      "commit": {
+       "oid": "7eecd47236d416cde30a82b6c3d7aba82d2cfc98"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5445742229,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-07T17:13:18Z",
+      "commit": {
+       "oid": "7eecd47236d416cde30a82b6c3d7aba82d2cfc98"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5445767076,
+      "author": {
+       "login": "copilot-pull-request-reviewer",
+       "__typename": "Bot"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-07T17:14:55Z",
+      "commit": {
+       "oid": "7eecd47236d416cde30a82b6c3d7aba82d2cfc98"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5446811227,
+      "author": {
+       "login": "copilot-pull-request-reviewer",
+       "__typename": "Bot"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-07T18:46:03Z",
+      "commit": {
+       "oid": "f8a3c5703dc4c485c3daeffbdfaf8c11cd358d71"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5453973268,
+      "author": {
+       "login": "frankvicky",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-08T08:42:49Z",
+      "commit": {
+       "oid": "f8a3c5703dc4c485c3daeffbdfaf8c11cd358d71"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23672,
+   "author": {
+    "login": "see-quick",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-07T07:27:25Z",
+   "trailer": [
+    "Reviewers: Luke Chen <redacted>, Andy Huang"
+   ],
+   "reviews": {
+    "totalCount": 1,
+    "nodes": [
+     {
+      "databaseId": 5390296482,
+      "author": {
+       "login": "showuon",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-02T09:34:02Z",
+      "commit": {
+       "oid": "36370b03b437f485a842cff763af78945d3ecbf1"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23675,
+   "author": {
+    "login": "lucasbru",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-09T15:39:07Z",
+   "trailer": [
+    "Reviewers: Bill Bejeck <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 4,
+    "nodes": [
+     {
+      "databaseId": 5458691803,
+      "author": {
+       "login": "copilot-pull-request-reviewer",
+       "__typename": "Bot"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T15:04:14Z",
+      "commit": {
+       "oid": "1ab7a651f3ab2ef99953295af0d146b2b188a880"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5468541580,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T10:53:50Z",
+      "commit": {
+       "oid": "9d06676db8c7d98927158c2237d7d7c268ca34c6"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5469127408,
+      "author": {
+       "login": "copilot-pull-request-reviewer",
+       "__typename": "Bot"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T10:57:54Z",
+      "commit": {
+       "oid": "9d06676db8c7d98927158c2237d7d7c268ca34c6"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5471076182,
+      "author": {
+       "login": "bbejeck",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-09T13:59:54Z",
+      "commit": {
+       "oid": "9d06676db8c7d98927158c2237d7d7c268ca34c6"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23676,
+   "author": {
+    "login": "dajac",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-09T07:26:26Z",
+   "trailer": [
+    "Reviewers: Sean Quah <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 1,
+    "nodes": [
+     {
+      "databaseId": 5393020413,
+      "author": {
+       "login": "squah-confluent",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-02T14:31:55Z",
+      "commit": {
+       "oid": "1add445d0d9bb81b098ea30d52c470e605c564fb"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23687,
+   "author": {
+    "login": "brandboat",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-13T15:50:24Z",
+   "trailer": [
+    "Reviewers: TengYao Chi <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 6,
+    "nodes": [
+     {
+      "databaseId": 5404770897,
+      "author": {
+       "login": "copilot-pull-request-reviewer",
+       "__typename": "Bot"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-04T07:05:31Z",
+      "commit": {
+       "oid": "d5c4875a5c55327b0a9fda11efc17ba1b4dcf979"
+      },
+      "comments": {
+       "totalCount": 2
+      }
+     },
+     {
+      "databaseId": 5429551730,
+      "author": {
+       "login": "frankvicky",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T14:04:16Z",
+      "commit": {
+       "oid": "d5c4875a5c55327b0a9fda11efc17ba1b4dcf979"
+      },
+      "comments": {
+       "totalCount": 3
+      }
+     },
+     {
+      "databaseId": 5430597890,
+      "author": {
+       "login": "brandboat",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T15:16:10Z",
+      "commit": {
+       "oid": "d5c4875a5c55327b0a9fda11efc17ba1b4dcf979"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5430600223,
+      "author": {
+       "login": "brandboat",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T15:16:19Z",
+      "commit": {
+       "oid": "d5c4875a5c55327b0a9fda11efc17ba1b4dcf979"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5430654405,
+      "author": {
+       "login": "copilot-pull-request-reviewer",
+       "__typename": "Bot"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T15:19:37Z",
+      "commit": {
+       "oid": "8f3b19533b77b60a93c2d2eabf014699a1faefe2"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5506093833,
+      "author": {
+       "login": "frankvicky",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-13T15:34:26Z",
+      "commit": {
+       "oid": "4f6ca1128dc00ff3947de142497e8e475fec24c7"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23702,
+   "author": {
+    "login": "squah-confluent",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-08T06:51:11Z",
+   "trailer": [
+    "Reviewers: Chia-Ping Tsai <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 4,
+    "nodes": [
+     {
+      "databaseId": 5410453375,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-05T05:59:07Z",
+      "commit": {
+       "oid": "0eebafe43a22a141ac6861b797fd8e19e255e448"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5411044082,
+      "author": {
+       "login": "squah-confluent",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-05T07:06:11Z",
+      "commit": {
+       "oid": "0eebafe43a22a141ac6861b797fd8e19e255e448"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5429746014,
+      "author": {
+       "login": "squah-confluent",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T14:16:29Z",
+      "commit": {
+       "oid": "0eebafe43a22a141ac6861b797fd8e19e255e448"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5452724917,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-08T06:49:03Z",
+      "commit": {
+       "oid": "5d9e0683b642c93f4af804d0a16b4292eda27c9d"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23705,
+   "author": {
+    "login": "chickenchickenlove",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-13T09:02:25Z",
+   "trailer": [
+    "Reviewers: Lucas Brutschy <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 2,
+    "nodes": [
+     {
+      "databaseId": 5428076114,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-06T12:09:18Z",
+      "commit": {
+       "oid": "ebbed8f377825746dac31b853f2bdaefd3c787f1"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5428109292,
+      "author": {
+       "login": "copilot-pull-request-reviewer",
+       "__typename": "Bot"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T12:12:29Z",
+      "commit": {
+       "oid": "ebbed8f377825746dac31b853f2bdaefd3c787f1"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23716,
+   "author": {
+    "login": "rishi-rana",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-11T13:11:58Z",
+   "trailer": [
+    "Reviewers: Chia-Ping Tsai <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 2,
+    "nodes": [
+     {
+      "databaseId": 5482020664,
+      "author": {
+       "login": "liuliuOD",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-11T05:25:14Z",
+      "commit": {
+       "oid": "8ea2b2bd150fac9a10d0cce37d6ac74ca126920f"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5483417106,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-11T13:09:37Z",
+      "commit": {
+       "oid": "8ea2b2bd150fac9a10d0cce37d6ac74ca126920f"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23727,
+   "author": {
+    "login": "aliehsaeedii",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-09T12:58:58Z",
+   "trailer": [
+    "Reviewers: TengYao Chi <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 2,
+    "nodes": [
+     {
+      "databaseId": 5428139695,
+      "author": {
+       "login": "copilot-pull-request-reviewer",
+       "__typename": "Bot"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-06T12:15:22Z",
+      "commit": {
+       "oid": "256a0966d6bf95976da437d51c77cce9f754de84"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5470319392,
+      "author": {
+       "login": "frankvicky",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-09T12:58:14Z",
+      "commit": {
+       "oid": "256a0966d6bf95976da437d51c77cce9f754de84"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23729,
+   "author": {
+    "login": "fvaleri",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-12T03:21:36Z",
+   "trailer": [
+    "Reviewers: Luke Chen <redacted>, Ken Huang <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 8,
+    "nodes": [
+     {
+      "databaseId": 5439232357,
+      "author": {
+       "login": "showuon",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-07T07:50:49Z",
+      "commit": {
+       "oid": "ce7455fe74dca92683a7a538e13e76075564d33c"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5443830959,
+      "author": {
+       "login": "m1a2st",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-07T14:45:00Z",
+      "commit": {
+       "oid": "ce7455fe74dca92683a7a538e13e76075564d33c"
+      },
+      "comments": {
+       "totalCount": 3
+      }
+     },
+     {
+      "databaseId": 5452951123,
+      "author": {
+       "login": "fvaleri",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T07:07:53Z",
+      "commit": {
+       "oid": "ce7455fe74dca92683a7a538e13e76075564d33c"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5452978176,
+      "author": {
+       "login": "fvaleri",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T07:10:08Z",
+      "commit": {
+       "oid": "ce7455fe74dca92683a7a538e13e76075564d33c"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5482685392,
+      "author": {
+       "login": "m1a2st",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-11T09:05:19Z",
+      "commit": {
+       "oid": "884bfc53b82cf3daffcc94b6bc01e4235f714717"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5488039756,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-12T08:21:03Z",
+      "commit": {
+       "oid": "884bfc53b82cf3daffcc94b6bc01e4235f714717"
+      },
+      "comments": {
+       "totalCount": 3
+      }
+     },
+     {
+      "databaseId": 5503441694,
+      "author": {
+       "login": "fvaleri",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-13T12:24:04Z",
+      "commit": {
+       "oid": "884bfc53b82cf3daffcc94b6bc01e4235f714717"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5503580532,
+      "author": {
+       "login": "fvaleri",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-13T12:35:58Z",
+      "commit": {
+       "oid": "884bfc53b82cf3daffcc94b6bc01e4235f714717"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23732,
+   "author": {
+    "login": "dajac",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-13T07:59:41Z",
+   "trailer": [
+    "Reviewers: Sean Quah <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 25,
+    "nodes": [
+     {
+      "databaseId": 5438975078,
+      "author": {
+       "login": "dajac",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-07T07:38:52Z",
+      "commit": {
+       "oid": "1a38cd3b39a1221503285799b5c6e740cc9759bc"
+      },
+      "comments": {
+       "totalCount": 6
+      }
+     },
+     {
+      "databaseId": 5481155666,
+      "author": {
+       "login": "squah-confluent",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-11T03:04:41Z",
+      "commit": {
+       "oid": "f9ff5d7b0eef5f2a352474dddbafabb4196ea790"
+      },
+      "comments": {
+       "totalCount": 48
+      }
+     },
+     {
+      "databaseId": 5491767153,
+      "author": {
+       "login": "dajac",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T13:54:35Z",
+      "commit": {
+       "oid": "f9ff5d7b0eef5f2a352474dddbafabb4196ea790"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5491780137,
+      "author": {
+       "login": "dajac",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T13:55:36Z",
+      "commit": {
+       "oid": "f9ff5d7b0eef5f2a352474dddbafabb4196ea790"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5491784856,
+      "author": {
+       "login": "dajac",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T13:55:59Z",
+      "commit": {
+       "oid": "f9ff5d7b0eef5f2a352474dddbafabb4196ea790"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5491789250,
+      "author": {
+       "login": "dajac",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T13:56:21Z",
+      "commit": {
+       "oid": "f9ff5d7b0eef5f2a352474dddbafabb4196ea790"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5491793832,
+      "author": {
+       "login": "dajac",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T13:56:44Z",
+      "commit": {
+       "oid": "f9ff5d7b0eef5f2a352474dddbafabb4196ea790"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5491797542,
+      "author": {
+       "login": "dajac",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T13:57:00Z",
+      "commit": {
+       "oid": "f9ff5d7b0eef5f2a352474dddbafabb4196ea790"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5491820039,
+      "author": {
+       "login": "dajac",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T13:58:44Z",
+      "commit": {
+       "oid": "f9ff5d7b0eef5f2a352474dddbafabb4196ea790"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5491861946,
+      "author": {
+       "login": "dajac",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T14:02:02Z",
+      "commit": {
+       "oid": "f9ff5d7b0eef5f2a352474dddbafabb4196ea790"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5491884034,
+      "author": {
+       "login": "dajac",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T14:04:05Z",
+      "commit": {
+       "oid": "f9ff5d7b0eef5f2a352474dddbafabb4196ea790"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5491891672,
+      "author": {
+       "login": "dajac",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T14:04:46Z",
+      "commit": {
+       "oid": "f9ff5d7b0eef5f2a352474dddbafabb4196ea790"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5491901261,
+      "author": {
+       "login": "dajac",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T14:05:38Z",
+      "commit": {
+       "oid": "f9ff5d7b0eef5f2a352474dddbafabb4196ea790"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5491951185,
+      "author": {
+       "login": "dajac",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T14:09:54Z",
+      "commit": {
+       "oid": "f9ff5d7b0eef5f2a352474dddbafabb4196ea790"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5492038030,
+      "author": {
+       "login": "dajac",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T14:17:11Z",
+      "commit": {
+       "oid": "f9ff5d7b0eef5f2a352474dddbafabb4196ea790"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5492098260,
+      "author": {
+       "login": "squah-confluent",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T14:22:51Z",
+      "commit": {
+       "oid": "f9ff5d7b0eef5f2a352474dddbafabb4196ea790"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5492137247,
+      "author": {
+       "login": "squah-confluent",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T14:26:26Z",
+      "commit": {
+       "oid": "f9ff5d7b0eef5f2a352474dddbafabb4196ea790"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5492321153,
+      "author": {
+       "login": "squah-confluent",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T15:32:24Z",
+      "commit": {
+       "oid": "5940198312fb8fd5d5abeaed44fdf166926be5b8"
+      },
+      "comments": {
+       "totalCount": 15
+      }
+     },
+     {
+      "databaseId": 5493384517,
+      "author": {
+       "login": "dajac",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T16:12:37Z",
+      "commit": {
+       "oid": "f9ff5d7b0eef5f2a352474dddbafabb4196ea790"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5493423611,
+      "author": {
+       "login": "squah-confluent",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T16:16:15Z",
+      "commit": {
+       "oid": "23651188d7a65bd4e58bbf8a18c3a4cc60b13da9"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5493579905,
+      "author": {
+       "login": "dajac",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T16:32:56Z",
+      "commit": {
+       "oid": "23651188d7a65bd4e58bbf8a18c3a4cc60b13da9"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5493602291,
+      "author": {
+       "login": "squah-confluent",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-12T16:35:33Z",
+      "commit": {
+       "oid": "bc1a55eb2dfb5e08ebb739f8c7cdfe820a718a61"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5499091304,
+      "author": {
+       "login": "squah-confluent",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-13T05:14:29Z",
+      "commit": {
+       "oid": "bc1a55eb2dfb5e08ebb739f8c7cdfe820a718a61"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5500474597,
+      "author": {
+       "login": "dajac",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-13T07:59:26Z",
+      "commit": {
+       "oid": "bc1a55eb2dfb5e08ebb739f8c7cdfe820a718a61"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5500930100,
+      "author": {
+       "login": "squah-confluent",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-13T08:40:43Z",
+      "commit": {
+       "oid": "bc1a55eb2dfb5e08ebb739f8c7cdfe820a718a61"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23738,
+   "author": {
+    "login": "muralibasani",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-12T10:40:54Z",
+   "trailer": [
+    "Reviewers: Alieh Saeedi <redacted>, TengYao Chi"
+   ],
+   "reviews": {
+    "totalCount": 7,
+    "nodes": [
+     {
+      "databaseId": 5469082428,
+      "author": {
+       "login": "aliehsaeedii",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T11:40:42Z",
+      "commit": {
+       "oid": "30e71222f54b5851f42ae3122191d73fa99351de"
+      },
+      "comments": {
+       "totalCount": 4
+      }
+     },
+     {
+      "databaseId": 5474974406,
+      "author": {
+       "login": "muralibasani",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T20:20:41Z",
+      "commit": {
+       "oid": "30e71222f54b5851f42ae3122191d73fa99351de"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5474978989,
+      "author": {
+       "login": "muralibasani",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T20:21:15Z",
+      "commit": {
+       "oid": "30e71222f54b5851f42ae3122191d73fa99351de"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5474991358,
+      "author": {
+       "login": "muralibasani",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T20:22:44Z",
+      "commit": {
+       "oid": "30e71222f54b5851f42ae3122191d73fa99351de"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5475012190,
+      "author": {
+       "login": "muralibasani",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T20:25:06Z",
+      "commit": {
+       "oid": "30e71222f54b5851f42ae3122191d73fa99351de"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5489388096,
+      "author": {
+       "login": "aliehsaeedii",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-12T10:20:56Z",
+      "commit": {
+       "oid": "59274d1866f818627c13947f0520580e1124bb9b"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5489549136,
+      "author": {
+       "login": "frankvicky",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-12T10:36:01Z",
+      "commit": {
+       "oid": "59274d1866f818627c13947f0520580e1124bb9b"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23739,
+   "author": {
+    "login": "squah-confluent",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-09T23:04:32Z",
+   "trailer": [
+    "Reviewers: Ken Huang <redacted>, Chia-Ping Tsai"
+   ],
+   "reviews": {
+    "totalCount": 8,
+    "nodes": [
+     {
+      "databaseId": 5444607531,
+      "author": {
+       "login": "m1a2st",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-07T15:35:16Z",
+      "commit": {
+       "oid": "a73e0199ca943b4f51b623869dd8089f3fb88118"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5446720460,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-07T18:41:10Z",
+      "commit": {
+       "oid": "a73e0199ca943b4f51b623869dd8089f3fb88118"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5446794238,
+      "author": {
+       "login": "frankvicky",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-07T18:44:29Z",
+      "commit": {
+       "oid": "a73e0199ca943b4f51b623869dd8089f3fb88118"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5449824202,
+      "author": {
+       "login": "unknowntpo",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T00:01:57Z",
+      "commit": {
+       "oid": "a73e0199ca943b4f51b623869dd8089f3fb88118"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5450867141,
+      "author": {
+       "login": "squah-confluent",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T03:02:46Z",
+      "commit": {
+       "oid": "a73e0199ca943b4f51b623869dd8089f3fb88118"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5463975243,
+      "author": {
+       "login": "unknowntpo",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T23:15:23Z",
+      "commit": {
+       "oid": "a73e0199ca943b4f51b623869dd8089f3fb88118"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5463976388,
+      "author": {
+       "login": "unknowntpo",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-08T23:15:34Z",
+      "commit": {
+       "oid": "2dec3145ddaed47aa3f39f1c56b144dc80489fae"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5470188726,
+      "author": {
+       "login": "mingyen066",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-09T12:45:32Z",
+      "commit": {
+       "oid": "2dec3145ddaed47aa3f39f1c56b144dc80489fae"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23741,
+   "author": {
+    "login": "harmadasg",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-07T18:23:45Z",
+   "trailer": [
+    "Reviewers: Chia-Ping Tsai <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 2,
+    "nodes": [
+     {
+      "databaseId": 5446501526,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-07T18:19:02Z",
+      "commit": {
+       "oid": "87115df7ec5548d15140005c718eb214600603b3"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5462777617,
+      "author": {
+       "login": "harmadasg",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T20:59:14Z",
+      "commit": {
+       "oid": "87115df7ec5548d15140005c718eb214600603b3"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23745,
+   "author": {
+    "login": "gitedmond",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-08T07:00:34Z",
+   "trailer": [
+    "Reviewers: Chia-Ping Tsai <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 1,
+    "nodes": [
+     {
+      "databaseId": 5452847846,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-08T06:59:02Z",
+      "commit": {
+       "oid": "cdaa57b89f077a204a4f3c73cd79ec757be66f30"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23747,
+   "author": {
+    "login": "lucasbru",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-09T07:21:16Z",
+   "trailer": [
+    "Reviewers: TengYao Chi <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 6,
+    "nodes": [
+     {
+      "databaseId": 5455247135,
+      "author": {
+       "login": "copilot-pull-request-reviewer",
+       "__typename": "Bot"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T10:33:29Z",
+      "commit": {
+       "oid": "5f4a039d43300bd96a8e1cdf42cd682555ebebdb"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5456603988,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T12:32:21Z",
+      "commit": {
+       "oid": "5f4a039d43300bd96a8e1cdf42cd682555ebebdb"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5456672879,
+      "author": {
+       "login": "copilot-pull-request-reviewer",
+       "__typename": "Bot"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T12:37:38Z",
+      "commit": {
+       "oid": "9536d9f7839007c2316bd9c70299e585212fde59"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5459478690,
+      "author": {
+       "login": "frankvicky",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-08T16:06:58Z",
+      "commit": {
+       "oid": "9536d9f7839007c2316bd9c70299e585212fde59"
+      },
+      "comments": {
+       "totalCount": 2
+      }
+     },
+     {
+      "databaseId": 5460505889,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T17:28:35Z",
+      "commit": {
+       "oid": "9536d9f7839007c2316bd9c70299e585212fde59"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5460506154,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-08T17:28:37Z",
+      "commit": {
+       "oid": "9536d9f7839007c2316bd9c70299e585212fde59"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23748,
+   "author": {
+    "login": "m1a2st",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-09T04:57:45Z",
+   "trailer": [
+    "Reviewers: Chia-Ping Tsai <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 1,
+    "nodes": [
+     {
+      "databaseId": 5460278186,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-08T17:09:50Z",
+      "commit": {
+       "oid": "a6f871efa6c25f717c59d1671e07ee134097054d"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23751,
+   "author": {
+    "login": "muralibasani",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-11T12:52:50Z",
+   "trailer": [
+    "Reviewers: Chia-Ping Tsai <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 4,
+    "nodes": [
+     {
+      "databaseId": 5473739304,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T18:11:32Z",
+      "commit": {
+       "oid": "b8500fe31ac6460368ee74c11b0cce8e1e1bc9e0"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5475064071,
+      "author": {
+       "login": "muralibasani",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T20:30:50Z",
+      "commit": {
+       "oid": "b8500fe31ac6460368ee74c11b0cce8e1e1bc9e0"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5483315318,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-11T12:35:38Z",
+      "commit": {
+       "oid": "cfc478998f9e6a30ac30dddd6b5e674b03f34faf"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5483356470,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-11T12:49:28Z",
+      "commit": {
+       "oid": "cfc478998f9e6a30ac30dddd6b5e674b03f34faf"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23755,
+   "author": {
+    "login": "suzhiking",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-13T09:29:14Z",
+   "trailer": [
+    "Reviewers: Lucas Brutschy <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 7,
+    "nodes": [
+     {
+      "databaseId": 5468953347,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T14:21:52Z",
+      "commit": {
+       "oid": "0b87fa541e036e285a5ea430291ce66fdbc47441"
+      },
+      "comments": {
+       "totalCount": 4
+      }
+     },
+     {
+      "databaseId": 5472607725,
+      "author": {
+       "login": "suzhiking",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T16:16:53Z",
+      "commit": {
+       "oid": "0b87fa541e036e285a5ea430291ce66fdbc47441"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5473065089,
+      "author": {
+       "login": "suzhiking",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T17:04:16Z",
+      "commit": {
+       "oid": "0b87fa541e036e285a5ea430291ce66fdbc47441"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5473130322,
+      "author": {
+       "login": "suzhiking",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T17:11:11Z",
+      "commit": {
+       "oid": "0b87fa541e036e285a5ea430291ce66fdbc47441"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5473168602,
+      "author": {
+       "login": "suzhiking",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T17:15:20Z",
+      "commit": {
+       "oid": "0b87fa541e036e285a5ea430291ce66fdbc47441"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5489344354,
+      "author": {
+       "login": "copilot-pull-request-reviewer",
+       "__typename": "Bot"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T10:16:19Z",
+      "commit": {
+       "oid": "cac702a8e59a1f7d25aa38e33a650913d48bb794"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5501492010,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-13T09:29:00Z",
+      "commit": {
+       "oid": "cac702a8e59a1f7d25aa38e33a650913d48bb794"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23758,
+   "author": {
+    "login": "Russole",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-09T12:18:15Z",
+   "trailer": [
+    "Reviewers: Chia-Ping Tsai <redacted>, Ken Huang"
+   ],
+   "reviews": {
+    "totalCount": 2,
+    "nodes": [
+     {
+      "databaseId": 5467989773,
+      "author": {
+       "login": "m1a2st",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-09T09:02:30Z",
+      "commit": {
+       "oid": "0fc64a31d161adbd08ab71a771b060a25863b29a"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5468642978,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-09T10:06:46Z",
+      "commit": {
+       "oid": "0fc64a31d161adbd08ab71a771b060a25863b29a"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23761,
+   "author": {
+    "login": "lucasbru",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-13T08:17:25Z",
+   "trailer": [
+    "Reviewers: Bill Bejeck <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 10,
+    "nodes": [
+     {
+      "databaseId": 5470035995,
+      "author": {
+       "login": "copilot-pull-request-reviewer",
+       "__typename": "Bot"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-09T12:30:24Z",
+      "commit": {
+       "oid": "0955dcbfdc1c45f4e7e9fe8fcd38ec34851c102b"
+      },
+      "comments": {
+       "totalCount": 4
+      }
+     },
+     {
+      "databaseId": 5488565802,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T09:08:54Z",
+      "commit": {
+       "oid": "82dfbcc3516029a917260b8200714d3325895f3e"
+      },
+      "comments": {
+       "totalCount": 4
+      }
+     },
+     {
+      "databaseId": 5488619775,
+      "author": {
+       "login": "copilot-pull-request-reviewer",
+       "__typename": "Bot"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T09:12:51Z",
+      "commit": {
+       "oid": "82dfbcc3516029a917260b8200714d3325895f3e"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5488904807,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T09:36:21Z",
+      "commit": {
+       "oid": "7368ea6f20a99e76b4a88cd864cf704789d56e83"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5488959504,
+      "author": {
+       "login": "copilot-pull-request-reviewer",
+       "__typename": "Bot"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T09:39:30Z",
+      "commit": {
+       "oid": "7368ea6f20a99e76b4a88cd864cf704789d56e83"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5489182033,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T10:00:13Z",
+      "commit": {
+       "oid": "2edbec6f2039e224ef71d23500adb9f1e464c174"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5489193522,
+      "author": {
+       "login": "copilot-pull-request-reviewer",
+       "__typename": "Bot"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T10:01:13Z",
+      "commit": {
+       "oid": "2edbec6f2039e224ef71d23500adb9f1e464c174"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5489255018,
+      "author": {
+       "login": "copilot-pull-request-reviewer",
+       "__typename": "Bot"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T10:06:54Z",
+      "commit": {
+       "oid": "68feb3c4cfa69205602a0446b88d5f1053b5c56d"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5489355753,
+      "author": {
+       "login": "copilot-pull-request-reviewer",
+       "__typename": "Bot"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T10:17:32Z",
+      "commit": {
+       "oid": "519ba6f1e811f737dd1631d01a57a04da477b239"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5493747305,
+      "author": {
+       "login": "bbejeck",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-12T16:52:10Z",
+      "commit": {
+       "oid": "519ba6f1e811f737dd1631d01a57a04da477b239"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23767,
+   "author": {
+    "login": "m1a2st",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-11T02:21:42Z",
+   "trailer": [
+    "Reviewers: PoAn Yang <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 1,
+    "nodes": [
+     {
+      "databaseId": 5478183768,
+      "author": {
+       "login": "FrankYang0529",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-10T07:46:06Z",
+      "commit": {
+       "oid": "95c3813a35510bdffc56db84da2852ef7472109f"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23768,
+   "author": {
+    "login": "chickenchickenlove",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-13T14:52:52Z",
+   "trailer": [
+    "Reviewers: Lucas Brutschy <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 2,
+    "nodes": [
+     {
+      "databaseId": 5483589960,
+      "author": {
+       "login": "copilot-pull-request-reviewer",
+       "__typename": "Bot"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-11T14:02:49Z",
+      "commit": {
+       "oid": "c6a7a48a4a1be5bed32ece2ff9b16e0f057b508a"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5505484578,
+      "author": {
+       "login": "lucasbru",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-13T14:52:42Z",
+      "commit": {
+       "oid": "039985ad3b368db630f716d6cb37f4e0c7bab846"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23786,
+   "author": {
+    "login": "Ayoubhm07",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-13T09:33:26Z",
+   "trailer": [
+    "Reviewers: Ken Huang <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 1,
+    "nodes": [
+     {
+      "databaseId": 5501527341,
+      "author": {
+       "login": "m1a2st",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-13T09:32:06Z",
+      "commit": {
+       "oid": "72631cf41a0861b5aa2a7a58431fe66ed28bdd3d"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23787,
+   "author": {
+    "login": "Russole",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-12T20:05:33Z",
+   "trailer": [
+    "Reviewers: Ken Huang <redacted>, Chia-Ping Tsai"
+   ],
+   "reviews": {
+    "totalCount": 3,
+    "nodes": [
+     {
+      "databaseId": 5492202074,
+      "author": {
+       "login": "m1a2st",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T14:33:18Z",
+      "commit": {
+       "oid": "7ca084889648c48d66a8048e62d4b13186c6905b"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5493338166,
+      "author": {
+       "login": "Russole",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T16:09:01Z",
+      "commit": {
+       "oid": "7ca084889648c48d66a8048e62d4b13186c6905b"
+      },
+      "comments": {
+       "totalCount": 1
+      }
+     },
+     {
+      "databaseId": 5495448348,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-12T20:04:14Z",
+      "commit": {
+       "oid": "c7ce51cf8ee81a3b7becf7e0299a6a92dbeda86b"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23789,
+   "author": {
+    "login": "Russole",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-13T01:18:55Z",
+   "trailer": [
+    "Reviewers: Ken Huang <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 2,
+    "nodes": [
+     {
+      "databaseId": 5492146719,
+      "author": {
+       "login": "m1a2st",
+       "__typename": "User"
+      },
+      "state": "COMMENTED",
+      "submittedAt": "2026-10-12T14:27:18Z",
+      "commit": {
+       "oid": "ce87d1dc8896dbed75b60ebe5c73ecb81ede90cb"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     },
+     {
+      "databaseId": 5497724359,
+      "author": {
+       "login": "m1a2st",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-13T01:15:22Z",
+      "commit": {
+       "oid": "ce87d1dc8896dbed75b60ebe5c73ecb81ede90cb"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23793,
+   "author": {
+    "login": "harmadasg",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-12T22:17:16Z",
+   "trailer": [
+    "Reviewers: Chia-Ping Tsai <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 1,
+    "nodes": [
+     {
+      "databaseId": 5496009570,
+      "author": {
+       "login": "chia7712",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-12T21:15:14Z",
+      "commit": {
+       "oid": "c689903240800c65654f6c6f23205ebadbe80095"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23795,
+   "author": {
+    "login": "dajac",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-13T17:50:51Z",
+   "trailer": [
+    "Reviewers: Sean Quah <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 1,
+    "nodes": [
+     {
+      "databaseId": 5503060151,
+      "author": {
+       "login": "squah-confluent",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-13T11:51:54Z",
+      "commit": {
+       "oid": "889ea32be4c532a91a0027ade10c647ca1d15de4"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23804,
+   "author": {
+    "login": "rreddy-22",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-13T20:35:40Z",
+   "trailer": [
+    "Reviewers: Justine Olshan <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 1,
+    "nodes": [
+     {
+      "databaseId": 5507208765,
+      "author": {
+       "login": "jolshan",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-13T17:06:22Z",
+      "commit": {
+       "oid": "da3d9824a138501d96d06b0682f7e36377571ee3"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23805,
+   "author": {
+    "login": "rreddy-22",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-13T19:43:12Z",
+   "trailer": [
+    "Reviewers: Justine Olshan <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 1,
+    "nodes": [
+     {
+      "databaseId": 5507201826,
+      "author": {
+       "login": "jolshan",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-13T17:05:43Z",
+      "commit": {
+       "oid": "b970b33fd407d8a8609d92574e2652dc2c29496e"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23806,
+   "author": {
+    "login": "rreddy-22",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-13T19:43:06Z",
+   "trailer": [
+    "Reviewers: Justine Olshan <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 1,
+    "nodes": [
+     {
+      "databaseId": 5507195069,
+      "author": {
+       "login": "jolshan",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-13T17:05:07Z",
+      "commit": {
+       "oid": "74c966db0923a114c1be4e2fd541b66fffca3aeb"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  },
+  {
+   "number": 23807,
+   "author": {
+    "login": "rreddy-22",
+    "__typename": "User"
+   },
+   "mergedAt": "2026-10-13T20:35:35Z",
+   "trailer": [
+    "Reviewers: Justine Olshan <redacted>"
+   ],
+   "reviews": {
+    "totalCount": 1,
+    "nodes": [
+     {
+      "databaseId": 5507191416,
+      "author": {
+       "login": "jolshan",
+       "__typename": "User"
+      },
+      "state": "APPROVED",
+      "submittedAt": "2026-10-13T17:04:47Z",
+      "commit": {
+       "oid": "002681958365b62593be88ca76a92995830b4454"
+      },
+      "comments": {
+       "totalCount": 0
+      }
+     }
+    ]
+   }
+  }
+ ]
+}

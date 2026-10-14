@@ -99,6 +99,7 @@ curl -sS https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/health | jq 
 | Embedding job | after each publication, and hourly while work is left, Dev | 0 | 2 + shards (about 12) |
 | Digest | manual `POST /digest/run` | 2–4 (one `list`, the pointer, two objects when new) | up to 300 |
 | Review queue | manual `POST /review-queue/run` | 3–4 | 4–5 |
+| GitHub review ingestion (Spec 022) | off (`GITHUB_REVIEWS` unset); when on, each publisher tick | 5 (two month objects, two cursors, the run record); up to 9 | 4; up to 8 |
 | `/health` | per request | 0 | 1 |
 | Pages `/api/*` | per request | 0 | 2–3; `/api/search` at most 13 on Dev |
 | CI `bootstrap-r2` | manual workflow | one per object | 0 |
@@ -463,3 +464,30 @@ where it is not bound.
   migration.
 - To compare without deploying, add `&semantic=off` to a request.
 
+## GitHub review ingestion (Spec 022)
+
+Off in both environments: `GITHUB_REVIEWS` is unset, so the Worker sends no
+request for it and `/health` has no `githubReviews` field. The steps to turn
+it on for Dev, the dry run that checks the token first, and the expected
+values are in
+[Spec 022, Enabling on Dev](../specs/022-github-reviews/spec.md#enabling-on-dev).
+
+When it is on:
+
+- It runs in the Worker invocation of the daily tick, not in the
+  publication's Durable Object. A failure never changes a publication, and
+  nothing retries it before the next tick; `POST /github-reviews/run` with
+  the bearer token runs it now, `?dryRun=1` without writing.
+- `/health` `githubReviews` is the last run record. Per project: `ok`,
+  `cursor`, `coverageFrom` (reviews before it were never read), `pulls`,
+  `reviews`, `added`, `truncated`, `restRequests`, `graphqlRequests`,
+  `failureKind`.
+- `failureKind: config`: the flag value is not `metadata@1`, or the token is
+  missing. `auth`: GitHub refused the token (a token without GraphQL access
+  fails here). `rate-limit`, `transport`, `schema`: the project keeps its
+  cursor and the next tick reads the same reviews. `conflict`: two runs
+  overlapped; the next one repairs it.
+- `truncated: true` means more than 500 pull requests were waiting; each
+  further run reads 500 more.
+- To turn off, remove the variable. The objects under
+  `internal/github-reviews/v1/` stay; nothing reads them.
