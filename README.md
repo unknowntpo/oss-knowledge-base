@@ -189,8 +189,8 @@ follow-list-only). The follow list is derived from `vault/KIPs/*.md`, never
 hardcoded. Deterministic metadata is machine-committed; body/prose changes are
 recorded as drift in `tools/pending-changes.json` for human review — the KB
 prefers **stale over wrong**. Raw payload snapshots land in the git-ignored
-`tools/ingest-cache/`. The scheduled workflow is
-[`.github/workflows/ingest.yml`](.github/workflows/ingest.yml) (daily 03:17 UTC).
+`tools/ingest-cache/`. The workflow is
+[`.github/workflows/ingest.yml`](.github/workflows/ingest.yml) (manual only since 2026-10-14).
 
 ## Corpus backfill
 
