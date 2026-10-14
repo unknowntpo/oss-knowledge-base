@@ -196,7 +196,7 @@ curl -sS https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/health | jq 
 
 | Who | When | Class A | Class B |
 | --- | --- | --- | --- |
-| Publication | once a day, each environment (Spec 018), plus follow-up and manual runs | new objects + 3 (Dev: about 40) | objects + 3 (Dev: about 8,200) |
+| Publication | once a day, each environment (Spec 018), plus follow-up and manual runs | new objects + 3 (Dev: 391 on the first daily run, 2026-10-13; an hourly run was about 40) | objects + 3 (Dev: 8,343 on that run) |
 | Embedding job | after each publication, and hourly while work is left, Dev | 0 | 2 + shards (about 12) |
 | Digest | once a day on Dev (22:47 UTC), plus manual `POST /digest/run` | 2–4 (one `list`, the pointer, two objects when new) | up to 300 |
 | Review queue | manual `POST /review-queue/run` | 3–4 | 4–5 |
@@ -204,8 +204,11 @@ curl -sS https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/health | jq 
 | Pages `/api/*` | per request | 0 | 2–3; `/api/search` at most 13 on Dev |
 | CI `bootstrap-r2` | manual workflow | one per object | 0 |
 
-A month of daily Dev publications is about 1.2 thousand Class A and 0.25
-million Class B (hourly, until Spec 018: about 28 thousand and 6.0 million). Act when:
+A month of daily Dev publications is about 12 thousand Class A and 0.25
+million Class B at the first daily run's volume (391 and 8,343; Spec 018
+estimated 1.2 thousand Class A from an hourly run's 40 new objects, but a
+daily run writes a day's new objects: gardening G68). Hourly, until Spec 018:
+about 28 thousand and 6.0 million. Act when:
 
 - `lastRun.r2.classA` is far above `copiedObjectCount + 3`: something writes
   what already exists (the incident of 2026-10-13, Spec 008 "R2 operations":
