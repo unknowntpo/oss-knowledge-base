@@ -1,6 +1,6 @@
 # Spec 022: GitHub pull-request reviews
 
-Status: Slice 1 implemented behind `GITHUB_REVIEWS`; set to `metadata@1` on Dev (decision 3, decided 2026-10-14), unset on Prod
+Status: Slice 1 implemented behind `GITHUB_REVIEWS`; set to `metadata@1` on Dev (decision 3, decided 2026-10-14), unset on Prod. Slice 2 (manual 12-month backfill, decision 5, decided 2026-10-14) implemented, not yet run
 Date: 2026-10-14
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 009 (bounded memory), Spec 015 (review queue, ADR-0016), Spec 018 (daily publication), Spec 019 (contributor profile, decision 7)
@@ -10,9 +10,9 @@ Builds on: Spec 004 (GitHub connector), Spec 009 (bounded memory), Spec 015 (rev
 > This spec is that ingestion. The code merged switched off: with
 > `GITHUB_REVIEWS` unset the Worker sends no extra request and `/health` is
 > byte-identical. On 2026-10-14 the owner decided to enable it on Dev
-> (decision 3); Prod stays off. Five choices are the owner's and are listed
-> in [Decisions needed from owner](#decisions-needed-from-owner), each with a
-> recommendation; the implementation follows the recommendations.
+> (decision 3); Prod stays off. The five choices listed in
+> [Decisions needed from owner](#decisions-needed-from-owner) were all
+> decided by the owner on 2026-10-14 (decision 5: a 12-month backfill).
 
 ## Intent
 
@@ -258,7 +258,13 @@ object is a contract Spec 019 will read, so it is listed as decision 4.
    - Follow-up runs after a cut read: the next tick continues; the cap is
      six times the busiest measured day.
    - Review events in the publication state: see "Feed, Detail and Search".
-   - A backfill: proposed below, not built.
+   - A scheduled or automatic backfill: the backfill is a manual route an
+     operator calls about a dozen times, once (decision 5).
+   - A second listing or a per-pull-request REST read for the backfill: it
+     reuses the daily listing, batch read and merge; only the window, the
+     cursor it keeps, and the paging differ.
+   - Pruning old months: about 8 MB a year; proposed, not built
+     (Behavior 14).
 3. **Simplify.** One listing (the connector's), one batched read, one
    merge keyed by review id. Equal content is equal bytes, so an unchanged
    month is not written.
@@ -279,8 +285,15 @@ object is a contract Spec 019 will read, so it is listed as decision 4.
    last day; a later run lists from the stored cursor minus 300 s (the
    connector's rule). The first run's start is kept as `coverageFrom`.
 3. **Listing and cap.** `GET /repos/{o}/{r}/issues?state=all&sort=updated&direction=asc&since=…`,
-   100 a page. Only the number, the update time and whether it is a pull
-   request are kept. At most 500 pull requests newer than the cursor are
+   100 a page, paged by key: every request is `page=1` with `since` one
+   second before the last item received (the repeated second is
+   deduplicated; a page entirely inside one second moves to `page=2`).
+   Offset pages shift when an item is updated during the listing, and
+   GitHub answers 422 past about page 10 of a large listing, which a day
+   of more than about 1,000 updated issues would otherwise reach on every
+   later run. (GitHub's message points to native `after`/`before` cursors;
+   a later option, not used.) Only the number, the update time and whether
+   it is a pull request are kept. At most 500 pull requests newer than the cursor are
    read per project per run; those inside the 300 s overlap are read again
    on top and do not count, so a run always moves on. At most 20 pages are
    listed. The cursor moves to the newest item read, never backwards; when
@@ -325,6 +338,47 @@ object is a contract Spec 019 will read, so it is listed as decision 4.
     gate: on the 52 pull requests merged in the week, 69 of 73 trailer
     names are a person with a stored review on that pull request, and 14
     approvers are not named in the trailer.
+13. **Backfill (slice 2).** `POST /github-reviews/backfill?from=<date>[&dryRun=1]`
+    (bearer token; 403 while the flag is unset). `from` is a UTC date or an
+    ISO time with a zone, in the past and at most 395 days (about 13 months)
+    back; otherwise 400 and nothing is sent. Each call, per project:
+    - needs the daily cursor (`state.json`); without it the project fails as
+      `config` (the backfill fills in what lies before the daily run's
+      `coverageFrom`, so the daily run starts first);
+    - keeps its own progress in `<projectId>/backfill.json` (`from`,
+      `until`, `cursor`, `completedAt`). `until` is the daily
+      `coverageFrom` when the backfill started; the daily cursor's
+      `updatedAt` is never written by a backfill;
+    - lists what GitHub updated since its cursor (the first call: since
+      `from`; later calls: cursor minus 300 s), oldest first, by key like
+      the daily run (Behavior 3), so an item updated during the walk cannot
+      shift another off a page, and GitHub's refusal of deep offsets (422
+      past about page 10, observed 2026-10-14) never applies;
+    - reads at most 500 new pull requests (the daily cap), 25 per GraphQL
+      request, and stores reviews submitted in [`from`, `until`) into the
+      same month objects, merged by `reviewId`, each write conditional on
+      the ETag read;
+    - when the listing reaches the present (not `truncated`), writes the
+      daily cursor with `coverageFrom` set to `from` (conditional on the
+      ETag read, `updatedAt` unchanged), then marks its progress complete.
+    A call with another `from` while one is in progress fails as `config`
+    and names the `from` to use. A call whose `from` is not before the
+    daily `coverageFrom` (a finished backfill) sends nothing to GitHub.
+    The daily cursor write becomes conditional too, so a daily run racing
+    a finishing backfill fails as `conflict` instead of restoring the older
+    `coverageFrom`; its next run repairs it. The call's record goes to
+    `internal/github-reviews/v1/backfill-last-run.json`, and `/health`
+    carries it as `githubReviewsBackfill` while the flag is set.
+14. **Retention.** The store keeps every month object; nothing deletes one.
+    The 35-day window of Behavior 5 bounds what a *daily* run writes (at
+    most three month objects read per project), not what is kept. The
+    review store's horizon is at least 13 months: 12 months of backfill
+    plus the current month, the horizon Spec 019 is expected to read (the
+    owner leans to 12 months there; Spec 019 decision 4 stays open in
+    PR #63). Proposed pruning, not built: a later slice may delete month
+    objects older than 13 complete months and, in the same call, move
+    `coverageFrom` to the first kept month. Until a reader needs it there
+    is no reason to: the store grows by about 8 MB a year.
 
 ### What the first run contains
 
@@ -342,7 +396,8 @@ object is a contract Spec 019 will read, so it is listed as decision 4.
 ### Known limits
 
 1. A dismissal is recorded when the pull request is listed again and the
-   review is at most 35 days old. A review dismissed later than that keeps
+   review is at most 35 days old (by the daily run), or when the backfill
+   reads it. A review dismissed later than that keeps
    its stored verdict.
 2. A review edited later changes nothing here: no text is stored.
 3. A deleted review keeps its row; GitHub offers no signal.
@@ -353,25 +408,75 @@ object is a contract Spec 019 will read, so it is listed as decision 4.
 6. The trailer comparison needs display names, which the job does not
    fetch; it runs on a recorded fixture.
 
-### Proposed one-time backfill (not built, not run)
+### Backfill: what it covers, and its cost
 
-Give a first run an explicit start instead of one day, and let that start
-replace the 35-day lower bound. Each manual run then reads 500 pull requests,
-oldest first, until the cursor reaches today. No review text, the same
-requests.
+**Covers:** every review submitted in [`from`, `until`) on a pull request
+whose latest update is at or after `from`. A review updates its pull
+request (fact 4), so a pull request that received a review in the window
+was last updated in the window or later, and the ascending listing from
+`from` to the present reaches it at its latest position. A pull request
+reviewed in May and last updated in May is found in the first calls; one
+reviewed in May and updated again today is found in the last call, at
+today's position, and its May review is stored then. Walking only part of
+the way would miss it, which is why a backfill is complete only when its
+listing reaches the present.
 
-| Back to | Project | Items to list | Pull requests | Listing pages + GraphQL requests | Runs of 500 | Rows (estimate) |
-| --- | --- | --- | --- | --- | --- | --- |
-| 35 days (2026-09-09) | Kafka | 712 | 712 | 8 + 29 = 37 | 2 | about 1,650 |
-| 35 days | DataFusion | 2,951 | 2,334 | 30 + 94 = 124 | 5 | about 1,750 |
-| 12 months (2025-10-14) | Kafka | 3,668 | 3,668 | 37 + 147 = 184 | 8 | about 17,000 (3.9 MB) |
-| 12 months | DataFusion | 9,032 | 5,841 | 91 + 234 = 325 | 12 | about 18,300 (4.1 MB) |
+**Does not cover:**
+- Reviews submitted before `from`, by design. `coverageFrom` says so.
+- A review whose pull request's latest update is before `from`. By fact 4
+  none can be inside the window; fact 4 is measured (1,804 reviews), not a
+  documented GitHub guarantee.
+- Reviews beyond the newest 100 of one pull request (`reviewsTruncated`
+  counts them; the largest seen had 28).
+- The verdict of a review dismissed before it was first read (no
+  `stateBefore`), reviews GitHub has deleted, pull requests deleted or
+  transferred.
+- Reviews at or after `until`: the daily run owns them.
 
-The whole 12-month backfill is 128 listing requests and 381 GraphQL points,
-against 5,000 an hour of each, and about 11 minutes of run time in total.
-Counts are GitHub search totals of 2026-10-14; the row estimates extrapolate
-the measured week. It belongs with Spec 019 slice 5 and its horizon
-decision.
+**Measured volume, 12 months** (`from` = 2025-10-14; GitHub search totals of
+2026-10-14 by public read; rows from a sample of 20 pull requests per
+project last updated mid-window: 93 and 53 reviews in the window):
+
+| | Kafka | DataFusion | Both |
+| --- | --- | --- | --- |
+| Pull requests updated since `from` | 3,674 | 5,843 | 9,517 |
+| Issues in the same listing | 0 | 3,194 | 3,194 |
+| Calls of 500 pull requests | 8 | 12 | **12 calls** (each call serves both; Kafka is done after 8) |
+| Listing requests (99 new items a keyed page, plus one a call) | about 46 | about 104 | about 150 |
+| GraphQL requests, about 1 point each (25 pull requests a request; each call after the first also re-reads every pull request updated in the 300 s before its cursor, usually one or two, at most a listing page: up to 4 more requests a call) | about 155 (bound about 185) | about 246 (bound about 290) | about 400 (bound about 475) |
+| Reviews per pull request (sample) | 4.65 | 2.65 | |
+| Rows | about 17,100 | about 15,500 (18,300 by the measured week) | about 33,000 |
+| Month objects | 13, about 3.8 MB | 13, 3.5 to 4.1 MB | about 8 MB |
+
+Six months (`from` = 2026-04-14) for comparison: 2,214 and 3,586 pull
+requests, 1,934 DataFusion issues; 5 and 8 calls.
+
+Per call, per project, at most 500 pull requests: about 8 listing pages and
+20 GraphQL requests, about 35 s (the measured 35-day run cut at the cap:
+34.8 s and 35.2 s). A call serving both projects takes about 70 s; calls 9
+to 12 serve DataFusion only, about 35 s. The whole backfill is about
+12 minutes of calls, about 14 with the dry call and the checks.
+
+| Budget | Per call | Whole 12-month backfill | Limit |
+| --- | --- | --- | --- |
+| GitHub REST (shared with the daily publication: about 81 pages plus at most 237 closed-pull-request reads at 22:07 UTC) | at most about 16 | about 150 | 5,000 an hour |
+| GitHub GraphQL points (shared; the review queue is unscheduled) | at most about 42 | about 400 | 5,000 an hour |
+| R2 Class A (a refused conditional write counts as one) | per project: the months written (at most 13) and its progress, plus the cursor on the last call; one run record | typical about 120; bound 294 (20 project calls × 14, 2 cursors, 12 records), plus one per conflict | 1 million a month included; Dev publications about 12 thousand |
+| R2 Class B | per project: cursor, progress, months read (at most 13) | at most about 300, plus 1 per `/health` request for `githubReviewsBackfill` | 10 million a month included |
+| Worker subrequests | at most about 90 | | 20,000 a call |
+| Memory | one listing page (about 0.7 MB), the rows of one call (about 2,300 at most, 0.5 MB), one month object (about 0.3 MB) at a time | | 128 MB; not measured in the runtime |
+
+Even all 12 calls inside one hour use about 3% of the REST and 8% of the
+GraphQL budget, so the chunk (the daily cap of 500) cannot starve the daily
+publication; the binding limit is the call's wall time, which is why the
+chunk is not larger. The calls finish before 22:00 UTC or start after 22:30 UTC, so
+they do not overlap the daily tick (an overlap is safe, a `conflict` the
+next call repairs, but wastes a call).
+
+`bun run measure:github-reviews -- --backfill-from 2025-10-14` runs the
+whole backfill read-only against the live API with an in-memory bucket and
+prints each call and the totals (RV35). It needs a token with GraphQL
+access and was not run for this amendment.
 
 ## Test plan
 
@@ -422,6 +527,16 @@ responses of 2026-10-14: no review text, no address).
 | RV20 | window | constructed: reviews 1 s before and exactly at the window start | 1 row (the one at the start) |
 | RV20 | window | constructed: 150 reviews on one pull request, 100 read, the oldest read inside the window | 100 rows; truncated |
 | RV20 | window | constructed: 150 reviews on one pull request, 100 read, the oldest read before the window | not truncated |
+| RV27 | backfill start | constructed: from=2026-04-14, now 2026-10-14T12:00:00Z | 2026-04-14T00:00:00.000Z |
+| RV27 | backfill start | constructed: from=2026-04-14T06:30:00Z | 2026-04-14T06:30:00.000Z |
+| RV27 | backfill start | constructed: from missing | error: required |
+| RV27 | backfill start | constructed: from=14/04/2026 | error: not an ISO date |
+| RV27 | backfill start | constructed: from exactly 395 days back (about 13 months) | accepted |
+| RV27 | backfill start | constructed: from 395 days and 1 s back | error: before the floor |
+| RV27 | backfill start | constructed: from equal to now | error: not in the past |
+| RV28 | backfill window | constructed: window 2026-04-14..2026-10-13; reviews 1 s before from, at from, 1 s before until, at until | 2 rows (at from, 1 s before until) |
+| RV30 | keyset | constructed: page of 100 ending at 10:30:00 | next since 10:29:59; page 1 |
+| RV30 | keyset | constructed: page of 100 all inside 10:29:59..10:30:00, since 10:29:59 | same since; next page |
 | RV10 | no text | constructed: the query for pull requests 1 and 2 | asks for p1 and p2; no body, bodyText, bodyHTML, path or diffHunk field |
 | RV10 | no text | recorded: the rows of kafka #23675 | keys: commit, inlineComments, isBot, pr, prAuthor, reviewId, reviewer, state, submittedAt |
 | RV11 | trailer | constructed: Reviewers: Ada Lovelace <ada@example.org>, Grace Hopper <grace@example.org> | Ada Lovelace; Grace Hopper |
@@ -445,7 +560,16 @@ set wrongly.
 | RV13 | GraphQL answers 502 twice for one project | That project fails and writes nothing; the other completes; the next run reads the same day |
 | RV15 | The cursor write fails after the month write | The next run adds nothing, writes no month, moves the cursor |
 | RV16 | Another run writes the month in between | `conflict`; the other run's object stays; the cursor stays |
-| RV22 | The busiest measured day; 700 pull requests | 3 listing pages and 7 GraphQL requests; 500 read, 5 pages and 20 GraphQL requests |
+| RV22 | The busiest measured day; 700 pull requests | 3 listing pages and 7 GraphQL requests; 500 read, 6 keyed pages and 20 GraphQL requests |
+| RV26 | Both Wrangler files; a Dev tick on an empty bucket | Dev `metadata@1`, Prod unset; each project lists from one day back |
+| RV27 | The backfill route: wrong token, flag unset, `from` missing, malformed or too old, a dry call, a real call | 401, 403, 400 with nothing sent, 200 writing nothing, 200 with both projects done |
+| RV28 | Six months of history after a first day, cap 5 | Four calls read 5, 6, 6 and 3 pull requests; reviews before `from` and at or after `until` are not stored; `coverageFrom` moves to `from`, `updatedAt` does not |
+| RV29 | A daily run between backfill calls and after the last | It lists from its own cursor, does not touch the progress, keeps `coverageFrom` |
+| RV30 | 250 pull requests; #1 updated after the first page | All 250 stored; every listing request is `page=1` |
+| RV31 | No daily cursor; another `from` in progress; a month or the cursor written meanwhile; the progress write fails | `config` with nothing read; `conflict` and the next call repairs it; the next call adds nothing |
+| RV32 | A dry backfill call | Counts reported, nothing written |
+| RV33 | 700 pull requests since `from` | One call reads 500 with 6 listing pages and 20 GraphQL requests; R2 5 reads and 5 writes |
+| RV34 | A backfill call; `/health` | `backfill-last-run.json` names from, until, cursor, done and counts; `/health` `githubReviewsBackfill` |
 
 ## Acceptance
 
@@ -460,13 +584,19 @@ Each item: precondition → action → observable result → evidence.
 - RV6: given the recorded DataFusion #25716, its dismissed review is a row in state `DISMISSED`; given a stored `APPROVED` row read again as `DISMISSED`, the row keeps `stateBefore: APPROVED` → case rows and run test.
 - RV7: given type `Bot` without a `[bot]` suffix (recorded), a `[bot]` suffix, or a machine user of the project, the row has `isBot: true`; given `abbott`, or a machine user of another project, it has not; both GitHub projects are ingested with their machine users → case rows and Worker test.
 - RV8: given a review submitted by the pull request's author, the row has `reviewer` equal to `prAuthor`, and the run counts it under `selfReviews`, bots under `botReviews` → run test.
-- RV9: given more new pull requests than the cap, a run reads the cap's worth oldest first, reports `truncated`, and stops the cursor at the last one read; pull requests inside the overlap do not count against the cap; later runs read the rest and no review is lost → case rows and run test.
+- RV9: given more new pull requests than the cap, a run reads the cap's worth oldest first, reports `truncated`, and stops the cursor at the last one read; pull requests inside the overlap do not count against the cap; later runs read the rest and no review is lost; given a day of 1,200 updated issues and 3 pull requests against a GitHub that refuses pages past 10, the run lists by key (`page=1` only), reads the 3 and moves the cursor past them → case rows and run tests.
 - RV10: given the query and any run, no field named `body`, `bodyText`, `bodyHTML`, `path` or `diffHunk` is requested; a stored row has exactly the nine keys of the data model (`stateBefore` is the tenth, on a dismissed row only); nothing stored contains a listing item's title or body; every key is under `internal/github-reviews/v1/` → case rows and run test.
 - RV11: given the recorded fixture of 52 Kafka pull requests merged 2026-10-07 to 2026-10-13, the trailer comparison reports 51 with a trailer, 73 names, 69 matched, the 4 unmatched by name, and 14 approvers not named; the parser drops bracketed and bare addresses; the fixture contains no address → case rows.
 - RV12: given reviews submitted at 2026-09-30T23:59:59Z and 2026-10-01T00:00:00Z, they are stored in the objects of 2026-09 and 2026-10, each ordered by time then id; a month object of another project is refused → case rows and run test.
+- RV27: given `from` of `2026-04-14`, `2026-04-14T06:30:00Z`, missing, `14/04/2026`, exactly 395 days back, 395 days and 1 s back, or now, resolving it gives that midnight, that time, required, not an ISO date, accepted, before the floor, not in the past; the route answers 401 without the token, 403 with the flag unset, 400 for a refused `from` with nothing sent to GitHub or the bucket, and otherwise runs one call while the caller waits → case rows and Worker test.
+- RV28: given a daily cursor and history since `from`, each backfill call lists from its own cursor (the first from `from`), reads at most the cap's worth of pull requests, and stores only reviews submitted in [`from`, `until`) with `until` the daily `coverageFrom` at the start; a review before `from` is not stored; a May review on a pull request updated again today is; when the listing reaches the present the daily `coverageFrom` becomes `from`, its `updatedAt` is unchanged, and the progress is complete; a further call sends nothing to GitHub → case rows and run test.
+- RV29: given a backfill in progress or finished, the daily run lists from its own cursor minus 300 s, never reads or writes the backfill progress, and keeps the `coverageFrom` the backfill set → run test.
+- RV30: given an item updated between two listing pages of a backfill call, no item is skipped: each request is `page=1` with `since` one second before the last item received, and a page entirely inside that second moves to the next page instead → case rows and run test.
 - RV26: given the Dev configuration, `GITHUB_REVIEWS` is `metadata@1` and the Prod configuration has no `GITHUB_REVIEWS`; given Dev's value and an empty bucket, a publication tick schedules the same publication and each project's run lists from one day before the tick and writes only its first cursor and the run record → Worker test reading both Wrangler files.
 
 ### Failure and retry
+- RV31: given no daily cursor, or a backfill from another date in progress, the project fails as `config`, reads nothing from GitHub and writes nothing; given a month object or the daily cursor written by another run between the backfill's read and its write, the project fails as `conflict`, its progress stays, `coverageFrom` is not moved, and the next call completes; given a daily run whose cursor a finishing backfill rewrote meanwhile, the daily run fails as `conflict` and leaves `coverageFrom` as the backfill set it; given a call that dies after its month writes, the next call repeats the chunk and adds nothing → run tests.
+- RV32: given a dry backfill call, GitHub and the bucket are read, the counts are reported, and nothing is written, not even the run record or the progress → run test.
 - RV13: given a GraphQL batch that fails twice, that project's run fails as `transport` after one retry, writes no month and no cursor, and the other project completes; the next run reads the same day → run test.
 - RV14: given a 401, or a 403 with `Retry-After: 120`, on the listing, the project fails as `auth` or `rate-limit` after one request; given a 429 with `Retry-After: 30`, it waits 30 s once and completes; given a GraphQL `RATE_LIMITED` error, it fails as `rate-limit` → run test.
 - RV15: given a run that dies after the month write and before the cursor write, the cursor is unchanged, and the next run adds no row, writes no month, and moves the cursor → run test.
@@ -474,14 +604,17 @@ Each item: precondition → action → observable result → evidence.
 - RV17: given an unsupported flag value, the flag missing, or a blank token, the run sends nothing to GitHub, reads nothing, and records a `config` failure; the publication tick still schedules the publication → run and Worker tests.
 - RV18: given a malformed stored cursor or month object, the project fails and the stored object is not overwritten → run test.
 - RV19: given a dry run, GitHub and the bucket are read and nothing is written → run test.
-- RV20: given a first run, a review submitted before its day is not stored even when its pull request was updated today; a review exactly at the window start is; a pull request with 150 reviews of which the 100 read are all inside the window is counted as truncated, and is not when the oldest read is before the window → case rows and run test.
+- RV20: given a first run, a review submitted before its day is not stored even when its pull request was updated today; a review exactly at the window start is; a pull request with 150 reviews of which the 100 read are all inside the window is counted as truncated, and is not when the oldest read is before the window; the daily run writes no review older than 35 days, which bounds its writes and not the store: month objects older than that, written by a backfill, are kept byte-identical by later daily runs, and nothing deletes a month object (Behavior 14) → case rows and run test.
 
 ### Budget
+- RV33: given 700 pull requests updated since `from`, one call reads 500 of them with 6 keyed listing pages and 20 GraphQL requests, reads 5 and writes 5 R2 objects (Kafka: cursor, progress, one month read; month and progress written; DataFusion, with nothing to read, completes: cursor and progress read, cursor and progress written; the run record) → run test.
+- RV35: [measure] the 12-month backfill (`from` 2025-10-14): 3,674 Kafka and 5,843 DataFusion pull requests and 3,194 DataFusion issues to list (GitHub search, 2026-10-14), 12 calls, about 150 listing and 400 GraphQL requests, about 33,000 rows in 26 month objects of about 8 MB; `bun run measure:github-reviews -- --backfill-from 2025-10-14` measures it read-only (not yet run).
 - RV21: [measure] requests and time of one run against the live API: 10 requests, GraphQL cost 7, 10.5 s for a day of both projects; 31 requests for a week; 56 for a run cut at the cap (`bun run measure:github-reviews [-- --days N]`, 2026-10-14). Limits: 5,000 REST requests and 5,000 GraphQL points an hour for the token; 20,000 subrequests and 300,000 ms CPU per invocation.
-- RV22: given the busiest measured day (70 Kafka pull requests; 85 DataFusion pull requests and 30 issues), a run makes 1 + 3 and 2 + 4 GitHub requests and 4 bucket reads and 5 writes; given 700 new pull requests, a run reads 500 with 5 listing pages and 20 GraphQL requests → run test.
+- RV22: given the busiest measured day (70 Kafka pull requests; 85 DataFusion pull requests and 30 issues), a run makes 1 + 3 and 2 + 4 GitHub requests and 4 bucket reads and 5 writes; given 700 new pull requests, a run reads 500 with 6 keyed listing pages (99 new items a page) and 20 GraphQL requests → run test.
 - RV23: [measure] a row is 224 to 226 bytes; a month is about 322 KB (Kafka) and 343 KB (DataFusion), a year about 8 MB for both (`bun run measure:github-reviews -- --days 7`: 74,017 and 78,593 bytes for 329 and 351 rows).
 
 ### Observability
+- RV34: given a backfill call, `backfill-last-run.json` holds `{ok, revision, dryRun, from, startedAt, completedAt, durationMs, projects}` and per project the run fields of RV24 plus `from`, `until` and `done`, never the token, and the daily `last-run.json` is not replaced; with the flag set `/health` carries it as `githubReviewsBackfill` (`null` before the first call), and with the flag unset neither field is present → run and Worker tests.
 - RV24: given a run, `last-run.json` names per project the listing start, the cursor, `coverageFrom`, pull requests listed and read, `truncated`, reviews, bot and author reviews, rows added, changed and dismissed, pull requests dropped, `reviewsTruncated`, month objects read and written, REST and GraphQL requests, GraphQL cost, response size and duration, and never the token; with the flag set `/health` carries it as `githubReviews`, `null` before the first run → run and Worker tests.
 - RV25: [deploy] on Dev after the flag is set: a dry run answers 200 with `ok: true` for both projects; the second real run replaces a month object (`monthsWritten` at least 1 or `changed` above 0) with no `failureKind: conflict`; after the first real run `/health` `githubReviews.ok` is true, each project's `restRequests + graphqlRequests` is at most 10 on a normal day, and `lastRun` of the publication of the same tick is `ok` with `r2` within its usual range.
 
@@ -497,17 +630,17 @@ Each item: precondition → action → observable result → evidence.
 | `/api/feed` 11.5 MB (G22) | Pages | 11.5 MB | Unchanged |
 | Objects per publication, bound 19,900 (Spec 008) | publisher | 8,340 | Unchanged: review objects are not part of a publication |
 | R2 Class A per run | runbook | 391 on 2026-10-13 (about 40 on a quiet day) | +5 a day (2 months, 2 cursors, 1 run record); up to 9 when reviews of three months change. About 150 to 270 a month on top of about 1,200; 1 million included |
-| R2 Class B per run | runbook | 8,343 | +4 a day, up to 8; +1 per `/health` request while the flag is set |
+| R2 Class B per run | runbook | 8,343 | +4 a day, up to 8; +2 per `/health` request while the flag is set (`githubReviews` and `githubReviewsBackfill`) |
 | Search chunks, vectors, neurons | Spec 016 | 8,996 chunks, 8,996 vectors, cap 2,500 neurons a day | Unchanged |
-| R2 storage | | | +0.67 MB a month, about 8 MB a year |
+| R2 storage | | | +0.67 MB a month, about 8 MB a year; the 12-month backfill adds about 8 MB once |
+| Backfill (manual, once) | Behavior 13 | | 12 calls, about 150 REST and 400 GraphQL requests, about 120 Class A (bound 294); see "Backfill: what it covers, and its cost" |
 
 What grows: two month objects (about 11 KB a day each), 10 GitHub requests
 and 9 R2 requests a day, one `/health` field. Nothing in the publication.
 
 ## Enabling on Dev
 
-1. Owner approves decisions 1 to 4 below (decision 3, enable on Dev:
-   decided 2026-10-14).
+1. Decisions 1 to 5 below: decided by the owner on 2026-10-14.
 2. One PR sets `"GITHUB_REVIEWS": "metadata@1"` in `vars` of
    `apps/data-publisher-worker/wrangler.development.jsonc` and updates the
    `GITHUB_REVIEWS` row of `docs/feature-map.md`. CI deploys Dev on merge.
@@ -535,7 +668,13 @@ and 9 R2 requests a day, one `/health` field. Nothing in the publication.
    (`truncated: true` with `ok: true` in `githubReviews`), run anything
    backfill-sized through `POST /github-reviews/run`, which runs while the
    caller waits.
-8. To turn off: remove the variable. The stored objects stay and are not
+8. **Backfill (decision 5: 12 months).** Only after step 6 passed (the
+   backfill replaces month objects with the same conditional write). Steps
+   and stop conditions: runbook, "GitHub review ingestion (Spec 022)",
+   "Backfill". About 12 calls of `POST /github-reviews/backfill?from=2025-10-14`;
+   done when `/health` `githubReviewsBackfill.projects.*.done` are true and
+   the next daily run reports `coverageFrom` `2025-10-14T00:00:00.000Z`.
+9. To turn off: remove the variable. The stored objects stay and are not
    read by anything.
 
 Prod stays off: its data Worker has never been deployed (Spec 018).
@@ -544,11 +683,11 @@ Prod stays off: its data Worker has never been deployed (Spec 018).
 
 | # | Decision | Recommendation | Cost of the alternative |
 | --- | --- | --- | --- |
-| 1 | Inline review comments: individual rows, grouped per review, or counted | **Counted on the review row** (implemented) | Individual rows with file paths: +3 requests a day, about 131 more rows a day, and the draft-time trap of `/pulls/comments?since=`; worth it only if the profile should show areas by file path |
-| 2 | Do reviews enter Feed, Detail and Search | **No: metadata only, no text fetched** (implemented). Searchable review text is a later decision of its own | As Feed records: +37% events and Search chunks (+83% with inline comments), six in ten of them empty, state at 65% of the measured memory limit |
+| 1 | Inline review comments: individual rows, grouped per review, or counted | **Decided 2026-10-14 (owner): counted on the review row** (implemented) | Individual rows with file paths: +3 requests a day, about 131 more rows a day, and the draft-time trap of `/pulls/comments?since=`; worth it only if the profile should show areas by file path |
+| 2 | Do reviews enter Feed, Detail and Search | **Decided 2026-10-14 (owner): no, metadata only, no text fetched** (implemented). Searchable review text is a later decision of its own | As Feed records: +37% events and Search chunks (+83% with inline comments), six in ten of them empty, state at 65% of the measured memory limit |
 | 3 | Enable on Dev | **Decided 2026-10-14: yes**, by the steps above; Prod stays off | Not enabling blocks Spec 019 slice 2; each day not enabled is a day of reviews a later backfill has to fetch |
-| 4 | The month object as the contract Spec 019 reads (`osskb.github-reviews.v1`, the nine fields, keys under `internal/`) | **Accept as proposed**; it is versioned, and Spec 019 slice 2 may ask for a field before anything reads it | Changing it after Spec 019 reads it needs a migration of stored months |
-| 5 | Backfill | **Decide with Spec 019's horizon (its decision 4)**; until then coverage starts on the day of the first run | 35 days now: 161 requests, 7 manual runs. 12 months: 509 requests, 20 runs. Needs the small change described above |
+| 4 | The month object as the contract Spec 019 reads (`osskb.github-reviews.v1`, the nine fields, keys under `internal/`) | **Decided 2026-10-14 (owner): accepted as proposed**; it is versioned, and Spec 019 slice 2 may ask for a field before anything reads it | Changing it after Spec 019 reads it needs a migration of stored months |
+| 5 | Backfill | **Decided 2026-10-14: 12 months** (2025-10-14 onwards), by the manual route of Behavior 13; the store keeps at least 13 months (Behavior 14). The owner leans to a 12-month horizon for Spec 019 too; that decision stays in PR #63 | 6 months: 5 and 8 calls. Re-measured 12 months: 12 calls, about 550 requests (the earlier 509 counted offset pages and no re-read at each cursor) |
 
 ## Could not be verified
 
@@ -569,7 +708,20 @@ Prod stays off: its data Worker has never been deployed (Spec 018).
 - More than 100 reviews on one pull request: none exists in either
   repository's week; the rule is tested on constructed data only.
 - "Updated" counts of earlier days are lower bounds.
-- The backfill request counts are derived from search totals, not run.
+- The backfill request counts are derived from search totals and a sample
+  of 20 pull requests per project, not run (RV35 has the command). The row
+  estimate for DataFusion differs by 15% between the sample and the
+  measured week.
+- That a Worker request held open about 70 s (a backfill call serving both
+  projects) completes on this account; Workers documents no wall-time limit
+  while the client stays connected. A call cut short loses nothing: the
+  progress moves only after its months are written, and the next call
+  repeats the chunk.
+- GitHub's 422 for deep offset pages was seen past about page 10 of a
+  12-month listing (page 10 answered, page 15 refused); the exact limit is
+  not documented. Both the daily run and the backfill page by key
+  (Behavior 3), so neither reaches it; a fake GitHub that refuses pages
+  past 10 tests a day of 1,203 listed items (RV9).
 - GitHub's terms for storing reviewer logins: Spec 019 decision 8 covers it;
   this spec stores logins the Feed already stores for authors.
 
@@ -578,6 +730,8 @@ Prod stays off: its data Worker has never been deployed (Spec 018).
 - The contributor profile, its API and page (Spec 019 slices 2 to 5).
 - Review or comment text anywhere; file paths.
 - Changing the GitHub connector, its `isBot` rule (gardening G8), or the
-  35-day retention of the publication state.
+  35-day retention of the publication state (`compactState`); the review
+  store is outside it.
+- Pruning review months (Behavior 14 proposes it; not built).
 - Scheduling the review queue, or changing its read.
 - Prod.

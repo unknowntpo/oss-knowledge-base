@@ -201,7 +201,8 @@ curl -sS https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/health | jq 
 | Digest | once a day on Dev (22:47 UTC), plus manual `POST /digest/run` | 2–4 (one `list`, the pointer, two objects when new) | up to 300 |
 | Review queue | manual `POST /review-queue/run` | 3–4 | 4–5 |
 | GitHub review ingestion (Spec 022) | Dev: each publisher tick (`GITHUB_REVIEWS=metadata@1`); Prod: off | 5 (two month objects, two cursors, the run record); up to 9 | 4; up to 8 |
-| `/health` | per request | 0 | 1 |
+| GitHub review backfill (Spec 022, once) | manual `POST /github-reviews/backfill`, about 12 calls | per call: months written (at most 13 per project), progress per project, the record; about 120 in all, bound about 300 | per call: cursor, progress, months read per project; at most about 300 in all |
+| `/health` | per request | 0 | 1; 3 while `GITHUB_REVIEWS` is set (also `githubReviews` and `githubReviewsBackfill`) |
 | Pages `/api/*` | per request | 0 | 2–3; `/api/search` at most 13 on Dev |
 | CI `bootstrap-r2` | manual workflow | one per object | 0 |
 
@@ -610,3 +611,78 @@ When it is on:
   further run reads 500 more.
 - To turn off, remove the variable. The objects under
   `internal/github-reviews/v1/` stay; nothing reads them.
+
+### Backfill (Spec 022 Behavior 13; decision 5: 12 months)
+
+Once, by hand, on Dev only. It fills the review store from `from` up to the
+daily run's `coverageFrom`, then moves `coverageFrom` to `from`. The daily
+cursor's `updatedAt` is never touched, so the daily tick goes on as before.
+
+Before the first call:
+
+1. The daily ingestion has run at least twice on Dev and the **second** run
+   passed the conflict check above (`monthsWritten` at least 1 or `changed`
+   above 0, no `conflict`). The backfill replaces month objects with the
+   same conditional write.
+2. The whole sequence takes about 14 minutes: finish before 22:00 UTC or
+   start after 22:30 UTC (the daily tick). An overlap is safe (a
+   `conflict`, repaired by the next call) but wastes a call.
+
+Dry call (reads GitHub, writes nothing; expect `ok: true`, each project
+`pulls` about 500, `done: false`):
+
+```sh
+curl -sS --max-time 300 -X POST -H "Authorization: Bearer $MANUAL_TRIGGER_TOKEN" \
+  'https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/github-reviews/backfill?from=2025-10-14&dryRun=1' \
+  | jq '{ok, from, projects: (.projects | map_values({ok, done, pulls, reviews, restRequests, graphqlRequests, durationMs, failureKind, error}))}'
+```
+
+Then the calls, about **12** (Kafka is done after about 8, DataFusion after
+about 12); each takes up to about 70 s while `curl` waits, about 12 minutes
+of calls (about 14 with the dry call and checks). In bash or zsh:
+
+```sh
+URL='https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/github-reviews/backfill?from=2025-10-14'
+for call in $(seq 1 20); do
+  body=$(curl -sS --max-time 300 -X POST -H "Authorization: Bearer $MANUAL_TRIGGER_TOKEN" "$URL")
+  echo "$body" | jq -c '{call: '"$call"', ok, projects: (.projects | map_values({done, pulls, added, monthsWritten, cursor, failureKind}))}'
+  echo "$body" | jq -e '.ok' >/dev/null || break
+  echo "$body" | jq -e '[.projects[].done] | all' >/dev/null && break
+done
+```
+
+Progress, at any time:
+
+```sh
+curl -sS https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/health \
+  | jq '{backfill: (.githubReviewsBackfill | {ok, from, completedAt, projects: (.projects | map_values({done, until, cursor, coverageFrom, pulls, added, reviewsTruncated, failureKind}))}), daily: (.githubReviews.projects | map_values({coverageFrom, cursor}))}'
+```
+
+`cursor` walks from 2025-10-14 towards today (the update time of the last
+pull request read); `done: true` means the listing reached the present and
+`coverageFrom` is `2025-10-14T00:00:00.000Z`. The daily `githubReviews`
+shows the new `coverageFrom` from its next run on.
+
+**Resume:** call again with the same `from`. Progress lives in
+`internal/github-reviews/v1/<projectId>/backfill.json` and moves only after
+the call's months are written, so a cut connection, a timeout, a
+`conflict`, `transport` or a short `rate-limit` costs one repeated chunk and
+no row. A project that is done sends nothing to GitHub on later calls.
+
+**Stop and investigate when:**
+
+- `failureKind: config`: no daily cursor yet (run the daily ingestion
+  first), or "a backfill from X is in progress" (call with `from=X`), or the
+  flag or token is wrong.
+- `auth`, or `rate-limit` with a `Retry-After` above 60 s: stop for an hour;
+  the backfill and the daily publication share the token.
+- `schema`, `internal`, or the same failure three calls in a row.
+- 20 calls without both projects `done` (about 12 are expected).
+- `reviewsTruncated` above 0 is not a stop: note the count (Spec 022 known
+  limit 5).
+
+Expected at the end: both projects `done: true`, about 17,000 Kafka and
+15,000 to 18,000 DataFusion rows added in all, 13 month objects per project
+(about 4 MB each project), about 150 listing and 400 GraphQL requests (at most about 475 with the 300 s overlap), and
+R2 about 120 Class A (bound about 300) and at most about 300 Class B. Record
+the totals as RV35 evidence.

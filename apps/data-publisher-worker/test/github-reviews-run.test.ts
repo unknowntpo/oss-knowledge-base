@@ -7,8 +7,22 @@ import { afterEach, describe, expect, test } from "bun:test";
 import type { PullReviews, ReviewMonthObject, ReviewNode } from "@oss-knowledge-base/reference-pipeline";
 import worker from "../src/index";
 import { githubReviewsProjects } from "../src/github-reviews/projects";
-import { runGithubReviews, type GithubReviewsLastRun, type GithubReviewsState } from "../src/github-reviews/run";
-import { GITHUB_REVIEWS_LAST_RUN_KEY, githubReviewsMonthKey, githubReviewsStateKey, type GithubReviewsBucket } from "../src/github-reviews/store";
+import {
+  runGithubReviews,
+  runGithubReviewsBackfill,
+  type GithubReviewsBackfillLastRun,
+  type GithubReviewsBackfillState,
+  type GithubReviewsLastRun,
+  type GithubReviewsState,
+} from "../src/github-reviews/run";
+import {
+  GITHUB_REVIEWS_BACKFILL_LAST_RUN_KEY,
+  GITHUB_REVIEWS_LAST_RUN_KEY,
+  githubReviewsBackfillKey,
+  githubReviewsMonthKey,
+  githubReviewsStateKey,
+  type GithubReviewsBucket,
+} from "../src/github-reviews/store";
 
 const KAFKA = { projectId: "apache-kafka", owner: "apache", repo: "kafka", machineUsers: [] as string[] };
 const DATAFUSION = { projectId: "apache-datafusion", owner: "apache", repo: "datafusion", machineUsers: ["codecov-commenter"] };
@@ -22,6 +36,8 @@ class MemoryBucket implements GithubReviewsBucket {
   puts = 0;
   /** Runs once, between a month object's read and its write. */
   beforeWrite: (() => void) | undefined;
+  /** Runs once, just before the conditional write of that key. */
+  readonly beforeWriteOf = new Map<string, () => void>();
   failPut: ((key: string) => boolean) | undefined;
   private version = 0;
 
@@ -39,7 +55,11 @@ class MemoryBucket implements GithubReviewsBucket {
   async putIfMatch(key: string, body: string, etag: string | null): Promise<boolean> {
     this.beforeWrite?.();
     this.beforeWrite = undefined;
+    const hook = this.beforeWriteOf.get(key);
+    this.beforeWriteOf.delete(key);
+    hook?.();
     this.puts += 1;
+    if (this.failPut?.(key) === true) throw new Error("R2 put failed");
     if ((this.objects.get(key)?.etag ?? null) !== etag) return false;
     this.set(key, body);
     return true;
@@ -102,6 +122,8 @@ class FakeGitHub {
     const since = url.searchParams.get("since")!;
     const size = Number(url.searchParams.get("per_page"));
     const page = Number(url.searchParams.get("page"));
+    // GitHub refuses deep offsets of a large listing (seen 2026-10-14: page 10 answered, page 15 refused).
+    if (page > 10) return Response.json({ message: "Pagination with the page parameter is not supported for large datasets, please use cursor based pagination (after/before)" }, { status: 422 });
     const all = (this.items.get(repo) ?? []).filter((item) => Date.parse(item.updated_at) >= Date.parse(since))
       .sort((a, b) => (a.updated_at === b.updated_at ? a.number - b.number : a.updated_at < b.updated_at ? -1 : 1));
     // A real listing item carries a title and a body; the job must not keep them.
@@ -129,8 +151,22 @@ function world(options: { flag?: string | undefined; token?: string; maxPullsPer
     dryRun,
     ...(options.maxPullsPerRun === undefined ? {} : { maxPullsPerRun: options.maxPullsPerRun }),
   });
+  const backfill = (from: string, dryRun = false, maxPullsPerRun = options.maxPullsPerRun) => runGithubReviewsBackfill({
+    flag: "flag" in options ? options.flag : "metadata@1",
+    bucket,
+    projects: [KAFKA, DATAFUSION],
+    githubToken: options.token ?? "token-under-test",
+    githubFetch: github.fetch,
+    now: () => now,
+    delay: async (ms) => { waits.push(ms); },
+    dryRun,
+    from,
+    ...(maxPullsPerRun === undefined ? {} : { maxPullsPerRun }),
+  });
   return {
-    bucket, github, waits, run,
+    bucket, github, waits, run, backfill,
+    progress: (projectId = KAFKA.projectId) => bucket.json<GithubReviewsBackfillState>(githubReviewsBackfillKey(projectId)),
+    backfillRecord: () => bucket.json<GithubReviewsBackfillLastRun>(GITHUB_REVIEWS_BACKFILL_LAST_RUN_KEY),
     advance: (ms: number) => { now += ms; },
     state: (projectId = KAFKA.projectId) => bucket.json<GithubReviewsState>(githubReviewsStateKey(projectId)),
     month: (month: string, projectId = KAFKA.projectId) => bucket.json<ReviewMonthObject>(githubReviewsMonthKey(projectId, month)),
@@ -393,7 +429,19 @@ describe("Spec 022 review ingestion run", () => {
     const backlog = world();
     for (let index = 1; index <= 700; index += 1) backlog.github.add("kafka", index, at(NOW - DAY + index * 1_000), []);
     const capped = (await backlog.run()).projects[KAFKA.projectId]!;
-    expect(capped).toMatchObject({ pulls: 500, truncated: true, restRequests: 5, graphqlRequests: 20 });
+    expect(capped).toMatchObject({ pulls: 500, truncated: true, restRequests: 6, graphqlRequests: 20 }); // keyed pages repeat their last second: 99 new items a page
+  });
+
+  test("RV9: a day with more than 1,000 updated items (a stale-bot sweep of issues) is listed by key and does not fail on deep pages", async () => {
+    const w = world();
+    for (let index = 1; index <= 1_200; index += 1) w.github.add("datafusion", 10_000 + index, at(NOW - DAY + 1_000 + index * 30_000), null);
+    for (let index = 1; index <= 3; index += 1) w.github.add("datafusion", index, at(NOW - 120_000 + index * 1_000), [review(index, at(NOW - 120_000 + index * 1_000))]);
+    const run = (await w.run()).projects[DATAFUSION.projectId]!;
+    expect(run).toMatchObject({ ok: true, pulls: 3, added: 3, truncated: false, listed: 1_203 });
+    const pages = w.github.calls.filter((call) => call.repo === "datafusion" && call.kind === "list").map((call) => new URL(call.url).searchParams);
+    expect(pages.length).toBeGreaterThan(10);
+    expect(pages.every((params) => params.get("page") === "1")).toBe(true);
+    expect(w.state(DATAFUSION.projectId)!.updatedAt).toBe(at(NOW - 117_000));
   });
 
   test("RV24: the run record names, per project, the cursor, coverage, counts and requests", async () => {
@@ -410,6 +458,218 @@ describe("Spec 022 review ingestion run", () => {
       droppedPulls: 1, reviewsTruncated: 0, monthsRead: 1, monthsWritten: 1, restRequests: 1, graphqlRequests: 1, graphqlCost: 1,
     });
     expect(run.projects[KAFKA.projectId]!.bytes).toBeGreaterThan(0);
+    expect(JSON.stringify(run)).not.toContain("token-under-test");
+  });
+});
+
+
+const FROM = "2026-04-14T00:00:00.000Z";
+const MAY = Date.parse("2026-05-01T00:00:00Z");
+const ids = (w: ReturnType<typeof world>, month: string, projectId = KAFKA.projectId) => w.month(month, projectId)?.rows.map((row) => row.reviewId) ?? [];
+
+/**
+ * Six months of history on top of a day the daily run has already read: twelve pull requests
+ * reviewed on 1 May; #30 updated in April with one review before `from`; #31 reviewed in May and
+ * updated again today, so it is listed only at today's position; an issue in June.
+ */
+async function historyAfterFirstDay(maxPullsPerRun = 5) {
+  const w = world({ maxPullsPerRun });
+  seededDay(w);
+  w.github.add("kafka", 30, "2026-04-20T00:00:00Z", [review(300, "2026-04-13T23:59:59Z"), review(301, "2026-04-20T00:00:00Z")]);
+  for (let index = 10; index <= 21; index += 1) w.github.add("kafka", index, at(MAY + index * 3_600_000), [review(index, at(MAY + index * 3_600_000))]);
+  w.github.add("kafka", 31, at(NOW - 7_000_000), [review(310, "2026-05-05T00:00:00Z"), review(311, at(NOW - 7_000_000))]);
+  w.github.add("kafka", 32, "2026-06-01T00:00:00Z", null);
+  await w.run(); // the daily first run: one day back
+  w.advance(600_000);
+  return w;
+}
+
+describe("Spec 022 backfill", () => {
+  test("RV28: a backfill walks forward from `from` in chunks of the cap and stores only what the daily run does not own", async () => {
+    const w = await historyAfterFirstDay();
+    const daily = w.state()!;
+    expect([daily.coverageFrom, ids(w, "2026-10")]).toEqual(["2026-10-12T22:07:00.000Z", [1, 311, 2, 3, 4]]);
+    const runs = [];
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const run = await w.backfill(FROM);
+      runs.push(run.projects[KAFKA.projectId]!);
+      if (run.projects[KAFKA.projectId]!.done) break;
+      w.advance(60_000);
+    }
+    expect(runs.map((run) => [run.pulls, run.truncated, run.done])).toEqual([[5, true, false], [6, true, false], [6, true, false], [3, false, true]]); // after the first, each re-reads the pull request at its cursor
+    expect(runs.every((run) => run.ok && run.from === FROM && run.until === daily.coverageFrom)).toBe(true);
+    // 14 reviews in the window, plus #13 and #18 read again at the cursor; nothing at or after `until`.
+    expect([runs.reduce((sum, run) => sum + run.reviews, 0), runs.reduce((sum, run) => sum + run.added, 0)]).toEqual([16, 14]);
+    // #30's review before `from` is not stored; #31's May review is, though #31 was listed at today's update.
+    expect(ids(w, "2026-04")).toEqual([301]);
+    expect(ids(w, "2026-05")).toEqual([10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 310]);
+    expect(ids(w, "2026-10")).toEqual([1, 311, 2, 3, 4]); // the daily run's rows, not written again
+    expect(w.state()).toEqual({ ...daily, coverageFrom: FROM });
+    expect(w.progress()).toMatchObject({ schema: "osskb.github-reviews-backfill.v1", from: FROM, until: daily.coverageFrom, completedAt: expect.any(String) });
+    expect(w.progress(DATAFUSION.projectId)).toMatchObject({ from: FROM, completedAt: expect.any(String) });
+    expect(w.state(DATAFUSION.projectId)!.coverageFrom).toBe(FROM);
+
+    // Done: a further call sends nothing to GitHub and writes nothing but its run record.
+    const calls = w.github.calls.length;
+    const puts = w.bucket.puts;
+    const again = await w.backfill(FROM);
+    expect(again.projects[KAFKA.projectId]).toMatchObject({ ok: true, done: true, pulls: 0, restRequests: 0, graphqlRequests: 0, monthsWritten: 0 });
+    expect([w.github.calls.length - calls, w.bucket.puts - puts]).toEqual([0, 1]);
+  });
+
+  test("RV29: the backfill never moves the daily cursor, and the daily run between and after its chunks reads only its own window", async () => {
+    const w = await historyAfterFirstDay();
+    const daily = w.state()!;
+    await w.backfill(FROM);
+    expect(w.state()).toEqual(daily);
+    const progress = w.bucket.objects.get(githubReviewsBackfillKey(KAFKA.projectId));
+
+    w.github.add("kafka", 105, at(NOW + 300_000), [review(7, at(NOW + 300_000))]);
+    w.advance(DAY);
+    const between = (await w.run()).projects[KAFKA.projectId]!;
+    expect(between).toMatchObject({ ok: true, since: new Date(Date.parse(daily.updatedAt) - 300_000).toISOString(), coverageFrom: daily.coverageFrom, added: 1 });
+    expect(w.bucket.objects.get(githubReviewsBackfillKey(KAFKA.projectId))).toBe(progress);
+
+    while (!(await w.backfill(FROM)).projects[KAFKA.projectId]!.done) w.advance(60_000);
+    const cursor = w.state()!.updatedAt;
+    expect(w.state()).toMatchObject({ coverageFrom: FROM, updatedAt: cursor });
+    w.advance(DAY);
+    expect((await w.run()).projects[KAFKA.projectId]).toMatchObject({ ok: true, coverageFrom: FROM, since: new Date(Date.parse(cursor) - 300_000).toISOString() });
+    expect(w.state()!.coverageFrom).toBe(FROM);
+  });
+
+  test("RV20: months older than the daily window, written by a backfill, are kept byte-identical by later daily runs", async () => {
+    const w = await historyAfterFirstDay(500);
+    while (!(await w.backfill(FROM)).projects[KAFKA.projectId]!.done) w.advance(60_000);
+    const old = ["2026-04", "2026-05"].map((month) => w.bucket.objects.get(githubReviewsMonthKey(KAFKA.projectId, month)));
+    // #31 is reviewed again today; its May review is read again by the daily run but older than its 35-day window.
+    w.github.add("kafka", 31, at(NOW + 3_600_000), [review(310, "2026-05-05T00:00:00Z", { state: "DISMISSED" }), review(311, at(NOW - 7_000_000)), review(312, at(NOW + 3_600_000))]);
+    w.advance(DAY);
+    expect((await w.run()).projects[KAFKA.projectId]).toMatchObject({ ok: true, added: 1 });
+    expect(["2026-04", "2026-05"].map((month) => w.bucket.objects.get(githubReviewsMonthKey(KAFKA.projectId, month)))).toEqual(old);
+    expect(ids(w, "2026-05")).toContain(310);
+  });
+
+  test("RV30: an item updated while the backfill lists does not push another item off a page", async () => {
+    const w = world();
+    for (const project of [KAFKA, DATAFUSION]) {
+      w.bucket.set(githubReviewsStateKey(project.projectId), JSON.stringify({ schema: "osskb.github-reviews-state.v1", updatedAt: at(NOW), coverageFrom: at(NOW - DAY) }));
+    }
+    const start = Date.parse(FROM);
+    for (let index = 1; index <= 250; index += 1) w.github.add("kafka", index, at(start + index * 60_000), [review(index, at(start + index * 60_000))]);
+    // After the first page, #1 is updated again: it moves to the end, and every later item one place up.
+    w.github.intercept = (call, count) => {
+      if (call.repo === "kafka" && call.kind === "list" && count === 2) w.github.add("kafka", 1, at(NOW - 60_000), [review(1, at(start + 60_000))]);
+      return undefined;
+    };
+    const run = (await w.backfill(FROM, false, 500)).projects[KAFKA.projectId]!;
+    expect(run).toMatchObject({ ok: true, done: true, added: 250 });
+    expect(new Set(w.month("2026-04")!.rows.map((row) => row.reviewId)).size).toBe(250);
+    const pages = w.github.calls.filter((call) => call.repo === "kafka" && call.kind === "list").map((call) => new URL(call.url).searchParams);
+    expect(pages.every((params) => params.get("page") === "1")).toBe(true);
+  });
+
+  test("RV31: without a daily cursor, or with another backfill in progress, nothing is read from GitHub and nothing is written", async () => {
+    const empty = world();
+    seededDay(empty);
+    const none = await empty.backfill(FROM);
+    expect(none).toMatchObject({ ok: false, failureKind: "source" });
+    expect(none.projects[KAFKA.projectId]).toMatchObject({ ok: false, failureKind: "config", restRequests: 0 });
+    expect(empty.github.calls).toHaveLength(0);
+    expect([...empty.bucket.objects.keys()]).toEqual([GITHUB_REVIEWS_BACKFILL_LAST_RUN_KEY]);
+
+    const w = await historyAfterFirstDay();
+    await w.backfill(FROM);
+    const progress = w.bucket.objects.get(githubReviewsBackfillKey(KAFKA.projectId));
+    const kafkaCalls = () => w.github.calls.filter((call) => call.repo === "kafka").length;
+    const calls = kafkaCalls();
+    const other = (await w.backfill("2026-05-01T00:00:00.000Z")).projects[KAFKA.projectId]!;
+    expect(other).toMatchObject({ ok: false, failureKind: "config" });
+    expect(other.error).toContain(FROM);
+    expect(kafkaCalls()).toBe(calls);
+    expect(w.bucket.objects.get(githubReviewsBackfillKey(KAFKA.projectId))).toBe(progress);
+  });
+
+  test("RV31: a month or the cursor written by the daily run meanwhile is a conflict; the backfill keeps its place and the next call repairs it", async () => {
+    const w = await historyAfterFirstDay(500);
+    const month = githubReviewsMonthKey(KAFKA.projectId, "2026-04");
+    w.bucket.beforeWriteOf.set(month, () => w.bucket.set(month, JSON.stringify({ schema: "osskb.github-reviews.v1", projectId: KAFKA.projectId, month: "2026-04", rows: [] })));
+    expect((await w.backfill(FROM)).projects[KAFKA.projectId]).toMatchObject({ ok: false, failureKind: "conflict", done: false });
+    expect(w.progress()).toBeUndefined();
+    expect(w.state()!.coverageFrom).toBe("2026-10-12T22:07:00.000Z");
+
+    // The daily tick moves the cursor while the last chunk is being written.
+    const stateKey = githubReviewsStateKey(KAFKA.projectId);
+    const moved = { ...w.state()!, updatedAt: at(NOW + 120_000) };
+    w.bucket.beforeWriteOf.set(stateKey, () => w.bucket.set(stateKey, JSON.stringify(moved)));
+    expect((await w.backfill(FROM)).projects[KAFKA.projectId]).toMatchObject({ ok: false, failureKind: "conflict", done: false });
+    expect(w.state()).toEqual(moved);
+    expect(w.progress()).toBeUndefined();
+
+    expect((await w.backfill(FROM)).projects[KAFKA.projectId]).toMatchObject({ ok: true, done: true, added: 0 });
+    expect(w.state()).toEqual({ ...moved, coverageFrom: FROM });
+    expect(ids(w, "2026-04")).toEqual([301]);
+  });
+
+  test("RV31: a daily run whose cursor a finishing backfill rewrote meanwhile fails as a conflict and does not undo coverageFrom", async () => {
+    const w = await historyAfterFirstDay(500);
+    const stateKey = githubReviewsStateKey(KAFKA.projectId);
+    w.github.add("kafka", 106, at(NOW + 60_000), []);
+    w.advance(DAY);
+    w.bucket.beforeWriteOf.set(stateKey, () => w.bucket.set(stateKey, JSON.stringify({ ...w.state()!, coverageFrom: FROM })));
+    expect((await w.run()).projects[KAFKA.projectId]).toMatchObject({ ok: false, failureKind: "conflict" });
+    expect(w.state()!.coverageFrom).toBe(FROM);
+    expect((await w.run()).projects[KAFKA.projectId]).toMatchObject({ ok: true, coverageFrom: FROM });
+    expect(w.state()).toMatchObject({ coverageFrom: FROM, updatedAt: at(NOW + 60_000) });
+  });
+
+  test("RV31: a backfill that dies after its month writes repeats the chunk without adding a row", async () => {
+    const w = await historyAfterFirstDay();
+    w.bucket.failPut = (key) => key === githubReviewsBackfillKey(KAFKA.projectId);
+    expect((await w.backfill(FROM)).projects[KAFKA.projectId]).toMatchObject({ ok: false, failureKind: "internal", monthsWritten: 2 });
+    w.bucket.failPut = undefined;
+    const april = w.bucket.objects.get(githubReviewsMonthKey(KAFKA.projectId, "2026-04"));
+    expect((await w.backfill(FROM)).projects[KAFKA.projectId]).toMatchObject({ ok: true, pulls: 5, added: 0, monthsWritten: 0, done: false });
+    expect(w.bucket.objects.get(githubReviewsMonthKey(KAFKA.projectId, "2026-04"))).toBe(april);
+    expect(w.progress()!.cursor).toBe(at(MAY + 13 * 3_600_000));
+  });
+
+  test("RV32: a dry backfill reads GitHub and the bucket and writes nothing", async () => {
+    const w = await historyAfterFirstDay();
+    const puts = w.bucket.puts;
+    const run = await w.backfill(FROM, true);
+    expect(run).toMatchObject({ ok: true, dryRun: true });
+    expect(run.projects[KAFKA.projectId]).toMatchObject({ pulls: 5, added: 5, monthsWritten: 0, done: false });
+    expect(w.bucket.puts).toBe(puts);
+    expect(w.progress()).toBeUndefined();
+  });
+
+  test("RV33: one call reads at most the cap per project: 500 of 700 pull requests with 6 listing pages and 20 GraphQL requests", async () => {
+    const w = world();
+    for (const project of [KAFKA, DATAFUSION]) {
+      w.bucket.set(githubReviewsStateKey(project.projectId), JSON.stringify({ schema: "osskb.github-reviews-state.v1", updatedAt: at(NOW), coverageFrom: at(NOW - DAY) }));
+    }
+    const start = Date.parse(FROM);
+    for (let index = 1; index <= 700; index += 1) w.github.add("kafka", index, at(start + index * 600_000), [review(index, at(start + index * 600_000))]);
+    const gets = w.bucket.gets;
+    const puts = w.bucket.puts;
+    const run = (await w.backfill(FROM)).projects[KAFKA.projectId]!;
+    expect(run).toMatchObject({ pulls: 500, truncated: true, done: false, restRequests: 6, graphqlRequests: 20, monthsRead: 1, monthsWritten: 1, added: 500 });
+    // Kafka: its cursor, its progress and one month read; the month and its progress written. DataFusion has nothing
+    // since `from`, so it completes: cursor and progress read; coverageFrom and progress written. Then the run record.
+    expect([w.bucket.gets - gets, w.bucket.puts - puts]).toEqual([5, 5]);
+  });
+
+  test("RV34: the backfill run record names, per project, from, until, cursor, done and the counts of the call", async () => {
+    const w = await historyAfterFirstDay();
+    const run = await w.backfill(FROM);
+    expect(w.backfillRecord()).toEqual(run);
+    expect(run).toMatchObject({ ok: true, revision: "metadata@1", dryRun: false, from: FROM });
+    expect(run.projects[KAFKA.projectId]).toMatchObject({
+      ok: true, from: FROM, until: "2026-10-12T22:07:00.000Z", since: FROM, cursor: at(MAY + 13 * 3_600_000), coverageFrom: "2026-10-12T22:07:00.000Z",
+      pulls: 5, truncated: true, done: false, added: 5, restRequests: 1, graphqlRequests: 1,
+    });
+    expect(w.lastRun()!.startedAt).not.toBe(run.startedAt); // the daily run record is not replaced
     expect(JSON.stringify(run)).not.toContain("token-under-test");
   });
 });
@@ -530,6 +790,51 @@ describe("Spec 022 flag in the Worker", () => {
       ...githubReviewsProjects.map((project) => `put ${githubReviewsStateKey(project.projectId)}`),
       `put ${GITHUB_REVIEWS_LAST_RUN_KEY}`,
     ]);
+  });
+
+  test("RV27: the backfill route needs the bearer token, the flag and a valid from; it runs while the caller waits", async () => {
+    const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+    const from = day(Date.now() - 30 * DAY);
+    const post = (env: unknown, query: string, authorization = "Bearer manual-under-test") =>
+      worker.fetch(new Request(`https://data.example/github-reviews/backfill${query}`, { method: "POST", headers: { authorization } }), env as never);
+
+    const off = environment(undefined);
+    expect((await post(off.env, `?from=${from}`, "Bearer wrong")).status).toBe(401);
+    const disabled = await post(off.env, `?from=${from}`);
+    expect([disabled.status, await disabled.json()]).toEqual([403, { ok: false, disabled: true }]);
+
+    const cursor = { schema: "osskb.github-reviews-state.v1", updatedAt: new Date(Date.now() - 3_600_000).toISOString(), coverageFrom: new Date(Date.now() - DAY).toISOString() };
+    const on = environment("metadata@1", Object.fromEntries(githubReviewsProjects.map((project) => [githubReviewsStateKey(project.projectId), cursor])));
+    for (const query of ["", "?from=yesterday", `?from=${day(Date.now() - 400 * DAY)}`]) {
+      const refused = await post(on.env, query);
+      expect(refused.status).toBe(400);
+      expect(await refused.json()).toMatchObject({ ok: false });
+    }
+    expect(on.outbound).toEqual([]);
+    expect(on.operations).toEqual([]);
+
+    const dry = await post(on.env, `?from=${from}&dryRun=1`);
+    expect(dry.status).toBe(200);
+    expect(on.operations.filter((operation) => operation.startsWith("put "))).toEqual([]);
+    const response = await post(on.env, `?from=${from}`);
+    const body = await response.json() as GithubReviewsBackfillLastRun;
+    expect([response.status, body.ok, body.from]).toEqual([200, true, `${from}T00:00:00.000Z`]);
+    expect(Object.values(body.projects).map((project) => project.done)).toEqual([true, true]);
+    expect(on.outbound.filter((url) => url.startsWith("https://api.github.com/repos/")).every((url) => new URL(url).searchParams.get("since") === `${from}T00:00:00.000Z`)).toBe(true);
+    expect(on.operations).toContain(`put ${GITHUB_REVIEWS_BACKFILL_LAST_RUN_KEY}`);
+    expect(on.operations).not.toContain(`put ${GITHUB_REVIEWS_LAST_RUN_KEY}`);
+  });
+
+  test("RV34: with the flag set /health carries the backfill record as githubReviewsBackfill, null before the first call; unset, no field", async () => {
+    const record = { ok: true, from: "2026-04-14T00:00:00.000Z", projects: {} };
+    const withRun = environment("metadata@1", { [GITHUB_REVIEWS_BACKFILL_LAST_RUN_KEY]: record });
+    const body = await (await worker.fetch(new Request("https://data.example/health"), withRun.env as never)).json() as Record<string, unknown>;
+    expect(body.githubReviewsBackfill).toEqual(record);
+    expect(body.githubReviews).toBeNull();
+    const before = await (await worker.fetch(new Request("https://data.example/health"), environment("metadata@1").env as never)).json() as Record<string, unknown>;
+    expect("githubReviewsBackfill" in before && before.githubReviewsBackfill === null).toBe(true);
+    const off = await (await worker.fetch(new Request("https://data.example/health"), environment(undefined).env as never)).text();
+    expect(off).not.toContain("githubReviewsBackfill");
   });
 
   test("RV7: every GitHub project is ingested, with its machine users", () => {
