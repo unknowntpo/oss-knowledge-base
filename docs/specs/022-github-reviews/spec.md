@@ -481,7 +481,7 @@ Each item: precondition → action → observable result → evidence.
 
 ### Observability
 - RV24: given a run, `last-run.json` names per project the listing start, the cursor, `coverageFrom`, pull requests listed and read, `truncated`, reviews, bot and author reviews, rows added, changed and dismissed, pull requests dropped, `reviewsTruncated`, month objects read and written, REST and GraphQL requests, GraphQL cost, response size and duration, and never the token; with the flag set `/health` carries it as `githubReviews`, `null` before the first run → run and Worker tests.
-- RV25: [deploy] on Dev after the flag is set: a dry run answers 200 with `ok: true` for both projects; after the first real run `/health` `githubReviews.ok` is true, each project's `restRequests + graphqlRequests` is at most 10 on a normal day, and `lastRun` of the publication of the same tick is `ok` with `r2` within its usual range.
+- RV25: [deploy] on Dev after the flag is set: a dry run answers 200 with `ok: true` for both projects; the second real run replaces a month object (`monthsWritten` at least 1 or `changed` above 0) with no `failureKind: conflict`; after the first real run `/health` `githubReviews.ok` is true, each project's `restRequests + graphqlRequests` is at most 10 on a normal day, and `lastRun` of the publication of the same tick is `ok` with `r2` within its usual range.
 
 ## Budget against the platform limits
 
@@ -515,7 +515,21 @@ and 9 R2 requests a day, one `/health` field. Nothing in the publication.
 4. Either wait for 22:07 UTC or repeat the call without `dryRun`.
 5. `curl -sS …/health | jq .githubReviews`: `ok: true`; `added` near 80 and
    40; `monthsWritten: 1` per project (RV25).
-6. To turn off: remove the variable. The stored objects stay and are not
+6. **Check the second real run** (the next tick, or a second manual call
+   after new reviews exist). The first run creates each month object; only
+   the second replaces one, with a write conditional on the ETag read
+   (`store.ts` passes `R2Object.etag` to `onlyIf.etagMatches`). That the
+   two formats agree is tested against a fake bucket only. The second run
+   must show `monthsWritten` of at least 1 or `changed` above 0 for a
+   project with new reviews, and no `failureKind: conflict`. If it reports
+   `conflict`, remove the variable and fix the ETag handling first.
+7. **Wall time.** A normal run is about 10 s. A run cut at the cap is about
+   70 s; whether the Cron invocation's `waitUntil` allows that is not
+   verified. Until a capped run has been seen to complete from the Cron
+   (`truncated: true` with `ok: true` in `githubReviews`), run anything
+   backfill-sized through `POST /github-reviews/run`, which runs while the
+   caller waits.
+8. To turn off: remove the variable. The stored objects stay and are not
    read by anything.
 
 Prod stays off: its data Worker has never been deployed (Spec 018).
@@ -540,7 +554,10 @@ Prod stays off: its data Worker has never been deployed (Spec 018).
   reviews seen had the pull request updated at or after the dismissal, which
   is consistent but not proof.
 - The wall-time limit of a Cron invocation's `waitUntil` on this account;
-  the run needs 10 s (70 s at the cap).
+  the run needs 10 s (70 s at the cap). Enabling step 7 covers it.
+- That R2 accepts `R2Object.etag` as `onlyIf.etagMatches` for the month
+  object's conditional write. Only a fake bucket was used; the first
+  replacement of a month object on Dev proves it (enabling step 6).
 - Memory of the review run inside the Workers runtime; the figures are
   response and object sizes, not a heap measurement.
 - More than 100 reviews on one pull request: none exists in either

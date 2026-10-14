@@ -38,6 +38,7 @@
     "check:traceability": "bun scripts/check-spec-traceability.ts",
     "docs:test-plan": "bun scripts/render-test-plan.ts",
     "check:test-plan": "bun scripts/render-test-plan.ts --check",
+    "docs:feature-map-site": "bun scripts/feature-map-site/build.ts",
     "verify:ui": "bun scripts/verify/ui.ts",
     "verify:health": "bun scripts/verify/health.ts",
     "digest": "bun packages/reference-pipeline/scripts/digest.ts"
