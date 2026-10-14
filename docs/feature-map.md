@@ -5,6 +5,14 @@ Derived from the code on `main`; update it in the PR that changes behavior.
 Commands: `bun run verify:ui`, `bun run verify:health` (see
 [Verification kit](#verification-kit)).
 
+This file is also published as a page, with `docs/gardening.md` and the specs'
+status lines: https://unknowntpo.github.io/oss-knowledge-base/ (Spec 020).
+`.github/workflows/feature-map-site.yml` rebuilds it on every push to `main`,
+to `release/**` and of a `v*` tag, one page per ref (`/main/`, `/v0.2.0/`, …)
+with a ref switcher; a pull request gets the same site as the workflow
+artifact `feature-map-site-<sha>`. Nothing in it is edited by hand
+([runbook](runbooks/feature-map-site.md)).
+
 ## Environments
 
 | Environment | Web (Pages) | Publisher worker | R2 bucket |
@@ -30,7 +38,7 @@ fails when a variable or binding of those files is missing here.
 | `DIGEST_CRON`, `REVIEW_QUEUE_CRON` | Worker vars | unset | unset | No cron starts the digest or the review queue yet |
 | `AI` | Worker binding | Workers AI | none | Digest models and `@cf/baai/bge-m3` |
 | `SEARCH_VECTORS` | Worker binding | Vectorize index `osskb-search-dev` (1,024 dimensions, cosine) | none | One namespace per project |
-| `OSS_KB_BUCKET` | Worker and Pages binding | `oss-knowledge-base-dev` | `oss-knowledge-base-prod` | R2. Billed by request class: A (`put`, `list`; $4.50 per million, 1 million included) and B (`get`, `head`; $0.36 per million, 10 million included). The hourly publication is the only scheduled writer: about 40 Class A and 8,200 Class B a run on Dev (`/health` `lastRun.r2`); Pages only read. See the runbook, "R2 operations and cost" |
+| `OSS_KB_BUCKET` | Worker and Pages binding | `oss-knowledge-base-dev` | `oss-knowledge-base-prod` | R2. Billed by request class: A (`put`, `list`; $4.50 per million, 1 million included) and B (`get`, `head`; $0.36 per million, 10 million included). The daily publication (Spec 018) is the only scheduled writer: new objects + 3 Class A and all objects + 3 Class B a run; the first daily run on Dev (2026-10-13 22:07 UTC) sent 391 Class A (388 new objects + 3) and 8,343 Class B (`/health` `lastRun.r2`); Pages only read. See the runbook, "R2 operations and cost" |
 | `PIPELINE_STATE`, `DIGEST_RUN` | Worker Durable Objects (`PipelineState`, `DigestRun`; migrations `v1`, `v2`) | bound | bound | Publisher run and digest run |
 | `SEARCH_EMBEDDING_RUN` | Worker Durable Object (`SearchEmbeddingRun`; migration `v3`) | bound | none | Embedding job |
 | `SEARCH_QUERY_GATE` | Worker Durable Object (`SearchQueryGate`; migration `v4`) | bound (2026-10-13); enabled because `SEARCH_EMBEDDING` is set | none | Query gate: ledger and caches for query-time embeddings. Bound on the Worker for `/health` only |
@@ -134,6 +142,7 @@ in [Spec 018](specs/018-daily-publication/spec.md#everything-that-is-scheduled-2
 | Digest (`DigestRun` alarm) | none; `POST /digest/run` only | a cron entry equal to `DIGEST_CRON` (unset) |
 | Review queue | none; `POST /review-queue/run` only | a cron entry equal to `REVIEW_QUEUE_CRON` (unset); its cadence is an open decision (Spec 018) |
 | Confluence ingest (`.github/workflows/ingest.yml`) | none; manual only since 2026-10-14 (was daily 03:17 UTC) | GitHub Actions `workflow_dispatch`; not read by this site (legacy `viewer/` only) |
+| Feature-map site (`.github/workflows/feature-map-site.yml`) | none; on each push to `main`, to `release/**`, of a `v*` tag, and by hand | GitHub Actions `push`; publishes to GitHub Pages, no Cloudflare resource (Spec 020) |
 
 ## Upstream sources
 
@@ -273,6 +282,7 @@ There is no public `/status`: it exists only inside the Durable Object, and
 | [017](specs/017-lexical-ranking/spec.md) | N1–N19 (N15, N16 measure; N17 deploy) | `bm25-reference@3` in `packages/search`: geometric thread score (N1), phrase bonus (N2), the real-corpus snapshot and its 21 queries (N3, N13), the `@2` stored format (N4), `/api/search` reads `@3` and fails closed on any other revision (N5, N9, N11), the publisher writes `@3` when `SEARCH_LEXICAL_REVISION=bm25-reference@3` (N6, N10), `@1` and `@2` unchanged (N7, N8, N12, N14), guard rows against over-correction with their known limitations (N18), the ablation table from the committed snapshot (N19). Switch (N17, `[deploy]`): `wrangler.development.jsonc` sets the variable, so Dev serves `@3` from the first publication after that deploy; the deployed E2E checks that the served revision equals `/health` `lastRun.search.lexicalRevision` and records the first threads of `request manager` |
 | [018](specs/018-daily-publication/spec.md) | T1–T16 (T13 measure; T14–T16 deploy) | The publisher's crons (T1–T3), the follow-up runs after a truncated or failed publication and `/health` `followUp` (T4–T9), a day's and a backlog's batch against the per-run caps (T10–T13), and the inventory of everything scheduled |
 | [019](specs/019-contributor-profile/spec.md) | W1–W23 (all pending: draft for owner review, nothing implemented; W17–W21 measure; W22, W23 deploy) | Planned: activity log per project per month, `/api/people/:project/:id`, `/#/<projectKey>/people/<id>`, person result in Search. No route, API or object exists yet |
+| [020](specs/020-feature-map-site/spec.md) | B1–B18 (B15 measure; B16–B18 deploy) | The feature-map site (`scripts/feature-map-site/`, `bun run docs:feature-map-site`): data and page per ref (B1–B3, B7), slugs, `versions.json` and the root page (B4, B5, B12), the ref switcher (B6, B11), refs without a feature map or that cannot be built (B8–B10), the workflow `.github/workflows/feature-map-site.yml` and its Pages gate (B13, B14) |
 
 ## Verification kit
 
@@ -294,6 +304,7 @@ There is no public `/status`: it exists only inside the Durable Object, and
 | `bun run eval:search-fusion` | Spec 016 H75, H76, H82, offline: replays `rrf-group@1`, `rrf-group@2`, and the weighed alternatives over the committed capture and prints the ablation by set (tuning, held-out, new); `--write` rewrites `apps/web/test/fixtures/hybrid-fusion-ablation.txt` (compared in CI), `--rows` prints each row's ranks, `--time` the CPU time of one fusion per revision |
 | `bun run eval:search-similarity` | Spec 016 H86, H88, offline: over the scored capture (`apps/web/test/fixtures/hybrid-replay.scored.2026-10-13.json`, `hybrid-replay.clean-3.2026-10-13.json`) and the hand labels, prints how the similarity separates relevant from irrelevant semantic candidates (floor, distance to the best, margin over the 20th; by query type; Chinese against other queries) and the ablation of score-aware fusion alternatives by set (tuning, held-out, new, verifier, clean-3); `--write` rewrites `apps/web/test/fixtures/hybrid-similarity-report.txt` (compared in CI), `--rows` prints each row's ranks at lexical-only, `rrf-group@1`, `@2`, `@3` |
 | `bun run measure:search-query-budget` | Spec 016 H68, offline: the query gate's caps, the neurons charged per query against the calibrated estimate and the upper bound, the three daily neuron caps at their calibrated cost (digest × 1.28) against the included 10,000, and Vectorize's stored and queried dimensions for `--chunks` (default 8,780) | `bun run measure:search-query-budget -- --chunks 12000` |
+| `bun run docs:feature-map-site` | Spec 020: builds the feature-map site from git, every ref (`main`, `release/*`, `v*`) into `<out>/<slug>/index.html` and `data.json`, plus `versions.json` and the root page; prints each page's status and bytes and the total time. `--preview <name>` adds the working tree as a branch; `--tree <dir> --ref … --kind … --sha … --date …` builds one ref from a directory. Reads only `docs/feature-map.md`, `docs/gardening.md` and `docs/specs/*/spec.md`; no network | `bun run docs:feature-map-site -- --out /tmp/fm-site --preview my-branch` |
 | `bun run measure:daily-volume` | Spec 018 T13: issues each source updated in the last 24 h (`-- --hours N`) against the publisher's per-run caps; three public GETs (GitHub search, ASF Jira) | `bun run measure:daily-volume -- --hours 168` |
 | `bun run measure:search-embedding` | Spec 016 H27, offline: publishes the recorded Feed snapshot (or `--fixture <file>`), runs the real embedding run dry and then to completion with a fake model and an in-memory index, and prints estimated tokens per chunk, model calls, neurons, dollars, stored dimensions and runs under the default bounds, scaled to `--chunks` (default 8,586) | `bun run measure:search-embedding -- --chunks 30000` |
 

@@ -323,6 +323,9 @@ Size of option B. One row per event: time, source, kind, thread id, thread
 title reference, identity key, record id, state (merged, approved), area
 labels by reference: about 110 bytes of JSON. A year for both projects is
 about 65,000 rows today, about 85,000 with review events: **about 9 MB raw**.
+(Since 2026-10-14 review events are not part of this log: Spec 022 stores
+them in its own month objects, measured at about 8 MB a year for both
+projects, and the profile reads those.)
 Stored as one object per project per month (DataFusion about 450 KB, Kafka
 about 200 KB a month). A past month never changes; only the current month is
 rewritten, once a day: 2 Class A operations a day. A profile request reads 12
@@ -451,8 +454,8 @@ first when the query is exactly an identity.
 
 | When | What |
 | --- | --- |
-| Publish (daily, in the publication Durable Object, before `compactState`) | Append the run's new events to the current month's activity object per project (a row is replaced when its record id repeats, so a retry is idempotent). Rebuild the identity index per project: key, display, sources, link basis, first and last month seen |
-| Request | `/api/people/:project/:id`: read the identity index and up to 12 month objects, filter to the identity (or the linked identities), aggregate, return. `cache-control` as other API routes (R7). No Durable Object, no Vectorize, no AI binding |
+| Publish (daily, in the publication Durable Object, before `compactState`) | Append the run's new events to the current month's activity object per project (a row is replaced when its record id repeats, so a retry is idempotent). Rebuild the identity index per project: key, display, sources, link basis, first and last month seen. **Review activity is not written here**: Spec 022's job already stores it (`internal/github-reviews/v1/<projectId>/<YYYY-MM>.json`, schema `osskb.github-reviews.v1`), and this slice only reads it; the identity index takes reviewers from those objects too |
+| Request | `/api/people/:project/:id`: read the identity index, up to 12 activity month objects, and the Spec 022 review month objects of the same months (up to 12 more); filter to the identity (or the linked identities), aggregate, return. Review rows with `isBot`, or with `reviewer` equal to `prAuthor` (the author answering a review thread), are not counted as reviews given; reviews are counted from Spec 022's `coverageFrom` only. `cache-control` as other API routes (R7). No Durable Object, no Vectorize, no AI binding |
 | Never | Model calls. Per-person precomputed objects (rejected: thousands of small objects, each one more R2 request per run under G59) |
 
 ### Wireframes
@@ -597,8 +600,15 @@ decision, not an assumption that it is fine.
 ## Behavior
 
 1. An activity row is written for every human-authored record the pipeline
-   ingests: time, source, kind, thread id, record id, identity key, state,
-   area labels. No text, no excerpt, no address.
+   ingests (issues, pull requests, conversation comments, Jira, dev@): time,
+   source, kind, thread id, record id, identity key, state, area labels. No
+   text, no excerpt, no address. **Reviews are the exception: they are not
+   copied into the activity log.** The profile reads them from the month
+   objects Spec 022 writes (`osskb.github-reviews.v1`: `reviewId`, `pr`,
+   `prAuthor`, `reviewer`, `isBot`, `state`, `stateBefore`, `submittedAt`,
+   `commit`, `inlineComments`). One store per kind of fact; this spec adds no
+   second store for reviews and does not change Spec 022's format without
+   changing that spec.
 2. Rows live in one object per project per month. A row is keyed by record
    id: writing it again replaces it. Past months are not rewritten except by
    an explicit backfill.
@@ -630,7 +640,7 @@ slice is one PR with its own verifier pass.
 | Slice | Content | Proves | IDs |
 | --- | --- | --- | --- |
 | 1 | GitHub review ingestion (metadata): its own spec, **Spec 022** ([PR #70](https://github.com/unknowntpo/oss-knowledge-base/pull/70)), with its own acceptance items. It must be enabled on Dev and have run before slice 2 is shown | Reviews a person gave are stored per pull request with state and time, inside the request budget | W20; Spec 022's own items |
-| 2 | Activity log written at publish time from the events the pipeline already has, plus the review rows of slice 1; identity = (source, string); `/api/people/:project/:id`; the page with sections 1–8; author names link to it | A per-source profile, reviews included, is correct against the Example and grows by a day per day; "Works with" includes "reviewed by" | W1–W6, W8–W13, W17–W19, W22, W23 |
+| 2 | Activity log written at publish time from the events the pipeline already has; review activity read from slice 1's month objects (`internal/github-reviews/v1/<projectId>/<YYYY-MM>.json`), not stored a second time; identity = (source, string); `/api/people/:project/:id`; the page with sections 1–8; author names link to it | A per-source profile, reviews included, is correct against the Example and grows by a day per day; "Works with" includes "reviewed by" | W1–W6, W8–W13, W17–W19, W22, W23 |
 | 3 | Person result in Search on an exact identity match | A name leads to the page, thread ranking unchanged | W7 |
 | 4 | Stable keys (GitHub id, Jira account key), roster links, `identityLinks`, the labelled sample, "possibly the same person" | Zero wrong merges on the sample | W14–W16 |
 | 5 | One-time backfill to the horizon (GitHub, GitHub reviews, Jira, Pony Mail by month) | A 12-month trajectory on day one; request budget respected | W21 |
@@ -667,13 +677,13 @@ Each item: precondition → action → observable result → evidence. All are
 ### Behavior
 
 - W1: [pending] given the recorded 2026-10-13 fixture, aggregating identity `github:chia7712` gives 0 pull requests authored and 57 comments on 46 pull requests by 34 authors; `github:m1a2st` gives 18 authored, 6 comments on his own, 19 on 16 others'; `mail:"Andrew Schofield"` gives 23 messages in 11 threads → case file rows.
-- W2: [pending] given a record ingested twice (a retried run), the month object holds one row for it → unit test on the append function.
+- W2: [pending] given a record ingested twice (a retried run), the activity month object holds one row for it → unit test on the append function. (Review rows are not appended by this spec; their idempotence is Spec 022 RV5.)
 - W3: [pending] given a pull request created on day 1 and updated on day 40, "authored" counts it in the month of day 1 and its row keeps both times → case row on each side of a month boundary.
 - W4: [pending] given a thread with labels `clients`, `small`, `ci-approved` and a Kafka profile naming the last two as process labels, the area is `clients` only; given a dev@ thread, the page says "no area data from dev@" → case rows.
 - W5: [pending] given the page for an identity, sections appear in the order of this spec and the header states the period covered and the number of days of data → component test.
 - W6: [pending] given an identity with rows only before the selected period, the page says there is no activity in this period and shows no zero-filled chart → component test, with a positive control on the same identity in the full period.
 - W7: [pending] given the query `chia7712`, the first result is the person result for `github:chia7712`; given `chia`, there is no person result and thread results are identical to today's → API test, both sides.
-- W8: [pending] given review events for a pull request (approve, changes requested, commented), each is one row with its state, and "reviews given" counts distinct pull requests → case rows.
+- W8: [pending] given Spec 022 month objects (`osskb.github-reviews.v1`) holding an approval, a change request, a comment, a bot's review and the author's own reply on pull requests, the profile reads them as they are, shows each human review with its state, counts "reviews given" as distinct pull requests, leaves out rows with `isBot` or with `reviewer` equal to `prAuthor`, and states the date reviews are counted from (`coverageFrom`) → case rows built from Spec 022's recorded fixture.
 
 ### Failure and retry
 
@@ -696,7 +706,7 @@ Each item: precondition → action → observable result → evidence. All are
 
 ### Observability
 
-- W22: [deploy] `/health` `lastRun` reports the activity write: rows appended, month objects written, identities indexed, and the earliest month held.
+- W22: [deploy] `/health` `lastRun` reports the activity write: rows appended, month objects written, identities indexed, and the earliest month held. Review ingestion is not reported here: it has its own `/health` `githubReviews` (Spec 022 RV24), which the page's "how this is computed" note takes `coverageFrom` from.
 - W23: [deploy] on Dev, the page for `github:chia7712` shows the period covered and the release time, and its counts equal the `/api/people` response.
 
 ## Success criteria
