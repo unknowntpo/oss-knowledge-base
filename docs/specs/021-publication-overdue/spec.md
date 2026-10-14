@@ -51,8 +51,8 @@ If the Dev run of 2026-10-14 does not publish, the topbar pill reads (UTC):
 | --- | --- | --- |
 | 10-14 22:07:09 (the run is due) | Updated 24 h ago / 資料更新於 24 小時前 | `is-live` |
 | 10-14 22:37:09 (a run and a first retry would have landed) | Updated 24 h ago | `is-live` |
-| 10-14 22:37:10 | Daily update late · 24 h ago / 今日更新尚未完成 · 24 小時前 | `is-overdue` |
-| 10-15 01:07:09 (27 h) | Daily update late · 27 h ago | `is-overdue` |
+| 10-14 22:37:10 | Update late · 24 h ago / 今日更新尚未完成 · 24 小時前 | `is-overdue` |
+| 10-15 01:07:09 (27 h) | Update late · 27 h ago | `is-overdue` |
 | 10-15 01:07:10 | Data may be out of date · 27 h ago / 資料可能過期 · 27 小時前 | `is-stale` |
 
 Prod at capture time: "Data may be out of date · 49 d ago", `is-stale`, as
@@ -105,8 +105,8 @@ before this spec.
    minutes and succeeds on its first retry 10 min later. Until
    `OVERDUE_AFTER_MS` (24 h 30 min) the pill is unchanged (Spec 010).
 3. Above `OVERDUE_AFTER_MS` and up to `STALE_AFTER_MS` (27 h) the pill has
-   the class `is-overdue` (not `is-live`, not `is-stale`) and reads "Daily
-   update late · {n} h ago" / "今日更新尚未完成 · {n} 小時前".
+   the class `is-overdue` (not `is-live`, not `is-stale`) and reads "Update
+   late · {n} h ago" / "今日更新尚未完成 · {n} 小時前".
 4. Above `STALE_AFTER_MS` nothing changes: `is-stale` and Spec 010's texts.
    `metadata.stale === true` still gives `is-stale`.
 5. Before an open page's pill enters the overdue or the stale state, the
@@ -129,15 +129,15 @@ Generated from `apps/web/test/publication-overdue.cases.ts` by
 | O1 | the next run starts | 2026-10-13T22:07:09Z | 2026-10-14T22:07:09Z | Updated 24 h ago | 資料更新於 24 小時前 | fresh |
 | O1 | the run is at its 15-minute limit | 2026-10-13T22:07:09Z | 2026-10-14T22:22:09Z | Updated 24 h ago | 資料更新於 24 小時前 | fresh |
 | O1 | exactly the allowance | 2026-10-13T22:07:09Z | 2026-10-14T22:37:09Z | Updated 24 h ago | 資料更新於 24 小時前 | fresh |
-| O2 | one second past the allowance | 2026-10-13T22:07:09Z | 2026-10-14T22:37:10Z | Daily update late · 24 h ago | 今日更新尚未完成 · 24 小時前 | overdue |
-| O2 | the second retry is waiting | 2026-10-13T22:07:09Z | 2026-10-14T23:30:00Z | Daily update late · 25 h ago | 今日更新尚未完成 · 25 小時前 | overdue |
-| O2 | exactly 27 h | 2026-10-13T22:07:09Z | 2026-10-15T01:07:09Z | Daily update late · 27 h ago | 今日更新尚未完成 · 27 小時前 | overdue |
+| O2 | one second past the allowance | 2026-10-13T22:07:09Z | 2026-10-14T22:37:10Z | Update late · 24 h ago | 今日更新尚未完成 · 24 小時前 | overdue |
+| O2 | the second retry is waiting | 2026-10-13T22:07:09Z | 2026-10-14T23:30:00Z | Update late · 25 h ago | 今日更新尚未完成 · 25 小時前 | overdue |
+| O2 | exactly 27 h | 2026-10-13T22:07:09Z | 2026-10-15T01:07:09Z | Update late · 27 h ago | 今日更新尚未完成 · 27 小時前 | overdue |
 | O3 | 27 h 1 s: stale, as before | 2026-10-13T22:07:09Z | 2026-10-15T01:07:10Z | Data may be out of date · 27 h ago | 資料可能過期 · 27 小時前 | stale |
 | O3 | the Prod bootstrap snapshot today | 2026-08-25T08:29:41.122Z | 2026-10-14T01:43:30Z | Data may be out of date · 49 d ago | 資料可能過期 · 49 天前 | stale |
 | O4 | Prod's Cron minute (22:37), at the allowance | 2026-10-13T22:37:00Z | 2026-10-14T23:07:00Z | Updated 24 h ago | 資料更新於 24 小時前 | fresh |
-| O4 | Prod's Cron minute (22:37), one second past | 2026-10-13T22:37:00Z | 2026-10-14T23:07:01Z | Daily update late · 24 h ago | 今日更新尚未完成 · 24 小時前 | overdue |
+| O4 | Prod's Cron minute (22:37), one second past | 2026-10-13T22:37:00Z | 2026-10-14T23:07:01Z | Update late · 24 h ago | 今日更新尚未完成 · 24 小時前 | overdue |
 | O5 | release from a catch-up run at 22:12: counted from that release | 2026-10-13T22:12:09Z | 2026-10-14T22:42:09Z | Updated 24 h ago | 資料更新於 24 小時前 | fresh |
-| O5 | release from a catch-up run at 22:12, one second past | 2026-10-13T22:12:09Z | 2026-10-14T22:42:10Z | Daily update late · 24 h ago | 今日更新尚未完成 · 24 小時前 | overdue |
+| O5 | release from a catch-up run at 22:12, one second past | 2026-10-13T22:12:09Z | 2026-10-14T22:42:10Z | Update late · 24 h ago | 今日更新尚未完成 · 24 小時前 | overdue |
 <!-- test-plan:end -->
 
 Step-based scenarios run as E2E tests in
@@ -146,7 +146,7 @@ Step-based scenarios run as E2E tests in
 
 | ID | Scenario | Expected |
 | --- | --- | --- |
-| O6 | Page opened 30 s before the overdue mark, clock advances 60 s, no new release | "Updated 24 h ago" `is-live` becomes "Daily update late · 24 h ago" `is-overdue`, without a reload |
+| O6 | Page opened 30 s before the overdue mark, clock advances 60 s, no new release | "Updated 24 h ago" `is-live` becomes "Update late · 24 h ago" `is-overdue`, without a reload |
 | O7 | Same, but `/api/feed` now serves a release generated 24 h after the loaded one | "Updated 30 min ago", `is-live`; the pill's class never changed |
 | O8 | Same, but `/api/feed` now answers 503 | the overdue pill; one failed read; both Feed cards still shown |
 | O9 | Widths 320 and 375, en and zh-Hant; clock at the overdue mark, then 1 s past | hidden; then visible with the overdue text, inside the top bar, not overlapping, not clipped |
@@ -158,7 +158,7 @@ Step-based scenarios run as E2E tests in
 - O1: from the moment the next run is due until 30 minutes later the pill
   reads the plain age ("Updated 24 h ago") and is not overdue → evidence:
   generated unit rows.
-- O2: from 24 h 30 min 1 s to exactly 27 h the pill reads "Daily update late
+- O2: from 24 h 30 min 1 s to exactly 27 h the pill reads "Update late
   · {n} h ago" / "今日更新尚未完成 · {n} 小時前" with state `overdue` →
   evidence: generated unit rows.
 - O3: at 27 h 1 s and for the Prod bootstrap snapshot the state is `stale`
