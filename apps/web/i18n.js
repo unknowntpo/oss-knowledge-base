@@ -253,7 +253,7 @@
       "freshness.minutes": "Updated {n} min ago",
       "freshness.hours": "Updated {n} h ago",
       "freshness.days": "Updated {n} d ago",
-      "freshness.overdue": "Update late · {n} h ago",
+      "freshness.overdue": "Daily run late · {n} h ago",
       "freshness.stale": "Data may be out of date · {n} h ago",
       "freshness.staleDays": "Data may be out of date · {n} d ago",
       "demo.title": "This page uses static demo data and has no backend connection",
