@@ -93,8 +93,8 @@ the unit tests run exactly these rows. Edit the case file, not this table.
 | F2 | 2026-10-13T22:07:00Z | 2026-10-14T01:07:01Z | Updated 3 h ago | 資料更新於 3 小時前 | no |
 | F2 | 2026-10-13T22:07:00Z | 2026-10-14T22:06:59Z | Updated 23 h ago | 資料更新於 23 小時前 | no |
 | F2 | 2026-10-13T22:07:00Z | 2026-10-14T22:17:00Z | Updated 24 h ago | 資料更新於 24 小時前 | no |
-| F2 | 2026-10-13T22:07:00Z | 2026-10-15T01:06:30Z | Daily run late · 26 h ago | 今日更新尚未完成 · 26 小時前 | no |
-| F2 | 2026-10-13T22:07:00Z | 2026-10-15T01:07:00Z | Daily run late · 27 h ago | 今日更新尚未完成 · 27 小時前 | no |
+| F2 | 2026-10-13T22:07:00Z | 2026-10-15T01:06:30Z | Daily feed late · 26 h ago | 今日更新尚未完成 · 26 小時前 | no |
+| F2 | 2026-10-13T22:07:00Z | 2026-10-15T01:07:00Z | Daily feed late · 27 h ago | 今日更新尚未完成 · 27 小時前 | no |
 | F2 | 2026-10-13T22:07:00Z | 2026-10-15T01:07:01Z | Data may be out of date · 27 h ago | 資料可能過期 · 27 小時前 | yes |
 | F7 | 2026-10-13T22:07:00Z | 2026-10-15T22:06:59Z | Data may be out of date · 47 h ago | 資料可能過期 · 47 小時前 | yes |
 | F7 | 2026-10-13T22:07:00Z | 2026-10-15T22:07:00Z | Data may be out of date · 2 d ago | 資料可能過期 · 2 天前 | yes |
@@ -108,7 +108,7 @@ Step-based scenarios run as E2E tests in `apps/web/e2e/feed-freshness.spec.ts`:
 
 | ID | Scenario | Expected |
 | --- | --- | --- |
-| F3 | Page opened 30 s before the 27-hour mark, then the clock advances 60 s | "Daily run late · 26 h ago" with overdue styling (Spec 021) becomes "Data may be out of date · 27 h ago" with stale styling, without a reload |
+| F3 | Page opened 30 s before the 27-hour mark, then the clock advances 60 s | "Daily feed late · 26 h ago" with overdue styling (Spec 021) becomes "Data may be out of date · 27 h ago" with stale styling, without a reload |
 | F4 | `/api/feed` returns `generatedAt: "not-a-time"` | three Feed cards render; the topbar shows no age and keeps "Published snapshot" |
 
 ## Acceptance

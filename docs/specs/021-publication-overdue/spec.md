@@ -51,8 +51,8 @@ If the Dev run of 2026-10-14 does not publish, the topbar pill reads (UTC):
 | --- | --- | --- |
 | 10-14 22:07:09 (the run is due) | Updated 24 h ago / 資料更新於 24 小時前 | `is-live` |
 | 10-14 22:37:09 (a run and a first retry would have landed) | Updated 24 h ago | `is-live` |
-| 10-14 22:37:10 | Daily run late · 24 h ago / 今日更新尚未完成 · 24 小時前 | `is-overdue` |
-| 10-15 01:07:09 (27 h) | Daily run late · 27 h ago | `is-overdue` |
+| 10-14 22:37:10 | Daily feed late · 24 h ago / 今日更新尚未完成 · 24 小時前 | `is-overdue` |
+| 10-15 01:07:09 (27 h) | Daily feed late · 27 h ago | `is-overdue` |
 | 10-15 01:07:10 | Data may be out of date · 27 h ago / 資料可能過期 · 27 小時前 | `is-stale` |
 
 Prod at capture time: "Data may be out of date · 49 d ago", `is-stale`, as
@@ -105,14 +105,16 @@ before this spec.
    minutes and succeeds on its first retry 10 min later. Until
    `OVERDUE_AFTER_MS` (24 h 30 min) the pill is unchanged (Spec 010).
 3. Above `OVERDUE_AFTER_MS` and up to `STALE_AFTER_MS` (27 h) the pill has
-   the class `is-overdue` (not `is-live`, not `is-stale`) and reads "Daily run
+   the class `is-overdue` (not `is-live`, not `is-stale`) and reads "Daily feed
    late · {n} h ago" / "今日更新尚未完成 · {n} 小時前".
 4. Above `STALE_AFTER_MS` nothing changes: `is-stale` and Spec 010's texts.
    `metadata.stale === true` still gives `is-stale`.
 5. Before an open page's pill enters the overdue or the stale state, the
    page reads `/api/feed` once more and uses the release it gets. If that
-   read fails, the loaded Feed stays on screen and the warning shows. A read
-   that has not answered delays the warning by at most one minute.
+   read fails, or answers with a release older than the loaded one (a cache
+   or a replica behind), the loaded Feed stays on screen and the warning
+   shows. A read that has not answered delays the warning by at most one
+   minute.
 6. At 420 px and below the pill is shown for `is-overdue` as it is for
    `is-stale` (wrapped, inside the top bar), and stays hidden while fresh.
 7. The digest and review-queue freshness lines are unchanged.
@@ -129,15 +131,15 @@ Generated from `apps/web/test/publication-overdue.cases.ts` by
 | O1 | the next run starts | 2026-10-13T22:07:09Z | 2026-10-14T22:07:09Z | Updated 24 h ago | 資料更新於 24 小時前 | fresh |
 | O1 | the run is at its 15-minute limit | 2026-10-13T22:07:09Z | 2026-10-14T22:22:09Z | Updated 24 h ago | 資料更新於 24 小時前 | fresh |
 | O1 | exactly the allowance | 2026-10-13T22:07:09Z | 2026-10-14T22:37:09Z | Updated 24 h ago | 資料更新於 24 小時前 | fresh |
-| O2 | one second past the allowance | 2026-10-13T22:07:09Z | 2026-10-14T22:37:10Z | Daily run late · 24 h ago | 今日更新尚未完成 · 24 小時前 | overdue |
-| O2 | the second retry is waiting | 2026-10-13T22:07:09Z | 2026-10-14T23:30:00Z | Daily run late · 25 h ago | 今日更新尚未完成 · 25 小時前 | overdue |
-| O2 | exactly 27 h | 2026-10-13T22:07:09Z | 2026-10-15T01:07:09Z | Daily run late · 27 h ago | 今日更新尚未完成 · 27 小時前 | overdue |
+| O2 | one second past the allowance | 2026-10-13T22:07:09Z | 2026-10-14T22:37:10Z | Daily feed late · 24 h ago | 今日更新尚未完成 · 24 小時前 | overdue |
+| O2 | the second retry is waiting | 2026-10-13T22:07:09Z | 2026-10-14T23:30:00Z | Daily feed late · 25 h ago | 今日更新尚未完成 · 25 小時前 | overdue |
+| O2 | exactly 27 h | 2026-10-13T22:07:09Z | 2026-10-15T01:07:09Z | Daily feed late · 27 h ago | 今日更新尚未完成 · 27 小時前 | overdue |
 | O3 | 27 h 1 s: stale, as before | 2026-10-13T22:07:09Z | 2026-10-15T01:07:10Z | Data may be out of date · 27 h ago | 資料可能過期 · 27 小時前 | stale |
 | O3 | the Prod bootstrap snapshot today | 2026-08-25T08:29:41.122Z | 2026-10-14T01:43:30Z | Data may be out of date · 49 d ago | 資料可能過期 · 49 天前 | stale |
 | O4 | Prod's Cron minute (22:37), at the allowance | 2026-10-13T22:37:00Z | 2026-10-14T23:07:00Z | Updated 24 h ago | 資料更新於 24 小時前 | fresh |
-| O4 | Prod's Cron minute (22:37), one second past | 2026-10-13T22:37:00Z | 2026-10-14T23:07:01Z | Daily run late · 24 h ago | 今日更新尚未完成 · 24 小時前 | overdue |
+| O4 | Prod's Cron minute (22:37), one second past | 2026-10-13T22:37:00Z | 2026-10-14T23:07:01Z | Daily feed late · 24 h ago | 今日更新尚未完成 · 24 小時前 | overdue |
 | O5 | release from a catch-up run at 22:12: counted from that release | 2026-10-13T22:12:09Z | 2026-10-14T22:42:09Z | Updated 24 h ago | 資料更新於 24 小時前 | fresh |
-| O5 | release from a catch-up run at 22:12, one second past | 2026-10-13T22:12:09Z | 2026-10-14T22:42:10Z | Daily run late · 24 h ago | 今日更新尚未完成 · 24 小時前 | overdue |
+| O5 | release from a catch-up run at 22:12, one second past | 2026-10-13T22:12:09Z | 2026-10-14T22:42:10Z | Daily feed late · 24 h ago | 今日更新尚未完成 · 24 小時前 | overdue |
 <!-- test-plan:end -->
 
 Step-based scenarios run as E2E tests in
@@ -146,10 +148,11 @@ Step-based scenarios run as E2E tests in
 
 | ID | Scenario | Expected |
 | --- | --- | --- |
-| O6 | Page opened 30 s before the overdue mark, clock advances 60 s, no new release | "Updated 24 h ago" `is-live` becomes "Daily run late · 24 h ago" `is-overdue`, without a reload |
+| O6 | Page opened 30 s before the overdue mark, clock advances 60 s, no new release | "Updated 24 h ago" `is-live` becomes "Daily feed late · 24 h ago" `is-overdue`, without a reload |
 | O7 | Same, but `/api/feed` now serves a release generated 24 h after the loaded one | "Updated 30 min ago", `is-live`; the pill's class never changed |
 | O8 | Same, but `/api/feed` now answers 503 | the overdue pill; one failed read; both Feed cards still shown |
 | O9 | Widths 320 and 375, en and zh-Hant; clock at the overdue mark, then 1 s past | hidden; then visible with the overdue text, inside the top bar, not overlapping, not clipped |
+| O12 | As O6, but `/api/feed` now serves a release generated 24 h before the loaded one | the loaded release stays: "Daily feed late · 24 h ago" `is-overdue`, not "… 2 d ago" |
 | O10 | Open page from 30 s before the overdue mark to 10 min past the stale mark | `/api/feed` read once on entering overdue and once on entering stale; none in between or after |
 
 ## Acceptance
@@ -158,7 +161,7 @@ Step-based scenarios run as E2E tests in
 - O1: from the moment the next run is due until 30 minutes later the pill
   reads the plain age ("Updated 24 h ago") and is not overdue → evidence:
   generated unit rows.
-- O2: from 24 h 30 min 1 s to exactly 27 h the pill reads "Daily run late
+- O2: from 24 h 30 min 1 s to exactly 27 h the pill reads "Daily feed late
   · {n} h ago" / "今日更新尚未完成 · {n} 小時前" with state `overdue` →
   evidence: generated unit rows.
 - O3: at 27 h 1 s and for the Prod bootstrap snapshot the state is `stale`
@@ -179,6 +182,9 @@ Step-based scenarios run as E2E tests in
   never the overdue warning → evidence: E2E O7.
 - O8: when the re-read fails, the Feed stays and the overdue warning shows
   → evidence: E2E O8.
+- O12: when the re-read answers with a release older than the loaded one,
+  the page keeps the loaded release and shows its overdue warning →
+  evidence: E2E O12.
 
 ### Budget
 - O10: an open page adds at most two `/api/feed` reads per loaded release
@@ -199,12 +205,24 @@ Step-based scenarios run as E2E tests in
    retry (up to 2 h 55 min after the Cron) or from a `POST /run` at another
    time of day moves it by that much, and the next day's missed run is then
    first shown later, at worst by the stale pill at 27 h after that release.
-   It is never early. Closing this needs the Cron tick's time in the Feed
+   Worst case: a `POST /run` at 22:06, one minute before the Dev Cron, whose
+   22:07 run then fails with all its retries; the page counts from 22:06, so
+   that same day's missed run is first shown at 22:36 the next day, about
+   24 h late, by which time the following day's run is itself due. It is
+   never early. Closing this needs the Cron tick's time in the Feed
    manifest (a contract change, gardening G66).
 2. **A run that published while one source failed is not shown.** The data
    did update; the failed source is in `/health` `lastRun.sources` only.
 3. **CI still does not check the daily run** (Spec 018 Known limit 2).
-4. **A wrong browser clock** moves the marks, as in Spec 010.
+4. **A browser clock that runs ahead warns falsely sooner than before.**
+   The age is measured with the browser clock (Spec 010). Until this spec
+   the only warning was the stale one, so on a normal day (data up to
+   24 h old just before the run lands) a clock had to be more than 3 h
+   ahead to show a false warning; the overdue warning leaves 30 min.
+   Example: release `2026-10-13T22:07:09Z`, real time 2026-10-14 21:50 UTC
+   (the run is due in 17 min), browser clock 50 min ahead at 22:40: the
+   pill reads "Daily feed late · 24 h ago" although nothing is late. A
+   clock behind delays the warning by the same amount.
 
 ## Non-goals
 

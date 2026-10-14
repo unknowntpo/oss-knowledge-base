@@ -847,7 +847,7 @@ the two `viewer/` items below.
 - **Where:** `apps/web/src/freshness.ts` (`OVERDUE_AFTER_MS`),
   `apps/data-publisher-worker/src/pipeline.ts` (`generatedAt` =
   `materializedAt`); `/health` `lastRun.ok`, `lastRun.sources`, `followUp`.
-- **Why:** Spec 021 shows "Daily run late" from 24 h 30 min after the
+- **Why:** Spec 021 shows "Daily feed late" from 24 h 30 min after the
   release the page has (issue #64). A release from a catch-up, retry or
   `POST /run` carries that run's time, not the Cron tick's, so the next
   day's missed run is shown later by that offset (up to 2 h 55 min after the

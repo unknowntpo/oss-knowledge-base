@@ -61,24 +61,29 @@ function submitSearch() {
 // Freshness is relative to the browser clock, so an open page re-evaluates it every minute (Spec 010).
 const now = ref(Date.now());
 let clock: ReturnType<typeof setInterval> | undefined;
-const generatedAt = computed(() => {
-  const manifest = payload.value?.metadata.manifest;
+function generatedAtOf(feed: FeedIndex | undefined): unknown {
+  const manifest = feed?.metadata.manifest;
   // feedFreshness validates the value, so an unexpected shape only hides the label.
   return typeof manifest === "object" && manifest !== null ? (manifest as { generatedAt?: unknown }).generatedAt : undefined;
-});
+}
+const generatedAt = computed(() => generatedAtOf(payload.value));
 const freshness = computed(() => feedFreshness(generatedAt.value, now.value));
 let rereading = false;
 /**
  * Spec 021: an open page holds the release it loaded. Before its pill starts or changes a
  * warning, it reads the Feed once more, so a tab left open over a normal run shows the new
- * release and not a false alarm. A failed read keeps the loaded Feed and lets the warning show.
+ * release and not a false alarm. A failed read, or one that answers with an older release (a
+ * cache behind), keeps the loaded Feed and lets the warning show.
  */
 async function tick() {
   const next = feedFreshness(generatedAt.value, Date.now());
   if (next !== undefined && next.state !== "fresh" && next.state !== freshness.value?.state && !rereading) {
     rereading = true;
     try {
-      payload.value = await fetchFeed();
+      const reread = await fetchFeed();
+      const rereadAt = Date.parse(String(generatedAtOf(reread)));
+      // NaN (unparsable) compares false, so only a release that is not older replaces the loaded one.
+      if (rereadAt >= Date.parse(String(generatedAt.value))) payload.value = reread;
     } catch {
       // The Feed on screen is still the loaded one, and the warning is true for it.
     } finally {

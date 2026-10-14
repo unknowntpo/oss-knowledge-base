@@ -84,6 +84,27 @@ test("O8: when the re-read fails the page keeps its Feed and shows the overdue w
   await expect(page.locator(".card")).toHaveCount(2);
 });
 
+test("O12: a re-read that answers with an older release keeps the loaded one", async ({ page }) => {
+  desktopOnly();
+  await page.clock.install({ time: generatedAt + OVERDUE_AFTER_MS - 30_000 });
+  await openFeed(page);
+  // A cache or replica behind: the release before the loaded one.
+  await page.route("**/api/feed", async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.metadata.manifest.generatedAt = new Date(generatedAt - PUBLICATION_CADENCE_MS).toISOString();
+    await route.fulfill({ response, json: body });
+  });
+  // Control: the older release is read and answered; adopting it would read "Data may be out of date · 2 d ago".
+  const answered = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/feed");
+
+  await page.clock.runFor(60_000);
+  expect((await (await answered).json()).metadata.manifest.generatedAt).toBe(new Date(generatedAt - PUBLICATION_CADENCE_MS).toISOString());
+  const pill = page.locator(".demo-pill");
+  await expect(pill).toHaveText(overdueText.en);
+  await expect(pill).toHaveClass(/is-overdue/u);
+});
+
 for (const width of [320, 375]) {
   for (const locale of ["en", "zh-Hant"] as const) {
     test(`O9: overdue pill at ${width} px, ${locale}`, async ({ page }) => {
