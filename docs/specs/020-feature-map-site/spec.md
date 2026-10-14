@@ -54,8 +54,8 @@ in a clone of this repository on 2026-10-14 (before this PR):
 
 ```text
 main/ main ok 1e56522 181618 bytes
-v0.2.0/ v0.2.0 no-feature-map 308d3fa 13067 bytes (docs/feature-map.md is not in this tree)
-v0.1.0/ v0.1.0 no-feature-map 3779549 12619 bytes (docs/feature-map.md is not in this tree)
+v0.2.0/ v0.2.0 no-feature-map 308d3fa 13370 bytes (docs/feature-map.md is not in this tree)
+v0.1.0/ v0.1.0 no-feature-map 3779549 12922 bytes (docs/feature-map.md is not in this tree)
 3 refs, 8 files → <dir> in 920 ms
 ```
 

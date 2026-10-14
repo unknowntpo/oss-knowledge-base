@@ -108,7 +108,8 @@ describe("feature-map site: parser", () => {
     expect(renderInline("see https://a.test/x?y=1, then", resolve)).toBe('see <a href="R(https://a.test/x?y=1)">https://a.test/x?y=1</a>, then');
     expect(page).not.toContain("<script>alert(1)</script>");
     expect(page).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
-    expect(page).not.toContain('href="javascript:');
+    expect(page).toContain("Never bad link.");
+    expect(page).not.toContain("javascript:");
   });
 });
 

@@ -18,7 +18,7 @@ What each deployed configuration sets.
 | `MODE` | Worker var | `development` | `production` | Names the environment |
 | `FLAG_A`, `FLAG_B` | Worker vars | `on\|off` | unset | Status `ok\|failed`; see [Spec 002](specs/002-beta/spec.md) |
 
-Dev today: **one** publication a day.
+Dev today: **one** publication a day. Never [bad link](javascript:void0).
 
 - Tokens go only to Dev
   and never elsewhere.
