@@ -1,16 +1,17 @@
 # Spec 022: GitHub pull-request reviews
 
-Status: Draft for owner review; slice 1 implemented behind `GITHUB_REVIEWS`, which is unset in both environments
+Status: Slice 1 implemented behind `GITHUB_REVIEWS`; set to `metadata@1` on Dev (decision 3, decided 2026-10-14), unset on Prod
 Date: 2026-10-14
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 009 (bounded memory), Spec 015 (review queue, ADR-0016), Spec 018 (daily publication), Spec 019 (contributor profile, decision 7)
 
 > **How to read this.** The owner decided on 2026-10-14 that reviews are
 > ingested before the contributor profile is built (Spec 019 decision 7).
-> This spec is that ingestion. The code is merged switched off: with
+> This spec is that ingestion. The code merged switched off: with
 > `GITHUB_REVIEWS` unset the Worker sends no extra request and `/health` is
-> byte-identical. Five choices are the owner's and are listed in
-> [Decisions needed from owner](#decisions-needed-from-owner), each with a
+> byte-identical. On 2026-10-14 the owner decided to enable it on Dev
+> (decision 3); Prod stays off. Five choices are the owner's and are listed
+> in [Decisions needed from owner](#decisions-needed-from-owner), each with a
 > recommendation; the implementation follows the recommendations.
 
 ## Intent
@@ -463,6 +464,7 @@ Each item: precondition → action → observable result → evidence.
 - RV10: given the query and any run, no field named `body`, `bodyText`, `bodyHTML`, `path` or `diffHunk` is requested; a stored row has exactly the nine keys of the data model (`stateBefore` is the tenth, on a dismissed row only); nothing stored contains a listing item's title or body; every key is under `internal/github-reviews/v1/` → case rows and run test.
 - RV11: given the recorded fixture of 52 Kafka pull requests merged 2026-10-07 to 2026-10-13, the trailer comparison reports 51 with a trailer, 73 names, 69 matched, the 4 unmatched by name, and 14 approvers not named; the parser drops bracketed and bare addresses; the fixture contains no address → case rows.
 - RV12: given reviews submitted at 2026-09-30T23:59:59Z and 2026-10-01T00:00:00Z, they are stored in the objects of 2026-09 and 2026-10, each ordered by time then id; a month object of another project is refused → case rows and run test.
+- RV26: given the Dev configuration, `GITHUB_REVIEWS` is `metadata@1` and the Prod configuration has no `GITHUB_REVIEWS`; given Dev's value and an empty bucket, a publication tick schedules the same publication and each project's run lists from one day before the tick and writes only its first cursor and the run record → Worker test reading both Wrangler files.
 
 ### Failure and retry
 - RV13: given a GraphQL batch that fails twice, that project's run fails as `transport` after one retry, writes no month and no cursor, and the other project completes; the next run reads the same day → run test.
@@ -504,10 +506,14 @@ and 9 R2 requests a day, one `/health` field. Nothing in the publication.
 
 ## Enabling on Dev
 
-1. Owner approves decisions 1 to 4 below.
+1. Owner approves decisions 1 to 4 below (decision 3, enable on Dev:
+   decided 2026-10-14).
 2. One PR sets `"GITHUB_REVIEWS": "metadata@1"` in `vars` of
    `apps/data-publisher-worker/wrangler.development.jsonc` and updates the
    `GITHUB_REVIEWS` row of `docs/feature-map.md`. CI deploys Dev on merge.
+   Merged alone it changes only this: the next 22:07 UTC tick is a first
+   run, which reads the day before the tick and stores `coverageFrom` one
+   day back (RV26). Nothing older is read until a backfill is run by hand.
 3. Dry run (reads GitHub, writes nothing):
    `curl -sS -X POST -H "Authorization: Bearer $MANUAL_TRIGGER_TOKEN" 'https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/github-reviews/run?dryRun=1' | jq`.
    Expect `ok: true`, both projects `ok`, about 4 and 6 requests. A project
@@ -540,7 +546,7 @@ Prod stays off: its data Worker has never been deployed (Spec 018).
 | --- | --- | --- | --- |
 | 1 | Inline review comments: individual rows, grouped per review, or counted | **Counted on the review row** (implemented) | Individual rows with file paths: +3 requests a day, about 131 more rows a day, and the draft-time trap of `/pulls/comments?since=`; worth it only if the profile should show areas by file path |
 | 2 | Do reviews enter Feed, Detail and Search | **No: metadata only, no text fetched** (implemented). Searchable review text is a later decision of its own | As Feed records: +37% events and Search chunks (+83% with inline comments), six in ten of them empty, state at 65% of the measured memory limit |
-| 3 | Enable on Dev | **Yes, after this PR merges**, by the steps above; Prod stays off | Not enabling blocks Spec 019 slice 2; each day not enabled is a day of reviews a later backfill has to fetch |
+| 3 | Enable on Dev | **Decided 2026-10-14: yes**, by the steps above; Prod stays off | Not enabling blocks Spec 019 slice 2; each day not enabled is a day of reviews a later backfill has to fetch |
 | 4 | The month object as the contract Spec 019 reads (`osskb.github-reviews.v1`, the nine fields, keys under `internal/`) | **Accept as proposed**; it is versioned, and Spec 019 slice 2 may ask for a field before anything reads it | Changing it after Spec 019 reads it needs a migration of stored months |
 | 5 | Backfill | **Decide with Spec 019's horizon (its decision 4)**; until then coverage starts on the day of the first run | 35 days now: 161 requests, 7 manual runs. 12 months: 509 requests, 20 runs. Needs the small change described above |
 

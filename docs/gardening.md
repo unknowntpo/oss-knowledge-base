@@ -486,17 +486,16 @@ the two `viewer/` items below.
 - **Layer:** test rows (owner-confirmed labels).
 - **Source:** Spec 017.
 
-### G71. `GITHUB_REVIEWS` is a flag that is off in both environments
-- **Where:** `apps/data-publisher-worker/src/index.ts` (`githubReviewsSet`),
-  `apps/data-publisher-worker/src/github-reviews/`; in neither Wrangler
-  configuration.
-- **Why:** Spec 022 merged switched off so that the merge changes no
-  behaviour and no cost. Until it is set on Dev the code runs only in tests
-  and in `measure:github-reviews`, and the Dev token's GraphQL access is
-  unproven.
-- **Fix:** the owner decides (Spec 022 decisions 1 to 4); then set it on Dev
-  by the spec's enabling steps and record RV25. Delete this entry when the
-  flag is on wherever the publisher runs.
+### G71. `GITHUB_REVIEWS` is on for Dev only, and RV25 is not yet recorded
+- **Where:** `apps/data-publisher-worker/wrangler.development.jsonc`
+  (`metadata@1` since 2026-10-14, Spec 022 decision 3); unset in
+  `wrangler.production.jsonc`.
+- **Why:** until the Dev dry run, the first and the second real run are
+  seen, the Dev token's GraphQL access and the conditional month write
+  (`onlyIf.etagMatches`) are unproven in the runtime.
+- **Fix:** follow the spec's enabling steps and record RV25. Delete this
+  entry when RV25 is recorded and the flag is on wherever the publisher
+  runs (Prod's data Worker is not deployed, Spec 018).
 - **Layer:** owner decision, then deploy evidence.
 - **Source:** Spec 022, 2026-10-14.
 
