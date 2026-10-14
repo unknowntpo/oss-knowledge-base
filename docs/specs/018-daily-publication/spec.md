@@ -248,7 +248,8 @@ publication against in-memory upstreams, state and bucket).
    at all. The owner's standing rule is that a stall must be visible in the
    UI; this spec does **not** meet it for that window, it only keeps a
    healthy day from being flagged. Open follow-up: show a failed or overdue
-   publication in the UI before the 27 h mark (gardening G66).
+   publication in the UI before the 27 h mark (gardening G66). Spec 021
+   (2026-10-14) shows an overdue warning from 24 h 30 min.
 2. **CI does not detect a stalled daily run.** The deployed E2E runs only
    after a Dev deploy, so on a day without a deploy nothing checks that the
    22:07 UTC run happened; the page's stale pill at 27 h is the only signal.

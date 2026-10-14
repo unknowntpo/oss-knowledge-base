@@ -9,7 +9,7 @@ const translations = await loadTranslations();
 describe("Spec 010 feed freshness", () => {
   test.each(testPlanRows)("$id: generated $generatedAt, now $now → $en", (row) => {
     const freshness = feedFreshness(row.generatedAt, Date.parse(row.now));
-    expect(freshness === undefined ? null : freshness.stale).toBe(row.stale);
+    expect(freshness === undefined ? null : freshness.state === "stale").toBe(row.stale);
     expect(freshness === undefined ? null : freshnessText(freshness, translations("en"))).toBe(row.en);
     expect(freshness === undefined ? null : freshnessText(freshness, translations("zh-Hant"))).toBe(row.zh);
   });
@@ -19,8 +19,8 @@ describe("Spec 010 feed freshness", () => {
     expect(STALE_GRACE_MS).toBe(3 * 60 * 60_000);
     expect(STALE_AFTER_MS).toBe(PUBLICATION_CADENCE_MS + STALE_GRACE_MS);
     const published = Date.parse("2026-10-13T22:07:00Z");
-    expect(feedFreshness("2026-10-13T22:07:00Z", published + STALE_AFTER_MS)?.stale).toBe(false);
-    expect(feedFreshness("2026-10-13T22:07:00Z", published + STALE_AFTER_MS + 1)?.stale).toBe(true);
+    expect(feedFreshness("2026-10-13T22:07:00Z", published + STALE_AFTER_MS)?.state).toBe("overdue");
+    expect(feedFreshness("2026-10-13T22:07:00Z", published + STALE_AFTER_MS + 1)?.state).toBe("stale");
   });
 
   test("F4: control — the same timestamp path reports an age when it parses", () => {

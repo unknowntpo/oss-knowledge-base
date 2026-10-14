@@ -20,7 +20,7 @@ import { ModelCallError, ModelCalls, RETRY_DELAY_MS, type DigestModel } from "..
 import { DIGEST_ROOT, reserveCalls, runDigest, TRANSLATE_BATCH, type DigestRunInput, type DigestRunResult } from "../src/digest/run";
 import { DEFER_MS, DigestRunner, publisherBusy, type DigestStorage } from "../src/digest/runner";
 import type { DigestBucket } from "../src/digest/store";
-import { cronTarget, digestModel, mergeHealth } from "../src/index";
+import worker, { cronTarget, digestModel, mergeHealth } from "../src/index";
 import { responseText, toModelCallError, WorkersAiModel, type AiBinding } from "../src/digest/workers-ai";
 import { modelErrorKind, MAX_CALLS_PER_RUN } from "../src/digest/model";
 
@@ -1460,6 +1460,38 @@ describe("Spec 014 slice 2 named tests", () => {
     expect(hour * 60 + minute + 4 * (DEFER_MS / 60_000)).toBeLessThan(24 * 60);
     // Not a minute another job uses: the publishers (:07, :37), the embedding job after a day cap (:05), the review queue's proposal (:27, :57).
     expect([5, 7, 27, 37, 57]).not.toContain(minute);
+  });
+
+  test("D86: the Dev digest tick starts only the digest, also with GITHUB_REVIEWS set: no publication, no review ingestion, no bucket or GitHub request", async () => {
+    const dev = await deployConfig("development");
+    const tick = async (cron: string) => {
+      const log: string[] = [];
+      const stub = (name: string) => ({
+        idFromName: (id: string) => id,
+        get: () => ({ fetch: async (url: string, init?: RequestInit) => { log.push(`${name} ${init?.method ?? "GET"} ${url}`); return Response.json({ ok: true }, { status: 202 }); } }),
+      });
+      const original = globalThis.fetch;
+      globalThis.fetch = (async (input: RequestInfo | URL) => { log.push(`outbound ${String(input)}`); return Response.json([]); }) as typeof fetch;
+      try {
+        const env = {
+          ...dev.vars, GITHUB_REVIEWS: "metadata@1", GITHUB_SOURCE_TOKEN: "token-under-test",
+          PIPELINE_STATE: stub("publisher"), DIGEST_RUN: stub("digest"),
+          OSS_KB_BUCKET: { get: async (key: string) => { log.push(`bucket get ${key}`); return null; }, put: async (key: string) => { log.push(`bucket put ${key}`); return {}; } },
+        };
+        const pending: Promise<unknown>[] = [];
+        await worker.scheduled({ cron, scheduledTime: NOW.getTime() } as never, env as never, { waitUntil: (promise: Promise<unknown>) => { pending.push(promise); } } as never);
+        await Promise.allSettled(pending);
+      } finally {
+        globalThis.fetch = original;
+      }
+      return log;
+    };
+    expect(await tick(dev.vars!.DIGEST_CRON!)).toEqual(["digest POST https://digest.internal/run"]);
+    // Control: the publisher's tick schedules the publication (and, with the flag set, the review ingestion), never the digest.
+    const publication = await tick("7 22 * * *");
+    expect(publication).toContain("publisher POST https://pipeline.internal/run");
+    expect(publication.some((line) => line.startsWith("outbound ") || line.startsWith("bucket "))).toBe(true);
+    expect(publication.filter((line) => line.startsWith("digest "))).toEqual([]);
   });
 
   test("D91: the daily cap is 5,000 calibrated neurons on Dev and Prod, and the three caps leave 1,500 of the 10,000 included", async () => {

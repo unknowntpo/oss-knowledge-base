@@ -135,6 +135,10 @@ the two `viewer/` items below.
 - **Progress:** Spec 015 slice 1 classifies GitHub reviewers and authors
   with `isMachineAuthor` plus GitHub's `Bot` type (`isMachineActor`); the
   publisher's `isBot` still uses the substring rule.
+- **Progress (Spec 022):** review rows classify with `isReviewBot` (GitHub's
+  `Bot` type, the `[bot]` suffix, the project's machine users). That is a
+  third copy of the rule; fold the three into one when the publisher's is
+  fixed.
 
 ### G9. No R2 retention or garbage collection
 - **Where:** `public/v2/releases/*`, `public/v2/objects/details/*`,
@@ -481,6 +485,33 @@ the two `viewer/` items below.
   unscored rows; drop the snapshot digests once `@2` is deleted (G45).
 - **Layer:** test rows (owner-confirmed labels).
 - **Source:** Spec 017.
+
+### G71. `GITHUB_REVIEWS` is a flag that is off in both environments
+- **Where:** `apps/data-publisher-worker/src/index.ts` (`githubReviewsSet`),
+  `apps/data-publisher-worker/src/github-reviews/`; in neither Wrangler
+  configuration.
+- **Why:** Spec 022 merged switched off so that the merge changes no
+  behaviour and no cost. Until it is set on Dev the code runs only in tests
+  and in `measure:github-reviews`, and the Dev token's GraphQL access is
+  unproven.
+- **Fix:** the owner decides (Spec 022 decisions 1 to 4); then set it on Dev
+  by the spec's enabling steps and record RV25. Delete this entry when the
+  flag is on wherever the publisher runs.
+- **Layer:** owner decision, then deploy evidence.
+- **Source:** Spec 022, 2026-10-14.
+
+### G72. Review ingestion has no backfill and bounded hindsight
+- **Where:** `apps/data-publisher-worker/src/github-reviews/run.ts`
+  (`FIRST_RUN_LOOKBACK_MS`, `REVIEW_WINDOW_MS`).
+- **Why:** coverage starts one day before the first run (`coverageFrom`);
+  a review dismissed more than 35 days after it was submitted keeps its
+  stored verdict; a pull request with more than 100 reviews in 35 days is
+  read partially (`reviewsTruncated`); a deleted review keeps its row.
+- **Fix:** the backfill proposed in Spec 022 (an explicit start for a first
+  run), decided with Spec 019's horizon; the rest only if `/health`
+  `githubReviews` shows `reviewsTruncated` above 0.
+- **Layer:** spec decision, then a run test.
+- **Source:** Spec 022 "Known limits", 2026-10-14.
 
 ## CI evidence
 
@@ -860,21 +891,25 @@ the two `viewer/` items below.
 - **Layer:** measurement (`copiedObjectCount` of retry runs on Dev).
 - **Source:** Spec 018 simplification review, 2026-10-13.
 
-### G66. A failed or overdue daily publication is not shown in the UI before 27 h
-- **Where:** `apps/web/src/freshness.ts` (`STALE_AFTER_MS` 27 h),
-  `apps/web/src/App.vue` (`.demo-pill`); `/health` `lastRun.ok`, `followUp`.
-- **Why:** with one publication a day the pill warns only 27 h after the last
-  good run, so for three hours after a missed run it reads "Updated 24–26 h
-  ago" with live styling, and a failed run or a waiting retry is visible
-  only in `/health`. The standing rule is that a stall shows in the UI
-  (Spec 011); Spec 018 does not meet it for that window. The deployed E2E
-  runs only on deploys, so CI does not notice a missed daily run either.
-- **Fix:** own spec: let the page learn the publisher's state (for example
-  the last run's outcome or the next expected run in `/api/feed` metadata)
-  and warn as soon as a run is overdue or failed; consider a scheduled
+### G66. After a follow-up or manual release, an overdue daily run shows late
+- **Where:** `apps/web/src/freshness.ts` (`OVERDUE_AFTER_MS`),
+  `apps/data-publisher-worker/src/pipeline.ts` (`generatedAt` =
+  `materializedAt`); `/health` `lastRun.ok`, `lastRun.sources`, `followUp`.
+- **Why:** Spec 021 shows "Daily feed late" from 24 h 30 min after the
+  release the page has (issue #64). A release from a catch-up, retry or
+  `POST /run` carries that run's time, not the Cron tick's, so the next
+  day's missed run is shown later by that offset (up to 2 h 55 min after the
+  last retry; more after a manual run), at worst only by the stale pill. A
+  run that published while one source failed, and a waiting retry, are
+  still visible only in `/health`. The deployed E2E runs only on deploys,
+  so CI does not notice a missed daily run either.
+- **Fix:** put the Cron tick's time (or the next expected run) in the Feed
+  manifest, which is written anyway (no extra R2 write), and count from it;
+  a manifest contract change, so the owner decides. Consider a scheduled
   check of `/health`.
-- **Layer:** spec, then E2E with a controlled clock.
-- **Source:** independent verifier of PR #62, Spec 018 "Known limits".
+- **Layer:** spec (manifest contract), then the Spec 021 case file.
+- **Source:** independent verifier of PR #62, Spec 018 "Known limits";
+  Spec 021 "Known limits".
 
 ### G67. The feature-map site parses a subset of Markdown with its own parser
 - **Where:** `scripts/feature-map-site/markdown.ts` (headings, pipe tables,
