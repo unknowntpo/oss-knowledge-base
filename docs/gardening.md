@@ -135,6 +135,10 @@ the two `viewer/` items below.
 - **Progress:** Spec 015 slice 1 classifies GitHub reviewers and authors
   with `isMachineAuthor` plus GitHub's `Bot` type (`isMachineActor`); the
   publisher's `isBot` still uses the substring rule.
+- **Progress (Spec 022):** review rows classify with `isReviewBot` (GitHub's
+  `Bot` type, the `[bot]` suffix, the project's machine users). That is a
+  third copy of the rule; fold the three into one when the publisher's is
+  fixed.
 
 ### G9. No R2 retention or garbage collection
 - **Where:** `public/v2/releases/*`, `public/v2/objects/details/*`,
@@ -482,6 +486,33 @@ the two `viewer/` items below.
 - **Layer:** test rows (owner-confirmed labels).
 - **Source:** Spec 017.
 
+### G71. `GITHUB_REVIEWS` is a flag that is off in both environments
+- **Where:** `apps/data-publisher-worker/src/index.ts` (`githubReviewsSet`),
+  `apps/data-publisher-worker/src/github-reviews/`; in neither Wrangler
+  configuration.
+- **Why:** Spec 022 merged switched off so that the merge changes no
+  behaviour and no cost. Until it is set on Dev the code runs only in tests
+  and in `measure:github-reviews`, and the Dev token's GraphQL access is
+  unproven.
+- **Fix:** the owner decides (Spec 022 decisions 1 to 4); then set it on Dev
+  by the spec's enabling steps and record RV25. Delete this entry when the
+  flag is on wherever the publisher runs.
+- **Layer:** owner decision, then deploy evidence.
+- **Source:** Spec 022, 2026-10-14.
+
+### G72. Review ingestion has no backfill and bounded hindsight
+- **Where:** `apps/data-publisher-worker/src/github-reviews/run.ts`
+  (`FIRST_RUN_LOOKBACK_MS`, `REVIEW_WINDOW_MS`).
+- **Why:** coverage starts one day before the first run (`coverageFrom`);
+  a review dismissed more than 35 days after it was submitted keeps its
+  stored verdict; a pull request with more than 100 reviews in 35 days is
+  read partially (`reviewsTruncated`); a deleted review keeps its row.
+- **Fix:** the backfill proposed in Spec 022 (an explicit start for a first
+  run), decided with Spec 019's horizon; the rest only if `/health`
+  `githubReviews` shows `reviewsTruncated` above 0.
+- **Layer:** spec decision, then a run test.
+- **Source:** Spec 022 "Known limits", 2026-10-14.
+
 ## CI evidence
 
 ### G30. The evidence redaction gate does not decode every encoding
@@ -606,19 +637,18 @@ the two `viewer/` items below.
 - **Layer:** structure.
 - **Source:** Spec 016 slice 3.
 
-### G51. The daily neuron budget leaves 740 of headroom on two single measurements
+### G51. The daily neuron budget rests on two single measurements (headroom 1,500)
 - **Where:** `DAILY_NEURON_BUDGET`, `DIGEST_NEURON_CALIBRATION` (1.28) and
   `EMBEDDING_TOKEN_CALIBRATION` (1.8) in
   `packages/reference-pipeline/src/digest/estimate.ts`.
-- **Why:** the digest's cap (4,500 in its own estimate) can cost 5,760
-  neurons; with the embedding job's 2,500 and the query gate's 1,000 the
-  caps are 9,260 of the 10,000 included. Each ratio was measured once
-  (2026-10-08 and 2026-10-12). The digest's ledger and `/health` still show
-  its uncalibrated estimate.
-- **Fix:** before the digest gets a cron on Dev, measure both ratios again
-  from the gateways; then either apply the digest's factor inside its
-  ledger (so its cap is in real neurons, like the embedding job's) or lower
-  a cap until the headroom is at least 1,500.
+- **Why:** each ratio was measured once (2026-10-08 and 2026-10-12). Since
+  Spec 014 slice 2e (2026-10-14) the digest's ledger applies its factor and
+  its cap is 5,000, so the caps are 8,500 of the 10,000 included. The Dev
+  digest cron was set without a second measurement.
+- **Fix:** measure the digest's ratio on the staged dry run (runbook,
+  "Topic digest": gateway cost over `estimatedNeurons`, expected 0.8–1.2)
+  and the embedding ratio from `osskb-search-dev`; change the constants if
+  either is outside.
 - **Layer:** measurement, then the constants and the `H67` test.
 - **Source:** verifier of PR #54.
 
@@ -767,16 +797,34 @@ the two `viewer/` items below.
   `apps/data-publisher-worker/src/review-queue/run.ts` (the object embeds
   `generatedAt`, so every run writes a new object, the pointer, and
   `last-run.json`).
-- **Why:** 2–4 Class A operations a run each. Both run only by hand today
-  (`DIGEST_CRON` and `REVIEW_QUEUE_CRON` are unset), so the cost is nil; an
+- **Why:** 2–4 Class A operations a run each. The digest runs once a day
+  on Dev since 2026-10-14 (about 120 Class A a month, 0.012% of the
+  included million; the unchanged pointer is put again only when a manual
+  run reuses a pair). The review queue runs only by hand
+  (`REVIEW_QUEUE_CRON` is unset); an
   hourly cron would add about 5,000 Class A a month, 0.5% of the included
   million. Spec 014 D26 counts the `list` among "R2 reads" and D60 says a
   dry run makes "0 R2 writes": the `list` is a Class A operation.
-- **Fix:** when a cron is set for either job: skip the pointer put when its
-  bytes are unchanged (as the publisher's `switchPointer` does), and correct
-  D26 and D60.
+- **Fix:** before either job runs more often than daily: skip the pointer
+  put when its bytes are unchanged (as the publisher's `switchPointer`
+  does), and correct D26 and D60.
 - **Layer:** test.
 - **Source:** R2 call audit, 2026-10-13.
+
+### G70. The digest runs daily on Dev with two D35 checks open
+- **Where:** Spec 014 D35 and "Schedule on Dev"; `DIGEST_CRON` in
+  `apps/data-publisher-worker/wrangler.development.jsonc`.
+- **Why:** the owner enabled the schedule on 2026-10-14. D35's canary probe
+  (four Clef requests of about 4,000 state tokens that must all miss) has
+  no recorded result, and whether the gateway's 60 requests an hour is a
+  fixed or a sliding window is unknown. A `limited` or failed scheduled
+  run shows only in `/health` `digest.lastRun` until the digest is 36 h
+  old (the page's stale rule); `bun run verify:health` does not print the
+  digest (D32 says it does).
+- **Fix:** run the probe once and record it in Spec 014; add the digest's
+  age and `lastRun.ok`/`limited` to `verify:health`.
+- **Layer:** measurement (the probe); verification kit (`verify:health`).
+- **Source:** Spec 014 slice 2e, 2026-10-14.
 
 ### G61. The Feed count line is hard-coded English, beside unused count strings
 - **Where:** `apps/web/src/views/FeedView.vue` (`.results-count` without a
@@ -843,21 +891,25 @@ the two `viewer/` items below.
 - **Layer:** measurement (`copiedObjectCount` of retry runs on Dev).
 - **Source:** Spec 018 simplification review, 2026-10-13.
 
-### G66. A failed or overdue daily publication is not shown in the UI before 27 h
-- **Where:** `apps/web/src/freshness.ts` (`STALE_AFTER_MS` 27 h),
-  `apps/web/src/App.vue` (`.demo-pill`); `/health` `lastRun.ok`, `followUp`.
-- **Why:** with one publication a day the pill warns only 27 h after the last
-  good run, so for three hours after a missed run it reads "Updated 24–26 h
-  ago" with live styling, and a failed run or a waiting retry is visible
-  only in `/health`. The standing rule is that a stall shows in the UI
-  (Spec 011); Spec 018 does not meet it for that window. The deployed E2E
-  runs only on deploys, so CI does not notice a missed daily run either.
-- **Fix:** own spec: let the page learn the publisher's state (for example
-  the last run's outcome or the next expected run in `/api/feed` metadata)
-  and warn as soon as a run is overdue or failed; consider a scheduled
+### G66. After a follow-up or manual release, an overdue daily run shows late
+- **Where:** `apps/web/src/freshness.ts` (`OVERDUE_AFTER_MS`),
+  `apps/data-publisher-worker/src/pipeline.ts` (`generatedAt` =
+  `materializedAt`); `/health` `lastRun.ok`, `lastRun.sources`, `followUp`.
+- **Why:** Spec 021 shows "Daily feed late" from 24 h 30 min after the
+  release the page has (issue #64). A release from a catch-up, retry or
+  `POST /run` carries that run's time, not the Cron tick's, so the next
+  day's missed run is shown later by that offset (up to 2 h 55 min after the
+  last retry; more after a manual run), at worst only by the stale pill. A
+  run that published while one source failed, and a waiting retry, are
+  still visible only in `/health`. The deployed E2E runs only on deploys,
+  so CI does not notice a missed daily run either.
+- **Fix:** put the Cron tick's time (or the next expected run) in the Feed
+  manifest, which is written anyway (no extra R2 write), and count from it;
+  a manifest contract change, so the owner decides. Consider a scheduled
   check of `/health`.
-- **Layer:** spec, then E2E with a controlled clock.
-- **Source:** independent verifier of PR #62, Spec 018 "Known limits".
+- **Layer:** spec (manifest contract), then the Spec 021 case file.
+- **Source:** independent verifier of PR #62, Spec 018 "Known limits";
+  Spec 021 "Known limits".
 
 ### G67. The feature-map site parses a subset of Markdown with its own parser
 - **Where:** `scripts/feature-map-site/markdown.ts` (headings, pipe tables,

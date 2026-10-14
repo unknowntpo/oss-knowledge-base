@@ -38,3 +38,17 @@ A search experience is understandable when a user can enter or select a query,
 recognize why each result matched, and open its source without reading onboarding
 prose. Review desktop and mobile layouts in every supported locale because text
 length is part of responsive behavior.
+
+## 4. One word per object
+
+Owner decision 2026-10-14 (統一用討論): in `zh-Hant`, the object a Feed card, a
+search result, and a detail page stand for — a GitHub pull request, a dev@
+thread, or a Jira issue — is 「討論」. Do not call it 「主題」.
+
+「主題」 remains only for the Spec 014 digest topic, a taxonomy group of
+threads: `digest.topics`, `digest.anchor.topics`, and `topic.breadcrumb`
+(「開發主題」). `apps/web/test/i18n-terms.test.ts` (`TERM1`) fails when any other
+`zh-Hant` string uses the word.
+
+The English catalogue still says "topic" for a thread in several places
+(`card.open`, `rail.related`, `stats.feed`); the decision covered `zh-Hant`.

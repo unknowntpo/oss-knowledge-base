@@ -3,7 +3,8 @@
  * docs/specs/010-feed-freshness/spec.md (`bun run docs:test-plan` regenerates it).
  *
  * `generatedAt` is a daily publication (Spec 018: 22:07 UTC). The stale boundary is
- * `STALE_AFTER_MS`: one day plus three hours of grace.
+ * `STALE_AFTER_MS`: one day plus three hours of grace. Between 24 h 30 min and that boundary
+ * the text is Spec 021's overdue warning; it is not stale.
  */
 export const testPlanRows = [
   { id: "F1", generatedAt: "2026-10-13T22:07:00Z", now: "2026-10-14T00:07:00Z", en: "Updated 2 h ago", zh: "資料更新於 2 小時前", stale: false },
@@ -14,8 +15,8 @@ export const testPlanRows = [
   { id: "F2", generatedAt: "2026-10-13T22:07:00Z", now: "2026-10-14T01:07:01Z", en: "Updated 3 h ago", zh: "資料更新於 3 小時前", stale: false },
   { id: "F2", generatedAt: "2026-10-13T22:07:00Z", now: "2026-10-14T22:06:59Z", en: "Updated 23 h ago", zh: "資料更新於 23 小時前", stale: false },
   { id: "F2", generatedAt: "2026-10-13T22:07:00Z", now: "2026-10-14T22:17:00Z", en: "Updated 24 h ago", zh: "資料更新於 24 小時前", stale: false },
-  { id: "F2", generatedAt: "2026-10-13T22:07:00Z", now: "2026-10-15T01:06:30Z", en: "Updated 26 h ago", zh: "資料更新於 26 小時前", stale: false },
-  { id: "F2", generatedAt: "2026-10-13T22:07:00Z", now: "2026-10-15T01:07:00Z", en: "Updated 27 h ago", zh: "資料更新於 27 小時前", stale: false },
+  { id: "F2", generatedAt: "2026-10-13T22:07:00Z", now: "2026-10-15T01:06:30Z", en: "Daily feed late · 26 h ago", zh: "今日更新尚未完成 · 26 小時前", stale: false },
+  { id: "F2", generatedAt: "2026-10-13T22:07:00Z", now: "2026-10-15T01:07:00Z", en: "Daily feed late · 27 h ago", zh: "今日更新尚未完成 · 27 小時前", stale: false },
   { id: "F2", generatedAt: "2026-10-13T22:07:00Z", now: "2026-10-15T01:07:01Z", en: "Data may be out of date · 27 h ago", zh: "資料可能過期 · 27 小時前", stale: true },
   { id: "F7", generatedAt: "2026-10-13T22:07:00Z", now: "2026-10-15T22:06:59Z", en: "Data may be out of date · 47 h ago", zh: "資料可能過期 · 47 小時前", stale: true },
   { id: "F7", generatedAt: "2026-10-13T22:07:00Z", now: "2026-10-15T22:07:00Z", en: "Data may be out of date · 2 d ago", zh: "資料可能過期 · 2 天前", stale: true },

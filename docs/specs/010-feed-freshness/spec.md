@@ -1,6 +1,6 @@
 # Spec 010: Feed freshness
 
-Status: Accepted 2026-10-06 (workflow pilot 001); amended 2026-10-13 by Spec 018 (daily publication: stale after 27 h, days from 48 h)
+Status: Accepted 2026-10-06 (workflow pilot 001); amended 2026-10-13 by Spec 018 (daily publication: stale after 27 h, days from 48 h) and 2026-10-14 by Spec 021 (between 24 h 30 min and 27 h the pill is the overdue warning)
 Date: 2026-10-04
 Traceability: enforced
 Builds on: Spec 003, Spec 008, Spec 018
@@ -68,7 +68,9 @@ Until 2026-10-13 the publisher ran hourly and the boundary was 3 h; the
    then on.
 2. Above `STALE_AFTER_MS` (27 h: one daily publication missed, plus 3 h of
    grace for a late run and its retries, Spec 018 Behavior 2) the topbar uses
-   the existing stale styling and says the data may be out of date.
+   the existing stale styling and says the data may be out of date. From
+   24 h 30 min up to that mark the text and styling are Spec 021's overdue
+   warning, not the plain age.
 3. The label is recomputed every minute while the page is open.
 4. Freshness never blocks the Feed: an unparsable or missing `generatedAt`
    shows no age, and the topbar keeps its previous "Published snapshot"
@@ -91,8 +93,8 @@ the unit tests run exactly these rows. Edit the case file, not this table.
 | F2 | 2026-10-13T22:07:00Z | 2026-10-14T01:07:01Z | Updated 3 h ago | 資料更新於 3 小時前 | no |
 | F2 | 2026-10-13T22:07:00Z | 2026-10-14T22:06:59Z | Updated 23 h ago | 資料更新於 23 小時前 | no |
 | F2 | 2026-10-13T22:07:00Z | 2026-10-14T22:17:00Z | Updated 24 h ago | 資料更新於 24 小時前 | no |
-| F2 | 2026-10-13T22:07:00Z | 2026-10-15T01:06:30Z | Updated 26 h ago | 資料更新於 26 小時前 | no |
-| F2 | 2026-10-13T22:07:00Z | 2026-10-15T01:07:00Z | Updated 27 h ago | 資料更新於 27 小時前 | no |
+| F2 | 2026-10-13T22:07:00Z | 2026-10-15T01:06:30Z | Daily feed late · 26 h ago | 今日更新尚未完成 · 26 小時前 | no |
+| F2 | 2026-10-13T22:07:00Z | 2026-10-15T01:07:00Z | Daily feed late · 27 h ago | 今日更新尚未完成 · 27 小時前 | no |
 | F2 | 2026-10-13T22:07:00Z | 2026-10-15T01:07:01Z | Data may be out of date · 27 h ago | 資料可能過期 · 27 小時前 | yes |
 | F7 | 2026-10-13T22:07:00Z | 2026-10-15T22:06:59Z | Data may be out of date · 47 h ago | 資料可能過期 · 47 小時前 | yes |
 | F7 | 2026-10-13T22:07:00Z | 2026-10-15T22:07:00Z | Data may be out of date · 2 d ago | 資料可能過期 · 2 天前 | yes |
@@ -106,7 +108,7 @@ Step-based scenarios run as E2E tests in `apps/web/e2e/feed-freshness.spec.ts`:
 
 | ID | Scenario | Expected |
 | --- | --- | --- |
-| F3 | Page opened 30 s before the 27-hour mark, then the clock advances 60 s | "Updated 26 h ago" with live styling becomes "Data may be out of date · 27 h ago" with stale styling, without a reload |
+| F3 | Page opened 30 s before the 27-hour mark, then the clock advances 60 s | "Daily feed late · 26 h ago" with overdue styling (Spec 021) becomes "Data may be out of date · 27 h ago" with stale styling, without a reload |
 | F4 | `/api/feed` returns `generatedAt: "not-a-time"` | three Feed cards render; the topbar shows no age and keeps "Published snapshot" |
 
 ## Acceptance
@@ -116,14 +118,15 @@ Step-based scenarios run as E2E tests in `apps/web/e2e/feed-freshness.spec.ts`:
   ago" (en) and "資料更新於 2 小時前" (zh-Hant); 45 minutes reads in minutes.
 - F2: at 27 h 1 s the topbar shows the stale styling and the out-of-date
   message; at exactly 27 h, at 23 h 59 min 59 s and at 24 h 10 min (a daily
-  run about to start, and one still finishing) it does not; the threshold is
-  the cadence plus the grace, not a second number.
+  run about to start, and one still finishing) it does not (from 24 h 30 min
+  it shows Spec 021's overdue warning instead); the threshold is the cadence
+  plus the grace, not a second number.
 - F7: a stale age below 48 h reads in hours ("47 h ago"); from 48 h it reads
   in days ("2 d ago" / "2 天前", "7 d ago").
 
 ### Failure and retry
-- F3: with the page open, the label changes from fresh to stale when the
-  27-hour mark passes, without a reload.
+- F3: with the page open, the label changes to stale (from Spec 021's
+  overdue warning) when the 27-hour mark passes, without a reload.
 - F4: with an unparsable `generatedAt`, the Feed renders its entries and the
   topbar shows no age.
 - F5: with `generatedAt` 60 s in the future, the topbar reads "just now" /

@@ -190,8 +190,9 @@ publication against in-memory upstreams, state and bucket).
 ## Acceptance
 
 ### Behavior
-- T1: the Dev configuration has exactly the cron `7 22 * * *` and the Prod
-  configuration exactly `37 22 * * *`.
+- T1: the Dev configuration has exactly one publisher cron, `7 22 * * *`,
+  and the Prod configuration exactly `37 22 * * *`. (Dev's `47 22 * * *`
+  is the digest's, Spec 014 D86.)
 - T2: the cadence of each configured cron equals `PUBLICATION_CADENCE_MS`;
   the same check tells an hourly cron from a daily one.
 - T3: both crons dispatch to the publisher, also when `DIGEST_CRON` and
@@ -247,7 +248,8 @@ publication against in-memory upstreams, state and bucket).
    at all. The owner's standing rule is that a stall must be visible in the
    UI; this spec does **not** meet it for that window, it only keeps a
    healthy day from being flagged. Open follow-up: show a failed or overdue
-   publication in the UI before the 27 h mark (gardening G66).
+   publication in the UI before the 27 h mark (gardening G66). Spec 021
+   (2026-10-14) shows an overdue warning from 24 h 30 min.
 2. **CI does not detect a stalled daily run.** The deployed E2E runs only
    after a Dev deploy, so on a day without a deploy nothing checks that the
    22:07 UTC run happened; the page's stale pill at 27 h is the only signal.
@@ -296,7 +298,8 @@ publication against in-memory upstreams, state and bucket).
    `.github/workflows/ingest.yml` is removed; `workflow_dispatch` stays.
    Putting KIP bodies into search is not part of this decision and will be
    a separate spec.
-3. **Digest schedule.** If the digest is enabled, a time after 22:07 UTC
+3. **Digest schedule.** Decided 2026-10-14: Dev `47 22 * * *` (Spec 014,
+   "Schedule on Dev"). Before: if the digest is enabled, a time after 22:07 UTC
    (for example 22:37 on Dev) makes it read the day's release; `37 1 * * *`
    in Spec 014's examples would read a release about 3.5 h old.
 

@@ -33,7 +33,7 @@ const INCLUDED_STORED_DIMENSIONS = 10_000_000;
 const dimensions = profile.revision.dimensions;
 const DAYS = 31;
 const monthlyQueried = (chunks + DAYS * limits.maxIndexQueriesPerDay) * dimensions;
-const total = DAILY_NEURON_BUDGET.digestCalibrated + DAILY_NEURON_BUDGET.searchEmbedding + DAILY_NEURON_BUDGET.searchQuery;
+const total = DAILY_NEURON_BUDGET.digest + DAILY_NEURON_BUDGET.searchEmbedding + DAILY_NEURON_BUDGET.searchQuery;
 
 console.log(JSON.stringify({
   model: profile.revision.model,
@@ -45,9 +45,9 @@ console.log(JSON.stringify({
     sample(`the longest accepted text, CJK (${MAX_SEMANTIC_QUERY_CHARACTERS} characters)`, "交".repeat(MAX_SEMANTIC_QUERY_CHARACTERS)),
   ],
   workersAiNeuronsPerDay: {
-    digestCapInItsOwnEstimate: DAILY_NEURON_BUDGET.digest,
+    // The digest's ledger applies its calibration, so its cap is what it can cost (Spec 014 D90).
     digestCalibration: DIGEST_NEURON_CALIBRATION,
-    digest: DAILY_NEURON_BUDGET.digestCalibrated,
+    digest: DAILY_NEURON_BUDGET.digest,
     searchEmbedding: DAILY_NEURON_BUDGET.searchEmbedding,
     searchQuery: DAILY_NEURON_BUDGET.searchQuery,
     total,

@@ -48,9 +48,9 @@ const GITHUB_GRAPHQL_URL = "https://api.github.com/graphql";
 /** Behavior 1: a snapshot never needs more pages than this; more means the loop is broken. */
 const MAX_PAGES = 50;
 
-/** One GraphQL page request with the Q17/Q18/Q42 retry rules. */
-async function graphqlPage(
-  options: { readonly token: string; readonly fetchImpl: FetchLike; readonly delay: Delay; readonly counter: Counter },
+/** One GraphQL page request with the Q17/Q18/Q42 retry rules; `query` defaults to the open-PR snapshot. */
+export async function graphqlPage(
+  options: { readonly token: string; readonly fetchImpl: FetchLike; readonly delay: Delay; readonly counter: Counter; readonly query?: string },
   variables: Readonly<Record<string, unknown>>,
 ): Promise<unknown> {
   for (let attempt = 0; ; attempt += 1) {
@@ -65,7 +65,7 @@ async function graphqlPage(
           "Content-Type": "application/json",
           "User-Agent": SOURCE_USER_AGENT,
         },
-        body: JSON.stringify({ query: OPEN_PRS_QUERY, variables }),
+        body: JSON.stringify({ query: options.query ?? OPEN_PRS_QUERY, variables }),
       });
     } catch (error) {
       if (attempt === 0) {

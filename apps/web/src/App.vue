@@ -61,16 +61,45 @@ function submitSearch() {
 // Freshness is relative to the browser clock, so an open page re-evaluates it every minute (Spec 010).
 const now = ref(Date.now());
 let clock: ReturnType<typeof setInterval> | undefined;
+function generatedAtOf(feed: FeedIndex | undefined): unknown {
+  const manifest = feed?.metadata.manifest;
+  // feedFreshness validates the value, so an unexpected shape only hides the label.
+  return typeof manifest === "object" && manifest !== null ? (manifest as { generatedAt?: unknown }).generatedAt : undefined;
+}
+const generatedAt = computed(() => generatedAtOf(payload.value));
+const freshness = computed(() => feedFreshness(generatedAt.value, now.value));
+let rereading = false;
+/**
+ * Spec 021: an open page holds the release it loaded. Before its pill starts or changes a
+ * warning, it reads the Feed once more, so a tab left open over a normal run shows the new
+ * release and not a false alarm. A failed read, or one that answers with an older release (a
+ * cache behind), keeps the loaded Feed and lets the warning show.
+ */
+async function tick() {
+  const next = feedFreshness(generatedAt.value, Date.now());
+  if (next !== undefined && next.state !== "fresh" && next.state !== freshness.value?.state && !rereading) {
+    rereading = true;
+    try {
+      const reread = await fetchFeed();
+      const rereadAt = Date.parse(String(generatedAtOf(reread)));
+      // NaN (unparsable) compares false, so only a release that is not older replaces the loaded one.
+      if (rereadAt >= Date.parse(String(generatedAt.value))) payload.value = reread;
+    } catch {
+      // The Feed on screen is still the loaded one, and the warning is true for it.
+    } finally {
+      rereading = false;
+    }
+  }
+  now.value = Date.now();
+}
 onMounted(() => {
   void refresh();
-  clock = setInterval(() => { now.value = Date.now(); }, 60_000);
+  clock = setInterval(() => { void tick(); }, 60_000);
 });
 onUnmounted(() => clearInterval(clock));
-const freshness = computed(() => {
-  const manifest = payload.value?.metadata.manifest;
-  // feedFreshness validates the value, so an unexpected shape only hides the label.
-  const generatedAt = typeof manifest === "object" && manifest !== null ? (manifest as { generatedAt?: unknown }).generatedAt : undefined;
-  return feedFreshness(generatedAt, now.value);
+const pillClass = computed(() => {
+  if (payload.value?.metadata.stale === true || freshness.value?.state === "stale") return "is-stale";
+  return freshness.value?.state === "overdue" ? "is-overdue" : "is-live";
 });
 
 const recordCount = computed(() => payload.value?.entries.reduce(
@@ -100,7 +129,7 @@ const syncLabel = computed(() => {
       <span class="brand-name">{{ t("brand.name") }}</span>
       <span class="brand-scope">{{ t("brand.scope") }}</span>
     </RouterLink>
-    <span class="demo-pill" :class="payload?.metadata.stale === true || freshness?.stale ? 'is-stale' : 'is-live'">
+    <span class="demo-pill" :class="pillClass">
       {{ syncLabel }}
     </span>
     <label class="community-control">

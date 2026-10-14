@@ -5,7 +5,7 @@
  * tests use a fake. Error shapes and token estimates are checked on Dev (D35).
  */
 import {
-  callEstimate, clefRequestTokens, estimateTokens, neurons, settledNeurons,
+  callEstimate, clefRequestTokens, digestLedgerNeurons, estimateTokens, neurons, settledNeurons,
   type ClefModel, type ClefRequest, type ClefResponse, type PricedModel,
 } from "@oss-knowledge-base/reference-pipeline";
 
@@ -27,8 +27,9 @@ export class ModelCallError extends Error {
 }
 
 /**
- * 3036 (daily allocation), a gateway 429 (rate limit), and a gateway spend-limit refusal stop the
- * run's model use; anything else is retried once.
+ * 3036 (daily allocation), a gateway 429 (rate limit; the binding reports it as
+ * `2003: Rate limited`, D88), and a gateway spend-limit refusal stop the run's model use;
+ * anything else is retried once.
  */
 export function modelErrorKind(error: unknown): "limit" | "retry" {
   if (error instanceof ModelCallError && (error.code === 3036 || error.status === 429 || /spend limit/iu.test(error.message))) return "limit";
@@ -41,9 +42,14 @@ export const MAX_CALLS_PER_RUN = 50;
 const MAX_RECORDED_ERRORS = 10;
 
 export interface SpendLedger {
-  /** Estimated neurons already spent today (UTC). */
+  /** Calibrated neurons already spent today (UTC) and the cap in the same unit (D90). */
   readonly spent: number;
   readonly cap: number;
+  /**
+   * D93: called before each request with today's spend including the requests in flight, so a
+   * run that dies leaves the spend it made. The request waits for it.
+   */
+  readonly reserve?: (spentWithInFlight: number) => Promise<void>;
 }
 
 /** D35: what a failed call looked like, so Behavior 14–15's matching can be confirmed. */
@@ -93,6 +99,8 @@ export class ModelCalls {
   /** Slice 2c: work skipped to keep the call budget (Clef overflow, cards past the reserve). */
   partial = false;
   private total: number;
+  /** Estimates of the requests in flight; they count toward the cap gate and the stored ledger (D93, D94). */
+  private inFlight = 0;
 
   constructor(
     private readonly model: DigestModel | undefined,
@@ -154,33 +162,42 @@ export class ModelCalls {
     }, () => estimate, true);
   }
 
+  /** `priceTableEstimate` and `settle` are price-table neurons; the ledger counts them calibrated (D90). */
   private async attempt<T>(
     model: PricedModel,
-    estimate: number,
+    priceTableEstimate: number,
     estimatedInputTokens: number,
     invoke: () => Promise<{ value: T; usage: ModelUsage | undefined }>,
     settle: (value: T) => number,
     clef: boolean,
   ): Promise<T | undefined> {
     if (this.model === undefined || this.limited) return undefined;
-    if (this.total + estimate > this.ledger.cap) {
-      this.limited = true;
-      return undefined;
-    }
+    const estimate = digestLedgerNeurons(priceTableEstimate);
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      if (this.calls >= this.maxCalls) {
+      // D94: every attempt, the retry included, must fit the cap together with the requests in flight.
+      if (this.limited) return undefined;
+      if (this.total + this.inFlight + estimate > this.ledger.cap || this.calls >= this.maxCalls) {
         this.limited = true;
         return undefined;
       }
       this.calls += 1;
+      this.inFlight += estimate;
+      let reserved = true;
+      const release = () => {
+        if (reserved) this.inFlight -= estimate;
+        reserved = false;
+      };
       try {
+        await this.ledger.reserve?.(this.total + this.inFlight);
         const { value, usage } = await invoke();
         const reported = typeof usage?.prompt_tokens === "number" ? usage.prompt_tokens : undefined;
-        this.total += settle(value);
+        release();
+        this.total += digestLedgerNeurons(settle(value));
         this.records.push({ model, estimatedInputTokens, clef, ...(reported === undefined ? {} : { reportedInputTokens: reported }) });
         return value;
       } catch (error) {
         // Gardening G21: a failed call is charged its pre-call estimate.
+        release();
         this.total += estimate;
         const kind = modelErrorKind(error);
         if (this.errors.length < MAX_RECORDED_ERRORS) this.errors.push(errorShape(model, kind, error));
