@@ -1,7 +1,7 @@
 /**
  * Spec 014 Behavior 21–22: the `DigestRun` Durable Object's logic, kept free of Workers types so
  * it is testable. Runs start from the object's alarm (serialized like the publisher's); a dry run
- * runs inline and writes nothing; while the publisher runs, the alarm re-arms (D59).
+ * runs inline and writes nothing; while the publisher is busy, the alarm re-arms (D59, D87).
  */
 import { DAILY_CAP, type DigestProfile } from "@oss-knowledge-base/reference-pipeline";
 import { runPending } from "../run-schedule";
@@ -11,6 +11,17 @@ import type { DigestBucket } from "./store";
 
 export const DEFER_MS = 15 * 60_000;
 export const MAX_DEFERRALS = 4;
+
+/**
+ * D59, D87: the digest waits while a publication runs or its alarm will still start one: a run
+ * that is due, or a follow-up (a catch-up or a retry, Spec 018) that is waiting. It then reads the
+ * release those runs end with. `status` is the publisher's `/status` body; `scheduled` is false
+ * once an alarm is lost, so a follow-up marker left behind does not hold the digest.
+ */
+export function publisherBusy(status: unknown): boolean {
+  const publisher = (status ?? {}) as { readonly running?: unknown; readonly scheduled?: unknown };
+  return publisher.running === true || publisher.scheduled === true;
+}
 
 export interface DigestStorage {
   get<T>(key: string): Promise<T | undefined>;
@@ -30,8 +41,8 @@ export interface DigestRunnerDeps {
   readonly model?: DigestModel;
   readonly now: () => Date;
   readonly delay: (ms: number) => Promise<void>;
-  /** Whether the publisher reports a running publication (`/health.running`). */
-  readonly publisherRunning: () => Promise<boolean>;
+  /** Whether the publisher runs or will still start a run (`publisherBusy` of its status). */
+  readonly publisherBusy: () => Promise<boolean>;
 }
 
 export interface DigestHealth {
@@ -82,11 +93,11 @@ export class DigestRunner {
     return { status: 202, body: { ok: true, scheduled: true } };
   }
 
-  /** The alarm: defer while the publisher runs, at most four times, then run (D59). */
+  /** The alarm: defer while the publisher is busy, at most four times, then run (D59, D87). */
   async alarm(): Promise<void> {
     if (!this.deps.enabled) return;
     const deferrals = (await this.deps.storage.get<number>("deferrals")) ?? 0;
-    if (deferrals < MAX_DEFERRALS && await this.deps.publisherRunning()) {
+    if (deferrals < MAX_DEFERRALS && await this.deps.publisherBusy()) {
       await this.deps.storage.put("deferrals", deferrals + 1);
       await this.deps.storage.setAlarm(this.deps.now().getTime() + DEFER_MS);
       return;
@@ -108,6 +119,8 @@ export class DigestRunner {
         delay: this.deps.delay,
         spentToday,
         cap: this.cap,
+        // D93: a run that dies must leave the spend it made for the alarm's retry.
+        reserveSpend: (spent) => this.deps.storage.put(`spend:${date}`, spent),
         dryRun,
         deferred,
       });

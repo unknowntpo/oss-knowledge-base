@@ -2387,8 +2387,9 @@ Items tagged `[pending]` belong to slice 4.
 - H67: given the embedding job, a run's neurons, its ledger, its daily cap,
   and its estimate use the token estimate times 1.8 (`EMBEDDING_TOKEN_CALIBRATION`,
   from the 2026-10-12 backfill), while tokens and batch sizes do not; the
-  digest's 4,500 at its measured cost (× 1.28, `DIGEST_NEURON_CALIBRATION`:
-  5,760), the job's 2,500, and the gate's 1,000 are 9,260 of the 10,000
+  digest's 5,000 (its ledger applies `DIGEST_NEURON_CALIBRATION`, × 1.28,
+  since Spec 014 slice 2e; before it 4,500 could cost 5,760 and the sum
+  was 9,260), the job's 2,500, and the gate's 1,000 are 8,500 of the 10,000
   neurons a day; 31 days of 1,000 index queries and the stored
   vectors are within Vectorize's 50 M queried dimensions up to 17,828
   chunks; the gate's hourly calls and two embedding runs are under the

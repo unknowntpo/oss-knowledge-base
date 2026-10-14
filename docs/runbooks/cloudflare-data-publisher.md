@@ -72,6 +72,107 @@ used up and `lastRun.ok` is still `false`, fix the cause and publish
 manually; otherwise the next attempt is the next day's tick, and the page
 shows the stale warning 27 hours after the last good publication.
 
+## Topic digest (Spec 014)
+
+Dev runs the digest once a day at 22:47 UTC (`DIGEST_CRON` and the second
+`triggers.crons` entry, `47 22 * * *`), 40 minutes after the publication.
+Its alarm waits 15 minutes at a time, at most 4 times, while the publisher
+runs or a follow-up is waiting, so the latest start is 23:47 UTC. Prod has
+no digest.
+
+Limits a run works under:
+
+- **5,000 neurons a UTC day** (`/health` `digest.today`), counted as the
+  price table's estimate × 1.28. One run is about 2,200; dry runs count.
+- **60 requests an hour** on the gateway `osskb-digest-dev`. One run makes
+  about 38 and at most 50. Keep the end of one run and the start of the
+  next 60 minutes apart, the 22:47 run included. A refused call
+  (`2003: Rate limited`) is not retried: the run ends `limited`.
+
+### Dry run (calls the models, writes nothing)
+
+```sh
+curl -sS -X POST -H "Authorization: Bearer $MANUAL_TRIGGER_TOKEN" \
+  "https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/digest/run?dryRun=1" > dry-run.json
+```
+
+The answer comes after one to two minutes: the run result with
+`objects {en, "zh-Hant"}` and up to 10 `rawSamples`. It spends neurons and
+gateway requests like a real run. Check:
+
+| Field | Good |
+| --- | --- |
+| `ok`, `limited` | `true`, `false` |
+| `modelErrors` | `[]` |
+| `modelCalls` | at most 50 (about 38) |
+| `estimatedNeurons` | about 2,200; over 2,500 means a second run that UTC day may end `limited` |
+| `calibration.clefCanaryMisses`, `clefCalls` | 0, above 0 |
+| `fallbacks`, `rejections`, `style` | few fallbacks; `rejections` explains each empty card; `style.contentFree` a small share of `style.sentences` |
+| `objects.en.cards`, `objects["zh-Hant"]` | read the sentences |
+
+Then compare cost: in the gateway `osskb-digest-dev`, the logged cost of the
+run's requests divided by $0.000011 is its neurons; divided by
+`estimatedNeurons` it should be between 0.8 and 1.2. Outside that,
+`DIGEST_NEURON_CALIBRATION` is wrong (gardening G51).
+
+### Real run (publishes)
+
+```sh
+curl -sS -X POST -H "Authorization: Bearer $MANUAL_TRIGGER_TOKEN" \
+  https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/digest/run
+# 202 {"ok":true,"scheduled":true}; 409 while a digest run is pending
+```
+
+The run executes in the object's alarm. A run for a release whose complete
+pair exists calls no model (`reused: "pair"`). The page serves the new
+digest within 150 seconds.
+
+### Reading `/health` `digest`
+
+- `enabled`, `running`, `scheduled`: the flag, an active run, a pending
+  alarm (also a deferred one).
+- `today {date, estimatedNeurons, cap}`: the UTC day's ledger. It is
+  stored before each model request (Spec 014 D93), so during a run it
+  includes the requests in flight, and a run that died leaves what it
+  spent: a retry starts from there.
+- `lastRun`: the last run, dry or real (`dryRun`).
+  - `ok: true`, `limited: false`, `fallbacks: 0`: complete.
+  - `limited: true`: the daily cap, the 50-request ceiling, or a platform
+    refusal (`modelErrors` with kind `limit`) stopped the models. The
+    digest was still published with fallback cards. The next day's run
+    replaces it; so does a manual run for the same release.
+  - `ok: false` with `failureKind`: nothing was published and the page
+    keeps the previous digest, which turns stale 36 hours after it was
+    generated.
+  - `sourceReleaseId`: the Feed release it read; after 22:47 UTC it should
+    be that day's `…T22-07-…` release.
+  - `deferred`: how many times the alarm waited for the publisher.
+  - `reused`, `objectKeys`, `modelCalls`, `estimatedNeurons`,
+    `spentToday`, `calibration`, `style`, `rejections`.
+
+### First scheduled run after the deploy (Spec 014 D92)
+
+The deploy sets the cron, so the next 22:47 UTC tick publishes.
+
+1. Merge at least three hours before 22:47 UTC, on a UTC day with no
+   digest run (`digest.today.estimatedNeurons` 0).
+2. `/health`: `digest.today.cap` is 5000 once the deploy is live.
+3. Dry run, ended before 21:47 UTC. Check it as above.
+4. Good: do nothing; the 22:47 tick publishes. Bad: merge a PR that removes
+   `DIGEST_CRON` and its cron entry before the tick.
+5. After 22:50 UTC (later by 15 minutes per deferral): `digest.lastRun`
+   has `dryRun: false`, `ok: true`, `limited: false`, that day's
+   `sourceReleaseId`, and `objectKeys`;
+   `/api/digest?projectId=apache-kafka&locale=zh-Hant` on Dev answers 200
+   and `/#/kafka/` shows the digest.
+
+### Turn off
+
+Remove `DIGEST_CRON` and the `47 22 * * *` entry of `triggers.crons`
+together (test `D86`) and deploy; `POST /digest/run` still works. The
+published digest stays; deleting `public/digest/v1/apache-kafka/current.json`
+returns the page to the no-digest notice.
+
 ## R2 operations and cost
 
 R2 bills requests by class, for the whole account (both buckets):
@@ -97,7 +198,7 @@ curl -sS https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/health | jq 
 | --- | --- | --- | --- |
 | Publication | once a day, each environment (Spec 018), plus follow-up and manual runs | new objects + 3 (Dev: 391 on the first daily run, 2026-10-13; an hourly run was about 40) | objects + 3 (Dev: 8,343 on that run) |
 | Embedding job | after each publication, and hourly while work is left, Dev | 0 | 2 + shards (about 12) |
-| Digest | manual `POST /digest/run` | 2–4 (one `list`, the pointer, two objects when new) | up to 300 |
+| Digest | once a day on Dev (22:47 UTC), plus manual `POST /digest/run` | 2–4 (one `list`, the pointer, two objects when new) | up to 300 |
 | Review queue | manual `POST /review-queue/run` | 3–4 | 4–5 |
 | GitHub review ingestion (Spec 022) | off (`GITHUB_REVIEWS` unset); when on, each publisher tick | 5 (two month objects, two cursors, the run record); up to 9 | 4; up to 8 |
 | `/health` | per request | 0 | 1 |
@@ -362,9 +463,9 @@ bun run measure:search-hybrid                # lexical baseline of the labelled 
 
 The caps: per UTC day 1,000 neurons of query embeddings (1 a query) and
 1,000 index queries (2 a search on Dev, so 500 uncached searches); 100 model
-calls a clock hour. With the digest's 4,500 at its measured cost (× 1.28 = 5,760)
-and the embedding job's 2,500 that is 9,260 of the 10,000 neurons a day the
-plan includes (740 of headroom); 31 days of
+calls a clock hour. With the digest's 5,000 (its ledger counts measured cost, Spec 014 D90)
+and the embedding job's 2,500 that is 8,500 of the 10,000 neurons a day the
+plan includes (1,500 of headroom); 31 days of
 index queries plus the stored vectors are 40.7 M of Vectorize's included
 50 M dimensions.
 

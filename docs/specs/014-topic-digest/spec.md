@@ -8,9 +8,12 @@ Builds on: Spec 002, Spec 005, Spec 008 (ADR-0013), Spec 010, Spec 011, Spec 012
 > **Note 2026-10-13 ([Spec 018](../018-daily-publication/spec.md)).** The
 > publisher now runs once a day (Dev 22:07 UTC), not hourly; "the hourly
 > publication run" below is that daily run and `7 * * * *` in the examples
-> is `7 22 * * *`. The digest is still started by no cron. If it is enabled,
-> a time after the publication reads the day's release (Spec 018, open
-> decision 3). Nothing else in this spec changes.
+> is `7 22 * * *`. Nothing else in this spec changes.
+
+> **Note 2026-10-14 (slice 2e).** The Dev digest runs by cron at 22:47 UTC,
+> its ledger counts calibrated neurons, and its cap is 5,000: see
+> [Schedule on Dev](#schedule-on-dev-slice-2e-2026-10-14) and D86–D94.
+> Where older text says 4,500 or "no digest cron", that section wins.
 
 ## Intent
 
@@ -1332,7 +1335,7 @@ synthetic; the others use values captured from Dev.
 | D22 | run control | constructed: digest cron unset; cron 7 22 * * * fires | publisher |
 | D22 | run control | constructed: digest cron 37 1 * * * set; it fires | digest |
 | D60 | dry run | constructed: POST /digest/run?dryRun=1 | returns en and zh-Hant; 0 R2 writes; spend added to today; lastRun.dryRun true |
-| D14 | rate limit | constructed: today's estimated spend already at the Dev cap (4,500) | no model call; limited true; rules features and fallback cards |
+| D14 | rate limit | constructed: today's estimated spend already at the daily cap | no model call; limited true; rules features and fallback cards |
 | D19 | recovery | constructed: an en with a model fallback (a card's summary failed) for the same release | next run is not a reuse; it publishes a new pair |
 | D50 | translate | constructed: the translation drops one item's placeholder | that item Not translated (English kept); no placeholder text in zh-Hant |
 | D37 | highlights | constructed: one highlight cites a thread that no kept sentence cites | that highlight dropped; the other 2 shown |
@@ -1411,6 +1414,27 @@ synthetic; the others use values captured from Dev.
 | D81 | raw samples | constructed: dry run where the first card returns {"sentences":[]}, the highlights call returns prose, and the translation batch returns prose twice | rawSamples include card:<topic> empty, highlights unparsable, and translate:0 unparsable |
 | D82 | parsing | constructed: every summarize and highlights response wrapped in a ```json fence with a sentence of prose before it | every card and proposal line generated, headline kept; no unparsable |
 | D83 | style | constructed: card sentences "KAFKA-20224 is open." and "Streams standby tasks get rack-aware assignment (KAFKA-20999, open)." | style.contentFree 1 of 2 |
+| D86 | cron | Dev config: the tick 47 22 * * * fires | digest |
+| D86 | cron | Dev config: the publisher tick 7 22 * * * fires | publisher |
+| D86 | cron | Prod config: the tick 47 22 * * * fires | publisher |
+| D87 | deferral | publisher status {running: false, scheduled: true, followUp: {reason: catch-up}} | busy |
+| D87 | deferral | publisher status {running: false, scheduled: true, followUp: {reason: retry}} | busy |
+| D87 | deferral | publisher status {running: false, scheduled: true, followUp: null} (its alarm is due) | busy |
+| D87 | deferral | publisher status {running: true, scheduled: false, followUp: null} | busy |
+| D87 | deferral | publisher status {running: false, scheduled: false, followUp: null} | not busy |
+| D87 | deferral | publisher status {running: false, scheduled: false, followUp: {reason: retry}} (the alarm was lost) | not busy |
+| D87 | deferral | constructed: a catch-up is waiting at the first alarm and gone 15 min later | re-armed once; then runs; lastRun.deferred 1 |
+| D88 | errors | binding throws "2003: Rate limited" (Dev dry run 3, 2026-10-08) | status 429; limit |
+| D88 | rate limit | constructed: the gateway refuses the first card call with 2003: Rate limited | no retry; remaining calls skipped; limited true; modelErrors kind limit |
+| D89 | failed run | constructed: a digest is published; the next run cannot read the Feed manifest | lastRun ok false, source-read; pointer and objects unchanged; the next good run moves the pointer |
+| D90 | spend | constructed: a text call the price table settles at N neurons | today's spend grows by ceil(N × 1.28) |
+| D90 | spend | constructed: a call that fits the cap at its price-table estimate but not at × 1.28 | call skipped; limited true |
+| D90 | spend | constructed: a Clef request the price table counts as 1 neuron | today's spend grows by 2 |
+| D90 | spend | constructed: a run with a fake model | lastRun.estimatedNeurons, spentToday and coverage.estimatedNeurons are the calibrated sum |
+| D93 | ledger | constructed: the object dies during the 4th model request of a run; the alarm is retried | the retry starts from the stored spend; both runs together stay within the cap |
+| D93 | ledger | constructed: a run of N model requests | N ledger writes before the requests, then the settled total |
+| D94 | spend | constructed: a call that fits the cap once fails with a retryable error | no retry; limited true; spend equals the cap |
+| D94 | spend | constructed: 4 calls started together, each fitting the cap alone, 2 fitting together | 2 run; 2 skipped; limited true; spend within the cap |
 <!-- test-plan:end -->
 
 **Slice 3: browser.** Case file
@@ -1577,8 +1601,19 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   `{disabled: true}` and an alarm runs nothing; Dev returns 202.
 - D65: in the deploy config, every cron is the publisher's or
   `DIGEST_CRON`, and `DIGEST_CRON` never exists without its entry.
-  - Dev has the `ai` binding and `osskb-digest-dev`, with no digest cron.
+  - Dev has the `ai` binding and `osskb-digest-dev`; its digest cron is
+    D86's (none before slice 2e).
   - Prod has no `ai` binding and no digest variables.
+- D86: the Dev deploy config has exactly two crons: the publisher's
+  `7 22 * * *` and `47 22 * * *`, which equals `DIGEST_CRON`.
+  - A `47 22 * * *` tick starts the digest and no publication; a
+    `7 22 * * *` tick starts a publication and no digest.
+  - Prod has no `DIGEST_CRON` and only its publisher cron.
+- D87: the digest alarm also defers while the publisher's alarm will still
+  start a run (`scheduled: true` in its status): a run that is due, or a
+  follow-up that is waiting (Spec 018). D59's bound holds: 15 min, at most
+  4 times, then it runs. A follow-up marker whose alarm was lost
+  (`scheduled: false`) does not defer it.
 - D66: a dry run returns `modelErrors` (the shape of each failed call, at
   most 10) and `calibration` (estimated against reported input tokens,
   plus `clefCalls` and `clefCallsWithUsage`, counted over Clef requests
@@ -1732,6 +1767,14 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   plain JSON text, and the reported usage is kept.
 - D71: the 51st model request of a run is skipped and the run is
   `limited` (45th before slice 2c).
+- D88: the gateway's rate-limit refusal, `2003: Rate limited` (recorded on
+  Dev, 2026-10-08), is D14's gateway 429: no retry, the remaining model
+  calls are skipped, `limited: true`, and `modelErrors` records it with
+  kind `limit`.
+- D89: a run that fails (`ok: false`) changes neither the pointer nor any
+  published object, so the page keeps the previous digest;
+  `/health.digest.lastRun` shows `ok: false` and `failureKind`. A later
+  successful run moves the pointer.
 
 ### Budget
 - D25: [measure] on the captured week, a cold Kafka run estimates at most
@@ -1754,6 +1797,32 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   - Command: `bun run digest -- measure`. It builds the prompts from the
     committed fixture and applies the pinned price table and the Behavior
     15 token estimate.
+- D90: the digest ledger counts calibrated neurons. Each pre-call estimate
+  and each settled amount enters it as the price-table figure times
+  `DIGEST_NEURON_CALIBRATION` (1.28), rounded up.
+  - The cap gate, `today.estimatedNeurons`, `lastRun.estimatedNeurons`,
+    `lastRun.spentToday` and `coverage.estimatedNeurons` are in that unit.
+  - D25's figures and `bun run digest -- measure` stay price-table
+    figures; × 1.28 gives the ledger's (measured 2026-10-14: cold 1,513
+    is 1,937, steady 1,147 is 1,469).
+- D91: the daily cap is 5,000 calibrated neurons on Dev and on Prod.
+  - With the embedding job's 2,500 and the query gate's 1,000 the caps are
+    8,500 of the 10,000 neurons a day; the headroom is 1,500.
+  - A staging day (a dry run and a real run, both cold) fits: the two full
+    dry runs of 2026-10-08 were 3,366 price-table neurons, 2,155
+    calibrated a run, 4,310 for two.
+- D93: the day's ledger is stored before each model request, not only when
+  a run ends: the stored figure is the settled spend plus the estimates of
+  the requests in flight.
+  - A run that dies (the object is evicted, the alarm is killed) leaves
+    that figure, so the alarm's retry and any later run that day start
+    from spend already made.
+  - Durable Object writes: one per model request (at most 50 a run), plus
+    the final ledger and `lastRun`.
+- D94: no request starts unless the settled spend, the estimates of the
+  requests in flight, and its own estimate fit the cap; the retry of a
+  failed request is checked the same way. No request starts past the cap.
+  (D35's "up to 3 more estimates in one wave" no longer applies.)
 - D26: [measure] the same command prints call and read counters:
   - model calls per cold run: at most 50. Measured 39 in slice 2b: 12 Clef
     requests, 12 cards, 12 proposal rows, 1 highlights call, and 2
@@ -1830,7 +1899,8 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
       requests in flight, up to 3 more pre-call estimates can pass the cap
       in one wave (about 30 neurons each on the captured week: 351 over 12
       requests). This overshoot is accepted; the gateway's $2/month spend
-      limit is the hard stop.
+      limit is the hard stop. Since slice 2e requests in flight count
+      toward the gate (D94), so there is no overshoot.
     - qwen3's `<think>` block consumes `max_tokens`. An unterminated block
       leaves no translation, so the sentence shows "Not translated". Watch
       `notTranslated` in the result; raise the translator's `max_tokens` if
@@ -1838,6 +1908,13 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
     - Slice 2c: `style.personLed` should fall well below the first dry
       run's share, and `rejections` explains any empty card, proposal line,
       or headline.
+- D92: [deploy] the first scheduled run on Dev is staged (Schedule on Dev,
+  decision 5): after the deploy `/health.digest.today.cap` is 5,000; a
+  dry run is `ok`, not `limited`, with no `modelErrors` and
+  `calibration.clefCanaryMisses` 0; the 22:47 UTC run then records
+  `dryRun: false`, `ok: true`, the day's `sourceReleaseId` and both
+  `objectKeys`; `/api/digest?projectId=apache-kafka&locale=zh-Hant` on Dev
+  returns 200.
 - D56: `digest -- eval` reports counts per error class and the share of
   sentences dropped by each Behavior 30 rule. The five recorded negative
   fixtures are in the labels fixture, and Behavior 30 rejects the status
@@ -1900,8 +1977,131 @@ built yet; the command rejects the flag.
      samples and tolerant parsing (D81, D82), content sentences (D83),
      the 0.35 topic gate and the plain `other` description (D84), and
      natural zh-Hant (D85). The cron stays off.
+   - **2e** (2026-10-14, the owner approved the Dev schedule): the Dev
+     cron, deferral behind publisher follow-ups, the calibrated ledger and
+     the 5,000 cap, and the gateway rate limit as a limit (D86–D92); the
+     ledger stored before each request and a gate that cannot pass the
+     cap (D93, D94, from the verifier of PR #68). See Schedule on Dev.
 3. **Web:** routes, tabs, This week, Proposals, topic page, i18n, and
    `/api/digest`. The E2E moves are part of this slice.
+
+## Schedule on Dev (slice 2e, 2026-10-14)
+
+The owner approved the Dev digest schedule on 2026-10-14. Until then no
+digest had been published: the three runs of 2026-10-08 were dry runs, and
+Dev `/api/digest` answered 404. Prod is unchanged (its digest is off and its
+data Worker has never been deployed).
+
+### What made dry run 3 unusable
+
+Dry run 3 (2026-10-08 10:35 UTC, after PR #44) was meant to check slice 2d.
+Its stored result (`/health.digest.lastRun`, read 2026-10-14): 316
+candidates, 26 model calls, 16 fallbacks, 9 sentences, `limited: true`,
+1,141 neurons, `spentToday` 4,507 of 4,500, and four `2003: Rate limited`
+errors of kind `retry`.
+
+1. **The day's ledger was nearly spent.** Dry runs 1 and 2 had used 3,366
+   of the 4,500 that UTC day, so run 3 stopped at the cap after 26 calls.
+2. **The gateway refused calls.** `osskb-digest-dev` allows 60 requests an
+   hour; the three runs made 109 that day. The refusal reads
+   `2003: Rate limited`. It carries no 3xxx or 5xxx code and no "429", so
+   the run treated it as an unknown error and retried it after 5 s.
+
+A run cut short twice says nothing about slice 2d (raw samples, content
+sentences, the 0.35 gate). The code is corrected by D88 and D90; the rerun
+is the dry run of decision 5, on a UTC day with no other digest run.
+
+### Decisions
+
+1. **Time: `47 22 * * *` (22:47 UTC, 06:47 Asia/Taipei).**
+   - The publisher's cron is `7 22 * * *`. On 2026-10-13 its release was
+     stamped 22:07:09 and the embedding run it started ended at 22:15:06.
+   - Catch-up runs follow a truncated run 5 min apart, at most 5 (Spec
+     018); 40 minutes covers them at the measured run length.
+   - Retries follow a failure after 10, 30 and 60 min. The digest does not
+     wait for the clock to cover them: its alarm defers while a follow-up
+     is waiting or running (D87), 15 min at a time, at most 4 times. It
+     then runs at 23:47 at the latest and reads the newest release there is.
+   - Minutes already taken: `:07` (Dev publisher), `:37` (Prod publisher),
+     00:05 (embedding after a day cap), `:27` and `:57` (proposed for the
+     review queue). The embedding job continues hourly from the minute its
+     last run ended (22:15 on 2026-10-13), on another gateway and another
+     Durable Object; the two jobs share only the account's daily neurons,
+     which each job's cap bounds.
+   - The digest's spend is on the same UTC day as that day's publication
+     and embeddings.
+2. **Ledger and cap: calibrated neurons, 5,000 a day (D90, D91).**
+
+   | | Before | After |
+   | --- | --- | --- |
+   | Ledger unit | price-table estimate | price-table estimate × 1.28 |
+   | Digest cap as the ledger counts | 4,500 | 5,000 |
+   | Digest cap, what it can cost | 5,760 | 5,000 |
+   | Embedding job | 2,500 | 2,500 |
+   | Query gate | 1,000 | 1,000 |
+   | Sum of what the caps can cost | 9,260 | 8,500 |
+   | Headroom under 10,000 | 740 | 1,500 |
+
+   - 1.28 is the gateway's logged cost of the three dry runs (5,733
+     neurons) over the ledger's 4,507 (Spec 016 Results, "Query budget").
+   - One full run: 3,366 price-table neurons over the 83 calls of dry runs
+     1 and 2, so 1,683 a run and 2,155 calibrated. The fixture measures
+     cold 1,513 (1,937) and steady 1,147 (1,469).
+   - 4,500 calibrated would leave 190 after a staging day of two cold runs
+     (4,310), about one card call's pre-call estimate. 5,000 leaves 690.
+   - More than 5,000 would take the headroom under the 1,500 that
+     gardening G51 asks for. The real ceiling falls from 5,760 to 5,000.
+   - The ratio is one measurement. Decision 5 measures it again.
+3. **Rate limits: no pacing is added; a refusal stops the run (D88).**
+   - A run makes at most 50 requests (D71), about 38 on the live week,
+     with 4 Clef requests in flight, and takes one to two minutes. One run
+     an hour fits the gateway's 60; two do not.
+   - A retryable error is retried once after 5 s (D13). A rate-limit
+     refusal is not retried: the window is an hour and the alarm has 15
+     minutes. The run ends `limited` and publishes what it has.
+   - With one scheduled run a day the limit is reached only by a manual
+     run within the same hour. The runbook says to keep runs 60 minutes
+     apart.
+   - The gateway's limit is not raised: it is the bound on a runaway loop.
+4. **What the page shows when a run fails or is partial.** No new
+   behaviour; the schedule makes these cases daily.
+
+   | Run | R2 | This week |
+   | --- | --- | --- |
+   | Complete | new pair, pointer moved | the digest |
+   | Partial: `limited` or fallbacks | pair published, pointer moved (D13, D14) | the digest; affected cards show "AI summary unavailable", untranslated items "Not translated" (D49, D50). A later run for the same release publishes a new pair and uses this one as a cache (D19); otherwise the next day's run replaces it |
+   | Failed: `ok: false` | pointer and objects unchanged (D89) | the previous digest; its freshness line turns stale 36 h after it was generated (D18), 12 h after the missed run |
+   | Never published | no pointer | the no-digest notice (D23) |
+   | No candidates | `empty: true` (D17) | the empty-week text |
+
+   `/health.digest.lastRun` carries `ok`, `failureKind`, `limited`,
+   `fallbacks` and `modelErrors` for each case.
+5. **Staging the first real run: dry run, inspect, then publish (D92).**
+   The merge deploys the cron, so the next 22:47 UTC tick publishes.
+   1. Merge at least three hours before 22:47 UTC, on a UTC day with no
+      digest run yet.
+   2. Read `/health`: `digest.today.cap` 5,000 shows the deploy.
+   3. Dry run (`POST /digest/run?dryRun=1`), ending before 21:47 UTC so
+      the cron's run is 60 minutes away.
+   4. Inspect: `ok`, `limited: false`, `modelErrors` empty, `modelCalls`
+      at most 50, `calibration.clefCanaryMisses` 0 with `clefCalls` above
+      0, `estimatedNeurons` at most 2,500, the `objects`, `rejections`,
+      `style` and `rawSamples` (slice 2d's questions). On the gateway,
+      the run's logged cost in neurons over `estimatedNeurons` is between
+      0.8 and 1.2.
+   5. Good: leave the cron to publish at 22:47 UTC. Bad: merge a PR that
+      removes `DIGEST_CRON` and its cron entry before the tick.
+   6. After the tick: D92's `/health` values and the Dev page.
+
+### Not covered
+
+- D35's canary probe (four Clef requests of about 4,000 state tokens) has
+  no recorded result. The schedule was approved without it; the canary
+  itself missed 0 of 12 requests in dry run 3.
+- The 1.28 ratio and the 60-requests-an-hour window (fixed or sliding) are
+  each known from one day.
+- Nothing retries a `limited` scheduled run the same day; the next day's
+  run replaces it.
 
 ## Planned feature-map and gardening updates (in the implementation PR)
 
