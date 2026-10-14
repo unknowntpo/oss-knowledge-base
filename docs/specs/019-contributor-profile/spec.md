@@ -320,7 +320,7 @@ title reference, identity key, record id, state (merged, approved), area
 labels by reference: about 110 bytes of JSON. A year for both projects is
 about 65,000 rows today, about 85,000 with review events: **about 9 MB raw**.
 (Since 2026-10-14 review events are not part of this log: Spec 022 stores
-them in its own month objects, measured at about 8 MB a year for both
+them in its own month objects, estimated at about 8 MB a year for both
 projects, and the profile reads those.)
 Stored as one object per project per month (DataFusion about 450 KB, Kafka
 about 200 KB a month). A past month never changes; only the current month is
@@ -451,7 +451,7 @@ first when the query is exactly an identity.
 | When | What |
 | --- | --- |
 | Publish (daily, in the publication Durable Object, before `compactState`) | Append the run's new events to the current month's activity object per project (a row is replaced when its record id repeats, so a retry is idempotent). Rebuild the identity index per project: key, display, sources, link basis, first and last month seen. **Review activity is not written here**: Spec 022's job already stores it (`internal/github-reviews/v1/<projectId>/<YYYY-MM>.json`, schema `osskb.github-reviews.v1`), and this slice only reads it; the identity index takes reviewers from those objects too |
-| Request | `/api/people/:project/:id`: read the identity index, up to 12 activity month objects, and the Spec 022 review month objects of the same months (up to 12 more); filter to the identity (or the linked identities), aggregate, return. Review rows with `isBot`, or with `reviewer` equal to `prAuthor` (the author answering a review thread), are not counted as reviews given; reviews are counted from Spec 022's `coverageFrom` only. `cache-control` as other API routes (R7). No Durable Object, no Vectorize, no AI binding |
+| Request | `/api/people/:project/:id`: read the identity index, up to 12 activity month objects, and the Spec 022 review month objects of the same months (up to 12 more); filter to the identity (or the linked identities), aggregate, return. Review rows with `isBot`, or with `reviewer` equal to `prAuthor` (the author answering a review thread), are not counted as reviews given; reviews are counted from Spec 022's `coverageFrom` only, read from `internal/github-reviews/v1/<projectId>/state.json` (one more read per project). `cache-control` as other API routes (R7). No Durable Object, no Vectorize, no AI binding |
 | Never | Model calls. Per-person precomputed objects (rejected: thousands of small objects, each one more R2 request per run under G59) |
 
 ### Wireframes
@@ -686,7 +686,7 @@ Each item: precondition → action → observable result → evidence. All are
 - W5: [pending] given the page for an identity, sections appear in the order of this spec and the header states the period covered and the number of days of data → component test.
 - W6: [pending] given an identity with rows only before the selected period, the page says there is no activity in this period and shows no zero-filled chart → component test, with a positive control on the same identity in the full period.
 - W7: [pending] given the query `chia7712`, the first result is the person result for `github:chia7712`; given `chia`, there is no person result and thread results are identical to today's → API test, both sides.
-- W8: [pending] given Spec 022 month objects (`osskb.github-reviews.v1`) holding an approval, a change request, a comment, a bot's review and the author's own reply on pull requests, the profile reads them as they are, shows each human review with its state, counts "reviews given" as distinct pull requests, leaves out rows with `isBot` or with `reviewer` equal to `prAuthor`, and states the date reviews are counted from (`coverageFrom`) → case rows built from Spec 022's recorded fixture.
+- W8: [pending] given Spec 022 month objects (`osskb.github-reviews.v1`) built from Spec 022's recorded Kafka #23675 and #23165 (approvals, comments, a bot's review, the author's own reply) plus a constructed change-request row, the profile reads them as they are, shows each human review with its state, counts "reviews given" as distinct pull requests, leaves out rows with `isBot` or with `reviewer` equal to `prAuthor`, and states the date reviews are counted from (`coverageFrom`) → case rows (recorded and constructed, labelled as such).
 
 ### Failure and retry
 
@@ -737,9 +737,9 @@ the rejected alternative is kept for the record.
 | 3 | Visibility | **Dev only, `noindex`, not on Prod** | P-g, P-h; W24, W25 | Private behind access control: an auth setup, and the page could not be linked from threads |
 | 4 | Horizon | **12 months for all activity.** Reviews come from Spec 022's store (its 12-month backfill is a separate PR); dev@, Jira and GitHub comments need their own 12-month backfill | Behavior 3; slices 5 and 6; W18, W21, W26. Slice 6's cost is unmeasured and is the next measurement | No backfill (35 days, a year to become a trajectory); option C (all-time KIP threads, 11 years of Pony Mail); option D (a searchable year: breaks G10, G59, H67) |
 | 5 | Identity | **Strict.** Link only declared or roster-backed identities; otherwise "possibly the same person". No fuzzy matching, no email | Identity resolution rule; W14–W16; W13 (no address anywhere) | Merging equal display names, or an ASF id equal to a GitHub login: fewer split profiles (37 and 14 pairs today), with a real chance of a wrong merge |
-| 6 | Areas | **GitHub labels (minus process labels) and KIP numbers first; Jira components later.** File paths are not available: Spec 022 counts inline comments and does not store them | Behavior 6; W4; "Later" slice | Jira components now (one more Jira field); digest topics (12 coarse, Kafka-tuned) |
+| 6 | Areas | **GitHub labels (minus process labels) and KIP numbers first; Jira components later.** No file paths (decided); they are not available anyway, because Spec 022 counts inline comments without storing them | Behavior 6; W4; "Later" slice | Jira components now (one more Jira field); digest topics (12 coarse, Kafka-tuned) |
 | 7 | Reviews before or after the first page | **Reviews first** ("先補") | Slice 1 is Spec 022; no "reviews are not counted yet" note | Page first: under-states a reviewer by about 3.6 times (`chia7712`: 46 pull requests commented, 168 reviewed upstream) |
-| 8 | Terms and policy | **GitHub Terms of Service, the ASF privacy policy and the GDPR must be checked before anything goes beyond Dev** | Privacy section; Non-goals (no Prod) | Skipping it risks having to take the feature down |
+| 8 | Terms and policy | **GitHub Terms of Service, the ASF privacy policy and the GDPR must be checked before anything goes beyond Dev** | Privacy section, P-g (Dev only); W25 | Skipping it risks having to take the feature down |
 | 9 | Removal | **By issue or email; removed at the next daily publication** | P-e; W12 | A self-service form needs authentication of the requester |
 
 ## Could not be verified
