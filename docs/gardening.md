@@ -804,17 +804,18 @@ the two `viewer/` items below.
 - **Layer:** spec decision, then a config test like Spec 018 T2.
 - **Source:** Spec 018, 2026-10-13.
 
-### G63. The Confluence ingest runs daily and the deployed site does not read it
-- **Where:** `.github/workflows/ingest.yml` (03:17 UTC), `tools/ingest/`,
+### G63. The Confluence ingest is manual only and the deployed site does not read it
+- **Where:** `.github/workflows/ingest.yml` (manual), `tools/ingest/`,
   `vault/`, branch `automation/confluence-ingest`, issue #12;
   `.github/workflows/backfill.yml` (manual).
 - **Why:** nothing under `apps/` or `packages/` reads its output; only the
-  legacy `viewer/` does. It force-pushes an automation branch and edits an
-  issue every day a KIP page changed.
-- **Fix:** the owner decides: keep, make manual, or remove with the legacy
-  viewer (Spec 018, open decision 2).
+  legacy `viewer/` does. A manual run force-pushes an automation branch and
+  edits an issue when a KIP page changed.
+- **Fix:** decided 2026-10-14 (owner; Spec 018, open decision 2): manual
+  only, the daily `schedule` is removed. Left: remove it with the legacy
+  viewer, or reuse it when KIP bodies go into search (a separate spec).
 - **Layer:** owner decision.
-- **Source:** Spec 018 inventory, 2026-10-13.
+- **Source:** Spec 018 inventory, 2026-10-13; updated 2026-10-14.
 
 ### G64. Specs and ADRs written under the hourly publication still say "hourly"
 - **Where:** Specs 008, 009, 012, 013, 014, 015, 016, 017, ADR-0013,
