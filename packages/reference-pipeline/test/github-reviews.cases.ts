@@ -23,6 +23,8 @@ export const testPlanRows = [
   { id: "RV38", rule: "display name", input: "constructed: an address typed as the name", expected: "dropped" },
   { id: "RV38", rule: "display name", input: "constructed: the login typed as the name", expected: "dropped" },
   { id: "RV38", rule: "display name", input: "constructed: 150 characters", expected: "100 characters" },
+  { id: "RV38", rule: "display name", input: "constructed: 99 letters, then an emoji outside the BMP, then more", expected: "100 graphemes; ends with the whole emoji; well-formed" },
+  { id: "RV38", rule: "display name", input: "constructed: a family emoji joined by ZWJ, and a right-to-left override", expected: "joiners kept; override removed" },
   { id: "RV38", rule: "display name", input: "constructed: <script>alert(1)</script> as the name", expected: "<script>alert(1)</script>" },
   { id: "RV38", rule: "display names", input: "constructed: a User author with a name, a User reviewer without, a Bot reviewer with one", expected: "grace Grace Hopper; ada null" },
   { id: "RV39", rule: "merge extras", input: "constructed: stored #1 core, ada Ada; read #1 core, tests and #2 none; ada null, bob Bob", expected: "pulls 1 core,tests; 2 none; people bob Bob; again equal bytes" },

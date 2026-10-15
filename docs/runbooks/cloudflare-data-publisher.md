@@ -573,8 +573,8 @@ where it is not bound.
 
 `PEOPLE_ACTIVITY=log@1` makes each publication append the records its state
 holds to `internal/people/v1/<projectId>/` (month objects, their summaries,
-`state.json`) before the state is compacted. Unset (Dev and Prod after the
-merge PR): no R2 request, no `appending-activity` phase, no
+`state.json`) before the state is compacted. On for Dev (`log@1`, the enable
+PR of 2026-10-15); off on Prod. Unset: no R2 request, no `appending-activity` phase, no
 `lastRun.activity`. Format, identity rules and cost: [Spec 019 amendment
 (2)](../specs/019-contributor-profile/spec.md#amendment-2026-10-15-2-slice-2b-the-activity-log).
 

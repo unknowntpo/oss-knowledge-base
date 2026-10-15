@@ -18,7 +18,8 @@
     "SEARCH_GATEWAY_ID": "osskb-search-dev",
     "SEARCH_EMBEDDING": "bge-m3@1",
     "SEARCH_SHARD_ROOTS": "true",
-    "GITHUB_REVIEWS": "metadata@2"
+    "GITHUB_REVIEWS": "metadata@2",
+    "PEOPLE_ACTIVITY": "log@1"
   },
   "ai": {
     "binding": "AI"

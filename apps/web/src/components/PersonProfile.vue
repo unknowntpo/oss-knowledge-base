@@ -200,6 +200,8 @@ function selectPeriod(next: ProfilePeriod) {
         <p v-if="view.activity.areas.noLabelSources.length > 0" class="person-note">{{ t("people.areas.noLabels", { sources: view.activity.areas.noLabelSources.map((item) => t(`people.overTime.${item}`)).join(t("people.listSeparator")) }) }}</p>
       </template>
       <p v-else-if="!profile.pullAreas" class="person-note">{{ t("people.areas.none") }}</p>
+      <!-- W48: review areas with nothing in the selected period still say so. -->
+      <p v-else-if="view.empty" class="person-note" data-areas-state="empty">{{ t("people.empty") }}</p>
     </section>
 
     <section id="person-threads" class="person-section" data-section="threads">
