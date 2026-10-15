@@ -8,6 +8,7 @@
 import {
   encodeReviewMonth,
   GITHUB_REVIEWS_REVISION,
+  GITHUB_REVIEWS_STATE_SCHEMA,
   mergeReviewRows,
   nextKeysetPage,
   parsePullReviews,
@@ -49,7 +50,7 @@ export const MAX_LIST_PAGES = 20;
  */
 export const REVIEW_WINDOW_MS = 35 * 86_400_000;
 
-export const GITHUB_REVIEWS_STATE_SCHEMA = "osskb.github-reviews-state.v1";
+export { GITHUB_REVIEWS_STATE_SCHEMA };
 
 export interface GithubReviewsState {
   readonly schema: typeof GITHUB_REVIEWS_STATE_SCHEMA;

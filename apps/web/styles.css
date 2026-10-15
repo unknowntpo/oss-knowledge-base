@@ -1624,3 +1624,53 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
   .community-control select { max-width: 92px; padding: 0 18px 0 6px; font-size: 11px; }
   .topbar { gap: 8px; padding: 0 12px; }
 }
+
+/* ---------------------- Spec 019 slice 2a: contributor profile ---------------------- */
+.person-view { max-width: 960px; margin: 0 auto; padding: 24px 20px 64px; }
+.person { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.person-head { display: flex; flex-direction: column; gap: 4px; }
+.person-name { margin: 6px 0 0; font-family: var(--font-serif); font-size: 28px; color: var(--text-strong); overflow-wrap: anywhere; }
+.person-community, .person-period { margin: 0; color: var(--text-3); }
+.person-period { font-family: var(--font-mono); font-size: 12px; }
+.person-coverage { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+.person-coverage li { font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--accent-tint); color: var(--accent); }
+.person-coverage li.not-recorded { background: var(--chip-bg); color: var(--chip-text); }
+.person-unavailable { margin: 0; color: var(--brand-orange); font-size: 13px; }
+.person-section { background: var(--surface); border: 1px solid var(--border-1); border-radius: 10px; padding: 16px 18px; min-width: 0; }
+.person-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.person-periods { display: flex; gap: 6px; }
+.person-note, .person-empty { margin: 6px 0 0; color: var(--muted-1); font-size: 13px; }
+.person-identity { display: flex; align-items: center; gap: 8px; margin: 8px 0 0; overflow-wrap: anywhere; }
+.person-counts { margin: 10px 0 0; display: grid; gap: 10px; }
+.person-count dt { font-size: 12px; color: var(--muted-1); text-transform: uppercase; letter-spacing: 0.04em; }
+.person-count dd { margin: 2px 0 0; display: flex; flex-direction: column; gap: 2px; }
+.person-jump { all: unset; cursor: pointer; color: var(--accent); font-weight: 600; }
+.person-jump:hover { text-decoration: underline; }
+.person-detail { color: var(--muted-1); font-size: 13px; margin-left: 6px; }
+.person-count .person-detail { margin-left: 0; }
+.person-over-time { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+.person-over-time th, .person-over-time td { padding: 3px 6px; text-align: left; white-space: nowrap; }
+.person-over-time thead th { color: var(--muted-1); font-weight: 500; font-size: 12px; }
+.person-over-time .num { font-family: var(--font-mono); text-align: right; width: 4em; }
+.person-bar-cell { width: 50%; }
+.person-bar { display: block; height: 8px; border-radius: 4px; background: var(--accent-tint-2); min-width: 0; }
+.person-threads { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; }
+.person-thread { display: grid; grid-template-columns: 5.5em 1fr auto; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border-3); font-size: 13px; align-items: baseline; min-width: 0; }
+.person-thread-pr { font-family: var(--font-mono); color: var(--accent); }
+.person-thread-part { min-width: 0; overflow-wrap: anywhere; }
+.person-thread-date { font-family: var(--font-mono); font-size: 12px; color: var(--muted-1); }
+.person-works { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; }
+.person-relation ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.person-relation a { overflow-wrap: anywhere; }
+.person-how ul { margin: 8px 0 0; padding-left: 18px; font-size: 13px; color: var(--text-3); display: flex; flex-direction: column; gap: 4px; }
+.person-missing .person-coverage { justify-content: center; }
+.author-link { color: inherit; text-decoration: none; }
+.author-link:hover { color: var(--accent); text-decoration: underline; }
+
+@media (max-width: 768px) {
+  .person-view { padding: 16px 12px 48px; }
+  .person-works { grid-template-columns: 1fr; }
+  .person-thread { grid-template-columns: 1fr auto; }
+  .person-thread-part { grid-column: 1 / -1; grid-row: 2; }
+  .person-bar-cell { width: 35%; }
+}

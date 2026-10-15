@@ -188,6 +188,15 @@ export function reviewMonth(submittedAt: string): string {
 
 export const REVIEW_MONTH_SCHEMA = "osskb.github-reviews.v1";
 
+/**
+ * Behavior 7–10: where review rows and the cursor live (nothing under `public/`). Here, not in the
+ * Worker, because the Pages profile reader (Spec 019 slice 2a) reads the same objects.
+ */
+export const githubReviewsPrefix = (projectId: string) => `internal/github-reviews/v1/${projectId}/`;
+export const githubReviewsMonthKey = (projectId: string, month: string) => `${githubReviewsPrefix(projectId)}${month}.json`;
+export const githubReviewsStateKey = (projectId: string) => `${githubReviewsPrefix(projectId)}state.json`;
+export const GITHUB_REVIEWS_STATE_SCHEMA = "osskb.github-reviews-state.v1";
+
 export interface ReviewMonthObject {
   readonly schema: typeof REVIEW_MONTH_SCHEMA;
   readonly projectId: string;

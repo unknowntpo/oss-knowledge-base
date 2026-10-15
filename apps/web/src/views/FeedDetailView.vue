@@ -3,6 +3,7 @@ import { computed, ref, watch } from "vue";
 
 import { fetchFeedDetail, fetchSearchFeedDetail } from "../api";
 import { useI18n } from "../i18n";
+import { personRoute, usePeopleEnabled } from "../people";
 import { useFeedStore } from "../store";
 import type { FeedDetail, FeedIndexEntry, SourceRecordView } from "../types";
 
@@ -12,6 +13,7 @@ const props = defineProps<{
 }>();
 const { payload } = useFeedStore();
 const { t } = useI18n();
+const peopleEnabled = usePeopleEnabled();
 const detail = ref<FeedDetail>();
 const error = ref<string>();
 const sourceFilter = ref("");
@@ -179,7 +181,8 @@ function jumpToEvidence(id: string) {
                 <div class="tl-card">
                   <div class="tl-meta">
                     <span class="source-badge" :class="`src-${record.source}`">{{ t(`source.${record.source}`) }}</span>
-                    <span class="author"><span class="avatar" aria-hidden="true">{{ initials(record.author) }}</span>{{ record.author }}</span>
+                    <RouterLink v-if="personRoute(peopleEnabled, item.projectKey, record.source, record.author)" class="author author-link" :to="personRoute(peopleEnabled, item.projectKey, record.source, record.author)!"><span class="avatar" aria-hidden="true">{{ initials(record.author) }}</span>{{ record.author }}</RouterLink>
+                    <span v-else class="author"><span class="avatar" aria-hidden="true">{{ initials(record.author) }}</span>{{ record.author }}</span>
                     <span class="tl-kind">{{ record.role }} · {{ record.kind }}</span>
                     <span class="tl-time">{{ recordTime(record).slice(0, 10) }}</span>
                   </div>

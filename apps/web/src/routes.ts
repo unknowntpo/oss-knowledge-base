@@ -3,6 +3,7 @@ import type { RouteRecordRaw } from "vue-router";
 import { lastProjectKey, proposalsRedirect } from "./digest-view";
 import FeedDetailView from "./views/FeedDetailView.vue";
 import FeedView from "./views/FeedView.vue";
+import PersonView from "./views/PersonView.vue";
 import ProposalsView from "./views/ProposalsView.vue";
 import TopicView from "./views/TopicView.vue";
 import WeekView from "./views/WeekView.vue";
@@ -23,6 +24,8 @@ export function createRoutes(storage: () => Pick<Storage, "getItem"> | undefined
     },
     { path: "/:projectKey/threads", name: "threads", component: FeedView, props: true },
     { path: "/:projectKey/topic/:topicKey", name: "topic", component: TopicView, props: true },
+    // Spec 019 slice 2a: a contributor profile; `/api/people` decides whether it is served (W25).
+    { path: "/:projectKey/people/:personId", name: "person", component: PersonView, props: true },
     { path: "/:pathMatch(.*)*", name: "not-found", component: WeekView, props: () => ({ projectKey: "" }) },
   ];
 }

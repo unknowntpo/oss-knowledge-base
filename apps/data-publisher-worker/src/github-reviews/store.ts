@@ -1,8 +1,8 @@
 /** Spec 022 Behavior 7–10: where review rows, the cursor and the run record live. Nothing here is under `public/`. */
 
-export const githubReviewsPrefix = (projectId: string) => `internal/github-reviews/v1/${projectId}/`;
-export const githubReviewsMonthKey = (projectId: string, month: string) => `${githubReviewsPrefix(projectId)}${month}.json`;
-export const githubReviewsStateKey = (projectId: string) => `${githubReviewsPrefix(projectId)}state.json`;
+import { githubReviewsPrefix } from "@oss-knowledge-base/reference-pipeline";
+
+export { githubReviewsMonthKey, githubReviewsPrefix, githubReviewsStateKey } from "@oss-knowledge-base/reference-pipeline";
 export const GITHUB_REVIEWS_LAST_RUN_KEY = "internal/github-reviews/v1/last-run.json";
 /** Behavior 13: the backfill's own progress, apart from the daily cursor, and its last run record. */
 export const githubReviewsBackfillKey = (projectId: string) => `${githubReviewsPrefix(projectId)}backfill.json`;
