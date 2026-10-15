@@ -4,6 +4,8 @@
  * `packages/reference-pipeline/test/fixtures/people-activity/kafka-dev.json`.
  */
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { DomainEventV1 } from "@oss-knowledge-base/domain";
 import type { GitHubPollResult } from "@oss-knowledge-base/github-publisher/github-connector";
 import {
@@ -126,6 +128,12 @@ describe("Spec 019 slice 2b: the activity log's append", () => {
     expect(off.status.ok).toBe(true);
     expect("activity" in off.status).toBe(false);
     expect(off.state.phases).not.toContain("appending-activity");
+  });
+
+  test("W25 (publisher): the merge PR leaves PEOPLE_ACTIVITY unset on Dev and Prod; the enable PR sets it on Dev only", () => {
+    const vars = (name: string) => (JSON.parse(readFileSync(join(import.meta.dir, "..", name), "utf8")) as { vars?: Record<string, string> }).vars ?? {};
+    expect(vars("wrangler.development.jsonc").PEOPLE_ACTIVITY).toBeUndefined();
+    expect(vars("wrangler.production.jsonc").PEOPLE_ACTIVITY).toBeUndefined();
   });
 
   test("the Worker's append writes to the bound bucket through R2's get and put", async () => {

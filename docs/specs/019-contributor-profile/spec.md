@@ -1,6 +1,6 @@
 # Spec 019: Contributor profile
 
-Status: Accepted 2026-10-14 (all nine owner decisions recorded); amended 2026-10-15 (slice 2 split into 2a and 2b, decision 10); slice 1 is Spec 022 (live on Dev, 12 months backfilled); slice 2a implemented; slices 2b–7 not implemented
+Status: Accepted 2026-10-14 (all nine owner decisions recorded); amended 2026-10-15 (slice 2 split into 2a and 2b, decision 10; slice 2b storage, identity and budget); slice 1 is Spec 022 (live on Dev, 12 months backfilled); slice 2a implemented; slice 2b implemented behind `PEOPLE_ACTIVITY` (off until its enable PR); slices 3–7 not implemented
 Date: 2026-10-13 (decisions recorded 2026-10-14; amendment and decision 10 2026-10-15)
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 008 (content-addressed objects), Spec 009 (bounded memory), Spec 012 (dev@ and Jira), Spec 014 (digest profiles), Spec 015 (governance profile and ASF roster), Spec 016/017 (search, "exact matches first"), Spec 018 (daily publication)
@@ -11,8 +11,10 @@ Builds on: Spec 004 (GitHub connector), Spec 008 (content-addressed objects), Sp
 > Slice 1 (review ingestion) is Spec 022, live on Dev with 12 months of
 > reviews. The [amendment of 2026-10-15](#amendment-2026-10-15-the-first-profile-ships-from-reviews)
 > splits slice 2: **2a** ships the profile page from the review store with
-> per-source coverage stated on the page; **2b** adds the activity log. Items
-> of later slices stay `[pending]`.
+> per-source coverage stated on the page; **2b** adds the activity log
+> ([amendment (2)](#amendment-2026-10-15-2-slice-2b-the-activity-log): what
+> is stored, identity, the real-data Example, budget and worst-case cost).
+> Items of later slices stay `[pending]`.
 
 ## Intent
 
@@ -776,6 +778,200 @@ Writes: one more Class A put per changed month, at most 2 per project a day
 30-day windows cut through a month, so either the two edge months keep
 per-day counters or the list states "whole months".
 
+## Amendment 2026-10-15 (2): slice 2b, the activity log
+
+Owner's request (2026-10-15): "開始做活動紀錄". Slice 2b adds the activity
+log of Behavior 1–4: the publication appends the records its state holds,
+and the profile reads them beside the reviews. Jira and dev@ identities get
+their own pages. It ships behind `PEOPLE_ACTIVITY`, off in every environment
+in the merge PR; a second PR turns it on for Dev only
+(`docs/process/workflow.md`, "Separate merge from enable").
+
+### What is stored (reconciles Behavior 1–4, W2, W22 and decision 10)
+
+Three kinds of object per project under `internal/people/v1/<projectId>/`,
+nothing under `public/`:
+
+| Object | Schema | Content | Written |
+| --- | --- | --- | --- |
+| `<YYYY-MM>.json` | `osskb.people-activity.v1` | `rows[]`: `id` (the source record id), `source` (`github`, `jira`, `mail`), `kind` (`pull-request`, `issue`, `comment`, `message`), `person`, `at`, `thread`, `merged?`; `threads{}`: `source`, `kind`, `title`, `url`, `author`, `labels[]`, `kips[]`; `people{}`: person id → display name | When its bytes change |
+| `<YYYY-MM>.summary.json` | `osskb.people-activity-summary.v1` | Per identity: `display`, `counts` (pull requests, issues, comments, Jira issues, Jira comments, dev@ messages), `opened[]` and `merged[]` thread keys (so distinct counts stay exact across months), `lastAt`. Built by `indexActivityMonth`, the function the reader indexes a month with (decision 10) | Before its month, whenever the month changes |
+| `state.json` | `osskb.people-activity-state.v1` | `firstAppendAt`, `coverageFrom` (35 days before the first append), `updatedAt` (the last append), `months[]` | Once per run, last |
+
+No text, no excerpt, no address, no hash of an address (P-c). The row is
+about 150 bytes, not the 110 estimated above.
+
+- **Rows are rebuilt from the whole state every run** (W2, W9). A row is
+  keyed by its record id; a run merges its rows into each stored month and
+  writes the month only when its bytes changed. A run whose append failed is
+  repaired by the next one while the records are still in the state (35
+  days). So the append is idempotent and needs no cursor.
+- **Which month a row is in.** GitHub pull requests and issues: the month
+  they were **opened** (`createdAt`, W3); comments and dev@ messages: the
+  month they were written. A merged pull request keeps its merge time
+  (`merged`). **The last-update time is not kept** (amends W3's "keeps both
+  times"): keeping it would rewrite a past month every time an old pull
+  request is touched, and nothing on the page reads it. A Jira issue is in
+  the month of its **last update**, because the connector does not keep
+  Jira's `created` (G77); an issue updated in two months is in both objects
+  and the reader counts it once, in the newer month.
+- **Coverage.** The first append holds what the state holds: 35 days. So
+  `coverageFrom` = first append − 35 days, and rows before it are neither
+  written nor counted: a pull request opened before it is not "authored" in
+  the log even when the release shows it (m1a2st below: 18 in the release, 7
+  opened inside the coverage). `coverageFrom` never moves after the first
+  append, and nothing is written before it, so at most 12 months are ever
+  read, and only months that have rows in the state are read by a run.
+- **Writes.** Plain puts, not conditional ones: only the publication Durable
+  Object's alarm writes these keys, and the runtime never runs two alarms at
+  once, so no precondition can fail (the 2026-10-13 Class A incident came
+  from failed conditional puts). The summary is written before its month, so
+  a month whose summary write failed is rewritten next run.
+- **Decision 10, reconciled.** The amendment proposed the summary "next to
+  each month object it changes", built by `indexReviewMonth`. Reviews are
+  written by Spec 022's job, not by the publication, so the activity summary
+  covers the activity log only; whether Spec 022's job writes a review
+  summary or the list reads review months is left to slice 7 (G81).
+
+### Identity (decision 5, strict)
+
+| Source | Person id | Key | Display |
+| --- | --- | --- | --- |
+| GitHub | `github:<login>` | login, case-insensitive | the login as written |
+| Jira | `jira:<name key>` | display name, `nameKey` (NFC, quotes removed, trimmed), case-folded | the display name |
+| dev@ | `mail:<name key>` | From name, same rule; the address is dropped by the connector (`mailAuthor`) and never stored | the From name |
+
+- The route is `/#/<project>/people/<id>` with the id URL-encoded, for
+  example `/#/kafka/people/mail%3Aandrew%20schofield`. This replaces the
+  8-hex hash of the original route: a hash of a public display name hides
+  nothing, needs a digest in the browser to build a link, and can collide
+  (two people on one page). Slice 4 replaces the Jira key with the account
+  key; Jira ids then change (G76).
+- `jira:chia-ping tsai` and `mail:chia-ping tsai` are two identities and two
+  pages; neither is linked to `github:chia7712`. Counts are never summed
+  across them (rule 3). "Possibly the same person" stays slice 4.
+- Not identities: `unknown`, `unknown sender` (a bare address), `ghost`, and
+  bots. A GitHub or Jira record the connector marks `isBot` writes no row.
+- The page of a Jira or dev@ identity says that it is identified by the name
+  the source shows, so two people with one name would share it (G76).
+- Ids are `<source>:<key>` like GitHub ids, so a people index (slice 3) can
+  list them without a contract change.
+
+### Example (2b): what the first append shows for three real people
+
+Recorded from Dev on 2026-10-15 (release `2026-10-14T22:07:43Z`, anonymous
+GETs of `/api/feed` and `/api/detail`; creation times of the pull requests
+these people opened from GitHub REST): every Kafka thread in which
+`chia7712`, "Chia-Ping Tsai", `m1a2st`, "Andrew Schofield" or
+`AndrewJSchofield` wrote, with its root record
+(`packages/reference-pipeline/test/fixtures/people-activity/kafka-dev.json`,
+339 records in 194 threads; command
+`packages/reference-pipeline/scripts/capture-people-activity-fixture.ts`).
+The log is built as the first append at that release would build it:
+coverage from 2026-09-09T22:07:43Z. The counts were computed from the
+fixture by a separate script, then fixed as the case rows of W1.
+
+| Profile | GitHub | Jira | dev@ | Areas | Wrote in threads started by |
+| --- | --- | --- | --- | --- | --- |
+| `github:chia7712` | 0 pull requests opened; 59 comments on 48 threads, 0 on his own | — (another identity) | — (another identity) | `clients` 10, `streams` 9, `build` 8, `core` 8, `group-coordinator` 6; KIP-909 | `gabriellefu` 5, `harmadasg` 4, `jim0987795064` 3, `m1a2st` 3 |
+| `jira:chia-ping tsai` | — | 72 issues reported (by last update), 12 comments, on 78 issues | — | no area data from Jira | Mickael Maison 2, Andrew Schofield 1, David Jacot 1, Edoardo Comar 1 |
+| `mail:chia-ping tsai` | — | — | 21 messages in 13 threads; `[DISCUSS]` 6, `[VOTE]` 6 | KIP-1153, KIP-1342, KIP-1349; no label data | Andrew Schofield 1, David Jacot 1, Ming-Yen Chung 1, Omnia Ibrahim 1 |
+| `github:m1a2st` | 7 pull requests opened (5 merged); 26 comments on 20 threads, 7 on his own | — | — | `clients` 8, `consumer` 5, `core` 5, `group-coordinator` 5, `storage` 4 | `dajac` 4, `mimaison` 2, `nileshkumar3` 2 |
+| `mail:andrew schofield` | — | — | 23 messages in 11 threads; `[DISCUSS]` 4, `[VOTE]` 4 | KIP-1368 ×2, KIP-1279, KIP-1306, KIP-1349, KIP-1371 | Chia-Ping Tsai 2, Aditya Kousik 1, Apoorv Mittal 1 |
+| `jira:andrew schofield` | — | 4 issues, 4 comments, on 8 issues | — | no area data from Jira | Apoorv Mittal 2, Luke Chen 1, Shekhar Prasad Rajak 1 |
+| `github:AndrewJSchofield` (unlinked) | 6 opened (4 merged); 4 comments on 3 threads, 2 on his own | — | — | `clients` 7, `consumer` 5, `KIP-932` 3 | `apoorvmittal10` 1, `ezhou413` 1 |
+
+Against the 2026-10-13 Example (a window two days earlier): `chia7712` 57
+comments on 46 pull requests there, 59 on 48 here; "Chia-Ping Tsai" 71 Jira
+issues there, 72 here; dev@ 21 in 13 threads, unchanged; "Andrew Schofield"
+dev@ 23 in 11 threads and Jira 4 / 4, unchanged. `m1a2st`: the release has
+18 of his pull requests, 7 of them opened inside the coverage; the other 11
+are older pull requests updated in the window, which "opened" does not count
+(W3). The fixture holds only Jira issues the release publishes (linked from
+GitHub or dev@); the publication's state, which the append reads, holds every
+polled KAFKA issue, so on Dev the Jira counts can be higher (upstream JQL
+`reporter = chia7712 AND updated >= -35d` returned 112 on 2026-10-13).
+Process labels left out of Areas: Kafka `ci-approved`, `small`, `triage`,
+`needs-attention`, `stale`, `closed-stale`; DataFusion `Stale`, `auto
+detected api change`, `api change`, `help wanted`, `good first issue`,
+`bug`, `enhancement` and release labels `vN.N.N` (from the Dev release's
+label counts, 2026-10-15).
+
+### The page (2b)
+
+- Header coverage: "Reviews: <from> to <until>" and one line for the log's
+  sources, "Comments, pull requests, Jira, dev@: <coverageFrom> to <last
+  append>" (W27). Over time shows "—", not 0, for a month or week that ends
+  before the log's coverage.
+- A GitHub identity shows reviews and its GitHub activity (pull requests
+  opened and merged, issues opened, comments and on how many threads, how
+  many on its own threads). A Jira identity shows Jira counts; a dev@
+  identity dev@ counts and `[DISCUSS]` / `[VOTE]` threads. No page shows
+  another source's counts, not even 0.
+- Areas: labels minus process labels, and KIP numbers from titles and
+  subjects, each with its thread count; "No area data from Jira / dev@".
+- Threads: reviews and activity threads in one list, newest first, each
+  linking to the source (pull request, Jira issue, the dev@ thread's first
+  message), with the person's part ("opened · merged", "2 comments").
+- Works with: "Wrote in threads started by" (authors of threads the person
+  wrote in but did not open), capped at 10 (Behavior 9). The other relations
+  of section 7 for activity ("commented on their pull requests", "same dev@
+  threads") are not built (G80).
+- Detail: a Jira or dev@ author links to its page only where `/api/people`
+  lists the source as recorded (`recorded`, W28); before the first append it
+  does not.
+- Not built in 2b: votes marked "(binding)" (needs the message body; metadata
+  only, G78).
+
+### Budget, measured
+
+`bun run --cwd apps/data-publisher-worker measure:memory --kafka 1
+--activity 1` (Node/V8, seeded events, two appends: the first, then an
+unchanged rerun); before = the same command without `--activity`:
+
+| Events | Peak before → after | Peak phase | Append phase peak | Run wall time before → after | First append | Unchanged rerun | Objects |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 8,600 + 1,250 dev@/Jira (1×) | 54.3 → 54.3 MB | write feed | 52.2 MB | 7.9 → 6.0 s (noise; the append took 305 ms) | 7,884 rows, 6 months, 14 Class A, 8 Class B, 2.9 MB | 0 months written, 2 Class A, 8 Class B, 112 ms | 14, largest 1.3 MB |
+| 17,200 + 2,500 (2×) | 102.6 → 102.7 MB | write feed | 97.8 MB | 19.2 → 19.6 s (the append took 567 ms) | 15,705 rows, 6 months, 14 Class A, 8 Class B, 5.5 MB | 0 written, 2 Class A, 8 Class B, 269 ms | 14, largest 2.5 MB |
+
+The append is not the peak at either scale (W19 holds: K24 96 MB, K25 128
+MB). Its wall time in the Durable Object adds R2 latency: at most 26 reads
+and 50 writes a run, sequential.
+
+`bun run measure:people` (Bun; constructed stores; the 2a numbers with
+`--no-activity`):
+
+| Request (cold) | R2 reads | Bytes parsed | Wall / CPU | Response (gzip) | Heap kept by the isolate cache |
+| --- | --- | --- | --- | --- | --- |
+| 2a: Kafka `chia7712`, reviews only | 14 | 3.2 MB | 14 / 19 ms | 33 KB | 5.3 MB |
+| 2b, 12 full months of log: Kafka `chia7712` | 26 | 11.6 MB | 51 / 84 ms | 67 KB | 23 MB |
+| 2b, 12 full months: DataFusion `alamb` | 26 | 23.2 MB | 88 / 101 ms | 151 KB | 39 MB |
+| 2b, 12 full months, `--scale 2`: DataFusion `alamb` | 26 | 46.0 MB | 203 / 187 ms | 285 KB | 75 MB |
+
+A warm request reads nothing. On the first append's day only two months
+exist, so a request parses about a sixth of the 12-month figure. **W18's
+16 MB parse budget holds until the DataFusion log is about 8 months old,
+then fails** (23 MB at 12 months, 46 MB at 2×); the Pages limit is 128 MB
+and a search request already parses 28.8 MB. The fix (rows split by
+identity, or compacted rows) is G75 and must land before the log is 6 months
+old.
+
+### Cost: worst case per day and per month (free tier: 1 M Class A, 10 M Class B, 10 GB a month)
+
+| Path | Worst case |
+| --- | --- |
+| Daily run, both projects | Class B: 2 `state.json` + at most 12 months each = 26. Class A: at most 12 changed months × 2 (month and summary) + 1 `state.json`, each = 50 |
+| Runs per day | 1 Cron tick + 5 catch-ups + 3 retries (Spec 018) = 9, plus up to 6 platform retries of a killed alarm = 15; plus any manual `POST /run` |
+| Publisher, a day | 15 × 50 = 750 Class A, 15 × 26 = 390 Class B |
+| Publisher, a month | 22,500 Class A (2.3 % of the free million), 11,700 Class B (0.1 %) |
+| Expected (measured counts above) | First append on Dev: Class B 6, Class A 10 (2 months a project). Then a daily run: a few changed months, about 10–18 Class A and 6–10 Class B |
+| Profile reader | At most 26 Class B per project per isolate per 10 minutes, plus 4 for `/api/people` (`recorded`); the free 10 M a month is reached only above about 12,800 cold isolate windows a day |
+| Storage | About 12 × 1.7 MB (DataFusion) + 12 × 0.7 MB (Kafka) of months, plus summaries, after a year: under 0.1 GB of 10 GB |
+
+A failed put is an ordinary Class A (no conditional put is sent), so a retry
+loop cannot multiply cost beyond the run count above.
+
+
 ## Slices
 
 Reviews first (decision 7, 2026-10-14), then the smallest useful page. Each
@@ -785,7 +981,7 @@ slice is one PR with its own verifier pass.
 | --- | --- | --- | --- |
 | 1 | GitHub review ingestion (metadata): its own spec, **Spec 022** ([PR #70](https://github.com/unknowntpo/oss-knowledge-base/pull/70), merged 2026-10-14 with `GITHUB_REVIEWS` off), with its own acceptance items. It must be enabled on Dev and have run before slice 2 is shown | Reviews a person gave are stored per pull request with state and time, inside the request budget | W20; Spec 022's own items |
 | 2a (2026-10-15) | Review activity read from slice 1's month objects (`internal/github-reviews/v1/<projectId>/<YYYY-MM>.json`), not stored a second time; identity = (source, string), GitHub only; `/api/people/:project/:id`; the page with sections 1–8 and per-source coverage; GitHub author names in Detail link to it, Dev only | A review profile is correct against the store, states what it does not cover, and costs at most 13 R2 reads cold | W5, W6, W8, W10–W13, W18, W23–W29 |
-| 2b | Activity log written at publish time from the events the pipeline already has; the profile reads it beside the reviews; Jira and dev@ identities get pages; their author names link | A per-source profile is correct against the Example and grows by a day per day | W1–W4, W9, W17, W19, W22 |
+| 2b | Activity log written at publish time from the events the pipeline already has; the profile reads it beside the reviews; Jira and dev@ identities get pages; their author names link | A per-source profile is correct against the Example and grows by a day per day | W1–W4, W9, W17, W19, W22, W34 |
 | 3 | Person result in Search on an exact identity match | A name leads to the page, thread ranking unchanged | W7 |
 | 4 | Stable keys (GitHub id, Jira account key), roster links, `identityLinks`, the labelled sample, "possibly the same person" | Zero wrong merges on the sample | W14–W16 |
 | 5 | 12-month backfill of reviews: Spec 022's store, filled by its own PR (the start-date change proposed in Spec 022; about 509 requests, 20 runs, about 8 MB, measured from search totals) | Review activity reaches back 12 months | Spec 022's items |
@@ -837,9 +1033,28 @@ Slice 2a: rows built from Spec 022's recorded GraphQL responses for Kafka
 | W26 | a review on the first second of the view (2025-11-01T00:00:00Z) | constructed | github:edge-reviewer | — | 200 | 1 / 1 | approved 1 | 0 / 0 / 0 | reviewed PRs by constructed-author 1 |
 <!-- test-plan:end -->
 
-Slice 2b (pending): the three Example identities with the counts of the
-Example, built from a recorded fixture of the 268 Detail responses captured
-on 2026-10-13 (W1).
+Slice 2b: the Example identities of [amendment (2)](#example-2b-what-the-first-append-shows-for-three-real-people)
+from the recorded Dev fixture of 2026-10-15 (`recorded`), and constructed
+events on each side of a rule (`constructed`). Read at the capture time,
+2026-10-15T01:03:56Z; the log's coverage starts 2026-09-09T22:07:43Z.
+
+<!-- test-plan:start packages/reference-pipeline/test/people-activity.cases.ts -->
+| id | case | data | person | status | github | jira | mail | areas | worksWith |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| W1 | a committer who comments on others' pull requests and opens none | recorded | github:chia7712 | 200 | PRs 0 (merged 0), comments 59 on 48 threads (own 0) | — | — | clients 10, streams 9, build 8, core 8, group-coordinator 6; KIP-909 1 | gabriellefu 5, harmadasg 4, jim0987795064 3, m1a2st 3 |
+| W1 | the same person's Jira identity: its own page, nothing added from GitHub or dev@ | recorded | jira:Chia-Ping Tsai | 200 | — | issues 72, comments 12, on 78 issues | — | no area data from jira | Mickael Maison 2, Andrew Schofield 1, David Jacot 1, Edoardo Comar 1 |
+| W1 | the same person's dev@ identity: 21 messages in 13 threads | recorded | mail:Chia-Ping Tsai | 200 | — | — | 21 in 13 threads; [DISCUSS] 6, [VOTE] 6 | KIP-1153 1, KIP-1342 1, KIP-1349 1; no area data from mail | Andrew Schofield 1, David Jacot 1, Ming-Yen Chung 1, Omnia Ibrahim 1 |
+| W1 | a pull-request author: 18 of his PRs are in the release, 7 were opened inside the log's coverage | recorded | github:m1a2st | 200 | PRs 7 (merged 5), comments 26 on 20 threads (own 7) | — | — | clients 8, consumer 5, core 5, group-coordinator 5, storage 4 | dajac 4, mimaison 2, nileshkumar3 2, aliehsaeedii 1 |
+| W1 | a dev@ identity with no GitHub page under this name | recorded | mail:Andrew Schofield | 200 | — | — | 23 in 11 threads; [DISCUSS] 4, [VOTE] 4 | KIP-1368 2, KIP-1279 1, KIP-1306 1, KIP-1349 1, KIP-1371 1; no area data from mail | Chia-Ping Tsai 2, Aditya Kousik 1, Apoorv Mittal 1 |
+| W1 | the same name in Jira: a separate identity (strict identity, decision 5) | recorded | jira:andrew schofield | 200 | — | issues 4, comments 4, on 8 issues | — | no area data from jira | Apoorv Mittal 2, Luke Chen 1, Shekhar Prasad Rajak 1 |
+| W1 | his GitHub login: unlinked, counted on its own | recorded | github:AndrewJSchofield | 200 | PRs 6 (merged 4), comments 4 on 3 threads (own 2) | — | — | clients 7, consumer 5, KIP-932 3, build 1, producer 1 | apoorvmittal10 1, ezhou413 1 |
+| W3 | a pull request opened on the last second of September and updated 40 days later counts in September | constructed | github:edge-author | 200 | PRs 1 (merged 1), comments 0 on 0 threads (own 0) | — | — | — | — |
+| W4 | labels `clients`, `small`, `ci-approved`: the area is `clients` only | constructed | github:label-author | 200 | PRs 1 (merged 0), comments 0 on 0 threads (own 0) | — | — | clients 1 | — |
+| W12 | a GitHub bot's comments are not logged: no page | constructed | github:ci-bot | 404 | — | — | — | — | — |
+| W12 | a Jira identity the connector marks as a bot: no page | constructed | jira:Jenkins Bot | 404 | — | — | — | — | — |
+| W11 | a dev@ sender without a name (`unknown sender`) is no identity | constructed | mail:unknown sender | 400 | — | — | — | — | — |
+| W11 | a Jira identity in a community without Jira (DataFusion) | recorded | jira:Chia-Ping Tsai @ datafusion | 404 | — | — | — | — | — |
+<!-- test-plan:end -->
 
 ## Acceptance
 
@@ -848,18 +1063,19 @@ Each item: precondition → action → observable result → evidence. All are
 
 ### Behavior
 
-- W1: [pending] given the recorded 2026-10-13 fixture, aggregating identity `github:chia7712` gives 0 pull requests authored and 57 comments on 46 pull requests by 34 authors; `github:m1a2st` gives 18 authored, 6 comments on his own, 19 on 16 others'; `mail:"Andrew Schofield"` gives 23 messages in 11 threads → case file rows.
-- W2: [pending] given a record ingested twice (a retried run), the activity month object holds one row for it → unit test on the append function. (Review rows are not appended by this spec; their idempotence is Spec 022 RV5.)
-- W3: [pending] given a pull request created on day 1 and updated on day 40, "authored" counts it in the month of day 1 and its row keeps both times → case row on each side of a month boundary.
-- W4: [pending] given a thread with labels `clients`, `small`, `ci-approved` and a Kafka profile naming the last two as process labels, the area is `clients` only; given a dev@ thread, the page says "no area data from dev@" → case rows.
+- W1: given the recorded Dev fixture of 2026-10-15 appended as the first append would (coverage from 2026-09-09T22:07:43Z), `github:chia7712` has 0 pull requests opened and 59 comments on 48 threads; `jira:chia-ping tsai` 72 issues and 12 comments on 78 issues; `mail:chia-ping tsai` 21 messages in 13 threads with 6 `[DISCUSS]` and 6 `[VOTE]` threads; `github:m1a2st` 7 pull requests opened (5 merged) and 26 comments on 20 threads, 7 on his own; `mail:andrew schofield` 23 messages in 11 threads; each identity's counts come from its own source only, and the page shows the response's totals → case file rows (amended 2026-10-15: the 2026-10-13 fixture of 268 Detail responses was never committed; the Example of amendment (2) replaces it).
+- W2: given a record ingested twice (a retried run, a newer version of it, or the same state appended on two days), the activity month object holds one row for it and an unchanged month is not written again; a Jira issue updated in two months is counted once → unit tests on the row builder, the merge and the append, with a positive control (a new record adds a row and rewrites only its month). (Review rows are not appended by this spec; their idempotence is Spec 022 RV5.)
+- W3: given a pull request created on the last second of a month and merged and updated 40 days later, its row is in the month it was created and keeps its creation and merge times (not the update time, amendment (2)); one second later it is the next month's; a pull request created before the log's coverage writes no row → case rows on each side of a month boundary and of the coverage start.
+- W4: given a thread with labels `clients`, `small`, `ci-approved` and a Kafka profile naming the last two as process labels, the area is `clients` only; given a dev@ thread, the page says "no area data from dev@" → case rows.
 - W5: given the page for an identity, sections appear in the order of this spec and the header states the period covered and the number of days of data → component test.
 - W6: given an identity with rows only before the selected period, the page says there is no activity in this period and shows no zero-filled chart → component test, with a positive control on the same identity in the full period.
 - W7: [pending] given the query `chia7712`, the first result is the person result for `github:chia7712`; given `chia`, there is no person result and thread results are identical to today's → API test, both sides.
 - W8: given Spec 022 month objects (`osskb.github-reviews.v1`) built from Spec 022's recorded Kafka #23675 and #23165 (approvals, comments, a bot's review, the author's own reply) plus a constructed change-request row, the profile reads them as they are, shows each human review with its state, counts "reviews given" as distinct pull requests, leaves out rows with `isBot` or with `reviewer` equal to `prAuthor`, and states the date reviews are counted from (`coverageFrom`) → case rows (recorded and constructed, labelled as such).
+- W34: given an activity month, its stored summary holds, for every identity in the month, the counters `indexActivityMonth` computes for it (decision 10: one function for the reader and the summary) → test over every month of the recorded store.
 
 ### Failure and retry
 
-- W9: [pending] given a publication whose activity write fails, the publication still completes, `/health` reports the failure, and the next run writes the missed rows (they are still in the state for 35 days) → Durable Object test.
+- W9: given a publication whose activity append fails (an R2 error, or a throw), the publication still commits its state and records an `ok` run whose `activity` reports the failure, `state.json` does not advance, and the next run writes the missed rows (they are still in the state for 35 days), including a summary whose month was not written → pipeline and append tests.
 - W10: given a month object missing or unparseable, `/api/people` answers with the months it could read and names the missing month in the response; the page shows "data for <month> is unavailable" → API and component test.
 - W11: given an identity with no counted row in any source the profile reads (2a: reviews), `/api/people` answers 404 with `no-store`, and the page says there is no recorded activity for it in this community, naming the sources recorded → API test.
 - W12: given a bot identity (GitHub `Bot` type in the review rows, a `[bot]` suffix, or the profile's bot list) or a suppressed identity, no profile is served (404) and it is absent from every "Works with" list → case rows, with a positive control (the same fixture without the suppression). (No person result: slice 3, W7.)
@@ -877,20 +1093,20 @@ Each item: precondition → action → observable result → evidence. All are
 
 ### Budget
 
-- W17: [measure] the activity write adds at most 2 Class A and 2 Class B operations per project per publication, and no per-identity object (limit: G59's one request per object; command to be added as `measure:people`).
-- W18: [measure] `/api/people` for the identity with the most rows over 12 months parses under 16 MB and answers under 500 ms in the Pages reader (limit 128 MB; command `measure:people`). 2a: measured on review months at Dev's volume, reported in the PR.
+- W17: [measure] the activity append sends at most 1 + 12 Class B and 2 × 12 + 1 Class A requests per project per run, writes no per-identity object, and writes no month whose bytes did not change; measured: first append 14 Class A and 8 Class B for 6 months, an unchanged rerun 2 Class A and 8 Class B (amended 2026-10-15: a pull request's month is its creation month, so a run can touch any month since the coverage start, not only 2; command `measure:memory --activity 1`, worst case per day in amendment (2)).
+- W18: [measure] `/api/people` for the identity with the most rows over 12 months parses under 16 MB and answers under 500 ms in the Pages reader (limit 128 MB; command `measure:people`). 2a: measured on review months at Dev's volume, reported in the PR. 2b: with 12 full months of the activity log, Kafka 11.6 MB and DataFusion 23.2 MB parsed (46 MB at 2×), 26 reads, under 210 ms; the 16 MB budget fails once the DataFusion log is about 8 months old (G75).
 - W33: [measure] (slice 7) a list request parses at most 12 summaries per project, under 2 MB, measured with `measure:people`.
-- W19: [measure] the publisher's peak memory with the activity append stays within the Spec 009 budgets at 8,600 and 17,200 events (`measure:memory`).
+- W19: [measure] the publisher's peak memory with the activity append stays within the Spec 009 budgets at 8,600 and 17,200 events (`measure:memory --kafka 1 --activity 1`): measured 54.3 and 102.7 MB, the append phase 52.2 and 97.8 MB, unchanged peaks.
 - W20: [measure] review ingestion adds at most one GitHub request per pull request updated that day, and a day's batch stays inside the hourly request limit (slice 1; measured by Spec 022 RV21 and RV22 with `measure:github-reviews`).
 - W21: [measure] the 12-month backfill of slice 6 states its request count and stored size per source (GitHub, Jira, dev@'s 12 monthly archives) before it runs, measured, not estimated, and stays under each source's limit; it runs outside the publication.
 
 ### Observability
 
-- W22: [deploy] `/health` `lastRun` reports the activity write: rows appended, month objects written, identities indexed, and the earliest month held. Review ingestion is not reported here: it has its own `/health` `githubReviews` (Spec 022 RV24), which the page's "how this is computed" note takes `coverageFrom` from.
+- W22: [deploy] `/health` `lastRun.activity` reports the append: `ok`, `rows`, `monthsRead`, `monthsWritten`, `monthsUnchanged`, `identities`, `earliestMonth`, `coverageFrom`, `bytesWritten`, `durationMs`, `r2` (its own Class A and B, apart from `lastRun.r2`), or `error`; absent while `PEOPLE_ACTIVITY` is unset (the field shape is unit-tested; Dev values are checked by the enable PR's operator sequence). Review ingestion is not reported here: it has its own `/health` `githubReviews` (Spec 022 RV24), which the page's "how this is computed" note takes `coverageFrom` from.
 - W23: [deploy] on Dev, the page for `github:chia7712` shows the period covered and the coverage line, and its counts equal the `/api/people` response; the response's review totals agree with the upstream oracle of the 2a Example within the reviews submitted after the oracle was read.
 - W27: given a community with sources the profile does not read yet, the response lists each with status "not recorded" and the page shows "<sources>: not recorded yet" without a count; given the review store, the page shows "Reviews: <from> to <until>" with the dates of the response → case rows and component test, both sides.
-- W28: given the Dev configuration, a GitHub record's author in Detail links to `/#/<project>/people/github:<login>`; a bot author, a Jira author and a dev@ author do not link (2a); given the Prod configuration, no author links → component test and E2E, both sides.
-- W29: given a cold isolate, one profile request reads at most 13 objects from R2 for its project (`state.json` + 12 months, none before `coverageFrom`'s month); a second request within 10 minutes reads none; one after 10 minutes reads them again → API test with a counting bucket.
+- W28: given the Dev configuration, a GitHub record's author in Detail links to `/#/<project>/people/github:<login>`; a bot author does not link; a Jira or dev@ author links to `jira:<name key>` or `mail:<name key>` only where `/api/people` lists that source in `recorded` (2b), and not before the log's first append (2a); given the Prod configuration, no author links → component test and E2E, both sides.
+- W29: given a cold isolate, one profile request reads at most 26 objects from R2 for its project (the two `state.json` objects, 12 review months none before Spec 022's `coverageFrom`, and 12 activity months none before the log's `coverageFrom`; a Jira or dev@ identity reads no review month); a second request within 10 minutes reads none; one after 10 minutes reads them again → API test with a counting bucket (amended 2026-10-15 for 2b: 13 before).
 
 ## Success criteria
 

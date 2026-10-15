@@ -15,7 +15,7 @@
  * `worksWith` = the first four authors of threads the person wrote in (Works with, "wrote in threads started by").
  * Expected values were computed from the fixture by a separate script, not by this code.
  */
-export const activityPlanRows = [
+export const testPlanRows = [
   { id: "W1", case: "a committer who comments on others' pull requests and opens none", data: "recorded", person: "github:chia7712", status: 200, github: "PRs 0 (merged 0), comments 59 on 48 threads (own 0)", jira: "—", mail: "—", areas: "clients 10, streams 9, build 8, core 8, group-coordinator 6; KIP-909 1", worksWith: "gabriellefu 5, harmadasg 4, jim0987795064 3, m1a2st 3" },
   { id: "W1", case: "the same person's Jira identity: its own page, nothing added from GitHub or dev@", data: "recorded", person: "jira:Chia-Ping Tsai", status: 200, github: "—", jira: "issues 72, comments 12, on 78 issues", mail: "—", areas: "no area data from jira", worksWith: "Mickael Maison 2, Andrew Schofield 1, David Jacot 1, Edoardo Comar 1" },
   { id: "W1", case: "the same person's dev@ identity: 21 messages in 13 threads", data: "recorded", person: "mail:Chia-Ping Tsai", status: 200, github: "—", jira: "—", mail: "21 in 13 threads; [DISCUSS] 6, [VOTE] 6", areas: "KIP-1153 1, KIP-1342 1, KIP-1349 1; no area data from mail", worksWith: "Andrew Schofield 1, David Jacot 1, Ming-Yen Chung 1, Omnia Ibrahim 1" },

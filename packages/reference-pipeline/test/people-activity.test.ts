@@ -28,7 +28,7 @@ import {
   type PeopleBucket,
   type PersonProfileV1,
 } from "../src/people";
-import { activityPlanRows } from "./people-activity.cases";
+import { testPlanRows } from "./people-activity.cases";
 import { fixtureEvents, peopleActivityFixture } from "./support/people-activity-fixture";
 
 const RELEASE = peopleActivityFixture.release;
@@ -130,7 +130,7 @@ function columns(body: PersonProfileV1) {
 }
 
 describe("Spec 019 slice 2b: the activity log and the profile", () => {
-  test.each([...activityPlanRows])("$id: $person, $case → $status", async (row) => {
+  test.each([...testPlanRows])("$id: $person, $case → $status", async (row) => {
     const result = await read(row.person);
     expect(result.status).toBe(row.status);
     if (result.status !== 200) return;
@@ -253,7 +253,7 @@ describe("Spec 019 slice 2b: the activity log and the profile", () => {
   });
 
   test("W13: no activity response or stored object holds an address, a body, a score or a rank", async () => {
-    for (const row of activityPlanRows.filter((item) => item.status === 200)) {
+    for (const row of testPlanRows.filter((item) => item.status === 200)) {
       const text = JSON.stringify((await read(row.person)).body);
       expect(text).not.toMatch(/@[a-z0-9-]+\.[a-z]/iu);
       expect(text).not.toMatch(/"(score|rank|percentile|grade|excerpt|body|text)"/u);
@@ -289,7 +289,7 @@ describe("Spec 019 slice 2b: the activity log and the profile", () => {
     expect(bucket.reads.length - cold).toBe(12);
   });
 
-  test("Decision 10: each stored summary holds the counters the reader's per-identity index computes for that month", () => {
+  test("W34: each stored summary holds the counters the reader's per-identity index computes for that month", () => {
     for (const [key, body] of STORE) {
       if (!key.endsWith(".summary.json")) continue;
       const month = parseActivityMonth(JSON.parse(STORE.get(key.replace(".summary.json", ".json"))!), "apache-kafka", key.slice(-20, -13));

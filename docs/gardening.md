@@ -974,3 +974,79 @@ the two `viewer/` items below.
   `github:chia7712` after the first deploy and record it in Spec 019 W18.
 - **Layer:** measurement.
 - **Source:** Spec 019 slice 2a, 2026-10-15.
+
+### G75. A profile request parses every identity's activity rows of 12 months
+- **Where:** `packages/reference-pipeline/src/people/index.ts`
+  (`readActivityMonth`), format in `src/people/activity.ts`.
+- **Why:** month objects are per project, so a profile parses all rows of up
+  to 12 months. `measure:people` with 12 full months: DataFusion 23.2 MB
+  parsed and 39 MB kept by the isolate cache (46 MB and 75 MB at 2×),
+  against W18's 16 MB budget and the 128 MB isolate. The log starts with 2
+  months; the budget fails when the DataFusion log is about 8 months old.
+- **Fix:** before the log holds 6 months: split each month by a hash of the
+  person id (a profile reads one part per month), or compact rows (drop
+  `source` and derivable URLs). Re-measure with `measure:people`.
+- **Layer:** measurement gate (`measure:people` fails above 16 MB).
+- **Source:** Spec 019 slice 2b, 2026-10-15.
+
+### G76. Jira and dev@ identities are display names
+- **Where:** `activityPersonId` in `packages/reference-pipeline/src/people/activity.ts`.
+- **Why:** the connectors keep only the Jira display name and the From name.
+  Two people with one name share a page (the page says so); a renamed
+  person splits. Slice 4 moves Jira to the account key, which changes
+  `jira:` ids and URLs.
+- **Fix:** slice 4: keep Jira `name`/`key` in `jira-record@1`, redirect old
+  ids.
+- **Layer:** data contract (connector), then spec.
+- **Source:** Spec 019 slice 2b, 2026-10-15.
+
+### G77. A Jira issue counts in the month of its last update
+- **Where:** `activityMonthsFromEvents` (`src/people/activity-log.ts`); the
+  Jira connector drops `fields.created`.
+- **Why:** "issues reported" means "reported issues updated in the period",
+  as in the Example, and an issue updated in two months is stored twice
+  (counted once).
+- **Fix:** keep `created` in `jira-record@1` (changes every Jira event's
+  content hash; plan with the parity fixtures).
+- **Layer:** data contract.
+- **Source:** Spec 019 slice 2b, 2026-10-15.
+
+### G78. Votes marked "(binding)" are not on the profile
+- **Where:** Spec 019 sections 3 and 6; `mail-record@1` keeps a 200-character
+  excerpt the log does not store.
+- **Why:** the log is metadata only, and a vote line is in the body.
+- **Fix:** reuse Spec 015's `[VOTE]` body read to add a `vote` field to dev@
+  rows, or drop the item from the spec.
+- **Layer:** spec decision.
+- **Source:** Spec 019 slice 2b, 2026-10-15.
+
+### G79. The log's GitHub bot rule is the connector's substring rule
+- **Where:** `isBot` in `apps/github-publisher/github-connector.ts`, read by
+  `activityMonthsFromEvents`.
+- **Why:** a login containing "bot" is not logged even when a person owns
+  it; a bot without "bot" in its login (`codecov-commenter`) is logged and
+  only hidden by the reader's bot list.
+- **Fix:** apply the profile's bot list (`isBotLogin`) at write time too, and
+  narrow the connector rule to `[bot]` plus the list.
+- **Layer:** test row (a human login containing "bot").
+- **Source:** Spec 019 slice 2b, 2026-10-15.
+
+### G80. Works with has one activity relation
+- **Where:** `activityView` in `src/people/index.ts`.
+- **Why:** section 7 lists "commented on their pull requests" and "same dev@
+  threads"; the reader keeps only the person's rows, so only "wrote in
+  threads started by" is built.
+- **Fix:** derive the other relations from the month index (all identities
+  are indexed already) and cap each at 10.
+- **Layer:** spec (section 7) and case rows.
+- **Source:** Spec 019 slice 2b, 2026-10-15.
+
+### G81. Month summaries are written but read by nothing
+- **Where:** `internal/people/v1/<projectId>/<YYYY-MM>.summary.json`.
+- **Why:** they exist for slice 7 (decision 10). Review counters are not in
+  them: reviews are written by Spec 022's job, not by the publication.
+- **Fix:** slice 7 decides whether Spec 022's job writes a review summary or
+  the list reads review months; delete the activity summary if the list
+  does not use it.
+- **Layer:** spec (slice 7).
+- **Source:** Spec 019 slice 2b, 2026-10-15.
