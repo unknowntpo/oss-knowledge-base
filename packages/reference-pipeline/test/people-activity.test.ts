@@ -221,7 +221,7 @@ describe("Spec 019 slice 2b: the activity log and the profile", () => {
     const body = (await read("github:chia7712")).body as PersonProfileV1;
     expect(body.coverage).toEqual([
       { source: "github-reviews", status: "recorded", from: "2025-11-01T00:00:00.000Z", until: "2026-10-14T22:02:21Z", storedFrom: "2025-10-14T00:00:00.000Z" },
-      ...(["github", "jira", "mail"] as const).map((source) => ({ source, status: "recorded", from: COVERAGE_FROM, until: RELEASE, storedFrom: COVERAGE_FROM, firstAppendAt: RELEASE })),
+      ...(["github", "jira", "mail"] as const).map((source) => ({ source, status: "recorded" as const, from: COVERAGE_FROM, until: RELEASE, storedFrom: COVERAGE_FROM, firstAppendAt: RELEASE })),
     ]);
     expect(body.period).toMatchObject({ from: "2025-11-01T00:00:00.000Z", until: RELEASE });
     // Positive control: without the log's state, the same sources are not recorded (2a).
