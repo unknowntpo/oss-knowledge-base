@@ -12,7 +12,8 @@ import {
   GITHUB_REVIEWS_STATE_SCHEMA,
   githubReviewsMonthKey,
   githubReviewsStateKey,
-  parseReviewMonth,
+  parseReviewMonthObject,
+  type ReviewMonthExtras,
   type ReviewRow,
   type ReviewState,
 } from "../github-reviews";
@@ -28,8 +29,10 @@ import {
   type ActivitySource,
   type ActivityThreadV1,
 } from "./activity";
+import { areaDistribution, areaTaxonomy, itemAreas, type PullAreasV1 } from "./areas";
 
 export * from "./activity";
+export * from "./areas";
 
 export const PEOPLE_PROFILE_SCHEMA = "osskb.people-profile.v1";
 /** Decision 4 / W26: the newest 12 calendar months, the current one included. */
@@ -56,19 +59,13 @@ export interface PeopleProject {
   readonly processLabels: readonly string[];
   /** Labels matching this are process labels too (DataFusion's release labels `v55.0.0`). */
   readonly processLabelPattern?: RegExp;
+  /** Labels naming a KIP, counted as that KIP (`areas.ts`). */
+  readonly kipLabelPattern?: RegExp;
 }
 
 /** The order the page lists sources in. */
 const SOURCE_ORDER: readonly PeopleSource[] = ["github-reviews", "github", "jira", "mail"];
 const GITHUB_APP_LOGINS = ["dependabot", "github-actions", "copilot-pull-request-reviewer", "Copilot", "renovate"];
-/** Process labels by project, from the Dev release's label counts (2026-10-15). */
-const PROCESS_LABELS: Readonly<Record<string, { readonly labels: readonly string[]; readonly pattern?: RegExp }>> = {
-  [KAFKA_DIGEST_PROFILE.projectId]: { labels: ["ci-approved", "small", "triage", "needs-attention", "stale", "closed-stale"] },
-  [DATAFUSION_DIGEST_PROFILE.projectId]: {
-    labels: ["Stale", "auto detected api change", "api change", "help wanted", "good first issue", "bug", "enhancement"],
-    pattern: /^v\d+\.\d+\.\d+$/u,
-  },
-};
 const MACHINE_USERS: Readonly<Record<string, readonly string[]>> = {
   [KAFKA_DIGEST_PROFILE.projectId]: KAFKA_DIGEST_PROFILE.machineUsers,
   [DATAFUSION_DIGEST_PROFILE.projectId]: DATAFUSION_DIGEST_PROFILE.machineUsers,
@@ -82,13 +79,9 @@ export const PEOPLE_PROJECTS: readonly PeopleProject[] = githubProjectProfiles.m
   sources: SOURCE_ORDER.filter((source) => source === "github-reviews" || source === "github" ||
     communitySourceProfiles.some((community) => community.projectId === profile.projectId && community.key === source)),
   bots: [...(MACHINE_USERS[profile.projectId] ?? []), ...GITHUB_APP_LOGINS],
-  processLabels: PROCESS_LABELS[profile.projectId]?.labels ?? [],
-  ...(PROCESS_LABELS[profile.projectId]?.pattern === undefined ? {} : { processLabelPattern: PROCESS_LABELS[profile.projectId]!.pattern! }),
+  // Behavior 6: one taxonomy for review metadata and the activity log (`areas.ts`).
+  ...areaTaxonomy(profile.projectId),
 }));
-
-export function isProcessLabel(label: string, project: PeopleProject): boolean {
-  return project.processLabels.includes(label) || (project.processLabelPattern?.test(label) ?? false);
-}
 
 export function peopleProject(projectKey: string | null | undefined): PeopleProject | undefined {
   return PEOPLE_PROJECTS.find((project) => project.projectKey === projectKey);
@@ -157,13 +150,17 @@ export interface ReviewMonthIndex {
   readonly people: ReadonlyMap<string, { readonly given: readonly ReviewRow[]; readonly received: readonly ReviewRow[] }>;
   /** Logins GitHub typed `Bot` in this month's rows. */
   readonly bots: ReadonlySet<string>;
+  /** Spec 022 `metadata@2`: the month's pull-request metadata (raw label names, title KIP ids), by number. */
+  readonly pulls: ReadonlyMap<number, { readonly labels: readonly string[]; readonly kips?: readonly string[] }>;
+  /** Spec 022 `metadata@2`: public display names by lower-cased login. */
+  readonly names: ReadonlyMap<string, string>;
 }
 
 /**
  * Spec 019 Behavior 1 and W8: a bot's review counts for nobody; a review by the pull request's
  * author (an answer in a review thread) is not a review given, nor received.
  */
-export function indexReviewMonth(rows: readonly ReviewRow[]): ReviewMonthIndex {
+export function indexReviewMonth(rows: readonly ReviewRow[], extras: ReviewMonthExtras = {}): ReviewMonthIndex {
   const people = new Map<string, { given: ReviewRow[]; received: ReviewRow[] }>();
   const bots = new Set<string>();
   const person = (login: string) => {
@@ -181,7 +178,12 @@ export function indexReviewMonth(rows: readonly ReviewRow[]): ReviewMonthIndex {
     person(row.reviewer).given.push(row);
     person(row.prAuthor).received.push(row);
   }
-  return { people, bots };
+  return {
+    people,
+    bots,
+    pulls: new Map(Object.entries(extras.pulls ?? {}).map(([pr, meta]) => [Number(pr), meta])),
+    names: new Map(Object.entries(extras.people ?? {}).map(([login, name]) => [login.toLowerCase(), name])),
+  };
 }
 
 export interface ReviewGivenV1 {
@@ -242,7 +244,12 @@ export interface PersonProfileV1 {
   readonly schema: typeof PEOPLE_PROFILE_SCHEMA;
   readonly project: { readonly key: string; readonly id: string; readonly label: string; readonly repository: string };
   /** `url` is the upstream profile; Jira and dev@ identities have none (only a display name is kept). */
-  readonly identity: { readonly id: string; readonly source: "github" | "jira" | "mail"; readonly display: string; readonly url?: string };
+  /**
+   * `url` is the upstream profile; Jira and dev@ identities have none (only a display name is kept).
+   * `name` (W51): the GitHub account's public profile name from the review store, display only; it
+   * links nothing across sources.
+   */
+  readonly identity: { readonly id: string; readonly source: "github" | "jira" | "mail"; readonly display: string; readonly url?: string; readonly name?: string };
   readonly generatedAt: string;
   /** The 12-month view: from the earliest recorded source's start (never before the first month) to the latest source's end. */
   readonly period: { readonly from: string; readonly until: string; readonly months: readonly string[] };
@@ -255,6 +262,12 @@ export interface PersonProfileV1 {
   readonly bots: readonly string[];
   /** Slice 2b: present when the activity log is recorded for the community. */
   readonly activity?: PersonActivityV1;
+  /**
+   * W46: the areas of the pull requests in `reviewsGiven` and `reviewsReceived` that have stored
+   * metadata (Spec 022 `metadata@2`), by number: area labels after the community's taxonomy, and KIP
+   * ids. Absent when no month of the view has metadata; a pull request missing here is not covered (W49).
+   */
+  readonly pullAreas?: Readonly<Record<string, PullAreasV1>>;
   /** The 12-month view's totals, as `profileView(…, "12m")` computes them for the page. */
   readonly totals: ProfileTotals;
 }
@@ -352,8 +365,9 @@ export function readMonth(bucket: PeopleBucket, projectId: string, month: string
   const key = githubReviewsMonthKey(projectId, month);
   return cached(bucket, key, nowMs, async () => {
     const object = await bucket.get(key);
-    if (object === null) return { people: new Map(), bots: new Set() };
-    return indexReviewMonth(parseReviewMonth(JSON.parse(await object.text()), projectId, month));
+    if (object === null) return { people: new Map(), bots: new Set(), pulls: new Map(), names: new Map() };
+    const parsed = parseReviewMonthObject(JSON.parse(await object.text()), projectId, month);
+    return indexReviewMonth(parsed.rows, parsed);
   });
 }
 
@@ -505,6 +519,29 @@ export async function readPersonProfile(input: {
     }
   });
   if (given.length === 0 && received.length === 0 && records.size === 0) return notFound(unavailableMonths);
+
+  // W46, W51: pull-request metadata and the public name; a newer month's value replaces an older one.
+  const reviewedPrs = new Set([...given, ...received].map((row) => row.pr));
+  const pullMeta = new Map<number, { readonly labels: readonly string[]; readonly kips?: readonly string[] }>();
+  let withMetadata = false;
+  let publicName: string | undefined;
+  if (parsed.kind === "github") {
+    const key = parsed.login.toLowerCase();
+    for (const index of indexes) {
+      if (index === undefined) continue;
+      if (index.pulls.size > 0) withMetadata = true;
+      for (const pr of reviewedPrs) {
+        const meta = index.pulls.get(pr);
+        if (meta !== undefined) pullMeta.set(pr, meta);
+      }
+      publicName = index.names.get(key) ?? publicName;
+    }
+  }
+  const pullAreas: Record<string, PullAreasV1> = {};
+  for (const [pr, meta] of [...pullMeta].sort((a, b) => a[0] - b[0])) {
+    const areas = itemAreas(meta.labels, meta.kips ?? [], project);
+    pullAreas[String(pr)] = areas.kips.length === 0 ? { labels: areas.labels } : areas;
+  }
   if (parsed.kind === "github") display = given[0]?.reviewer ?? received[0]?.prAuthor ?? display ?? parsed.login;
 
   // P-e: a counterpart who asked to be removed stays counted, but unnamed.
@@ -533,7 +570,7 @@ export async function readPersonProfile(input: {
     schema: PEOPLE_PROFILE_SCHEMA,
     project: { key: project.projectKey, id: project.projectId, label: project.label, repository: project.repository },
     identity: parsed.kind === "github"
-      ? { id: personIdOf(display!), source: "github", display: display!, url: `https://github.com/${display}` }
+      ? { id: personIdOf(display!), source: "github", display: display!, url: `https://github.com/${display}`, ...(publicName === undefined ? {} : { name: publicName }) }
       : { id: parsed.id, source: parsed.source, display: display ?? parsed.id.slice(parsed.source.length + 1) },
     generatedAt: new Date(input.nowMs).toISOString(),
     period: {
@@ -554,6 +591,7 @@ export async function readPersonProfile(input: {
     bots: [...new Set([...given.map((row) => row.prAuthor), ...received.map((row) => row.reviewer)])]
       .filter((login) => !hidden.has(login) && learnedBots.has(login.toLowerCase())).sort(),
     ...(activity === undefined ? {} : { activity }),
+    ...(withMetadata ? { pullAreas } : {}),
   };
   const totals = profileTotals(body.reviewsGiven, body.reviewsReceived);
   return {
@@ -788,15 +826,11 @@ function activityView(profile: PersonProfileV1, records: readonly ActivityRecord
   const personKey = profile.identity.source === "github" ? `github:${profile.identity.display.toLowerCase()}` : profile.identity.id;
   const byThread = new Map<string, ActivityRecordV1[]>();
   for (const record of records) (byThread.get(record.thread) ?? byThread.set(record.thread, []).get(record.thread)!).push(record);
-  const labels = new Map<string, number>();
-  const kips = new Map<string, number>();
   const noLabels = new Set<ActivitySource>();
   const authors = new Map<string, number>();
   const threads: ActivityThreadView[] = [];
   for (const [key, rows] of byThread) {
     const thread = activity.threads[key]!;
-    for (const label of thread.labels) if (project === undefined || !isProcessLabel(label, project)) labels.set(label, (labels.get(label) ?? 0) + 1);
-    for (const kip of thread.kips) kips.set(kip, (kips.get(kip) ?? 0) + 1);
     if (thread.source !== "github") noLabels.add(thread.source);
     const author = thread.author === personKey || rows.some((row) => row.kind === "pull-request" || row.kind === "issue") ? "author" : "participant";
     if (author === "participant" && thread.author !== null && activity.people[thread.author] !== undefined) {
@@ -809,12 +843,16 @@ function activityView(profile: PersonProfileV1, records: readonly ActivityRecord
       merged: rows.some((row) => row.merged !== undefined), lastAt: rows.map((row) => row.at).sort().at(-1)!,
     });
   }
-  const counted = <K extends string>(map: Map<string, number>, name: K) => [...map]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([value, count]) => ({ [name]: value, threads: count }) as { readonly [P in K]: string } & { readonly threads: number });
+  // Behavior 6: the same taxonomy and aggregation as the review areas (`areas.ts`).
+  const distribution = areaDistribution([...byThread.keys()].map((key) => ({ key, labels: activity.threads[key]!.labels, kips: activity.threads[key]!.kips })),
+    project ?? areaTaxonomy(profile.project.id));
   return {
     totals: activityTotals(records, activity.threads, personKey),
-    areas: { labels: counted(labels, "label"), kips: counted(kips, "kip"), noLabelSources: [...noLabels].sort() },
+    areas: {
+      labels: distribution.areas.map((area) => ({ label: area.label, threads: area.items })),
+      kips: distribution.kips.map((entry) => ({ kip: entry.kip, threads: entry.items })),
+      noLabelSources: [...noLabels].sort(),
+    },
     threads: threads.sort((a, b) => (a.lastAt === b.lastAt ? a.key.localeCompare(b.key) : a.lastAt < b.lastAt ? 1 : -1)),
     wroteInThreadsBy: [...authors]
       .map(([id, count]) => ({ id, display: activity.people[id]!, threads: count }))

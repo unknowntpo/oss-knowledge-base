@@ -4,18 +4,33 @@
  * `Reviewers:` trailer comparison. No review text is requested, so none can be stored.
  */
 
-/** The only supported value of the `GITHUB_REVIEWS` flag. */
+/** The original revision: review rows only. */
 export const GITHUB_REVIEWS_REVISION = "metadata@1";
+/**
+ * Spec 022 amendment (areas, RV36): rows plus, per month, each reviewed pull request's label names
+ * and KIP ids (`pulls`) and each login's public display name (`people`). Additive fields of the
+ * same `osskb.github-reviews.v1` month object, so a reader that ignores them is unaffected.
+ */
+export const GITHUB_REVIEWS_AREAS_REVISION = "metadata@2";
+export const GITHUB_REVIEWS_REVISIONS = [GITHUB_REVIEWS_REVISION, GITHUB_REVIEWS_AREAS_REVISION] as const;
+export type GithubReviewsRevision = (typeof GITHUB_REVIEWS_REVISIONS)[number];
 
 /**
- * Behavior 1: unset or blank is off. Any value other than the supported revision is an error, so a
- * typo can neither switch the job on in a shape nobody chose nor leave it silently off.
+ * Behavior 1: unset or blank is off (undefined). Any value other than a supported revision is an
+ * error, so a typo can neither switch the job on in a shape nobody chose nor leave it silently off.
  */
-export function resolveGithubReviews(value: string | undefined): boolean {
+export function resolveGithubReviewsRevision(value: string | undefined): GithubReviewsRevision | undefined {
   const flag = value?.trim() ?? "";
-  if (flag === "") return false;
-  if (flag !== GITHUB_REVIEWS_REVISION) throw new Error(`GITHUB_REVIEWS "${value}" is not supported (${GITHUB_REVIEWS_REVISION}, or unset)`);
-  return true;
+  if (flag === "") return undefined;
+  if (!(GITHUB_REVIEWS_REVISIONS as readonly string[]).includes(flag)) {
+    throw new Error(`GITHUB_REVIEWS "${value}" is not supported (${GITHUB_REVIEWS_REVISIONS.join(", ")}, or unset)`);
+  }
+  return flag as GithubReviewsRevision;
+}
+
+/** Behavior 1: whether the job is on (either revision). */
+export function resolveGithubReviews(value: string | undefined): boolean {
+  return resolveGithubReviewsRevision(value) !== undefined;
 }
 
 export const REVIEW_STATES = ["APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED"] as const;
@@ -24,6 +39,8 @@ export type ReviewState = (typeof REVIEW_STATES)[number];
 export interface ReviewActor {
   readonly login: string;
   readonly __typename: string;
+  /** `metadata@2` only: the account's public profile name (a `User`; null when not set). */
+  readonly name?: string | null;
 }
 
 export interface ReviewNode {
@@ -38,22 +55,34 @@ export interface ReviewNode {
 export interface PullReviews {
   readonly number: number;
   readonly author: ReviewActor | null;
+  /** `metadata@2` only. Read to extract KIP ids; never stored. */
+  readonly title?: string;
+  /** `metadata@2` only: label names, at most `LABELS_PER_PULL`. */
+  readonly labels?: { readonly totalCount: number; readonly nodes: readonly { readonly name: string }[] };
   readonly reviews: { readonly totalCount: number; readonly nodes: readonly ReviewNode[] };
 }
 
 /** Reviews read per pull request: the newest ones, because a run looks for what was just submitted. */
 export const REVIEWS_PER_PULL = 100;
 
-const PULL_FIELDS = `number author { login __typename } reviews(last: ${REVIEWS_PER_PULL}) { totalCount nodes { databaseId author { login __typename } state submittedAt commit { oid } comments { totalCount } } }`;
+/** `metadata@2`: label names read per pull request (the most seen on one is in the spec's Evidence). */
+export const LABELS_PER_PULL = 30;
+
+const actorFields = (areas: boolean) => (areas ? "login __typename ... on User { name }" : "login __typename");
+const pullFields = (areas: boolean) =>
+  `number author { ${actorFields(areas)} }${areas ? ` title labels(first: ${LABELS_PER_PULL}) { totalCount nodes { name } }` : ""} reviews(last: ${REVIEWS_PER_PULL}) { totalCount nodes { databaseId author { ${actorFields(areas)} } state submittedAt commit { oid } comments { totalCount } } }`;
 
 /**
  * Behavior 4: one request for a batch of pull requests, each under the alias `p<number>`. The
- * fields are fixed here; a review's or a comment's text is not among them.
+ * fields are fixed here; a review's or a comment's text is not among them. With `areas`
+ * (`metadata@2`) it also asks for the title (only KIP ids are kept), the label names and the
+ * authors' public names, in the same request.
  */
-export function pullReviewsQuery(numbers: readonly number[]): string {
+export function pullReviewsQuery(numbers: readonly number[], options: { readonly areas?: boolean } = {}): string {
   if (numbers.length === 0) throw new Error("A review batch needs at least one pull request");
   for (const number of numbers) if (!Number.isInteger(number) || number <= 0) throw new Error(`Invalid pull request number ${number}`);
-  const pulls = numbers.map((number) => `p${number}: pullRequest(number: ${number}) { ${PULL_FIELDS} }`).join("\n    ");
+  const fields = pullFields(options.areas === true);
+  const pulls = numbers.map((number) => `p${number}: pullRequest(number: ${number}) { ${fields} }`).join("\n    ");
   return `query($owner: String!, $repo: String!) {
   rateLimit { cost remaining }
   repository(owner: $owner, name: $repo) {
@@ -69,7 +98,8 @@ export type PullReviewsPage =
 function isActor(value: unknown): value is ReviewActor | null {
   if (value === null) return true;
   const actor = value as Partial<ReviewActor> | undefined;
-  return typeof actor?.login === "string" && typeof actor.__typename === "string";
+  return typeof actor?.login === "string" && typeof actor.__typename === "string" &&
+    (actor.name === undefined || actor.name === null || typeof actor.name === "string");
 }
 
 function isReviewNode(value: unknown): value is ReviewNode {
@@ -106,7 +136,10 @@ export function parsePullReviews(body: unknown, numbers: readonly number[]): Pul
       continue;
     }
     if (node.number !== number || !isActor(node.author) || !Number.isInteger(node.reviews?.totalCount) ||
-        !Array.isArray(node.reviews?.nodes) || !node.reviews.nodes.every(isReviewNode)) {
+        !Array.isArray(node.reviews?.nodes) || !node.reviews.nodes.every(isReviewNode) ||
+        (node.title !== undefined && typeof node.title !== "string") ||
+        (node.labels !== undefined && (!Number.isInteger(node.labels?.totalCount) || !Array.isArray(node.labels?.nodes) ||
+          !node.labels.nodes.every((label) => typeof label?.name === "string")))) {
       return { ok: false, error: `GraphQL pull request ${number} is malformed` };
     }
     pulls.push(node as PullReviews);
@@ -197,15 +230,101 @@ export const githubReviewsMonthKey = (projectId: string, month: string) => `${gi
 export const githubReviewsStateKey = (projectId: string) => `${githubReviewsPrefix(projectId)}state.json`;
 export const GITHUB_REVIEWS_STATE_SCHEMA = "osskb.github-reviews-state.v1";
 
+/**
+ * `metadata@2`: what a month object keeps about one reviewed pull request, once per pull request
+ * and month (not on every row): every label name (which ones are areas is decided by the reader's
+ * community profile, so a taxonomy change needs no refetch) and the KIP ids of its title. The
+ * title itself is not kept.
+ */
+export interface PullAreaMeta {
+  /** Label names, sorted, unique. */
+  readonly labels: readonly string[];
+  /** `KIP-<n>` ids in the title, sorted; absent when none. */
+  readonly kips?: readonly string[];
+}
+
 export interface ReviewMonthObject {
   readonly schema: typeof REVIEW_MONTH_SCHEMA;
   readonly projectId: string;
   readonly month: string;
   readonly rows: readonly ReviewRow[];
+  /** `metadata@2`: the pull requests of this month's rows, keyed by number. Absent on a `metadata@1` month. */
+  readonly pulls?: Readonly<Record<string, PullAreaMeta>>;
+  /** `metadata@2`: public display names of logins in this month's rows that have one, keyed by login. */
+  readonly people?: Readonly<Record<string, string>>;
+}
+
+/** The additive `metadata@2` parts of a month object. */
+export interface ReviewMonthExtras {
+  readonly pulls?: Readonly<Record<string, PullAreaMeta>>;
+  readonly people?: Readonly<Record<string, string>>;
 }
 
 function rowKey(row: ReviewRow): string {
   return JSON.stringify([row.reviewId, row.pr, row.prAuthor, row.reviewer, row.isBot, row.state, row.stateBefore ?? null, row.submittedAt, row.commit, row.inlineComments]);
+}
+
+/** KIP ids in a title, as the Kafka rules spell them (`KIP-1071`); only these leave the title. */
+export function titleKips(title: string): readonly string[] {
+  return [...new Set([...title.matchAll(/\bKIP-(\d+)\b/gu)].map((match) => Number(match[1])))].sort((a, b) => a - b).map((n) => `KIP-${n}`);
+}
+
+/** RV37: one pull request's area metadata: label names sorted and unique, KIP ids from the title. */
+export function pullAreaMeta(pull: PullReviews): PullAreaMeta {
+  const labels = [...new Set((pull.labels?.nodes ?? []).map((label) => label.name))].sort();
+  const kips = titleKips(pull.title ?? "");
+  return kips.length === 0 ? { labels } : { labels, kips };
+}
+
+/** Longest display name kept; GitHub allows 255. */
+export const DISPLAY_NAME_MAX = 100;
+
+/**
+ * RV38: the public profile name as stored: control characters, invisible spaces and bidirectional
+ * overrides removed, whitespace collapsed, cut to `DISPLAY_NAME_MAX` grapheme clusters. Dropped (undefined) when empty, equal to the login, or when it contains
+ * `@`, so an address typed into the name field is never stored.
+ */
+export function displayName(name: string | null | undefined, login: string): string | undefined {
+  if (typeof name !== "string") return undefined;
+  // Joiners (ZWJ, ZWNJ) stay: scripts and emoji sequences need them. Bidi overrides and invisible spaces go.
+  const spaced = name.replace(/[\p{Cc}\u200B\u2060\uFEFF\u202A-\u202E\u2066-\u2069]/gu, " ").replace(/\s+/gu, " ").trim();
+  // RV38: cut on grapheme clusters, never inside a surrogate pair or an emoji sequence.
+  const clean = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(spaced)].slice(0, DISPLAY_NAME_MAX).map((part) => part.segment).join("").trim();
+  if (clean === "" || clean.includes("@") || clean.toLowerCase() === login.toLowerCase()) return undefined;
+  return clean;
+}
+
+/**
+ * RV38: the display names one pull request's read carries: its author's and its reviewers'. Only
+ * accounts typed `User` have a profile name; a login read with no usable name maps to null, so a
+ * merge removes a name its owner cleared.
+ */
+export function pullDisplayNames(pull: PullReviews): ReadonlyMap<string, string | null> {
+  const names = new Map<string, string | null>();
+  for (const actor of [pull.author, ...pull.reviews.nodes.map((node) => node.author)]) {
+    if (actor === null || actor.__typename !== "User" || actor.name === undefined) continue;
+    names.set(actor.login, displayName(actor.name, actor.login) ?? null);
+  }
+  return names;
+}
+
+/**
+ * RV39: merges newly read metadata into a month's: a pull request's entry is replaced by the newer
+ * read; a name read again replaces the stored one, and a login read without a name loses it.
+ * Keys are sorted so equal content is equal bytes.
+ */
+export function mergeMonthExtras(stored: ReviewMonthExtras, pulls: ReadonlyMap<number, PullAreaMeta>, names: ReadonlyMap<string, string | null>): ReviewMonthExtras {
+  const nextPulls = new Map<number, PullAreaMeta>(Object.entries(stored.pulls ?? {}).map(([pr, meta]) => [Number(pr), meta]));
+  for (const [pr, meta] of pulls) nextPulls.set(pr, meta);
+  const nextPeople = new Map(Object.entries(stored.people ?? {}));
+  for (const [login, name] of names) {
+    if (name === null) nextPeople.delete(login);
+    else nextPeople.set(login, name);
+  }
+  return {
+    ...(nextPulls.size === 0 && stored.pulls === undefined ? {} : { pulls: Object.fromEntries([...nextPulls].sort((a, b) => a[0] - b[0]).map(([pr, meta]) => [String(pr), meta])) }),
+    ...(nextPeople.size === 0 && stored.people === undefined ? {} : { people: Object.fromEntries([...nextPeople].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))) }),
+  };
 }
 
 /**
@@ -242,11 +361,35 @@ export function mergeReviewRows(stored: readonly ReviewRow[], incoming: readonly
   return { rows, added, changed, dismissed };
 }
 
-export function encodeReviewMonth(projectId: string, month: string, rows: readonly ReviewRow[]): string {
-  const object: ReviewMonthObject = { schema: REVIEW_MONTH_SCHEMA, projectId, month, rows };
+/** A `metadata@1` month has only rows; `extras` (a `metadata@2` month's) are appended after them. */
+export function encodeReviewMonth(projectId: string, month: string, rows: readonly ReviewRow[], extras: ReviewMonthExtras = {}): string {
+  const object: ReviewMonthObject = {
+    schema: REVIEW_MONTH_SCHEMA, projectId, month, rows,
+    ...(extras.pulls === undefined ? {} : { pulls: extras.pulls }),
+    ...(extras.people === undefined ? {} : { people: extras.people }),
+  };
   return JSON.stringify(object);
 }
 
+const isStringList = (value: unknown): value is readonly string[] => Array.isArray(value) && value.every((item) => typeof item === "string");
+
+/** RV36: the whole month object. `pulls` and `people` are optional; when present they must be well formed. */
+export function parseReviewMonthObject(value: unknown, projectId: string, month: string): { readonly rows: readonly ReviewRow[] } & ReviewMonthExtras {
+  const rows = parseReviewMonth(value, projectId, month);
+  const object = value as Partial<ReviewMonthObject>;
+  const pulls = object.pulls;
+  if (pulls !== undefined && (pulls === null || typeof pulls !== "object" || Array.isArray(pulls) ||
+      !Object.entries(pulls).every(([pr, meta]) => /^[1-9]\d*$/u.test(pr) && isStringList(meta?.labels) && (meta.kips === undefined || isStringList(meta.kips))))) {
+    throw new Error(`Review month object ${projectId}/${month} has malformed pulls`);
+  }
+  const people = object.people;
+  if (people !== undefined && (people === null || typeof people !== "object" || Array.isArray(people) || !Object.values(people).every((name) => typeof name === "string"))) {
+    throw new Error(`Review month object ${projectId}/${month} has malformed people`);
+  }
+  return { rows, ...(pulls === undefined ? {} : { pulls }), ...(people === undefined ? {} : { people }) };
+}
+
+/** Rows only; a reader that does not know `metadata@2` ignores its fields (RV36). */
 export function parseReviewMonth(value: unknown, projectId: string, month: string): readonly ReviewRow[] {
   const object = value as Partial<ReviewMonthObject> | null | undefined;
   if (object?.schema !== REVIEW_MONTH_SCHEMA || object.projectId !== projectId || object.month !== month || !Array.isArray(object.rows)) {

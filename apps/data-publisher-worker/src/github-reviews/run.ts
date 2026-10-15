@@ -7,14 +7,20 @@
  */
 import {
   encodeReviewMonth,
+  GITHUB_REVIEWS_AREAS_REVISION,
   GITHUB_REVIEWS_REVISION,
+  mergeMonthExtras,
+  parseReviewMonthObject,
+  pullAreaMeta,
+  pullDisplayNames,
+  resolveGithubReviewsRevision,
+  type GithubReviewsRevision,
+  type PullAreaMeta,
   GITHUB_REVIEWS_STATE_SCHEMA,
   mergeReviewRows,
   nextKeysetPage,
   parsePullReviews,
-  parseReviewMonth,
   pullReviewsQuery,
-  resolveGithubReviews,
   reviewMonth,
   reviewRows,
   selectUpdatedPulls,
@@ -91,6 +97,8 @@ export interface ProjectRun {
   readonly graphqlCost: number;
   readonly bytes: number;
   readonly durationMs: number;
+  /** `metadata@2` only (absent under `metadata@1`, whose record is unchanged): pull requests with more labels than one read returns (`LABELS_PER_PULL`). */
+  readonly labelsTruncated?: number;
   readonly failureKind?: string;
   readonly error?: string;
 }
@@ -124,7 +132,7 @@ export interface GithubReviewsDeps {
 const iso = (ms: number) => new Date(ms).toISOString();
 
 /** Another run wrote the month object (or the cursor) between this run's read and its write. */
-class MonthConflictError extends Error {}
+export class MonthConflictError extends Error {}
 
 /** Behavior 13: the backfill cannot run as asked (no daily cursor yet, or another backfill in progress). */
 class BackfillConfigError extends Error {}
@@ -219,7 +227,7 @@ async function listUpdated(deps: GithubReviewsDeps, counter: Counter, project: G
   }
 }
 
-function parseState(body: string | undefined): GithubReviewsState | undefined {
+export function parseState(body: string | undefined): GithubReviewsState | undefined {
   if (body === undefined) return undefined;
   const state = JSON.parse(body) as Partial<GithubReviewsState> | null;
   if (state?.schema !== GITHUB_REVIEWS_STATE_SCHEMA || typeof state.updatedAt !== "string" || typeof state.coverageFrom !== "string" ||
@@ -230,66 +238,104 @@ function parseState(body: string | undefined): GithubReviewsState | undefined {
 }
 
 type RunCounts = {
+  labelsTruncated: number;
   reviews: number; botReviews: number; selfReviews: number; added: number; changed: number; dismissed: number;
   droppedPulls: number; reviewsTruncated: number; monthsRead: number; monthsWritten: number; graphqlCost: number;
 };
 
+/** The run counters without `labelsTruncated`, in the order of the `metadata@1` record. */
+function counts<T extends { labelsTruncated: number }>(run: T): Omit<T, "labelsTruncated"> {
+  const { labelsTruncated: _, ...rest } = run;
+  return rest;
+}
+
+/** RV37: `labelsTruncated` is reported under `metadata@2` only, so a `metadata@1` record stays byte-identical. */
+function areasField(revision: GithubReviewsRevision, run: { readonly labelsTruncated: number }): { readonly labelsTruncated?: number } {
+  return revision === GITHUB_REVIEWS_AREAS_REVISION ? { labelsTruncated: run.labelsTruncated } : {};
+}
+
+/** One month's newly read rows and, under `metadata@2`, what was read about their pull requests and logins. */
+interface MonthRead {
+  readonly rows: ReviewRow[];
+  readonly pulls: Map<number, PullAreaMeta>;
+  readonly names: Map<string, string | null>;
+}
+
+/** What one batched read gives, per pull request: its rows, and under `metadata@2` its metadata and names. */
+export async function readBatch(deps: GithubReviewsDeps, project: GithubReviewsProject, graphql: Counter, batch: readonly number[], areas: boolean, run: { graphqlCost: number; droppedPulls: number }) {
+  const body = await graphqlPage(
+    { token: deps.githubToken, fetchImpl: deps.githubFetch, delay: deps.delay, counter: graphql, query: pullReviewsQuery(batch, { areas }) },
+    { owner: project.owner, repo: project.repo },
+  );
+  const page = parsePullReviews(body, batch);
+  if (!page.ok) throw new SourceError("schema", page.error);
+  run.graphqlCost += page.cost;
+  run.droppedPulls += page.dropped.length;
+  return page;
+}
+
 /** Behavior 4–6: the reviews of `numbers`, 25 pull requests a request, as rows grouped by month. */
-async function readRows(deps: GithubReviewsDeps, project: GithubReviewsProject, graphql: Counter, numbers: readonly number[], window: { readonly from: string; readonly until?: string }, run: RunCounts) {
-  const byMonth = new Map<string, ReviewRow[]>();
+async function readRows(deps: GithubReviewsDeps, project: GithubReviewsProject, graphql: Counter, numbers: readonly number[], window: { readonly from: string; readonly until?: string }, run: RunCounts, areas: boolean) {
+  const byMonth = new Map<string, MonthRead>();
   for (let index = 0; index < numbers.length; index += PULLS_PER_BATCH) {
-    const batch = numbers.slice(index, index + PULLS_PER_BATCH);
-    const body = await graphqlPage(
-      { token: deps.githubToken, fetchImpl: deps.githubFetch, delay: deps.delay, counter: graphql, query: pullReviewsQuery(batch) },
-      { owner: project.owner, repo: project.repo },
-    );
-    const page = parsePullReviews(body, batch);
-    if (!page.ok) throw new SourceError("schema", page.error);
-    run.graphqlCost += page.cost;
-    run.droppedPulls += page.dropped.length;
+    const page = await readBatch(deps, project, graphql, numbers.slice(index, index + PULLS_PER_BATCH), areas, run);
     for (const pull of page.pulls) {
       const result = reviewRows(pull, { ...window, machineUsers: project.machineUsers });
       if (result.truncated) run.reviewsTruncated += 1;
+      const meta = areas ? pullAreaMeta(pull) : undefined;
+      const names = areas ? pullDisplayNames(pull) : undefined;
+      if (areas && (pull.labels?.totalCount ?? 0) > (pull.labels?.nodes.length ?? 0)) run.labelsTruncated += 1;
       for (const row of result.rows) {
         run.reviews += 1;
         if (row.isBot) run.botReviews += 1;
         else if (row.reviewer === row.prAuthor) run.selfReviews += 1;
         const month = reviewMonth(row.submittedAt);
-        byMonth.set(month, [...(byMonth.get(month) ?? []), row]);
+        const entry = byMonth.get(month) ?? byMonth.set(month, { rows: [], pulls: new Map(), names: new Map() }).get(month)!;
+        entry.rows.push(row);
+        if (meta !== undefined) entry.pulls.set(row.pr, meta);
+        // RV38: a month keeps the names of the logins in its own rows only.
+        for (const login of [row.reviewer, row.prAuthor]) if (names?.has(login) === true) entry.names.set(login, names.get(login)!);
       }
     }
   }
   return byMonth;
 }
 
-/** Behavior 7–9: merges each month, oldest first, and writes it only if it changed and nobody wrote it meanwhile. */
-async function writeMonths(deps: GithubReviewsDeps, project: GithubReviewsProject, byMonth: ReadonlyMap<string, readonly ReviewRow[]>, run: RunCounts) {
+/**
+ * Behavior 7–9: merges each month, oldest first, and writes it only if it changed and nobody wrote
+ * it meanwhile. Under `metadata@1` a month's stored `pulls` and `people` are kept as they are.
+ */
+async function writeMonths(deps: GithubReviewsDeps, project: GithubReviewsProject, byMonth: ReadonlyMap<string, MonthRead>, run: RunCounts) {
   for (const month of [...byMonth.keys()].sort()) {
     const key = githubReviewsMonthKey(project.projectId, month);
     const stored = await deps.bucket.get(key);
     run.monthsRead += 1;
-    const merged = mergeReviewRows(stored === undefined ? [] : parseReviewMonth(JSON.parse(stored.body), project.projectId, month), byMonth.get(month)!);
+    const object = stored === undefined ? { rows: [] } : parseReviewMonthObject(JSON.parse(stored.body), project.projectId, month);
+    const read = byMonth.get(month)!;
+    const merged = mergeReviewRows(object.rows, read.rows);
     run.added += merged.added;
     run.changed += merged.changed;
     run.dismissed += merged.dismissed;
-    const body = encodeReviewMonth(project.projectId, month, merged.rows);
+    const extras = mergeMonthExtras(object, read.pulls, read.names);
+    const body = encodeReviewMonth(project.projectId, month, merged.rows, extras);
     if (deps.dryRun === true || body === stored?.body) continue;
     if (!await deps.bucket.putIfMatch(key, body, stored?.etag ?? null)) throw new MonthConflictError(`Review month ${month} changed during the run`);
     run.monthsWritten += 1;
   }
 }
 
-async function runProject(deps: GithubReviewsDeps, project: GithubReviewsProject, startedMs: number): Promise<ProjectRun> {
+async function runProject(deps: GithubReviewsDeps, project: GithubReviewsProject, startedMs: number, revision: GithubReviewsRevision): Promise<ProjectRun> {
   const rest = newCounter();
   const graphql = newCounter();
   const maxPulls = deps.maxPullsPerRun ?? MAX_PULLS_PER_RUN;
   let since = iso(startedMs - (deps.firstRunLookbackMs ?? FIRST_RUN_LOOKBACK_MS));
   const run = {
     cursor: null as string | null, coverageFrom: null as string | null, listed: 0, pulls: 0, truncated: false, reviews: 0, botReviews: 0, selfReviews: 0,
-    added: 0, changed: 0, dismissed: 0, droppedPulls: 0, reviewsTruncated: 0, monthsRead: 0, monthsWritten: 0, graphqlCost: 0,
+    added: 0, changed: 0, dismissed: 0, droppedPulls: 0, reviewsTruncated: 0, monthsRead: 0, monthsWritten: 0, graphqlCost: 0, labelsTruncated: 0,
   };
   const done = (extra: { readonly ok: boolean; readonly failureKind?: string; readonly error?: string }): ProjectRun => ({
-    ...extra, since, ...run, restRequests: rest.requests, graphqlRequests: graphql.requests, bytes: rest.bytes + graphql.bytes, durationMs: deps.now() - startedMs,
+    ...extra, since, ...counts(run), restRequests: rest.requests, graphqlRequests: graphql.requests, bytes: rest.bytes + graphql.bytes, durationMs: deps.now() - startedMs,
+    ...areasField(revision, run),
   });
   try {
     const stateKey = githubReviewsStateKey(project.projectId);
@@ -308,7 +354,7 @@ async function runProject(deps: GithubReviewsDeps, project: GithubReviewsProject
     run.truncated = selected.truncated;
 
     const from = iso(Math.max(Date.parse(coverageFrom), startedMs - REVIEW_WINDOW_MS));
-    const byMonth = await readRows(deps, project, graphql, selected.numbers, { from }, run);
+    const byMonth = await readRows(deps, project, graphql, selected.numbers, { from }, run, revision === GITHUB_REVIEWS_AREAS_REVISION);
     // Oldest month first; a run that dies here leaves the cursor where it was, and the next run
     // reads the same reviews into the same rows.
     await writeMonths(deps, project, byMonth, run);
@@ -328,6 +374,18 @@ async function runProject(deps: GithubReviewsDeps, project: GithubReviewsProject
   }
 }
 
+/** Behavior 1: the revision the flag names, or a `config` failure (unset, unsupported, no token). */
+export function resolveRunConfig(deps: Pick<GithubReviewsDeps, "flag" | "githubToken">): { readonly revision?: GithubReviewsRevision; readonly failure: Pick<GithubReviewsLastRun, "failureKind" | "error"> } {
+  try {
+    const revision = resolveGithubReviewsRevision(deps.flag);
+    if (revision === undefined) throw new Error("GITHUB_REVIEWS is not set");
+    if (deps.githubToken.trim() === "") throw new Error("GITHUB_SOURCE_TOKEN is not configured");
+    return { revision, failure: {} };
+  } catch (error) {
+    return { failure: { failureKind: "config", error: sanitizeErrorMessage(error instanceof Error ? error.message : String(error)) } };
+  }
+}
+
 /**
  * One run over every project. A project that fails keeps its cursor and its rows and does not stop
  * the others. The run record is written unless the run is dry; this function does not throw.
@@ -335,21 +393,16 @@ async function runProject(deps: GithubReviewsDeps, project: GithubReviewsProject
 export async function runGithubReviews(deps: GithubReviewsDeps): Promise<GithubReviewsLastRun> {
   const startedMs = deps.now();
   const projects: Record<string, ProjectRun> = {};
-  let failure: Pick<GithubReviewsLastRun, "failureKind" | "error"> = {};
-  try {
-    if (!resolveGithubReviews(deps.flag)) throw new Error("GITHUB_REVIEWS is not set");
-    if (deps.githubToken.trim() === "") throw new Error("GITHUB_SOURCE_TOKEN is not configured");
-  } catch (error) {
-    failure = { failureKind: "config", error: sanitizeErrorMessage(error instanceof Error ? error.message : String(error)) };
-  }
+  const { revision, failure: configFailure } = resolveRunConfig(deps);
+  let failure: Pick<GithubReviewsLastRun, "failureKind" | "error"> = configFailure;
   if (failure.failureKind === undefined) {
-    for (const project of deps.projects) projects[project.projectId] = await runProject(deps, project, deps.now());
+    for (const project of deps.projects) projects[project.projectId] = await runProject(deps, project, deps.now(), revision!);
     if (Object.values(projects).some((project) => !project.ok)) failure = { failureKind: "source" };
   }
   const completedMs = deps.now();
   const lastRun: GithubReviewsLastRun = {
     ok: failure.failureKind === undefined,
-    revision: GITHUB_REVIEWS_REVISION,
+    revision: revision ?? GITHUB_REVIEWS_REVISION,
     dryRun: deps.dryRun === true,
     startedAt: iso(startedMs),
     completedAt: iso(completedMs),
@@ -408,7 +461,7 @@ function parseBackfill(body: string | undefined): GithubReviewsBackfillState | u
  * moves the daily `coverageFrom` to `from` (conditional on the cursor it read, never touching
  * `updatedAt`) and marks itself complete. Writes: months, then the cursor, then its progress.
  */
-async function runBackfillProject(deps: GithubReviewsDeps, project: GithubReviewsProject, from: string, startedMs: number): Promise<BackfillProjectRun> {
+async function runBackfillProject(deps: GithubReviewsDeps, project: GithubReviewsProject, from: string, startedMs: number, revision: GithubReviewsRevision): Promise<BackfillProjectRun> {
   const rest = newCounter();
   const graphql = newCounter();
   const maxPulls = deps.maxPullsPerRun ?? MAX_PULLS_PER_RUN;
@@ -417,10 +470,11 @@ async function runBackfillProject(deps: GithubReviewsDeps, project: GithubReview
   let done = false;
   const run = {
     cursor: null as string | null, coverageFrom: null as string | null, listed: 0, pulls: 0, truncated: false, reviews: 0, botReviews: 0, selfReviews: 0,
-    added: 0, changed: 0, dismissed: 0, droppedPulls: 0, reviewsTruncated: 0, monthsRead: 0, monthsWritten: 0, graphqlCost: 0,
+    added: 0, changed: 0, dismissed: 0, droppedPulls: 0, reviewsTruncated: 0, monthsRead: 0, monthsWritten: 0, graphqlCost: 0, labelsTruncated: 0,
   };
   const finish = (extra: { readonly ok: boolean; readonly failureKind?: string; readonly error?: string }): BackfillProjectRun => ({
-    ...extra, from, until, done, since, ...run, restRequests: rest.requests, graphqlRequests: graphql.requests, bytes: rest.bytes + graphql.bytes, durationMs: deps.now() - startedMs,
+    ...extra, from, until, done, since, ...counts(run), restRequests: rest.requests, graphqlRequests: graphql.requests, bytes: rest.bytes + graphql.bytes, durationMs: deps.now() - startedMs,
+    ...areasField(revision, run),
   });
   try {
     const stateKey = githubReviewsStateKey(project.projectId);
@@ -452,7 +506,7 @@ async function runBackfillProject(deps: GithubReviewsDeps, project: GithubReview
     run.pulls = selected.numbers.length;
     run.truncated = selected.truncated;
 
-    const byMonth = await readRows(deps, project, graphql, selected.numbers, { from, until: progress.until }, run);
+    const byMonth = await readRows(deps, project, graphql, selected.numbers, { from, until: progress.until }, run, revision === GITHUB_REVIEWS_AREAS_REVISION);
     await writeMonths(deps, project, byMonth, run);
 
     const complete = !selected.truncated;
@@ -486,21 +540,16 @@ async function runBackfillProject(deps: GithubReviewsDeps, project: GithubReview
 export async function runGithubReviewsBackfill(deps: GithubReviewsDeps & { readonly from: string }): Promise<GithubReviewsBackfillLastRun> {
   const startedMs = deps.now();
   const projects: Record<string, BackfillProjectRun> = {};
-  let failure: Pick<GithubReviewsLastRun, "failureKind" | "error"> = {};
-  try {
-    if (!resolveGithubReviews(deps.flag)) throw new Error("GITHUB_REVIEWS is not set");
-    if (deps.githubToken.trim() === "") throw new Error("GITHUB_SOURCE_TOKEN is not configured");
-  } catch (error) {
-    failure = { failureKind: "config", error: sanitizeErrorMessage(error instanceof Error ? error.message : String(error)) };
-  }
+  const { revision, failure: configFailure } = resolveRunConfig(deps);
+  let failure: Pick<GithubReviewsLastRun, "failureKind" | "error"> = configFailure;
   if (failure.failureKind === undefined) {
-    for (const project of deps.projects) projects[project.projectId] = await runBackfillProject(deps, project, deps.from, deps.now());
+    for (const project of deps.projects) projects[project.projectId] = await runBackfillProject(deps, project, deps.from, deps.now(), revision!);
     if (Object.values(projects).some((project) => !project.ok)) failure = { failureKind: "source" };
   }
   const completedMs = deps.now();
   const lastRun: GithubReviewsBackfillLastRun = {
     ok: failure.failureKind === undefined,
-    revision: GITHUB_REVIEWS_REVISION,
+    revision: revision ?? GITHUB_REVIEWS_REVISION,
     dryRun: deps.dryRun === true,
     from: deps.from,
     startedAt: iso(startedMs),

@@ -1,6 +1,6 @@
 # Spec 022: GitHub pull-request reviews
 
-Status: Slice 1 implemented behind `GITHUB_REVIEWS`; set to `metadata@1` on Dev (decision 3, decided 2026-10-14), unset on Prod. Slice 2 (manual 12-month backfill, decision 5, decided 2026-10-14) implemented, not yet run
+Status: Slice 1 implemented behind `GITHUB_REVIEWS`; set to `metadata@1` on Dev (decision 3, decided 2026-10-14), unset on Prod. Slice 2 (manual 12-month backfill, decision 5, decided 2026-10-14) implemented. Amendment 2026-10-15 (`metadata@2`: pull-request areas and display names, and the refresh) implemented, off until the flag is set to `metadata@2`
 Date: 2026-10-14
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 009 (bounded memory), Spec 015 (review queue, ADR-0016), Spec 018 (daily publication), Spec 019 (contributor profile, decision 7)
@@ -478,6 +478,223 @@ whole backfill read-only against the live API with an in-memory bucket and
 prints each call and the totals (RV35). It needs a token with GraphQL
 access and was not run for this amendment.
 
+## Amendment 2026-10-15: pull-request areas and display names (`metadata@2`)
+
+Owner, 2026-10-15, on the Dev profile of `m1a2st`: "能有一個圓餅圖顯示他 work
+in 的 area 嗎？目前 work in area 好像都沒有資料" (a pie chart of the areas he
+works in; Areas shows nothing today), and "能抓 GitHub 的 Avatar 來顯示嗎？這樣
+就知道這個帳號對應的是哪個人" (show the GitHub avatar, so one can tell who the
+account is). Areas are empty because a review row carries no label (Spec 019
+decision 6 takes areas from labels and KIP numbers). This amendment gives the
+store what a profile needs for both: each reviewed pull request's label names
+and title KIP ids, and each login's public profile name. The chart and the
+avatar are Spec 019's (its amendment of the same date); the avatar needs no
+stored field.
+
+### Evidence (public reads, 2026-10-15 01:57–01:58 UTC)
+
+Pull requests updated 2026-09-15 to 2026-10-14, by the REST listing
+`repos/apache/<repo>/pulls?state=all&sort=updated&direction=desc`:
+
+| | Kafka | DataFusion |
+| --- | --- | --- |
+| Pull requests | 603 | 2,293 |
+| Labels on one pull request: mean, most | 3.26, 20 | 3.14, 17 |
+| No label at all / only process labels | 27 / 13 | 24 / 124 |
+| Title with `KIP-<n>` (case-sensitive) / other spellings (`kip-1`, `KIP 1`) | 12 / 0 | 0 / 0 |
+| `pulls` entry as stored (`"<n>":{"labels":[…],"kips":[…]}`), mean / most | 57.6 / 261 bytes | 62.7 / 237 bytes |
+
+Both repositories set their area labels from changed paths with
+`actions/labeler`: Kafka `.github/configs/labeler.yml` (21 labels: `build`,
+`clients`, `tests`, `connect`, `mirror-maker-2`, `core`, `storage`, `streams`,
+`tools`, `docs`, `generator`, `transactions`, `group-coordinator`, `kip-932`,
+`docker`, `performance`, `consumer`, `producer`, `kraft`, `dependencies`,
+`tiered-storage`), DataFusion `.github/workflows/labeler/labeler-config.yml`
+(18: `development-process`, `documentation`, `sql`, `logical-expr`, `ffi`,
+`physical-expr`, `physical-plan`, `catalog`, `common`, `execution`,
+`datasource`, `functions`, `optimizer`, `core`, `proto`, `spark`, `substrait`,
+`sqllogictest`). The other labels are set by workflows or by hand and describe
+the process: Kafka's `triage` (non-committer pull requests) and
+`needs-attention`, both removed by `pr-labels-cron.yml` once reviewed,
+`ci-approved`, `small` (`label_small.sh`); DataFusion's release labels
+(`v55.0.0`, `v56.0.0` on 876 and 872 of the 2,293), `auto detected api change`
+(331), `auto-dependencies` (131). Which labels are areas is Spec 019's
+taxonomy (its amendment); the store keeps every label name, so changing the
+taxonomy needs no refetch.
+
+### Data model: once per pull request per month, not per row
+
+| Option | Bytes for the 12-month store (both projects) | Writes | Reader |
+| --- | --- | --- | --- |
+| Labels and KIPs on every review row | about 33,000 rows × 58 to 63 bytes, about 2 MB (+25%) | none more | one place, but repeated about 3.5 times per pull request |
+| **`pulls` map in each month object (chosen)** | at most 9,517 pull requests × about 61 bytes, about 0.6 MB, plus repeats for pull requests reviewed in two months (+8 to 11% a month) | none more: written with the month it belongs to, under the same conditional write | a month object stays self-contained; the profile reads nothing more (W29's 13 objects) |
+| A separate `pulls.json` per project | about 0.6 MB, one object | one more object read and rewritten whole (0.3 to 0.4 MB) every day | one more R2 read per profile; grows without bound |
+
+Names follow the same rule: `people` in each month object, keyed by login, for
+the logins of that month's rows that have a public name. About 150 to 250
+logins a month per project, about 30 bytes each when named: 3 to 6 KB a month.
+
+```json
+{"schema":"osskb.github-reviews.v1","projectId":"apache-kafka","month":"2026-10","rows":[…],
+ "pulls":{"23675":{"labels":["ci-approved","streams"],"kips":["KIP-1071"]}},
+ "people":{"bbejeck":"Bill Bejeck","lucasbru":"Lucas Brutschy"}}
+```
+
+(The `pulls` and `people` values in the example are illustrative of the shape;
+the real ones of #23675 are written by the first `metadata@2` run.)
+
+- `pulls[<number>].labels`: every label name of the pull request, sorted,
+  unique; at most `LABELS_PER_PULL` (30, against 20 measured) are read, and a
+  run counts more in `labelsTruncated`.
+- `pulls[<number>].kips`: `KIP-<n>` ids matched in the title, numerically
+  sorted; absent when none. The title is requested and dropped; it is never
+  stored.
+- `people[<login>]`: GitHub's public profile `name` of an account typed
+  `User`, with control characters, invisible spaces and bidirectional
+  overrides removed (joiners kept), whitespace collapsed, cut to 100 grapheme
+  clusters (never inside a surrogate pair or an emoji sequence); not stored when empty, equal to the login, or
+  containing `@` (an address typed as a name). No email, no id, no other
+  profile field. A login read again without a name loses its entry.
+- A pull request's entry is in every month that has a row of it; a newer read
+  replaces it (its labels may have changed).
+
+### Contract and versioning
+
+The month object keeps `schema: "osskb.github-reviews.v1"` and its key
+prefix `internal/github-reviews/v1/`: `pulls` and `people` are additive,
+optional fields. Every reader of v1 reads `rows` and ignores other keys
+(`parseReviewMonth`, the profile, person search), so old code reads new months
+and new code reads old months (RV36). What changes is the writer, named by the
+flag: `GITHUB_REVIEWS=metadata@2` writes the two fields; `metadata@1` writes
+none and keeps those already stored byte-identical; a reader tells "not yet
+filled" from "no labels" by the entry's presence (`{"labels":[]}` is a pull
+request without labels). The run records carry the revision they ran under.
+
+### Behavior (amended and added)
+
+- **Behavior 1, amended: flag.** `metadata@1` and `metadata@2` are
+   supported; any other value is a `config` failure as before. `metadata@2` is
+   everything `metadata@1` does, plus the two items below.
+- **Behavior 4, amended: same request.** Under `metadata@2` the batched GraphQL read
+   (Behavior 4) also asks for the pull request's `title`,
+   `labels(first: 30) { totalCount nodes { name } }`, and `... on User { name }`
+   on the pull request's and each review's author. No other request is sent;
+   the number of GitHub requests of a run is unchanged.
+- **Behavior 7, amended: stored with the month.** A run writes, into each month
+   it merges, the entries of the pull requests of the rows it read for that
+   month and the names of those rows' logins; the month is written only when
+   its bytes changed, under the same conditional write. Under `metadata@1` a
+   month's stored `pulls` and `people` are kept as they are.
+- **Behavior 15 (new): refresh.** `POST /github-reviews/refresh-areas[?dryRun=1]`
+    (bearer token; 403 while the flag is unset; a `config` failure, with
+    nothing read, under `metadata@1`). Per project:
+    - needs the daily cursor (`state.json`), else `config`;
+    - reads every month object from the month of `coverageFrom` to the month
+      of the cursor (13 on Dev), oldest first, and collects the pull requests
+      of the rows that have no `pulls` entry: this is the whole progress, so
+      there is no progress object, and a repeated or interrupted call resumes
+      by itself;
+    - reads at most 500 of them (the daily cap), oldest month first, 25 per
+      GraphQL request with the query of Behavior 4, and writes each month that gained
+      entries, rows unchanged, with a write conditional on the ETag read;
+    - a number GitHub no longer resolves (deleted, transferred) gets
+      `{"labels":[]}` and is counted in `droppedPulls`, so the refresh ends;
+    - `done` when, after the call, every month has an entry for every pull
+      request of its rows; a later call then reads the months and sends nothing
+      to GitHub.
+    The record goes to `internal/github-reviews/v1/refresh-last-run.json`:
+    `{ok, revision, dryRun, startedAt, completedAt, durationMs, projects{
+    <projectId>: {ok, months, monthsComplete, monthsRead, monthsWritten,
+    pullsMissing, pullsRead, droppedPulls, labelsTruncated, graphqlRequests,
+    graphqlCost, bytes, durationMs, done, failureKind?, error?}}, failureKind?}`;
+    `/health` carries it as `githubReviewsRefresh` only under `metadata@2`
+    (`null` before the first call; absent under `metadata@1`, so that
+    `/health` is unchanged).
+
+### Refresh: volume and cost (12 months on Dev)
+
+The store holds reviews submitted since 2025-10-14 (the backfill). The pull
+requests in it are at most those updated since then: 3,674 Kafka and 5,843
+DataFusion (Spec 022 Evidence, GitHub search of 2026-10-14); the reviewed ones
+are fewer. Not re-measured against Dev's store, which this work may not read:
+the first dry call reports the real `pullsMissing`.
+
+| | Per call (both projects) | Whole refresh, worst case | Limit |
+| --- | --- | --- | --- |
+| Calls | | 12 (DataFusion 5,843 / 500; Kafka done after 8) | |
+| GraphQL requests (≈1 point each; the same query as the daily run) | at most 40 | at most 381 | 5,000 points an hour |
+| REST requests | 0 | 0 | |
+| Wall time | about 70 s (40 requests, as a backfill call) | about 14 minutes | |
+| R2 Class B | 2 × (1 cursor + 13 months) = 28 | 336 | 10 million a month |
+| R2 Class A | at most 2 × 13 months + 1 record = 27 | at most 324; typically each month written once or twice: about 65 | 1 million a month |
+| Memory | pass 1 keeps the parsed month objects of one project that lack entries: 13 objects of about 0.3 MB of JSON each, about 15 to 20 MB as parsed objects (estimate, not measured in the runtime), plus one response at a time | | 128 MB |
+| Storage | | +0.6 to 0.8 MB once | |
+
+The daily run under `metadata@2`: the same requests (10 a normal day); each
+response grows by about 100 bytes per pull request; GraphQL cost is expected to
+stay about 1 point per request (25 more connections of at most 30 nodes; GitHub
+counts a request's nodes divided by 100). Not measured here (no GraphQL call
+was allowed); RV45 checks it on Dev. R2 is unchanged in count: the months a run
+reads and writes are the same, and a month whose only change is a label is
+still one of those at most three per project. Worst case a day: 9 Class A and
+8 Class B, as before.
+
+### Acceptance (added)
+
+Listed under [Acceptance](#acceptance): RV36–RV45.
+
+### Enabling `metadata@2` on Dev (operator sequence)
+
+Preconditions: PR 1 (this amendment, flag unchanged) merged and deployed;
+`/health` `githubReviews.ok` is `true` with `revision` `metadata@1`. Avoid
+21:55–22:35 UTC (the 22:07 tick) and 22:45–22:50 UTC (the 22:47 digest): a
+call that overlaps the tick is safe (a `conflict` the next call repairs) but
+wastes a call.
+
+1. Merge the enable PR: `"GITHUB_REVIEWS": "metadata@2"` in
+   `apps/data-publisher-worker/wrangler.development.jsonc`. CI deploys Dev.
+   Expect `/health` to show `githubReviewsRefresh: null`, and `githubReviews`
+   unchanged (still the last `metadata@1` record).
+2. Daily dry run: `POST /github-reviews/run?dryRun=1`. Expect `ok: true`,
+   `revision: "metadata@2"`, per project `restRequests + graphqlRequests` as on
+   a normal day (at most 10), `graphqlCost` at most 2 per GraphQL request,
+   `labelsTruncated: 0`. **Stop** (remove the variable) on `failureKind`
+   `schema` or `auth`: the token or the API refused a new field.
+3. One real daily run (`POST /github-reviews/run`, or wait for the tick).
+   Expect `ok: true`, `revision: "metadata@2"`, no `conflict`.
+4. Refresh dry call: `POST /github-reviews/refresh-areas?dryRun=1`. Expect
+   `ok: true`; per project `months: 13`, `monthsComplete` 0 to 2,
+   `pullsMissing` at most 3,674 (Kafka) and 5,843 (DataFusion), `pullsRead` at
+   most 500, `graphqlRequests` at most 20, `monthsWritten: 0`.
+5. Refresh calls: repeat `POST /github-reviews/refresh-areas` until both
+   projects report `done: true` (expected 8 to 12 calls of about 70 s). After
+   each: `ok: true`; `pullsMissing` falls by `pullsRead`; `monthsWritten` at
+   least 1 until done. **Stop** on a second `conflict` in a row, on `auth` or
+   `rate-limit`, when `labelsTruncated` is above 0 (raise `LABELS_PER_PULL`
+   first), when `droppedPulls` is above 10 in one call, or when a call's
+   `graphqlCost` is above 60.
+6. Done: `/health` `githubReviewsRefresh.projects.*.done` are `true` and
+   `monthsComplete` equals `months`; one more call reports `pullsRead: 0` and
+   `graphqlRequests: 0`.
+7. Spec 019 W55: the profiles of `m1a2st` and `chia7712` show both charts and
+   their public names.
+
+Rollback: set `GITHUB_REVIEWS` back to `metadata@1`. The stored fields stay
+and are kept by later runs; the refresh route answers `config`; the profile
+keeps showing what is stored (Spec 019: hide it with `PEOPLE_PROFILES`).
+
+### Could not be verified (amendment)
+
+- GraphQL cost and acceptance of the new fields with the Dev token: no
+  GraphQL request was made for this amendment (RV45 on Dev, step 2).
+- The number of pull requests in Dev's store (the R2 store was not read):
+  the refresh's call count is a bound from GitHub search totals.
+- The `name` of an account that hides it, or an organisation's: GitHub
+  returns null or nothing; both store no name.
+- That a pull request's labels never change after its last review: a label
+  set later is picked up when the pull request is next listed and its review
+  is within 35 days; older months keep the labels read at their last refresh.
+
 ## Test plan
 
 Generated from `packages/reference-pipeline/test/github-reviews.cases.ts` by
@@ -493,7 +710,26 @@ responses of 2026-10-14: no review text, no address).
 | RV1 | flag | constructed: GITHUB_REVIEWS blank | off |
 | RV1 | flag | constructed: GITHUB_REVIEWS metadata@1 | on |
 | RV1 | flag | constructed: GITHUB_REVIEWS true | error: not supported |
-| RV1 | flag | constructed: GITHUB_REVIEWS metadata@2 | error: not supported |
+| RV1 | flag | constructed: GITHUB_REVIEWS metadata@2 | on, with areas |
+| RV1 | flag | constructed: GITHUB_REVIEWS metadata@3 | error: not supported |
+| RV36 | contract | constructed: a metadata@2 month (pulls, people) read by the rows-only parser | 1 row; extra fields ignored |
+| RV36 | contract | constructed: a metadata@1 month read by the full parser | 1 row; no pulls; no people |
+| RV36 | contract | constructed: pulls keyed by a non-number | error: malformed pulls |
+| RV36 | contract | constructed: people with a number as a name | error: malformed people |
+| RV37 | area query | constructed: the metadata@2 query for pull request 1 | title; labels(first: 30); User name; no body, bodyText, bodyHTML, path, diffHunk or email |
+| RV37 | area query | constructed: the metadata@1 query for pull request 1 | no title, labels or name |
+| RV37 | area meta | constructed: title KAFKA-1: x (KIP-1071, KIP-932), labels triage, streams, streams | labels streams, triage; kips KIP-932, KIP-1071 |
+| RV37 | area meta | constructed: title kip-12 and KIP 13 and KIP-14a, no labels | labels none; no kips |
+| RV38 | display name | constructed: Chia-Ping Tsai for chia7712 | Chia-Ping Tsai |
+| RV38 | display name | constructed: a name with a control character, a zero-width space and doubled spaces | Ada Lovelace |
+| RV38 | display name | constructed: an address typed as the name | dropped |
+| RV38 | display name | constructed: the login typed as the name | dropped |
+| RV38 | display name | constructed: 150 characters | 100 characters |
+| RV38 | display name | constructed: 99 letters, then an emoji outside the BMP, then more | 100 graphemes; ends with the whole emoji; well-formed |
+| RV38 | display name | constructed: a family emoji joined by ZWJ, and a right-to-left override | joiners kept; override removed |
+| RV38 | display name | constructed: <script>alert(1)</script> as the name | <script>alert(1)</script> |
+| RV38 | display names | constructed: a User author with a name, a User reviewer without, a Bot reviewer with one | grace Grace Hopper; ada null |
+| RV39 | merge extras | constructed: stored #1 core, ada Ada; read #1 core, tests and #2 none; ada null, bob Bob | pulls 1 core,tests; 2 none; people bob Bob; again equal bytes |
 | RV3 | rows | recorded: kafka #23675 (Copilot twice, the author once, one approval) | 4 rows: copilot-pull-request-reviewer COMMENTED bot 1 inline; lucasbru COMMENTED self 1 inline; copilot-pull-request-reviewer COMMENTED bot 0 inline; bbejeck APPROVED 0 inline |
 | RV3 | rows | recorded: kafka #23809 (no review) | 0 rows |
 | RV3 | rows | recorded: kafka #23165 (28 reviews) | 28 rows; 28 with a commit; reviewId unique |
@@ -570,13 +806,26 @@ set wrongly.
 | RV32 | A dry backfill call | Counts reported, nothing written |
 | RV33 | 700 pull requests since `from` | One call reads 500 with 6 listing pages and 20 GraphQL requests; R2 5 reads and 5 writes |
 | RV34 | A backfill call; `/health` | `backfill-last-run.json` names from, until, cursor, done and counts; `/health` `githubReviewsBackfill` |
+| RV36 | `metadata@1` with a stored month holding `pulls` and `people` | No title, label or name requested; both fields kept byte-identical |
+| RV37 | `metadata@2` run over two pull requests | Same GraphQL requests as `metadata@1`; `pulls` with sorted labels and title KIPs; no title stored; rows of nine keys |
+| RV38 | Names read, then read again after one was cleared | Stored once per login per month; the cleared name removed; an address not stored |
+| RV39 | A pull request reviewed in September and October; labels changed later | Its entry in both months; the newer labels replace it in both |
+| RV40 | Three months of 20 pull requests, cap 30 | Two calls fill them oldest first; rows byte-identical; a third call sends nothing |
+| RV41 | `metadata@1`; no cursor; dry; a month written meanwhile; a deleted pull request | `config` with nothing sent; nothing written; `conflict` then repaired; `{"labels":[]}` |
+| RV42 | The refresh route and `/health` | 401, 403, 502 `config` under `metadata@1`; `githubReviewsRefresh` only under `metadata@2` |
+| RV43 | 720 pull requests without metadata | 500 read in 20 GraphQL requests; Kafka: 4 R2 reads and 3 month writes; one record |
 
 ## Acceptance
 
 Each item: precondition → action → observable result → evidence.
 
 ### Behavior
-- RV1: given `GITHUB_REVIEWS` unset, blank, `metadata@1`, `true` or `metadata@2`, resolving it gives off, off, on, error, error → case rows.
+- RV1: given `GITHUB_REVIEWS` unset, blank, `metadata@1`, `true`, `metadata@2` or `metadata@3`, resolving it gives off, off, on, error, on with areas, error (amended 2026-10-15: `metadata@2` was an error before) → case rows.
+- RV36: given a `metadata@2` month object, the rows-only parser (`parseReviewMonth`) returns its rows and ignores `pulls` and `people`; given a `metadata@1` month, the full parser returns its rows and no `pulls` or `people`; a malformed `pulls` (a key that is not a number) or `people` (a name that is not a string) fails as malformed; under `metadata@1` the read asks for no title, label or name and a run keeps a month's stored `pulls` and `people` → case rows and run test.
+- RV37: under `metadata@2` the query asks for `title`, `labels(first: 30)` and `... on User { name }` and still no body, path, diff hunk or email; a run makes as many GraphQL requests as under `metadata@1`, stores per month each reviewed pull request's sorted unique label names and numerically sorted title KIP ids, never the title, and rows keep exactly their nine keys; `kip-12`, `KIP 13` and `KIP-14a` are no KIP ids → case rows and run test.
+- RV38: a public name is kept trimmed, without control or format characters, at most 100 characters; an address, the login itself, and a name of an account not typed `User` are not stored; a login read again without a name loses it; a name with markup is stored as text (the page escapes it) → case rows and run test.
+- RV39: entries and names merge by pull request and login, the newer read replacing the older, keys sorted so a repeated merge gives equal bytes; a pull request reviewed in two months has its entry in both, and a later read with other labels replaces it in both → case rows and run test.
+- RV40: given months written under `metadata@1`, refresh calls fill them oldest month first, at most the cap of pull requests per call, read each pull request once per call even when it is in several months, change no row byte, and end with every month complete; a further call lists nothing and sends no GraphQL request → run test.
 - RV2: given the flag unset, a publication tick makes exactly the one call that schedules the publication, no request to GitHub and no request to the bucket; `/health` is byte-identical to its body without this change; `POST /github-reviews/run` answers 403 without running. Positive control: the same tick with the flag set schedules the same publication and also reads GitHub → Worker tests; `publication-parity.test.ts` and its fixtures are unchanged.
 - RV3: given the recorded response for Kafka #23675, #23809, #23165 and a number that is not a pull request, parsing gives 4, 0 and 28 rows with reviewer, state, time, commit and inline count, and drops the unknown number without failing; a malformed node or an error without an alias fails the batch; a pending review gives no row → case rows.
 - RV4: given no stored cursor, a run lists from one day back with `state=all&sort=updated&direction=asc`, stores `coverageFrom`, and moves the cursor to the newest item listed (also when that is an issue); the next run lists from the cursor minus 300 s → run test.
@@ -595,6 +844,8 @@ Each item: precondition → action → observable result → evidence.
 - RV26: given the Dev configuration, `GITHUB_REVIEWS` is `metadata@1` and the Prod configuration has no `GITHUB_REVIEWS`; given Dev's value and an empty bucket, a publication tick schedules the same publication and each project's run lists from one day before the tick and writes only its first cursor and the run record → Worker test reading both Wrangler files.
 
 ### Failure and retry
+- RV41: given the flag at `metadata@1`, a refresh call is a `config` failure that sends nothing to GitHub; without a daily cursor the project fails as `config` with nothing read; a dry call reads the bucket and GitHub (the pull requests it would fill) and writes nothing, not even its record; a month written by another run between the refresh's read and write is a `conflict` and the next call completes it; a pull request GitHub no longer resolves is stored as `{"labels":[]}` and counted in `droppedPulls`, so the refresh ends → run tests.
+- RV42: the refresh route answers 401 without the bearer token, 403 with the flag unset, 502 with a `config` failure under `metadata@1`; `/health` carries `githubReviewsRefresh` under `metadata@2` (`null` before the first call) and has no such field under `metadata@1` → Worker test.
 - RV31: given no daily cursor, or a backfill from another date in progress, the project fails as `config`, reads nothing from GitHub and writes nothing; given a month object or the daily cursor written by another run between the backfill's read and its write, the project fails as `conflict`, its progress stays, `coverageFrom` is not moved, and the next call completes; given a daily run whose cursor a finishing backfill rewrote meanwhile, the daily run fails as `conflict` and leaves `coverageFrom` as the backfill set it; given a call that dies after its month writes, the next call repeats the chunk and adds nothing → run tests.
 - RV32: given a dry backfill call, GitHub and the bucket are read, the counts are reported, and nothing is written, not even the run record or the progress → run test.
 - RV13: given a GraphQL batch that fails twice, that project's run fails as `transport` after one retry, writes no month and no cursor, and the other project completes; the next run reads the same day → run test.
@@ -613,7 +864,11 @@ Each item: precondition → action → observable result → evidence.
 - RV22: given the busiest measured day (70 Kafka pull requests; 85 DataFusion pull requests and 30 issues), a run makes 1 + 3 and 2 + 4 GitHub requests and 4 bucket reads and 5 writes; given 700 new pull requests, a run reads 500 with 6 keyed listing pages (99 new items a page) and 20 GraphQL requests → run test.
 - RV23: [measure] a row is 224 to 226 bytes; a month is about 322 KB (Kafka) and 343 KB (DataFusion), a year about 8 MB for both (`bun run measure:github-reviews -- --days 7`: 74,017 and 78,593 bytes for 329 and 351 rows).
 
+- RV43: given 720 Kafka pull requests without metadata in three months, one refresh call reads 500 in 20 GraphQL requests (batches of 25 across months), reads the cursor and 3 months per project and writes the 3 months it filled plus one record → run test.
+- RV44: [measure] a `pulls` entry is about 58 (Kafka) and 63 (DataFusion) bytes, most 261; label names per pull request 3.26 and 3.14 on average, 20 at most (2026-10-15, 603 and 2,293 pull requests); `bun run measure:github-reviews -- --revision metadata@2 --days 7` reports the bytes `pulls` and `people` add to real month objects (needs a token; not run for this amendment).
+
 ### Observability
+- RV45: [deploy] on Dev after `metadata@2` is set (operator sequence above): the dry daily run is `ok` with `revision: "metadata@2"`, the same number of requests as under `metadata@1`, `graphqlCost` at most 2 per GraphQL request and `labelsTruncated: 0`; the refresh finishes with `done: true` for both projects and no `conflict` left; `/health` `githubReviewsRefresh` shows it.
 - RV34: given a backfill call, `backfill-last-run.json` holds `{ok, revision, dryRun, from, startedAt, completedAt, durationMs, projects}` and per project the run fields of RV24 plus `from`, `until` and `done`, never the token, and the daily `last-run.json` is not replaced; with the flag set `/health` carries it as `githubReviewsBackfill` (`null` before the first call), and with the flag unset neither field is present → run and Worker tests.
 - RV24: given a run, `last-run.json` names per project the listing start, the cursor, `coverageFrom`, pull requests listed and read, `truncated`, reviews, bot and author reviews, rows added, changed and dismissed, pull requests dropped, `reviewsTruncated`, month objects read and written, REST and GraphQL requests, GraphQL cost, response size and duration, and never the token; with the flag set `/health` carries it as `githubReviews`, `null` before the first run → run and Worker tests.
 - RV25: [deploy] on Dev after the flag is set: a dry run answers 200 with `ok: true` for both projects; the second real run replaces a month object (`monthsWritten` at least 1 or `changed` above 0) with no `failureKind: conflict`; after the first real run `/health` `githubReviews.ok` is true, each project's `restRequests + graphqlRequests` is at most 10 on a normal day, and `lastRun` of the publication of the same tick is `ok` with `r2` within its usual range.

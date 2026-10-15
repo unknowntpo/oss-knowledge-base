@@ -4,7 +4,13 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import {
+  displayName,
   encodeReviewMonth,
+  mergeMonthExtras,
+  parseReviewMonthObject,
+  pullAreaMeta,
+  pullDisplayNames,
+  resolveGithubReviewsRevision,
   isReviewBot,
   mergeReviewRows,
   nextKeysetPage,
@@ -55,7 +61,8 @@ const row = (id: number, submittedAt: string, extra: Partial<ReviewRow> = {}): R
 });
 const flag = (value: string | undefined) => {
   try {
-    return resolveGithubReviews(value) ? "on" : "off";
+    const revision = resolveGithubReviewsRevision(value);
+    return revision === undefined ? (resolveGithubReviews(value) ? "on" : "off") : revision === "metadata@2" ? "on, with areas" : "on";
   } catch (error) {
     return /not supported/u.test(String(error)) ? "error: not supported" : String(error);
   }
@@ -72,6 +79,19 @@ const dismissal = (stored: readonly ReviewRow[], incoming: ReviewRow) => {
   const only = merged.rows[0]!;
   return `${merged.rows.length} row ${only.state}, ${only.stateBefore === undefined ? "no stateBefore" : `stateBefore ${only.stateBefore}`}; ` +
     (stored.length === 0 ? `added ${merged.added}` : `changed ${merged.changed}, dismissed ${merged.dismissed}`);
+};
+const malformed = (extra: Record<string, unknown>) => {
+  try {
+    parseReviewMonthObject({ ...JSON.parse(encodeReviewMonth("p", "2026-10", [])), ...extra }, "p", "2026-10");
+    return "parsed";
+  } catch (error) {
+    const match = /malformed (pulls|people)/u.exec(String(error));
+    return match === null ? String(error) : `error: malformed ${match[1]}`;
+  }
+};
+const meta = (value: PullReviews) => {
+  const result = pullAreaMeta(value);
+  return `labels ${result.labels.join(", ") || "none"}; ${result.kips === undefined ? "no kips" : `kips ${result.kips.join(", ")}`}`;
 };
 const many = (oldest: string) => pull(Array.from({ length: 100 }, (_, index) => node(index + 1, index === 0 ? oldest : "2026-10-13T12:00:00Z")), 150);
 
@@ -107,6 +127,56 @@ const scenarios: Record<string, () => string> = {
   "flag|constructed: GITHUB_REVIEWS metadata@1": () => flag("metadata@1"),
   "flag|constructed: GITHUB_REVIEWS true": () => flag("true"),
   "flag|constructed: GITHUB_REVIEWS metadata@2": () => flag("metadata@2"),
+  "flag|constructed: GITHUB_REVIEWS metadata@3": () => flag("metadata@3"),
+  "contract|constructed: a metadata@2 month (pulls, people) read by the rows-only parser": () => {
+    const body = JSON.parse(encodeReviewMonth("p", "2026-10", [row(1, "2026-10-13T12:00:00Z")], { pulls: { "7": { labels: ["core"] } }, people: { ada: "Ada" } }));
+    return `${parseReviewMonth(body, "p", "2026-10").length} row; ${"pulls" in body && "people" in body ? "extra fields ignored" : "no extra fields"}`;
+  },
+  "contract|constructed: a metadata@1 month read by the full parser": () => {
+    const object = parseReviewMonthObject(JSON.parse(encodeReviewMonth("p", "2026-10", [row(1, "2026-10-13T12:00:00Z")])), "p", "2026-10");
+    return `${object.rows.length} row; ${object.pulls === undefined ? "no pulls" : "pulls"}; ${object.people === undefined ? "no people" : "people"}`;
+  },
+  "contract|constructed: pulls keyed by a non-number": () => malformed({ pulls: { abc: { labels: [] } } }),
+  "contract|constructed: people with a number as a name": () => malformed({ people: { ada: 7 } }),
+  "area query|constructed: the metadata@2 query for pull request 1": () => {
+    const query = pullReviewsQuery([1], { areas: true });
+    const asks = [query.includes(" title "), query.includes("labels(first: 30)"), query.includes("... on User { name }")];
+    const text = /\b(body|bodyText|bodyHTML|path|diffHunk|email)\b/u.exec(query);
+    return `${asks[0] ? "title" : "no title"}; ${asks[1] ? "labels(first: 30)" : "no labels"}; ${asks[2] ? "User name" : "no name"}; ${text === null ? "no body, bodyText, bodyHTML, path, diffHunk or email" : `has ${text[1]}`}`;
+  },
+  "area query|constructed: the metadata@1 query for pull request 1": () => (/title|labels|on User/u.test(pullReviewsQuery([1])) ? "asks for metadata" : "no title, labels or name"),
+  "area meta|constructed: title KAFKA-1: x (KIP-1071, KIP-932), labels triage, streams, streams": () =>
+    meta({ ...pull([]), title: "KAFKA-1: x (KIP-1071, KIP-932)", labels: { totalCount: 3, nodes: [{ name: "triage" }, { name: "streams" }, { name: "streams" }] } }),
+  "area meta|constructed: title kip-12 and KIP 13 and KIP-14a, no labels": () => meta({ ...pull([]), title: "kip-12 and KIP 13 and KIP-14a", labels: { totalCount: 0, nodes: [] } }),
+  "display name|constructed: Chia-Ping Tsai for chia7712": () => displayName("Chia-Ping Tsai", "chia7712") ?? "dropped",
+  "display name|constructed: a name with a control character, a zero-width space and doubled spaces": () => displayName(" Ada\u0007\u200b  Lovelace ", "ada") ?? "dropped",
+  "display name|constructed: an address typed as the name": () => displayName("ada@example.org", "ada") ?? "dropped",
+  "display name|constructed: the login typed as the name": () => displayName("Ada", "ada") ?? "dropped",
+  "display name|constructed: 99 letters, then an emoji outside the BMP, then more": () => {
+    const kept = displayName(`${"x".repeat(99)}😀tail`, "ada") ?? "";
+    const graphemes = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(kept)].length;
+    return `${graphemes} graphemes; ${kept.endsWith("😀") ? "ends with the whole emoji" : "emoji cut"}; ${/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(kept) ? "lone surrogate" : "well-formed"}`;
+  },
+  "display name|constructed: a family emoji joined by ZWJ, and a right-to-left override": () => {
+    const kept = displayName("Ada 👨\u200D👩\u200D👧 \u202Eecalevol", "ada") ?? "";
+    return `${kept.includes("👨\u200D👩\u200D👧") ? "joiners kept" : "joiners removed"}; ${kept.includes("\u202E") ? "override kept" : "override removed"}`;
+  },
+  "display name|constructed: 150 characters": () => `${(displayName("x".repeat(150), "ada") ?? "").length} characters`,
+  "display name|constructed: <script>alert(1)</script> as the name": () => displayName("<script>alert(1)</script>", "ada") ?? "dropped",
+  "display names|constructed: a User author with a name, a User reviewer without, a Bot reviewer with one": () => {
+    const names = pullDisplayNames(pull([
+      node(1, "2026-10-13T12:00:00Z", { author: { login: "ada", __typename: "User", name: null } }),
+      node(2, "2026-10-13T12:00:00Z", { author: { login: "copilot", __typename: "Bot", name: "Copilot" } }),
+    ], 2, { login: "grace", __typename: "User", name: "Grace Hopper" }));
+    return [...names].map(([login, name]) => `${login} ${name}`).join("; ");
+  },
+  "merge extras|constructed: stored #1 core, ada Ada; read #1 core, tests and #2 none; ada null, bob Bob": () => {
+    const merged = mergeMonthExtras({ pulls: { "1": { labels: ["core"] } }, people: { ada: "Ada" } }, new Map([[2, { labels: [] }], [1, { labels: ["core", "tests"] }]]), new Map([["bob", "Bob"], ["ada", null]]));
+    const again = mergeMonthExtras(merged, new Map([[1, { labels: ["core", "tests"] }]]), new Map([["bob", "Bob"]]));
+    const pulls = Object.entries(merged.pulls!).map(([pr, value]) => `${pr} ${value.labels.join(",") || "none"}`).join("; ");
+    const people = Object.entries(merged.people!).map(([login, name]) => `${login} ${name}`).join("; ");
+    return `pulls ${pulls}; people ${people}; again ${JSON.stringify(again) === JSON.stringify(merged) ? "equal bytes" : "differs"}`;
+  },
   "rows|recorded: kafka #23675 (Copilot twice, the author once, one approval)": () => {
     const { rows } = rowsOf(kafkaPull(23675));
     return `${rows.length} rows: ${rows.map(brief).join("; ")}`;

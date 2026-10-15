@@ -680,7 +680,7 @@ When it is on:
   `cursor`, `coverageFrom` (reviews before it were never read), `pulls`,
   `reviews`, `added`, `truncated`, `restRequests`, `graphqlRequests`,
   `failureKind`.
-- `failureKind: config`: the flag value is not `metadata@1`, or the token is
+- `failureKind: config`: the flag value is not `metadata@1` or `metadata@2`, or the token is
   missing. `auth`: GitHub refused the token (a token without GraphQL access
   fails here). `rate-limit`, `transport`, `schema`: the project keeps its
   cursor and the next tick reads the same reviews. `conflict`: two runs
@@ -764,3 +764,27 @@ Expected at the end: both projects `done: true`, about 17,000 Kafka and
 (about 4 MB each project), about 150 listing and 400 GraphQL requests (at most about 475 with the 300 s overlap), and
 R2 about 120 Class A (bound about 300) and at most about 300 Class B. Record
 the totals as RV35 evidence.
+
+### Areas and names (`metadata@2`, Spec 022 amendment 2026-10-15)
+
+`GITHUB_REVIEWS=metadata@2` makes the same daily run also store, per month,
+each reviewed pull request's label names and title KIP ids (`pulls`) and
+logins' public names (`people`), with no extra request. Months written before
+it have none until the refresh fills them; the profile draws no area chart for
+a period that is not fully covered (Spec 019 W49).
+
+Refresh, once, by hand: `POST /github-reviews/refresh-areas[?dryRun=1]` with
+the bearer token, repeated until `/health` `githubReviewsRefresh.projects.*.done`
+are both `true` (8 to 12 calls of about 70 s on Dev's 12 months). It lists
+nothing and keeps no progress object: each call reads the cursor and the
+store's months, takes up to 500 pull requests without an entry, oldest month
+first, and writes the months it filled. Steps, expected values and stop
+conditions: [Spec 022, Enabling `metadata@2` on Dev](../specs/022-github-reviews/spec.md#enabling-metadata2-on-dev-operator-sequence).
+Avoid 21:55–22:35 UTC (the tick) and 22:45–22:50 UTC (the digest).
+
+- `failureKind: config` on the refresh: the flag is `metadata@1`, or the
+  project has no daily cursor. `conflict`: the daily run wrote a month
+  meanwhile; call again. `labelsTruncated` above 0: a pull request has more
+  than 30 labels; raise `LABELS_PER_PULL` before going on.
+- To turn off: set the variable back to `metadata@1`. Stored `pulls` and
+  `people` stay and are kept by later runs.

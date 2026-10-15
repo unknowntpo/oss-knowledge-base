@@ -60,7 +60,9 @@ for (const width of [320, 375]) {
   test(`W5: at ${width} px the profile has no horizontal overflow and keeps its order`, async ({ page }) => {
     await page.setViewportSize({ width, height: 812 });
     await open(page, aliceRoute, "zh-Hant");
-    await expect(page.locator(".person-name")).toHaveText("alice");
+    // W51: the public name is the heading, the login beneath it.
+    await expect(page.locator(".person-name")).toHaveText("Alice Example");
+    await expect(page.locator(".person-login")).toHaveText("alice");
     await expect(page.locator(".person-coverage li").first()).toContainText("審查：");
     await noHorizontalOverflow(page);
     if (width === 375) await screenshot(page, "profile-kafka-alice-375-zh");

@@ -7,6 +7,8 @@ export const GITHUB_REVIEWS_LAST_RUN_KEY = "internal/github-reviews/v1/last-run.
 /** Behavior 13: the backfill's own progress, apart from the daily cursor, and its last run record. */
 export const githubReviewsBackfillKey = (projectId: string) => `${githubReviewsPrefix(projectId)}backfill.json`;
 export const GITHUB_REVIEWS_BACKFILL_LAST_RUN_KEY = "internal/github-reviews/v1/backfill-last-run.json";
+/** Behavior 15 (areas amendment): the last manual metadata refresh's record. It keeps no progress object. */
+export const GITHUB_REVIEWS_REFRESH_LAST_RUN_KEY = "internal/github-reviews/v1/refresh-last-run.json";
 
 export interface GithubReviewsBucket {
   /** The object's text and ETag, or undefined when absent. */
