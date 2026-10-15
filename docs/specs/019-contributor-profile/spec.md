@@ -1,6 +1,6 @@
 # Spec 019: Contributor profile
 
-Status: Accepted 2026-10-14 (all nine owner decisions recorded); amended 2026-10-15 (slice 2 split into 2a and 2b, decision 10; slice 3 widened to login prefixes; slice 2b storage, identity and budget); slice 1 is Spec 022 (live on Dev, 12 months backfilled); slices 2a and 3 implemented; slice 2b implemented behind `PEOPLE_ACTIVITY` (off until its enable PR); amendment (4) (area charts, avatars, public names; W46–W55) implemented, shown once Spec 022 `metadata@2` data exists; slices 4–7 not implemented
+Status: Accepted 2026-10-14 (all nine owner decisions recorded); amended 2026-10-15 (slice 2 split into 2a and 2b, decision 10; slice 3 widened to login prefixes; slice 2b storage, identity and budget); slice 1 is Spec 022 (live on Dev, 12 months backfilled); slices 2a and 3 implemented; slice 2b implemented, `PEOPLE_ACTIVITY=log@1` on Dev only (enable PR), off on Prod; amendment (4) (area charts, avatars, public names; W46–W55) implemented, shown once Spec 022 `metadata@2` data exists; slices 4–7 not implemented
 Date: 2026-10-13 (decisions recorded 2026-10-14; amendment and decision 10 2026-10-15)
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 008 (content-addressed objects), Spec 009 (bounded memory), Spec 012 (dev@ and Jira), Spec 014 (digest profiles), Spec 015 (governance profile and ASF roster), Spec 016/017 (search, "exact matches first"), Spec 018 (daily publication)
