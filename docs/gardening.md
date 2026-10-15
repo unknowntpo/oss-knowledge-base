@@ -954,7 +954,7 @@ the two `viewer/` items below.
 - **Layer:** spec (Spec 020 Decisions 5 and 6).
 - **Source:** Spec 020 non-goals, 2026-10-14.
 
-### G70. The profile's suppression digest uses a public, constant salt
+### G73. The profile's suppression digest uses a public, constant salt
 - **Where:** `packages/reference-pipeline/src/people/index.ts`
   (`suppressionDigest`, `PEOPLE_SUPPRESSED`).
 - **Why:** Spec 019 P-e asks for a salted hash so the list does not spell a
@@ -965,7 +965,7 @@ the two `viewer/` items below.
 - **Layer:** spec decision, then configuration.
 - **Source:** Spec 019 slice 2a, 2026-10-15.
 
-### G71. `measure:people` times the reader in Bun, not in workerd
+### G74. `measure:people` times the reader in Bun, not in workerd
 - **Where:** `apps/web/scripts/measure-people.ts`.
 - **Why:** sizes and R2 reads are exact, but CPU time comes from Bun's JSC.
   The workerd timing (local `wrangler pages dev`, seeded with `--dump`) is a

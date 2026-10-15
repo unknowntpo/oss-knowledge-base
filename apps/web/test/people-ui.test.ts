@@ -88,8 +88,8 @@ describe("Spec 019 slice 2a: profile page", () => {
     expect(header).toContain("Activity in Apache Kafka");
     expect(header).toContain("2025-11-01 to 2026-10-14 · 348 days of data");
     const body = text(html);
-    expect(body).toContain("Reviews given 4 reviews on 1 pull requests approved 1, commented 3");
-    expect(body).toContain("Reviews received 1 reviews on 1 pull requests from 1 reviewers");
+    expect(body).toContain("Reviews given 4 reviews on 1 pull request approved 1, commented 3");
+    expect(body).toContain("Reviews received 1 review on 1 pull request from 1 reviewer");
     expect(body).toContain("#23165 reviewed · PR by gabriellefu · approved 1, commented 3 2026-10-06");
     expect(html).toContain('href="https://github.com/apache/kafka/pull/23165#pullrequestreview-5425459798"');
     expect(html).toContain(`href="/kafka/people/${encodeURIComponent("github:bbejeck")}"`);
@@ -122,7 +122,7 @@ describe("Spec 019 slice 2a: profile page", () => {
   test("W10: a month that could not be read is named on the page", async () => {
     const html = text(await render(components.PersonProfile, { profile: await profile("github:mjsax", { broken: ["2026-09"] }), nowMs: NOW }));
     expect(html).toContain("Data for 2026-09 is unavailable and not counted.");
-    expect(html).toContain("Reviews given 1 reviews on 1 pull requests");
+    expect(html).toContain("Reviews given 1 review on 1 pull request");
     // Positive control: nothing is named when every month reads.
     expect(text(await render(components.PersonProfile, { profile: await profile("github:mjsax"), nowMs: NOW }))).not.toContain("unavailable");
   });

@@ -184,6 +184,8 @@ export interface PersonProfileV1 {
   readonly unavailableMonths: readonly string[];
   readonly reviewsGiven: readonly ReviewGivenV1[];
   readonly reviewsReceived: readonly ReviewReceivedV1[];
+  /** Counterparts in these rows that GitHub typed `Bot` (W12): counted, never listed under Works with. */
+  readonly bots: readonly string[];
   /** The 12-month view's totals, as `profileView(…, "12m")` computes them for the page. */
   readonly totals: ProfileTotals;
 }
@@ -356,6 +358,8 @@ export async function readPersonProfile(input: {
       reviewId: row.reviewId, pr: row.pr, reviewer: hidden.has(row.reviewer) ? null : row.reviewer, state: row.state, ...verdict(row),
       submittedAt: row.submittedAt, inlineComments: row.inlineComments,
     })),
+    bots: [...new Set([...given.map((row) => row.prAuthor), ...received.map((row) => row.reviewer)])]
+      .filter((login) => !hidden.has(login) && learnedBots.has(login.toLowerCase())).sort(),
   };
   return { status: 200, body: { ...body, totals: profileTotals(body.reviewsGiven, body.reviewsReceived) } };
 }
@@ -434,8 +438,10 @@ export function profileView(profile: PersonProfileV1, period: ProfilePeriod, now
     received: received.filter((row) => bucketOf(row.submittedAt) === label).length,
   }));
 
+  const learned = new Set(profile.bots.map((login) => login.toLowerCase()));
   const isPerson = (login: string | null): login is string =>
-    login !== null && login.toLowerCase() !== DELETED_ACCOUNT && (project === undefined || !isBotLogin(login, project));
+    login !== null && login.toLowerCase() !== DELETED_ACCOUNT && !learned.has(login.toLowerCase()) &&
+    (project === undefined || !isBotLogin(login, project));
   const shared = (pairs: readonly (readonly [string | null, number])[]) => {
     const byLogin = new Map<string, Set<number>>();
     for (const [login, pr] of pairs) if (isPerson(login)) (byLogin.get(login) ?? byLogin.set(login, new Set()).get(login)!).add(pr);

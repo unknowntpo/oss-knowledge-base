@@ -663,6 +663,17 @@ W19, `/health` W22), whose last changes needed full-scale rehearsals (Spec
 009, Spec 018). Keeping it in its own PR keeps 2a a Pages-only change that
 can ship today, and keeps 2b's verdict and rollback small.
 
+**Enabled on Dev in the same PR (deliberate exception).** `docs/process/workflow.md`
+asks to separate merge from enable. Slice 2a sets `PEOPLE_PROFILES: "true"`
+in the Dev Pages configuration in the PR that adds the code, because the
+owner wants the profile visible as soon as possible (2026-10-15) and Dev-only
+visibility was already approved (decision 3). The risk is bounded: the
+change is Pages-only (no Worker, no publication, no R2 write) and Prod has no
+value. **Rollback:** remove `PEOPLE_PROFILES` from
+`apps/web/wrangler.development.jsonc` and let CI redeploy Dev Pages (or
+`bun run --cwd apps/web pages:deploy:development` from that commit); `/api/people`
+then answers 404 and no author name links, without reverting the feature.
+
 ### Coverage is stated per source (W27)
 
 The header names every source of the community with its coverage:
@@ -813,9 +824,10 @@ Slice 2a: rows built from Spec 022's recorded GraphQL responses for Kafka
 | W8 | an approval after comments; his own answer on his own PR (#23675) is left out | recorded | github:lucasbru | — | 200 | 4 / 1 | approved 1, commented 3 | 1 / 1 / 1 | reviewed PRs by gabriellefu 1; reviewed by bbejeck 1 |
 | W8 | a PR author's 18 answers in her own review threads are no reviews given; the bot's review is not received | recorded | github:gabriellefu | — | 200 | 0 / 0 | — | 9 / 1 / 4 | reviewed by chia7712 1, lucasbru 1, mjsax 1, squah-confluent 1 |
 | W8 | one approval | recorded | github:bbejeck | — | 200 | 1 / 1 | approved 1 | 0 / 0 / 0 | reviewed PRs by lucasbru 1 |
-| W8 | a change request, and an approval of a bot's PR (counted, the bot not named) | recorded + constructed | github:mjsax | — | 200 | 3 / 3 | approved 1, changes requested 1, commented 1 | 0 / 0 / 0 | reviewed PRs by constructed-author 1, gabriellefu 1 |
+| W8 | a change request, and approvals of two bots' PRs (counted, the bots not named) | recorded + constructed | github:mjsax | — | 200 | 4 / 4 | approved 2, changes requested 1, commented 1 | 0 / 0 / 0 | reviewed PRs by constructed-author 1, gabriellefu 1 |
 | W8 | a dismissed review keeps its earlier verdict | constructed | github:constructed-reviewer | — | 200 | 1 / 1 | dismissed 1 (was approved) | 0 / 0 / 0 | reviewed PRs by constructed-author 1 |
 | W12 | GitHub typed the reviewer Bot in the stored rows | recorded | github:copilot-pull-request-reviewer | — | 404 | — | — | — | — |
+| W12 | a login GitHub typed Bot, on no static list, that also authored a PR (learned from the rows) | constructed | github:acme-review-app | — | 404 | — | — | — | — |
 | W12 | a login on the profile's bot list | constructed | github:dependabot | — | 404 | — | — | — | — |
 | W12 | a suppressed identity has no profile (positive control: row 3) | recorded | github:gabriellefu | gabriellefu | 404 | — | — | — | — |
 | W12 | a suppressed counterpart stays counted but unnamed (positive control: row 1) | recorded | github:chia7712 | gabriellefu | 200 | 2 / 1 | commented 2 | 0 / 0 / 0 | — |

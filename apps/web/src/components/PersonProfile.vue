@@ -40,6 +40,10 @@ function personLink(login: string): string {
 function stateText(states: Readonly<Partial<Record<string, number>>>): string {
   return STATES.filter((state) => (states[state] ?? 0) > 0).map((state) => `${t(`people.state.${state}`)} ${states[state]}`).join(", ");
 }
+/** English needs the singular for 1 (i18n.js has no plural rules; `results.search.one` does the same). */
+function unit(name: "review" | "pr" | "reviewer", count: number): string {
+  return t(`people.unit.${name}.${count === 1 ? "one" : "other"}`, { count });
+}
 function bucketLabel(label: string): string {
   return period.value === "12m" ? label : t("people.overTime.week", { date: label.slice(5) });
 }
@@ -87,13 +91,13 @@ function selectPeriod(next: ProfilePeriod) {
         <div class="person-count" data-count="given">
           <dt>{{ t("people.given") }}</dt>
           <dd>
-            <button type="button" class="person-jump" @click="toThreads">{{ t("people.given.count", { reviews: view.totals.reviewsGiven.reviews, prs: view.totals.reviewsGiven.pullRequests }) }}</button>
+            <button type="button" class="person-jump" @click="toThreads">{{ t("people.given.count", { reviews: unit("review", view.totals.reviewsGiven.reviews), prs: unit("pr", view.totals.reviewsGiven.pullRequests) }) }}</button>
             <span class="person-detail">{{ stateText(view.totals.reviewsGiven.byState) }}<template v-if="view.totals.reviewsGiven.inlineComments > 0"> · {{ t("people.inline", { count: view.totals.reviewsGiven.inlineComments }) }}</template></span>
           </dd>
         </div>
         <div class="person-count" data-count="received">
           <dt>{{ t("people.received") }}</dt>
-          <dd><button type="button" class="person-jump" @click="toThreads">{{ t("people.received.count", { reviews: view.totals.reviewsReceived.reviews, prs: view.totals.reviewsReceived.pullRequests, reviewers: view.totals.reviewsReceived.reviewers }) }}</button></dd>
+          <dd><button type="button" class="person-jump" @click="toThreads">{{ t("people.received.count", { reviews: unit("review", view.totals.reviewsReceived.reviews), prs: unit("pr", view.totals.reviewsReceived.pullRequests), reviewers: unit("reviewer", view.totals.reviewsReceived.reviewers) }) }}</button></dd>
         </div>
       </dl>
     </section>
@@ -127,7 +131,7 @@ function selectPeriod(next: ProfilePeriod) {
           <a class="person-thread-pr" :href="thread.url" target="_blank" rel="noopener noreferrer">#{{ thread.pr }}</a>
           <span class="person-thread-part">
             <template v-if="thread.role === 'reviewer'">{{ t("people.thread.reviewer", { author: thread.counterpart ?? t("people.thread.hidden") }) }}</template>
-            <template v-else>{{ t("people.thread.author", { reviewers: thread.reviewers }) }}</template>
+            <template v-else>{{ t("people.thread.author", { reviewers: unit("reviewer", thread.reviewers) }) }}</template>
             · {{ stateText(thread.states) }}
           </span>
           <time class="person-thread-date" :datetime="thread.lastAt">{{ day(thread.lastAt) }}</time>

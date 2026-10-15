@@ -34,7 +34,7 @@ test("W28: a GitHub author in Detail links to the profile, which shows coverage 
   await expect(page.locator(".person-name")).toHaveText("bob");
   await expect(page.locator(".person-community")).toHaveText("Activity in Apache Kafka");
   await expect(page.locator(".person-coverage li")).toHaveText([/^Reviews: \d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2}$/u, "Comments, pull requests, Jira, dev@: not recorded yet"]);
-  await expect(page.locator('[data-count="received"]')).toContainText("2 reviews on 1 pull requests from 2 reviewers");
+  await expect(page.locator('[data-count="received"]')).toContainText("2 reviews on 1 pull request from 2 reviewers");
   await expect(page.locator('[data-relation="reviewedBy"] li')).toHaveText([/^alice\s*shared PRs: 1$/u, /^carol\s*shared PRs: 1$/u]);
   await expect(page.locator("[data-section]")).toHaveCount(8);
 });

@@ -149,6 +149,18 @@ describe("Spec 019 slice 2a: profile from the review store", () => {
     expect(recordedRows.filter((row) => row.reviewer === "gabriellefu" && row.prAuthor === "gabriellefu").length).toBe(18);
   });
 
+  test("W12: a Bot-typed login learned from the rows is named in `bots` and listed under no Works with; positive control without the Bot row", async () => {
+    const mjsax = (await read(kafka(), "github:mjsax")).body as PersonProfileV1;
+    expect(mjsax.bots).toEqual(["acme-review-app"]);
+    expect(mjsax.reviewsGiven.some((row) => row.prAuthor === "acme-review-app")).toBe(true);
+    expect(profileView(mjsax, "12m", NOW).worksWith.reviewedPullRequestsBy.map((entry) => entry.login)).not.toContain("acme-review-app");
+    const human = allRows.filter((row) => row.reviewer !== "acme-review-app");
+    const control = (await read(new CountingBucket(store("apache-kafka", human)), "github:mjsax")).body as PersonProfileV1;
+    expect(control.bots).toEqual([]);
+    expect(profileView(control, "12m", NOW).worksWith.reviewedPullRequestsBy.map((entry) => entry.login)).toContain("acme-review-app");
+    expect((await read(new CountingBucket(store("apache-kafka", human)), "github:acme-review-app")).status).toBe(200);
+  });
+
   test("W8: an identity is matched without regard to case; the stored login is displayed", async () => {
     const result = await read(kafka(), "github:CHIA7712");
     expect(result.status).toBe(200);
@@ -204,7 +216,7 @@ describe("Spec 019 slice 2a: profile from the review store", () => {
     expect(body.unavailableMonths).toEqual(["2026-09", "2026-10"]);
     // Only the August comment is left; positive control: all three with every month readable.
     expect(body.totals.reviewsGiven.reviews).toBe(1);
-    expect(((await read(kafka(), "github:mjsax")).body as PersonProfileV1).totals.reviewsGiven.reviews).toBe(3);
+    expect(((await read(kafka(), "github:mjsax")).body as PersonProfileV1).totals.reviewsGiven.reviews).toBe(4);
   });
 
   test("W10: a month object of another project or month is refused, not counted", async () => {
