@@ -569,6 +569,84 @@ where it is not bound.
   migration.
 - To compare without deploying, add `&semantic=off` to a request.
 
+## Contributor activity log (Spec 019 slice 2b)
+
+`PEOPLE_ACTIVITY=log@1` makes each publication append the records its state
+holds to `internal/people/v1/<projectId>/` (month objects, their summaries,
+`state.json`) before the state is compacted. Unset (Dev and Prod after the
+merge PR): no R2 request, no `appending-activity` phase, no
+`lastRun.activity`. Format, identity rules and cost: [Spec 019 amendment
+(2)](../specs/019-contributor-profile/spec.md#amendment-2026-10-15-2-slice-2b-the-activity-log).
+
+When it is on:
+
+- It runs inside the publication Durable Object, after the evidence is
+  recorded and before `committing-state`. Its failure never fails the
+  publication: `lastRun.ok` stays `true`, `lastRun.activity.ok` is `false`
+  with `error`, and `state.json` keeps the previous `updatedAt`. The next run
+  rebuilds every row from the state (35 days), so a missed day is repaired
+  without action.
+- `/health` `lastRun.activity`: `ok`, `revision`, `rows`, `monthsRead`,
+  `monthsWritten`, `monthsUnchanged`, `identities`, `earliestMonth{}`,
+  `coverageFrom{}`, `bytesWritten`, `durationMs`, `r2 {classA, classB}`.
+  These R2 counts are the append's own; `lastRun.r2` is still the
+  publication's alone.
+- Limits per run, both projects: `r2.classB` ≤ 26, `r2.classA` ≤ 50. A run
+  whose months did not change writes only the two `state.json` objects
+  (`classA` 2). `monthsWritten` above 4 on an ordinary day is unusual (a
+  pull request opened in an older month changed); above 24 is impossible and
+  means a bug.
+- `/api/people` (Pages) lists `recorded` sources per project; Jira and dev@
+  author names in Detail link only once the log's `state.json` exists.
+
+### Enable on Dev (the enable PR)
+
+Do not merge between 21:50 and 22:50 UTC: the daily publication (22:07),
+the review ingestion on the same tick and the digest (22:47) run then.
+
+1. Before merging, read Dev `/health`: `lastRun.ok` is `true`, `phase` is
+   `null`, `running` is `false`, and `lastRun.activity` is absent. Stop if a
+   run is in progress or the last run failed.
+2. Merge. CI deploys the Worker with `PEOPLE_ACTIVITY=log@1`. Check `/health`
+   again: still no `lastRun.activity` (no run since the deploy).
+3. First append: the next 22:07 UTC run (or the owner's `POST /run`).
+   Expected `/health` after it: `lastRun.ok: true`; `lastRun.activity.ok:
+   true`, `revision: "log@1"`, `monthsRead` = `monthsWritten` = 2 per
+   project with rows (Kafka and DataFusion: September and October, so 4),
+   `monthsUnchanged: 0`, `rows` about 7,000–9,500 (Dev held 9,323 events on
+   2026-10-14, bots and roots older than the coverage excluded),
+   `identities` several hundred, `coverageFrom` 35 days before the run for
+   both projects, `r2` about `{classA: 10, classB: 6}`, `durationMs` under
+   10,000. `lastRun.r2` and the run's total time near the previous day's.
+   Then `/api/people` lists `kafka: ["github-reviews", "github", "jira",
+   "mail"]`, and `/#/kafka/people/mail%3Aandrew%20schofield` shows dev@
+   counts with the coverage line "Comments, pull requests, Jira, dev@:
+   <coverageFrom> to <run date>".
+4. Second run (the next day's, or a second `POST /run`): `activity.ok:
+   true`, `monthsUnchanged` at least 1, `monthsWritten` small (the current
+   month, plus any month whose rows changed), `r2.classA` = 2 × `monthsWritten`
+   + 2, `coverageFrom` unchanged. Every write is a plain put, so there is no
+   conflict state to check; a second run that writes every month again
+   (`monthsUnchanged: 0` with no new records) means the encoding is not
+   stable: turn it off.
+5. Stop and roll back if: `lastRun.ok` turns `false` after the deploy; a run
+   is killed in `appending-activity` (`phase.phase`); `activity.durationMs`
+   above 60,000; `r2.classA` above 50; or the run's total time grows by more
+   than a minute.
+
+### Turn off or roll back
+
+Remove `PEOPLE_ACTIVITY` from `apps/data-publisher-worker/wrangler.development.jsonc`
+and merge (CI redeploys). The next run has no append and no
+`lastRun.activity`. The objects under `internal/people/v1/` stay; profiles
+keep showing the log's data up to its last append with that end date. To
+hide it as well, delete the two `state.json` objects
+(`internal/people/v1/apache-kafka/state.json`,
+`internal/people/v1/apache-datafusion/state.json`): the page then says "not
+recorded yet" again and Jira and dev@ names stop linking. Deleting objects is
+the owner's step. Re-enabling after the state was deleted starts a new
+coverage 35 days before that run.
+
 ## GitHub review ingestion (Spec 022)
 
 On for Dev (`GITHUB_REVIEWS=metadata@1` since 2026-10-14, Spec 022

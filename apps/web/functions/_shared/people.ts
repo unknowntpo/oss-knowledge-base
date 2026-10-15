@@ -4,7 +4,7 @@
  * `X-Robots-Tag: noindex` (W24). A profile is cached 5 minutes by clients; the review store changes
  * once a day, and the reader keeps parsed months for 10 minutes per isolate (W29).
  */
-import { PEOPLE_PROJECTS, readPersonProfile, type PeopleBucket } from "@oss-knowledge-base/reference-pipeline/people";
+import { PEOPLE_PROJECTS, readPersonProfile, recordedSources, type PeopleBucket } from "@oss-knowledge-base/reference-pipeline/people";
 
 import { jsonResponse } from "./r2-projection";
 
@@ -27,10 +27,15 @@ export function peopleResponse(body: unknown, status: number): Response {
   });
 }
 
-/** `GET /api/people`: the page asks once whether author names link to profiles. */
-export function peopleConfigResponse(env: Pick<PeopleEnv, "PEOPLE_PROFILES">): Response {
+/**
+ * `GET /api/people`: the page asks once whether author names link to profiles. Slice 2b adds
+ * `recorded`, the sources each community records now, so a Jira or dev@ name links only once its
+ * source is recorded (W28). A store that cannot be read counts as not recorded.
+ */
+export async function peopleConfigResponse(env: Pick<PeopleEnv, "PEOPLE_PROFILES"> & Partial<Pick<PeopleEnv, "OSS_KB_BUCKET">>, nowMs = Date.now()): Promise<Response> {
   if (!peopleEnabled(env)) return peopleResponse({ error: "Not found" }, 404);
-  return peopleResponse({ enabled: true, projects: PEOPLE_PROJECTS.map((project) => project.projectKey) }, 200);
+  const recorded = env.OSS_KB_BUCKET === undefined ? {} : await recordedSources(env.OSS_KB_BUCKET as unknown as PeopleBucket, nowMs);
+  return peopleResponse({ enabled: true, projects: PEOPLE_PROJECTS.map((project) => project.projectKey), recorded }, 200);
 }
 
 export async function personProfileResponse(env: PeopleEnv, project: unknown, id: unknown, nowMs: number): Promise<Response> {

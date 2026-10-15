@@ -55,8 +55,16 @@ export async function fetchPersonProfile(projectKey: string, personId: string): 
 
 /** W25: true only where `/api/people` answers 200 (Dev). */
 export async function fetchPeopleEnabled(): Promise<boolean> {
+  return (await fetchPeopleConfig()).enabled;
+}
+
+/** W25 and W28: whether profiles are served, and which sources each community records (slice 2b). */
+export async function fetchPeopleConfig(): Promise<{ readonly enabled: boolean; readonly recorded: Readonly<Record<string, readonly string[]>> }> {
   const response = await fetch("/api/people", { headers: { accept: "application/json" } });
-  return response.ok && (await response.json() as { readonly enabled?: unknown }).enabled === true;
+  if (!response.ok) return { enabled: false, recorded: {} };
+  const body = await response.json() as { readonly enabled?: unknown; readonly recorded?: unknown };
+  const recorded = typeof body.recorded === "object" && body.recorded !== null ? body.recorded as Record<string, readonly string[]> : {};
+  return { enabled: body.enabled === true, recorded };
 }
 
 /** Spec 019 slice 3: person results for a query in one project (W7). */

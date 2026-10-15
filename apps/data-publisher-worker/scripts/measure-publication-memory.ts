@@ -1,7 +1,7 @@
 /**
  * Spec 009 M1/M2: peak `heapUsed + arrayBuffers` of one full publication under Node/V8.
  *
- *   bun run measure:memory [--events 8600,17200] [--seed 9] [--poll 500] [--kafka 1]
+ *   bun run measure:memory [--events 8600,17200] [--seed 9] [--poll 500] [--kafka 1] [--activity 1]
  *
  * `--kafka 1` adds Spec 012 dev@ and Jira events at the 2026-10-06 volume, scaled with
  * `--events` (8,600 → 1×, 17,200 → 2×); Spec 012 K24/K25 use it.
@@ -35,6 +35,8 @@ const { values } = parseArgs({
     seed: { type: "string", default: "9" },
     poll: { type: "string", default: "500" },
     kafka: { type: "string", default: "0" },
+    /** Spec 019 W17/W19: run the activity log's append before the state is compacted. */
+    activity: { type: "string", default: "0" },
   },
 });
 
@@ -54,7 +56,7 @@ try {
   for (const events of values.events.split(",").map(Number)) {
     const output = join(directory, `result-${events}.json`);
     const kafkaScale = Number(values.kafka) * events / 8_600;
-    const child = Bun.spawnSync(["node", "--expose-gc", runner, String(events), values.seed, values.poll, output, String(kafkaScale)], {
+    const child = Bun.spawnSync(["node", "--expose-gc", runner, String(events), values.seed, values.poll, output, String(kafkaScale), values.activity], {
       stdout: "inherit",
       stderr: "inherit",
     });
@@ -68,6 +70,15 @@ try {
       `${result.writtenObjects} objects / ${result.writtenMB} MB written in ${result.durationMs} ms, ` +
       `output fingerprint ${result.outputFingerprint.slice(0, 16)}` +
       `${result.ok ? "" : `, run FAILED: ${result.error}`}.${verdict}`);
+    if (result.activity !== undefined) {
+      const { first, second } = result.activity;
+      const line = (run: typeof first) => (run.ok
+        ? `${run.rows} rows, ${run.monthsRead} months read, ${run.monthsWritten} written, ${run.monthsUnchanged} unchanged, ${run.identities} identities, R2 Class A ${run.r2.classA} / Class B ${run.r2.classB}, ${Math.round(run.bytesWritten / 1024)} KB written, ${run.durationMs} ms`
+        : `FAILED: ${run.error}`);
+      if (!first.ok || !second.ok) failed = true;
+      console.log(`Activity log (W17/W19): first append ${line(first)}; unchanged rerun ${line(second)}; ` +
+        `${result.activity.objects} objects, largest ${result.activity.largestObjectKB} KB, total ${result.activity.totalKB} KB.`);
+    }
     console.table(result.phases.map((phase) => ({ phase: phase.phase, "peak MB": phase.peakMB, samples: phase.samples })));
     const peakOf = (name: string) => result.phases.find((phase) => phase.phase === name)?.peakMB ?? 0;
     // Peak while Search objects are written, above the heap when Search writing starts.

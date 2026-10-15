@@ -10,3 +10,5 @@ export * from "./kafka-rules";
 export * from "./digest";
 export * from "./review-queue";
 export * from "./github-reviews";
+export * from "./people/activity";
+export * from "./people/activity-log";
