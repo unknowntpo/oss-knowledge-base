@@ -152,6 +152,15 @@ const scenarios: Record<string, () => string> = {
   "display name|constructed: a name with a control character, a zero-width space and doubled spaces": () => displayName(" Ada\u0007\u200b  Lovelace ", "ada") ?? "dropped",
   "display name|constructed: an address typed as the name": () => displayName("ada@example.org", "ada") ?? "dropped",
   "display name|constructed: the login typed as the name": () => displayName("Ada", "ada") ?? "dropped",
+  "display name|constructed: 99 letters, then an emoji outside the BMP, then more": () => {
+    const kept = displayName(`${"x".repeat(99)}😀tail`, "ada") ?? "";
+    const graphemes = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(kept)].length;
+    return `${graphemes} graphemes; ${kept.endsWith("😀") ? "ends with the whole emoji" : "emoji cut"}; ${/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(kept) ? "lone surrogate" : "well-formed"}`;
+  },
+  "display name|constructed: a family emoji joined by ZWJ, and a right-to-left override": () => {
+    const kept = displayName("Ada 👨\u200D👩\u200D👧 \u202Eecalevol", "ada") ?? "";
+    return `${kept.includes("👨\u200D👩\u200D👧") ? "joiners kept" : "joiners removed"}; ${kept.includes("\u202E") ? "override kept" : "override removed"}`;
+  },
   "display name|constructed: 150 characters": () => `${(displayName("x".repeat(150), "ada") ?? "").length} characters`,
   "display name|constructed: <script>alert(1)</script> as the name": () => displayName("<script>alert(1)</script>", "ada") ?? "dropped",
   "display names|constructed: a User author with a name, a User reviewer without, a Bot reviewer with one": () => {

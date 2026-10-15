@@ -84,7 +84,8 @@ async function refreshProject(deps: GithubReviewsDeps, project: GithubReviewsPro
     if (state === undefined) throw new RefreshConfigError("No daily cursor yet: there is nothing stored to refresh");
     const months = storeMonths(state.coverageFrom, state.updatedAt);
     run.months = months.length;
-    // Pass 1: every month's missing pull requests, oldest month first (about 0.3 MB a month is held).
+    // Pass 1: every month's missing pull requests, oldest month first. The parsed months lacking
+    // entries are held until pass 3: about 0.3 MB of JSON each, about 15 to 20 MB parsed for 13 (estimate).
     const pending: { readonly month: string; readonly key: string; readonly stored: { readonly body: string; readonly etag: string }; readonly object: ReturnType<typeof parseReviewMonthObject>; readonly missing: readonly number[] }[] = [];
     for (const month of months) {
       const key = githubReviewsMonthKey(project.projectId, month);

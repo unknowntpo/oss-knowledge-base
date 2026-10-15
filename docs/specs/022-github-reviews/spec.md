@@ -550,8 +550,9 @@ the real ones of #23675 are written by the first `metadata@2` run.)
   sorted; absent when none. The title is requested and dropped; it is never
   stored.
 - `people[<login>]`: GitHub's public profile `name` of an account typed
-  `User`, with control and format characters removed, whitespace collapsed,
-  cut to 100 characters; not stored when empty, equal to the login, or
+  `User`, with control characters, invisible spaces and bidirectional
+  overrides removed (joiners kept), whitespace collapsed, cut to 100 grapheme
+  clusters (never inside a surrogate pair or an emoji sequence); not stored when empty, equal to the login, or
   containing `@` (an address typed as a name). No email, no id, no other
   profile field. A login read again without a name loses its entry.
 - A pull request's entry is in every month that has a row of it; a newer read
@@ -626,7 +627,7 @@ the first dry call reports the real `pullsMissing`.
 | Wall time | about 70 s (40 requests, as a backfill call) | about 14 minutes | |
 | R2 Class B | 2 × (1 cursor + 13 months) = 28 | 336 | 10 million a month |
 | R2 Class A | at most 2 × 13 months + 1 record = 27 | at most 324; typically each month written once or twice: about 65 | 1 million a month |
-| Memory | the 13 month objects of one project (about 4 MB) and one response at a time | | 128 MB |
+| Memory | pass 1 keeps the parsed month objects of one project that lack entries: 13 objects of about 0.3 MB of JSON each, about 15 to 20 MB as parsed objects (estimate, not measured in the runtime), plus one response at a time | | 128 MB |
 | Storage | | +0.6 to 0.8 MB once | |
 
 The daily run under `metadata@2`: the same requests (10 a normal day); each
@@ -724,6 +725,8 @@ responses of 2026-10-14: no review text, no address).
 | RV38 | display name | constructed: an address typed as the name | dropped |
 | RV38 | display name | constructed: the login typed as the name | dropped |
 | RV38 | display name | constructed: 150 characters | 100 characters |
+| RV38 | display name | constructed: 99 letters, then an emoji outside the BMP, then more | 100 graphemes; ends with the whole emoji; well-formed |
+| RV38 | display name | constructed: a family emoji joined by ZWJ, and a right-to-left override | joiners kept; override removed |
 | RV38 | display name | constructed: <script>alert(1)</script> as the name | <script>alert(1)</script> |
 | RV38 | display names | constructed: a User author with a name, a User reviewer without, a Bot reviewer with one | grace Grace Hopper; ada null |
 | RV39 | merge extras | constructed: stored #1 core, ada Ada; read #1 core, tests and #2 none; ada null, bob Bob | pulls 1 core,tests; 2 none; people bob Bob; again equal bytes |
@@ -841,7 +844,7 @@ Each item: precondition → action → observable result → evidence.
 - RV26: given the Dev configuration, `GITHUB_REVIEWS` is `metadata@1` and the Prod configuration has no `GITHUB_REVIEWS`; given Dev's value and an empty bucket, a publication tick schedules the same publication and each project's run lists from one day before the tick and writes only its first cursor and the run record → Worker test reading both Wrangler files.
 
 ### Failure and retry
-- RV41: given the flag at `metadata@1`, a refresh call is a `config` failure that sends nothing to GitHub; without a daily cursor the project fails as `config` with nothing read; a dry call reads and writes nothing; a month written by another run between the refresh's read and write is a `conflict` and the next call completes it; a pull request GitHub no longer resolves is stored as `{"labels":[]}` and counted in `droppedPulls`, so the refresh ends → run tests.
+- RV41: given the flag at `metadata@1`, a refresh call is a `config` failure that sends nothing to GitHub; without a daily cursor the project fails as `config` with nothing read; a dry call reads the bucket and GitHub (the pull requests it would fill) and writes nothing, not even its record; a month written by another run between the refresh's read and write is a `conflict` and the next call completes it; a pull request GitHub no longer resolves is stored as `{"labels":[]}` and counted in `droppedPulls`, so the refresh ends → run tests.
 - RV42: the refresh route answers 401 without the bearer token, 403 with the flag unset, 502 with a `config` failure under `metadata@1`; `/health` carries `githubReviewsRefresh` under `metadata@2` (`null` before the first call) and has no such field under `metadata@1` → Worker test.
 - RV31: given no daily cursor, or a backfill from another date in progress, the project fails as `config`, reads nothing from GitHub and writes nothing; given a month object or the daily cursor written by another run between the backfill's read and its write, the project fails as `conflict`, its progress stays, `coverageFrom` is not moved, and the next call completes; given a daily run whose cursor a finishing backfill rewrote meanwhile, the daily run fails as `conflict` and leaves `coverageFrom` as the backfill set it; given a call that dies after its month writes, the next call repeats the chunk and adds nothing → run tests.
 - RV32: given a dry backfill call, GitHub and the bucket are read, the counts are reported, and nothing is written, not even the run record or the progress → run test.

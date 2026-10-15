@@ -91,6 +91,15 @@ describe("Spec 019 areas amendment: profile page", () => {
     expect(zh).toContain("區域標籤目前只涵蓋 1 / 2 個 PR");
   });
 
+  test("W48: with review areas stored but no review in the selected period, the section says there is no activity instead of nothing", async () => {
+    const body = await profile([{ month: "2026-05", rows: [row(5, 50, "2026-05-10T10:00:00Z")], extras: { pulls: { "50": { labels: ["core"] } } } }]);
+    const page = await render(PersonProfile, { profile: body, nowMs: NOW, initialPeriod: "90d" });
+    const areas = page.slice(page.indexOf('data-section="areas"'), page.indexOf('data-section="threads"'));
+    expect(areas).toContain('data-areas-state="empty"');
+    expect(text(areas)).toContain("No activity in this period.");
+    expect(areas).not.toContain("<svg");
+  });
+
   test("W46: without any metadata the section says what it said before and draws nothing", async () => {
     const page = await render(PersonProfile, { profile: await profile(FULL.map(({ month, rows }) => ({ month, rows }))), nowMs: NOW });
     expect(page).not.toContain("data-areas=");

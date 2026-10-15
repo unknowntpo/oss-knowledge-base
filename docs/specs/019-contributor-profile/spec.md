@@ -629,8 +629,9 @@ Dev. Until then the feature exists on Dev only.
    [Identity resolution](#identity-resolution). Counts are summed only across
    linked identities.
 6. Areas are the thread's labels minus the profile's process labels, plus KIP
-   numbers from titles. A source without labels shows "no area data from
-   <source>".
+   numbers from titles. A label naming a KIP (`KIP-932`, `kip-1332`) counts
+   as that KIP, not as an area (amendment (4), `areas.ts`). A source without
+   labels shows "no area data from <source>".
 7. The page shows the sections in the stated order, the period covered, and
    the "how this is computed" note. An identity with no rows in the period
    says so; it is not an error.

@@ -97,8 +97,8 @@ export interface ProjectRun {
   readonly graphqlCost: number;
   readonly bytes: number;
   readonly durationMs: number;
-  /** `metadata@2`: pull requests with more labels than one read returns (`LABELS_PER_PULL`). */
-  readonly labelsTruncated: number;
+  /** `metadata@2` only (absent under `metadata@1`, whose record is unchanged): pull requests with more labels than one read returns (`LABELS_PER_PULL`). */
+  readonly labelsTruncated?: number;
   readonly failureKind?: string;
   readonly error?: string;
 }
@@ -243,6 +243,17 @@ type RunCounts = {
   droppedPulls: number; reviewsTruncated: number; monthsRead: number; monthsWritten: number; graphqlCost: number;
 };
 
+/** The run counters without `labelsTruncated`, in the order of the `metadata@1` record. */
+function counts<T extends { labelsTruncated: number }>(run: T): Omit<T, "labelsTruncated"> {
+  const { labelsTruncated: _, ...rest } = run;
+  return rest;
+}
+
+/** RV37: `labelsTruncated` is reported under `metadata@2` only, so a `metadata@1` record stays byte-identical. */
+function areasField(revision: GithubReviewsRevision, run: { readonly labelsTruncated: number }): { readonly labelsTruncated?: number } {
+  return revision === GITHUB_REVIEWS_AREAS_REVISION ? { labelsTruncated: run.labelsTruncated } : {};
+}
+
 /** One month's newly read rows and, under `metadata@2`, what was read about their pull requests and logins. */
 interface MonthRead {
   readonly rows: ReviewRow[];
@@ -323,7 +334,8 @@ async function runProject(deps: GithubReviewsDeps, project: GithubReviewsProject
     added: 0, changed: 0, dismissed: 0, droppedPulls: 0, reviewsTruncated: 0, monthsRead: 0, monthsWritten: 0, graphqlCost: 0, labelsTruncated: 0,
   };
   const done = (extra: { readonly ok: boolean; readonly failureKind?: string; readonly error?: string }): ProjectRun => ({
-    ...extra, since, ...run, restRequests: rest.requests, graphqlRequests: graphql.requests, bytes: rest.bytes + graphql.bytes, durationMs: deps.now() - startedMs,
+    ...extra, since, ...counts(run), restRequests: rest.requests, graphqlRequests: graphql.requests, bytes: rest.bytes + graphql.bytes, durationMs: deps.now() - startedMs,
+    ...areasField(revision, run),
   });
   try {
     const stateKey = githubReviewsStateKey(project.projectId);
@@ -461,7 +473,8 @@ async function runBackfillProject(deps: GithubReviewsDeps, project: GithubReview
     added: 0, changed: 0, dismissed: 0, droppedPulls: 0, reviewsTruncated: 0, monthsRead: 0, monthsWritten: 0, graphqlCost: 0, labelsTruncated: 0,
   };
   const finish = (extra: { readonly ok: boolean; readonly failureKind?: string; readonly error?: string }): BackfillProjectRun => ({
-    ...extra, from, until, done, since, ...run, restRequests: rest.requests, graphqlRequests: graphql.requests, bytes: rest.bytes + graphql.bytes, durationMs: deps.now() - startedMs,
+    ...extra, from, until, done, since, ...counts(run), restRequests: rest.requests, graphqlRequests: graphql.requests, bytes: rest.bytes + graphql.bytes, durationMs: deps.now() - startedMs,
+    ...areasField(revision, run),
   });
   try {
     const stateKey = githubReviewsStateKey(project.projectId);

@@ -280,13 +280,16 @@ export function pullAreaMeta(pull: PullReviews): PullAreaMeta {
 export const DISPLAY_NAME_MAX = 100;
 
 /**
- * RV38: the public profile name as stored: control characters removed, whitespace collapsed, cut
- * to `DISPLAY_NAME_MAX`. Dropped (undefined) when empty, equal to the login, or when it contains
+ * RV38: the public profile name as stored: control characters, invisible spaces and bidirectional
+ * overrides removed, whitespace collapsed, cut to `DISPLAY_NAME_MAX` grapheme clusters. Dropped (undefined) when empty, equal to the login, or when it contains
  * `@`, so an address typed into the name field is never stored.
  */
 export function displayName(name: string | null | undefined, login: string): string | undefined {
   if (typeof name !== "string") return undefined;
-  const clean = name.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/gu, " ").trim().slice(0, DISPLAY_NAME_MAX).trim();
+  // Joiners (ZWJ, ZWNJ) stay: scripts and emoji sequences need them. Bidi overrides and invisible spaces go.
+  const spaced = name.replace(/[\p{Cc}\u200B\u2060\uFEFF\u202A-\u202E\u2066-\u2069]/gu, " ").replace(/\s+/gu, " ").trim();
+  // RV38: cut on grapheme clusters, never inside a surrogate pair or an emoji sequence.
+  const clean = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(spaced)].slice(0, DISPLAY_NAME_MAX).map((part) => part.segment).join("").trim();
   if (clean === "" || clean.includes("@") || clean.toLowerCase() === login.toLowerCase()) return undefined;
   return clean;
 }

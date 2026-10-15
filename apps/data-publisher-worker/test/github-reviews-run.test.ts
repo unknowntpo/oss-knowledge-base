@@ -725,6 +725,13 @@ describe("Spec 022 areas (metadata@2)", () => {
     expect(object.pulls).toEqual({ "9": { labels: ["core"] } });
     expect(object.people).toEqual({ eve: "Eve" });
     expect(w.lastRun()!.revision).toBe("metadata@1");
+    // The metadata@1 record keeps its fields and their order: no labelsTruncated.
+    expect(Object.keys(w.lastRun()!.projects[KAFKA.projectId]!)).toEqual([
+      "ok", "since", "cursor", "coverageFrom", "listed", "pulls", "truncated", "reviews", "botReviews", "selfReviews", "added", "changed", "dismissed",
+      "droppedPulls", "reviewsTruncated", "monthsRead", "monthsWritten", "graphqlCost", "restRequests", "graphqlRequests", "bytes", "durationMs",
+    ]);
+    const backfill = await w.backfill("2026-10-01");
+    expect("labelsTruncated" in backfill.projects[KAFKA.projectId]!).toBe(false);
   });
 
   test("RV37: under metadata@2 each reviewed pull request's labels and title KIPs are stored once per month, in the same requests; no title is stored", async () => {
