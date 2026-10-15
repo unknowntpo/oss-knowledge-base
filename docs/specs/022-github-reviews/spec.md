@@ -550,10 +550,15 @@ the real ones of #23675 are written by the first `metadata@2` run.)
   sorted; absent when none. The title is requested and dropped; it is never
   stored.
 - `people[<login>]`: GitHub's public profile `name` of an account typed
-  `User`, with control characters, invisible spaces and bidirectional
-  overrides removed (joiners kept), whitespace collapsed, cut to 100 grapheme
-  clusters (never inside a surrogate pair or an emoji sequence); not stored when empty, equal to the login, or
-  containing `@` (an address typed as a name). No email, no id, no other
+  `User`, with every format character (`\p{Cf}`: soft hyphen, bidi marks and
+  overrides, invisible operators, tag characters, zero-width spaces) removed
+  except the joiners ZWJ and ZWNJ, control characters and blank-looking
+  letters (Hangul fillers U+115F, U+1160, U+3164, U+FFA0; the Braille blank
+  U+2800) turned into spaces, whitespace collapsed, cut to 100 grapheme
+  clusters (never inside a surrogate pair or an emoji sequence); not stored
+  when no grapheme holds a letter or digit (an invisible, blank or
+  punctuation-only name), when equal to the login, or when containing `@` (an
+  address typed as a name). No email, no id, no other
   profile field. A login read again without a name loses its entry.
 - A pull request's entry is in every month that has a row of it; a newer read
   replaces it (its labels may have changed).
@@ -727,6 +732,12 @@ responses of 2026-10-14: no review text, no address).
 | RV38 | display name | constructed: 150 characters | 100 characters |
 | RV38 | display name | constructed: 99 letters, then an emoji outside the BMP, then more | 100 graphemes; ends with the whole emoji; well-formed |
 | RV38 | display name | constructed: a family emoji joined by ZWJ, and a right-to-left override | joiners kept; override removed |
+| RV38 | display name | constructed: only format characters (U+00AD, U+200E, U+061C, U+180E, U+2063, a tag character) | dropped |
+| RV38 | display name | constructed: Ada padded with U+200F and tag characters | Ada |
+| RV38 | display name | constructed: only blank-looking characters (U+3164 Hangul filler, U+2800 Braille blank) | dropped |
+| RV38 | display name | constructed: punctuation and symbols only (- . ★) | dropped |
+| RV38 | display name | constructed: a soft hyphen inside Love-lace | Lovelace |
+| RV38 | display name | constructed: positive controls 李小龍, Zoë 2, 7712 | 李小龍 \| Zoë 2 \| 7712 |
 | RV38 | display name | constructed: <script>alert(1)</script> as the name | <script>alert(1)</script> |
 | RV38 | display names | constructed: a User author with a name, a User reviewer without, a Bot reviewer with one | grace Grace Hopper; ada null |
 | RV39 | merge extras | constructed: stored #1 core, ada Ada; read #1 core, tests and #2 none; ada null, bob Bob | pulls 1 core,tests; 2 none; people bob Bob; again equal bytes |
@@ -823,7 +834,7 @@ Each item: precondition → action → observable result → evidence.
 - RV1: given `GITHUB_REVIEWS` unset, blank, `metadata@1`, `true`, `metadata@2` or `metadata@3`, resolving it gives off, off, on, error, on with areas, error (amended 2026-10-15: `metadata@2` was an error before) → case rows.
 - RV36: given a `metadata@2` month object, the rows-only parser (`parseReviewMonth`) returns its rows and ignores `pulls` and `people`; given a `metadata@1` month, the full parser returns its rows and no `pulls` or `people`; a malformed `pulls` (a key that is not a number) or `people` (a name that is not a string) fails as malformed; under `metadata@1` the read asks for no title, label or name and a run keeps a month's stored `pulls` and `people` → case rows and run test.
 - RV37: under `metadata@2` the query asks for `title`, `labels(first: 30)` and `... on User { name }` and still no body, path, diff hunk or email; a run makes as many GraphQL requests as under `metadata@1`, stores per month each reviewed pull request's sorted unique label names and numerically sorted title KIP ids, never the title, and rows keep exactly their nine keys; `kip-12`, `KIP 13` and `KIP-14a` are no KIP ids → case rows and run test.
-- RV38: a public name is kept trimmed, without control or format characters, at most 100 characters; an address, the login itself, and a name of an account not typed `User` are not stored; a login read again without a name loses it; a name with markup is stored as text (the page escapes it) → case rows and run test.
+- RV38: a public name is kept trimmed, without control characters or format characters other than ZWJ and ZWNJ, blank-looking letters as spaces, at most 100 grapheme clusters; a name with no letter or digit (only format, blank or punctuation characters) is not stored, and padding around a real name is removed; an address, the login itself, and a name of an account not typed `User` are not stored; a login read again without a name loses it; a name with markup is stored as text (the page escapes it) → case rows and run test.
 - RV39: entries and names merge by pull request and login, the newer read replacing the older, keys sorted so a repeated merge gives equal bytes; a pull request reviewed in two months has its entry in both, and a later read with other labels replaces it in both → case rows and run test.
 - RV40: given months written under `metadata@1`, refresh calls fill them oldest month first, at most the cap of pull requests per call, read each pull request once per call even when it is in several months, change no row byte, and end with every month complete; a further call lists nothing and sends no GraphQL request → run test.
 - RV2: given the flag unset, a publication tick makes exactly the one call that schedules the publication, no request to GitHub and no request to the bucket; `/health` is byte-identical to its body without this change; `POST /github-reviews/run` answers 403 without running. Positive control: the same tick with the flag set schedules the same publication and also reads GitHub → Worker tests; `publication-parity.test.ts` and its fixtures are unchanged.
