@@ -16,7 +16,7 @@ import {
   reviewRows,
   type ReviewRow,
 } from "../src/github-reviews";
-import { PEOPLE_INDEX_TTL_MS, readPersonProfile, suppressionDigest, type PeopleBucket } from "../src/people";
+import { peopleActivityStateKey, PEOPLE_INDEX_TTL_MS, readPersonProfile, suppressionDigest, type PeopleBucket } from "../src/people";
 import { PEOPLE_SEARCH_SCHEMA, personQueryKey, searchPeople, type PeopleSearchRead } from "../src/people/search";
 import { constructedRows } from "./contributor-profile.cases";
 import { searchRows, testPlanRows } from "./person-search.cases";
@@ -146,10 +146,11 @@ describe("Spec 019 slice 3: person results from the review store", () => {
     await readPersonProfile({ bucket: shared, projectKey: "kafka", personId: "github:chia7712", nowMs: NOW });
     const profileKeys = [...shared.reads].sort();
     await search(shared, "chia");
-    expect(shared.reads.length).toBe(13);
+    // Slice 2b: the profile also reads the activity log's state.json (absent here); the search reads nothing more.
+    expect(shared.reads.length).toBe(14);
     const fresh = new CountingBucket(store("apache-kafka"));
     await search(fresh, "chia");
-    expect([...fresh.reads].sort()).toEqual(profileKeys);
+    expect([...fresh.reads, peopleActivityStateKey("apache-kafka")].sort()).toEqual(profileKeys);
   });
 
   test("W41: the query key is the lower-cased login; anything else has none", () => {
