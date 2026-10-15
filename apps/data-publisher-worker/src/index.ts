@@ -1,11 +1,12 @@
 import { GitHubConnector } from "@oss-knowledge-base/github-publisher/github-connector";
-import { asfRosterAdapter, githubProjectProfiles, JiraConnector, KAFKA_DIGEST_PROFILE, KAFKA_REVIEW_PROFILE, PonyMailConnector, resolveBackfillFrom } from "@oss-knowledge-base/reference-pipeline";
+import { asfRosterAdapter, GITHUB_REVIEWS_AREAS_REVISION, githubProjectProfiles, JiraConnector, KAFKA_DIGEST_PROFILE, KAFKA_REVIEW_PROFILE, PonyMailConnector, resolveBackfillFrom } from "@oss-knowledge-base/reference-pipeline";
 import { DigestRunner, publisherBusy } from "./digest/runner";
 import { R2DigestBucket } from "./digest/store";
 import { runReviewQueue } from "./review-queue/run";
 import { githubReviewsProjects } from "./github-reviews/projects";
 import { runGithubReviews, runGithubReviewsBackfill } from "./github-reviews/run";
-import { GITHUB_REVIEWS_BACKFILL_LAST_RUN_KEY, GITHUB_REVIEWS_LAST_RUN_KEY, R2GithubReviewsBucket } from "./github-reviews/store";
+import { runGithubReviewsRefresh } from "./github-reviews/refresh";
+import { GITHUB_REVIEWS_BACKFILL_LAST_RUN_KEY, GITHUB_REVIEWS_LAST_RUN_KEY, GITHUB_REVIEWS_REFRESH_LAST_RUN_KEY, R2GithubReviewsBucket } from "./github-reviews/store";
 import { R2ReviewQueueBucket, reviewQueueLastRunKey } from "./review-queue/store";
 import { WorkersAiModel, type AiBinding } from "./digest/workers-ai";
 import { DurableObjectPipelineState } from "./durable-object-state";
@@ -133,7 +134,7 @@ export function digestModel(env: Pick<Env, "DIGEST_MODEL" | "DIGEST_GATEWAY_ID" 
  * review ingestion's `last-run.json`; null before the first run or on a read error) and
  * `githubReviewsBackfill` (the last manual backfill call's record; null before the first one).
  */
-export function mergeHealth(publisher: unknown, digest: unknown, reviewQueue: unknown = null, searchEmbedding: unknown = null, searchQuery: unknown = null, githubReviews?: unknown, githubReviewsBackfill?: unknown): unknown {
+export function mergeHealth(publisher: unknown, digest: unknown, reviewQueue: unknown = null, searchEmbedding: unknown = null, searchQuery: unknown = null, githubReviews?: unknown, githubReviewsBackfill?: unknown, githubReviewsRefresh?: unknown): unknown {
   return {
     ...(publisher as Record<string, unknown>),
     digest: digest ?? null,
@@ -146,6 +147,8 @@ export function mergeHealth(publisher: unknown, digest: unknown, reviewQueue: un
     ...(githubReviews === undefined ? {} : { githubReviews }),
     // Spec 022 RV34: the backfill's own record, so the daily `githubReviews` keeps its meaning.
     ...(githubReviewsBackfill === undefined ? {} : { githubReviewsBackfill }),
+    // Spec 022 RV41: the metadata refresh's record, only under `metadata@2` (absent under `metadata@1`, so its /health is unchanged).
+    ...(githubReviewsRefresh === undefined ? {} : { githubReviewsRefresh }),
   };
 }
 
@@ -166,6 +169,11 @@ function reviewQueueRun(env: Env, dryRun: boolean) {
 /** Spec 022 Behavior 1: the flag is "set" when it is not blank, whether or not its value is supported. */
 export function githubReviewsSet(env: Pick<Env, "GITHUB_REVIEWS">): boolean {
   return (env.GITHUB_REVIEWS?.trim() ?? "") !== "";
+}
+
+/** RV41: the flag names the areas revision (`metadata@2`); only then does `/health` carry the refresh record. */
+export function githubReviewsAreas(env: Pick<Env, "GITHUB_REVIEWS">): boolean {
+  return env.GITHUB_REVIEWS?.trim() === GITHUB_REVIEWS_AREAS_REVISION;
 }
 
 function githubReviewsDeps(env: Env, dryRun: boolean) {
@@ -250,7 +258,8 @@ export default {
         : undefined);
       const githubReviews = await reviewRecord(GITHUB_REVIEWS_LAST_RUN_KEY);
       const githubReviewsBackfill = await reviewRecord(GITHUB_REVIEWS_BACKFILL_LAST_RUN_KEY);
-      return Response.json(mergeHealth(await publisher.json(), digestHealth, reviewQueue, searchEmbedding, searchQuery, githubReviews, githubReviewsBackfill));
+      const githubReviewsRefresh = githubReviewsAreas(env) ? await reviewRecord(GITHUB_REVIEWS_REFRESH_LAST_RUN_KEY) : undefined;
+      return Response.json(mergeHealth(await publisher.json(), digestHealth, reviewQueue, searchEmbedding, searchQuery, githubReviews, githubReviewsBackfill, githubReviewsRefresh));
     }
     if (request.method === "POST" && url.pathname === "/search-embedding/run") {
       if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
@@ -288,6 +297,13 @@ export default {
       if (!from.ok) return Response.json({ ok: false, error: from.error }, { status: 400 });
       // Spec 022 Behavior 13: one bounded chunk per project, while the caller waits (up to about 70 s).
       const lastRun = await runGithubReviewsBackfill({ ...githubReviewsDeps(env, url.searchParams.get("dryRun") === "1"), from: from.from });
+      return Response.json(lastRun, { status: lastRun.ok ? 200 : 502 });
+    }
+    if (request.method === "POST" && url.pathname === "/github-reviews/refresh-areas") {
+      if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
+      if (!githubReviewsSet(env)) return Response.json({ ok: false, disabled: true }, { status: 403 });
+      // Spec 022 Behavior 15: at most 500 pull requests per project, while the caller waits (about a minute).
+      const lastRun = await runGithubReviewsRefresh(githubReviewsDeps(env, url.searchParams.get("dryRun") === "1"));
       return Response.json(lastRun, { status: lastRun.ok ? 200 : 502 });
     }
     if (request.method === "POST" && url.pathname === "/run") {

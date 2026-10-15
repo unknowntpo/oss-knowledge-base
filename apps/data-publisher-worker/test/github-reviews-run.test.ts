@@ -15,9 +15,11 @@ import {
   type GithubReviewsLastRun,
   type GithubReviewsState,
 } from "../src/github-reviews/run";
+import { runGithubReviewsRefresh, type GithubReviewsRefreshLastRun } from "../src/github-reviews/refresh";
 import {
   GITHUB_REVIEWS_BACKFILL_LAST_RUN_KEY,
   GITHUB_REVIEWS_LAST_RUN_KEY,
+  GITHUB_REVIEWS_REFRESH_LAST_RUN_KEY,
   githubReviewsBackfillKey,
   githubReviewsMonthKey,
   githubReviewsStateKey,
@@ -76,6 +78,9 @@ interface Item { number: number; updated_at: string; pull_request?: { url: strin
 class FakeGitHub {
   readonly items = new Map<string, Item[]>();
   readonly pulls = new Map<string, Map<number, PullReviews>>();
+  /** `metadata@2` fields, returned only when the query asks for them (labels, title, public names). */
+  readonly meta = new Map<string, { title: string; labels: string[]; names: Record<string, string | null> }>();
+  readonly queries: string[] = [];
   readonly calls: { repo: string; kind: "list" | "graphql"; url: string; numbers: number[]; authorization: string | null }[] = [];
   /** Returns a response to send instead of the real one. */
   intercept: ((call: FakeGitHub["calls"][number], count: number) => Response | undefined) | undefined;
@@ -101,6 +106,8 @@ class FakeGitHub {
     if (url.pathname === "/graphql") {
       const { query, variables } = JSON.parse(String(init.body)) as { query: string; variables: { repo: string } };
       const numbers = [...query.matchAll(/p(\d+): pullRequest/gu)].map((match) => Number(match[1]));
+      this.queries.push(query);
+      const areas = query.includes("labels(first:");
       const call = { repo: variables.repo, kind: "graphql" as const, url: input, numbers, authorization };
       this.calls.push(call);
       const intercepted = this.intercept?.(call, this.count(call.repo, "graphql"));
@@ -109,7 +116,16 @@ class FakeGitHub {
       const errors: unknown[] = [];
       for (const number of numbers) {
         const pull = this.pulls.get(variables.repo)?.get(number);
-        repository[`p${number}`] = pull ?? null;
+        const meta = this.meta.get(`${variables.repo}#${number}`);
+        const actor = (value: { login: string; __typename: string } | null) =>
+          (value === null || !areas ? value : { ...value, ...(value.__typename === "User" ? { name: meta?.names[value.login] ?? null } : {}) });
+        repository[`p${number}`] = pull === undefined ? null : !areas ? pull : {
+          ...pull,
+          author: actor(pull.author),
+          title: meta?.title ?? `KAFKA-${number}: a change`,
+          labels: { totalCount: meta?.labels.length ?? 0, nodes: (meta?.labels ?? []).slice(0, 30).map((name) => ({ name })) },
+          reviews: { ...pull.reviews, nodes: pull.reviews.nodes.map((node) => ({ ...node, author: actor(node.author) })) },
+        };
         if (pull === undefined) errors.push({ type: "NOT_FOUND", path: ["repository", `p${number}`], message: "Could not resolve" });
       }
       return Response.json({ data: { rateLimit: { cost: 1, remaining: 4999 }, repository }, ...(errors.length === 0 ? {} : { errors }) });
@@ -136,6 +152,7 @@ const review = (id: number, submittedAt: string, extra: Partial<ReviewNode> = {}
 });
 
 function world(options: { flag?: string | undefined; token?: string; maxPullsPerRun?: number } = {}) {
+  const refreshFlag = () => ("flag" in options ? options.flag : "metadata@1");
   const bucket = new MemoryBucket();
   const github = new FakeGitHub();
   const waits: number[] = [];
@@ -163,8 +180,20 @@ function world(options: { flag?: string | undefined; token?: string; maxPullsPer
     from,
     ...(maxPullsPerRun === undefined ? {} : { maxPullsPerRun }),
   });
+  const refresh = (dryRun = false) => runGithubReviewsRefresh({
+    flag: refreshFlag(),
+    bucket,
+    projects: [KAFKA, DATAFUSION],
+    githubToken: options.token ?? "token-under-test",
+    githubFetch: github.fetch,
+    now: () => now,
+    delay: async (ms) => { waits.push(ms); },
+    dryRun,
+    ...(options.maxPullsPerRun === undefined ? {} : { maxPullsPerRun: options.maxPullsPerRun }),
+  });
   return {
-    bucket, github, waits, run, backfill,
+    bucket, github, waits, run, backfill, refresh,
+    refreshRecord: () => bucket.json<GithubReviewsRefreshLastRun>(GITHUB_REVIEWS_REFRESH_LAST_RUN_KEY),
     progress: (projectId = KAFKA.projectId) => bucket.json<GithubReviewsBackfillState>(githubReviewsBackfillKey(projectId)),
     backfillRecord: () => bucket.json<GithubReviewsBackfillLastRun>(GITHUB_REVIEWS_BACKFILL_LAST_RUN_KEY),
     advance: (ms: number) => { now += ms; },
@@ -674,6 +703,164 @@ describe("Spec 022 backfill", () => {
   });
 });
 
+describe("Spec 022 areas (metadata@2)", () => {
+  const DAY1 = NOW - 6 * 3_600_000;
+  const seed = (w: ReturnType<typeof world>) => {
+    w.github.add("kafka", 10, at(DAY1), [review(101, at(DAY1 - 60_000), { author: { login: "ada", __typename: "User" } })], "grace");
+    w.github.add("kafka", 11, at(DAY1 + 1_000), [review(102, at(DAY1 - 30_000), { author: { login: "copilot-pull-request-reviewer", __typename: "Bot" } })], "eve");
+    w.github.meta.set("kafka#10", { title: "KAFKA-10: Fix the consumer (KIP-1071, KIP-932)", labels: ["triage", "clients", "consumer", "clients"], names: { ada: "Ada Lovelace", grace: "grace" } });
+    w.github.meta.set("kafka#11", { title: "MINOR: Tidy", labels: [], names: { eve: "eve@example.org" } });
+  };
+
+  test("RV36: under metadata@1 the read asks for no title, label or name, and a stored month's pulls and people are kept", async () => {
+    const w = world();
+    seed(w);
+    const month = at(DAY1).slice(0, 7);
+    const stored = { schema: "osskb.github-reviews.v1", projectId: KAFKA.projectId, month, rows: [], pulls: { "9": { labels: ["core"] } }, people: { eve: "Eve" } };
+    w.bucket.set(githubReviewsMonthKey(KAFKA.projectId, month), JSON.stringify(stored));
+    await w.run();
+    expect(w.github.queries.some((query) => /labels|title|on User/u.test(query))).toBe(false);
+    const object = w.month(month)!;
+    expect(object.rows.map((row) => row.reviewId)).toEqual([101, 102]);
+    expect(object.pulls).toEqual({ "9": { labels: ["core"] } });
+    expect(object.people).toEqual({ eve: "Eve" });
+    expect(w.lastRun()!.revision).toBe("metadata@1");
+  });
+
+  test("RV37: under metadata@2 each reviewed pull request's labels and title KIPs are stored once per month, in the same requests; no title is stored", async () => {
+    const plain = world();
+    seed(plain);
+    await plain.run();
+    const w = world({ flag: "metadata@2" });
+    seed(w);
+    await w.run();
+    expect(w.github.count("kafka", "graphql")).toBe(plain.github.count("kafka", "graphql"));
+    const object = w.month(at(DAY1).slice(0, 7))!;
+    expect(object.pulls).toEqual({ "10": { labels: ["clients", "consumer", "triage"], kips: ["KIP-932", "KIP-1071"] }, "11": { labels: [] } });
+    expect(object.rows.every((row) => Object.keys(row).length === 9)).toBe(true);
+    const body = w.bucket.objects.get(githubReviewsMonthKey(KAFKA.projectId, at(DAY1).slice(0, 7)))!.body;
+    expect(body).not.toContain("Fix the consumer");
+    expect(body).not.toContain("MINOR");
+    expect(w.lastRun()!.revision).toBe("metadata@2");
+    expect(w.lastRun()!.projects[KAFKA.projectId]!.labelsTruncated).toBe(0);
+  });
+
+  test("RV38: a login's public name is stored once per month; an address, a name equal to the login and a bot's name are not", async () => {
+    const w = world({ flag: "metadata@2" });
+    seed(w);
+    await w.run();
+    const month = at(DAY1).slice(0, 7);
+    expect(w.month(month)!.people).toEqual({ "ada": "Ada Lovelace" });
+    // Read again after ada cleared her name: the name is removed.
+    w.github.meta.set("kafka#10", { title: "KAFKA-10: Fix", labels: ["clients"], names: { ada: null, grace: null } });
+    w.github.add("kafka", 10, at(DAY1 + 3_600_000), [review(101, at(DAY1 - 60_000))], "grace");
+    w.advance(2 * 3_600_000);
+    await w.run();
+    expect(w.month(month)!.people).toEqual({});
+    expect(w.month(month)!.pulls!["10"]).toEqual({ labels: ["clients"] });
+  });
+
+  test("RV39: a pull request reviewed in two months has its entry in both; a newer read replaces the labels in both", async () => {
+    const w = world({ flag: "metadata@2" });
+    w.bucket.set(githubReviewsStateKey(KAFKA.projectId), JSON.stringify({ schema: "osskb.github-reviews-state.v1", updatedAt: at(NOW - 3 * 3_600_000), coverageFrom: "2026-09-01T00:00:00.000Z" }));
+    w.github.add("kafka", 20, at(NOW - 3_600_000), [review(201, "2026-09-30T23:59:00Z"), review(202, "2026-10-01T00:00:10Z")]);
+    w.github.meta.set("kafka#20", { title: "KAFKA-20: x", labels: ["streams"], names: {} });
+    await w.run();
+    expect([w.month("2026-09")!.pulls, w.month("2026-10")!.pulls]).toEqual([{ "20": { labels: ["streams"] } }, { "20": { labels: ["streams"] } }]);
+    w.github.meta.set("kafka#20", { title: "KAFKA-20: x", labels: ["streams", "tests"], names: {} });
+    w.github.add("kafka", 20, at(NOW + 3_600_000), [review(201, "2026-09-30T23:59:00Z"), review(202, "2026-10-01T00:00:10Z")]);
+    w.advance(2 * 3_600_000);
+    const second = await w.run();
+    expect(second.projects[KAFKA.projectId]).toMatchObject({ ok: true, added: 0, changed: 0, monthsWritten: 2 });
+    expect([w.month("2026-09")!.pulls, w.month("2026-10")!.pulls]).toEqual([{ "20": { labels: ["streams", "tests"] } }, { "20": { labels: ["streams", "tests"] } }]);
+  });
+
+  const legacyStore = (w: ReturnType<typeof world>, count: number, projectId = KAFKA.projectId, repo = "kafka") => {
+    w.bucket.set(githubReviewsStateKey(projectId), JSON.stringify({ schema: "osskb.github-reviews-state.v1", updatedAt: "2026-10-13T20:00:00Z", coverageFrom: "2026-08-01T00:00:00.000Z" }));
+    const months = ["2026-08", "2026-09", "2026-10"];
+    for (const [index, month] of months.entries()) {
+      const rows = Array.from({ length: count }, (_, n) => ({
+        reviewId: 100_000 * (index + 1) + n, pr: 1_000 * (index + 1) + n, prAuthor: "grace", reviewer: "ada", isBot: false, state: "APPROVED" as const,
+        submittedAt: `${month}-02T10:00:00Z`, commit: null, inlineComments: 0,
+      }));
+      w.bucket.set(githubReviewsMonthKey(projectId, month), JSON.stringify({ schema: "osskb.github-reviews.v1", projectId, month, rows }));
+      for (const row of rows) {
+        w.github.add(repo, row.pr, "2026-10-13T00:00:00Z", [review(row.reviewId, row.submittedAt)], "grace");
+        w.github.meta.set(`${repo}#${row.pr}`, { title: `KAFKA-${row.pr}: x`, labels: ["core", "triage"], names: { ada: "Ada Lovelace" } });
+      }
+    }
+    return months;
+  };
+
+  test("RV40: the refresh fills months written before metadata@2, oldest first, the cap per call, and changes no row", async () => {
+    const w = world({ flag: "metadata@2", maxPullsPerRun: 30 });
+    const months = legacyStore(w, 20);
+    const rowsBefore = months.map((month) => JSON.stringify(w.month(month)!.rows));
+    const first = await w.refresh();
+    expect(first.projects[KAFKA.projectId]).toMatchObject({ ok: true, months: 3, monthsComplete: 0, monthsWritten: 2, pullsMissing: 60, pullsRead: 30, done: false, graphqlRequests: 2 });
+    expect(Object.keys(w.month("2026-08")!.pulls!)).toHaveLength(20);
+    expect(Object.keys(w.month("2026-09")!.pulls!)).toHaveLength(10);
+    expect(w.month("2026-10")!.pulls).toBeUndefined();
+    const second = await w.refresh();
+    expect(second.projects[KAFKA.projectId]).toMatchObject({ ok: true, monthsComplete: 1, pullsRead: 30, done: true });
+    expect(months.map((month) => JSON.stringify(w.month(month)!.rows))).toEqual(rowsBefore);
+    expect(w.month("2026-10")!.people).toEqual({ ada: "Ada Lovelace" });
+    const calls = w.github.count("kafka", "graphql");
+    const third = await w.refresh();
+    expect(third.projects[KAFKA.projectId]).toMatchObject({ ok: true, monthsComplete: 3, monthsWritten: 0, pullsRead: 0, done: true });
+    expect(w.github.count("kafka", "graphql")).toBe(calls);
+    expect(w.github.count("kafka", "list")).toBe(0); // the refresh lists nothing
+    expect(w.refreshRecord()).toEqual(third);
+  });
+
+  test("RV41: the refresh under metadata@1, or without a daily cursor, reads nothing; a dry call writes nothing", async () => {
+    const off = world();
+    legacyStore(off, 2);
+    const refused = await off.refresh();
+    expect(refused).toMatchObject({ ok: false, failureKind: "config" });
+    expect(refused.error).toContain("metadata@2");
+    expect(off.github.calls).toHaveLength(0);
+    const empty = world({ flag: "metadata@2" });
+    const none = await empty.refresh();
+    expect(none.projects[KAFKA.projectId]).toMatchObject({ ok: false, failureKind: "config" });
+    expect(empty.github.calls).toHaveLength(0);
+    const dry = world({ flag: "metadata@2" });
+    legacyStore(dry, 2);
+    const puts = dry.bucket.puts;
+    const result = await dry.refresh(true);
+    expect(result.projects[KAFKA.projectId]).toMatchObject({ ok: true, pullsRead: 6, monthsWritten: 0 });
+    expect(dry.bucket.puts).toBe(puts);
+  });
+
+  test("RV41: a month written meanwhile is a conflict the next call repairs; a pull request GitHub no longer resolves ends with no labels", async () => {
+    const w = world({ flag: "metadata@2" });
+    legacyStore(w, 2);
+    w.github.pulls.get("kafka")!.delete(2001); // a deleted pull request
+    w.bucket.beforeWriteOf.set(githubReviewsMonthKey(KAFKA.projectId, "2026-08"), () => {
+      const key = githubReviewsMonthKey(KAFKA.projectId, "2026-08");
+      w.bucket.set(key, w.bucket.objects.get(key)!.body);
+    });
+    const first = await w.refresh();
+    expect(first.projects[KAFKA.projectId]).toMatchObject({ ok: false, failureKind: "conflict" });
+    const second = await w.refresh();
+    expect(second.projects[KAFKA.projectId]).toMatchObject({ ok: true, done: true, droppedPulls: 1 });
+    expect(w.month("2026-09")!.pulls!["2001"]).toEqual({ labels: [] });
+    expect((await w.refresh()).projects[KAFKA.projectId]).toMatchObject({ pullsRead: 0, done: true });
+  });
+
+  test("RV43: one refresh call reads at most 500 pull requests per project in 20 GraphQL requests; R2: the cursor and each month read, each filled month and the record written", async () => {
+    const w = world({ flag: "metadata@2" });
+    legacyStore(w, 240);
+    legacyStore(w, 1, DATAFUSION.projectId, "datafusion");
+    const gets = w.bucket.gets;
+    const puts = w.bucket.puts;
+    const run = await w.refresh();
+    expect(run.projects[KAFKA.projectId]).toMatchObject({ pullsMissing: 720, pullsRead: 500, graphqlRequests: 20, monthsRead: 3, monthsWritten: 3, done: false });
+    expect(w.bucket.gets - gets).toBe(2 * (1 + 3));
+    expect(w.bucket.puts - puts).toBe(3 + 3 + 1);
+  });
+});
+
 describe("Spec 022 flag in the Worker", () => {
   const realFetch = globalThis.fetch;
   afterEach(() => { globalThis.fetch = realFetch; });
@@ -835,6 +1022,21 @@ describe("Spec 022 flag in the Worker", () => {
     expect("githubReviewsBackfill" in before && before.githubReviewsBackfill === null).toBe(true);
     const off = await (await worker.fetch(new Request("https://data.example/health"), environment(undefined).env as never)).text();
     expect(off).not.toContain("githubReviewsBackfill");
+  });
+
+  test("RV42: the refresh route needs the bearer token and the flag; /health carries githubReviewsRefresh under metadata@2 only", async () => {
+    const post = (env: unknown, token = "manual-under-test") => worker.fetch(new Request("https://data.example/github-reviews/refresh-areas", { method: "POST", headers: { authorization: `Bearer ${token}` } }), env as never);
+    expect((await post(environment("metadata@2").env, "wrong")).status).toBe(401);
+    expect((await post(environment(undefined).env)).status).toBe(403);
+    const v1 = await post(environment("metadata@1").env);
+    expect([v1.status, (await v1.json() as { failureKind: string }).failureKind]).toEqual([502, "config"]);
+    const record = { ok: true, projects: {} };
+    const on = await (await worker.fetch(new Request("https://data.example/health"), environment("metadata@2", { [GITHUB_REVIEWS_REFRESH_LAST_RUN_KEY]: record }).env as never)).json() as Record<string, unknown>;
+    expect(on.githubReviewsRefresh).toEqual(record);
+    const before = await (await worker.fetch(new Request("https://data.example/health"), environment("metadata@2").env as never)).json() as Record<string, unknown>;
+    expect("githubReviewsRefresh" in before && before.githubReviewsRefresh === null).toBe(true);
+    const v1Health = await (await worker.fetch(new Request("https://data.example/health"), environment("metadata@1").env as never)).text();
+    expect(v1Health).not.toContain("githubReviewsRefresh");
   });
 
   test("RV7: every GitHub project is ingested, with its machine users", () => {

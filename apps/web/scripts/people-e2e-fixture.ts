@@ -76,14 +76,35 @@ export function peopleE2eActivityEvents(nowMs: number): readonly DomainEventV1[]
   ];
 }
 
+/**
+ * Spec 022 `metadata@2` (areas amendment): constructed labels, title KIPs and one public name. The
+ * month of PR #39 (200 days ago) is left as `metadata@1` wrote it, so alice's own pull requests are
+ * partly covered (W49) while the pull requests she reviewed are fully covered (W48).
+ */
+export const PEOPLE_E2E_PULLS: Readonly<Record<number, { readonly labels: readonly string[]; readonly kips?: readonly string[] }>> = {
+  43: { labels: ["clients", "consumer", "small", "triage"], kips: ["KIP-1071"] },
+  41: { labels: ["ci-approved", "core", "storage"] },
+  40: { labels: ["KIP-932", "streams", "tests"] },
+};
+export const PEOPLE_E2E_NAMES: Readonly<Record<string, string>> = { alice: "Alice Example" };
+
 export function peopleE2eObjects(nowMs: number): readonly { readonly key: string; readonly body: string }[] {
   const projectId = "apache-kafka";
   const byMonth = new Map<string, ReviewRow[]>();
   for (const row of peopleE2eRows(nowMs)) byMonth.set(reviewMonth(row.submittedAt), [...(byMonth.get(reviewMonth(row.submittedAt)) ?? []), row]);
+  const extras = (rows: readonly ReviewRow[]) => {
+    const prs = [...new Set(rows.map((row) => row.pr))].filter((pr) => PEOPLE_E2E_PULLS[pr] !== undefined);
+    if (prs.length === 0) return {};
+    const logins = [...new Set(rows.flatMap((row) => [row.reviewer, row.prAuthor]))].filter((login) => PEOPLE_E2E_NAMES[login] !== undefined).sort();
+    return {
+      pulls: Object.fromEntries(prs.sort((a, b) => a - b).map((pr) => [String(pr), PEOPLE_E2E_PULLS[pr]!])),
+      people: Object.fromEntries(logins.map((login) => [login, PEOPLE_E2E_NAMES[login]!])),
+    };
+  };
   const coverageFrom = new Date(nowMs - 395 * DAY_MS).toISOString();
   return [
     { key: githubReviewsStateKey(projectId), body: JSON.stringify({ schema: GITHUB_REVIEWS_STATE_SCHEMA, updatedAt: new Date(nowMs - DAY_MS).toISOString(), coverageFrom }) },
-    ...[...byMonth].map(([month, rows]) => ({ key: githubReviewsMonthKey(projectId, month), body: encodeReviewMonth(projectId, month, rows) })),
+    ...[...byMonth].map(([month, rows]) => ({ key: githubReviewsMonthKey(projectId, month), body: encodeReviewMonth(projectId, month, rows, extras(rows)) })),
     ...peopleE2eActivityObjects(nowMs),
   ];
 }

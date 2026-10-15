@@ -37,6 +37,8 @@ export interface PersonMatchV1 {
   readonly id: string;
   readonly source: PersonSource;
   readonly display: string;
+  /** W52: the GitHub account's public name from the review store (display only); absent when unknown. */
+  readonly name?: string;
   readonly match: "exact" | "prefix";
 }
 
@@ -59,6 +61,7 @@ export interface PersonIndexEntry {
   readonly id: string;
   readonly source: PersonSource;
   readonly display: string;
+  readonly name?: string;
 }
 
 /** W41: the lower-cased login a query names (trimmed, one leading `@` dropped), or undefined. */
@@ -73,7 +76,7 @@ export function personQueryKey(query: string | null | undefined): string | undef
 /** W7: the exact key first, then keys starting with it in code-unit order. Uncapped; the caller caps. */
 export function matchPeople(entries: readonly PersonIndexEntry[], key: string): PersonMatchV1[] {
   const result = (match: PersonMatchV1["match"]) => (entry: PersonIndexEntry): PersonMatchV1 =>
-    ({ id: entry.id, source: entry.source, display: entry.display, match });
+    ({ id: entry.id, source: entry.source, display: entry.display, ...(entry.name === undefined ? {} : { name: entry.name }), match });
   const exact = entries.filter((entry) => entry.key === key);
   const prefix = key.length < PERSON_PREFIX_MIN
     ? []
@@ -108,7 +111,11 @@ export async function peopleIndex(bucket: PeopleBucket, project: PeopleProject, 
         : { key, id: personIdOf(display), source: "github", display });
     }
   }
-  return [...entries.values()].filter((entry): entry is PersonIndexEntry => entry !== null);
+  // W52: the newest month's public name.
+  const names = new Map<string, string>();
+  for (const index of indexes) if (index !== undefined) for (const [key, name] of index.names) names.set(key, name);
+  return [...entries.values()].filter((entry): entry is PersonIndexEntry => entry !== null)
+    .map((entry) => (names.has(entry.key) ? { ...entry, name: names.get(entry.key)! } : entry));
 }
 
 /** `GET /api/people/:project?q=` (Spec 019 slice 3). */

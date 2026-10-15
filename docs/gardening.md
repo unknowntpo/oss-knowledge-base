@@ -1069,3 +1069,54 @@ the two `viewer/` items below.
   nav item. Neither changes `osskb.people-search.v1`.
 - **Layer:** spec slices 2b and 7.
 - **Source:** Spec 019 slice 3, 2026-10-15.
+  Spec 019 amendment (4) stores GitHub public names (`identity.name`,
+  search `name`), but the index still matches logins only.
+
+### G86. "Own pull requests" in Areas counts only own pull requests someone reviewed
+- **Where:** `apps/web/src/components/PersonAreas.vue` (`received` side),
+  `packages/reference-pipeline/src/people/areas.ts` (`profileAreaSide`).
+- **Why:** the side is built from `reviewsReceived`, the only own pull
+  requests the review store knows. Pull requests the person opened that nobody
+  reviewed are in the activity log (slice 2b) with their labels, and are shown
+  in its separate "Threads in the activity log" list instead of the chart.
+- **Fix:** feed the activity log's `pull-request` threads (by number) into the
+  same `profileAreaSide` input, deduplicated with `reviewsReceived`; one chart
+  for "own pull requests".
+- **Layer:** spec (Spec 019 W48) and a case row.
+- **Source:** Spec 019 amendment (4), 2026-10-15.
+
+### G87. Stored labels and names change only when their month is written again
+- **Where:** `apps/data-publisher-worker/src/github-reviews/run.ts`
+  (`writeMonths`), `refresh.ts`.
+- **Why:** a month's `pulls` and `people` are written with that month's rows
+  (reviews of the last 35 days) or by the refresh, which only fills missing
+  entries. A label set or a name cleared on GitHub after a month left the
+  35-day window stays as last read; a cleared name stays in older months.
+- **Fix:** a `refresh-areas?all=1` mode that re-reads every entry (bounded the
+  same way), run when a name removal is requested; or prune months with
+  Behavior 14.
+- **Layer:** spec (Spec 022 Behavior 15) and a run test.
+- **Source:** Spec 022 amendment 2026-10-15.
+
+### G88. The area taxonomy is a hand-kept list of process labels
+- **Where:** `packages/reference-pipeline/src/people/areas.ts`
+  (`AREA_TAXONOMIES`).
+- **Why:** a label the list does not know counts as an area, so a new path
+  label shows up without a change, but a new process label (a new lifecycle
+  bot, a new release label pattern) shows up as an area until someone adds it.
+- **Fix:** a measurement that lists label names seen in the stored `pulls`
+  entries and in each repository's labeler configuration, and fails when a
+  stored label is in neither the labeler's areas nor the process list.
+- **Layer:** measurement script, then a CI check.
+- **Source:** Spec 019 amendment (4), 2026-10-15.
+
+### G89. Area colours are checked in light mode only
+- **Where:** `apps/web/styles.css` (`--area-1` … `--area-other`).
+- **Why:** the app has no dark theme today, so the area tokens are defined
+  once on `:root`; adjacent slices were not checked for colour-vision
+  deficiency. Every slice is also listed as text with its count and share, so
+  no number depends on colour.
+- **Fix:** when the app gains a dark theme, redefine the area tokens there and
+  check adjacent-slice contrast with a palette validator.
+- **Layer:** style tokens.
+- **Source:** Spec 019 amendment (4), 2026-10-15.

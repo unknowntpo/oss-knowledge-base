@@ -1,6 +1,6 @@
 # Spec 019: Contributor profile
 
-Status: Accepted 2026-10-14 (all nine owner decisions recorded); amended 2026-10-15 (slice 2 split into 2a and 2b, decision 10; slice 3 widened to login prefixes; slice 2b storage, identity and budget); slice 1 is Spec 022 (live on Dev, 12 months backfilled); slices 2a and 3 implemented; slice 2b implemented behind `PEOPLE_ACTIVITY` (off until its enable PR); slices 4–7 not implemented
+Status: Accepted 2026-10-14 (all nine owner decisions recorded); amended 2026-10-15 (slice 2 split into 2a and 2b, decision 10; slice 3 widened to login prefixes; slice 2b storage, identity and budget); slice 1 is Spec 022 (live on Dev, 12 months backfilled); slices 2a and 3 implemented; slice 2b implemented behind `PEOPLE_ACTIVITY` (off until its enable PR); amendment (4) (area charts, avatars, public names; W46–W55) implemented, shown once Spec 022 `metadata@2` data exists; slices 4–7 not implemented
 Date: 2026-10-13 (decisions recorded 2026-10-14; amendment and decision 10 2026-10-15)
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 008 (content-addressed objects), Spec 009 (bounded memory), Spec 012 (dev@ and Jira), Spec 014 (digest profiles), Spec 015 (governance profile and ASF roster), Spec 016/017 (search, "exact matches first"), Spec 018 (daily publication)
@@ -1088,6 +1088,130 @@ order the reader chooses and the month summaries that make it cheap. Slice 3
 adds no list and no nav item; the search box, whose placeholder already
 reads "搜尋討論、來源或貢獻者", is the entry until slice 7.
 
+## Amendment 2026-10-15 (4): areas as a chart, avatars and public names
+
+Owner, 2026-10-15, on the Dev profile of `m1a2st`: "能有一個圓餅圖顯示他 work
+in 的 area 嗎？目前 work in area 好像都沒有資料", and "能抓 GitHub 的 Avatar 來
+顯示嗎？這樣就知道這個帳號對應的是哪個人". Areas were empty for review work
+because review rows carry no labels. Spec 022's amendment of the same date
+(`metadata@2`) stores each reviewed pull request's label names and title KIP
+ids, and each login's public profile name, in the month objects the profile
+already reads. This amendment is what the profile does with them.
+
+### One taxonomy, one aggregation (Behavior 6, W46, W47)
+
+`packages/reference-pipeline/src/people/areas.ts` holds the per-community
+taxonomy and the aggregation; review metadata (this amendment) and the
+activity log's thread labels (slice 2b) both go through them, so a label is an
+area or not in the same way everywhere. Slice 2b's process-label list moved
+there unchanged and was extended from the measurement in Spec 022's amendment
+(label lists, auto-labeler configurations, 603 Kafka and 2,293 DataFusion pull
+requests of 2026-09-15 to 2026-10-14):
+
+| Community | Areas | Process labels (never an area) | KIP |
+| --- | --- | --- | --- |
+| Kafka | every other label; in practice the 21 path labels of `.github/configs/labeler.yml` (`clients`, `core`, `tests`, `streams`, `group-coordinator`, `build`, `tools`, `consumer`, `storage`, `kraft`, `connect`, …) | review status `triage`, `needs-attention`, `ci-approved`; size `small`; lifecycle `stale`, `closed-stale`, `do-not-merge`; release `backport-candidate`, `Blocker`; `admin`, `ctr`, `uniform2`; the generic `kip` | a label `KIP-<n>` or `kip-<n>` (`KIP-932`, `kip-1332`) is that KIP, not an area; with title KIP ids |
+| DataFusion | every other label; in practice the 18 path labels (`sqllogictest`, `physical-plan`, `core`, `functions`, `documentation`, `optimizer`, …) | release `v<x>.<y>.<z>`, `backport`; API `api change`, `auto detected api change`; status `Stale`, `review:waiting`, `waiting-on-upstream`; issue type `bug`, `enhancement`, `regression`, `question`, `discussion`, `EPIC`, `PROPOSAL EPIC`, `tech debt`; onboarding `good first issue`, `help wanted`; bot dependency bumps `auto-dependencies` and Dependabot's `rust`, `javascript`, `python:uv` | none |
+
+Kept as areas although they describe a kind of work more than a component
+(all are path labels): Kafka `tests`, `build`, `docs`, `dependencies`,
+`performance`, `docker`; DataFusion `documentation`, `development-process`,
+`sqllogictest`, `dependencies`, `performance`. A label the taxonomy does not
+know is an area, so a new path label appears without a change here; a new
+process label needs an entry (gardening G88).
+
+The aggregation counts **distinct pull requests (or threads) per area**; a
+pull request with several area labels counts once in each, so the shares are
+of label assignments, not of pull requests, and the page says so. KIP ids are
+counted apart. Moving a numbered KIP label from "area" to "KIP" changed three
+rows of slice 2b's W1 table (`KIP-932` now in the KIP part).
+
+### What the profile carries (W46, W51)
+
+- `pullAreas` (new, optional): for each pull request in `reviewsGiven` and
+  `reviewsReceived` that has stored metadata, `{labels, kips?}` after the
+  taxonomy (area labels only; process labels never leave the server). A pull
+  request in two months takes the newer month's entry. Absent when no month of
+  the view has metadata, so a `metadata@1` store answers exactly as before.
+- `identity.name` (new, optional): the GitHub account's public profile name
+  from the newest month that has one. Display only: it links nothing across
+  sources (strict identity, decision 5, is unchanged; "Chia-Ping Tsai" on
+  GitHub and the Jira or dev@ identity of the same name stay separate pages),
+  and no counterpart's name is sent. A suppressed identity has no page (P-e),
+  so its name is never served.
+- Person search (`/api/people/:project?q=`) adds `name` to a result the same
+  way (W52).
+
+### The page (W48–W53)
+
+Section 5, Areas, gets one block per side, each only when that side has pull
+requests in the selected period (12 months or 90 days):
+
+- **Pull requests reviewed** (reviews given) and **Own pull requests reviewed
+  by others** (reviews received).
+- Every pull request of the side covered: a donut of the six largest areas and
+  "Other" (其他: the sum of the rest's assignments, its labels listed under the
+  chart), with the number of pull requests in the centre. The same slices are
+  listed as text with count and share; the `svg` is `role="img"` with an
+  `aria-label` naming every slice; colours are the app's area tokens
+  (`--area-1`…`--area-6`, `--area-other`). One line states the definition
+  ("a pull request with several area labels counts in each; percentages are of
+  label counts; process labels are left out"), how many pull requests have no
+  area label, and up to five KIP ids.
+- Some pull requests without metadata (months the refresh has not reached):
+  **no chart**; "Area labels cover X of Y pull requests so far …". A partial
+  chart would show the shares of the newest months as if they were the year's.
+- The activity log's own label list (slice 2b) stays below, headed "Threads in
+  the activity log", computed by the same aggregation.
+- Header: the GitHub avatar (56 px) beside the public name as the heading, the
+  login beneath it; without a name, the login is the heading as before.
+  Search results and the "Works with" names also show the avatar (32 and 20
+  px).
+
+**Avatar.** `https://avatars.githubusercontent.com/<login>?s=<2 × size>`,
+loaded by the visitor's browser: nothing stored, no API call, no request from
+our servers. The URL is built only from a string that passes GitHub's login
+rule (`[A-Za-z0-9][A-Za-z0-9-]{0,38}`), so nothing else reaches `src`; the
+image has `width`, `height`, `alt`, `loading="lazy"`,
+`referrerpolicy="no-referrer"`, and falls back to a neutral initial when it
+fails. The app sends no Content-Security-Policy today (no `_headers`, no
+header in the Functions), so no policy needed a change. **Privacy:** viewing a
+profile makes the visitor's browser contact GitHub's avatar host (it learns
+the visitor's IP address and that the avatar was requested, not the page,
+because no referrer is sent). Dev only, like every profile (P-g).
+
+P-a is unchanged: the shares are of one person's own label counts, never a
+comparison between people.
+
+### Example: `m1a2st` and `chia7712` (W54)
+
+Public read of 2026-10-15 01:57–01:58 UTC; sample: pull requests found by
+`repo:apache/kafka is:pr reviewed-by:<login> -author:<login> updated:>=2026-07-15`
+(reviewed) and `repo:apache/kafka is:pr author:<login> updated:>=2026-07-15`
+(authored), every result read (`incomplete_results` false). The search cannot
+filter by review time, so this is "pull requests he reviewed that were updated
+since 2026-07-15", not the profile's 12-month period; the Dev page after the
+refresh will show the 12 months. Computed by an independent script and
+reproduced exactly by `areaDistribution` with the Kafka taxonomy.
+
+| Person, side | PRs | Label assignments | No area label | Six largest (PRs, share of assignments) | Other | KIPs |
+| --- | --- | --- | --- | --- | --- | --- |
+| `m1a2st` ("Ken Huang"), reviewed | 155 | 326 | 4 | `tests` 65 (19.9%), `streams` 42 (12.9%), `core` 38 (11.7%), `clients` 36 (11.0%), `build` 31 (9.5%), `storage` 24 (7.4%) | 90 (27.6%): `tools` 15, `dependencies` 11, `tiered-storage` 11, `connect` 10, `docs` 9, … | KIP-909 1, KIP-932 1, KIP-1232 1, KIP-1332 1 |
+| `m1a2st`, authored | 41 | 60 | 7 | `core` 14 (23.3%), `clients` 12 (20.0%), `build` 8 (13.3%), `tests` 8 (13.3%), `consumer` 6 (10.0%), `tools` 5 (8.3%) | 7 (11.7%) | KIP-909 1, KIP-1284 1 |
+| `chia7712` ("Chia-Ping Tsai"), reviewed | 390 | 724 | 28 | `clients` 105 (14.5%), `tests` 103 (14.2%), `core` 94 (13.0%), `streams` 68 (9.4%), `build` 62 (8.6%), `tools` 47 (6.5%) | 245 (33.8%): `storage` 34, `docs` 27, `consumer` 26, `connect` 25, `docker` 25, … | KIP-932 12, KIP-909 3, KIP-1071 2, KIP-1241 2, KIP-1265 2 |
+| `chia7712`, authored | 1 | 0 | 1 | none: a side with no area label says so instead of a chart | | |
+
+On the page "authored" is narrower: own pull requests that someone reviewed
+(the review store has no others; slice 2b's log has the rest).
+
+### Cost
+
+No new R2 read: the fields are in the month objects the profile reads (W29).
+The response grows by one entry per distinct pull request (about 40 bytes;
+`chia7712`'s 994 reviewed pull requests: about 40 KB on about 340 KB) and one
+name. Avatars: one image request per visible person to GitHub, from the
+browser, lazy; none to our servers.
+
 ## Slices
 
 Reviews first (decision 7, 2026-10-14), then the smallest useful page. Each
@@ -1186,16 +1310,41 @@ from the recorded Dev fixture of 2026-10-15 (`recorded`), and constructed
 events on each side of a rule (`constructed`). Read at the capture time,
 2026-10-15T01:03:56Z; the log's coverage starts 2026-09-09T22:07:43Z.
 
+<!-- test-plan:start packages/reference-pipeline/test/profile-areas.cases.ts -->
+| id | rule | input | expected |
+| --- | --- | --- | --- |
+| W46 | taxonomy | kafka: clients, small, ci-approved, triage, needs-attention, KIP-932, kip | areas clients; kips KIP-932 |
+| W46 | taxonomy | kafka: kip-1332 (lower case) and a title KIP-1332 | areas none; kips KIP-1332 |
+| W46 | taxonomy | datafusion: sql, v56.0.0, auto detected api change, bug, rust, auto-dependencies | areas sql; kips none |
+| W46 | taxonomy | kafka: a label not in the profile (share-groups) | areas share-groups; kips none |
+| W46 | taxonomy | datafusion positive control: core, physical-plan, sqllogictest | areas core, physical-plan, sqllogictest; kips none |
+| W47 | distribution | #1 clients, core; #2 clients; #3 triage only | items 3; unlabelled 1; assignments 3; slices clients 2, core 1 |
+| W47 | distribution | the same pull request listed twice | items 1; unlabelled 0; assignments 1; slices clients 1 |
+| W47 | distribution | 8 areas a..h on 8, 7, …, 1 pull requests | items 8; unlabelled 0; assignments 36; slices a 8, b 7, c 6, d 5, e 4, f 3, other 3 |
+| W47 | distribution | exactly 6 areas | items 6; unlabelled 0; assignments 6; slices a 1, b 1, c 1, d 1, e 1, f 1 |
+| W49 | coverage | reviewed #1 and #2; metadata for #1 only | covered 1 of 2 |
+| W49 | coverage | reviewed #1 twice; metadata for #1 | covered 1 of 1 |
+| W46 | profile | every month of the view with metadata; ada reviewed #10 (clients, triage) and #11 (core, KIP-932) | pullAreas 10 clients; 11 core KIP-932 |
+| W46 | profile | no month with metadata (metadata@1 only) | no pullAreas |
+| W49 | profile | ada's reviews in two months, only the newer with metadata | pullAreas 11 core KIP-932; #10 not covered |
+| W46 | profile | #11's labels in an older month and different labels in a newer one | pullAreas 11 streams |
+| W51 | profile name | ada named Ada Lovelace in the older month and A. Lovelace in the newer | name A. Lovelace |
+| W51 | profile name | no name stored for ada | no name |
+| W51 | profile name | a suppressed counterpart with a stored name | name not in the response |
+<!-- test-plan:end -->
+
+Named tests of amendment (4): `apps/web/test/people-areas-ui.test.ts` (W46, W48, W49, W51, W53 rendered on the server and the Prod gate) and `apps/web/e2e/people-areas.spec.ts` (W48–W53 in the browser, with GitHub's avatar host answered by a constructed image or refused).
+
 <!-- test-plan:start packages/reference-pipeline/test/people-activity.cases.ts -->
 | id | case | data | person | status | github | jira | mail | areas | worksWith |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| W1 | a committer who comments on others' pull requests and opens none | recorded | github:chia7712 | 200 | PRs 0 (merged 0), comments 59 on 48 threads (own 0) | — | — | clients 10, streams 9, build 8, core 8, group-coordinator 6; KIP-909 1 | gabriellefu 5, harmadasg 4, jim0987795064 3, m1a2st 3 |
+| W1 | a committer who comments on others' pull requests and opens none | recorded | github:chia7712 | 200 | PRs 0 (merged 0), comments 59 on 48 threads (own 0) | — | — | clients 10, streams 9, build 8, core 8, group-coordinator 6; KIP-932 2, KIP-909 1, KIP-1071 1 | gabriellefu 5, harmadasg 4, jim0987795064 3, m1a2st 3 |
 | W1 | the same person's Jira identity: its own page, nothing added from GitHub or dev@ | recorded | jira:Chia-Ping Tsai | 200 | — | issues 72, comments 12, on 78 issues | — | no area data from jira | Mickael Maison 2, Andrew Schofield 1, David Jacot 1, Edoardo Comar 1 |
 | W1 | the same person's dev@ identity: 21 messages in 13 threads | recorded | mail:Chia-Ping Tsai | 200 | — | — | 21 in 13 threads; [DISCUSS] 6, [VOTE] 6 | KIP-1153 1, KIP-1342 1, KIP-1349 1; no area data from mail | Andrew Schofield 1, David Jacot 1, Ming-Yen Chung 1, Omnia Ibrahim 1 |
-| W1 | a pull-request author: 18 of his PRs are in the release, 7 were opened inside the log's coverage | recorded | github:m1a2st | 200 | PRs 7 (merged 5), comments 26 on 20 threads (own 7) | — | — | clients 8, consumer 5, core 5, group-coordinator 5, storage 4 | dajac 4, mimaison 2, nileshkumar3 2, aliehsaeedii 1 |
+| W1 | a pull-request author: 18 of his PRs are in the release, 7 were opened inside the log's coverage | recorded | github:m1a2st | 200 | PRs 7 (merged 5), comments 26 on 20 threads (own 7) | — | — | clients 8, consumer 5, core 5, group-coordinator 5, storage 4; KIP-932 1 | dajac 4, mimaison 2, nileshkumar3 2, aliehsaeedii 1 |
 | W1 | a dev@ identity with no GitHub page under this name | recorded | mail:Andrew Schofield | 200 | — | — | 23 in 11 threads; [DISCUSS] 4, [VOTE] 4 | KIP-1368 2, KIP-1279 1, KIP-1306 1, KIP-1349 1, KIP-1371 1; no area data from mail | Chia-Ping Tsai 2, Aditya Kousik 1, Apoorv Mittal 1 |
 | W1 | the same name in Jira: a separate identity (strict identity, decision 5) | recorded | jira:andrew schofield | 200 | — | issues 4, comments 4, on 8 issues | — | no area data from jira | Apoorv Mittal 2, Luke Chen 1, Shekhar Prasad Rajak 1 |
-| W1 | his GitHub login: unlinked, counted on its own | recorded | github:AndrewJSchofield | 200 | PRs 6 (merged 4), comments 4 on 3 threads (own 2) | — | — | clients 7, consumer 5, KIP-932 3, build 1, producer 1 | apoorvmittal10 1, ezhou413 1 |
+| W1 | his GitHub login: unlinked, counted on its own | recorded | github:AndrewJSchofield | 200 | PRs 6 (merged 4), comments 4 on 3 threads (own 2) | — | — | clients 7, consumer 5, build 1, producer 1; KIP-932 3 | apoorvmittal10 1, ezhou413 1 |
 | W3 | a pull request opened on the last second of September and updated 40 days later counts in September | constructed | github:edge-author | 200 | PRs 1 (merged 1), comments 0 on 0 threads (own 0) | — | — | — | — |
 | W4 | labels `clients`, `small`, `ci-approved`: the area is `clients` only | constructed | github:label-author | 200 | PRs 1 (merged 0), comments 0 on 0 threads (own 0) | — | — | clients 1 | — |
 | W12 | a GitHub bot's comments are not logged: no page | constructed | github:ci-bot | 404 | — | — | — | — | — |
@@ -1223,6 +1372,14 @@ Each item: precondition → action → observable result → evidence. All are
 - W42: given the Prod configuration, `/api/people/:project?q=` answers 404 with `no-store` and `X-Robots-Tag: noindex`, and the Feed sends no person request; given Dev, 200 with the profile's cache header and `noindex`; an unknown project is 400; an unreadable review cursor is 503 → API test both sides, and E2E for the Dev side.
 - W45: at 320 and 375 px, a search with a person result has no horizontal overflow, and the person result opens the profile → E2E.
 - W8: given Spec 022 month objects (`osskb.github-reviews.v1`) built from Spec 022's recorded Kafka #23675 and #23165 (approvals, comments, a bot's review, the author's own reply) plus a constructed change-request row, the profile reads them as they are, shows each human review with its state, counts "reviews given" as distinct pull requests, leaves out rows with `isBot` or with `reviewer` equal to `prAuthor`, and states the date reviews are counted from (`coverageFrom`) → case rows (recorded and constructed, labelled as such).
+- W46: given month objects with `metadata@2` fields, the profile response's `pullAreas` holds, for each reviewed or received pull request with metadata, its area labels after the community taxonomy (process labels removed, `KIP-<n>` labels moved to KIP ids) and its KIP ids, the newer month's entry winning; without any metadata the field is absent and the page shows what it showed before; unknown labels are areas; review areas and activity-log areas use the same taxonomy and aggregation → case rows and UI test.
+- W47: the aggregation counts distinct items per area, an item once in each of its area labels, leaves process labels out, keeps the six largest areas and groups the rest as "other" with the sum of their assignments, and counts items with no area label apart → case rows.
+- W48: given every pull request of a side covered, the page draws a donut of at most seven slices with `role="img"` and an `aria-label` naming each slice, and lists the same slices as text with count and share of assignments, the definition (a pull request with several area labels counts in each), the number without an area label, and up to five KIP ids → UI test and E2E.
+- W49: given a side with a pull request that has no stored metadata, the page draws no chart and states "covered X of Y" instead → case rows, UI test and E2E.
+- W50: at 320 and 375 px the profile with both area blocks and the avatar header has no horizontal overflow → E2E.
+- W51: given a stored public name, the header shows it as the heading with the login beneath, as escaped text; without one, the login alone; the name is display only and links nothing; a counterpart's name, suppressed or not, is never in the response → case rows, UI test and E2E.
+- W52: a person result in Search shows the avatar and the public name with the login beneath → E2E and the search API's `name`.
+- W53: the avatar URL is `https://avatars.githubusercontent.com/<login>?s=<2 × size>` built only from a string matching GitHub's login rule (anything else, including paths, queries, `[bot]` logins and `javascript:`, gets the neutral initial and no `img`); the image has width, height, alt, `loading="lazy"` and `referrerpolicy="no-referrer"`; a refused image falls back to the initial; on Prod the profile API answers 404 with no name and no area field → UI test and E2E.
 - W34: given an activity month, its stored summary holds, for every identity in the month, the counters `indexActivityMonth` computes for it (decision 10: one function for the reader and the summary) → test over every month of the recorded store.
 
 ### Failure and retry
@@ -1252,12 +1409,14 @@ Each item: precondition → action → observable result → evidence. All are
 - W44: [measure] a person search on a store of Dev's size answers under 50 ms warm and under 500 ms cold in Bun, measured with `measure:people`.
 - W19: [measure] the publisher's peak memory with the activity append stays within the Spec 009 budgets at 8,600 and 17,200 events (`measure:memory --kafka 1 --activity 1`): measured 54.3 and 102.7 MB, the append phase 52.2 and 97.8 MB, unchanged peaks.
 - W20: [measure] review ingestion adds at most one GitHub request per pull request updated that day, and a day's batch stays inside the hourly request limit (slice 1; measured by Spec 022 RV21 and RV22 with `measure:github-reviews`).
+- W54: [measure] the area distributions of `m1a2st` and `chia7712` in amendment (4)'s Example, from public GitHub data (search `reviewed-by:` / `author:` updated since 2026-07-15, read 2026-10-15), reproduced by `areaDistribution` with the Kafka taxonomy.
 - W21: [measure] the 12-month backfill of slice 6 states its request count and stored size per source (GitHub, Jira, dev@'s 12 monthly archives) before it runs, measured, not estimated, and stays under each source's limit; it runs outside the publication.
 
 ### Observability
 
 - W22: [deploy] `/health` `lastRun.activity` reports the append: `ok`, `rows`, `monthsRead`, `monthsWritten`, `monthsUnchanged`, `identities`, `earliestMonth`, `coverageFrom`, `bytesWritten`, `durationMs`, `r2` (its own Class A and B, apart from `lastRun.r2`), or `error`; absent while `PEOPLE_ACTIVITY` is unset (the field shape is unit-tested; Dev values are checked by the enable PR's operator sequence). Review ingestion is not reported here: it has its own `/health` `githubReviews` (Spec 022 RV24), which the page's "how this is computed" note takes `coverageFrom` from.
 - W23: [deploy] on Dev, the page for `github:chia7712` shows the period covered and the coverage line, and its counts equal the `/api/people` response; the response's review totals agree with the upstream oracle of the 2a Example within the reviews submitted after the oracle was read.
+- W55: [deploy] on Dev, after Spec 022's refresh reports `done` for both projects, `/api/people/kafka/github:m1a2st` has `pullAreas` for every reviewed pull request and `identity.name` "Ken Huang", and the page draws both charts with no "covered X of Y" note; `github:chia7712` shows "Chia-Ping Tsai".
 - W27: given a community with sources the profile does not read yet, the response lists each with status "not recorded" and the page shows "<sources>: not recorded yet" without a count; given the review store, the page shows "Reviews: <from> to <until>" with the dates of the response → case rows and component test, both sides.
 - W28: given the Dev configuration, a GitHub record's author in Detail links to `/#/<project>/people/github:<login>`; a bot author does not link; a Jira or dev@ author links to `jira:<name key>` or `mail:<name key>` only where `/api/people` lists that source in `recorded` (2b), and not before the log's first append (2a); given the Prod configuration, no author links → component test and E2E, both sides.
 - W29: given a cold isolate, one profile request reads at most 26 objects from R2 for its project (the two `state.json` objects, 12 review months none before Spec 022's `coverageFrom`, and 12 activity months none before the log's `coverageFrom`; a Jira or dev@ identity reads no review month); a second request within 10 minutes reads none; one after 10 minutes reads them again → API test with a counting bucket (amended 2026-10-15 for 2b: 13 before).

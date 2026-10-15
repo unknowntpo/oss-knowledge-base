@@ -78,9 +78,13 @@ if (import.meta.main) {
   if (!Number.isInteger(days) || days < 1 || days > 35) throw new Error("--days must be a whole number from 1 to 35");
   const token = process.env.GITHUB_TOKEN?.trim() ?? "";
   if (token === "") throw new Error("Set GITHUB_TOKEN (any token that can read public repositories)");
+  // Spec 022 RV44: `--revision metadata@2` also reads labels, title KIPs and names, and reports what they add.
+  const revisionAt = process.argv.indexOf("--revision");
+  const revision = revisionAt < 0 ? "metadata@1" : process.argv[revisionAt + 1] ?? "";
+  if (revision !== "metadata@1" && revision !== "metadata@2") throw new Error("--revision must be metadata@1 or metadata@2");
   const bucket = new MemoryBucket();
   const run = await runGithubReviews({
-    flag: "metadata@1",
+    flag: revision,
     bucket,
     projects: githubReviewsProjects,
     githubToken: token,
@@ -93,11 +97,16 @@ if (import.meta.main) {
   for (const [projectId, project] of Object.entries(run.projects)) {
     const months = [...bucket.objects].filter(([key]) => key.includes(`/${projectId}/`) && /\d{4}-\d{2}\.json$/u.test(key));
     const bytes = months.reduce((sum, [, body]) => sum + new TextEncoder().encode(body).length, 0);
+    const extraBytes = months.reduce((sum, [, body]) => {
+      const object = JSON.parse(body) as { pulls?: unknown; people?: unknown };
+      return sum + (object.pulls === undefined ? 0 : JSON.stringify(object.pulls).length + 9) + (object.people === undefined ? 0 : JSON.stringify(object.people).length + 10);
+    }, 0);
     console.log(
       `${projectId}: ${project.ok ? "ok" : `failed ${project.failureKind}: ${project.error}`}; listed ${project.listed}, pull requests ${project.pulls}${project.truncated ? " (truncated)" : ""}; ` +
       `reviews ${project.reviews} (bot ${project.botReviews}, by the author ${project.selfReviews}); ` +
       `requests ${project.restRequests} REST + ${project.graphqlRequests} GraphQL (cost ${project.graphqlCost}); response ${project.bytes} chars; ` +
-      `${months.length} month object(s), ${bytes} bytes${project.reviews === 0 ? "" : `, ${(bytes / project.reviews).toFixed(0)} bytes a row`}; ${project.durationMs} ms`,
+      `${months.length} month object(s), ${bytes} bytes${project.reviews === 0 ? "" : `, ${(bytes / project.reviews).toFixed(0)} bytes a row`}` +
+      `${revision === "metadata@2" ? `; pulls and people ${extraBytes} bytes (${(extraBytes / Math.max(1, bytes - extraBytes) * 100).toFixed(1)}%), labels truncated ${project.labelsTruncated}` : ""}; ${project.durationMs} ms`,
     );
   }
 }

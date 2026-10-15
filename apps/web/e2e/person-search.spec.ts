@@ -25,7 +25,7 @@ async function screenshot(page: Page, name: string) {
 
 test("W7: an exact login shows its person result first; the thread list is the /api/search answer", async ({ page }) => {
   const { threads, people } = await typeQuery(page, "Alice");
-  expect(people.people).toEqual([{ id: "github:alice", source: "github", display: "alice", match: "exact" }]);
+  expect(people.people).toEqual([{ id: "github:alice", source: "github", display: "alice", name: "Alice Example", match: "exact" }]);
   const person = page.locator(".person-result");
   await expect(person).toHaveCount(1);
   await expect(person.first()).toHaveAttribute("href", `#/kafka/people/${encodeURIComponent("github:alice")}`);

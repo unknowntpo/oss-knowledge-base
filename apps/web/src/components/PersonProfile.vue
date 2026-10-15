@@ -16,6 +16,8 @@ import {
 } from "@oss-knowledge-base/reference-pipeline/people";
 
 import { useI18n } from "../i18n";
+import GithubAvatar from "./GithubAvatar.vue";
+import PersonAreas from "./PersonAreas.vue";
 
 const props = withDefaults(defineProps<{
   readonly profile: PersonProfileV1;
@@ -93,7 +95,13 @@ function selectPeriod(next: ProfilePeriod) {
 <template>
   <article class="person" :data-person="profile.identity.id">
     <header class="person-head" data-section="header">
-      <h1 class="person-name">{{ profile.identity.display }}</h1>
+      <div class="person-title">
+        <GithubAvatar v-if="isGithub" :login="profile.identity.display" :size="56" :alt="t('people.avatarAlt', { login: profile.identity.display })" />
+        <div class="person-title-text">
+          <h1 class="person-name">{{ profile.identity.name ?? profile.identity.display }}</h1>
+          <p v-if="profile.identity.name" class="person-login" data-login>{{ profile.identity.display }}</p>
+        </div>
+      </div>
       <p class="person-community">{{ t("people.activityIn", { community: profile.project.label }) }}</p>
       <p class="person-period">{{ t("people.period", { from: day(view.from), until: day(view.until), days: view.days }) }}</p>
       <ul class="person-coverage">
@@ -181,7 +189,9 @@ function selectPeriod(next: ProfilePeriod) {
 
     <section class="person-section" data-section="areas">
       <h2 class="section-heading">{{ t("people.section.areas") }}</h2>
+      <PersonAreas v-if="profile.pullAreas && !view.empty" :profile="profile" :from="view.from" />
       <template v-if="view.activity">
+        <h3 v-if="profile.pullAreas && !view.empty" class="rail-label person-areas-threads">{{ t("people.areas.threads") }}</h3>
         <ul v-if="view.activity.areas.labels.length > 0 || view.activity.areas.kips.length > 0" class="person-areas">
           <li v-for="entry in view.activity.areas.labels" :key="`label:${entry.label}`" data-area="label">{{ entry.label }} <span class="person-detail">{{ unit("thread", entry.threads) }}</span></li>
           <li v-for="entry in view.activity.areas.kips" :key="`kip:${entry.kip}`" data-area="kip">{{ entry.kip }} <span class="person-detail">{{ unit("thread", entry.threads) }}</span></li>
@@ -189,7 +199,7 @@ function selectPeriod(next: ProfilePeriod) {
         <p v-else-if="view.activity.areas.noLabelSources.length === 0" class="person-note">{{ view.empty ? t("people.empty") : t("people.areas.empty") }}</p>
         <p v-if="view.activity.areas.noLabelSources.length > 0" class="person-note">{{ t("people.areas.noLabels", { sources: view.activity.areas.noLabelSources.map((item) => t(`people.overTime.${item}`)).join(t("people.listSeparator")) }) }}</p>
       </template>
-      <p v-else class="person-note">{{ t("people.areas.none") }}</p>
+      <p v-else-if="!profile.pullAreas" class="person-note">{{ t("people.areas.none") }}</p>
     </section>
 
     <section id="person-threads" class="person-section" data-section="threads">
@@ -224,7 +234,7 @@ function selectPeriod(next: ProfilePeriod) {
             <p v-if="view.worksWith[relation].length === 0" class="person-note">{{ t("people.worksWith.none") }}</p>
             <ul v-else>
               <li v-for="entry in view.worksWith[relation]" :key="entry.login">
-                <RouterLink :to="personLink(`github:${entry.login}`)">{{ entry.login }}</RouterLink>
+                <RouterLink class="person-with" :to="personLink(`github:${entry.login}`)"><GithubAvatar :login="entry.login" :size="20" />{{ entry.login }}</RouterLink>
                 <span class="person-detail">{{ t("people.worksWith.prs", { count: entry.pullRequests }) }}</span>
               </li>
             </ul>
