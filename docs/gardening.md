@@ -953,3 +953,24 @@ the two `viewer/` items below.
   origin (its own PR).
 - **Layer:** spec (Spec 020 Decisions 5 and 6).
 - **Source:** Spec 020 non-goals, 2026-10-14.
+
+### G70. The profile's suppression digest uses a public, constant salt
+- **Where:** `packages/reference-pipeline/src/people/index.ts`
+  (`suppressionDigest`, `PEOPLE_SUPPRESSED`).
+- **Why:** Spec 019 P-e asks for a salted hash so the list does not spell a
+  name. A salt kept in this public repository only stops a casual reader: a
+  login can be checked against the list by hashing it. The list is empty.
+- **Fix:** before the first entry, keep the salt (or the list) in a Pages
+  secret, or accept the limit in Spec 019 P-e.
+- **Layer:** spec decision, then configuration.
+- **Source:** Spec 019 slice 2a, 2026-10-15.
+
+### G71. `measure:people` times the reader in Bun, not in workerd
+- **Where:** `apps/web/scripts/measure-people.ts`.
+- **Why:** sizes and R2 reads are exact, but CPU time comes from Bun's JSC.
+  The workerd timing (local `wrangler pages dev`, seeded with `--dump`) is a
+  manual step, and Cloudflare reports CPU per invocation only after deploy.
+- **Fix:** read the Pages Function's CPU time on Dev (Workers analytics) for
+  `github:chia7712` after the first deploy and record it in Spec 019 W18.
+- **Layer:** measurement.
+- **Source:** Spec 019 slice 2a, 2026-10-15.

@@ -8,6 +8,7 @@
     "build": "vite build",
     "typecheck": "vue-tsc --noEmit && tsc -p tsconfig.worker.json --noEmit",
     "test": "bun test test/*.test.ts",
+    "measure:people": "bun scripts/measure-people.ts",
     "measure:search": "bun scripts/measure-search-fixture.ts",
     "measure:search-revisions": "bun scripts/measure-search-revisions.ts",
     "measure:search-hybrid": "bun scripts/measure-search-hybrid.ts",

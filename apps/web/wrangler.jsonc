@@ -3,6 +3,9 @@
   "name": "oss-knowledge-base-local",
   "compatibility_date": "2026-08-21",
   "pages_build_output_dir": "dist",
+  "vars": {
+    "PEOPLE_PROFILES": "true"
+  },
   "r2_buckets": [
     {
       "binding": "OSS_KB_BUCKET",

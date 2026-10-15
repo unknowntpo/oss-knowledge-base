@@ -4,6 +4,7 @@ import type {
   FeedIndexEntry,
   SearchResponseV1,
 } from "./types";
+import type { PeopleErrorV1, PersonProfileV1 } from "@oss-knowledge-base/reference-pipeline/people";
 
 async function json<T>(url: string): Promise<T> {
   const response = await fetch(url, { headers: { accept: "application/json" } });
@@ -38,4 +39,21 @@ export function fetchEvidenceSearch(input: {
 
 export function fetchSearchFeedDetail(detailRef: string): Promise<FeedDetail> {
   return json<FeedDetail>(`/api/search-detail/${encodeURIComponent(detailRef)}`);
+}
+
+export type PersonProfileAnswer =
+  | { readonly ok: true; readonly profile: PersonProfileV1 }
+  | { readonly ok: false; readonly status: number; readonly error: PeopleErrorV1 };
+
+/** Spec 019 slice 2a. A 404 carries what the community records (W11, W27), so it is not thrown. */
+export async function fetchPersonProfile(projectKey: string, personId: string): Promise<PersonProfileAnswer> {
+  const response = await fetch(`/api/people/${encodeURIComponent(projectKey)}/${encodeURIComponent(personId)}`, { headers: { accept: "application/json" } });
+  const body = await response.json() as PersonProfileV1 | PeopleErrorV1;
+  return response.ok ? { ok: true, profile: body as PersonProfileV1 } : { ok: false, status: response.status, error: body as PeopleErrorV1 };
+}
+
+/** W25: true only where `/api/people` answers 200 (Dev). */
+export async function fetchPeopleEnabled(): Promise<boolean> {
+  const response = await fetch("/api/people", { headers: { accept: "application/json" } });
+  return response.ok && (await response.json() as { readonly enabled?: unknown }).enabled === true;
 }

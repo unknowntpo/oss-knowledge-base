@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./digest": "./src/digest/index.ts",
-    "./search-profiles": "./src/search/profiles.ts"
+    "./search-profiles": "./src/search/profiles.ts",
+    "./people": "./src/people/index.ts"
   },
   "scripts": {
     "test": "bun test",

@@ -15,7 +15,8 @@ describe("feature map", () => {
   test("has a row for every Pages Function route", async () => {
     const routes: string[] = [];
     for await (const file of new Bun.Glob("**/*.ts").scan({ cwd: join(root, "apps/web/functions/api") })) {
-      routes.push(`/api/${file.replace(/\.ts$/u, "").replace(/\/\[(\w+)\]$/u, "/:$1")}`);
+      // Pages routing: `index.ts` serves its directory, and every `[param]` segment is a parameter.
+      routes.push(`/api/${file.replace(/\.ts$/u, "").replace(/\/?\bindex$/u, "").replace(/\[(\w+)\]/gu, ":$1")}`.replace(/\/$/u, ""));
     }
     expect(routes.length).toBeGreaterThanOrEqual(5);
     // The row itself, in the Web API table: a mention elsewhere in the map is not enough.

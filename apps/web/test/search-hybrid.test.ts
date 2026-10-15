@@ -355,7 +355,8 @@ describe("Spec 016 hybrid search: the flag, the binding, and `semantic=off`", ()
     const read = async (name: string) => JSON.parse(await Bun.file(new URL(`../${name}`, import.meta.url)).text()) as Record<string, unknown> & { readonly name: string };
     const development = await read("wrangler.development.jsonc");
     expect(Object.keys(development).sort()).toEqual(["$schema", "compatibility_date", "durable_objects", "name", "pages_build_output_dir", "r2_buckets", "vars"]);
-    expect(development.vars).toEqual({ SEARCH_SEMANTIC: "rrf-group@2" });
+    // Spec 019 W25 adds `PEOPLE_PROFILES` beside the search flag; nothing else.
+    expect(development.vars).toEqual({ PEOPLE_PROFILES: "true", SEARCH_SEMANTIC: "rrf-group@2" });
     expect(development.durable_objects).toEqual({ bindings: [{ name: "SEARCH_QUERY_GATE", class_name: "SearchQueryGate", script_name: "oss-knowledge-base-data-dev" }] });
     // The binding names the Dev publisher, which exports and migrates that class.
     const worker = JSON.parse(await Bun.file(new URL("../../data-publisher-worker/wrangler.development.jsonc", import.meta.url)).text()) as {
@@ -374,7 +375,10 @@ describe("Spec 016 hybrid search: the flag, the binding, and `semantic=off`", ()
 
     for (const name of ["wrangler.jsonc", "wrangler.production.jsonc"]) {
       const config = await read(name);
-      expect(Object.keys(config).sort()).toEqual(["$schema", "compatibility_date", "name", "pages_build_output_dir", "r2_buckets"]);
+      // Local E2E serves Spec 019 profiles (`vars.PEOPLE_PROFILES` only); Prod has no vars.
+      const local = name === "wrangler.jsonc";
+      expect(Object.keys(config).sort()).toEqual(["$schema", "compatibility_date", "name", "pages_build_output_dir", "r2_buckets", ...(local ? ["vars"] : [])]);
+      if (local) expect(config.vars).toEqual({ PEOPLE_PROFILES: "true" });
       expect(JSON.stringify(config)).not.toMatch(/SEARCH_SEMANTIC|SEARCH_QUERY_GATE|SearchQueryGate/u);
     }
   });

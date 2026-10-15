@@ -10,6 +10,7 @@ import {
 } from "@oss-knowledge-base/serving-contract";
 
 import { buildGoldenSearchPublication, buildGoldenV2SearchPublication } from "./build-search-fixture";
+import { peopleE2eObjects } from "./people-e2e-fixture";
 
 const webRoot = join(import.meta.dir, "..");
 const repositoryRoot = join(webRoot, "..", "..");
@@ -58,6 +59,8 @@ const objects = [
   ...await buildR2SearchProjection(await buildGoldenSearchPublication(searchFixturePath)),
   ...digestObjects,
   digestPointer,
+  // Spec 019 slice 2a: a constructed review store, so profiles have rows.
+  ...peopleE2eObjects(Date.now()),
 ];
 
 // Golden v2 at `bm25-reference@2`, written with the community search profiles like the publisher.
