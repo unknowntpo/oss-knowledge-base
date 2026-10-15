@@ -963,11 +963,11 @@ describe("Spec 022 flag in the Worker", () => {
     expect("githubReviews" in empty && empty.githubReviews === null).toBe(true);
   });
 
-  test("RV26: Dev sets metadata@1 and Prod nothing; with Dev's value and an empty bucket the first tick reads one day back", async () => {
+  test("RV26: Dev sets metadata@2 (amendment 2026-10-15) and Prod nothing; with Dev's value and an empty bucket the first tick reads one day back", async () => {
     const vars = async (environment: "development" | "production") =>
       (JSON.parse(await Bun.file(new URL(`../wrangler.${environment}.jsonc`, import.meta.url)).text()) as { vars?: Record<string, string> }).vars ?? {};
     const dev = (await vars("development")).GITHUB_REVIEWS;
-    expect(dev).toBe("metadata@1");
+    expect(dev).toBe("metadata@2");
     expect("GITHUB_REVIEWS" in await vars("production")).toBe(false);
 
     const first = environment(dev);
