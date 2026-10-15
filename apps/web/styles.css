@@ -1659,6 +1659,12 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
 .person-thread-pr { font-family: var(--font-mono); color: var(--accent); }
 .person-thread-part { min-width: 0; overflow-wrap: anywhere; }
 .person-thread-date { font-family: var(--font-mono); font-size: 12px; color: var(--muted-1); }
+.person-thread.is-activity { grid-template-columns: 1fr auto; }
+.person-thread.is-activity .person-thread-part { grid-column: 1 / -1; grid-row: 2; color: var(--muted-1); }
+.person-thread-title { color: var(--accent); min-width: 0; overflow-wrap: anywhere; }
+.person-thread-key { font-family: var(--font-mono); font-size: 12px; }
+.person-areas { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; }
+.person-areas li { overflow-wrap: anywhere; }
 .person-works { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; }
 .person-relation ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
 .person-relation a { overflow-wrap: anywhere; }

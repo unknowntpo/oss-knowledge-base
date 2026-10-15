@@ -560,6 +560,23 @@ export async function readPersonProfile(input: {
   };
 }
 
+/**
+ * Slice 2b: which sources each community records now, for `GET /api/people` (author links in
+ * Detail, W28). Reads each project's two `state.json` objects at most once per isolate per TTL.
+ */
+export async function recordedSources(bucket: PeopleBucket, nowMs: number): Promise<Readonly<Record<string, readonly PeopleSource[]>>> {
+  const entries = await Promise.all(PEOPLE_PROJECTS.map(async (project) => {
+    const [reviews, activity] = await Promise.all([
+      readState(bucket, project.projectId, nowMs).catch(() => undefined),
+      project.sources.some((source) => source !== "github-reviews")
+        ? readActivityState(bucket, project.projectId, nowMs).catch(() => undefined)
+        : Promise.resolve(undefined),
+    ]);
+    return [project.projectKey, project.sources.filter((source) => (source === "github-reviews" ? reviews !== undefined : activity !== undefined))] as const;
+  }));
+  return Object.fromEntries(entries);
+}
+
 /** Slice 2b: the activity counts of a set of records; the response's `totals.activity` and the page's counts. */
 export function activityTotals(records: readonly ActivityRecordV1[], threads: Readonly<Record<string, ActivityThreadV1>>, personKey: string): ActivityTotals {
   const distinct = (filter: (record: ActivityRecordV1) => boolean) => new Set(records.filter(filter).map((record) => record.thread)).size;
@@ -696,7 +713,7 @@ export function profileView(profile: PersonProfileV1, period: ProfilePeriod, now
     given: given.filter((row) => bucketOf(row.submittedAt) === label).length,
     received: received.filter((row) => bucketOf(row.submittedAt) === label).length,
     ...(profile.activity === undefined ? {} : Object.fromEntries((["github", "jira", "mail"] as const)
-      .filter((source) => profile.coverage.some((item) => item.source === source))
+      .filter((source) => profile.coverage.some((item) => item.source === source && item.status === "recorded"))
       .map((source) => [source, records.filter((record) => record.source === source && bucketOf(record.at) === label).length]))),
   }));
 

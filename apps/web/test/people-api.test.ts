@@ -82,7 +82,8 @@ describe("Spec 019 slice 2a: /api/people", () => {
     expect(offProfile.status).toBe(404);
     // Positive control: the Dev configuration serves both.
     const on = await call(configHandler, config("wrangler.development.jsonc").vars ?? {});
-    expect([on.status, await on.json()]).toEqual([200, { enabled: true, projects: ["kafka", "datafusion"] }]);
+    // Slice 2b adds `recorded`; without a bucket nothing is recorded.
+    expect([on.status, await on.json()]).toEqual([200, { enabled: true, projects: ["kafka", "datafusion"], recorded: {} }]);
     const onProfile = await call(profileHandler, { ...config("wrangler.development.jsonc").vars, OSS_KB_BUCKET: store("apache-kafka") }, { project: "kafka", id: "github:reviewer-one" });
     expect(onProfile.status).toBe(200);
   });
