@@ -1,0 +1,4713 @@
+{
+ "capturedAt": "2026-10-15T01:03:56.368Z",
+ "release": "2026-10-14T22:07:43.000Z",
+ "source": "https://oss-knowledge-base-dev.pages.dev /api/feed and /api/detail (anonymous GETs); createdAt from GitHub REST",
+ "identities": [
+  "chia7712",
+  "Chia-Ping Tsai",
+  "m1a2st",
+  "Andrew Schofield",
+  "AndrewJSchofield"
+ ],
+ "createdAt": {
+  "kafka:github:pull:23318": "2026-08-31T15:07:28Z",
+  "kafka:github:pull:23499": "2026-09-17T13:51:33Z",
+  "kafka:github:pull:23665": "2026-10-01T15:17:45Z",
+  "kafka:github:pull:23748": "2026-10-08T16:15:55Z",
+  "kafka:github:pull:23479": "2026-09-16T14:33:45Z",
+  "kafka:github:pull:23532": "2026-09-21T11:00:17Z",
+  "kafka:github:pull:23678": "2026-10-02T16:50:44Z",
+  "kafka:github:pull:19241": "2025-03-19T10:55:33Z",
+  "kafka:github:pull:19566": "2025-04-25T16:01:06Z",
+  "kafka:github:pull:19720": "2025-05-14T15:09:51Z",
+  "kafka:github:pull:21005": "2025-11-27T11:12:11Z",
+  "kafka:github:pull:21484": "2026-02-16T13:07:37Z",
+  "kafka:github:pull:22996": "2026-07-30T13:46:45Z",
+  "kafka:github:pull:23094": "2026-08-06T01:04:30Z",
+  "kafka:github:pull:23197": "2026-08-19T13:59:07Z",
+  "kafka:github:pull:23221": "2026-08-20T19:20:37Z",
+  "kafka:github:pull:23264": "2026-08-25T07:30:04Z",
+  "kafka:github:pull:23301": "2026-08-29T04:36:22Z",
+  "kafka:github:pull:23455": "2026-09-14T05:04:32Z",
+  "kafka:github:pull:23649": "2026-09-30T13:50:45Z",
+  "kafka:github:pull:23664": "2026-10-01T14:19:31Z",
+  "kafka:github:pull:23703": "2026-10-04T22:35:05Z",
+  "kafka:github:pull:23767": "2026-10-10T02:14:45Z",
+  "kafka:github:pull:23234": "2026-08-21T23:03:52Z",
+  "kafka:github:pull:23348": "2026-09-03T16:14:20Z",
+  "kafka:github:pull:23423": "2026-09-10T13:03:18Z",
+  "kafka:github:pull:23433": "2026-09-11T14:23:07Z"
+ },
+ "threads": [
+  {
+   "displayId": "KAFKA-MAIL-fd63cd54",
+   "source": "mail",
+   "title": "[DISCUSS] KIP-1368: Client framework name and version",
+   "labels": [],
+   "rootId": "kafka:mail:dev:message:0bxwf48v9g1fx6gtrfz425fbfs6yl6v8",
+   "records": [
+    {
+     "id": "kafka:mail:dev:message:0bxwf48v9g1fx6gtrfz425fbfs6yl6v8",
+     "kind": "Mail",
+     "author": "Lianet Magrans",
+     "occurredAt": "2026-09-28T21:32:46.000Z",
+     "url": "https://lists.apache.org/thread/0bxwf48v9g1fx6gtrfz425fbfs6yl6v8"
+    },
+    {
+     "id": "kafka:mail:dev:message:2cjkd8jh93rkh589c7d5sl2bgt4ns1r7",
+     "kind": "Mail",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-09-23T13:41:52.000Z",
+     "url": "https://lists.apache.org/thread/2cjkd8jh93rkh589c7d5sl2bgt4ns1r7"
+    },
+    {
+     "id": "kafka:mail:dev:message:2t0942rp2n0kbjcwssc5d6n22l9qsct1",
+     "kind": "Mail",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-09-24T14:32:35.000Z",
+     "url": "https://lists.apache.org/thread/2t0942rp2n0kbjcwssc5d6n22l9qsct1"
+    },
+    {
+     "id": "kafka:mail:dev:message:96kphyfj9jx0hdr1vsocnowb2fb3q5c7",
+     "kind": "Mail",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-09-24T17:58:00.000Z",
+     "url": "https://lists.apache.org/thread/96kphyfj9jx0hdr1vsocnowb2fb3q5c7"
+    },
+    {
+     "id": "kafka:mail:dev:message:bkclscbzgokzo4djf91vc298o7hbr24h",
+     "kind": "Mail",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-09-11T19:47:09.000Z",
+     "url": "https://lists.apache.org/thread/bkclscbzgokzo4djf91vc298o7hbr24h",
+     "status": "discussing"
+    },
+    {
+     "id": "kafka:mail:dev:message:brwf59cywq2g09pm7y4ow4k8msb5zn7q",
+     "kind": "Mail",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-10-05T21:35:08.000Z",
+     "url": "https://lists.apache.org/thread/brwf59cywq2g09pm7y4ow4k8msb5zn7q"
+    },
+    {
+     "id": "kafka:mail:dev:message:d86tdgypxfoq9zmlhkcmbcmfj7fltkof",
+     "kind": "Mail",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-09-28T18:17:38.000Z",
+     "url": "https://lists.apache.org/thread/d86tdgypxfoq9zmlhkcmbcmfj7fltkof"
+    },
+    {
+     "id": "kafka:mail:dev:message:ho03bs67xc5q4qzx413mj3vkm9jjy2dp",
+     "kind": "Mail",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-09-21T13:41:52.000Z",
+     "url": "https://lists.apache.org/thread/ho03bs67xc5q4qzx413mj3vkm9jjy2dp"
+    },
+    {
+     "id": "kafka:mail:dev:message:knq26n5hm5jpt52yksndgnvl243kqx82",
+     "kind": "Mail",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-09-29T18:23:39.000Z",
+     "url": "https://lists.apache.org/thread/knq26n5hm5jpt52yksndgnvl243kqx82"
+    },
+    {
+     "id": "kafka:mail:dev:message:vwg09ssk82g77vpw4gct5b6sjz1rsv6g",
+     "kind": "Mail",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-09-29T19:27:56.000Z",
+     "url": "https://lists.apache.org/thread/vwg09ssk82g77vpw4gct5b6sjz1rsv6g"
+    },
+    {
+     "id": "kafka:mail:dev:message:xmpq34c07fl770j0ojjb7rbz6x4xns6p",
+     "kind": "Mail",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-09-29T18:13:21.000Z",
+     "url": "https://lists.apache.org/thread/xmpq34c07fl770j0ojjb7rbz6x4xns6p"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-85a6bd91",
+   "source": "mail",
+   "title": "[ANNOUNCE] New committer: Sushant Mahajan",
+   "labels": [],
+   "rootId": "kafka:mail:dev:message:0zzswxp3zldf05wx3247cbgx94yoyyyv",
+   "records": [
+    {
+     "id": "kafka:mail:dev:message:0zzswxp3zldf05wx3247cbgx94yoyyyv",
+     "kind": "Mail",
+     "author": "Sushant Mahajan",
+     "occurredAt": "2026-09-29T14:58:17.000Z",
+     "url": "https://lists.apache.org/thread/0zzswxp3zldf05wx3247cbgx94yoyyyv"
+    },
+    {
+     "id": "kafka:mail:dev:message:kc8vq5jp2x8qvg7tcydq7jhy3s0ph6hf",
+     "kind": "Mail",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-09-29T07:26:11.000Z",
+     "url": "https://lists.apache.org/thread/kc8vq5jp2x8qvg7tcydq7jhy3s0ph6hf",
+     "status": "discussing"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-20416",
+   "source": "jira",
+   "title": "KAFKA-20416: RocksDB loses entries during broker patches.",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-20416",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-20416",
+     "kind": "Jira Issue",
+     "author": "Fabian Bell",
+     "occurredAt": "2026-10-05T11:12:49.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20416",
+     "status": "resolved"
+    },
+    {
+     "id": "kafka:jira:issue:KAFKA-20416:comment:18120269",
+     "kind": "Jira Comment",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-28T16:55:11.888Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20416?focusedCommentId=18120269"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-f7a35fa2",
+   "source": "mail",
+   "title": "4.4.0 Release Manager",
+   "labels": [],
+   "rootId": "kafka:mail:dev:message:0ro53kprh0kjcdnzfrsfgptjblyrb7ct",
+   "records": [
+    {
+     "id": "kafka:mail:dev:message:0ro53kprh0kjcdnzfrsfgptjblyrb7ct",
+     "kind": "Mail",
+     "author": "Vivek Agarwal B",
+     "occurredAt": "2026-09-26T03:08:18.000Z",
+     "url": "https://lists.apache.org/thread/0ro53kprh0kjcdnzfrsfgptjblyrb7ct"
+    },
+    {
+     "id": "kafka:mail:dev:message:0v6rxyls14pk8dn7q4con318k8s7xgfv",
+     "kind": "Mail",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-21T04:36:00.000Z",
+     "url": "https://lists.apache.org/thread/0v6rxyls14pk8dn7q4con318k8s7xgfv"
+    },
+    {
+     "id": "kafka:mail:dev:message:5q8qwhx2hd2rn1lowtfcggssm6923y0w",
+     "kind": "Mail",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-29T05:18:03.000Z",
+     "url": "https://lists.apache.org/thread/5q8qwhx2hd2rn1lowtfcggssm6923y0w"
+    },
+    {
+     "id": "kafka:mail:dev:message:btk1pr3d10tjztxtq6lf3216j9nbpcxk",
+     "kind": "Mail",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-30T14:05:04.000Z",
+     "url": "https://lists.apache.org/thread/btk1pr3d10tjztxtq6lf3216j9nbpcxk"
+    },
+    {
+     "id": "kafka:mail:dev:message:c37psbrnyjh1ogodzk7fgp02g67q531n",
+     "kind": "Mail",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-09-18T12:30:58.000Z",
+     "url": "https://lists.apache.org/thread/c37psbrnyjh1ogodzk7fgp02g67q531n"
+    },
+    {
+     "id": "kafka:mail:dev:message:g19p2clqvv5r2h2w3w0qj381hxnmc4y4",
+     "kind": "Mail",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-14T14:27:48.000Z",
+     "url": "https://lists.apache.org/thread/g19p2clqvv5r2h2w3w0qj381hxnmc4y4"
+    },
+    {
+     "id": "kafka:mail:dev:message:nclxjdsp8mx2czpns13ywy9gq3cxj0yq",
+     "kind": "Mail",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-09-20T21:17:04.000Z",
+     "url": "https://lists.apache.org/thread/nclxjdsp8mx2czpns13ywy9gq3cxj0yq"
+    },
+    {
+     "id": "kafka:mail:dev:message:rhbpnrxqf4lqzhsypzo6pd1sxrjolrkj",
+     "kind": "Mail",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-28T15:21:34.000Z",
+     "url": "https://lists.apache.org/thread/rhbpnrxqf4lqzhsypzo6pd1sxrjolrkj"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-1ea662ce",
+   "source": "mail",
+   "title": "[VOTE] 4.4.0 RC4",
+   "labels": [],
+   "rootId": "kafka:mail:dev:message:14xglxjw6dcoxdr0t024641j2nspbmp4",
+   "records": [
+    {
+     "id": "kafka:mail:dev:message:14xglxjw6dcoxdr0t024641j2nspbmp4",
+     "kind": "Mail",
+     "author": "David Jacot",
+     "occurredAt": "2026-10-08T06:30:18.000Z",
+     "url": "https://lists.apache.org/thread/14xglxjw6dcoxdr0t024641j2nspbmp4"
+    },
+    {
+     "id": "kafka:mail:dev:message:lkwrdnlf7x1lvc58p4gvgtqodfwl374s",
+     "kind": "Mail",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-08T06:34:15.000Z",
+     "url": "https://lists.apache.org/thread/lkwrdnlf7x1lvc58p4gvgtqodfwl374s"
+    },
+    {
+     "id": "kafka:mail:dev:message:mf63brpg4nhxf12ztz7p33mmfl3bbo8l",
+     "kind": "Mail",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-08T17:44:56.000Z",
+     "url": "https://lists.apache.org/thread/mf63brpg4nhxf12ztz7p33mmfl3bbo8l"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-186eea6b",
+   "source": "mail",
+   "title": "[VOTE] 4.2.2 RC1",
+   "labels": [],
+   "rootId": "kafka:mail:dev:message:1k1828grrk6tcdpgdxzp4nj9l8w9n2yr",
+   "records": [
+    {
+     "id": "kafka:mail:dev:message:1k1828grrk6tcdpgdxzp4nj9l8w9n2yr",
+     "kind": "Mail",
+     "author": "Apoorv Mittal",
+     "occurredAt": "2026-09-22T15:08:53.000Z",
+     "url": "https://lists.apache.org/thread/1k1828grrk6tcdpgdxzp4nj9l8w9n2yr"
+    },
+    {
+     "id": "kafka:mail:dev:message:yk8ny41637ntlsfo5qr71dtdjsrbsql4",
+     "kind": "Mail",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-09-23T14:52:09.000Z",
+     "url": "https://lists.apache.org/thread/yk8ny41637ntlsfo5qr71dtdjsrbsql4"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23310",
+   "source": "github",
+   "title": "KAFKA-19028: Make incremental config deletion consistent for policies",
+   "labels": [
+    "clients",
+    "kraft",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:23310",
+   "records": [
+    {
+     "id": "kafka:github:pull:23310",
+     "kind": "Pull Request",
+     "author": "arnabnandy7",
+     "occurredAt": "2026-09-24T00:26:35Z",
+     "url": "https://github.com/apache/kafka/pull/23310",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23310:comment:5789156262",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-23T04:39:06Z",
+     "url": "https://github.com/apache/kafka/pull/23310#issuecomment-5789156262"
+    },
+    {
+     "id": "kafka:github:pull:23310:comment:5805069169",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-24T00:11:23Z",
+     "url": "https://github.com/apache/kafka/pull/23310#issuecomment-5805069169"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-edf95c85",
+   "source": "mail",
+   "title": "[DISCUSS] Tightening time-based releases",
+   "labels": [],
+   "rootId": "kafka:mail:dev:message:6tsjrn8qqdvnlvdzdno2zgtdo4h9sg1s",
+   "records": [
+    {
+     "id": "kafka:mail:dev:message:6tsjrn8qqdvnlvdzdno2zgtdo4h9sg1s",
+     "kind": "Mail",
+     "author": "Matthias J. Sax",
+     "occurredAt": "2026-10-10T13:31:55.000Z",
+     "url": "https://lists.apache.org/thread/6tsjrn8qqdvnlvdzdno2zgtdo4h9sg1s"
+    },
+    {
+     "id": "kafka:mail:dev:message:7fpxy4xhmdobhmpymgng4qxf8ttf8wmj",
+     "kind": "Mail",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-10-12T10:17:17.000Z",
+     "url": "https://lists.apache.org/thread/7fpxy4xhmdobhmpymgng4qxf8ttf8wmj"
+    },
+    {
+     "id": "kafka:mail:dev:message:8jkchl89j7m2xyl6grss9bl0ljszvgrg",
+     "kind": "Mail",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-29T05:54:57.000Z",
+     "url": "https://lists.apache.org/thread/8jkchl89j7m2xyl6grss9bl0ljszvgrg"
+    },
+    {
+     "id": "kafka:mail:dev:message:o1d5p48t7br2bbh0rwl65rybd331pn7d",
+     "kind": "Mail",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-09-25T08:36:23.000Z",
+     "url": "https://lists.apache.org/thread/o1d5p48t7br2bbh0rwl65rybd331pn7d"
+    },
+    {
+     "id": "kafka:mail:dev:message:zqgfz6qh9gsxoyzryltrfbj4gy0gcr87",
+     "kind": "Mail",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-16T04:01:41.000Z",
+     "url": "https://lists.apache.org/thread/zqgfz6qh9gsxoyzryltrfbj4gy0gcr87"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-e07e6b7f",
+   "source": "mail",
+   "title": "[VOTE] 4.3.2 RC3",
+   "labels": [],
+   "rootId": "kafka:mail:dev:message:0rs78f73frj3h1mwrlmkr6dkso327ds7",
+   "records": [
+    {
+     "id": "kafka:mail:dev:message:0rs78f73frj3h1mwrlmkr6dkso327ds7",
+     "kind": "Mail",
+     "author": "黃竣陽",
+     "occurredAt": "2026-10-11T14:06:21.000Z",
+     "url": "https://lists.apache.org/thread/0rs78f73frj3h1mwrlmkr6dkso327ds7",
+     "status": "discussing"
+    },
+    {
+     "id": "kafka:mail:dev:message:yjd7llfyovbypwwh7yy227oz4o5yop80",
+     "kind": "Mail",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-12T09:00:16.000Z",
+     "url": "https://lists.apache.org/thread/yjd7llfyovbypwwh7yy227oz4o5yop80"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-6c38f1a7",
+   "source": "mail",
+   "title": "[VOTE] 4.4.0 RC3",
+   "labels": [],
+   "rootId": "kafka:mail:dev:message:9smdmyq10jzfgl9cg939tjxnpwmm3grf",
+   "records": [
+    {
+     "id": "kafka:mail:dev:message:9smdmyq10jzfgl9cg939tjxnpwmm3grf",
+     "kind": "Mail",
+     "author": "David Jacot",
+     "occurredAt": "2026-10-02T08:56:23.000Z",
+     "url": "https://lists.apache.org/thread/9smdmyq10jzfgl9cg939tjxnpwmm3grf"
+    },
+    {
+     "id": "kafka:mail:dev:message:pk5nog8jkysn6brfpspomvtcvxv3hhmq",
+     "kind": "Mail",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-02T04:59:16.000Z",
+     "url": "https://lists.apache.org/thread/pk5nog8jkysn6brfpspomvtcvxv3hhmq"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23475",
+   "source": "github",
+   "title": "KAFKA-21047: Enable asynchronous bootstrap DNS resolution in Kafka Connect (KIP-909)",
+   "labels": [
+    "ci-approved",
+    "connect"
+   ],
+   "rootId": "kafka:github:pull:23475",
+   "records": [
+    {
+     "id": "kafka:github:pull:23475",
+     "kind": "Pull Request",
+     "author": "ashwinpankaj",
+     "occurredAt": "2026-09-18T05:59:49Z",
+     "url": "https://github.com/apache/kafka/pull/23475",
+     "status": "open"
+    },
+    {
+     "id": "kafka:github:pull:23475:comment:5701288926",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-16T16:56:30Z",
+     "url": "https://github.com/apache/kafka/pull/23475#issuecomment-5701288926"
+    },
+    {
+     "id": "kafka:github:pull:23475:comment:5703477192",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-16T19:41:18Z",
+     "url": "https://github.com/apache/kafka/pull/23475#issuecomment-5703477192"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23758",
+   "source": "github",
+   "title": "MINOR: Use Jackson 2.21.7 instead of 2.22.3 on 4.3",
+   "labels": [],
+   "rootId": "kafka:github:pull:23758",
+   "records": [
+    {
+     "id": "kafka:github:pull:23758",
+     "kind": "Pull Request",
+     "author": "Russole",
+     "occurredAt": "2026-10-09T12:54:28Z",
+     "url": "https://github.com/apache/kafka/pull/23758",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23758:comment:6077334496",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-10-09T08:29:03Z",
+     "url": "https://github.com/apache/kafka/pull/23758#issuecomment-6077334496"
+    },
+    {
+     "id": "kafka:github:pull:23758:comment:6078860584",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-10-09T10:13:03Z",
+     "url": "https://github.com/apache/kafka/pull/23758#issuecomment-6078860584"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-15677",
+   "source": "jira",
+   "title": "KAFKA-15677: Add support for re2/j regex parsing for patterns",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-15677",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-15677",
+     "kind": "Jira Issue",
+     "author": "Apoorv Mittal",
+     "occurredAt": "2026-10-13T12:18:12.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-15677",
+     "status": "open"
+    },
+    {
+     "id": "kafka:jira:issue:KAFKA-15677:comment:18121637",
+     "kind": "Jira Comment",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-10-01T17:08:36.885Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-15677?focusedCommentId=18121637"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21106",
+   "source": "jira",
+   "title": "KAFKA-21106: Share consumer leaks ShareCompletedFetch when two fetches for the same partition are merged before collection",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21106",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21106",
+     "kind": "Jira Issue",
+     "author": "Apoorv Mittal",
+     "occurredAt": "2026-09-24T15:13:50.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21106",
+     "status": "resolved"
+    },
+    {
+     "id": "kafka:jira:issue:KAFKA-21106:comment:18117703",
+     "kind": "Jira Comment",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-09-21T11:57:14.791Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21106?focusedCommentId=18117703"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21178",
+   "source": "jira",
+   "title": "KAFKA-21178: Allow kafka admin to disable some compression methods",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21178",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21178",
+     "kind": "Jira Issue",
+     "author": "Luke Chen",
+     "occurredAt": "2026-10-09T15:55:13.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21178",
+     "status": "open"
+    },
+    {
+     "id": "kafka:jira:issue:KAFKA-21178:comment:18125484",
+     "kind": "Jira Comment",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-10-09T10:29:43.124Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21178?focusedCommentId=18125484"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-d2f9f789",
+   "source": "mail",
+   "title": "[VOTE] 4.4.0 RC1",
+   "labels": [],
+   "rootId": "kafka:mail:dev:message:47g8fnypjwbh6s08t65rwcxgprv2zldx",
+   "records": [
+    {
+     "id": "kafka:mail:dev:message:47g8fnypjwbh6s08t65rwcxgprv2zldx",
+     "kind": "Mail",
+     "author": "Omnia Ibrahim",
+     "occurredAt": "2026-09-22T14:09:47.000Z",
+     "url": "https://lists.apache.org/thread/47g8fnypjwbh6s08t65rwcxgprv2zldx",
+     "status": "discussing"
+    },
+    {
+     "id": "kafka:mail:dev:message:fk4jx9qhrnx9g1tn8jsnfycx5mgnhspt",
+     "kind": "Mail",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-23T10:33:17.000Z",
+     "url": "https://lists.apache.org/thread/fk4jx9qhrnx9g1tn8jsnfycx5mgnhspt"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-8849f679",
+   "source": "mail",
+   "title": "[VOTE] 4.3.2 RC0",
+   "labels": [],
+   "rootId": "kafka:mail:dev:message:5fdqdxptb71mdjg0voyqp9r0fsngdwzf",
+   "records": [
+    {
+     "id": "kafka:mail:dev:message:5fdqdxptb71mdjg0voyqp9r0fsngdwzf",
+     "kind": "Mail",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-04T17:52:42.000Z",
+     "url": "https://lists.apache.org/thread/5fdqdxptb71mdjg0voyqp9r0fsngdwzf"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-22055",
+   "source": "github",
+   "title": "KAFKA-20449: Downgrade \"not updating high watermark\" log from WARN to DEBUG",
+   "labels": [
+    "clients",
+    "consumer",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:22055",
+   "records": [
+    {
+     "id": "kafka:github:pull:22055",
+     "kind": "Pull Request",
+     "author": "tkornai",
+     "occurredAt": "2026-10-08T12:47:52Z",
+     "url": "https://github.com/apache/kafka/pull/22055",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:22055:comment:5619334549",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-10T13:19:25Z",
+     "url": "https://github.com/apache/kafka/pull/22055#issuecomment-5619334549"
+    },
+    {
+     "id": "kafka:github:pull:22055:comment:6057515288",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-10-08T10:06:42Z",
+     "url": "https://github.com/apache/kafka/pull/22055#issuecomment-6057515288"
+    },
+    {
+     "id": "kafka:github:pull:22055:comment:6060201479",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-10-08T12:47:51Z",
+     "url": "https://github.com/apache/kafka/pull/22055#issuecomment-6060201479"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-22763",
+   "source": "github",
+   "title": "KAFKA-20774: Fix ScramDelta.apply() dropping SCRAM users",
+   "labels": [
+    "ci-approved",
+    "kraft"
+   ],
+   "rootId": "kafka:github:pull:22763",
+   "records": [
+    {
+     "id": "kafka:github:pull:22763",
+     "kind": "Pull Request",
+     "author": "dark231321",
+     "occurredAt": "2026-09-23T08:02:12Z",
+     "url": "https://github.com/apache/kafka/pull/22763",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:22763:comment:5787810873",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-23T02:18:21Z",
+     "url": "https://github.com/apache/kafka/pull/22763#issuecomment-5787810873"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23105",
+   "source": "github",
+   "title": "KAFKA-20684 [4/N]: Migrate Connect to RebalanceListener",
+   "labels": [
+    "ci-approved",
+    "connect",
+    "mirror-maker-2"
+   ],
+   "rootId": "kafka:github:pull:23105",
+   "records": [
+    {
+     "id": "kafka:github:pull:23105",
+     "kind": "Pull Request",
+     "author": "adikou",
+     "occurredAt": "2026-10-12T08:02:05Z",
+     "url": "https://github.com/apache/kafka/pull/23105",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23105:comment:6065609583",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-10-08T17:39:17Z",
+     "url": "https://github.com/apache/kafka/pull/23105#issuecomment-6065609583"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23431",
+   "source": "github",
+   "title": "MINOR: Rename computeSinkRecordLag to computeSinkRecordActiveCount",
+   "labels": [
+    "ci-approved",
+    "connect",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:23431",
+   "records": [
+    {
+     "id": "kafka:github:pull:23431",
+     "kind": "Pull Request",
+     "author": "mapan1984",
+     "occurredAt": "2026-09-21T03:55:21Z",
+     "url": "https://github.com/apache/kafka/pull/23431",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23431:comment:5733903026",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-18T17:43:26Z",
+     "url": "https://github.com/apache/kafka/pull/23431#issuecomment-5733903026"
+    },
+    {
+     "id": "kafka:github:pull:23431:comment:5755167076",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-21T03:55:21Z",
+     "url": "https://github.com/apache/kafka/pull/23431#issuecomment-5755167076"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23476",
+   "source": "github",
+   "title": "KAFKA-21105: Bump Jackson version to 2.22.2",
+   "labels": [
+    "build",
+    "ci-approved",
+    "dependencies",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:23476",
+   "records": [
+    {
+     "id": "kafka:github:pull:23476",
+     "kind": "Pull Request",
+     "author": "egyedt",
+     "occurredAt": "2026-09-18T09:25:20Z",
+     "url": "https://github.com/apache/kafka/pull/23476",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23476:comment:5704030461",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-16T20:26:51Z",
+     "url": "https://github.com/apache/kafka/pull/23476#issuecomment-5704030461"
+    },
+    {
+     "id": "kafka:github:pull:23476:comment:5704060017",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-16T20:29:20Z",
+     "url": "https://github.com/apache/kafka/pull/23476#issuecomment-5704060017"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-3bff04e6",
+   "source": "mail",
+   "title": "[DISCUSS] KIP-1342: Deprecate Authorizer#aclCount",
+   "labels": [],
+   "rootId": "kafka:mail:dev:message:0frtc6h3y9ts89do3qb9yk6oj3o1ktg2",
+   "records": [
+    {
+     "id": "kafka:mail:dev:message:0frtc6h3y9ts89do3qb9yk6oj3o1ktg2",
+     "kind": "Mail",
+     "author": "Ming-Yen Chung",
+     "occurredAt": "2026-09-18T17:37:06.000Z",
+     "url": "https://lists.apache.org/thread/0frtc6h3y9ts89do3qb9yk6oj3o1ktg2",
+     "status": "discussing"
+    },
+    {
+     "id": "kafka:mail:dev:message:o6brly6odmwb1mh22nt6z9dor63nvpvk",
+     "kind": "Mail",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-18T17:50:03.000Z",
+     "url": "https://lists.apache.org/thread/o6brly6odmwb1mh22nt6z9dor63nvpvk"
+    },
+    {
+     "id": "kafka:mail:dev:message:tl6s2jmfz2mjcyv3vslkvt1x2kq127mv",
+     "kind": "Mail",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-24T01:02:35.000Z",
+     "url": "https://lists.apache.org/thread/tl6s2jmfz2mjcyv3vslkvt1x2kq127mv"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-82e0d5b3",
+   "source": "mail",
+   "title": "[VOTE] KIP-1349 Bytes-based configurable snapshot frequency for share groups",
+   "labels": [],
+   "rootId": "kafka:mail:dev:message:32wjo305c4rt3lwz60yohj5vqh5wxg77",
+   "records": [
+    {
+     "id": "kafka:mail:dev:message:32wjo305c4rt3lwz60yohj5vqh5wxg77",
+     "kind": "Mail",
+     "author": "Sushant Mahajan",
+     "occurredAt": "2026-10-05T18:05:01.000Z",
+     "url": "https://lists.apache.org/thread/32wjo305c4rt3lwz60yohj5vqh5wxg77"
+    },
+    {
+     "id": "kafka:mail:dev:message:hxzv89m1tlrx3yym1szlv1xjzfy0bdzv",
+     "kind": "Mail",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-10-01T14:27:51.000Z",
+     "url": "https://lists.apache.org/thread/hxzv89m1tlrx3yym1szlv1xjzfy0bdzv"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-6f627126",
+   "source": "mail",
+   "title": "[DISCUSS] Apache Kafka 4.5.0 release",
+   "labels": [],
+   "rootId": "kafka:mail:dev:message:8jrbpkrb0zy3pnh7kr2cm3voq9w2tok8",
+   "records": [
+    {
+     "id": "kafka:mail:dev:message:8jrbpkrb0zy3pnh7kr2cm3voq9w2tok8",
+     "kind": "Mail",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-24T00:30:39.000Z",
+     "url": "https://lists.apache.org/thread/8jrbpkrb0zy3pnh7kr2cm3voq9w2tok8"
+    },
+    {
+     "id": "kafka:mail:dev:message:tj10yosjhl359dylxqw430hb7rmbqnts",
+     "kind": "Mail",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-09-23T12:06:51.000Z",
+     "url": "https://lists.apache.org/thread/tj10yosjhl359dylxqw430hb7rmbqnts",
+     "status": "discussing"
+    },
+    {
+     "id": "kafka:mail:dev:message:vv66wxogtmthywg5o1fqn7jchdpd34wm",
+     "kind": "Mail",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-09-29T17:00:41.000Z",
+     "url": "https://lists.apache.org/thread/vv66wxogtmthywg5o1fqn7jchdpd34wm"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-03dc59c4",
+   "source": "mail",
+   "title": "[VOTE] 4.3.2 RC1",
+   "labels": [],
+   "rootId": "kafka:mail:dev:message:37qpw6pnp6khjp158s47t0kmhtwny7o4",
+   "records": [
+    {
+     "id": "kafka:mail:dev:message:37qpw6pnp6khjp158s47t0kmhtwny7o4",
+     "kind": "Mail",
+     "author": "Eric Chang",
+     "occurredAt": "2026-10-09T00:47:16.000Z",
+     "url": "https://lists.apache.org/thread/37qpw6pnp6khjp158s47t0kmhtwny7o4"
+    },
+    {
+     "id": "kafka:mail:dev:message:zz5hj202721sdcl5c9j6x93zn7868cdh",
+     "kind": "Mail",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-08T16:06:03.000Z",
+     "url": "https://lists.apache.org/thread/zz5hj202721sdcl5c9j6x93zn7868cdh"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-22593",
+   "source": "github",
+   "title": "KAFKA-12759: Rebalance when a static member's subscription changes (classic protocol)",
+   "labels": [
+    "ci-approved",
+    "core",
+    "group-coordinator"
+   ],
+   "rootId": "kafka:github:pull:22593",
+   "records": [
+    {
+     "id": "kafka:github:pull:22593",
+     "kind": "Pull Request",
+     "author": "danoSF",
+     "occurredAt": "2026-10-11T16:03:52Z",
+     "url": "https://github.com/apache/kafka/pull/22593",
+     "status": "open"
+    },
+    {
+     "id": "kafka:github:pull:22593:comment:6110921066",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-10-11T16:03:52Z",
+     "url": "https://github.com/apache/kafka/pull/22593#issuecomment-6110921066"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23318",
+   "source": "github",
+   "title": "KAFKA-18477 Remove usage of OffsetForLeaderEpochRequest in AbstractFetcherThread",
+   "labels": [
+    "core",
+    "performance"
+   ],
+   "rootId": "kafka:github:pull:23318",
+   "records": [
+    {
+     "id": "kafka:github:pull:23318",
+     "kind": "Pull Request",
+     "author": "m1a2st",
+     "occurredAt": "2026-10-07T18:35:37Z",
+     "url": "https://github.com/apache/kafka/pull/23318",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23318:comment:5844369466",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-26T07:46:56Z",
+     "url": "https://github.com/apache/kafka/pull/23318#issuecomment-5844369466"
+    },
+    {
+     "id": "kafka:github:pull:23318:comment:5892038021",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-29T14:12:19Z",
+     "url": "https://github.com/apache/kafka/pull/23318#issuecomment-5892038021"
+    },
+    {
+     "id": "kafka:github:pull:23318:comment:5912968875",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-30T14:08:56Z",
+     "url": "https://github.com/apache/kafka/pull/23318#issuecomment-5912968875"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23385",
+   "source": "github",
+   "title": "KAFKA-21038: Replace LogManagerBuilder with direct LogManager constructor calls",
+   "labels": [
+    "ci-approved",
+    "core",
+    "performance"
+   ],
+   "rootId": "kafka:github:pull:23385",
+   "records": [
+    {
+     "id": "kafka:github:pull:23385",
+     "kind": "Pull Request",
+     "author": "jim0987795064",
+     "occurredAt": "2026-10-08T06:04:05Z",
+     "url": "https://github.com/apache/kafka/pull/23385",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23385:comment:6044273234",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-10-07T18:30:35Z",
+     "url": "https://github.com/apache/kafka/pull/23385#issuecomment-6044273234"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23402",
+   "source": "github",
+   "title": "KAFKA-1983: Remove redundant offset commits from EndToEndLatency",
+   "labels": [
+    "ci-approved",
+    "small",
+    "tools"
+   ],
+   "rootId": "kafka:github:pull:23402",
+   "records": [
+    {
+     "id": "kafka:github:pull:23402",
+     "kind": "Pull Request",
+     "author": "AshenScribe",
+     "occurredAt": "2026-09-26T13:10:54Z",
+     "url": "https://github.com/apache/kafka/pull/23402",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23402:comment:5846539695",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-26T13:10:51Z",
+     "url": "https://github.com/apache/kafka/pull/23402#issuecomment-5846539695"
+    },
+    {
+     "id": "kafka:github:pull:23402:comment:5846539992",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-26T13:10:54Z",
+     "url": "https://github.com/apache/kafka/pull/23402#issuecomment-5846539992"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23439",
+   "source": "github",
+   "title": "MINOR: adding consumer group assignor name collide description in upgrade.md",
+   "labels": [
+    "ci-approved",
+    "docs",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:23439",
+   "records": [
+    {
+     "id": "kafka:github:pull:23439",
+     "kind": "Pull Request",
+     "author": "gabriellefu",
+     "occurredAt": "2026-09-15T15:23:01Z",
+     "url": "https://github.com/apache/kafka/pull/23439",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23439:comment:5641871672",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-11T23:39:30Z",
+     "url": "https://github.com/apache/kafka/pull/23439#issuecomment-5641871672"
+    },
+    {
+     "id": "kafka:github:pull:23439:comment:5674580620",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-15T04:07:41Z",
+     "url": "https://github.com/apache/kafka/pull/23439#issuecomment-5674580620"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23478",
+   "source": "github",
+   "title": "KAFKA-21106: Fix ShareCompletedFetch leak when merging two fetches for the same partition",
+   "labels": [
+    "ci-approved",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:23478",
+   "records": [
+    {
+     "id": "kafka:github:pull:23478",
+     "kind": "Pull Request",
+     "author": "apoorvmittal10",
+     "occurredAt": "2026-09-18T13:47:26Z",
+     "url": "https://github.com/apache/kafka/pull/23478",
+     "status": "closed"
+    },
+    {
+     "id": "kafka:github:pull:23478:comment:5714337724",
+     "kind": "Comment",
+     "author": "AndrewJSchofield",
+     "occurredAt": "2026-09-17T12:27:04Z",
+     "url": "https://github.com/apache/kafka/pull/23478#issuecomment-5714337724"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23609",
+   "source": "github",
+   "title": "KAFKA-21174: Update lz4 to 1.11.4",
+   "labels": [
+    "build",
+    "ci-approved",
+    "dependencies",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:23609",
+   "records": [
+    {
+     "id": "kafka:github:pull:23609",
+     "kind": "Pull Request",
+     "author": "harmadasg",
+     "occurredAt": "2026-09-30T07:11:32Z",
+     "url": "https://github.com/apache/kafka/pull/23609",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23609:comment:5873105036",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-28T15:24:02Z",
+     "url": "https://github.com/apache/kafka/pull/23609#issuecomment-5873105036"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-19028",
+   "source": "jira",
+   "title": "KAFKA-19028: AlterConfigPolicy with OpType.DELETE : inconsistent behavior between TOPIC and BROKER resource",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-19028",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-19028",
+     "kind": "Jira Issue",
+     "author": "Edoardo Comar",
+     "occurredAt": "2026-10-01T03:26:14.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-19028",
+     "status": "resolved"
+    },
+    {
+     "id": "kafka:jira:issue:KAFKA-19028:comment:18118222",
+     "kind": "Jira Comment",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-23T04:40:07.800Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-19028?focusedCommentId=18118222"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-22272",
+   "source": "github",
+   "title": "KAFKA-20385 [3/N]: Integration tests + examples",
+   "labels": [
+    "KIP-932",
+    "build",
+    "ci-approved",
+    "clients",
+    "connect",
+    "consumer",
+    "core",
+    "group-coordinator",
+    "kraft",
+    "needs-attention",
+    "performance",
+    "producer",
+    "storage",
+    "streams",
+    "tiered-storage",
+    "tools",
+    "transactions",
+    "triage"
+   ],
+   "rootId": "kafka:github:pull:22272",
+   "records": [
+    {
+     "id": "kafka:github:pull:22272",
+     "kind": "Pull Request",
+     "author": "adikou",
+     "occurredAt": "2026-10-08T17:54:00Z",
+     "url": "https://github.com/apache/kafka/pull/22272",
+     "status": "closed"
+    },
+    {
+     "id": "kafka:github:pull:22272:comment:6065581060",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-10-08T17:37:35Z",
+     "url": "https://github.com/apache/kafka/pull/22272#issuecomment-6065581060"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-22447",
+   "source": "github",
+   "title": "MINOR: fix doc for CVE-2026-41115",
+   "labels": [
+    "docs",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:22447",
+   "records": [
+    {
+     "id": "kafka:github:pull:22447",
+     "kind": "Pull Request",
+     "author": "showuon",
+     "occurredAt": "2026-09-30T05:11:07Z",
+     "url": "https://github.com/apache/kafka/pull/22447",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:22447:comment:5904524518",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-30T05:10:52Z",
+     "url": "https://github.com/apache/kafka/pull/22447#issuecomment-5904524518"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23392",
+   "source": "github",
+   "title": "MINOR: Migrate User SCRAM Credentials admin integration tests to Java",
+   "labels": [
+    "ci-approved",
+    "clients",
+    "core",
+    "needs-attention",
+    "tests",
+    "triage"
+   ],
+   "rootId": "kafka:github:pull:23392",
+   "records": [
+    {
+     "id": "kafka:github:pull:23392",
+     "kind": "Pull Request",
+     "author": "Alwaysgaurav1",
+     "occurredAt": "2026-10-10T03:24:27Z",
+     "url": "https://github.com/apache/kafka/pull/23392",
+     "status": "open"
+    },
+    {
+     "id": "kafka:github:pull:23392:comment:5988464167",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-10-05T05:06:35Z",
+     "url": "https://github.com/apache/kafka/pull/23392#issuecomment-5988464167"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23398",
+   "source": "github",
+   "title": "KAFKA-21042: Improve LogCaptureAppender#getMessages and apply the improved one to the codebase",
+   "labels": [
+    "ci-approved",
+    "clients",
+    "connect",
+    "consumer",
+    "group-coordinator",
+    "streams"
+   ],
+   "rootId": "kafka:github:pull:23398",
+   "records": [
+    {
+     "id": "kafka:github:pull:23398",
+     "kind": "Pull Request",
+     "author": "jim0987795064",
+     "occurredAt": "2026-09-21T09:34:51Z",
+     "url": "https://github.com/apache/kafka/pull/23398",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23398:comment:5703948195",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-16T20:19:59Z",
+     "url": "https://github.com/apache/kafka/pull/23398#issuecomment-5703948195"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23473",
+   "source": "github",
+   "title": "KAFKA-20843 Allow custom consumer group assignors to override built-in assignor names",
+   "labels": [
+    "ci-approved",
+    "group-coordinator",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:23473",
+   "records": [
+    {
+     "id": "kafka:github:pull:23473",
+     "kind": "Pull Request",
+     "author": "gabriellefu",
+     "occurredAt": "2026-09-16T20:06:06Z",
+     "url": "https://github.com/apache/kafka/pull/23473",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23473:comment:5703783153",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-16T20:06:06Z",
+     "url": "https://github.com/apache/kafka/pull/23473#issuecomment-5703783153"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23499",
+   "source": "github",
+   "title": "KAFKA-21106: Resolve merging of batches in ShareFetch",
+   "labels": [
+    "KIP-932",
+    "ci-approved",
+    "clients",
+    "consumer"
+   ],
+   "rootId": "kafka:github:pull:23499",
+   "records": [
+    {
+     "id": "kafka:github:pull:23499",
+     "kind": "Pull Request",
+     "author": "AndrewJSchofield",
+     "occurredAt": "2026-09-21T11:44:57Z",
+     "url": "https://github.com/apache/kafka/pull/23499",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23499:comment:5757675541",
+     "kind": "Comment",
+     "author": "AndrewJSchofield",
+     "occurredAt": "2026-09-21T08:36:28Z",
+     "url": "https://github.com/apache/kafka/pull/23499#issuecomment-5757675541"
+    },
+    {
+     "id": "kafka:github:pull:23499:comment:5759937022",
+     "kind": "Comment",
+     "author": "AndrewJSchofield",
+     "occurredAt": "2026-09-21T11:44:56Z",
+     "url": "https://github.com/apache/kafka/pull/23499#issuecomment-5759937022"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23665",
+   "source": "github",
+   "title": "KAFKA-21160 improve RequestHeader parsing on the broker",
+   "labels": [
+    "clients",
+    "core"
+   ],
+   "rootId": "kafka:github:pull:23665",
+   "records": [
+    {
+     "id": "kafka:github:pull:23665",
+     "kind": "Pull Request",
+     "author": "m1a2st",
+     "occurredAt": "2026-10-14T20:57:45Z",
+     "url": "https://github.com/apache/kafka/pull/23665",
+     "status": "open"
+    },
+    {
+     "id": "kafka:github:pull:23665:comment:6126258368",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-10-12T14:26:17Z",
+     "url": "https://github.com/apache/kafka/pull/23665#issuecomment-6126258368"
+    },
+    {
+     "id": "kafka:github:pull:23665:comment:6173127377",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-10-14T16:27:48Z",
+     "url": "https://github.com/apache/kafka/pull/23665#issuecomment-6173127377"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23748",
+   "source": "github",
+   "title": "KAFKA-21157 Bump Jackson version to 2.22.3 ",
+   "labels": [],
+   "rootId": "kafka:github:pull:23748",
+   "records": [
+    {
+     "id": "kafka:github:pull:23748",
+     "kind": "Pull Request",
+     "author": "m1a2st",
+     "occurredAt": "2026-10-09T05:02:28Z",
+     "url": "https://github.com/apache/kafka/pull/23748",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23748:comment:6072214587",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-10-09T01:11:52Z",
+     "url": "https://github.com/apache/kafka/pull/23748#issuecomment-6072214587"
+    },
+    {
+     "id": "kafka:github:pull:23748:comment:6074632260",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-10-09T05:02:27Z",
+     "url": "https://github.com/apache/kafka/pull/23748#issuecomment-6074632260"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-14019",
+   "source": "jira",
+   "title": "KAFKA-14019: removeMembersFromConsumerGroup can't delete all members when there is no members already",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-14019",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-14019",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-06T12:01:51.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-14019",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-20390",
+   "source": "jira",
+   "title": "KAFKA-20390: Move LogManager object to storage module",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-20390",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-20390",
+     "kind": "Jira Issue",
+     "author": "Mickael Maison",
+     "occurredAt": "2026-10-14T09:28:48.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20390",
+     "status": "open"
+    },
+    {
+     "id": "kafka:jira:issue:KAFKA-20390:comment:18124875",
+     "kind": "Jira Comment",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-08T07:39:08.532Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20390?focusedCommentId=18124875"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21108",
+   "source": "jira",
+   "title": "KAFKA-21108: speed up StreamsUpgradeTestIntegrationTest",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21108",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21108",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-18T17:19:28.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21108",
+     "status": "resolved"
+    },
+    {
+     "id": "kafka:jira:issue:KAFKA-21108:comment:18116208",
+     "kind": "Jira Comment",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-16T22:17:49.960Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21108?focusedCommentId=18116208"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-f09ac41a",
+   "source": "mail",
+   "title": "KAFKA-20684/KIP-1306 PR Review Request",
+   "labels": [],
+   "rootId": "kafka:mail:dev:message:025vmx6pk917tzo9m906t51c3ompyx0y",
+   "records": [
+    {
+     "id": "kafka:mail:dev:message:025vmx6pk917tzo9m906t51c3ompyx0y",
+     "kind": "Mail",
+     "author": "Aditya Kousik",
+     "occurredAt": "2026-10-06T06:14:28.000Z",
+     "url": "https://lists.apache.org/thread/025vmx6pk917tzo9m906t51c3ompyx0y",
+     "status": "discussing"
+    },
+    {
+     "id": "kafka:mail:dev:message:whymcm1gwzfgx3lsomh0ch6vnbhw8hbh",
+     "kind": "Mail",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-10-06T07:01:06.000Z",
+     "url": "https://lists.apache.org/thread/whymcm1gwzfgx3lsomh0ch6vnbhw8hbh"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-540e8110",
+   "source": "mail",
+   "title": "[DISCUSS] KIP-1371: Explicit Wait Conditions for Consumer Request Managers",
+   "labels": [],
+   "rootId": "kafka:mail:dev:message:181r4r6qg6fxfbsp6yylcxok9h422r9f",
+   "records": [
+    {
+     "id": "kafka:mail:dev:message:181r4r6qg6fxfbsp6yylcxok9h422r9f",
+     "kind": "Mail",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-09-22T07:42:18.000Z",
+     "url": "https://lists.apache.org/thread/181r4r6qg6fxfbsp6yylcxok9h422r9f"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-ff6d44a5",
+   "source": "mail",
+   "title": "[VOTE] KIP-1279: Cluster Mirroring",
+   "labels": [],
+   "rootId": "kafka:mail:dev:message:15rddlqk42tqsjh5rw2r6so5cgns122f",
+   "records": [
+    {
+     "id": "kafka:mail:dev:message:15rddlqk42tqsjh5rw2r6so5cgns122f",
+     "kind": "Mail",
+     "author": "Federico Valeri",
+     "occurredAt": "2026-09-18T16:06:37.000Z",
+     "url": "https://lists.apache.org/thread/15rddlqk42tqsjh5rw2r6so5cgns122f"
+    },
+    {
+     "id": "kafka:mail:dev:message:3yjrpgvy7rnwps56jr2gr7b8w5oqvlyy",
+     "kind": "Mail",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-09-15T10:26:54.000Z",
+     "url": "https://lists.apache.org/thread/3yjrpgvy7rnwps56jr2gr7b8w5oqvlyy"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-7e460611",
+   "source": "mail",
+   "title": "[DISCUSS] Base image for system test dependencies",
+   "labels": [],
+   "rootId": "kafka:mail:dev:message:bfpdbpg49gwm474k9qy334chxt8bnzd6",
+   "records": [
+    {
+     "id": "kafka:mail:dev:message:bfpdbpg49gwm474k9qy334chxt8bnzd6",
+     "kind": "Mail",
+     "author": "Luke Chen",
+     "occurredAt": "2026-10-08T03:18:42.000Z",
+     "url": "https://lists.apache.org/thread/bfpdbpg49gwm474k9qy334chxt8bnzd6"
+    },
+    {
+     "id": "kafka:mail:dev:message:ncxcc3t2ctnzzl9gf2x20cxcfcrcgy4r",
+     "kind": "Mail",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-11T13:59:59.000Z",
+     "url": "https://lists.apache.org/thread/ncxcc3t2ctnzzl9gf2x20cxcfcrcgy4r"
+    },
+    {
+     "id": "kafka:mail:dev:message:rmhx6sp101d8xnsxyvyk3kfgv4cbnp5k",
+     "kind": "Mail",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-14T00:41:27.000Z",
+     "url": "https://lists.apache.org/thread/rmhx6sp101d8xnsxyvyk3kfgv4cbnp5k",
+     "status": "discussing"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-22213",
+   "source": "github",
+   "title": "KAFKA-20744: Add back `rack.aware.assignment.tags` config",
+   "labels": [
+    "KIP-1071",
+    "ci-approved",
+    "clients",
+    "consumer",
+    "core",
+    "group-coordinator",
+    "streams"
+   ],
+   "rootId": "kafka:github:pull:22213",
+   "records": [
+    {
+     "id": "kafka:github:pull:22213",
+     "kind": "Pull Request",
+     "author": "gabriellefu",
+     "occurredAt": "2026-10-14T10:20:35Z",
+     "url": "https://github.com/apache/kafka/pull/22213",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:22213:comment:6166043294",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-10-14T10:14:43Z",
+     "url": "https://github.com/apache/kafka/pull/22213#issuecomment-6166043294"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-22353",
+   "source": "github",
+   "title": "KAFKA-18948 Move DynamicLogConfig to server module",
+   "labels": [
+    "ci-approved",
+    "core",
+    "storage"
+   ],
+   "rootId": "kafka:github:pull:22353",
+   "records": [
+    {
+     "id": "kafka:github:pull:22353",
+     "kind": "Pull Request",
+     "author": "unknowntpo",
+     "occurredAt": "2026-10-11T08:48:00Z",
+     "url": "https://github.com/apache/kafka/pull/22353",
+     "status": "open"
+    },
+    {
+     "id": "kafka:github:pull:22353:comment:6107063916",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-10-11T08:19:18Z",
+     "url": "https://github.com/apache/kafka/pull/22353#issuecomment-6107063916"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-22809",
+   "source": "github",
+   "title": "KAFKA-20796: Fix num-open-iterators metric for timestamped range queries",
+   "labels": [
+    "ci-approved",
+    "streams"
+   ],
+   "rootId": "kafka:github:pull:22809",
+   "records": [
+    {
+     "id": "kafka:github:pull:22809",
+     "kind": "Pull Request",
+     "author": "dino2895",
+     "occurredAt": "2026-10-11T13:22:46Z",
+     "url": "https://github.com/apache/kafka/pull/22809",
+     "status": "open"
+    },
+    {
+     "id": "kafka:github:pull:22809:comment:5982971356",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-10-04T18:17:14Z",
+     "url": "https://github.com/apache/kafka/pull/22809#issuecomment-5982971356"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23063",
+   "source": "github",
+   "title": "KAFKA-20857: Use Java 25 in Docker images",
+   "labels": [
+    "docker",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:23063",
+   "records": [
+    {
+     "id": "kafka:github:pull:23063",
+     "kind": "Pull Request",
+     "author": "lh0156",
+     "occurredAt": "2026-09-23T23:06:21Z",
+     "url": "https://github.com/apache/kafka/pull/23063",
+     "status": "closed"
+    },
+    {
+     "id": "kafka:github:pull:23063:comment:5804419915",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-23T23:06:04Z",
+     "url": "https://github.com/apache/kafka/pull/23063#issuecomment-5804419915"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23165",
+   "source": "github",
+   "title": "KAFKA-20790: Follow up, avoid translation of assignmentconfig and make the output type unmodifiable",
+   "labels": [
+    "ci-approved",
+    "group-coordinator",
+    "streams"
+   ],
+   "rootId": "kafka:github:pull:23165",
+   "records": [
+    {
+     "id": "kafka:github:pull:23165",
+     "kind": "Pull Request",
+     "author": "gabriellefu",
+     "occurredAt": "2026-10-07T18:02:22Z",
+     "url": "https://github.com/apache/kafka/pull/23165",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23165:comment:5977758579",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-10-04T07:36:37Z",
+     "url": "https://github.com/apache/kafka/pull/23165#issuecomment-5977758579"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23316",
+   "source": "github",
+   "title": "KAFKA-20979: Fix another gap in index metadata sync logic",
+   "labels": [
+    "clients",
+    "kraft",
+    "storage",
+    "tools"
+   ],
+   "rootId": "kafka:github:pull:23316",
+   "records": [
+    {
+     "id": "kafka:github:pull:23316",
+     "kind": "Pull Request",
+     "author": "mimaison",
+     "occurredAt": "2026-09-15T08:57:18Z",
+     "url": "https://github.com/apache/kafka/pull/23316",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23316:comment:5653837266",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-13T14:20:36Z",
+     "url": "https://github.com/apache/kafka/pull/23316#issuecomment-5653837266"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23405",
+   "source": "github",
+   "title": "MINOR: Remove unused setUpAndVerifyImmutableMetric",
+   "labels": [
+    "ci-approved",
+    "needs-attention",
+    "small",
+    "streams",
+    "tests",
+    "triage"
+   ],
+   "rootId": "kafka:github:pull:23405",
+   "records": [
+    {
+     "id": "kafka:github:pull:23405",
+     "kind": "Pull Request",
+     "author": "jim0987795064",
+     "occurredAt": "2026-09-21T14:24:27Z",
+     "url": "https://github.com/apache/kafka/pull/23405",
+     "status": "closed"
+    },
+    {
+     "id": "kafka:github:pull:23405:comment:5762071876",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-21T14:24:26Z",
+     "url": "https://github.com/apache/kafka/pull/23405#issuecomment-5762071876"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23415",
+   "source": "github",
+   "title": "MINOR: Verify local store update in IQv2 versioned store test",
+   "labels": [
+    "small",
+    "streams",
+    "tests"
+   ],
+   "rootId": "kafka:github:pull:23415",
+   "records": [
+    {
+     "id": "kafka:github:pull:23415",
+     "kind": "Pull Request",
+     "author": "Russole",
+     "occurredAt": "2026-09-28T09:07:45Z",
+     "url": "https://github.com/apache/kafka/pull/23415",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23415:comment:5866856610",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-28T09:07:28Z",
+     "url": "https://github.com/apache/kafka/pull/23415#issuecomment-5866856610"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23479",
+   "source": "github",
+   "title": "MINOR: Add 4.3.2 to upgrade.md",
+   "labels": [
+    "docs",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:23479",
+   "records": [
+    {
+     "id": "kafka:github:pull:23479",
+     "kind": "Pull Request",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-28T13:03:45Z",
+     "url": "https://github.com/apache/kafka/pull/23479",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23479:comment:5870418161",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-28T13:03:45Z",
+     "url": "https://github.com/apache/kafka/pull/23479#issuecomment-5870418161"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23506",
+   "source": "github",
+   "title": "KAFKA-21123: bump zstd-jni",
+   "labels": [
+    "build",
+    "ci-approved",
+    "dependencies",
+    "docker",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:23506",
+   "records": [
+    {
+     "id": "kafka:github:pull:23506",
+     "kind": "Pull Request",
+     "author": "harmadasg",
+     "occurredAt": "2026-09-28T16:18:53Z",
+     "url": "https://github.com/apache/kafka/pull/23506",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23506:comment:5874053229",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-28T16:17:42Z",
+     "url": "https://github.com/apache/kafka/pull/23506#issuecomment-5874053229"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23532",
+   "source": "github",
+   "title": "KAFKA-21106 Omit partitions with no in-flight records from ShareFetch#records",
+   "labels": [
+    "KIP-932",
+    "clients",
+    "consumer"
+   ],
+   "rootId": "kafka:github:pull:23532",
+   "records": [
+    {
+     "id": "kafka:github:pull:23532",
+     "kind": "Pull Request",
+     "author": "AndrewJSchofield",
+     "occurredAt": "2026-09-24T15:13:47Z",
+     "url": "https://github.com/apache/kafka/pull/23532",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23532:comment:5816843189",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-24T15:13:47Z",
+     "url": "https://github.com/apache/kafka/pull/23532#issuecomment-5816843189"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23535",
+   "source": "github",
+   "title": "KAFKA-20857: use JDK25 in docker images",
+   "labels": [
+    "ci-approved",
+    "docker",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:23535",
+   "records": [
+    {
+     "id": "kafka:github:pull:23535",
+     "kind": "Pull Request",
+     "author": "gaurav-narula",
+     "occurredAt": "2026-09-24T15:58:49Z",
+     "url": "https://github.com/apache/kafka/pull/23535",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23535:comment:5817583614",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-24T15:58:49Z",
+     "url": "https://github.com/apache/kafka/pull/23535#issuecomment-5817583614"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23543",
+   "source": "github",
+   "title": "KAFKA-21139: bump jetty to 12.0.39",
+   "labels": [
+    "build",
+    "ci-approved",
+    "dependencies",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:23543",
+   "records": [
+    {
+     "id": "kafka:github:pull:23543",
+     "kind": "Pull Request",
+     "author": "harmadasg",
+     "occurredAt": "2026-09-28T16:12:41Z",
+     "url": "https://github.com/apache/kafka/pull/23543",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23543:comment:5873965397",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-28T16:12:24Z",
+     "url": "https://github.com/apache/kafka/pull/23543#issuecomment-5873965397"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23614",
+   "source": "github",
+   "title": "KAFKA-21175: Update jackson to 2.21.7",
+   "labels": [],
+   "rootId": "kafka:github:pull:23614",
+   "records": [
+    {
+     "id": "kafka:github:pull:23614",
+     "kind": "Pull Request",
+     "author": "lucliu1108",
+     "occurredAt": "2026-09-29T03:01:17Z",
+     "url": "https://github.com/apache/kafka/pull/23614",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23614:comment:5882796774",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-29T03:00:23Z",
+     "url": "https://github.com/apache/kafka/pull/23614#issuecomment-5882796774"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23637",
+   "source": "github",
+   "title": "KAFKA-21185: bump lz4 to 1.12.0",
+   "labels": [
+    "build",
+    "dependencies",
+    "needs-attention",
+    "small",
+    "triage"
+   ],
+   "rootId": "kafka:github:pull:23637",
+   "records": [
+    {
+     "id": "kafka:github:pull:23637",
+     "kind": "Pull Request",
+     "author": "harmadasg",
+     "occurredAt": "2026-10-10T03:24:04Z",
+     "url": "https://github.com/apache/kafka/pull/23637",
+     "status": "open"
+    },
+    {
+     "id": "kafka:github:pull:23637:comment:6092502320",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-10-10T02:03:51Z",
+     "url": "https://github.com/apache/kafka/pull/23637#issuecomment-6092502320"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23654",
+   "source": "github",
+   "title": "KAFKA-21183: Remove MD5 and SHA-1 checksum files from release process",
+   "labels": [
+    "ci-approved",
+    "small",
+    "triage"
+   ],
+   "rootId": "kafka:github:pull:23654",
+   "records": [
+    {
+     "id": "kafka:github:pull:23654",
+     "kind": "Pull Request",
+     "author": "ykisana",
+     "occurredAt": "2026-10-04T18:14:54Z",
+     "url": "https://github.com/apache/kafka/pull/23654",
+     "status": "closed"
+    },
+    {
+     "id": "kafka:github:pull:23654:comment:5982950041",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-10-04T18:14:37Z",
+     "url": "https://github.com/apache/kafka/pull/23654#issuecomment-5982950041"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23661",
+   "source": "github",
+   "title": "KAFKA-15853: [3/N] Move DynamicReplicationConfig to Java",
+   "labels": [
+    "core",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:23661",
+   "records": [
+    {
+     "id": "kafka:github:pull:23661",
+     "kind": "Pull Request",
+     "author": "clolov",
+     "occurredAt": "2026-10-12T20:24:34Z",
+     "url": "https://github.com/apache/kafka/pull/23661",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23661:comment:6120514888",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-10-12T08:23:50Z",
+     "url": "https://github.com/apache/kafka/pull/23661#issuecomment-6120514888"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23678",
+   "source": "github",
+   "title": "MINOR: Metadata cluster check enabled for admin",
+   "labels": [
+    "clients",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:23678",
+   "records": [
+    {
+     "id": "kafka:github:pull:23678",
+     "kind": "Pull Request",
+     "author": "AndrewJSchofield",
+     "occurredAt": "2026-10-06T19:14:29Z",
+     "url": "https://github.com/apache/kafka/pull/23678",
+     "status": "merged"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23716",
+   "source": "github",
+   "title": "KAFKA-14333: Document PolicyViolationException in Admin#deleteRecords javadoc",
+   "labels": [
+    "ci-approved",
+    "clients",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:23716",
+   "records": [
+    {
+     "id": "kafka:github:pull:23716",
+     "kind": "Pull Request",
+     "author": "rishi-rana",
+     "occurredAt": "2026-10-12T03:33:48Z",
+     "url": "https://github.com/apache/kafka/pull/23716",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23716:comment:6109380312",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-10-11T13:11:42Z",
+     "url": "https://github.com/apache/kafka/pull/23716#issuecomment-6109380312"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23809",
+   "source": "github",
+   "title": "MINOR: Address 4.4 documentation gaps for Streams and OAuth",
+   "labels": [
+    "docs",
+    "small",
+    "triage"
+   ],
+   "rootId": "kafka:github:pull:23809",
+   "records": [
+    {
+     "id": "kafka:github:pull:23809",
+     "kind": "Pull Request",
+     "author": "lucliu1108",
+     "occurredAt": "2026-10-14T10:16:11Z",
+     "url": "https://github.com/apache/kafka/pull/23809",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23809:comment:6166068832",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-10-14T10:16:11Z",
+     "url": "https://github.com/apache/kafka/pull/23809#issuecomment-6166068832"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23817",
+   "source": "github",
+   "title": "MINOR: update upgrade.md on rack config",
+   "labels": [
+    "ci-approved",
+    "docs",
+    "small",
+    "triage"
+   ],
+   "rootId": "kafka:github:pull:23817",
+   "records": [
+    {
+     "id": "kafka:github:pull:23817",
+     "kind": "Pull Request",
+     "author": "gabriellefu",
+     "occurredAt": "2026-10-14T18:35:21Z",
+     "url": "https://github.com/apache/kafka/pull/23817",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23817:comment:6175555136",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-10-14T18:35:21Z",
+     "url": "https://github.com/apache/kafka/pull/23817#issuecomment-6175555136"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-19277",
+   "source": "jira",
+   "title": "KAFKA-19277: Introduce `ConsumerGroupMessageFormatter` for the console-consumer",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-19277",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-19277",
+     "kind": "Jira Issue",
+     "author": "David Jacot",
+     "occurredAt": "2026-10-03T19:20:24.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-19277",
+     "status": "resolved"
+    },
+    {
+     "id": "kafka:jira:issue:KAFKA-19277:comment:18122206",
+     "kind": "Jira Comment",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-03T09:03:29.767Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-19277?focusedCommentId=18122206"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-20803",
+   "source": "jira",
+   "title": "KAFKA-20803: Share-group persister: O(N^2) response demultiplexing in PersisterStateManager batched RPCs",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-20803",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-20803",
+     "kind": "Jira Issue",
+     "author": "Shekhar Prasad Rajak",
+     "occurredAt": "2026-09-30T15:20:49.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20803",
+     "status": "open"
+    },
+    {
+     "id": "kafka:jira:issue:KAFKA-20803:comment:18121210",
+     "kind": "Jira Comment",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-09-30T15:20:49.036Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20803?focusedCommentId=18121210"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21065",
+   "source": "jira",
+   "title": "KAFKA-21065: Streamline `BytesApiMessageSerde` and `RemoteLogMetadataSerde`",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21065",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21065",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-04T18:04:15.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21065",
+     "status": "resolved"
+    },
+    {
+     "id": "kafka:jira:issue:KAFKA-21065:comment:18123184",
+     "kind": "Jira Comment",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-04T18:03:09.810Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21065?focusedCommentId=18123184"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21124",
+   "source": "jira",
+   "title": "KAFKA-21124: RemoteLogSizeComputationTime, RemoteLogMetadataCount, and RemoteLogSizeBytes could linger after leadership changes",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21124",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21124",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-29T03:22:38.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21124",
+     "status": "open"
+    },
+    {
+     "id": "kafka:jira:issue:KAFKA-21124:comment:18116535",
+     "kind": "Jira Comment",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-17T22:44:24.275Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21124?focusedCommentId=18116535"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21135",
+   "source": "jira",
+   "title": "KAFKA-21135: Add unit tests for the rate metrics of StandardAuthorizer",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21135",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21135",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-23T16:34:31.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21135",
+     "status": "open"
+    },
+    {
+     "id": "kafka:jira:issue:KAFKA-21135:comment:18117738",
+     "kind": "Jira Comment",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-21T13:25:04.693Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21135?focusedCommentId=18117738"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21149",
+   "source": "jira",
+   "title": "KAFKA-21149: Speed up JoinGracePeriodDurabilityIntegrationTest",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21149",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21149",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-13T13:19:22.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21149",
+     "status": "resolved"
+    },
+    {
+     "id": "kafka:jira:issue:KAFKA-21149:comment:18118309",
+     "kind": "Jira Comment",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-23T10:09:17.368Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21149?focusedCommentId=18118309"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21153",
+   "source": "jira",
+   "title": "KAFKA-21153: ClusterInstance#waitTopicDeletion should not wait the file cleanup",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21153",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21153",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-13T16:58:28.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21153",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21175",
+   "source": "jira",
+   "title": "KAFKA-21175: Update jackson to 2.21.7",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21175",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21175",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-29T03:01:24.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21175",
+     "status": "resolved"
+    },
+    {
+     "id": "kafka:jira:issue:KAFKA-21175:comment:18120243",
+     "kind": "Jira Comment",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-28T16:15:38.589Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21175?focusedCommentId=18120243"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-0635ac57",
+   "source": "mail",
+   "title": "[DISCUSS] KIP-1153: Extending support for Microsecond Precision for Kafka Connect",
+   "labels": [],
+   "rootId": "kafka:mail:dev:message:cl6dgbcw476kgv9c0k0mqns7w2f109mx",
+   "records": [
+    {
+     "id": "kafka:mail:dev:message:cl6dgbcw476kgv9c0k0mqns7w2f109mx",
+     "kind": "Mail",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-28T14:23:29.000Z",
+     "url": "https://lists.apache.org/thread/cl6dgbcw476kgv9c0k0mqns7w2f109mx",
+     "status": "discussing"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-4bc41094",
+   "source": "mail",
+   "title": "[DISCUSS] KIP-1349 : Configurable snapshot frequency for share groups",
+   "labels": [],
+   "rootId": "kafka:mail:dev:message:pc8883bl1mw6f4j8mtkvo241hjjbpw6y",
+   "records": [
+    {
+     "id": "kafka:mail:dev:message:pc8883bl1mw6f4j8mtkvo241hjjbpw6y",
+     "kind": "Mail",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-06T06:52:31.000Z",
+     "url": "https://lists.apache.org/thread/pc8883bl1mw6f4j8mtkvo241hjjbpw6y",
+     "status": "discussing"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-19241",
+   "source": "github",
+   "title": "KAFKA-19008 Remove scala version from artifacts",
+   "labels": [
+    "build",
+    "ci-approved",
+    "docker",
+    "needs-attention",
+    "small",
+    "tools",
+    "triage"
+   ],
+   "rootId": "kafka:github:pull:19241",
+   "records": [
+    {
+     "id": "kafka:github:pull:19241",
+     "kind": "Pull Request",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-18T03:21:13Z",
+     "url": "https://github.com/apache/kafka/pull/19241",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-19566",
+   "source": "github",
+   "title": "KAFKA-19123 the buffer of forwarded request should be released after receiving the reponse from controller",
+   "labels": [
+    "core",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:19566",
+   "records": [
+    {
+     "id": "kafka:github:pull:19566",
+     "kind": "Pull Request",
+     "author": "m1a2st",
+     "occurredAt": "2026-10-09T03:47:41Z",
+     "url": "https://github.com/apache/kafka/pull/19566",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-19720",
+   "source": "github",
+   "title": "KAFKA-19262 Add a test to verify all metrics naming pattern",
+   "labels": [
+    "core",
+    "needs-attention",
+    "tests",
+    "triage"
+   ],
+   "rootId": "kafka:github:pull:19720",
+   "records": [
+    {
+     "id": "kafka:github:pull:19720",
+     "kind": "Pull Request",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-18T03:21:05Z",
+     "url": "https://github.com/apache/kafka/pull/19720",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-21005",
+   "source": "github",
+   "title": "KAFKA-19931 Align broker and controller behavior for the Admin.incrementalAlterConfigs API",
+   "labels": [
+    "core",
+    "stale"
+   ],
+   "rootId": "kafka:github:pull:21005",
+   "records": [
+    {
+     "id": "kafka:github:pull:21005",
+     "kind": "Pull Request",
+     "author": "m1a2st",
+     "occurredAt": "2026-10-12T03:57:57Z",
+     "url": "https://github.com/apache/kafka/pull/21005",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-21484",
+   "source": "github",
+   "title": "KAFKA-20135 Add javadoc to org.apache.kafka.clients.admin module(1/N)",
+   "labels": [
+    "clients"
+   ],
+   "rootId": "kafka:github:pull:21484",
+   "records": [
+    {
+     "id": "kafka:github:pull:21484",
+     "kind": "Pull Request",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-26T07:57:48Z",
+     "url": "https://github.com/apache/kafka/pull/21484",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-22996",
+   "source": "github",
+   "title": "KAFKA-20858: Refactor subscription state",
+   "labels": [
+    "clients",
+    "consumer",
+    "performance"
+   ],
+   "rootId": "kafka:github:pull:22996",
+   "records": [
+    {
+     "id": "kafka:github:pull:22996",
+     "kind": "Pull Request",
+     "author": "AndrewJSchofield",
+     "occurredAt": "2026-09-24T14:10:05Z",
+     "url": "https://github.com/apache/kafka/pull/22996",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23094",
+   "source": "github",
+   "title": "KAFKA-20898 PushTelemetry sets terminating flag on validation failure, permanently locking out client instance",
+   "labels": [
+    "ci-approved",
+    "core",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:23094",
+   "records": [
+    {
+     "id": "kafka:github:pull:23094",
+     "kind": "Pull Request",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-24T11:06:05Z",
+     "url": "https://github.com/apache/kafka/pull/23094",
+     "status": "merged"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23197",
+   "source": "github",
+   "title": "KAFKA-19042 Rewrite SaslMultiMechanismConsumerTest, SaslSslConsumerTest, SslConsumerTest to Java",
+   "labels": [
+    "clients",
+    "core",
+    "tests"
+   ],
+   "rootId": "kafka:github:pull:23197",
+   "records": [
+    {
+     "id": "kafka:github:pull:23197",
+     "kind": "Pull Request",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-26T10:41:43Z",
+     "url": "https://github.com/apache/kafka/pull/23197",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23221",
+   "source": "github",
+   "title": "MINOR: Fix occasional OOM in FetcherTest",
+   "labels": [
+    "ci-approved",
+    "clients",
+    "consumer",
+    "small",
+    "tests"
+   ],
+   "rootId": "kafka:github:pull:23221",
+   "records": [
+    {
+     "id": "kafka:github:pull:23221",
+     "kind": "Pull Request",
+     "author": "AndrewJSchofield",
+     "occurredAt": "2026-09-21T12:28:09Z",
+     "url": "https://github.com/apache/kafka/pull/23221",
+     "status": "merged"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23264",
+   "source": "github",
+   "title": "MINOR: Stable flaky e2e test `share_consumer_dlq_tiered_storage_test` (WIP)",
+   "labels": [
+    "needs-attention",
+    "small",
+    "tests",
+    "triage"
+   ],
+   "rootId": "kafka:github:pull:23264",
+   "records": [
+    {
+     "id": "kafka:github:pull:23264",
+     "kind": "Pull Request",
+     "author": "m1a2st",
+     "occurredAt": "2026-10-12T06:48:43Z",
+     "url": "https://github.com/apache/kafka/pull/23264",
+     "status": "closed"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23301",
+   "source": "github",
+   "title": "KAFKA-20036 Followup to preserve transaction metadata when a cleaned segment overflows",
+   "labels": [
+    "storage"
+   ],
+   "rootId": "kafka:github:pull:23301",
+   "records": [
+    {
+     "id": "kafka:github:pull:23301",
+     "kind": "Pull Request",
+     "author": "m1a2st",
+     "occurredAt": "2026-10-03T08:05:05Z",
+     "url": "https://github.com/apache/kafka/pull/23301",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23411",
+   "source": "github",
+   "title": "KAFKA-21053: Fix missing record context offset assertion",
+   "labels": [
+    "ci-approved",
+    "small",
+    "streams",
+    "tests"
+   ],
+   "rootId": "kafka:github:pull:23411",
+   "records": [
+    {
+     "id": "kafka:github:pull:23411",
+     "kind": "Pull Request",
+     "author": "andyhuangdev",
+     "occurredAt": "2026-10-07T03:07:11Z",
+     "url": "https://github.com/apache/kafka/pull/23411",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23411:comment:5628530957",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-11T02:26:48Z",
+     "url": "https://github.com/apache/kafka/pull/23411#issuecomment-5628530957"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23455",
+   "source": "github",
+   "title": "KAFKA-21059 Consolidate maximumTimeToWait tests for Share and Consumer",
+   "labels": [
+    "ci-approved",
+    "clients",
+    "consumer",
+    "tests"
+   ],
+   "rootId": "kafka:github:pull:23455",
+   "records": [
+    {
+     "id": "kafka:github:pull:23455",
+     "kind": "Pull Request",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-17T19:47:08Z",
+     "url": "https://github.com/apache/kafka/pull/23455",
+     "status": "merged"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23649",
+   "source": "github",
+   "title": "MINOR: Accumulate renew ack checks from all nodes",
+   "labels": [
+    "KIP-932",
+    "clients",
+    "consumer",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:23649",
+   "records": [
+    {
+     "id": "kafka:github:pull:23649",
+     "kind": "Pull Request",
+     "author": "AndrewJSchofield",
+     "occurredAt": "2026-10-01T08:33:22Z",
+     "url": "https://github.com/apache/kafka/pull/23649",
+     "status": "merged"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23664",
+   "source": "github",
+   "title": "MINOR: Resilience improvements on leadership change",
+   "labels": [
+    "clients",
+    "consumer"
+   ],
+   "rootId": "kafka:github:pull:23664",
+   "records": [
+    {
+     "id": "kafka:github:pull:23664",
+     "kind": "Pull Request",
+     "author": "AndrewJSchofield",
+     "occurredAt": "2026-10-06T19:20:00Z",
+     "url": "https://github.com/apache/kafka/pull/23664",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23703",
+   "source": "github",
+   "title": "KAFKA-21209: Add client telemetry integration tests",
+   "labels": [
+    "build",
+    "clients",
+    "producer"
+   ],
+   "rootId": "kafka:github:pull:23703",
+   "records": [
+    {
+     "id": "kafka:github:pull:23703",
+     "kind": "Pull Request",
+     "author": "AndrewJSchofield",
+     "occurredAt": "2026-10-12T19:47:17Z",
+     "url": "https://github.com/apache/kafka/pull/23703",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23767",
+   "source": "github",
+   "title": "KAFKA-21174: Update lz4 to 1.11.4",
+   "labels": [],
+   "rootId": "kafka:github:pull:23767",
+   "records": [
+    {
+     "id": "kafka:github:pull:23767",
+     "kind": "Pull Request",
+     "author": "m1a2st",
+     "occurredAt": "2026-10-11T02:21:42Z",
+     "url": "https://github.com/apache/kafka/pull/23767",
+     "status": "merged"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-12188",
+   "source": "jira",
+   "title": "KAFKA-12188: SaslAuthenticatorTest: assert the specific failure reason instead of catching any AssertionFailedError",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-12188",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-12188",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-08T18:29:44.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-12188",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-16546",
+   "source": "jira",
+   "title": "KAFKA-16546: add docs to explain how to update cluster-wide default by Admin#incrementalAlterConfigs",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-16546",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-16546",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-24T03:21:01.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-16546",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-18775",
+   "source": "jira",
+   "title": "KAFKA-18775: MetadataQuorumCommand `add-controller`/`remove-controller` should get directory id and endpoint by Admin",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-18775",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-18775",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-20T04:50:59.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-18775",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-18800",
+   "source": "jira",
+   "title": "KAFKA-18800: Deprecate Authorizer#aclCount",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-18800",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-18800",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-06T09:08:00.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-18800",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-19034",
+   "source": "jira",
+   "title": "KAFKA-19034: Rewrite RemoteTopicCrudTest by ClusterTest and move it to storage module",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-19034",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-19034",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-07T03:24:29.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-19034",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-19122",
+   "source": "jira",
+   "title": "KAFKA-19122: updateClusterMetadata receives multiples PartitionInfo",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-19122",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-19122",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-04T01:37:24.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-19122",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-19123",
+   "source": "jira",
+   "title": "KAFKA-19123: the buffer of forwarded request should be released after receiving the reponse from controller",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-19123",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-19123",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-09T01:15:58.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-19123",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-19615",
+   "source": "jira",
+   "title": "KAFKA-19615: Enable to ducker-ak to \"isolate\" the ducker containers",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-19615",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-19615",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-12T03:34:49.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-19615",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-19931",
+   "source": "jira",
+   "title": "KAFKA-19931: inconsistency in handling the null config value",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-19931",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-19931",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-12T03:58:03.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-19931",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-20036",
+   "source": "jira",
+   "title": "KAFKA-20036: Handle LogCleaner segment overflow caused by compression level changes",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-20036",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-20036",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-03T08:04:55.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20036",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-20118",
+   "source": "jira",
+   "title": "KAFKA-20118: Improve the error message caused by normally moving replica",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-20118",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-20118",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-14T03:41:53.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20118",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-20125",
+   "source": "jira",
+   "title": "KAFKA-20125: Improve the docs of dynamic-only configurations",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-20125",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-20125",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-19T03:39:27.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20125",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-20235",
+   "source": "jira",
+   "title": "KAFKA-20235: Expose EffectiveMinIsr as a Partition metric",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-20235",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-20235",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-21T03:23:32.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20235",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-20351",
+   "source": "jira",
+   "title": "KAFKA-20351: metrics leak caused by reducing `numRecoveryThreadsPerDataDir` in runtime",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-20351",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-20351",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-20T17:05:27.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20351",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-20607",
+   "source": "jira",
+   "title": "KAFKA-20607: Include _index.md in version checks",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-20607",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-20607",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-29T03:24:57.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20607",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-20609",
+   "source": "jira",
+   "title": "KAFKA-20609: Use the lastModifiedTime to replace furture timestamp in deleting retentions",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-20609",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-20609",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-28T16:51:39.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20609",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-20795",
+   "source": "jira",
+   "title": "KAFKA-20795: RequestConvertToJson#request and RequestConvertToJson#response could be implemented by generator",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-20795",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-20795",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-19T03:21:08.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20795",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-20812",
+   "source": "jira",
+   "title": "KAFKA-20812: refactor KRaftClusterTest",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-20812",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-20812",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-30T06:44:46.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20812",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-20855",
+   "source": "jira",
+   "title": "KAFKA-20855: Refactor NetworkClient",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-20855",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-20855",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-07T11:25:56.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20855",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-20923",
+   "source": "jira",
+   "title": "KAFKA-20923: Introduce headerVersions into RPC schema definitions",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-20923",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-20923",
+     "kind": "Jira Issue",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-09-21T18:06:03.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20923",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-20924",
+   "source": "jira",
+   "title": "KAFKA-20924: Introduce request header version 3 in GetTelemetrySubscriptions and PushTelemetry RPCs",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-20924",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-20924",
+     "kind": "Jira Issue",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-10-14T09:52:39.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20924",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-20979",
+   "source": "jira",
+   "title": "KAFKA-20979: Potential data loss caused by time index truncation",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-20979",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-20979",
+     "kind": "Jira Issue",
+     "author": "Mickael Maison",
+     "occurredAt": "2026-09-15T08:57:25.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20979",
+     "status": "resolved"
+    },
+    {
+     "id": "kafka:jira:issue:KAFKA-20979:comment:18113963",
+     "kind": "Jira Comment",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-10T17:23:21.965Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20979?focusedCommentId=18113963"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21006",
+   "source": "jira",
+   "title": "KAFKA-21006: Migrate AbstractApiVersionsRequestTest, SaslApiVersionsRequestTest, ApiVersionsRequestTest to server module",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21006",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21006",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-16T17:25:39.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21006",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21013",
+   "source": "jira",
+   "title": "KAFKA-21013: Unable to dynamically update group.*.assignment.interval.ms configs with config providers",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21013",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21013",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-30T03:23:39.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21013",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21019",
+   "source": "jira",
+   "title": "KAFKA-21019: Cover consumer and share group protocols in docker sanity tests",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21019",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21019",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-12T22:04:14.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21019",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21023",
+   "source": "jira",
+   "title": "KAFKA-21023: Improve the dependency-check configuration",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21023",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21023",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-19T03:20:38.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21023",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21037",
+   "source": "jira",
+   "title": "KAFKA-21037: Migrate AllocateProducerIdsRequestTest to server module",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21037",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21037",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-19T03:20:25.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21037",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21038",
+   "source": "jira",
+   "title": "KAFKA-21038: Move LogManagerBuilder to jmh module",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21038",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21038",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-08T06:04:20.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21038",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21042",
+   "source": "jira",
+   "title": "KAFKA-21042: Improve LogCaptureAppender#getMessages and apply the improved one to the codebase",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21042",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21042",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-21T09:34:34.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21042",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21051",
+   "source": "jira",
+   "title": "KAFKA-21051: testShareConsumerAfterCoordinatorMovement can halt the test JVM",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21051",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21051",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-03T08:37:07.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21051",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21054",
+   "source": "jira",
+   "title": "KAFKA-21054: Use assertThrows in InternalTopicManagerTest timeout tests",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21054",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21054",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-18T03:20:35.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21054",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21058",
+   "source": "jira",
+   "title": "KAFKA-21058: Remove the dead code from jsonNodeToInt and jsonNodeToLong",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21058",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21058",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-17T12:17:54.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21058",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21075",
+   "source": "jira",
+   "title": "KAFKA-21075: Utils.flushFileIfExists should skip fsync on Windows and z/OS, same as flushDir",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21075",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21075",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-28T09:04:10.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21075",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21081",
+   "source": "jira",
+   "title": "KAFKA-21081: Don't allocate key and value if all we care about is the timestamp",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21081",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21081",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-04T16:21:38.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21081",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21092",
+   "source": "jira",
+   "title": "KAFKA-21092: The closed processor should remove the channel builder from reconfigurable list",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21092",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21092",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-29T03:22:43.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21092",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21093",
+   "source": "jira",
+   "title": "KAFKA-21093: Ensure all ConfigProviders get closed before throwing exception",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21093",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21093",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-28T09:38:47.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21093",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21110",
+   "source": "jira",
+   "title": "KAFKA-21110: Document that min.insync.replicas is bounded by the replica count",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21110",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21110",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-11T08:45:10.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21110",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21121",
+   "source": "jira",
+   "title": "KAFKA-21121: shouldBeEqualsIfOnlyDifferInCommittedOffsets and shouldBeEqualsIfOnlyDifferInEndOffsets don't test what they want",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21121",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21121",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-18T08:25:09.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21121",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21128",
+   "source": "jira",
+   "title": "KAFKA-21128: upgrade-guide.md could use more general version in describing upgrade path",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21128",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21128",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-24T08:48:19.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21128",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21131",
+   "source": "jira",
+   "title": "KAFKA-21131: Use regex in resource-config.json to avoid hardcoding versions",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21131",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21131",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-25T11:51:14.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21131",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21133",
+   "source": "jira",
+   "title": "KAFKA-21133: Speed up FineGrainedAutoResetIntegrationTest",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21133",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21133",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-13T13:32:57.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21133",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21134",
+   "source": "jira",
+   "title": "KAFKA-21134: Fix all hardcoded version links",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21134",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21134",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-12T16:51:37.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21134",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21138",
+   "source": "jira",
+   "title": "KAFKA-21138: Correct the docs of `AlterConfigPolicy#validate`",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21138",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21138",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-26T16:18:22.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21138",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21146",
+   "source": "jira",
+   "title": "KAFKA-21146: Test classes leak BrokerTopicStats metrics into the shared Yammer registry",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21146",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21146",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-01T03:26:13.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21146",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21148",
+   "source": "jira",
+   "title": "KAFKA-21148: speed up JoinStoreIntegrationTest",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21148",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21148",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-13T13:44:17.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21148",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21150",
+   "source": "jira",
+   "title": "KAFKA-21150: Refactor AbstractKafkaConfig#processRoles",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21150",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21150",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-27T09:00:04.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21150",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21154",
+   "source": "jira",
+   "title": "KAFKA-21154: Worker#startTask should close the instances when encountering error",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21154",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21154",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-28T09:59:07.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21154",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21155",
+   "source": "jira",
+   "title": "KAFKA-21155: Document that the records map passed to ConsumerRecords must not contain empty lists",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21155",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21155",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-25T13:06:20.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21155",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21156",
+   "source": "jira",
+   "title": "KAFKA-21156: Avoid unnecessary char[] copy in ProcessorRecordContext#residentMemorySizeEstimate",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21156",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21156",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-13T13:41:29.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21156",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21173",
+   "source": "jira",
+   "title": "KAFKA-21173: Consider adding `--no-parallel` to release.py to avoid multiple staging repositories being built",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21173",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21173",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-28T15:26:38.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21173",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21183",
+   "source": "jira",
+   "title": "KAFKA-21183: Remove MD5 and SHA-1 checksum files from our release process",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21183",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21183",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-04T18:14:47.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21183",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21209",
+   "source": "jira",
+   "title": "KAFKA-21209: Improve client telemetry integration testing",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21209",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21209",
+     "kind": "Jira Issue",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-10-04T22:35:10.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21209",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21210",
+   "source": "jira",
+   "title": "KAFKA-21210: Complete the test coverage of ConsumerRebalanceListener",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21210",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21210",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-06T02:17:22.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21210",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21228",
+   "source": "jira",
+   "title": "KAFKA-21228: The cold snapshot timer should check pending updates instead of snapshot timestamps",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21228",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21228",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-08T19:06:00.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21228",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21235",
+   "source": "jira",
+   "title": "KAFKA-21235: The docs of sleepSecsOpt should state it is in seconds",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21235",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21235",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-12T20:05:44.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21235",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21257",
+   "source": "jira",
+   "title": "KAFKA-21257: Document tokenless OAUTHBEARER login for validate-only brokers",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21257",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21257",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-14T18:48:08.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21257",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21258",
+   "source": "jira",
+   "title": "KAFKA-21258: Move the Docker image usage guide from docker/examples/README.md to the website docs",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21258",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21258",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-10-14T18:59:58.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21258",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-MAIL-86ae8b63",
+   "source": "mail",
+   "title": "[VOTE] KIP-1368: Client framework name and version",
+   "labels": [],
+   "rootId": "kafka:mail:dev:message:byrvhf1on8916z9vxwd9orsphqzfgh9c",
+   "records": [
+    {
+     "id": "kafka:mail:dev:message:byrvhf1on8916z9vxwd9orsphqzfgh9c",
+     "kind": "Mail",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-09-25T07:09:19.000Z",
+     "url": "https://lists.apache.org/thread/byrvhf1on8916z9vxwd9orsphqzfgh9c",
+     "status": "discussing"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-20984",
+   "source": "github",
+   "title": "KAFKA-19913 Add comprehensive unit tests for VerifiableProperties class",
+   "labels": [
+    "ci-approved",
+    "core",
+    "needs-attention",
+    "tests",
+    "triage"
+   ],
+   "rootId": "kafka:github:pull:20984",
+   "records": [
+    {
+     "id": "kafka:github:pull:20984",
+     "kind": "Pull Request",
+     "author": "devtrace404",
+     "occurredAt": "2026-09-12T03:19:53Z",
+     "url": "https://github.com/apache/kafka/pull/20984",
+     "status": "open"
+    },
+    {
+     "id": "kafka:github:pull:20984:comment:5628502549",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-11T02:23:25Z",
+     "url": "https://github.com/apache/kafka/pull/20984#issuecomment-5628502549"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-21760",
+   "source": "github",
+   "title": "KAFKA-20312: Handle null leader during OffsetFetcher regroup safely",
+   "labels": [
+    "KIP-932",
+    "build",
+    "ci-approved",
+    "clients",
+    "connect",
+    "consumer",
+    "core",
+    "dependencies",
+    "docker",
+    "generator",
+    "group-coordinator",
+    "kraft",
+    "mirror-maker-2",
+    "performance",
+    "producer",
+    "storage",
+    "streams",
+    "tiered-storage",
+    "tools",
+    "transactions"
+   ],
+   "rootId": "kafka:github:pull:21760",
+   "records": [
+    {
+     "id": "kafka:github:pull:21760",
+     "kind": "Pull Request",
+     "author": "nileshkumar3",
+     "occurredAt": "2026-09-10T13:37:42Z",
+     "url": "https://github.com/apache/kafka/pull/21760",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:21760:comment:5619584048",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-10T13:37:29Z",
+     "url": "https://github.com/apache/kafka/pull/21760#issuecomment-5619584048"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-22036",
+   "source": "github",
+   "title": "KAFKA-20434: Consumer group does not recompute assignment when static members rejoin with different assignor",
+   "labels": [
+    "core",
+    "group-coordinator"
+   ],
+   "rootId": "kafka:github:pull:22036",
+   "records": [
+    {
+     "id": "kafka:github:pull:22036",
+     "kind": "Pull Request",
+     "author": "dajac",
+     "occurredAt": "2026-09-11T13:17:34Z",
+     "url": "https://github.com/apache/kafka/pull/22036",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:22036:comment:5634997251",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-11T13:17:18Z",
+     "url": "https://github.com/apache/kafka/pull/22036#issuecomment-5634997251"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-22045",
+   "source": "github",
+   "title": "KAFKA-20442: Update consumer group assignment epoch when last member leaves",
+   "labels": [
+    "group-coordinator",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:22045",
+   "records": [
+    {
+     "id": "kafka:github:pull:22045",
+     "kind": "Pull Request",
+     "author": "dajac",
+     "occurredAt": "2026-09-11T13:08:48Z",
+     "url": "https://github.com/apache/kafka/pull/22045",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:22045:comment:5634889050",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-11T13:08:32Z",
+     "url": "https://github.com/apache/kafka/pull/22045#issuecomment-5634889050"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-22046",
+   "source": "github",
+   "title": "KAFKA-20442: Update share group assignment epoch when last member leaves",
+   "labels": [
+    "group-coordinator",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:22046",
+   "records": [
+    {
+     "id": "kafka:github:pull:22046",
+     "kind": "Pull Request",
+     "author": "dajac",
+     "occurredAt": "2026-09-11T13:09:02Z",
+     "url": "https://github.com/apache/kafka/pull/22046",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:22046:comment:5634890784",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-11T13:08:41Z",
+     "url": "https://github.com/apache/kafka/pull/22046#issuecomment-5634890784"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-22047",
+   "source": "github",
+   "title": "KAFKA-20442: Update streams group assignment epoch when last member leaves",
+   "labels": [
+    "group-coordinator",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:22047",
+   "records": [
+    {
+     "id": "kafka:github:pull:22047",
+     "kind": "Pull Request",
+     "author": "dajac",
+     "occurredAt": "2026-09-11T13:09:40Z",
+     "url": "https://github.com/apache/kafka/pull/22047",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:22047:comment:5634892636",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-11T13:08:51Z",
+     "url": "https://github.com/apache/kafka/pull/22047#issuecomment-5634892636"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-22056",
+   "source": "github",
+   "title": "KAFKA-20450 : Fix : Allowlist based SafeObjectInputStream",
+   "labels": [
+    "ci-approved",
+    "connect",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:22056",
+   "records": [
+    {
+     "id": "kafka:github:pull:22056",
+     "kind": "Pull Request",
+     "author": "subbudvk",
+     "occurredAt": "2026-09-11T12:37:26Z",
+     "url": "https://github.com/apache/kafka/pull/22056",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:22056:comment:5634534580",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-11T12:37:11Z",
+     "url": "https://github.com/apache/kafka/pull/22056#issuecomment-5634534580"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-22102",
+   "source": "github",
+   "title": "KAFKA-20464: Fix topology corruption when ConnectedStoreProviders share a StoreBuilder",
+   "labels": [
+    "ci-approved",
+    "streams"
+   ],
+   "rootId": "kafka:github:pull:22102",
+   "records": [
+    {
+     "id": "kafka:github:pull:22102",
+     "kind": "Pull Request",
+     "author": "ChoMinGi",
+     "occurredAt": "2026-09-14T17:20:26Z",
+     "url": "https://github.com/apache/kafka/pull/22102",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:22102:comment:5666149183",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-14T15:09:05Z",
+     "url": "https://github.com/apache/kafka/pull/22102#issuecomment-5666149183"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-22232",
+   "source": "github",
+   "title": "KAFKA-20555: Use jakarta.annotation.Priority in JaasBasicAuthFilter",
+   "labels": [
+    "build",
+    "connect",
+    "dependencies",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:22232",
+   "records": [
+    {
+     "id": "kafka:github:pull:22232",
+     "kind": "Pull Request",
+     "author": "mimaison",
+     "occurredAt": "2026-09-11T15:20:17Z",
+     "url": "https://github.com/apache/kafka/pull/22232",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:22232:comment:5636654436",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-11T15:20:17Z",
+     "url": "https://github.com/apache/kafka/pull/22232#issuecomment-5636654436"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-22599",
+   "source": "github",
+   "title": "KAFKA-19583: fix: enable oauthbearer sasl with native image",
+   "labels": [
+    "ci-approved",
+    "clients",
+    "small",
+    "triage"
+   ],
+   "rootId": "kafka:github:pull:22599",
+   "records": [
+    {
+     "id": "kafka:github:pull:22599",
+     "kind": "Pull Request",
+     "author": "wilmerdooley",
+     "occurredAt": "2026-09-11T02:18:55Z",
+     "url": "https://github.com/apache/kafka/pull/22599",
+     "status": "closed"
+    },
+    {
+     "id": "kafka:github:pull:22599:comment:5628466833",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-11T02:18:55Z",
+     "url": "https://github.com/apache/kafka/pull/22599#issuecomment-5628466833"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-22631",
+   "source": "github",
+   "title": "KAFKA-20700: Resolve symlinks in AllowedPaths before validation",
+   "labels": [
+    "ci-approved",
+    "clients",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:22631",
+   "records": [
+    {
+     "id": "kafka:github:pull:22631",
+     "kind": "Pull Request",
+     "author": "nileshkumar3",
+     "occurredAt": "2026-09-11T12:42:53Z",
+     "url": "https://github.com/apache/kafka/pull/22631",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:22631:comment:5634595079",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-11T12:42:38Z",
+     "url": "https://github.com/apache/kafka/pull/22631#issuecomment-5634595079"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-22747",
+   "source": "github",
+   "title": "KAFKA-20765: Fix OffsetFetch stale-epoch retry spinning in dedup loop",
+   "labels": [
+    "ci-approved",
+    "clients",
+    "consumer",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:22747",
+   "records": [
+    {
+     "id": "kafka:github:pull:22747",
+     "kind": "Pull Request",
+     "author": "aliehsaeedii",
+     "occurredAt": "2026-09-10T13:09:06Z",
+     "url": "https://github.com/apache/kafka/pull/22747",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:22747:comment:5619191246",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-10T13:08:52Z",
+     "url": "https://github.com/apache/kafka/pull/22747#issuecomment-5619191246"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23005",
+   "source": "github",
+   "title": "KAFKA-20874: Close SslFactory in JaasOptionsUtils.createSSLSocketFactory()",
+   "labels": [
+    "clients",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:23005",
+   "records": [
+    {
+     "id": "kafka:github:pull:23005",
+     "kind": "Pull Request",
+     "author": "fvaleri",
+     "occurredAt": "2026-09-10T13:39:46Z",
+     "url": "https://github.com/apache/kafka/pull/23005",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23005:comment:5619610578",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-10T13:39:22Z",
+     "url": "https://github.com/apache/kafka/pull/23005#issuecomment-5619610578"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23123",
+   "source": "github",
+   "title": "KAFKA-20187: Fix for AsyncKafkaConsumer not clearing endOffsetRequested flag",
+   "labels": [
+    "ci-approved",
+    "clients",
+    "consumer"
+   ],
+   "rootId": "kafka:github:pull:23123",
+   "records": [
+    {
+     "id": "kafka:github:pull:23123",
+     "kind": "Pull Request",
+     "author": "ezhou413",
+     "occurredAt": "2026-09-11T13:57:14Z",
+     "url": "https://github.com/apache/kafka/pull/23123",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23123:comment:5619260324",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-10T13:13:59Z",
+     "url": "https://github.com/apache/kafka/pull/23123#issuecomment-5619260324"
+    },
+    {
+     "id": "kafka:github:pull:23123:comment:5621071995",
+     "kind": "Comment",
+     "author": "AndrewJSchofield",
+     "occurredAt": "2026-09-10T15:21:27Z",
+     "url": "https://github.com/apache/kafka/pull/23123#issuecomment-5621071995"
+    },
+    {
+     "id": "kafka:github:pull:23123:comment:5622432479",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-10T17:02:51Z",
+     "url": "https://github.com/apache/kafka/pull/23123#issuecomment-5622432479"
+    },
+    {
+     "id": "kafka:github:pull:23123:comment:5623915621",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-10T18:59:27Z",
+     "url": "https://github.com/apache/kafka/pull/23123#issuecomment-5623915621"
+    },
+    {
+     "id": "kafka:github:pull:23123:comment:5634552758",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-11T12:38:53Z",
+     "url": "https://github.com/apache/kafka/pull/23123#issuecomment-5634552758"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23204",
+   "source": "github",
+   "title": "KAFKA-20785: Return PRODUCER_FENCED when EndTxn commit races with coordinator-side abort",
+   "labels": [
+    "core",
+    "small",
+    "transactions"
+   ],
+   "rootId": "kafka:github:pull:23204",
+   "records": [
+    {
+     "id": "kafka:github:pull:23204",
+     "kind": "Pull Request",
+     "author": "suzhiking",
+     "occurredAt": "2026-09-10T13:35:48Z",
+     "url": "https://github.com/apache/kafka/pull/23204",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23204:comment:5619556354",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-10T13:35:32Z",
+     "url": "https://github.com/apache/kafka/pull/23204#issuecomment-5619556354"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23234",
+   "source": "github",
+   "title": "KAFKA-15591: Reject out-of-order first produce request on empty partitions",
+   "labels": [
+    "clients",
+    "core",
+    "producer",
+    "storage"
+   ],
+   "rootId": "kafka:github:pull:23234",
+   "records": [
+    {
+     "id": "kafka:github:pull:23234",
+     "kind": "Pull Request",
+     "author": "AndrewJSchofield",
+     "occurredAt": "2026-09-09T07:25:18Z",
+     "url": "https://github.com/apache/kafka/pull/23234",
+     "status": "merged"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23246",
+   "source": "github",
+   "title": "KAFKA-20977: Fix RemoteCopyLagSegments off-by-one on single-record segments",
+   "labels": [
+    "small",
+    "storage"
+   ],
+   "rootId": "kafka:github:pull:23246",
+   "records": [
+    {
+     "id": "kafka:github:pull:23246",
+     "kind": "Pull Request",
+     "author": "imavishek",
+     "occurredAt": "2026-09-11T23:56:41Z",
+     "url": "https://github.com/apache/kafka/pull/23246",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23246:comment:5635946017",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-11T14:26:59Z",
+     "url": "https://github.com/apache/kafka/pull/23246#issuecomment-5635946017"
+    },
+    {
+     "id": "kafka:github:pull:23246:comment:5641975482",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-11T23:56:27Z",
+     "url": "https://github.com/apache/kafka/pull/23246#issuecomment-5641975482"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23258",
+   "source": "github",
+   "title": "KAFKA-20979: Ensure indexes resize are fsynced when shutting down",
+   "labels": [
+    "small",
+    "storage"
+   ],
+   "rootId": "kafka:github:pull:23258",
+   "records": [
+    {
+     "id": "kafka:github:pull:23258",
+     "kind": "Pull Request",
+     "author": "mimaison",
+     "occurredAt": "2026-09-10T17:24:10Z",
+     "url": "https://github.com/apache/kafka/pull/23258",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23258:comment:5619301742",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-10T13:17:03Z",
+     "url": "https://github.com/apache/kafka/pull/23258#issuecomment-5619301742"
+    },
+    {
+     "id": "kafka:github:pull:23258:comment:5620615310",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-10T14:49:44Z",
+     "url": "https://github.com/apache/kafka/pull/23258#issuecomment-5620615310"
+    },
+    {
+     "id": "kafka:github:pull:23258:comment:5622702802",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-10T17:23:55Z",
+     "url": "https://github.com/apache/kafka/pull/23258#issuecomment-5622702802"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23348",
+   "source": "github",
+   "title": "KAFKA-21010 Another busy loop happens if the member is in JOINING state and bootstrap DNS resolution is not finished",
+   "labels": [
+    "clients",
+    "consumer"
+   ],
+   "rootId": "kafka:github:pull:23348",
+   "records": [
+    {
+     "id": "kafka:github:pull:23348",
+     "kind": "Pull Request",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-10T12:16:18Z",
+     "url": "https://github.com/apache/kafka/pull/23348",
+     "status": "merged"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23391",
+   "source": "github",
+   "title": "KAFKA-20745: extend OffsetMapTest to verify different hash algorithms",
+   "labels": [
+    "ci-approved",
+    "small",
+    "storage",
+    "tests"
+   ],
+   "rootId": "kafka:github:pull:23391",
+   "records": [
+    {
+     "id": "kafka:github:pull:23391",
+     "kind": "Pull Request",
+     "author": "iamkarasik",
+     "occurredAt": "2026-09-10T15:39:31Z",
+     "url": "https://github.com/apache/kafka/pull/23391",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23391:comment:5611827155",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-10T02:39:04Z",
+     "url": "https://github.com/apache/kafka/pull/23391#issuecomment-5611827155"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23399",
+   "source": "github",
+   "title": "KAFKA-21045 Register NoOpAssignmentRefiner in native image reflect-config",
+   "labels": [
+    "KIP-1071",
+    "ci-approved",
+    "docker",
+    "group-coordinator",
+    "small",
+    "streams"
+   ],
+   "rootId": "kafka:github:pull:23399",
+   "records": [
+    {
+     "id": "kafka:github:pull:23399",
+     "kind": "Pull Request",
+     "author": "muralibasani",
+     "occurredAt": "2026-09-09T03:24:08Z",
+     "url": "https://github.com/apache/kafka/pull/23399",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23399:comment:5595256991",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-09T03:20:35Z",
+     "url": "https://github.com/apache/kafka/pull/23399#issuecomment-5595256991"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23423",
+   "source": "github",
+   "title": "KAFKA-20187: AsyncKafkaConsumer does not clear endOffsetRequested flag on failed LIST_OFFSETS calls",
+   "labels": [],
+   "rootId": "kafka:github:pull:23423",
+   "records": [
+    {
+     "id": "kafka:github:pull:23423",
+     "kind": "Pull Request",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-10T16:47:24Z",
+     "url": "https://github.com/apache/kafka/pull/23423",
+     "status": "merged"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23425",
+   "source": "github",
+   "title": "MINOR: Bump docker plugin actions to follow approved versions",
+   "labels": [
+    "build",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:23425",
+   "records": [
+    {
+     "id": "kafka:github:pull:23425",
+     "kind": "Pull Request",
+     "author": "OmniaGM",
+     "occurredAt": "2026-09-11T03:20:33Z",
+     "url": "https://github.com/apache/kafka/pull/23425",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23425:comment:5622206956",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-10T16:44:40Z",
+     "url": "https://github.com/apache/kafka/pull/23425#issuecomment-5622206956"
+    },
+    {
+     "id": "kafka:github:pull:23425:comment:5622236089",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-10T16:47:02Z",
+     "url": "https://github.com/apache/kafka/pull/23425#issuecomment-5622236089"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23433",
+   "source": "github",
+   "title": "KAFKA-20843: Custom consumer group assignors may silently use duplica…",
+   "labels": [],
+   "rootId": "kafka:github:pull:23433",
+   "records": [
+    {
+     "id": "kafka:github:pull:23433",
+     "kind": "Pull Request",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-12T07:00:23Z",
+     "url": "https://github.com/apache/kafka/pull/23433",
+     "status": "closed"
+    },
+    {
+     "id": "kafka:github:pull:23433:comment:5635986367",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-11T14:30:10Z",
+     "url": "https://github.com/apache/kafka/pull/23433#issuecomment-5635986367"
+    },
+    {
+     "id": "kafka:github:pull:23433:comment:5638913693",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-11T18:23:59Z",
+     "url": "https://github.com/apache/kafka/pull/23433#issuecomment-5638913693"
+    },
+    {
+     "id": "kafka:github:pull:23433:comment:5644338661",
+     "kind": "Comment",
+     "author": "m1a2st",
+     "occurredAt": "2026-09-12T07:00:21Z",
+     "url": "https://github.com/apache/kafka/pull/23433#issuecomment-5644338661"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-PR-23451",
+   "source": "github",
+   "title": "KAFKA-21067: Fix timeout handling in deflake workflow",
+   "labels": [
+    "build",
+    "small"
+   ],
+   "rootId": "kafka:github:pull:23451",
+   "records": [
+    {
+     "id": "kafka:github:pull:23451",
+     "kind": "Pull Request",
+     "author": "majialoong",
+     "occurredAt": "2026-09-14T03:23:22Z",
+     "url": "https://github.com/apache/kafka/pull/23451",
+     "status": "merged"
+    },
+    {
+     "id": "kafka:github:pull:23451:comment:5657535397",
+     "kind": "Comment",
+     "author": "chia7712",
+     "occurredAt": "2026-09-14T00:51:57Z",
+     "url": "https://github.com/apache/kafka/pull/23451#issuecomment-5657535397"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-20677",
+   "source": "jira",
+   "title": "KAFKA-20677: Enhance the test coverage of testCannotSendToInternalTopic",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-20677",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-20677",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-09T04:30:52.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20677",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-20745",
+   "source": "jira",
+   "title": "KAFKA-20745: add tests for OffsetMapTest to verify different hash algorithms?",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-20745",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-20745",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-10T15:40:01.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20745",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-20939",
+   "source": "jira",
+   "title": "KAFKA-20939: Client applications broken by DNS resolution failure behaviour change",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-20939",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-20939",
+     "kind": "Jira Issue",
+     "author": "Andrew Schofield",
+     "occurredAt": "2026-09-10T12:11:42.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20939",
+     "status": "resolved"
+    },
+    {
+     "id": "kafka:jira:issue:KAFKA-20939:comment:18113821",
+     "kind": "Jira Comment",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-10T12:11:42.357Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20939?focusedCommentId=18113821"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-20986",
+   "source": "jira",
+   "title": "KAFKA-20986: Speed up testDescribeConfigsNonexistent",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-20986",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-20986",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-11T18:43:29.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-20986",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21010",
+   "source": "jira",
+   "title": "KAFKA-21010: Another busy loop happens if the member is in JOINING state and bootstrap DNS resolution is not finished",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21010",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21010",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-10T12:16:32.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21010",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21012",
+   "source": "jira",
+   "title": "KAFKA-21012: Add integration tests for dynamic broker config updates using config providers",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21012",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21012",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-10T19:11:38.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21012",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21014",
+   "source": "jira",
+   "title": "KAFKA-21014: Fix flaky testAdminRebootstrapDisabled and testAdminRebootstrap",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21014",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21014",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-13T14:20:14.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21014",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21017",
+   "source": "jira",
+   "title": "KAFKA-21017: Fix flaky ConsumerGroupCommandSaslAuthenticationTest",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21017",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21017",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-10T19:30:20.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21017",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21036",
+   "source": "jira",
+   "title": "KAFKA-21036: Migrate LeaderEpochFileCacheTest to storage module",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21036",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21036",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-11T16:25:38.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21036",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21045",
+   "source": "jira",
+   "title": "KAFKA-21045: Native image fails on streams group rebalance due to unregistered NoOpAssignmentRefiner",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21045",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21045",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-09T08:24:48.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21045",
+     "status": "resolved"
+    },
+    {
+     "id": "kafka:jira:issue:KAFKA-21045:comment:18113209",
+     "kind": "Jira Comment",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-09T08:24:48.755Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21045?focusedCommentId=18113209"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21053",
+   "source": "jira",
+   "title": "KAFKA-21053: Rewrite shouldThrowIllegalStateExceptionOnOffsetIfNoRecordContext",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21053",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21053",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-11T02:30:33.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21053",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21067",
+   "source": "jira",
+   "title": "KAFKA-21067: deflake.yml fails to catch the timeout",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21067",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21067",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-14T00:56:37.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21067",
+     "status": "resolved"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21069",
+   "source": "jira",
+   "title": "KAFKA-21069: Fix flaky testConsumerGroupServiceWithAuthenticationSuccessWithClassicGroupProtocol",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21069",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21069",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-13T14:15:52.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21069",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "displayId": "KAFKA-21091",
+   "source": "jira",
+   "title": "KAFKA-21091: Telemetry RPCs stay enabled after the telemetry exporter is removed dynamically",
+   "labels": [],
+   "rootId": "kafka:jira:issue:KAFKA-21091",
+   "records": [
+    {
+     "id": "kafka:jira:issue:KAFKA-21091",
+     "kind": "Jira Issue",
+     "author": "Chia-Ping Tsai",
+     "occurredAt": "2026-09-14T15:31:45.000Z",
+     "url": "https://issues.apache.org/jira/browse/KAFKA-21091",
+     "status": "open"
+    }
+   ]
+  }
+ ]
+}

@@ -16,6 +16,20 @@ import {
   type ReviewRow,
   type ReviewState,
 } from "../github-reviews";
+import {
+  activityPersonId,
+  indexActivityMonth,
+  parseActivityMonth,
+  parseActivityState,
+  peopleActivityMonthKey,
+  peopleActivityStateKey,
+  type ActivityKind,
+  type ActivityMonthIndex,
+  type ActivitySource,
+  type ActivityThreadV1,
+} from "./activity";
+
+export * from "./activity";
 
 export const PEOPLE_PROFILE_SCHEMA = "osskb.people-profile.v1";
 /** Decision 4 / W26: the newest 12 calendar months, the current one included. */
@@ -26,8 +40,8 @@ const DAY_MS = 86_400_000;
 
 /** `github-reviews` is Spec 022's store; the others are the activity log of slice 2b. */
 export type PeopleSource = "github-reviews" | "github" | "jira" | "mail";
-/** What slice 2a reads. A community source not in this set is "not recorded yet" (W27). */
-export const RECORDED_SOURCES: ReadonlySet<PeopleSource> = new Set(["github-reviews"]);
+/** Sources the reader knows a store for. A source is "recorded" only when its store exists (W27). */
+export const RECORDED_SOURCES: ReadonlySet<PeopleSource> = new Set(["github-reviews", "github", "jira", "mail"]);
 
 export interface PeopleProject {
   readonly projectKey: string;
@@ -38,11 +52,23 @@ export interface PeopleProject {
   readonly sources: readonly PeopleSource[];
   /** Logins that are not people (W12): the project's machine users and GitHub Apps whose GraphQL login has no `[bot]`. */
   readonly bots: readonly string[];
+  /** Behavior 6 / W4: labels that describe the process, not an area, left out of Areas. */
+  readonly processLabels: readonly string[];
+  /** Labels matching this are process labels too (DataFusion's release labels `v55.0.0`). */
+  readonly processLabelPattern?: RegExp;
 }
 
 /** The order the page lists sources in. */
 const SOURCE_ORDER: readonly PeopleSource[] = ["github-reviews", "github", "jira", "mail"];
 const GITHUB_APP_LOGINS = ["dependabot", "github-actions", "copilot-pull-request-reviewer", "Copilot", "renovate"];
+/** Process labels by project, from the Dev release's label counts (2026-10-15). */
+const PROCESS_LABELS: Readonly<Record<string, { readonly labels: readonly string[]; readonly pattern?: RegExp }>> = {
+  [KAFKA_DIGEST_PROFILE.projectId]: { labels: ["ci-approved", "small", "triage", "needs-attention", "stale", "closed-stale"] },
+  [DATAFUSION_DIGEST_PROFILE.projectId]: {
+    labels: ["Stale", "auto detected api change", "api change", "help wanted", "good first issue", "bug", "enhancement"],
+    pattern: /^v\d+\.\d+\.\d+$/u,
+  },
+};
 const MACHINE_USERS: Readonly<Record<string, readonly string[]>> = {
   [KAFKA_DIGEST_PROFILE.projectId]: KAFKA_DIGEST_PROFILE.machineUsers,
   [DATAFUSION_DIGEST_PROFILE.projectId]: DATAFUSION_DIGEST_PROFILE.machineUsers,
@@ -56,7 +82,13 @@ export const PEOPLE_PROJECTS: readonly PeopleProject[] = githubProjectProfiles.m
   sources: SOURCE_ORDER.filter((source) => source === "github-reviews" || source === "github" ||
     communitySourceProfiles.some((community) => community.projectId === profile.projectId && community.key === source)),
   bots: [...(MACHINE_USERS[profile.projectId] ?? []), ...GITHUB_APP_LOGINS],
+  processLabels: PROCESS_LABELS[profile.projectId]?.labels ?? [],
+  ...(PROCESS_LABELS[profile.projectId]?.pattern === undefined ? {} : { processLabelPattern: PROCESS_LABELS[profile.projectId]!.pattern! }),
 }));
+
+export function isProcessLabel(label: string, project: PeopleProject): boolean {
+  return project.processLabels.includes(label) || (project.processLabelPattern?.test(label) ?? false);
+}
 
 export function peopleProject(projectKey: string | null | undefined): PeopleProject | undefined {
   return PEOPLE_PROJECTS.find((project) => project.projectKey === projectKey);
@@ -78,10 +110,13 @@ const GITHUB_LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(?:\[bot\])?$/u;
 
 export type ParsedPersonId =
   | { readonly kind: "github"; readonly login: string }
-  /** A source whose identities have no store yet (2a: Jira, dev@). */
-  | { readonly kind: "unrecorded"; readonly source: "jira" | "mail" };
+  /**
+   * Slice 2b: a Jira or dev@ identity, keyed by its normalized display name (`activityPersonId`).
+   * `id` is the canonical form (`jira:chia-ping tsai`); the source is part of it (strict identity).
+   */
+  | { readonly kind: "name"; readonly source: "jira" | "mail"; readonly id: string };
 
-/** `github:<login>`; `jira:` and `mail:` are well formed but not recorded in 2a. */
+/** `github:<login>`, `jira:<name>`, `mail:<name>`. */
 export function parsePersonId(value: string | null | undefined): ParsedPersonId | undefined {
   if (typeof value !== "string") return undefined;
   const colon = value.indexOf(":");
@@ -89,7 +124,10 @@ export function parsePersonId(value: string | null | undefined): ParsedPersonId 
   const key = value.slice(colon + 1);
   if (colon <= 0 || key.length === 0 || key.length > 200) return undefined;
   if (source === "github") return GITHUB_LOGIN.test(key) ? { kind: "github", login: key } : undefined;
-  if (source === "jira" || source === "mail") return { kind: "unrecorded", source };
+  if (source === "jira" || source === "mail") {
+    const id = activityPersonId(source, key);
+    return id === undefined ? undefined : { kind: "name", source, id };
+  }
   return undefined;
 }
 
@@ -169,15 +207,44 @@ export interface ReviewReceivedV1 {
 }
 
 export type SourceCoverageV1 =
-  | { readonly source: "github-reviews"; readonly status: "recorded"; readonly from: string; readonly until: string; readonly storedFrom: string }
+  | {
+      readonly source: PeopleSource;
+      readonly status: "recorded";
+      readonly from: string;
+      readonly until: string;
+      /** Where the store's counts start: Spec 022's `coverageFrom`; the activity log's first append minus 35 days. */
+      readonly storedFrom: string;
+      /** Activity log sources: the first append's time (W27). */
+      readonly firstAppendAt?: string;
+    }
   | { readonly source: PeopleSource; readonly status: "not-recorded" };
+
+/** One of the identity's activity-log records (slice 2b): metadata only. */
+export interface ActivityRecordV1 {
+  readonly id: string;
+  readonly source: ActivitySource;
+  readonly kind: ActivityKind;
+  readonly at: string;
+  readonly thread: string;
+  readonly merged?: string;
+}
+
+export interface PersonActivityV1 {
+  /** The identity's rows in the 12-month view, newest first; a record is listed once (its newest month). */
+  readonly records: readonly ActivityRecordV1[];
+  /** The threads those rows are in. `author` is null for a bot, an unknown, or a suppressed author. */
+  readonly threads: Readonly<Record<string, ActivityThreadV1>>;
+  /** Display names of the thread authors named in `threads`. */
+  readonly people: Readonly<Record<string, string>>;
+}
 
 export interface PersonProfileV1 {
   readonly schema: typeof PEOPLE_PROFILE_SCHEMA;
   readonly project: { readonly key: string; readonly id: string; readonly label: string; readonly repository: string };
-  readonly identity: { readonly id: string; readonly source: "github"; readonly display: string; readonly url: string };
+  /** `url` is the upstream profile; Jira and dev@ identities have none (only a display name is kept). */
+  readonly identity: { readonly id: string; readonly source: "github" | "jira" | "mail"; readonly display: string; readonly url?: string };
   readonly generatedAt: string;
-  /** The 12-month view: from the later of `coverageFrom` and its first month, to the review cursor. */
+  /** The 12-month view: from the earliest recorded source's start (never before the first month) to the latest source's end. */
   readonly period: { readonly from: string; readonly until: string; readonly months: readonly string[] };
   readonly coverage: readonly SourceCoverageV1[];
   /** W10: months that exist in the view but could not be read; their rows are missing from every count. */
@@ -186,6 +253,8 @@ export interface PersonProfileV1 {
   readonly reviewsReceived: readonly ReviewReceivedV1[];
   /** Counterparts in these rows that GitHub typed `Bot` (W12): counted, never listed under Works with. */
   readonly bots: readonly string[];
+  /** Slice 2b: present when the activity log is recorded for the community. */
+  readonly activity?: PersonActivityV1;
   /** The 12-month view's totals, as `profileView(…, "12m")` computes them for the page. */
   readonly totals: ProfileTotals;
 }
@@ -198,6 +267,29 @@ export interface ProfileTotals {
     readonly inlineComments: number;
   };
   readonly reviewsReceived: { readonly reviews: number; readonly pullRequests: number; readonly reviewers: number };
+  /** Slice 2b: present when the response has `activity`. */
+  readonly activity?: ActivityTotals;
+}
+
+/** Counts of the activity log's records (slice 2b). Threads are distinct; a record counts once. */
+export interface ActivityTotals {
+  /** Pull requests opened in the period (by creation time), and how many of them are merged. */
+  readonly pullRequests: number;
+  readonly mergedPullRequests: number;
+  readonly issues: number;
+  /** GitHub conversation comments, on how many threads, and how many of them on the person's own threads. */
+  readonly comments: number;
+  readonly commentedThreads: number;
+  readonly commentsOnOwn: number;
+  /** Jira issues reported (counted in the month of their last update) and comments. */
+  readonly jiraIssues: number;
+  readonly jiraComments: number;
+  readonly jiraThreads: number;
+  readonly messages: number;
+  readonly mailThreads: number;
+  /** dev@ threads whose title starts with `[DISCUSS]` or `[VOTE]`. */
+  readonly discussThreads: number;
+  readonly voteThreads: number;
 }
 
 export interface PeopleErrorV1 {
@@ -264,13 +356,54 @@ function readMonth(bucket: PeopleBucket, projectId: string, month: string, nowMs
   });
 }
 
-function coverageOf(project: PeopleProject, reviews: Extract<SourceCoverageV1, { status: "recorded" }> | undefined): readonly SourceCoverageV1[] {
-  return project.sources.map((source) => (source === "github-reviews" && reviews !== undefined
-    ? reviews
-    : { source, status: "not-recorded" as const }));
+interface ActivityStoreState { readonly coverageFrom: string; readonly updatedAt: string; readonly firstAppendAt: string }
+
+/** Slice 2b: the activity log's `state.json`; undefined before the first append (flag off, or Prod). */
+function readActivityState(bucket: PeopleBucket, projectId: string, nowMs: number): Promise<ActivityStoreState | undefined> {
+  const key = peopleActivityStateKey(projectId);
+  return cached(bucket, key, nowMs, async () => {
+    const object = await bucket.get(key);
+    if (object === null) return undefined;
+    const state = parseActivityState(JSON.parse(await object.text()));
+    return { coverageFrom: state.coverageFrom, updatedAt: state.updatedAt, firstAppendAt: state.firstAppendAt };
+  });
 }
 
-/** `GET /api/people/:project/:id` (Spec 019 slice 2a). */
+interface IndexedActivityMonth {
+  readonly index: ActivityMonthIndex;
+  readonly threads: Readonly<Record<string, ActivityThreadV1>>;
+  readonly people: Readonly<Record<string, string>>;
+}
+
+/** An activity month parsed once per isolate into the per-identity index the summary stores (decision 10). */
+function readActivityMonth(bucket: PeopleBucket, projectId: string, month: string, nowMs: number): Promise<IndexedActivityMonth> {
+  const key = peopleActivityMonthKey(projectId, month);
+  return cached(bucket, key, nowMs, async () => {
+    const object = await bucket.get(key);
+    if (object === null) return { index: { people: new Map() }, threads: {}, people: {} };
+    const parsed = parseActivityMonth(JSON.parse(await object.text()), projectId, month);
+    return { index: indexActivityMonth(parsed), threads: parsed.threads, people: parsed.people };
+  });
+}
+
+/** The store's coverage clipped to the 12-month view, or undefined when the view holds none of it. */
+function recordedCoverage(source: PeopleSource, storedFrom: string, until: string, nowMs: number, firstAppendAt?: string) {
+  const months = profileMonths(nowMs, storedFrom);
+  if (months.length === 0) return undefined;
+  return {
+    months,
+    coverage: {
+      source,
+      status: "recorded" as const,
+      from: new Date(Math.max(Date.parse(storedFrom), Date.parse(`${months[0]}-01T00:00:00.000Z`))).toISOString(),
+      until,
+      storedFrom,
+      ...(firstAppendAt === undefined ? {} : { firstAppendAt }),
+    },
+  };
+}
+
+/** `GET /api/people/:project/:id` (Spec 019 slices 2a and 2b). */
 export async function readPersonProfile(input: {
   readonly bucket: PeopleBucket;
   readonly projectKey: string | null | undefined;
@@ -284,70 +417,128 @@ export async function readPersonProfile(input: {
   const parsed = parsePersonId(input.personId);
   if (parsed === undefined) return { status: 400, body: { error: "Invalid person id" } };
   const suppressed = new Set((input.suppressed ?? PEOPLE_SUPPRESSED)[project.projectId] ?? []);
-  const isSuppressed = async (login: string) => suppressed.size > 0 && suppressed.has(await suppressionDigest(project.projectId, personIdOf(login)));
+  const isSuppressedId = async (personId: string) => suppressed.size > 0 && suppressed.has(await suppressionDigest(project.projectId, personId));
+  const isSuppressed = (login: string) => isSuppressedId(personIdOf(login));
 
   let state: StoreState | undefined;
+  let activityState: ActivityStoreState | undefined;
   try {
     state = await readState(input.bucket, project.projectId, input.nowMs);
+    // Slice 2b: one more read per project and isolate; absent until the log's first append.
+    activityState = project.sources.some((source) => source !== "github-reviews")
+      ? await readActivityState(input.bucket, project.projectId, input.nowMs)
+      : undefined;
   } catch (error) {
     return { status: 503, body: { error: error instanceof Error ? error.message : "Unable to read the review store" } };
   }
-  const months = state === undefined ? [] : profileMonths(input.nowMs, state.coverageFrom);
-  const reviews = state === undefined || months.length === 0 ? undefined : {
-    source: "github-reviews" as const,
-    status: "recorded" as const,
-    from: new Date(Math.max(Date.parse(state.coverageFrom), Date.parse(`${months[0]}-01T00:00:00.000Z`))).toISOString(),
-    until: state.updatedAt,
-    storedFrom: state.coverageFrom,
-  };
-  const coverage = coverageOf(project, reviews);
+  const reviewView = state === undefined ? undefined : recordedCoverage("github-reviews", state.coverageFrom, state.updatedAt, input.nowMs);
+  const activityView = activityState === undefined
+    ? undefined
+    : recordedCoverage("github", activityState.coverageFrom, activityState.updatedAt, input.nowMs, activityState.firstAppendAt);
+  const months = reviewView?.months ?? [];
+  const activityMonths = activityView?.months ?? [];
+  const reviews = reviewView?.coverage;
+  const coverage: readonly SourceCoverageV1[] = project.sources.map((source) => {
+    if (source === "github-reviews") return reviews ?? { source, status: "not-recorded" as const };
+    return activityView === undefined ? { source, status: "not-recorded" as const } : { ...activityView.coverage, source };
+  });
   const notFound = (unavailableMonths: readonly string[] = []): PeopleRead => ({
     status: 404,
     body: { error: `No recorded activity for this identity in ${project.label}`, coverage, ...(unavailableMonths.length === 0 ? {} : { unavailableMonths }) },
   });
-  if (parsed.kind === "unrecorded") return notFound();
-  if (isBotLogin(parsed.login, project) || parsed.login.toLowerCase() === DELETED_ACCOUNT) {
+  const personKey = parsed.kind === "github" ? `github:${parsed.login.toLowerCase()}` : parsed.id;
+  if (parsed.kind === "github" && (isBotLogin(parsed.login, project) || parsed.login.toLowerCase() === DELETED_ACCOUNT)) {
     return { status: 404, body: { error: "Bots and deleted accounts have no profile", coverage } };
   }
-  if (await isSuppressed(parsed.login) || reviews === undefined) return notFound();
+  if (await isSuppressedId(parsed.kind === "github" ? personIdOf(parsed.login) : parsed.id)) return notFound();
+  if (parsed.kind === "name" && !project.sources.includes(parsed.source)) return notFound();
+  if (reviews === undefined && activityView === undefined) return notFound();
 
   const unavailableMonths: string[] = [];
-  const indexes = await Promise.all(months.map((month) => readMonth(input.bucket, project.projectId, month, input.nowMs).catch(() => {
+  const indexes = parsed.kind !== "github" ? [] : await Promise.all(months.map((month) => readMonth(input.bucket, project.projectId, month, input.nowMs).catch(() => {
     unavailableMonths.push(month);
+    return undefined;
+  })));
+  const activityIndexes = await Promise.all(activityMonths.map((month) => readActivityMonth(input.bucket, project.projectId, month, input.nowMs).catch(() => {
+    if (!unavailableMonths.includes(month)) unavailableMonths.push(month);
     return undefined;
   })));
   unavailableMonths.sort();
   const learnedBots = new Set(indexes.flatMap((index) => (index === undefined ? [] : [...index.bots])));
-  if (isBotLogin(parsed.login, project, learnedBots)) return { status: 404, body: { error: "Bots and deleted accounts have no profile", coverage } };
+  if (parsed.kind === "github" && isBotLogin(parsed.login, project, learnedBots)) {
+    return { status: 404, body: { error: "Bots and deleted accounts have no profile", coverage } };
+  }
 
-  const key = parsed.login.toLowerCase();
-  const from = Date.parse(reviews.from);
+  const from = reviews === undefined ? Number.POSITIVE_INFINITY : Date.parse(reviews.from);
   const given: ReviewRow[] = [];
   const received: ReviewRow[] = [];
-  for (const index of indexes) {
-    const entry = index?.people.get(key);
-    if (entry === undefined) continue;
-    given.push(...entry.given.filter((row) => Date.parse(row.submittedAt) >= from));
-    received.push(...entry.received.filter((row) => Date.parse(row.submittedAt) >= from));
+  if (parsed.kind === "github") {
+    const key = parsed.login.toLowerCase();
+    for (const index of indexes) {
+      const entry = index?.people.get(key);
+      if (entry === undefined) continue;
+      given.push(...entry.given.filter((row) => Date.parse(row.submittedAt) >= from));
+      received.push(...entry.received.filter((row) => Date.parse(row.submittedAt) >= from));
+    }
   }
-  if (given.length === 0 && received.length === 0) return notFound(unavailableMonths);
-  const display = given[0]?.reviewer ?? received[0]!.prAuthor;
+
+  // Slice 2b: the identity's activity rows, each record once (a Jira issue is in every month it was updated; the newest wins).
+  const activityFrom = activityView === undefined ? "" : activityView.coverage.from;
+  const records = new Map<string, ActivityRecordV1>();
+  const threads: Record<string, ActivityThreadV1> = {};
+  const names: Record<string, string> = {};
+  let display: string | undefined;
+  activityMonths.forEach((_, position) => {
+    const month = activityIndexes[position];
+    const entry = month?.index.people.get(personKey);
+    if (month === undefined || entry === undefined) return;
+    display = month.people[personKey] ?? display;
+    for (const row of entry.rows) {
+      if (row.at < activityFrom) continue;
+      const previous = records.get(row.id);
+      if (previous !== undefined && previous.at >= row.at) continue;
+      records.set(row.id, { id: row.id, source: row.source, kind: row.kind, at: row.at, thread: row.thread, ...(row.merged === undefined ? {} : { merged: row.merged }) });
+      threads[row.thread] = month.threads[row.thread]!;
+      const author = month.threads[row.thread]!.author;
+      if (author !== null && month.people[author] !== undefined) names[author] = month.people[author]!;
+    }
+  });
+  if (given.length === 0 && received.length === 0 && records.size === 0) return notFound(unavailableMonths);
+  if (parsed.kind === "github") display = given[0]?.reviewer ?? received[0]?.prAuthor ?? display ?? parsed.login;
 
   // P-e: a counterpart who asked to be removed stays counted, but unnamed.
   const hidden = new Set<string>();
+  const hiddenIds = new Set<string>();
   if (suppressed.size > 0) {
     for (const login of new Set([...given.map((row) => row.prAuthor), ...received.map((row) => row.reviewer)])) {
       if (await isSuppressed(login)) hidden.add(login);
     }
+    for (const author of Object.keys(names)) if (await isSuppressedId(author)) hiddenIds.add(author);
   }
+  const shownThreads = Object.fromEntries(Object.entries(threads).map(([key, thread]) => [key,
+    thread.author !== null && (hiddenIds.has(thread.author) || (thread.author.startsWith("github:") && isBotLogin(thread.author.slice(7), project, learnedBots)))
+      ? { ...thread, author: null }
+      : thread]));
   const newestFirst = (a: ReviewRow, b: ReviewRow) => (a.submittedAt === b.submittedAt ? b.reviewId - a.reviewId : a.submittedAt < b.submittedAt ? 1 : -1);
   const verdict = (row: ReviewRow) => (row.stateBefore === undefined ? {} : { stateBefore: row.stateBefore });
+  const periods = [reviews, activityView?.coverage].filter((item) => item !== undefined);
+  const activity: PersonActivityV1 | undefined = activityView === undefined ? undefined : {
+    records: [...records.values()].sort((a, b) => (a.at === b.at ? (a.id < b.id ? 1 : -1) : a.at < b.at ? 1 : -1)),
+    threads: shownThreads,
+    people: Object.fromEntries(Object.entries(names).filter(([id]) => !hiddenIds.has(id) && Object.values(shownThreads).some((thread) => thread.author === id))),
+  };
   const body: Omit<PersonProfileV1, "totals"> = {
     schema: PEOPLE_PROFILE_SCHEMA,
     project: { key: project.projectKey, id: project.projectId, label: project.label, repository: project.repository },
-    identity: { id: personIdOf(display), source: "github", display, url: `https://github.com/${display}` },
+    identity: parsed.kind === "github"
+      ? { id: personIdOf(display!), source: "github", display: display!, url: `https://github.com/${display}` }
+      : { id: parsed.id, source: parsed.source, display: display ?? parsed.id.slice(parsed.source.length + 1) },
     generatedAt: new Date(input.nowMs).toISOString(),
-    period: { from: reviews.from, until: reviews.until, months },
+    period: {
+      from: periods.map((item) => item.from).sort()[0]!,
+      until: periods.map((item) => item.until).sort().at(-1)!,
+      months: [...new Set([...months, ...activityMonths])].sort(),
+    },
     coverage,
     unavailableMonths,
     reviewsGiven: given.sort(newestFirst).map((row) => ({
@@ -360,8 +551,36 @@ export async function readPersonProfile(input: {
     })),
     bots: [...new Set([...given.map((row) => row.prAuthor), ...received.map((row) => row.reviewer)])]
       .filter((login) => !hidden.has(login) && learnedBots.has(login.toLowerCase())).sort(),
+    ...(activity === undefined ? {} : { activity }),
   };
-  return { status: 200, body: { ...body, totals: profileTotals(body.reviewsGiven, body.reviewsReceived) } };
+  const totals = profileTotals(body.reviewsGiven, body.reviewsReceived);
+  return {
+    status: 200,
+    body: { ...body, totals: activity === undefined ? totals : { ...totals, activity: activityTotals(activity.records, activity.threads, personKey) } },
+  };
+}
+
+/** Slice 2b: the activity counts of a set of records; the response's `totals.activity` and the page's counts. */
+export function activityTotals(records: readonly ActivityRecordV1[], threads: Readonly<Record<string, ActivityThreadV1>>, personKey: string): ActivityTotals {
+  const distinct = (filter: (record: ActivityRecordV1) => boolean) => new Set(records.filter(filter).map((record) => record.thread)).size;
+  const title = (record: ActivityRecordV1) => threads[record.thread]?.title ?? "";
+  const github = (record: ActivityRecordV1) => record.source === "github";
+  const comment = (record: ActivityRecordV1) => github(record) && record.kind === "comment";
+  return {
+    pullRequests: records.filter((record) => github(record) && record.kind === "pull-request").length,
+    mergedPullRequests: records.filter((record) => github(record) && record.kind === "pull-request" && record.merged !== undefined).length,
+    issues: records.filter((record) => github(record) && record.kind === "issue").length,
+    comments: records.filter(comment).length,
+    commentedThreads: distinct(comment),
+    commentsOnOwn: records.filter((record) => comment(record) && threads[record.thread]?.author === personKey).length,
+    jiraIssues: records.filter((record) => record.source === "jira" && record.kind === "issue").length,
+    jiraComments: records.filter((record) => record.source === "jira" && record.kind === "comment").length,
+    jiraThreads: distinct((record) => record.source === "jira"),
+    messages: records.filter((record) => record.source === "mail").length,
+    mailThreads: distinct((record) => record.source === "mail"),
+    discussThreads: distinct((record) => record.source === "mail" && /^\[DISCUSS\]/iu.test(title(record))),
+    voteThreads: distinct((record) => record.source === "mail" && /^\[VOTE\]/iu.test(title(record))),
+  };
 }
 
 export function profileTotals(given: readonly ReviewGivenV1[], received: readonly ReviewReceivedV1[]): ProfileTotals {
@@ -403,13 +622,52 @@ export interface ProfileView {
   readonly days: number;
   readonly empty: boolean;
   readonly totals: ProfileTotals;
-  /** One row per month (12 months) or per week starting Monday (90 days), oldest first. */
-  readonly overTime: readonly { readonly label: string; readonly given: number; readonly received: number }[];
+  /**
+   * One row per month (12 months) or per week starting Monday (90 days), oldest first. With the
+   * activity log, also the identity's records per source in that bucket.
+   */
+  readonly overTime: readonly {
+    readonly label: string;
+    readonly given: number;
+    readonly received: number;
+    readonly github?: number;
+    readonly jira?: number;
+    readonly mail?: number;
+  }[];
   readonly worksWith: {
     readonly reviewedPullRequestsBy: readonly { readonly login: string; readonly pullRequests: number }[];
     readonly reviewedBy: readonly { readonly login: string; readonly pullRequests: number }[];
   };
   readonly threads: readonly ProfileThread[];
+  /** Slice 2b: what the activity log holds for the period; absent when the community's log is not recorded. */
+  readonly activity?: ActivityView;
+}
+
+export interface ActivityThreadView {
+  readonly key: string;
+  readonly source: ActivitySource;
+  readonly title: string;
+  readonly url: string;
+  /** `author`: the person opened the thread (in this period or before); otherwise they wrote in it. */
+  readonly role: "author" | "participant";
+  /** The person's records in the thread in the period, by kind. */
+  readonly kinds: Readonly<Partial<Record<ActivityKind, number>>>;
+  readonly merged: boolean;
+  readonly lastAt: string;
+}
+
+export interface ActivityView {
+  readonly totals: ActivityTotals;
+  /** W4: labels of the identity's GitHub threads minus process labels, and KIP numbers, each with its thread count. */
+  readonly areas: {
+    readonly labels: readonly { readonly label: string; readonly threads: number }[];
+    readonly kips: readonly { readonly kip: string; readonly threads: number }[];
+    /** Sources with records in the period that carry no labels ("no area data from dev@"). */
+    readonly noLabelSources: readonly ActivitySource[];
+  };
+  readonly threads: readonly ActivityThreadView[];
+  /** Behavior 9: authors of the threads the person wrote in, by shared threads, capped at 10. */
+  readonly wroteInThreadsBy: readonly { readonly id: string; readonly display: string; readonly threads: number }[];
 }
 
 /** Behavior 9: each "Works with" list is grouped by relation and capped at 10 names. */
@@ -432,10 +690,14 @@ export function profileView(profile: PersonProfileV1, period: ProfilePeriod, now
   const labels: string[] = [];
   if (period === "12m") labels.push(...profile.period.months);
   else for (let week = Date.parse(weekStart(fromMs)); week <= Math.max(fromMs, Date.parse(until)); week += 7 * DAY_MS) labels.push(weekStart(week));
+  const records = (profile.activity?.records ?? []).filter((record) => Date.parse(record.at) >= fromMs);
   const overTime = labels.map((label) => ({
     label,
     given: given.filter((row) => bucketOf(row.submittedAt) === label).length,
     received: received.filter((row) => bucketOf(row.submittedAt) === label).length,
+    ...(profile.activity === undefined ? {} : Object.fromEntries((["github", "jira", "mail"] as const)
+      .filter((source) => profile.coverage.some((item) => item.source === source))
+      .map((source) => [source, records.filter((record) => record.source === source && bucketOf(record.at) === label).length]))),
   }));
 
   const learned = new Set(profile.bots.map((login) => login.toLowerCase()));
@@ -485,7 +747,7 @@ export function profileView(profile: PersonProfileV1, period: ProfilePeriod, now
     from: new Date(fromMs).toISOString(),
     until,
     days: Math.max(1, Math.ceil((Date.parse(until) - fromMs) / DAY_MS)),
-    empty: given.length === 0 && received.length === 0,
+    empty: given.length === 0 && received.length === 0 && records.length === 0,
     totals,
     overTime,
     worksWith: {
@@ -493,6 +755,47 @@ export function profileView(profile: PersonProfileV1, period: ProfilePeriod, now
       reviewedBy: shared(received.map((row) => [row.reviewer, row.pr] as const)),
     },
     threads: threadList,
+    ...(profile.activity === undefined ? {} : { activity: activityView(profile, records, project) }),
+  };
+}
+
+function activityView(profile: PersonProfileV1, records: readonly ActivityRecordV1[], project: PeopleProject | undefined): ActivityView {
+  const activity = profile.activity!;
+  const personKey = profile.identity.source === "github" ? `github:${profile.identity.display.toLowerCase()}` : profile.identity.id;
+  const byThread = new Map<string, ActivityRecordV1[]>();
+  for (const record of records) (byThread.get(record.thread) ?? byThread.set(record.thread, []).get(record.thread)!).push(record);
+  const labels = new Map<string, number>();
+  const kips = new Map<string, number>();
+  const noLabels = new Set<ActivitySource>();
+  const authors = new Map<string, number>();
+  const threads: ActivityThreadView[] = [];
+  for (const [key, rows] of byThread) {
+    const thread = activity.threads[key]!;
+    for (const label of thread.labels) if (project === undefined || !isProcessLabel(label, project)) labels.set(label, (labels.get(label) ?? 0) + 1);
+    for (const kip of thread.kips) kips.set(kip, (kips.get(kip) ?? 0) + 1);
+    if (thread.source !== "github") noLabels.add(thread.source);
+    const author = thread.author === personKey || rows.some((row) => row.kind === "pull-request" || row.kind === "issue") ? "author" : "participant";
+    if (author === "participant" && thread.author !== null && activity.people[thread.author] !== undefined) {
+      authors.set(thread.author, (authors.get(thread.author) ?? 0) + 1);
+    }
+    const kinds: Partial<Record<ActivityKind, number>> = {};
+    for (const row of rows) kinds[row.kind] = (kinds[row.kind] ?? 0) + 1;
+    threads.push({
+      key, source: thread.source, title: thread.title, url: thread.url, role: author, kinds,
+      merged: rows.some((row) => row.merged !== undefined), lastAt: rows.map((row) => row.at).sort().at(-1)!,
+    });
+  }
+  const counted = <K extends string>(map: Map<string, number>, name: K) => [...map]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([value, count]) => ({ [name]: value, threads: count }) as { readonly [P in K]: string } & { readonly threads: number });
+  return {
+    totals: activityTotals(records, activity.threads, personKey),
+    areas: { labels: counted(labels, "label"), kips: counted(kips, "kip"), noLabelSources: [...noLabels].sort() },
+    threads: threads.sort((a, b) => (a.lastAt === b.lastAt ? a.key.localeCompare(b.key) : a.lastAt < b.lastAt ? 1 : -1)),
+    wroteInThreadsBy: [...authors]
+      .map(([id, count]) => ({ id, display: activity.people[id]!, threads: count }))
+      .sort((a, b) => b.threads - a.threads || a.display.localeCompare(b.display))
+      .slice(0, WORKS_WITH_CAP),
   };
 }
 

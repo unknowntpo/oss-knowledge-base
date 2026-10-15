@@ -1,5 +1,5 @@
 import { GitHubConnector } from "@oss-knowledge-base/github-publisher/github-connector";
-import { asfRosterAdapter, JiraConnector, KAFKA_DIGEST_PROFILE, KAFKA_REVIEW_PROFILE, PonyMailConnector, resolveBackfillFrom } from "@oss-knowledge-base/reference-pipeline";
+import { asfRosterAdapter, githubProjectProfiles, JiraConnector, KAFKA_DIGEST_PROFILE, KAFKA_REVIEW_PROFILE, PonyMailConnector, resolveBackfillFrom } from "@oss-knowledge-base/reference-pipeline";
 import { DigestRunner, publisherBusy } from "./digest/runner";
 import { R2DigestBucket } from "./digest/store";
 import { runReviewQueue } from "./review-queue/run";
@@ -13,6 +13,7 @@ import { GitHubFetchTransport } from "./github-transport";
 import { R2PublicationDestination } from "./r2-destination";
 import { FOLLOW_UP_KEY, runPending, runStarting, scheduleFollowUp, type FollowUpMarker } from "./run-schedule";
 import { healthBody } from "./health";
+import { appendActivityLog, peopleActivitySet, R2ActivityBucket } from "./people-activity/run";
 import { runDataPublication, type PipelinePhaseMarker, type PipelineRunStatus } from "./pipeline";
 import { SEARCH_QUERY_GATE_OBJECT_NAME, unboundQueryGateHealth, type EmbeddingAiBinding, type SemanticQueryGate, type VectorIndex } from "@oss-knowledge-base/semantic-vectorize";
 import { createSearchQueryGate } from "./search-query/gate";
@@ -69,6 +70,13 @@ interface Env {
    * other value fails the review run (never the publication) and is reported in `/health`.
    */
   readonly GITHUB_REVIEWS?: string;
+  /**
+   * Spec 019 slice 2b: `log@1` appends every record the publication state holds to the activity
+   * log (`internal/people/v1/`) before the state is compacted. Unset is off: no R2 request, no
+   * `lastRun.activity`. Any other value fails the append (never the publication) and is reported
+   * in `lastRun.activity`.
+   */
+  readonly PEOPLE_ACTIVITY?: string;
 }
 
 const sourceFetch = (url: string, init: { readonly headers: Readonly<Record<string, string>> }) =>
@@ -295,6 +303,17 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
+/** Spec 019 slice 2b: the append the publication runs before compacting its state. */
+export function activityLogFor(env: Pick<Env, "PEOPLE_ACTIVITY" | "OSS_KB_BUCKET">) {
+  return (events: Parameters<typeof appendActivityLog>[0]["events"], materializedAt: string) => appendActivityLog({
+    flag: env.PEOPLE_ACTIVITY,
+    bucket: new R2ActivityBucket(env.OSS_KB_BUCKET),
+    events,
+    materializedAt,
+    projectIds: githubProjectProfiles.map((profile) => profile.projectId),
+  });
+}
+
 /**
  * Runs publish from the object's alarm instead of the triggering request. The runtime never runs
  * two alarms at once and retries one that dies, so no lease is needed, and a run no longer depends
@@ -358,6 +377,7 @@ export class PipelineState implements DurableObject {
         ...(this.env.SEARCH_LEXICAL_REVISION === undefined ? {} : { searchLexicalRevision: this.env.SEARCH_LEXICAL_REVISION }),
         ...(this.env.SEARCH_SHARD_ROOTS === undefined ? {} : { searchShardRoots: this.env.SEARCH_SHARD_ROOTS }),
         ...(onPublished === undefined ? {} : { onPublished }),
+        ...(peopleActivitySet(this.env.PEOPLE_ACTIVITY) ? { activityLog: activityLogFor(this.env) } : {}),
       });
       // Spec 018: the Cron fires once a day, so a truncated or failed run schedules its own
       // follow-up. A failure here must not throw: the runtime would run the publication again.

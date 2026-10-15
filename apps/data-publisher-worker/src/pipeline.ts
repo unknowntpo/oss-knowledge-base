@@ -28,6 +28,7 @@ import {
   type StreamedSearchRelease,
 } from "@oss-knowledge-base/serving-contract";
 
+import type { ActivityLogStatus } from "./people-activity/run";
 import { errorText } from "./search-embedding/sanitize";
 
 export interface PipelineStateRepository {
@@ -99,6 +100,8 @@ export type PipelineRunStatus =
       /** What this run's publication requested from R2; the other jobs are not included. */
       readonly r2?: R2OperationCounts;
       readonly sources?: Readonly<Record<string, SourceRunStatus>>;
+      /** Spec 019 W22: the activity log's append; present only while `PEOPLE_ACTIVITY` is set. Its R2 requests are its own. */
+      readonly activity?: ActivityLogStatus;
     }
   | {
       readonly ok: false;
@@ -154,6 +157,7 @@ export type PipelinePhase =
   | "materializing"
   | PublicationStreamPhase
   | "recording-evidence"
+  | "appending-activity"
   | "committing-state";
 
 /**
@@ -190,6 +194,12 @@ export async function runDataPublication(input: {
   readonly onPublished?: (status: PipelineRunStatus) => Promise<void>;
   /** How long the run waits for `onPublished`; `ON_PUBLISHED_TIMEOUT_MS` when absent. */
   readonly onPublishedTimeoutMs?: number;
+  /**
+   * Spec 019 slice 2b: appends the state's records to the activity log before `compactState`
+   * deletes old ones. It reports its own failure; a throw is caught too, so it never fails the
+   * publication (W9).
+   */
+  readonly activityLog?: (events: readonly DomainEventV1[], materializedAt: string) => Promise<ActivityLogStatus>;
 }): Promise<PipelineRunStatus> {
   const startedAt = Date.now();
   const counts: Record<string, number> = {};
@@ -260,6 +270,19 @@ export async function runDataPublication(input: {
       publicationEvidenceKey(published.publicationSet),
       encodeJson(published.publicationSet),
     );
+    let activity: ActivityLogStatus | undefined;
+    if (input.activityLog !== undefined) {
+      await phase("appending-activity");
+      const activityStarted = Date.now();
+      const append = input.activityLog;
+      activity = await Promise.resolve().then(() => append(next.readEvents(), input.materializedAt)).catch((error: unknown) => ({
+        ok: false as const,
+        error: errorText(error),
+        durationMs: Date.now() - activityStarted,
+        r2: { classA: 0, classB: 0 },
+      }));
+      if (!activity.ok) console.error(`activity log append failed: ${activity.error}`);
+    }
     await phase("committing-state");
     const compacted = compactState(next.readEvents(), input.materializedAt);
     compacted.commitCheckpoint(mergedCheckpoint(previousCheckpoint, succeeded.map((item) => item.poll)));
@@ -280,6 +303,7 @@ export async function runDataPublication(input: {
       search: published.search(),
       ...r2(),
       ...withSources(sourceStatuses(polls, previousStatus, previousCheckpoint, input.materializedAt, conflicts, publishedBySource)),
+      ...(activity === undefined ? {} : { activity }),
     });
     await notifyPublished(input.onPublished, status, input.onPublishedTimeoutMs ?? ON_PUBLISHED_TIMEOUT_MS);
     return status;

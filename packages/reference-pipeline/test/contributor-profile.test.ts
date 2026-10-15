@@ -19,6 +19,7 @@ import {
 } from "../src/github-reviews";
 import {
   PEOPLE_INDEX_TTL_MS,
+  peopleActivityStateKey,
   profileMonths,
   profileView,
   readPersonProfile,
@@ -185,15 +186,15 @@ describe("Spec 019 slice 2a: profile from the review store", () => {
       ["2025-02", "2025-03", "2025-04", "2025-05", "2025-06", "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01"]);
   });
 
-  test("W29: a cold request reads state.json and the 12 months; a warm one reads nothing; after 10 minutes it reads again", async () => {
+  test("W29: a cold request reads both state.json objects and the 12 review months (no activity log yet); a warm one reads nothing; after 10 minutes it reads again", async () => {
     const bucket = kafka();
     expect((await read(bucket, "github:chia7712")).status).toBe(200);
-    expect(bucket.reads.length).toBe(13);
-    expect(bucket.reads[0]).toBe(githubReviewsStateKey("apache-kafka"));
+    expect(bucket.reads.length).toBe(14);
+    expect(bucket.reads.slice(0, 2)).toEqual([githubReviewsStateKey("apache-kafka"), peopleActivityStateKey("apache-kafka")]);
     expect((await read(bucket, "github:lucasbru", { now: NOW + PEOPLE_INDEX_TTL_MS - 1 })).status).toBe(200);
-    expect(bucket.reads.length).toBe(13);
+    expect(bucket.reads.length).toBe(14);
     expect((await read(bucket, "github:lucasbru", { now: NOW + PEOPLE_INDEX_TTL_MS })).status).toBe(200);
-    expect(bucket.reads.length).toBe(26);
+    expect(bucket.reads.length).toBe(28);
   });
 
   test("W29: a failed read is not kept: the next request reads that object again", async () => {
