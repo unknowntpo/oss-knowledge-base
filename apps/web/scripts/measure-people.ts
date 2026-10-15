@@ -7,7 +7,7 @@
  * oracle of the Spec 019 Example: chia7712 2,248 reviews given and 11 received; alamb 1,639 given
  * (received: 600, an upper guess). `--scale 2` doubles every volume. Reports the bytes read from
  * R2, the R2 reads, the response size, wall and CPU time cold and warm, and the heap retained by
- * the isolate cache. Bun's JSC stands in for workerd's V8: times are indicative, sizes exact.
+ * the isolate cache, and a person search (slice 3, W44) cold and warm. Bun's JSC stands in for workerd's V8: times are indicative, sizes exact.
  *
  * Slice 2b: the store also holds a full 12-month activity log (the worst case, a year after the
  * first append): per month, Kafka 1,950 and DataFusion 5,650 rows (Dev's 35-day record counts of
@@ -29,6 +29,7 @@ import {
   type ReviewRow,
 } from "@oss-knowledge-base/reference-pipeline";
 import { readPersonProfile, PEOPLE_INDEX_TTL_MS } from "@oss-knowledge-base/reference-pipeline/people";
+import { searchPeople } from "@oss-knowledge-base/reference-pipeline/people/search";
 import { heapSize } from "bun:jsc";
 
 const scale = Number(Bun.argv[Bun.argv.indexOf("--scale") + 1] ?? 1) || 1;
@@ -148,6 +149,18 @@ async function measure(project: string, projectId: string, input: { total: numbe
   const gzipBytes = Bun.gzipSync(JSON.stringify((await readPersonProfile({ bucket, projectKey: project, personId: `github:${input.person}`, nowMs: NOW + 2000 })).body)).length;
   const warmReads = reads.length - coldReads;
   const afterTtl = await time(NOW + PEOPLE_INDEX_TTL_MS);
+  // Spec 019 W44: a person search (slice 3) on a cold isolate (fresh bucket wrapper) and warm.
+  const searchReads: string[] = [];
+  const searchBucket = { get: async (key: string) => { searchReads.push(key); const body = objects.get(key); return body === undefined ? null : { text: async () => body }; } };
+  keep.push(searchBucket);
+  const timeSearch = async (query: string, nowMs: number) => {
+    const started = performance.now();
+    const result = await searchPeople({ bucket: searchBucket, projectKey: project, query, nowMs });
+    return { wallMs: performance.now() - started, people: result.status === 200 ? result.body.people.length : -1 };
+  };
+  const searchCold = await timeSearch(input.person, NOW);
+  const searchColdReads = searchReads.length;
+  const searchWarm = await timeSearch(input.person.slice(0, 2), NOW + 1000);
   const totalRows = [...objects.values()].reduce((sum, body) => sum + ((JSON.parse(body) as { rows?: unknown[] }).rows?.length ?? 0), 0);
   return {
     project, person: input.person, scale, rows: totalRows,
@@ -156,6 +169,7 @@ async function measure(project: string, projectId: string, input: { total: numbe
     cold: { ...cold, r2Reads: coldReads, r2BytesParsed: coldBytes },
     warm: { ...warm, r2Reads: warmReads },
     afterTtl: { wallMs: afterTtl.wallMs, r2Reads: reads.length - coldReads - warmReads },
+    personSearch: { cold: { ...searchCold, r2Reads: searchColdReads }, warmPrefix: { ...searchWarm, r2Reads: searchReads.length - searchColdReads } },
     responseGzipBytes: gzipBytes,
     heapRetainedBytes: heapRetained,
   };
