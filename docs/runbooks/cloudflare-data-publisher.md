@@ -649,7 +649,7 @@ coverage 35 days before that run.
 
 ## GitHub review ingestion (Spec 022)
 
-On for Dev (`GITHUB_REVIEWS=metadata@1` since 2026-10-14, Spec 022
+On for Dev (`GITHUB_REVIEWS=metadata@1` since 2026-10-14, `metadata@2` since 2026-10-15, Spec 022
 decision 3); off on Prod, where the Worker sends no request for it and
 `/health` has no `githubReviews` field. The first Dev tick after the deploy
 reads one day back and stores `coverageFrom` there (RV26). The steps, the
