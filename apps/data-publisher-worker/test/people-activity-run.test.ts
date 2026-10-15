@@ -17,7 +17,7 @@ import {
 } from "@oss-knowledge-base/reference-pipeline";
 
 import { fixtureEvents, peopleActivityFixture } from "../../../packages/reference-pipeline/test/support/people-activity-fixture";
-import { activityLogFor } from "../src/index";
+import { activityLogFor, activityLogOption } from "../src/index";
 import { appendActivityLog, peopleActivitySet, type ActivityBucket } from "../src/people-activity/run";
 import { runDataPublication, type PipelineRunStatus, type PipelineStateRepository, type PublicationDestination } from "../src/pipeline";
 
@@ -103,6 +103,20 @@ describe("Spec 019 slice 2b: the activity log's append", () => {
     expect(JSON.parse(bucket.objects.get(peopleActivityStateKey("apache-kafka"))!).coverageFrom).toBe("2026-09-10T22:07:00.000Z");
   });
 
+  test("W9 and W22: after a first run that fails on the 4th put, the second run's state.json and earliestMonth list every month in R2", async () => {
+    const bucket = new MemoryBucket();
+    // Puts: Sep summary, Sep month, Oct summary, then the Oct month fails.
+    bucket.failPutsAfter = 3;
+    expect(await append(bucket)).toMatchObject({ ok: false });
+    expect(bucket.objects.has(peopleActivityMonthKey("apache-kafka", "2026-09"))).toBe(true);
+    expect(bucket.objects.has(peopleActivityStateKey("apache-kafka"))).toBe(false);
+    bucket.failPutsAfter = undefined;
+    const second = await append(bucket, "2026-10-15T22:07:00.000Z");
+    // September was written by the failed run and is unchanged now; October is written now.
+    expect(second).toMatchObject({ ok: true, monthsWritten: 1, monthsUnchanged: 1, earliestMonth: { "apache-kafka": "2026-09" } });
+    expect(JSON.parse(bucket.objects.get(peopleActivityStateKey("apache-kafka"))!).months).toEqual(["2026-09", "2026-10"]);
+  });
+
   test("an unsupported flag value fails the append with its reason and sends no R2 request", async () => {
     const bucket = new MemoryBucket();
     expect(await append(bucket, RELEASE, fixtureEvents(), "log@2")).toMatchObject({ ok: false, error: expect.stringContaining("log@2"), r2: { classA: 0, classB: 0 } });
@@ -134,6 +148,15 @@ describe("Spec 019 slice 2b: the activity log's append", () => {
     const vars = (name: string) => (JSON.parse(readFileSync(join(import.meta.dir, "..", name), "utf8")) as { vars?: Record<string, string> }).vars ?? {};
     expect(vars("wrangler.development.jsonc").PEOPLE_ACTIVITY).toBe("log@1");
     expect(vars("wrangler.production.jsonc").PEOPLE_ACTIVITY).toBeUndefined();
+  });
+
+  test("W25 (publisher): the alarm passes no activityLog while PEOPLE_ACTIVITY is unset or blank; set, it passes one", () => {
+    const bucket = {} as R2Bucket;
+    expect(activityLogOption({ OSS_KB_BUCKET: bucket })).toEqual({});
+    expect(activityLogOption({ PEOPLE_ACTIVITY: "  ", OSS_KB_BUCKET: bucket })).toEqual({});
+    expect(typeof activityLogOption({ PEOPLE_ACTIVITY: "log@1", OSS_KB_BUCKET: bucket }).activityLog).toBe("function");
+    // An unsupported value still passes the append, which reports the value (never the publication).
+    expect(typeof activityLogOption({ PEOPLE_ACTIVITY: "log@2", OSS_KB_BUCKET: bucket }).activityLog).toBe("function");
   });
 
   test("the Worker's append writes to the bound bucket through R2's get and put", async () => {

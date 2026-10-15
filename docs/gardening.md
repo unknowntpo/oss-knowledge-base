@@ -986,7 +986,10 @@ the two `viewer/` items below.
 - **Fix:** before the log holds 6 months: split each month by a hash of the
   person id (a profile reads one part per month), or compact rows (drop
   `source` and derivable URLs). Re-measure with `measure:people`.
-- **Layer:** measurement gate (`measure:people` fails above 16 MB).
+- **Layer:** measurement gate: `bun run measure:people` exits 1 when a cold
+  profile parses more than 16 MiB (W18); `--months N` sets the log's age
+  (8 months: DataFusion 15.7 MiB, pass; 9 months: 17.3 MiB, fail; 12, the
+  default: fail); `--report-only` reports without failing. Not in CI.
 - **Source:** Spec 019 slice 2b, 2026-10-15.
 
 ### G76. Jira and dev@ identities are display names

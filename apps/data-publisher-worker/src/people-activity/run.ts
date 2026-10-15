@@ -147,6 +147,8 @@ export async function appendActivityLog(input: {
       const body = encodeActivityMonth(merged);
       if (body === storedBody) {
         monthsUnchanged += 1;
+        // The month exists in R2 even when an earlier, failed run wrote it.
+        written.get(month.projectId)!.add(month.month);
         continue;
       }
       // The summary first: the month's bytes are what the next run compares, so a month whose
