@@ -1,6 +1,6 @@
 # Spec 019: Contributor profile
 
-Status: Accepted 2026-10-14 (all nine owner decisions recorded); amended 2026-10-15 (slice 2 split into 2a and 2b, decision 10); slice 1 is Spec 022 (live on Dev, 12 months backfilled); slice 2a implemented; slices 2b–7 not implemented
+Status: Accepted 2026-10-14 (all nine owner decisions recorded); amended 2026-10-15 (slice 2 split into 2a and 2b, decision 10; slice 3 widened to login prefixes); slice 1 is Spec 022 (live on Dev, 12 months backfilled); slices 2a and 3 implemented; slices 2b and 4–7 not implemented
 Date: 2026-10-13 (decisions recorded 2026-10-14; amendment and decision 10 2026-10-15)
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 008 (content-addressed objects), Spec 009 (bounded memory), Spec 012 (dev@ and Jira), Spec 014 (digest profiles), Spec 015 (governance profile and ASF roster), Spec 016/017 (search, "exact matches first"), Spec 018 (daily publication)
@@ -434,7 +434,10 @@ first when the query is exactly an identity.
   (case-insensitive, NFC), the first result is a person result linking to the
   page, above thread results. This follows "exact matches first" (adopted
   2026-10-13, PR #61) and does not change thread ranking. A partial name
-  ("chia") produces no person result in v1.
+  ("chia") produces no person result in v1. *Revised 2026-10-15 (slice 3,
+  [amendment](#amendment-2026-10-15-slice-3-finding-a-person-from-search)):
+  a login prefix also yields person results, after the exact match, at most
+  three.*
 - No people directory and no tab in v1 (a directory needs an order, and any
   order but alphabetical is a ranking).
 
@@ -580,7 +583,7 @@ Dev. Until then the feature exists on Dev only.
    | LLM summary of a person | nobody asked | **deleted** |
    | Per-person precomputed objects | performance guess | **deleted**; request-time aggregation over month objects |
    | Charts library | nobody | **deleted**; rows of digits and plain bars |
-   | Partial-name people search, autocomplete | convenience | **deleted** from v1 |
+   | Partial-name people search, autocomplete | convenience | **deleted** from v1; *login prefixes restored 2026-10-15 for slice 3 (owner: no entry point); autocomplete stays deleted* |
    | Changed-file-path areas | finer "field" | **deleted**; one request per PR for a marginal gain over labels |
    | Longer searchable text window | not needed for profiles | **deleted** (option D) |
    | Email-based identity matching | recall | **deleted**; privacy and precision both lose |
@@ -630,7 +633,9 @@ Dev. Until then the feature exists on Dev only.
    the "how this is computed" note. An identity with no rows in the period
    says so; it is not an error.
 8. A query that equals an identity key or display name exactly yields one
-   person result first. Bots and suppressed identities never do.
+   person result first. Bots and suppressed identities never do. *Slice 3
+   (2026-10-15): a query that is a prefix of a login yields person results
+   after the exact one, at most three in all.*
 9. No response under `/api/people` contains an email address, a score, or a
    list of people ordered by activity (the "Works with" lists are grouped by
    relation and capped at 10 names each).
@@ -776,6 +781,108 @@ Writes: one more Class A put per changed month, at most 2 per project a day
 30-day windows cut through a month, so either the two edge months keep
 per-day counters or the list states "whole months".
 
+## Amendment 2026-10-15 (slice 3): finding a person from Search
+
+Owner (2026-10-15): "要怎麼搜尋個人 profile？沒看到入口" (how do I search
+for a profile? I see no entry point). Profiles are live on Dev (slice 2a),
+but the only way in is an author link on a Detail page. Slice 3 makes the
+existing search box the entry point.
+
+### What changes from the accepted design
+
+- **Login prefixes are back.** The simplification review deleted
+  partial-name search from v1 as a convenience. The owner's question shows
+  it is the entry point: a reader rarely types a full login. A query that is
+  a prefix of a login (two characters or more) yields person results after
+  the exact match. Autocomplete stays deleted: results appear where search
+  results already appear, with the search box's existing 180 ms debounce.
+- **Order.** The exact login first, then prefix matches in alphabetical
+  order (case-insensitive), at most **three** person results. No activity
+  order: any order but alphabetical is a ranking (decision 1, decision 10).
+- **Display names wait for 2b.** The review store holds logins only, so in
+  slice 3 the match key is the GitHub login. Jira and dev@ identities, and
+  their display names, enter the same index with 2b (see the contract
+  below).
+
+### Example (Dev, 2026-10-15)
+
+Profiles read with unauthenticated `GET /api/people/kafka/github:<login>`
+on Dev (`chia7712`, `chiacyu`, `mimaison`, `mingyen066`, `m1a2st` answer
+200, re-checked 2026-10-15; `dependabot` answers 404, "Bots and deleted accounts have no profile").
+The full login list was not read (that needs the new endpoint or R2), so the
+prefix rows name only logins known to have a page.
+
+| Query (Kafka) | Person results | Why |
+| --- | --- | --- |
+| `chia7712`, `Chia7712`, `@chia7712` | `github:chia7712` (exact) first | Case-insensitive; a leading `@` is dropped |
+| `chia` | `chia7712`, `chiacyu`, and any other login starting with `chia`, alphabetical, at most 3 | Prefix |
+| `mi` | the first three logins starting with `mi` alphabetically (`mimaison` and `mingyen066` have pages) | Cap |
+| `dependabot` | none | Bot (W12) |
+| `kafka consumer` | none, and no R2 read | Not a login (spaces) |
+| `c` | none unless a login is exactly `c` | A prefix needs two characters |
+
+Thread results for every query are the `/api/search` results of today:
+person results are a separate block above them and never enter the thread
+list or its numbering.
+
+### Contract: `GET /api/people/:project?q=<query>`
+
+`osskb.people-search.v1`: `{ schema, project, query, people: [{ id, source,
+display, match }] }`, where `id` is the profile route's id
+(`github:chia7712`), `source` the identity's source (`github` in slice 3),
+`display` what the result shows, and `match` is `exact` or `prefix`. The
+page links each result to `/#/<project>/people/<id>` and shows `display` and
+the source; it does not parse `id`. **2b adds `jira:`/`mail:` entries and
+display-name keys to the same index without changing this shape or the
+page.**
+
+Who is in the index: every login with a counted review row (given or
+received) in the 12-month view since `coverageFrom`, which is exactly the set
+whose profile answers 200. Bots (the profile's list, `[bot]`, typed `Bot` in
+any row of the view), the deleted account and suppressed identities are
+never in it (W12, P-e). A month that cannot be read is skipped, as the
+profile skips it (W10).
+
+**Enumeration is accepted.** Typing prefixes can list the logins in the
+index two characters at a time; this is accepted because it is Dev only,
+alphabetical (no activity ranking), respects suppression, and exposes only
+public GitHub logins that are already reachable through the profile links in
+Detail.
+
+Gate: served only where `PEOPLE_PROFILES` is `true` (W25); elsewhere 404,
+`no-store`, `X-Robots-Tag: noindex`. The page asks `/api/people` once and
+sends no person request where it is 404, so Prod sees no new request but
+that one (already sent by Detail pages since 2a).
+
+### Cost (W43, W44)
+
+- No Vectorize, no Workers AI, no Durable Object, no D1: the endpoint reads
+  only the review store, through the profile's per-isolate cache
+  (`readState`, `readMonth`, 10 minutes). A profile request and a person
+  search in the same isolate share the parsed months.
+- R2 Class B per request: at most 13 cold per project (`state.json` + 12
+  months), 0 warm. A query that is not a login reads nothing. Without a
+  project filter the page queries both projects: at most 26 cold.
+- Worst case, per isolate that stays busy all day: the cache expires every
+  10 minutes, so 144 × 26 = 3,744 Class B reads a day. Ten such isolates:
+  37,440 a day, about 1.1 M a month, against 10 M Class B included per
+  month. Pathological (every request on a cold isolate): 26 reads per typed
+  query, so 10 M reads cover about 380,000 searches a month. Dev has one
+  reader.
+- Requests: two Pages Function invocations per typed query (one per
+  project), after the debounce, against Workers' 100,000 free requests a
+  day.
+- CPU: the index is rebuilt per request from the cached month indexes
+  (about 600 identities a month); `measure:people` reports it (W44).
+
+### An entry besides Search (proposal, not built)
+
+A "貢獻者" link in the project navigation opening a list of everyone with a
+page is the visible entry. It is slice 7 (decision 10): the list needs an
+order the reader chooses and the month summaries that make it cheap. Slice 3
+adds no list and no nav item; the search box, whose placeholder already
+reads "搜尋討論、來源或貢獻者", is the entry until slice 7.
+
 ## Slices
 
 Reviews first (decision 7, 2026-10-14), then the smallest useful page. Each
@@ -786,7 +893,7 @@ slice is one PR with its own verifier pass.
 | 1 | GitHub review ingestion (metadata): its own spec, **Spec 022** ([PR #70](https://github.com/unknowntpo/oss-knowledge-base/pull/70), merged 2026-10-14 with `GITHUB_REVIEWS` off), with its own acceptance items. It must be enabled on Dev and have run before slice 2 is shown | Reviews a person gave are stored per pull request with state and time, inside the request budget | W20; Spec 022's own items |
 | 2a (2026-10-15) | Review activity read from slice 1's month objects (`internal/github-reviews/v1/<projectId>/<YYYY-MM>.json`), not stored a second time; identity = (source, string), GitHub only; `/api/people/:project/:id`; the page with sections 1–8 and per-source coverage; GitHub author names in Detail link to it, Dev only | A review profile is correct against the store, states what it does not cover, and costs at most 13 R2 reads cold | W5, W6, W8, W10–W13, W18, W23–W29 |
 | 2b | Activity log written at publish time from the events the pipeline already has; the profile reads it beside the reviews; Jira and dev@ identities get pages; their author names link | A per-source profile is correct against the Example and grows by a day per day | W1–W4, W9, W17, W19, W22 |
-| 3 | Person result in Search on an exact identity match | A name leads to the page, thread ranking unchanged | W7 |
+| 3 | Person result in Search: exact login first, then login prefixes, at most three; `/api/people/:project?q=` reads the review store's cached months (2026-10-15 amendment) | A login leads to the page in one step, thread ranking unchanged, no metered call | W7, W40–W45 |
 | 4 | Stable keys (GitHub id, Jira account key), roster links, `identityLinks`, the labelled sample, "possibly the same person" | Zero wrong merges on the sample | W14–W16 |
 | 5 | 12-month backfill of reviews: Spec 022's store, filled by its own PR (the start-date change proposed in Spec 022; about 509 requests, 20 runs, about 8 MB, measured from search totals) | Review activity reaches back 12 months | Spec 022's items |
 | 6 | 12-month backfill of the activity log: GitHub issues, pull requests and conversation comments; Jira; dev@. **Cost not measured.** dev@: 12 monthly archives (one Pony Mail request per month; message count and bytes unknown). Jira: unknown (issues updated in 12 months, pages of 100, comments inline). GitHub: listing 3,668 Kafka and 9,032 DataFusion items (GitHub search totals, 2026-10-14) plus one comment request per item with comments, unmeasured. **This is the next measurement**, before the slice is specified | A 12-month trajectory on day one for every source; request budget respected | W21 |
@@ -837,6 +944,38 @@ Slice 2a: rows built from Spec 022's recorded GraphQL responses for Kafka
 | W26 | a review on the first second of the view (2025-11-01T00:00:00Z) | constructed | github:edge-reviewer | — | 200 | 1 / 1 | approved 1 | 0 / 0 / 0 | reviewed PRs by constructed-author 1 |
 <!-- test-plan:end -->
 
+Slice 3: person results from the same store plus constructed rows that share
+a prefix (`constructed`). `people` lists the response in order; `reads` is
+the number of R2 reads on a cold isolate.
+
+<!-- test-plan:start packages/reference-pipeline/test/person-search.cases.ts -->
+| id | case | data | project | query | suppressed | people | reads |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| W7 | the exact login | recorded | kafka | chia7712 | — | github:chia7712 exact | 13 |
+| W7 | another case; the stored login is displayed | recorded | kafka | CHIA7712 | — | github:chia7712 exact | 13 |
+| W7 | a leading @ is dropped | recorded | kafka |  @chia7712  | — | github:chia7712 exact | 13 |
+| W7 | a prefix | recorded | kafka | chia | — | github:chia7712 prefix | 13 |
+| W7 | two prefix matches, alphabetical | constructed | kafka | constructed | — | github:constructed-author prefix, github:constructed-reviewer prefix | 13 |
+| W7 | the exact login first, then prefixes alphabetically, at most 3 (lu-c, lu-d, lucasbru left out) | recorded + constructed | kafka | lu | — | github:lu exact, github:lu-a prefix, github:lu-b prefix | 13 |
+| W7 | at most 3 prefix matches; case does not change the order | constructed | kafka | lu- | — | github:lu-a prefix, github:lu-b prefix, github:Lu-C prefix | 13 |
+| W7 | the same store in another community | recorded | datafusion | chia7712 | — | github:chia7712 exact | 13 |
+| W40 | GitHub typed the reviewer Bot in the stored rows | recorded | kafka | copilot | — | — | 13 |
+| W40 | a login typed Bot in one row, on no static list, that also authored a PR | constructed | kafka | acme | — | — | 13 |
+| W40 | a login on the profile's bot list | constructed | kafka | dependabot | — | — | 13 |
+| W40 | a suppressed identity | recorded | kafka | gabriellefu | gabriellefu | — | 13 |
+| W40 | positive control: the same identity not suppressed (reviews received only) | recorded | kafka | gabriellefu | — | github:gabriellefu exact | 13 |
+| W40 | a suppressed login among the first three prefix matches does not use up the cap: the fourth candidate takes its place | constructed | kafka | lu- | lu-b | github:lu-a prefix, github:Lu-C prefix, github:lu-d prefix | 13 |
+| W40 | the deleted account (ghost) has no person result | constructed | kafka | ghost | — | — | 13 |
+| W40 | a login whose only review is before the 12-month view | constructed | kafka | old-reviewer | — | — | 13 |
+| W40 | positive control: a review on the first second of the view | constructed | kafka | edge | — | github:edge-reviewer prefix | 13 |
+| W41 | two words are not a login | — | kafka | kafka consumer | — | — | 0 |
+| W41 | an empty query | — | kafka |  | — | — | 0 |
+| W41 | other characters | — | kafka | chia/7712 | — | — | 0 |
+| W41 | 40 characters, longer than any login | — | kafka | aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa | — | — | 0 |
+| W41 | one character is no prefix | constructed | kafka | c | — | — | 13 |
+| W41 | positive control: one character equal to a login | constructed | kafka | Q | — | github:q exact | 13 |
+<!-- test-plan:end -->
+
 Slice 2b (pending): the three Example identities with the counts of the
 Example, built from a recorded fixture of the 268 Detail responses captured
 on 2026-10-13 (W1).
@@ -854,7 +993,11 @@ Each item: precondition → action → observable result → evidence. All are
 - W4: [pending] given a thread with labels `clients`, `small`, `ci-approved` and a Kafka profile naming the last two as process labels, the area is `clients` only; given a dev@ thread, the page says "no area data from dev@" → case rows.
 - W5: given the page for an identity, sections appear in the order of this spec and the header states the period covered and the number of days of data → component test.
 - W6: given an identity with rows only before the selected period, the page says there is no activity in this period and shows no zero-filled chart → component test, with a positive control on the same identity in the full period.
-- W7: [pending] given the query `chia7712`, the first result is the person result for `github:chia7712`; given `chia`, there is no person result and thread results are identical to today's → API test, both sides.
+- W7: given the query `chia7712` (any case, or with a leading `@`), the first person result is `github:chia7712` with `match: exact`; given a two-character-or-longer prefix, person results are the exact match, then prefix matches alphabetically, at most 3 in all, merged across projects exact first; the thread list is the `/api/search` response unchanged, below the person results → case rows, merge unit test, E2E.
+- W40: the person index holds exactly the identities whose profile answers 200: bots (the profile's list, `[bot]`, typed `Bot` in a row), the deleted account, suppressed identities and logins whose rows are all before the view are absent; a month that cannot be read is skipped → case rows with positive controls, and a test that every fixture login is found if and only if its profile is 200.
+- W41: a query that is not a GitHub login after trimming and dropping one leading `@` (empty, spaces, other characters, over 39 characters) answers 200 with no people and reads nothing from R2; a one-character query matches only an identical login → case rows with a counting bucket.
+- W42: given the Prod configuration, `/api/people/:project?q=` answers 404 with `no-store` and `X-Robots-Tag: noindex`, and the Feed sends no person request; given Dev, 200 with the profile's cache header and `noindex`; an unknown project is 400; an unreadable review cursor is 503 → API test both sides, and E2E for the Dev side.
+- W45: at 320 and 375 px, a search with a person result has no horizontal overflow, and the person result opens the profile → E2E.
 - W8: given Spec 022 month objects (`osskb.github-reviews.v1`) built from Spec 022's recorded Kafka #23675 and #23165 (approvals, comments, a bot's review, the author's own reply) plus a constructed change-request row, the profile reads them as they are, shows each human review with its state, counts "reviews given" as distinct pull requests, leaves out rows with `isBot` or with `reviewer` equal to `prAuthor`, and states the date reviews are counted from (`coverageFrom`) → case rows (recorded and constructed, labelled as such).
 
 ### Failure and retry
@@ -880,6 +1023,8 @@ Each item: precondition → action → observable result → evidence. All are
 - W17: [measure] the activity write adds at most 2 Class A and 2 Class B operations per project per publication, and no per-identity object (limit: G59's one request per object; command to be added as `measure:people`).
 - W18: [measure] `/api/people` for the identity with the most rows over 12 months parses under 16 MB and answers under 500 ms in the Pages reader (limit 128 MB; command `measure:people`). 2a: measured on review months at Dev's volume, reported in the PR.
 - W33: [measure] (slice 7) a list request parses at most 12 summaries per project, under 2 MB, measured with `measure:people`.
+- W43: a cold person search reads at most 13 R2 objects per project, the same keys a profile reads, none when warm within 10 minutes, and none after a profile request in the same isolate; the handler runs with only `OSS_KB_BUCKET` and `PEOPLE_PROFILES` bound (no AI, Vectorize or search binding) → API test with a counting bucket.
+- W44: [measure] a person search on a store of Dev's size answers under 50 ms warm and under 500 ms cold in Bun, measured with `measure:people`.
 - W19: [measure] the publisher's peak memory with the activity append stays within the Spec 009 budgets at 8,600 and 17,200 events (`measure:memory`).
 - W20: [measure] review ingestion adds at most one GitHub request per pull request updated that day, and a day's batch stays inside the hourly request limit (slice 1; measured by Spec 022 RV21 and RV22 with `measure:github-reviews`).
 - W21: [measure] the 12-month backfill of slice 6 states its request count and stored size per source (GitHub, Jira, dev@'s 12 monthly archives) before it runs, measured, not estimated, and stays under each source's limit; it runs outside the publication.
