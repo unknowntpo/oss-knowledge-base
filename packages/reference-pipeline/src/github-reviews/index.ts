@@ -280,17 +280,25 @@ export function pullAreaMeta(pull: PullReviews): PullAreaMeta {
 export const DISPLAY_NAME_MAX = 100;
 
 /**
- * RV38: the public profile name as stored: control characters, invisible spaces and bidirectional
- * overrides removed, whitespace collapsed, cut to `DISPLAY_NAME_MAX` grapheme clusters. Dropped (undefined) when empty, equal to the login, or when it contains
+ * RV38: the public profile name as stored: format characters removed except ZWJ and ZWNJ, control
+ * characters and blank-looking letters turned into spaces, whitespace collapsed, cut to
+ * `DISPLAY_NAME_MAX` grapheme clusters; a name without any letter or digit is not stored.
+ * Dropped (undefined) also when equal to the login, or when it contains
  * `@`, so an address typed into the name field is never stored.
  */
 export function displayName(name: string | null | undefined, login: string): string | undefined {
   if (typeof name !== "string") return undefined;
-  // Joiners (ZWJ, ZWNJ) stay: scripts and emoji sequences need them. Bidi overrides and invisible spaces go.
-  const spaced = name.replace(/[\p{Cc}\u200B\u2060\uFEFF\u202A-\u202E\u2066-\u2069]/gu, " ").replace(/\s+/gu, " ").trim();
+  // Format characters (soft hyphen, bidi marks and overrides, invisible operators, tag characters,
+  // zero-width spaces) are removed, except the joiners ZWJ and ZWNJ that scripts and emoji need.
+  // Control characters and blank-looking letters (Hangul fillers, the Braille blank) become spaces.
+  const spaced = name.replace(/(?![\u200C\u200D])\p{Cf}/gu, "").replace(/[\p{Cc}\u115F\u1160\u3164\uFFA0\u2800]/gu, " ")
+    .replace(/\s+/gu, " ").trim();
   // RV38: cut on grapheme clusters, never inside a surrogate pair or an emoji sequence.
-  const clean = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(spaced)].slice(0, DISPLAY_NAME_MAX).map((part) => part.segment).join("").trim();
-  if (clean === "" || clean.includes("@") || clean.toLowerCase() === login.toLowerCase()) return undefined;
+  const graphemes = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(spaced)].slice(0, DISPLAY_NAME_MAX).map((part) => part.segment);
+  const clean = graphemes.join("").trim();
+  // A name with no letter or digit (punctuation, symbols, only invisible or blank characters) is no name.
+  if (!graphemes.some((grapheme) => /[\p{L}\p{N}]/u.test(grapheme))) return undefined;
+  if (clean.includes("@") || clean.toLowerCase() === login.toLowerCase()) return undefined;
   return clean;
 }
 

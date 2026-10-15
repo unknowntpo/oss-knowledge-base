@@ -161,6 +161,13 @@ const scenarios: Record<string, () => string> = {
     const kept = displayName("Ada 👨\u200D👩\u200D👧 \u202Eecalevol", "ada") ?? "";
     return `${kept.includes("👨\u200D👩\u200D👧") ? "joiners kept" : "joiners removed"}; ${kept.includes("\u202E") ? "override kept" : "override removed"}`;
   },
+  "display name|constructed: only format characters (U+00AD, U+200E, U+061C, U+180E, U+2063, a tag character)": () =>
+    displayName("\u00AD\u200E\u061C\u180E\u2063\u{E0041}", "lovelace") ?? "dropped",
+  "display name|constructed: Ada padded with U+200F and tag characters": () => displayName("\u200F\u{E0041}Ada\u{E0042}\u200F", "lovelace") ?? "dropped",
+  "display name|constructed: only blank-looking characters (U+3164 Hangul filler, U+2800 Braille blank)": () => displayName("\u3164 \u2800\u3164", "lovelace") ?? "dropped",
+  "display name|constructed: punctuation and symbols only (- . ★)": () => displayName("- . ★", "lovelace") ?? "dropped",
+  "display name|constructed: a soft hyphen inside Love-lace": () => displayName("Love\u00ADlace", "ada") ?? "dropped",
+  "display name|constructed: positive controls 李小龍, Zoë 2, 7712": () => ["李小龍", "Zoë 2", "7712"].map((name) => displayName(name, "lovelace") ?? "dropped").join(" | "),
   "display name|constructed: 150 characters": () => `${(displayName("x".repeat(150), "ada") ?? "").length} characters`,
   "display name|constructed: <script>alert(1)</script> as the name": () => displayName("<script>alert(1)</script>", "ada") ?? "dropped",
   "display names|constructed: a User author with a name, a User reviewer without, a Bot reviewer with one": () => {
