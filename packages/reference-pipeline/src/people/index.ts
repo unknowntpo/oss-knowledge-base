@@ -521,7 +521,8 @@ export async function readPersonProfile(input: {
       : thread]));
   const newestFirst = (a: ReviewRow, b: ReviewRow) => (a.submittedAt === b.submittedAt ? b.reviewId - a.reviewId : a.submittedAt < b.submittedAt ? 1 : -1);
   const verdict = (row: ReviewRow) => (row.stateBefore === undefined ? {} : { stateBefore: row.stateBefore });
-  const periods = [reviews, activityView?.coverage].filter((item) => item !== undefined);
+  // A Jira or dev@ identity has no reviews: its period is the activity log's alone.
+  const periods = [parsed.kind === "github" ? reviews : undefined, activityView?.coverage].filter((item) => item !== undefined);
   const activity: PersonActivityV1 | undefined = activityView === undefined ? undefined : {
     records: [...records.values()].sort((a, b) => (a.at === b.at ? (a.id < b.id ? 1 : -1) : a.at < b.at ? 1 : -1)),
     threads: shownThreads,
@@ -537,7 +538,7 @@ export async function readPersonProfile(input: {
     period: {
       from: periods.map((item) => item.from).sort()[0]!,
       until: periods.map((item) => item.until).sort().at(-1)!,
-      months: [...new Set([...months, ...activityMonths])].sort(),
+      months: [...new Set([...(parsed.kind === "github" ? months : []), ...activityMonths])].sort(),
     },
     coverage,
     unavailableMonths,
@@ -708,12 +709,17 @@ export function profileView(profile: PersonProfileV1, period: ProfilePeriod, now
   if (period === "12m") labels.push(...profile.period.months);
   else for (let week = Date.parse(weekStart(fromMs)); week <= Math.max(fromMs, Date.parse(until)); week += 7 * DAY_MS) labels.push(weekStart(week));
   const records = (profile.activity?.records ?? []).filter((record) => Date.parse(record.at) >= fromMs);
+  /** The last instant of a month or week bucket, as an ISO time. */
+  const bucketEnd = (label: string) => (period === "12m"
+    ? new Date(Date.UTC(Number(label.slice(0, 4)), Number(label.slice(5, 7)), 1) - 1).toISOString()
+    : new Date(Date.parse(`${label}T00:00:00.000Z`) + 7 * DAY_MS - 1).toISOString());
   const overTime = labels.map((label) => ({
     label,
     given: given.filter((row) => bucketOf(row.submittedAt) === label).length,
     received: received.filter((row) => bucketOf(row.submittedAt) === label).length,
-    ...(profile.activity === undefined ? {} : Object.fromEntries((["github", "jira", "mail"] as const)
-      .filter((source) => profile.coverage.some((item) => item.source === source && item.status === "recorded"))
+    // A bucket that ends before the activity log's coverage has no count, not 0 (W27).
+    ...(profile.activity === undefined ? {} : Object.fromEntries(profile.coverage
+      .flatMap((item) => (item.status === "recorded" && item.source !== "github-reviews" && bucketEnd(label) >= item.from ? [item.source] : []))
       .map((source) => [source, records.filter((record) => record.source === source && bucketOf(record.at) === label).length]))),
   }));
 

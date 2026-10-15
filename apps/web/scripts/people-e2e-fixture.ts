@@ -3,7 +3,15 @@
  * to the moment it is seeded so it always falls in the 12-month view. Authors match the Feed
  * fixture (`alice`, `bob`, `carol` in Kafka). Constructed data, labelled as such.
  */
+import type { DomainEventV1 } from "@oss-knowledge-base/domain";
 import {
+  activityMonthsFromEvents,
+  encodeActivityMonth,
+  encodeActivitySummary,
+  PEOPLE_ACTIVITY_STATE_SCHEMA,
+  peopleActivityMonthKey,
+  peopleActivityStateKey,
+  peopleActivitySummaryKey,
   encodeReviewMonth,
   GITHUB_REVIEWS_STATE_SCHEMA,
   githubReviewsMonthKey,
@@ -29,6 +37,45 @@ export function peopleE2eRows(nowMs: number): readonly ReviewRow[] {
   ];
 }
 
+/**
+ * Spec 019 slice 2b: constructed activity-log events: alice opens and comments on Kafka pull
+ * requests (labels `clients`, `small`), and a dev@ identity "Dana Mailer" writes in a KIP thread.
+ */
+export function peopleE2eActivityEvents(nowMs: number): readonly DomainEventV1[] {
+  const at = (daysAgo: number) => new Date(nowMs - daysAgo * DAY_MS).toISOString().replace(/\.\d{3}Z$/u, "Z");
+  const base = (sourceInstanceId: string, entityId: string, time: string, url: string, data: Readonly<Record<string, unknown>>) => ({
+    schemaVersion: 1, id: `e2e:${entityId}`, projectId: "apache-kafka", sourceType: "code-host", sourceInstanceId, entityType: "artifact",
+    entityId, eventType: "updated", sourceCursor: time, sourceTimestamp: time, observedAt: time, canonicalUrl: url, payloadRef: "e2e",
+    sourceConnectorVersion: "e2e", communityProfileVersion: "e2e", data,
+  }) as DomainEventV1;
+  const pull = (number: number, author: string, daysAgo: number, labels: readonly string[], merged: boolean) => base("kafka:github", `kafka:github:pull:${number}`, at(daysAgo),
+    `https://github.com/apache/kafka/pull/${number}`, {
+      contract: "github-record@1", recordKind: "pull-request", externalNumber: number, title: `KAFKA-1${number}: constructed change ${number}`, excerpt: "-",
+      author, authorRole: "Contributor", occurredAt: at(daysAgo), createdAt: at(daysAgo), updatedAt: at(daysAgo), nativeState: merged ? "closed" : "open",
+      ...(merged ? { mergedAt: at(daysAgo) } : {}), labels, isBot: false,
+    });
+  const comment = (number: number, id: number, author: string, daysAgo: number) => base("kafka:github", `kafka:github:pull:${number}:comment:${id}`, at(daysAgo),
+    `https://github.com/apache/kafka/pull/${number}#issuecomment-${id}`, {
+      contract: "github-record@1", recordKind: "comment", externalNumber: number, parentEntityId: `kafka:github:pull:${number}`, title: `Comment on #${number}`,
+      excerpt: "-", author, authorRole: "Contributor", occurredAt: at(daysAgo), createdAt: at(daysAgo), updatedAt: at(daysAgo), labels: [], isBot: false,
+    });
+  const mail = (id: string, author: string, daysAgo: number, subject: string) => base("kafka:mail:dev", `kafka:mail:dev:message:${id}`, at(daysAgo),
+    `https://lists.apache.org/thread/${id}`, {
+      contract: "mail-record@1", subject, author, occurredAt: at(daysAgo), excerpt: "-", kips: subject.includes("KIP-1368") ? ["KIP-1368"] : [], issueKeys: [],
+    });
+  return [
+    pull(43, "bob", 5, ["clients", "small"], false),
+    pull(44, "alice", 6, ["clients", "ci-approved"], true),
+    pull(45, "alice", 20, ["streams"], false),
+    comment(43, 1, "alice", 3),
+    comment(43, 2, "alice", 2),
+    comment(44, 3, "bob", 4),
+    mail("e2ea", "Dana Mailer", 9, "[DISCUSS] KIP-1368: constructed proposal"),
+    mail("e2eb", "alice", 8, "Re: [DISCUSS] KIP-1368: constructed proposal"),
+    mail("e2ec", "Dana Mailer", 4, "[VOTE] 9.9.9 RC0"),
+  ];
+}
+
 export function peopleE2eObjects(nowMs: number): readonly { readonly key: string; readonly body: string }[] {
   const projectId = "apache-kafka";
   const byMonth = new Map<string, ReviewRow[]>();
@@ -37,5 +84,26 @@ export function peopleE2eObjects(nowMs: number): readonly { readonly key: string
   return [
     { key: githubReviewsStateKey(projectId), body: JSON.stringify({ schema: GITHUB_REVIEWS_STATE_SCHEMA, updatedAt: new Date(nowMs - DAY_MS).toISOString(), coverageFrom }) },
     ...[...byMonth].map(([month, rows]) => ({ key: githubReviewsMonthKey(projectId, month), body: encodeReviewMonth(projectId, month, rows) })),
+    ...peopleE2eActivityObjects(nowMs),
+  ];
+}
+
+/** Slice 2b: the objects a first append at `nowMs − 1 day` writes for the constructed events. */
+export function peopleE2eActivityObjects(nowMs: number): readonly { readonly key: string; readonly body: string }[] {
+  const appendedAt = new Date(nowMs - DAY_MS).toISOString();
+  const coverageFrom = new Date(nowMs - 36 * DAY_MS).toISOString();
+  const months = activityMonthsFromEvents(peopleE2eActivityEvents(nowMs), coverageFrom);
+  return [
+    ...["apache-kafka", "apache-datafusion"].map((projectId) => ({
+      key: peopleActivityStateKey(projectId),
+      body: JSON.stringify({
+        schema: PEOPLE_ACTIVITY_STATE_SCHEMA, firstAppendAt: appendedAt, coverageFrom, updatedAt: appendedAt,
+        months: months.filter((month) => month.projectId === projectId).map((month) => month.month),
+      }),
+    })),
+    ...months.flatMap((month) => [
+      { key: peopleActivityMonthKey(month.projectId, month.month), body: encodeActivityMonth(month) },
+      { key: peopleActivitySummaryKey(month.projectId, month.month), body: encodeActivitySummary(month) },
+    ]),
   ];
 }

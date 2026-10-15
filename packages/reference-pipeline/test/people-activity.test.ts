@@ -149,6 +149,9 @@ describe("Spec 019 slice 2b: the activity log and the profile", () => {
     }
     const mail = (await read("mail:chia-ping tsai")).body as PersonProfileV1;
     expect(mail.identity).toEqual({ id: "mail:chia-ping tsai", source: "mail", display: "Chia-Ping Tsai" });
+    // A dev@ identity's period is the log's alone (no reviews); a GitHub identity's spans both.
+    expect(mail.period).toEqual({ from: COVERAGE_FROM, until: RELEASE, months: ["2026-09", "2026-10"] });
+    expect(((await read("github:chia7712")).body as PersonProfileV1).period.from).toBe("2025-11-01T00:00:00.000Z");
   });
 
   test("W2: a record ingested twice (a retried run, a newer version) is one row; merging the same month again changes no byte", () => {
@@ -207,6 +210,15 @@ describe("Spec 019 slice 2b: the activity log and the profile", () => {
     const without = await read("github:chia7712", { bucket: new CountingBucket(objects) });
     expect(without.status).toBe(404);
     expect(without.body.coverage!.filter((item) => item.status === "not-recorded").map((item) => item.source)).toEqual(["github", "jira", "mail"]);
+  });
+
+  test("W27: a month before the log's coverage has no activity count (not 0); the coverage's first month has one", async () => {
+    const body = (await read("github:chia7712")).body as PersonProfileV1;
+    const rows = profileView(body, "12m", NOW).overTime;
+    expect(rows.find((row) => row.label === "2026-08")).toEqual({ label: "2026-08", given: 0, received: 0 });
+    expect(rows.find((row) => row.label === "2026-09")!.github).toBeGreaterThan(0);
+    expect(rows.find((row) => row.label === "2026-10")!.github).toBeGreaterThan(0);
+    expect(profileView(body, "90d", NOW).overTime.filter((row) => row.github !== undefined).map((row) => row.label)[0]).toBe("2026-09-07");
   });
 
   test("W12: a suppressed Jira or dev@ identity has no page; as a thread author it is unnamed; positive control without suppression", async () => {

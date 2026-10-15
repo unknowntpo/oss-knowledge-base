@@ -66,7 +66,7 @@ function stateText(states: Readonly<Partial<Record<string, number>>>): string {
   return STATES.filter((state) => (states[state] ?? 0) > 0).map((state) => `${t(`people.state.${state}`)} ${states[state]}`).join(", ");
 }
 /** English needs the singular for 1 (i18n.js has no plural rules; `results.search.one` does the same). */
-function unit(name: "review" | "pr" | "reviewer", count: number): string {
+function unit(name: "review" | "pr" | "reviewer" | "thread" | "comment" | "message", count: number): string {
   return t(`people.unit.${name}.${count === 1 ? "one" : "other"}`, { count });
 }
 function bucketLabel(label: string): string {
@@ -76,8 +76,8 @@ function activityPart(thread: ActivityThreadView): string {
   const parts: string[] = [];
   if (thread.role === "author") parts.push(t("people.thread.opened"));
   if (thread.merged) parts.push(t("people.thread.merged"));
-  if ((thread.kinds.comment ?? 0) > 0) parts.push(t("people.thread.wrote", { count: thread.kinds.comment ?? 0 }));
-  if ((thread.kinds.message ?? 0) > 0) parts.push(t("people.thread.messages", { count: thread.kinds.message ?? 0 }));
+  if ((thread.kinds.comment ?? 0) > 0) parts.push(unit("comment", thread.kinds.comment ?? 0));
+  if ((thread.kinds.message ?? 0) > 0) parts.push(unit("message", thread.kinds.message ?? 0));
   return parts.join(" · ");
 }
 /** Hash routing owns `#…`, so the counts scroll to the evidence instead of linking to an anchor. */
@@ -149,7 +149,7 @@ function selectPeriod(next: ProfilePeriod) {
             </div>
             <div class="person-count" data-count="comments">
               <dt>{{ t("people.act.comments") }}</dt>
-              <dd><button type="button" class="person-jump" @click="toThreads">{{ t("people.act.comments.count", { count: view.activity.totals.comments, threads: view.activity.totals.commentedThreads, own: view.activity.totals.commentsOnOwn }) }}</button></dd>
+              <dd><button type="button" class="person-jump" @click="toThreads">{{ t("people.act.comments.count", { count: view.activity.totals.comments, threads: unit("thread", view.activity.totals.commentedThreads), own: view.activity.totals.commentsOnOwn }) }}</button></dd>
             </div>
           </template>
           <div v-else-if="source === 'jira'" class="person-count" data-count="jira">
@@ -158,7 +158,7 @@ function selectPeriod(next: ProfilePeriod) {
           </div>
           <div v-else class="person-count" data-count="mail">
             <dt>{{ t("people.act.mail") }}</dt>
-            <dd><button type="button" class="person-jump" @click="toThreads">{{ t("people.act.mail.count", { messages: view.activity.totals.messages, threads: view.activity.totals.mailThreads, discuss: view.activity.totals.discussThreads, vote: view.activity.totals.voteThreads }) }}</button></dd>
+            <dd><button type="button" class="person-jump" @click="toThreads">{{ t("people.act.mail.count", { messages: view.activity.totals.messages, threads: unit("thread", view.activity.totals.mailThreads), discuss: view.activity.totals.discussThreads, vote: view.activity.totals.voteThreads }) }}</button></dd>
           </div>
         </template>
       </dl>
@@ -172,7 +172,7 @@ function selectPeriod(next: ProfilePeriod) {
         <tbody>
           <tr v-for="row in view.overTime" :key="row.label">
             <th scope="row">{{ bucketLabel(row.label) }}</th>
-            <td v-for="column in overTimeColumns" :key="column" class="num">{{ row[column] ?? 0 }}</td>
+            <td v-for="column in overTimeColumns" :key="column" class="num">{{ row[column] ?? "—" }}</td>
             <td class="person-bar-cell" aria-hidden="true"><span class="person-bar" :style="{ width: `${barOf(row) / maxBar * 100}%` }"></span></td>
           </tr>
         </tbody>
@@ -183,8 +183,8 @@ function selectPeriod(next: ProfilePeriod) {
       <h2 class="section-heading">{{ t("people.section.areas") }}</h2>
       <template v-if="view.activity">
         <ul v-if="view.activity.areas.labels.length > 0 || view.activity.areas.kips.length > 0" class="person-areas">
-          <li v-for="entry in view.activity.areas.labels" :key="`label:${entry.label}`" data-area="label">{{ entry.label }} <span class="person-detail">{{ t("people.areas.threads", { count: entry.threads }) }}</span></li>
-          <li v-for="entry in view.activity.areas.kips" :key="`kip:${entry.kip}`" data-area="kip">{{ entry.kip }} <span class="person-detail">{{ t("people.areas.threads", { count: entry.threads }) }}</span></li>
+          <li v-for="entry in view.activity.areas.labels" :key="`label:${entry.label}`" data-area="label">{{ entry.label }} <span class="person-detail">{{ unit("thread", entry.threads) }}</span></li>
+          <li v-for="entry in view.activity.areas.kips" :key="`kip:${entry.kip}`" data-area="kip">{{ entry.kip }} <span class="person-detail">{{ unit("thread", entry.threads) }}</span></li>
         </ul>
         <p v-else-if="view.activity.areas.noLabelSources.length === 0" class="person-note">{{ view.empty ? t("people.empty") : t("people.areas.empty") }}</p>
         <p v-if="view.activity.areas.noLabelSources.length > 0" class="person-note">{{ t("people.areas.noLabels", { sources: view.activity.areas.noLabelSources.map((item) => t(`people.overTime.${item}`)).join(t("people.listSeparator")) }) }}</p>
@@ -246,10 +246,10 @@ function selectPeriod(next: ProfilePeriod) {
     <section class="person-section person-how" data-section="how">
       <h2 class="section-heading">{{ t("people.section.how") }}</h2>
       <ul>
-        <li v-for="item in reviewCoverage" :key="item.source">{{ t("people.how.source", { from: day(item.storedFrom) }) }}</li>
+        <li v-for="item in (isGithub ? reviewCoverage : [])" :key="item.source">{{ t("people.how.source", { from: day(item.storedFrom) }) }}</li>
         <li v-if="activityCoverage">{{ t("people.how.activity", { sources: activityCoverage.sources, first: day(activityCoverage.firstAppendAt ?? activityCoverage.storedFrom), from: day(activityCoverage.storedFrom) }) }}</li>
         <li>{{ t("people.how.period", { from: day(profile.period.from), until: day(profile.period.until) }) }}</li>
-        <li v-if="reviewCoverage.length > 0">{{ t("people.how.notCounted") }}</li>
+        <li v-if="isGithub && reviewCoverage.length > 0">{{ t("people.how.notCounted") }}</li>
         <li v-if="activityCoverage">{{ t("people.how.activityNotCounted") }}</li>
         <li v-if="notRecorded">{{ t("people.how.notRecorded", { sources: notRecorded }) }}</li>
         <li><a :href="issuesUrl" target="_blank" rel="noopener noreferrer">{{ t("people.how.report") }}</a></li>
