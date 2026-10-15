@@ -2,9 +2,12 @@
 import { computed, ref, watch } from "vue";
 
 import FeedCard from "../components/FeedCard.vue";
+import PersonResultCard from "../components/PersonResultCard.vue";
 import SearchResultCard from "../components/SearchResultCard.vue";
-import { fetchEvidenceSearch } from "../api";
+import { fetchEvidenceSearch, fetchPeopleSearch } from "../api";
 import { useI18n } from "../i18n";
+import { usePeopleEnabled } from "../people";
+import { mergePersonResults, personQueryKey, personSearchProjects, type PersonResult } from "../person-search";
 import { otherResultsStart, searchCount, searchCountText } from "../search-results";
 import { useFeedStore } from "../store";
 import type { FeedIndexEntry, SearchResponseV1 } from "../types";
@@ -110,6 +113,32 @@ watch(
       } finally {
         if (request === searchRequest) searchLoading.value = false;
       }
+    }, 180);
+    onCleanup(() => window.clearTimeout(timeout));
+  },
+  { immediate: true },
+);
+
+// Spec 019 slice 3 (W7): person results, a separate block above the thread results. Only where
+// `/api/people` answers 200 (Dev) and the query can be a login; the thread search is unchanged.
+const peopleEnabled = usePeopleEnabled();
+const personResults = ref<readonly PersonResult[]>([]);
+let personRequest = 0;
+
+watch(
+  [query, project, peopleEnabled],
+  ([nextQuery, nextProject, enabled], _previous, onCleanup) => {
+    const request = ++personRequest;
+    const key = personQueryKey(nextQuery);
+    const projectKeys = enabled && key !== undefined ? personSearchProjects(nextProject) : [];
+    if (projectKeys.length === 0) {
+      personResults.value = [];
+      return;
+    }
+    const timeout = window.setTimeout(async () => {
+      const responses = await Promise.allSettled(projectKeys.map((projectKey) => fetchPeopleSearch(projectKey, nextQuery.trim())));
+      if (request !== personRequest) return;
+      personResults.value = mergePersonResults(responses.flatMap((response) => (response.status === "fulfilled" ? [response.value] : [])));
     }, 180);
     onCleanup(() => window.clearTimeout(timeout));
   },
@@ -275,6 +304,11 @@ function reset() {
         <p class="results-count" aria-live="polite">
           {{ query ? searchCountLine : `${visibleEntries.length} entries` }}
         </p>
+        <section v-if="query && personResults.length" class="cards person-results" :aria-label="t('search.people')">
+          <h3 class="results-divider">{{ t("search.people") }}</h3>
+          <PersonResultCard v-for="person in personResults" :key="`${person.projectKey}/${person.id}`" :person="person" />
+          <h3 class="results-divider">{{ t("search.threads") }}</h3>
+        </section>
         <div v-if="query && searchLoading" class="empty"><p>{{ t("search.loading") }}</p></div>
         <div v-else-if="query && searchError" class="load-error"><p>{{ t("search.failed") }}</p><code>{{ searchError }}</code></div>
         <div v-else-if="query && searchResponse?.results.length" class="cards search-results">

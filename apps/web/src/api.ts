@@ -5,6 +5,7 @@ import type {
   SearchResponseV1,
 } from "./types";
 import type { PeopleErrorV1, PersonProfileV1 } from "@oss-knowledge-base/reference-pipeline/people";
+import type { PeopleSearchV1 } from "@oss-knowledge-base/reference-pipeline/people/search";
 
 async function json<T>(url: string): Promise<T> {
   const response = await fetch(url, { headers: { accept: "application/json" } });
@@ -56,4 +57,9 @@ export async function fetchPersonProfile(projectKey: string, personId: string): 
 export async function fetchPeopleEnabled(): Promise<boolean> {
   const response = await fetch("/api/people", { headers: { accept: "application/json" } });
   return response.ok && (await response.json() as { readonly enabled?: unknown }).enabled === true;
+}
+
+/** Spec 019 slice 3: person results for a query in one project (W7). */
+export function fetchPeopleSearch(projectKey: string, query: string): Promise<PeopleSearchV1> {
+  return json<PeopleSearchV1>(`/api/people/${encodeURIComponent(projectKey)}?${new URLSearchParams({ q: query })}`);
 }

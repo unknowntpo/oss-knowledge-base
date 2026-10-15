@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./digest": "./src/digest/index.ts",
     "./search-profiles": "./src/search/profiles.ts",
-    "./people": "./src/people/index.ts"
+    "./people": "./src/people/index.ts",
+    "./people/search": "./src/people/search.ts"
   },
   "scripts": {
     "test": "bun test",

@@ -974,3 +974,16 @@ the two `viewer/` items below.
   `github:chia7712` after the first deploy and record it in Spec 019 W18.
 - **Layer:** measurement.
 - **Source:** Spec 019 slice 2a, 2026-10-15.
+
+### G85. Person search matches GitHub logins only, and has no entry besides the search box
+- **Where:** `packages/reference-pipeline/src/people/search.ts` (`peopleIndex`,
+  `personQueryKey`); `apps/web/src/views/FeedView.vue`.
+- **Why:** the review store holds logins, not names, so "Chia-Ping Tsai"
+  finds no person until slice 2b adds Jira and dev@ identities with display
+  names. The only visible entry is the search box; a 「貢獻者」 nav item and
+  list are slice 7 (decision 10).
+- **Fix:** 2b adds `PersonIndexEntry` values for its sources keyed by
+  display name (and widens `PersonSource`); slice 7 adds the list and its
+  nav item. Neither changes `osskb.people-search.v1`.
+- **Layer:** spec slices 2b and 7.
+- **Source:** Spec 019 slice 3, 2026-10-15.
