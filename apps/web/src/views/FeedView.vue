@@ -301,14 +301,14 @@ function reset() {
             </select>
           </label>
         </div>
-        <p class="results-count" aria-live="polite">
-          {{ query ? searchCountLine : `${visibleEntries.length} entries` }}
-        </p>
         <section v-if="query && personResults.length" class="cards person-results" :aria-label="t('search.people')">
           <h3 class="results-divider">{{ t("search.people") }}</h3>
           <PersonResultCard v-for="person in personResults" :key="`${person.projectKey}/${person.id}`" :person="person" />
-          <h3 class="results-divider">{{ t("search.threads") }}</h3>
         </section>
+        <h3 v-if="query && personResults.length" class="results-divider threads-divider">{{ t("search.threads") }}</h3>
+        <p class="results-count" aria-live="polite">
+          {{ query ? searchCountLine : `${visibleEntries.length} entries` }}
+        </p>
         <div v-if="query && searchLoading" class="empty"><p>{{ t("search.loading") }}</p></div>
         <div v-else-if="query && searchError" class="load-error"><p>{{ t("search.failed") }}</p><code>{{ searchError }}</code></div>
         <div v-else-if="query && searchResponse?.results.length" class="cards search-results">

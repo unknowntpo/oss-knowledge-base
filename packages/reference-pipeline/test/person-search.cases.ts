@@ -4,7 +4,7 @@
  *
  * Store: the slice 2a store of `contributor-profile.cases.ts` (recorded Kafka #23675 and #23165
  * plus its constructed rows) and the `searchRows` below (`constructed`): five reviewers whose
- * logins share the prefix `lu`, and a one-character login. Request time 2026-10-15T12:00:00Z.
+ * logins share the prefix `lu`, a one-character login, and the deleted account `ghost`. Request time 2026-10-15T12:00:00Z.
  *
  * `people` = the response's `people` as `<id> <match>`, in order; `reads` = R2 reads on a cold
  * isolate (W41, W43).
@@ -16,6 +16,8 @@ export const searchRows = [
   { reviewId: 104, pr: 90101, prAuthor: "constructed-author", reviewer: "Lu-C", isBot: false, state: "APPROVED", submittedAt: "2026-08-06T10:00:00Z", commit: null, inlineComments: 0 },
   { reviewId: 105, pr: 90101, prAuthor: "constructed-author", reviewer: "lu-a", isBot: false, state: "APPROVED", submittedAt: "2026-08-07T10:00:00Z", commit: null, inlineComments: 0 },
   { reviewId: 106, pr: 90102, prAuthor: "constructed-author", reviewer: "q", isBot: false, state: "APPROVED", submittedAt: "2026-08-08T10:00:00Z", commit: null, inlineComments: 0 },
+  // GitHub's placeholder for a deleted account (Spec 022 stores it as `ghost`).
+  { reviewId: 107, pr: 90102, prAuthor: "constructed-author", reviewer: "ghost", isBot: false, state: "COMMENTED", submittedAt: "2026-08-09T10:00:00Z", commit: null, inlineComments: 0 },
 ] as const;
 
 export const testPlanRows = [
@@ -32,6 +34,8 @@ export const testPlanRows = [
   { id: "W40", case: "a login on the profile's bot list", data: "constructed", project: "kafka", query: "dependabot", suppressed: "—", people: "—", reads: 13 },
   { id: "W40", case: "a suppressed identity", data: "recorded", project: "kafka", query: "gabriellefu", suppressed: "gabriellefu", people: "—", reads: 13 },
   { id: "W40", case: "positive control: the same identity not suppressed (reviews received only)", data: "recorded", project: "kafka", query: "gabriellefu", suppressed: "—", people: "github:gabriellefu exact", reads: 13 },
+  { id: "W40", case: "a suppressed login among the first three prefix matches does not use up the cap: the fourth candidate takes its place", data: "constructed", project: "kafka", query: "lu-", suppressed: "lu-b", people: "github:lu-a prefix, github:Lu-C prefix, github:lu-d prefix", reads: 13 },
+  { id: "W40", case: "the deleted account (ghost) has no person result", data: "constructed", project: "kafka", query: "ghost", suppressed: "—", people: "—", reads: 13 },
   { id: "W40", case: "a login whose only review is before the 12-month view", data: "constructed", project: "kafka", query: "old-reviewer", suppressed: "—", people: "—", reads: 13 },
   { id: "W40", case: "positive control: a review on the first second of the view", data: "constructed", project: "kafka", query: "edge", suppressed: "—", people: "github:edge-reviewer prefix", reads: 13 },
   { id: "W41", case: "two words are not a login", data: "—", project: "kafka", query: "kafka consumer", suppressed: "—", people: "—", reads: 0 },

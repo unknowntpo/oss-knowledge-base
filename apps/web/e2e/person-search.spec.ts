@@ -37,6 +37,16 @@ test("W7: an exact login shows its person result first; the thread list is the /
     return block !== null && (list === null || Boolean(block.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING));
   });
   expect(before).toBe(true);
+  // The 「討論」 heading and the thread count line follow the person block, outside it.
+  await expect(page.locator(".person-results .threads-divider")).toHaveCount(0);
+  const order = await page.evaluate(() => {
+    const nodes = [".person-results", ".threads-divider", ".results-count"].map((selector) => document.querySelector(selector));
+    return nodes.every((node) => node !== null) &&
+      Boolean(nodes[0]!.compareDocumentPosition(nodes[1]!) & Node.DOCUMENT_POSITION_FOLLOWING) &&
+      Boolean(nodes[1]!.compareDocumentPosition(nodes[2]!) & Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+  expect(order).toBe(true);
+  await expect(page.locator(".threads-divider")).toHaveText("Threads");
   await expect(page.locator(".search-results .search-card")).toHaveCount(threads.results.length);
   if (threads.results.length > 0) await expect(page.locator(".search-results .topic-id").first()).toHaveText("#1");
   await expect(page.locator(".search-results .person-result")).toHaveCount(0);
@@ -74,7 +84,8 @@ for (const width of [320, 375]) {
   test(`W45: at ${width} px a search with a person result has no horizontal overflow`, async ({ page }) => {
     await typeQuery(page, "alice", { locale: "zh-Hant", width });
     await expect(page.locator(".person-result").first()).toContainText("帳號完全相符");
-    await expect(page.locator(".person-results .results-divider").first()).toHaveText("貢獻者");
+    await expect(page.locator(".person-results .results-divider")).toHaveText(["貢獻者"]);
+    await expect(page.locator(".threads-divider")).toHaveText("討論");
     const { scroll, inner } = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
     expect(scroll).toBeLessThanOrEqual(inner);
     if (width === 375) await screenshot(page, "search-person-alice-375-zh");

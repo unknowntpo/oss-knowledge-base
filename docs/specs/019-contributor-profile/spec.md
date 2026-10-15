@@ -808,7 +808,7 @@ existing search box the entry point.
 
 Profiles read with unauthenticated `GET /api/people/kafka/github:<login>`
 on Dev (`chia7712`, `chiacyu`, `mimaison`, `mingyen066`, `m1a2st` answer
-200; `dependabot` answers 404, "Bots and deleted accounts have no profile").
+200, re-checked 2026-10-15; `dependabot` answers 404, "Bots and deleted accounts have no profile").
 The full login list was not read (that needs the new endpoint or R2), so the
 prefix rows name only logins known to have a page.
 
@@ -842,6 +842,12 @@ whose profile answers 200. Bots (the profile's list, `[bot]`, typed `Bot` in
 any row of the view), the deleted account and suppressed identities are
 never in it (W12, P-e). A month that cannot be read is skipped, as the
 profile skips it (W10).
+
+**Enumeration is accepted.** Typing prefixes can list the logins in the
+index two characters at a time; this is accepted because it is Dev only,
+alphabetical (no activity ranking), respects suppression, and exposes only
+public GitHub logins that are already reachable through the profile links in
+Detail.
 
 Gate: served only where `PEOPLE_PROFILES` is `true` (W25); elsewhere 404,
 `no-store`, `X-Robots-Tag: noindex`. The page asks `/api/people` once and
@@ -958,6 +964,8 @@ the number of R2 reads on a cold isolate.
 | W40 | a login on the profile's bot list | constructed | kafka | dependabot | — | — | 13 |
 | W40 | a suppressed identity | recorded | kafka | gabriellefu | gabriellefu | — | 13 |
 | W40 | positive control: the same identity not suppressed (reviews received only) | recorded | kafka | gabriellefu | — | github:gabriellefu exact | 13 |
+| W40 | a suppressed login among the first three prefix matches does not use up the cap: the fourth candidate takes its place | constructed | kafka | lu- | lu-b | github:lu-a prefix, github:Lu-C prefix, github:lu-d prefix | 13 |
+| W40 | the deleted account (ghost) has no person result | constructed | kafka | ghost | — | — | 13 |
 | W40 | a login whose only review is before the 12-month view | constructed | kafka | old-reviewer | — | — | 13 |
 | W40 | positive control: a review on the first second of the view | constructed | kafka | edge | — | github:edge-reviewer prefix | 13 |
 | W41 | two words are not a login | — | kafka | kafka consumer | — | — | 0 |
