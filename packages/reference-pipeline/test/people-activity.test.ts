@@ -170,6 +170,18 @@ describe("Spec 019 slice 2b: the activity log and the profile", () => {
     expect(added.rows.length).toBe(october.rows.length + 1);
   });
 
+  test("W2: a newer version of a record replaces its stored row (merged later, time corrected); the thread takes the newest title", () => {
+    const opened = activityMonthsFromEvents([github("kafka:github:pull:90020", { externalNumber: 90020, author: "replaced-author", createdAt: "2026-10-02T00:00:00Z", title: "Old title" }, "2026-10-02T00:00:00Z")], COVERAGE_FROM)[0]!;
+    const merged = activityMonthsFromEvents([github("kafka:github:pull:90020", {
+      externalNumber: 90020, author: "replaced-author", createdAt: "2026-10-02T00:00:01Z", title: "New title", nativeState: "closed", mergedAt: "2026-10-09T00:00:00Z",
+    }, "2026-10-09T00:00:00Z")], COVERAGE_FROM)[0]!;
+    const result = mergeActivityMonth(opened, merged);
+    expect(result.rows).toEqual([{ id: "kafka:github:pull:90020", source: "github", kind: "pull-request", person: "github:replaced-author", at: "2026-10-02T00:00:01Z", thread: "KAFKA-PR-90020", merged: "2026-10-09T00:00:00Z" }]);
+    expect(result.threads["KAFKA-PR-90020"]!.title).toBe("New title");
+    // The incoming row always wins: the append's incoming rows are the state's newest versions.
+    expect(mergeActivityMonth(result, opened).rows).toEqual(opened.rows);
+  });
+
   test("W3: a pull request's row sits in its creation month, keeps its merge time, and an update 40 days later moves it nowhere", () => {
     const months = activityMonthsFromEvents(constructedEvents, "2026-09-01T00:00:00Z");
     const september = months.find((month) => month.month === "2026-09")!;

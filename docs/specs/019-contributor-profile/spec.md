@@ -832,6 +832,13 @@ about 150 bytes, not the 110 estimated above.
   once, so no precondition can fail (the 2026-10-13 Class A incident came
   from failed conditional puts). The summary is written before its month, so
   a month whose summary write failed is rewritten next run.
+- **What stays in the log.** A record deleted upstream (a deleted comment,
+  a removed message) is no longer polled, but its row stays in its month:
+  the log only adds and replaces rows. Removal of a person's rows is by
+  suppression (P-e: the identity gets no page and is unnamed elsewhere),
+  not by deleting rows. Months older than the 12-month horizon are not
+  pruned yet: they are small, and nothing reads them (Behavior 3 leaves
+  deletion to a later, separately approved spec).
 - **Decision 10, reconciled.** The amendment proposed the summary "next to
   each month object it changes", built by `indexReviewMonth`. Reviews are
   written by Spec 022's job, not by the publication, so the activity summary
@@ -959,7 +966,9 @@ exist, so a request parses about a sixth of the 12-month figure. **W18's
 then fails** (23 MB at 12 months, 46 MB at 2×); the Pages limit is 128 MB
 and a search request already parses 28.8 MB. The fix (rows split by
 identity, or compacted rows) is G75 and must land before the log is 6 months
-old.
+old. `measure:people` now checks the budget: it exits 1 above 16 MiB, `--months N`
+sets the log's age (DataFusion: 15.7 MiB at 8 months, 17.3 MiB at 9), and
+`--report-only` reports without failing.
 
 ### Cost: worst case per day and per month (free tier: 1 M Class A, 10 M Class B, 10 GB a month)
 

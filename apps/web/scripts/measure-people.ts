@@ -34,6 +34,11 @@ import { heapSize } from "bun:jsc";
 
 const scale = Number(Bun.argv[Bun.argv.indexOf("--scale") + 1] ?? 1) || 1;
 const withActivity = !Bun.argv.includes("--no-activity");
+/** `--months N`: how many months the activity log holds (its age), newest last; default 12. */
+const activityMonths = Bun.argv.includes("--months") ? Number(Bun.argv[Bun.argv.indexOf("--months") + 1]) : 12;
+/** W18: a cold profile request parses at most this much; the run exits 1 above it unless `--report-only`. */
+const W18_PARSE_BUDGET_BYTES = 16 * 1024 * 1024;
+const reportOnly = Bun.argv.includes("--report-only");
 const NOW = Date.parse("2026-10-15T12:00:00Z");
 const MONTHS = ["2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10"];
 
@@ -82,7 +87,7 @@ function addActivity(objects: Map<string, string>, projectId: string, input: { p
   const people = Array.from({ length: 300 }, (_, index) => `github:author-${index}`);
   const sources = projectId === "apache-kafka" ? (["github", "jira", "mail"] as const) : (["github"] as const);
   let id = 0;
-  for (const month of MONTHS) {
+  for (const month of MONTHS.slice(MONTHS.length - activityMonths)) {
     const rows: ActivityRowV1[] = [];
     const threads: Record<string, ActivityThreadV1> = {};
     const total = Math.round(input.activityRows * scale);
@@ -182,4 +187,13 @@ const results = [
 const round = (value: number) => Math.round(value * 10) / 10;
 for (const result of results) {
   console.log(JSON.stringify(result, (_key, value) => (typeof value === "number" && !Number.isInteger(value) ? round(value) : value)));
+}
+const over = results.filter((result) => result.cold.r2BytesParsed > W18_PARSE_BUDGET_BYTES);
+for (const result of results) {
+  const mb = round(result.cold.r2BytesParsed / 1024 / 1024);
+  console.log(`W18 ${result.project}: ${mb} MiB parsed cold (budget 16 MiB, ${withActivity ? `${activityMonths} months of activity log` : "reviews only"}): ${result.cold.r2BytesParsed > W18_PARSE_BUDGET_BYTES ? "FAIL" : "PASS"}`);
+}
+if (over.length > 0 && !reportOnly) {
+  console.error("W18 parse budget exceeded (Spec 019 G75); rerun with --report-only to report without failing.");
+  process.exit(1);
 }

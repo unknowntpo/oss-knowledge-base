@@ -303,6 +303,11 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
+/** Spec 019 slice 2b: the publication's `activityLog` option; none while `PEOPLE_ACTIVITY` is unset or blank. */
+export function activityLogOption(env: Pick<Env, "PEOPLE_ACTIVITY" | "OSS_KB_BUCKET">): { readonly activityLog?: ReturnType<typeof activityLogFor> } {
+  return peopleActivitySet(env.PEOPLE_ACTIVITY) ? { activityLog: activityLogFor(env) } : {};
+}
+
 /** Spec 019 slice 2b: the append the publication runs before compacting its state. */
 export function activityLogFor(env: Pick<Env, "PEOPLE_ACTIVITY" | "OSS_KB_BUCKET">) {
   return (events: Parameters<typeof appendActivityLog>[0]["events"], materializedAt: string) => appendActivityLog({
@@ -377,7 +382,7 @@ export class PipelineState implements DurableObject {
         ...(this.env.SEARCH_LEXICAL_REVISION === undefined ? {} : { searchLexicalRevision: this.env.SEARCH_LEXICAL_REVISION }),
         ...(this.env.SEARCH_SHARD_ROOTS === undefined ? {} : { searchShardRoots: this.env.SEARCH_SHARD_ROOTS }),
         ...(onPublished === undefined ? {} : { onPublished }),
-        ...(peopleActivitySet(this.env.PEOPLE_ACTIVITY) ? { activityLog: activityLogFor(this.env) } : {}),
+        ...activityLogOption(this.env),
       });
       // Spec 018: the Cron fires once a day, so a truncated or failed run schedules its own
       // follow-up. A failure here must not throw: the runtime would run the publication again.
