@@ -1050,3 +1050,19 @@ the two `viewer/` items below.
   does not use it.
 - **Layer:** spec (slice 7).
 - **Source:** Spec 019 slice 2b, 2026-10-15.
+
+### G85. Person search matches GitHub logins only, and has no entry besides the search box
+- **Where:** `packages/reference-pipeline/src/people/search.ts` (`peopleIndex`,
+  `personQueryKey`); `apps/web/src/views/FeedView.vue`.
+- **Why:** the review store holds logins, not names, so "Chia-Ping Tsai"
+  finds no person until slice 2b adds Jira and dev@ identities with display
+  names. The only visible entry is the search box; a 「貢獻者」 nav item and
+  list are slice 7 (decision 10). Slice 2b (#76) shipped the log without
+  widening the index: a display name has spaces, which `personQueryKey`
+  rejects (W41), and GitHub identities with activity but no review row have
+  a profile but are not in the index.
+- **Fix:** 2b's follow-up adds `PersonIndexEntry` values for its sources keyed by
+  display name (and widens `PersonSource`); slice 7 adds the list and its
+  nav item. Neither changes `osskb.people-search.v1`.
+- **Layer:** spec slices 2b and 7.
+- **Source:** Spec 019 slice 3, 2026-10-15.

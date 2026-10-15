@@ -308,7 +308,7 @@ export interface PeopleBucket {
   get(key: string): Promise<{ text(): Promise<string> } | null>;
 }
 
-interface StoreState { readonly updatedAt: string; readonly coverageFrom: string }
+export interface StoreState { readonly updatedAt: string; readonly coverageFrom: string }
 
 type CacheEntry = { readonly at: number; readonly value: Promise<unknown> };
 const isolateCache = new WeakMap<object, Map<string, CacheEntry>>();
@@ -333,7 +333,8 @@ function cached<T>(bucket: PeopleBucket, key: string, nowMs: number, load: () =>
   return value;
 }
 
-async function readState(bucket: PeopleBucket, projectId: string, nowMs: number): Promise<StoreState | undefined> {
+/** Shared with person search (slice 3), so both read through one per-isolate cache (W43). */
+export async function readState(bucket: PeopleBucket, projectId: string, nowMs: number): Promise<StoreState | undefined> {
   return cached(bucket, githubReviewsStateKey(projectId), nowMs, async () => {
     const object = await bucket.get(githubReviewsStateKey(projectId));
     if (object === null) return undefined;
@@ -346,8 +347,8 @@ async function readState(bucket: PeopleBucket, projectId: string, nowMs: number)
   });
 }
 
-/** A month without an object has no reviews (Spec 022 writes only months with rows). */
-function readMonth(bucket: PeopleBucket, projectId: string, month: string, nowMs: number): Promise<ReviewMonthIndex> {
+/** A month without an object has no reviews (Spec 022 writes only months with rows). Shared with person search (W43). */
+export function readMonth(bucket: PeopleBucket, projectId: string, month: string, nowMs: number): Promise<ReviewMonthIndex> {
   const key = githubReviewsMonthKey(projectId, month);
   return cached(bucket, key, nowMs, async () => {
     const object = await bucket.get(key);
