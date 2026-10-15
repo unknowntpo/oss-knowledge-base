@@ -13,6 +13,7 @@ import type { GitHubPollResult } from "@oss-knowledge-base/github-publisher/gith
 import type { ImmutableProjectionObjectV1 } from "@oss-knowledge-base/serving-contract";
 
 import { DurableObjectPipelineState } from "../src/durable-object-state";
+import { appendActivityLog, type ActivityLogStatus } from "../src/people-activity/run";
 import { runDataPublication, type PipelineStateRepository, type PublicationDestination } from "../src/pipeline";
 import { generateSeededGitHubEvents } from "./seeded-github-events";
 import { generateSeededKafkaEvents } from "./seeded-kafka-events";
@@ -43,12 +44,21 @@ export interface MemoryMeasurement {
   /** Order-independent fingerprint of every written key and its bytes, for before/after parity. */
   readonly outputFingerprint: string;
   readonly durationMs: number;
+  /** Spec 019 W17/W19: the activity log's append, when `activity` is 1 (two runs: first append, then an unchanged rerun). */
+  readonly activity?: {
+    readonly first: ActivityLogStatus;
+    readonly second: ActivityLogStatus;
+    readonly objects: number;
+    readonly largestObjectKB: number;
+    readonly totalKB: number;
+  };
 }
 
 const MATERIALIZED_AT = "2026-10-02T01:42:16.361Z";
 const MB = (bytes: number) => Math.round(bytes / 104_857.6) / 10;
 
-const [countArg, seedArg, pollArg, outputPath, kafkaArg] = process.argv.slice(2);
+const [countArg, seedArg, pollArg, outputPath, kafkaArg, activityArg] = process.argv.slice(2);
+const withActivity = activityArg === "1";
 const count = Number(countArg);
 const seed = Number(seedArg ?? 9);
 const polledEvents = Number(pollArg ?? 500);
@@ -241,14 +251,35 @@ try {
   const originalLog = console.log;
   console.log = () => undefined;
   const started = Date.now();
+  // Spec 019 slice 2b: the append writes to an in-memory bucket that keeps each object's text.
+  const activityObjects = new Map<string, string>();
+  const activityBucket = {
+    get: async (key: string) => activityObjects.get(key),
+    put: async (key: string, body: string) => { phase = "activity put"; sample(); activityObjects.set(key, body); },
+  };
+  const activityRuns: ActivityLogStatus[] = [];
+  let activityEvents: readonly DomainEventV1[] = [];
   const status = await runDataPublication({
     environment: "development",
     materializedAt: MATERIALIZED_AT,
     connector,
     state,
     destination,
+    ...(withActivity ? {
+      activityLog: async (events: readonly DomainEventV1[], materializedAt: string) => {
+        activityEvents = events;
+        const result = await appendActivityLog({ flag: "log@1", bucket: activityBucket, events, materializedAt, projectIds: ["apache-kafka", "apache-datafusion"] });
+        activityRuns.push(result);
+        return result;
+      },
+    } : {}),
   });
   const durationMs = Date.now() - started;
+  if (withActivity) {
+    // The next day's run over the same records: every month unchanged.
+    activityRuns.push(await appendActivityLog({ flag: "log@1", bucket: activityBucket, events: activityEvents, materializedAt: new Date(Date.parse(MATERIALIZED_AT) + 86_400_000).toISOString(), projectIds: ["apache-kafka", "apache-datafusion"] }));
+    activityEvents = [];
+  }
   console.log = originalLog;
   phase = "done";
   sample();
@@ -277,6 +308,15 @@ try {
     writtenMB: MB([...destination.lengths.values()].reduce((total, length) => total + length, 0)),
     outputFingerprint: destination.fingerprint,
     durationMs,
+    ...(withActivity ? {
+      activity: {
+        first: activityRuns[0]!,
+        second: activityRuns[1]!,
+        objects: activityObjects.size,
+        largestObjectKB: Math.round(Math.max(...[...activityObjects.values()].map((body) => body.length)) / 102.4) / 10,
+        totalKB: Math.round([...activityObjects.values()].reduce((sum, body) => sum + body.length, 0) / 102.4) / 10,
+      },
+    } : {}),
   };
   writeFileSync(outputPath, JSON.stringify(result));
 } finally {

@@ -189,6 +189,26 @@ describe("Spec 019 slice 2b: the activity log and the profile", () => {
     expect(m1a2st.length).toBe(18);
   });
 
+  test("W2: a Jira issue updated in two months is in both month objects but counted once, at its newest update", async () => {
+    const issue = (at: string) => ({
+      schemaVersion: 1, id: `constructed:jira:${at}`, projectId: "apache-kafka", sourceType: "issue-tracker", sourceInstanceId: "kafka:jira",
+      entityType: "artifact", entityId: "kafka:jira:issue:KAFKA-90010", eventType: "updated", sourceCursor: at, sourceTimestamp: at, observedAt: at,
+      canonicalUrl: "https://issues.apache.org/jira/browse/KAFKA-90010", payloadRef: "constructed", sourceConnectorVersion: "constructed", communityProfileVersion: "constructed",
+      data: { contract: "jira-record@1", recordKind: "issue", key: "KAFKA-90010", title: "KAFKA-90010: twice", excerpt: "-", author: "Twice Updated", occurredAt: at, nativeStatus: "Open", status: "open", kips: [], isBot: false },
+    }) as DomainEventV1;
+    const objects = new Map(STORE);
+    for (const event of [issue("2026-09-20T00:00:00Z"), issue("2026-10-05T00:00:00Z")]) {
+      for (const month of activityMonthsFromEvents([event], COVERAGE_FROM)) {
+        const key = peopleActivityMonthKey(month.projectId, month.month);
+        const stored = parseActivityMonth(JSON.parse(objects.get(key)!), month.projectId, month.month);
+        objects.set(key, encodeActivityMonth(mergeActivityMonth(stored, month)));
+      }
+    }
+    const body = (await read("jira:Twice Updated", { bucket: new CountingBucket(objects) })).body as PersonProfileV1;
+    expect(body.activity!.records).toEqual([{ id: "kafka:jira:issue:KAFKA-90010", source: "jira", kind: "issue", at: "2026-10-05T00:00:00Z", thread: "KAFKA-90010" }]);
+    expect(body.totals.activity!.jiraIssues).toBe(1);
+  });
+
   test("W4: process labels are left out per project; the same label is an area elsewhere; dev@ and Jira say they have no label data", async () => {
     const body = (await read("github:label-author")).body as PersonProfileV1;
     expect(body.activity!.threads["KAFKA-PR-90002"]!.labels).toEqual(["ci-approved", "clients", "small"]);
