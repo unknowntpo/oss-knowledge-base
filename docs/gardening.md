@@ -1120,3 +1120,37 @@ the two `viewer/` items below.
   check adjacent-slice contrast with a palette validator.
 - **Layer:** style tokens.
 - **Source:** Spec 019 amendment (4), 2026-10-15.
+
+### G90. A Jira or dev@ page's data range still lists the review store
+- **Where:** `apps/web/src/components/PersonProfile.vue` (`details.person-range`
+  `.person-coverage`).
+- **Why:** the opened "Data range" keeps W27's list, which names every source
+  the community records, including "Reviews: <from> to <until>" on a Jira or
+  dev@ identity that can have no review (strict identity). The collapsed line
+  and the chart already show the identity's own sources only.
+- **Fix:** amend W27 to list the identity's own sources (plus the
+  not-recorded ones of its source), then filter the list.
+- **Layer:** spec, then component test.
+- **Source:** Spec 019 amendment (5), 2026-10-16.
+
+### G91. A bucket where a source's coverage begins is drawn like a full one
+- **Where:** `apps/web/src/profile-chart.ts` (`ChartBucket.partial`,
+  `clipped`).
+- **Why:** the month or week in which the activity log (or the period) starts
+  holds only part of that bucket's activity, but its bar has the same style as
+  a complete bucket; only the tooltip says "recorded since 9/10". A reader
+  comparing bars can read the first bucket as a drop.
+- **Fix:** if readers misread it, draw partial buckets with a lighter fill or
+  a marker, from `partial` and `clipped`, with a case row.
+- **Layer:** chart model and its case file.
+- **Source:** Spec 019 amendment (5), 2026-10-16.
+
+### G92. Chart colours and hatching are checked in light mode only
+- **Where:** `apps/web/styles.css` (`--series-*`, `--hatch-*`).
+- **Why:** like G89, the series and hatch tokens are defined once on `:root`;
+  the series pairs were not run through a colour-vision validator. Every value
+  is also in the tooltip and in "Show as table", and series are separated by
+  position (above or below the axis) as well as colour.
+- **Fix:** with a dark theme, redefine the tokens there and validate the pairs.
+- **Layer:** style tokens.
+- **Source:** Spec 019 amendment (5), 2026-10-16.

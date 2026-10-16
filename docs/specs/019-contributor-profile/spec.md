@@ -1,6 +1,6 @@
 # Spec 019: Contributor profile
 
-Status: Accepted 2026-10-14 (all nine owner decisions recorded); amended 2026-10-15 (slice 2 split into 2a and 2b, decision 10; slice 3 widened to login prefixes; slice 2b storage, identity and budget); slice 1 is Spec 022 (live on Dev, 12 months backfilled); slices 2a and 3 implemented; slice 2b implemented, `PEOPLE_ACTIVITY=log@1` on Dev only (enable PR), off on Prod; amendment (4) (area charts, avatars, public names; W46–W55) implemented, shown once Spec 022 `metadata@2` data exists; slices 4–7 not implemented
+Status: Accepted 2026-10-14 (all nine owner decisions recorded); amended 2026-10-15 (slice 2 split into 2a and 2b, decision 10; slice 3 widened to login prefixes; slice 2b storage, identity and budget); slice 1 is Spec 022 (live on Dev, 12 months backfilled); slices 2a and 3 implemented; slice 2b implemented, `PEOPLE_ACTIVITY=log@1` on Dev only (enable PR), off on Prod; amendment (4) (area charts, avatars, public names; W46–W55) implemented, shown once Spec 022 `metadata@2` data exists; amendment (5) (chart and tiles at the top, W56–W65) implemented; slices 4–7 not implemented
 Date: 2026-10-13 (decisions recorded 2026-10-14; amendment and decision 10 2026-10-15)
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 008 (content-addressed objects), Spec 009 (bounded memory), Spec 012 (dev@ and Jira), Spec 014 (digest profiles), Spec 015 (governance profile and ASF roster), Spec 016/017 (search, "exact matches first"), Spec 018 (daily publication)
@@ -444,6 +444,10 @@ first when the query is exactly an identity.
   order but alphabetical is a ranking).
 
 ### Sections of the page, in order
+
+Amended 2026-10-16: the order and the top of the page are those of
+[amendment (5)](#amendment-2026-10-16-5-the-top-of-the-profile-as-a-chart-and-tiles)
+(W56); the table below is the original rationale of each section.
 
 | # | Section | Why it exists |
 | --- | --- | --- |
@@ -1213,6 +1217,101 @@ The response grows by one entry per distinct pull request (about 40 bytes;
 name. Avatars: one image request per visible person to GitHub, from the
 browser, lazy; none to our servers.
 
+## Amendment 2026-10-16 (5): the top of the profile as a chart and tiles
+
+Owner, 2026-10-16, on the Dev profile of `Parkerhiphop`: "最上面一欄能夠更直觀一點嗎？
+希望有個由左到右的長條圖 bar chart 顯示 over time，然後是文字 activity。現在的有點沒有
+衝擊感。" A static mockup built from the real Dev response of
+`github:Parkerhiphop` and `mail:andrew schofield` was approved the same day
+("設計的不錯，很清楚，可以套用到 dev"). This amendment is that design. It changes
+only the page: the response, the reads and Prod (W25) are unchanged; the chart
+and the tiles are computed from the response the page already has (W65).
+
+### What was wrong with the top of the page
+
+1. No hierarchy: the key numbers ("16 reviews on 12 pull requests") were
+   body-sized link text, all with equal weight.
+2. "Over time" was a vertical table of up to 14 rows with an unlabelled bar:
+   time read top to bottom, and "—" (not recorded) beside "0" was unclear.
+3. The coverage chips with date ranges competed with the name.
+4. The trend came after the counts, below the fold on a phone.
+
+### The page, in order (W56, replaces the order of W5)
+
+| # | Section | Content |
+| --- | --- | --- |
+| 1 | Header (`header`) | GitHub avatar (GitHub identities), public name or display name, a source badge with the login (linked upstream) and "Activity in <community>", the 12 months / 90 days toggle; below, one plain sentence for the selected period (`.person-summary`): GitHub "Past 90 days: reviewed 12 pull requests, opened 4 pull requests (2 merged), commented in 2 threads"; Jira "…: reported N issues, commented N times on N issues"; dev@ "…: wrote N dev@ messages in N threads". A source whose coverage starts inside the period adds "(<source> recorded since <date>)" |
+| 2 | Activity over time (`over-time`) | The chart (below), its legend, the collapsed "Data range" line, and "Show as table" |
+| 3 | Activity (`activity`) | Count tiles (below) |
+| 4 | Areas (`areas`) and Works with (`works-with`) | Side by side from 720 px, stacked below |
+| 5 | Threads (`threads`) | Unchanged |
+| 6 | Identities (`identities`) and How this is computed (`how`) | Unchanged, moved to the bottom: they explain the page rather than describe the person |
+
+### The chart (W57–W61)
+
+- **Buckets, left to right.** One column per month in the 12-month view and
+  per week (Monday, UTC) in the 90-day view, from `profileView`'s `overTime`.
+  The 12-month view always has 12 columns ending with the current month, and
+  the 90-day view starts at the week of 90 days before now: a bucket the
+  response has no row for is "not recorded" in every series, not absent, so a
+  dev@ identity with 35 days of data shows ten months not recorded instead of
+  a two-column chart.
+- **Series, strict identity.** GitHub: above the axis, stacked, what the
+  person did: reviews given and the activity log's GitHub records (pull
+  requests, issues, comments); below the axis, mirrored, reviews others gave
+  on their pull requests. Received reviews are not the person's own work, so
+  they are not added to the stack (Parker received 30 in August and gave 6).
+  Jira: Jira records only; dev@: dev@ messages only.
+- **One scale.** Both directions share one unit, from 0, ticks at a step of
+  1, 2 or 5 × 10^k (at most about three above the axis), so a review given and
+  a review received of the same count are bars of the same height. The total
+  is written above each column and below each received bar.
+- **Not recorded.** A value with no coverage is null, never 0. Where none of
+  the person's own series is recorded, the columns are a hatched band labelled
+  "Not recorded yet" (尚未記錄). Where only some are, a thin coverage lane under
+  the axis shows, per series, the buckets recorded (solid) and not (hatched).
+  A bucket that starts before a series' coverage (or before the period) says so
+  in its tooltip ("GitHub activity recorded since 9/10").
+- **Text alternative.** The `svg` is `role="img"` with an `aria-label` that
+  names the period, the series, and the busiest bucket; "Show as table"
+  (以表格檢視) toggles a table with one row per bucket and one column per
+  series, "Not recorded yet" where null. Each column has a tooltip with every
+  series of the bucket.
+
+### The tiles (W62)
+
+Large numbers with a short label, a one-line detail, and the series colour:
+
+| Identity | Tiles |
+| --- | --- |
+| GitHub | Reviews given (on N pull requests · approved, changes requested, commented, inline comments); Reviews received (on N pull requests · from N reviewers); Pull requests opened (N merged); Comments (on N threads, N on their own); Issues opened only when not 0 |
+| Jira | Issues reported; Comments; Issues taken part in |
+| dev@ | dev@ messages (in N threads); [DISCUSS] threads; [VOTE] threads |
+
+A tile whose source is not recorded shows "Not recorded yet" in place of the
+number. A tile whose source's coverage starts after the period's start adds
+"recorded since <date>". Four columns from 720 px, two below; three tiles stay
+three columns down to 340 px.
+
+### Data range (W63)
+
+The chips under the name are replaced by one collapsed line under the chart:
+"Data range: Reviews since 11/1 · Comments, pull requests since 9/10". Opened,
+it lists each source's coverage with the texts of W27 and the period with its
+days (W5's "<from> to <until> · <n> days of data").
+
+### Example (Dev, 2026-10-15 20:03 UTC release, read 2026-10-16)
+
+`github:Parkerhiphop`, 90 days: 14 weekly columns from the week of 07-13;
+reviews given 16 on 12 pull requests, received 50 on 14 from 9 reviewers,
+4 pull requests opened (2 merged), 2 comments on 2 threads; GitHub activity
+recorded from 2026-09-10, so the lane is hatched for the eight weeks before
+09-07 and the week of 09-07 says "recorded since 9/10". 12 months: the
+received bar of 2026-08 (30) sets the scale (step 10, 30 below, 20 above).
+`mail:andrew schofield`, 12 months: 2025-11 to 2026-08 one hatched band,
+2026-09 19 messages, 2026-10 4. The chart's case file uses these counts
+(numbers only, no identity) as its `dev-shaped` rows.
+
 ## Slices
 
 Reviews first (decision 7, 2026-10-14), then the smallest useful page. Each
@@ -1336,6 +1435,20 @@ events on each side of a rule (`constructed`). Read at the capture time,
 
 Named tests of amendment (4): `apps/web/test/people-areas-ui.test.ts` (W46, W48, W49, W51, W53 rendered on the server and the Prod gate) and `apps/web/e2e/people-areas.spec.ts` (W48–W53 in the browser, with GitHub's avatar host answered by a constructed image or refused).
 
+Amendment (5): the chart model's rows (`apps/web/test/profile-chart.cases.ts`, computed by `activityChart` and `chartLayout` in `apps/web/src/profile-chart.ts`); `dev-shaped` rows carry the counts of the Example, `constructed` rows edge cases. Named tests: `apps/web/test/people-chart-ui.test.ts` (W56, W60–W63 rendered on the server) and `apps/web/e2e/people-chart.spec.ts` (W61, W64, W65 in the browser).
+
+<!-- test-plan:start apps/web/test/profile-chart.cases.ts -->
+| id | case | data | fixture | columns | series | scale | band | lanes | partial | clipped | peak |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| W57 | a GitHub identity over 12 months: 12 monthly columns, oldest on the left | dev-shaped | github-12m | 12: 2025-11 … 2026-10 | given + github / received | 10, 20, 30 | — | github | 2026-09 github from 2026-09-10 | — | 2026-09 13 |
+| W57 | the same identity over 90 days: 14 weekly columns from the week of now − 90 days | dev-shaped | github-90d | 14: 2026-07-13 … 2026-10-12 | given + github / received | 5, 10, 10 | — | github | 2026-09-07 github from 2026-09-10 | 2026-07-13 | 2026-09-21 6 |
+| W57 | a dev@ identity with 35 days of data still has 12 monthly columns; ten are not recorded | dev-shaped | mail-12m | 12: 2025-11 … 2026-10 | mail / — | 10, 20, 0 | 2025-11 – 2026-08 | — | — | 2026-09 | 2026-09 19 |
+| W57 | the dev@ identity over 90 days: the weeks before the log are one band | dev-shaped | mail-90d | 14: 2026-07-13 … 2026-10-12 | mail / — | 5, 10, 0 | 2026-07-13 – 2026-08-31 | — | — | 2026-09-07 | 2026-09-21 9 |
+| W58 | a Jira identity charts Jira only, although the rows carry reviews, GitHub and dev@ counts | constructed | jira-12m | 12: 2025-11 … 2026-10 | jira / — | 1, 2, 0 | 2025-11 – 2026-08 | — | — | 2026-09 | 2026-09 2 |
+| W60 | a GitHub identity in a community without the activity log: reviews drawn, GitHub activity a lane, never 0 | constructed | github-no-log | 12: 2025-11 … 2026-10 | given + github / received | 1, 2, 1 | — | github | — | — | 2026-09 2 |
+| W59 | everything recorded and 0: no band, no lane, a scale of one step | constructed | github-zeros | 14: 2026-07-13 … 2026-10-12 | given + github / received | 1, 1, 0 | — | github | 2026-09-07 github from 2026-09-10 | 2026-07-13 | — |
+<!-- test-plan:end -->
+
 <!-- test-plan:start packages/reference-pipeline/test/people-activity.cases.ts -->
 | id | case | data | person | status | github | jira | mail | areas | worksWith |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -1365,7 +1478,7 @@ Each item: precondition → action → observable result → evidence. All are
 - W2: given a record ingested twice (a retried run, a newer version of it, or the same state appended on two days), the activity month object holds one row for it and an unchanged month is not written again; a Jira issue updated in two months is counted once → unit tests on the row builder, the merge and the append, with a positive control (a new record adds a row and rewrites only its month). (Review rows are not appended by this spec; their idempotence is Spec 022 RV5.)
 - W3: given a pull request created on the last second of a month and merged and updated 40 days later, its row is in the month it was created and keeps its creation and merge times (not the update time, amendment (2)); one second later it is the next month's; a pull request created before the log's coverage writes no row → case rows on each side of a month boundary and of the coverage start.
 - W4: given a thread with labels `clients`, `small`, `ci-approved` and a Kafka profile naming the last two as process labels, the area is `clients` only; given a dev@ thread, the page says "no area data from dev@" → case rows.
-- W5: given the page for an identity, sections appear in the order of this spec and the header states the period covered and the number of days of data → component test.
+- W5: given the page for an identity, sections appear in the order of this spec and the page states the period covered and the number of days of data → component test (amended 2026-10-16: the order is W56's, and the period with its days is in the "Data range" line of W63).
 - W6: given an identity with rows only before the selected period, the page says there is no activity in this period and shows no zero-filled chart → component test, with a positive control on the same identity in the full period.
 - W7: given the query `chia7712` (any case, or with a leading `@`), the first person result is `github:chia7712` with `match: exact`; given a two-character-or-longer prefix, person results are the exact match, then prefix matches alphabetically, at most 3 in all, merged across projects exact first; the thread list is the `/api/search` response unchanged, below the person results → case rows, merge unit test, E2E.
 - W40: the person index holds exactly the identities whose profile answers 200: bots (the profile's list, `[bot]`, typed `Bot` in a row), the deleted account, suppressed identities and logins whose rows are all before the view are absent; a month that cannot be read is skipped → case rows with positive controls, and a test that every fixture login is found if and only if its profile is 200.
@@ -1381,6 +1494,16 @@ Each item: precondition → action → observable result → evidence. All are
 - W51: given a stored public name, the header shows it as the heading with the login beneath, as escaped text; without one, the login alone; the name is display only and links nothing; a counterpart's name, suppressed or not, is never in the response → case rows, UI test and E2E.
 - W52: a person result in Search shows the avatar and the public name with the login beneath → E2E and the search API's `name`.
 - W53: the avatar URL is `https://avatars.githubusercontent.com/<login>?s=<2 × size>` built only from a string matching GitHub's login rule (anything else, including paths, queries, `[bot]` logins and `javascript:`, gets the neutral initial and no `img`); the image has width, height, alt, `loading="lazy"` and `referrerpolicy="no-referrer"`; a refused image falls back to the initial; on Prod the profile API answers 404 with no name and no area field → UI test and E2E.
+- W56: given a profile, the sections are `header`, `over-time`, `activity`, `areas`, `works-with`, `threads`, `identities`, `how` in that order; the header holds the avatar (GitHub), the name, the source badge with the login, "Activity in <community>" and the period toggle, and one sentence summarising the selected period from the same totals as the tiles, with "recorded since <date>" when the source's coverage starts inside the period → UI test (amendment (5), replaces the order of W5).
+- W57: the chart has one column per month (12 in the 12-month view, ending with the month of `until`) or per week from the week of 90 days before now (90-day view), oldest on the left; a bucket without a row in `overTime` is not recorded in every series → case rows.
+- W58: a GitHub identity's chart stacks reviews given and GitHub activity above the axis and mirrors reviews received below; a Jira or dev@ identity's chart has its own source only; no other source's series appears → case rows.
+- W59: both directions share one scale from 0 with a step of 1, 2 or 5 × 10^k; every segment's height is its value times the unit, stacked segments touch, and each column's total is its own series' sum → case rows.
+- W60: a value not recorded is null and is never drawn or written as 0; buckets where none of the person's own series is recorded form one hatched band labelled "Not recorded yet"; a series not recorded in some buckets where another is gets a coverage lane; a bucket that starts before a series' coverage names the date in its tooltip → case rows and UI test.
+- W61: the chart `svg` is `role="img"` with an `aria-label` naming the period, the series and the busiest bucket; "Show as table" shows one row per bucket with "Not recorded yet" for null; hovering or tapping a column shows its values → UI test and E2E.
+- W62: GitHub tiles are reviews given, reviews received, pull requests opened and comments (issues opened only when not 0); Jira and dev@ have three tiles of their source; a tile of a source not recorded shows "Not recorded yet" and no number; a tile whose coverage starts inside the period says "recorded since <date>" → UI test, both locales.
+- W63: the coverage chips are gone; a collapsed "Data range" line under the chart lists the start of each of the identity's sources and, opened, every source's range (W27's texts) and the period with its days → UI test.
+- W64: at 320 and 375 px the redesigned profile (GitHub with the activity log, and dev@ only) has no horizontal overflow, the chart fits its card, and the tiles are two columns (three for three tiles at 375 px) → E2E with screenshots.
+- W65: opening a profile and switching the period sends exactly one `/api/people/:project/:id` request and no other API request beyond what the page sent before → E2E counting requests.
 - W34: given an activity month, its stored summary holds, for every identity in the month, the counters `indexActivityMonth` computes for it (decision 10: one function for the reader and the summary) → test over every month of the recorded store.
 
 ### Failure and retry

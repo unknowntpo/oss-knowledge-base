@@ -110,7 +110,7 @@ describe("Spec 019 areas amendment: profile page", () => {
     const page = await render(PersonProfile, { profile: await profile(FULL), nowMs: NOW });
     expect(page).toContain("&lt;b&gt;Ada&lt;/b&gt; &amp; Co");
     expect(page).not.toContain("<b>Ada</b>");
-    expect(text(page)).toMatch(/^&lt;b&gt;Ada&lt;\/b&gt; &amp; Co ada Activity in Apache Kafka/u);
+    expect(text(page)).toMatch(/^&lt;b&gt;Ada&lt;\/b&gt; &amp; Co GitHub ada Activity in Apache Kafka/u);
     const plain = await render(PersonProfile, { profile: await profile([{ month: "2026-10", rows: [row(2, 11, "2026-10-10T10:00:00Z")] }]), nowMs: NOW });
     expect(plain).not.toContain("data-login");
     expect(plain).toMatch(/class="person-name"[^>]*>ada</u);
