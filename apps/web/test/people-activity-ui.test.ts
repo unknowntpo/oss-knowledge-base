@@ -74,11 +74,12 @@ beforeAll(async () => {
 const text = (html: string) => html.replace(/<!--[\s\S]*?-->/gu, "").replace(/<[^>]+>/gu, " ").replace(/\s+/gu, " ").trim();
 
 describe("Spec 019 slice 2b: profile page with the activity log", () => {
-  test("W27: the header states the activity log's own coverage next to the reviews'; nothing is 'not recorded'", async () => {
-    const html = text(await render(components.PersonProfile, { profile: await profile("github:chia7712"), nowMs: NOW }));
+  test("W27: the data range states the activity log's own coverage next to the reviews'; nothing is 'not recorded'", async () => {
+    const page = await render(components.PersonProfile, { profile: await profile("github:chia7712"), nowMs: NOW });
+    const html = text(page);
     expect(html).toContain("Reviews: 2025-11-01 to 2026-10-14");
     expect(html).toContain("Comments, pull requests, Jira, dev@: 2026-09-09 to 2026-10-14");
-    expect(html).not.toContain("not recorded");
+    expect(text(page.slice(page.indexOf("data-range"), page.indexOf("</details>")))).not.toContain("not recorded");
     expect(html).toContain("Source: the activity log of Comments, pull requests, Jira, dev@, recorded daily since 2026-10-14; its first record held what the site had then, from 2026-09-09.");
     const zh = text(await render(components.PersonProfile, { profile: await profile("github:chia7712"), nowMs: NOW }, "zh-Hant"));
     expect(zh).toContain("GitHub 留言與 PR、Jira、dev@：2026-09-09 至 2026-10-14");
@@ -86,10 +87,10 @@ describe("Spec 019 slice 2b: profile page with the activity log", () => {
 
   test("W1 and W5: a GitHub profile shows reviews and its own activity; sections keep the spec's order; areas leave process labels out", async () => {
     const page = await render(components.PersonProfile, { profile: await profile("github:chia7712"), nowMs: NOW });
-    expect([...page.matchAll(/data-section="([a-z-]+)"/gu)].map((match) => match[1])).toEqual(["header", "identities", "activity", "over-time", "areas", "threads", "works-with", "how"]);
+    expect([...page.matchAll(/data-section="([a-z-]+)"/gu)].map((match) => match[1])).toEqual(["header", "over-time", "activity", "areas", "works-with", "threads", "identities", "how"]);
     const html = text(page);
-    expect(html).toContain("Pull requests opened 0 (0 merged)");
-    expect(html).toContain("Comments 59 on 48 threads (0 on their own)");
+    expect(html).toContain("Pull requests opened 0 0 merged");
+    expect(html).toContain("Comments 59 on 48 threads · 0 on their own");
     expect(html).toContain("clients 10 threads");
     expect(html).not.toMatch(/ci-approved|\bsmall \d/u);
     expect(html).toContain("Wrote in threads started by gabriellefu shared threads: 5");
@@ -102,13 +103,15 @@ describe("Spec 019 slice 2b: profile page with the activity log", () => {
     const page = await render(components.PersonProfile, { profile: await profile("mail:Andrew Schofield"), nowMs: NOW });
     const html = text(page);
     expect(html).toContain("Andrew Schofield");
-    expect(html).toContain("dev@ messages 23 in 11 threads · [DISCUSS] 4, [VOTE] 4");
+    expect(html).toContain("dev@ messages 23 in 11 threads");
+    expect(html).toContain("[DISCUSS] threads 4");
+    expect(html).toContain("[VOTE] threads 4");
     expect(html).toContain("KIP-1368 2 threads");
     expect(html).toContain("No area data from dev@");
     expect(html).toContain("Identified by the name the source shows");
     expect(html).not.toMatch(/Reviews given|Pull requests opened|Comments \d/u);
-    expect(page).toContain('data-column="mail"');
-    expect(page).not.toContain('data-column="given"');
+    expect(page).toContain('data-legend="mail"');
+    expect(page).not.toContain('data-legend="given"');
     expect(page).toContain('data-thread-source="mail"');
   });
 
