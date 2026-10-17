@@ -95,3 +95,27 @@ test("W65: the profile sends one profile request; switching the period and the t
   await page.waitForLoadState("networkidle");
   expect(api.slice(before)).toEqual([]);
 });
+
+// Spec 023 DS4: the computed colours of the chart, the legend and the donut (the token values are
+// unit-tested in test/design-system.test.ts).
+test("DS4, DS6: series are a translucent fill with a 3:1 outline, the legend matches, the donut uses the area palette", async ({ page }) => {
+  await open(page, aliceRoute);
+  const mark = async (series: string) => page.locator(`.person-chart-svg path[data-series="${series}"]`).first().evaluate((node) => {
+    const style = getComputedStyle(node);
+    return { fill: style.fill, stroke: style.stroke, width: style.strokeWidth };
+  });
+  // Chromium serialises color-mix(in srgb, X a%, transparent) as color(srgb r g b / a).
+  const alpha = (value: string) => Number(/\/\s*([\d.]+)\)$/u.exec(value)?.[1]);
+  const given = await mark("given");
+  expect(given.stroke).toBe("rgb(58, 143, 183)");
+  expect(given.width).toBe("1.2px");
+  expect(alpha(given.fill)).toBeCloseTo(0.55, 2);
+  const github = await mark("github");
+  expect(github.stroke).toBe("rgb(131, 138, 45)");
+  expect(alpha(github.fill)).toBeCloseTo(0.5, 2);
+  const received = await mark("received");
+  expect(received.stroke).toBe("rgb(139, 129, 195)");
+  expect(alpha(received.fill)).toBeCloseTo(0.3, 2);
+  await expect(page.locator('[data-chart-legend] [data-legend="received"] .person-swatch')).toHaveCSS("box-shadow", "rgb(139, 129, 195) 0px 0px 0px 1.5px inset");
+  await expect(page.locator('.person-donut-slice[data-color="2"]').first()).toHaveCSS("stroke", "rgb(174, 55, 86)");
+});
