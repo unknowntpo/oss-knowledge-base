@@ -1,6 +1,6 @@
 # Spec 023: Design system for the web app
 
-Status: Accepted 2026-10-17 (owner approved the design-system audit and proposal with changes); slice 1 (colour bugs, DS1–DS3) implemented; slice 2 (data-viz tokens and palettes, DS4–DS6) implemented; slices 3–7 not implemented
+Status: Accepted 2026-10-17 (owner approved the design-system audit and proposal with changes); slice 1 (colour bugs, DS1–DS3) implemented; slice 2 (data-viz tokens and palettes, DS4–DS6) implemented; slice 3 (text contrast, DS7) implemented; slices 4–7 not implemented
 Date: 2026-10-17
 Traceability: enforced
 Builds on: constitution §6 (visual language), Spec 019 (contributor profile chart and area donut), gardening G89 and G92
@@ -57,7 +57,7 @@ received in Mar; six area labels), local build of `f362711`:
 | Not recorded (hatch) | `#d8d4cc` on `#faf9f7`, **1.40:1** | `#928e86` on `#faf9f7`, 3.10:1 |
 | Jira series (Jira identity) | solid `#2a6089` | 水浅葱 `#66bab7` at 50% with 青碧 `#268785`, 4.30:1 |
 | dev@ series (dev@ identity) | solid `#a3542a` (rust, orange family) | 紅梅 `#e16b8c` at 40% with 今様 `#d05a6e`, 3.91:1 |
-| Area donut, 6 slices + other | `#3a53b0 #e35b3f #2f8f6b #b07d1a #8a4fb0 #3c8fbf #a7a39a`: min ΔE00 2.7 (protan), orange in slot 2, slot 6 ΔE00 1 from 千草 | `#3a53b0 #ae3756 #0b664f #6b6a1a #7a3266 #3f7292 #737372`: min ΔE00 11.0 (normal, protan, deutan), no orange, ≥ 11.0 from every activity colour |
+| Area donut, 6 slices + other | `#3a53b0 #e35b3f #2f8f6b #b07d1a #8a4fb0 #3c8fbf #a7a39a`: min ΔE00 2.7 (protan), orange in slot 2, slot 6 ΔE00 1 from 千草 | `#3a53b0 #ae3756 #0b664f #6b6a1a #7a3266 #3f7292 #737372`: min ΔE00 ≈ 11 under normal, protan and deutan vision (11.01 unrounded; 10.8 with 8-bit quantised simulation; enforced floor 10), no orange, ≥ 11.0 from every activity colour |
 
 Dark tokens (no theme sets them yet), measured on the dark card `#202027`:
 fills at 25% / 25% / 22% with outlines 勿忘草 `#7db9de` 7.61:1, 柳茶
@@ -71,6 +71,19 @@ The area palette comes from a constrained search run for the design audit
 slot replaced, require ≥ 3:1 on white, no LCh hue in 30–85° above chroma 15,
 a neutral "other", min ΔE00 ≥ 11 under normal, protan and deutan, and ΔE00 ≥ 11
 from every activity colour, then minimise the drift from the start.
+
+Slice 3, the E2E fixture's feed `/#/kafka/threads` and detail
+`/#/feed/KAFKA-PR-43`, local build of `38bd390`:
+
+| Text | Before | After slice 3 |
+| --- | --- | --- |
+| "PROJECT", "SOURCE" filter labels (10.5px), facet counts, card project, timeline time, "recorded since" | `--muted-3` `#9a968d`: 2.68:1 on the page | `--text-muted` `#6b6860`: 5.06:1 on the page |
+| Search placeholder | `--muted-4` `#a7a39a`: 2.39:1 on `#faf9f7` | `--text-muted`: 5.29:1 |
+| Search icon, external-link arrow | `#9a968d` 2.95:1, `#a7a39a` 2.52:1 | `--icon-muted` `#928e86`: 3.10:1 on the field, 3.26:1 on the card |
+| "open source · multi-project" in the top bar (11px) | `#7f7c86`: 4.41:1 | `--dark-muted` `#8f8c96`: 5.46:1 |
+| Focus ring on the top bar's selects | `#3a53b0`: 2.62:1 | `#8c9be8`: 6.85:1 |
+| Profile "unavailable" line | `#e35b3f`: 3.27:1 on the page | `#b8432a`: 4.93:1 |
+| Feed badges "Early" / "Open" | `#9a6410` 4.498:1 / `#1f883d` 4.06:1 | `#8a5a0e` 5.33:1 / `#1b7a36` 4.86:1 |
 
 ## Simplification review
 
@@ -115,6 +128,18 @@ from every activity colour, then minimise the drift from the start.
 6. The area donut keeps its own solid palette (slot by rank as before) and
    shares no colour with the activity chart, so one colour never means two
    things on a profile.
+7. Text is never lighter than `--text-muted` `#6b6860` (5.06:1 on the page,
+   4.89:1 on a chip): small labels, counts, timestamps, the search
+   placeholder and the profile's "recorded since" lines use it; hierarchy
+   below it comes from size, case and letter-spacing. Glyphs that carry no
+   text (the search icon, the external-link arrow) use `--icon-muted`
+   `#928e86` (≥ 3:1). Error text uses `--text-danger` `#b8432a`. On the dark
+   top bar, small text uses `--dark-muted` and the focus ring
+   `--focus-ring-inverse` `#8c9be8` (6.85:1). The feed's `.status-early` and
+   `.status-open` get darker foregrounds until slice 5 replaces the badges.
+8. Every `color-mix()` declaration follows a plain declaration of the same
+   property (the series fill colour), so a browser without `color-mix()`
+   draws a solid series instead of a black fill or an empty swatch.
 
 ## Acceptance
 
@@ -127,7 +152,7 @@ Each item: precondition → action → observable result → evidence.
 - DS4: given the stylesheet, the profile activity chart, its legend, tile and tooltip swatches, the hatch and the area donut take colours from `--data-*` tokens only, and no `--data-*` token aliases another token; the activity series are the owner's values — light: reviews given fill `#7db9de` at 55% with outline `#3a8fb7`, own PRs and comments fill `#91ad70` at 50% with outline `#838a2d`, reviews received fill `#8b81c3` at 30% with outline `#8b81c3`, outline width 1.2px, unrecorded hatch line `#928e86` on `#faf9f7`; dark: the same fills at 25% / 25% / 22% with outlines `#7db9de` / `#91ad70` / `#8b81c3` measured on `#202027`, hatch line `#716e7a` on `#26262e`; on the rendered profile the marks compute to those outlines and fill alphas → unit test, E2E computed style.
 - DS5: given the data tokens, every outline or solid mark measures ≥ 3:1 on the background it is drawn on: the card `--surface`, the tooltip `--dark-bar`, the hatch base, and in the dark tokens the dark card `#202027` and the dark hatch base `#26262e` → unit test over the case file.
 - DS6: given the area tokens, every pair is ΔE00 ≥ 10 apart under normal, protan and deutan simulation (Machado 2009, full severity), every one measures ≥ 3:1 on the card, no data colour is orange (LCh hue 30–85° above chroma 15), and no area colour is within ΔE00 10 of an activity-chart colour → unit test, E2E computed style.
-- DS7: [pending] slice 3: every listed text pair (selector, foreground token, background token) measures ≥ 4.5:1, and the focus ring on the dark top bar ≥ 3:1.
+- DS7: given the stylesheet, every DS7 row of the case file names a rule whose `color` (for the top-bar focus ring, `outline-color`) is that row's foreground, and the pair measures ≥ 4.5:1 for text or ≥ 3:1 for an icon glyph or focus ring on the lightest surface the rule sits on; no rule sets text in `--muted-3`, `--muted-4`, `--dark-muted-2` or brand orange; on the rendered detail page a focused top-bar control shows `#8c9be8` and the timeline time `#6b6860` → unit test over the case file, E2E computed style.
 - DS8: [pending] slice 4: `docs/product/design-system.md` lists the tokens, roles, rules and data-viz palettes with measured ratios, and constitution §6 links to it.
 - DS9: [pending] slice 5: feed and digest badges use six semantic states (success, info, warning, progress, neutral, danger); feed "open" is info and "merged" is success.
 - DS10: [pending] slice 6: no colour literal appears in `apps/web` styles or components outside the token block.
@@ -186,6 +211,29 @@ exactly these rows.
 | DS6 | light | area 5 (plum) on the card | --data-area-5 | --surface | 3 | 8.48 |
 | DS6 | light | area 6 (steel blue) on the card | --data-area-6 | --surface | 3 | 5.21 |
 | DS6 | light | area other (grey) on the card | --data-area-other | --surface | 3 | 4.75 |
+| DS7 | light | .examples-label | --text-muted | --page-bg | 4.5 | 5.06 |
+| DS7 | light | .filter-label | --text-muted | --page-bg | 4.5 | 5.06 |
+| DS7 | light | .card-project | --text-muted | --page-bg | 4.5 | 5.06 |
+| DS7 | light | .evidence-label | --text-muted | --page-bg | 4.5 | 5.06 |
+| DS7 | light | .topic-meta .k | --text-muted | --page-bg | 4.5 | 5.06 |
+| DS7 | light | .ai-item .n | --text-muted | --page-bg | 4.5 | 5.06 |
+| DS7 | light | .tl-period | --text-muted | --page-bg | 4.5 | 5.06 |
+| DS7 | light | .tl-foot | --text-muted | --page-bg | 4.5 | 5.06 |
+| DS7 | light | .rail-label | --text-muted | --page-bg | 4.5 | 5.06 |
+| DS7 | light | .rail-row .num | --text-muted | --page-bg | 4.5 | 5.06 |
+| DS7 | light | .rail-source > .num | --text-muted | --page-bg | 4.5 | 5.06 |
+| DS7 | light | .person-chart-table td.is-unrecorded | --text-muted | --page-bg | 4.5 | 5.06 |
+| DS7 | light | .person-tile-since | --text-muted | --page-bg | 4.5 | 5.06 |
+| DS7 | light | #q::placeholder | --text-muted | --surface-alt | 4.5 | 5.29 |
+| DS7 | light | .filter-row .count | --text-muted | --chip-bg | 4.5 | 4.89 |
+| DS7 | light | .tl-time | --text-muted | #fdf7e3 | 4.5 | 5.19 |
+| DS7 | light | .person-unavailable | --text-danger | --page-bg | 4.5 | 4.93 |
+| DS7 | light | .brand-scope | --dark-muted | --dark-bar | 4.5 | 5.46 |
+| DS7 | light | .status-early | #8a5a0e | #fdf2dc | 4.5 | 5.33 |
+| DS7 | light | .status-open | #1b7a36 | #dafbe1 | 4.5 | 4.86 |
+| DS7 | light | .search-icon | --icon-muted | --surface-alt | 3 | 3.1 |
+| DS7 | light | .source-link .ext | --icon-muted | --surface | 3 | 3.26 |
+| DS7 | light | .topbar :focus-visible | --focus-ring-inverse | --dark-bar | 3 | 6.85 |
 <!-- test-plan:end -->
 
 ## Non-goals
