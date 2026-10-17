@@ -1,9 +1,9 @@
 # Spec 023: Design system for the web app
 
-Status: Accepted 2026-10-17 (owner approved the design-system audit and proposal with changes); slice 1 (colour bugs, DS1–DS3) implemented; slice 2 (data-viz tokens and palettes, DS4–DS6) implemented; slice 3 (text contrast, DS7) implemented; slices 4–7 not implemented
+Status: Accepted 2026-10-17 (owner approved the design-system audit and proposal with changes); slice 1 (colour bugs, DS1–DS3) implemented; slice 2 (data-viz tokens and palettes, DS4–DS6) implemented; slice 3 (text contrast, DS7) implemented; slice 4 (semantic layer, design-system page, DS8) implemented; slices 5–7 not implemented
 Date: 2026-10-17
 Traceability: enforced
-Builds on: constitution §6 (visual language), Spec 019 (contributor profile chart and area donut), gardening G89 and G92
+Builds on: constitution §6 (visual language), ADR-0017 (the design system it links), Spec 019 (contributor profile chart and area donut), gardening G89 and G92
 
 ## Intent
 
@@ -140,6 +140,21 @@ Slice 3, the E2E fixture's feed `/#/kafka/threads` and detail
 8. Every `color-mix()` declaration follows a plain declaration of the same
    property (the series fill colour), so a browser without `color-mix()`
    draws a solid series instead of a black fill or an empty swatch.
+9. Components use semantic tokens (`--surface-*`, `--text-*`, `--border-*`,
+   `--accent`, `--brand`, `--icon-muted`, `--focus-ring-inverse`), data
+   tokens, avatar tokens or fonts. The rank names (`--text-1..3`,
+   `--muted-1`, `--border-1..3`, `--page-bg`, `--dark-*`, `--chip-*`,
+   `--accent-tint*`) are gone. `--muted-1` `#716e67` (4.33–4.48:1 on chips
+   and badge tints) and `--chip-text` `#6f6c76` (4.52:1 on a chip) become
+   `--text-muted`, so no role used on a chip is below 4.5:1. There is no
+   primitive layer; `docs/product/design-system.md` says when to add one.
+10. No element that holds text is faded with `opacity`: the gate measures a
+   token, and opacity lowers the drawn contrast without changing it. The
+   timeline filter count was 3.61:1 (pressed 3.25:1); it is now
+   `--text-muted` (5.56:1) and, pressed, `--accent` (6.11:1). An absent
+   source chip on a feed card (`.source-dot.off`, 0.35) is outlined with
+   `--text-muted` instead. `.tag-chip .count` (0.6, 2.74:1) had no element
+   using it and is deleted.
 
 ## Acceptance
 
@@ -153,7 +168,7 @@ Each item: precondition → action → observable result → evidence.
 - DS5: given the data tokens, every outline or solid mark measures ≥ 3:1 on the background it is drawn on: the card `--surface`, the tooltip `--dark-bar`, the hatch base, and in the dark tokens the dark card `#202027` and the dark hatch base `#26262e` → unit test over the case file.
 - DS6: given the area tokens, every pair is ΔE00 ≥ 10 apart under normal, protan and deutan simulation (Machado 2009, full severity), every one measures ≥ 3:1 on the card, no data colour is orange (LCh hue 30–85° above chroma 15), and no area colour is within ΔE00 10 of an activity-chart colour → unit test, E2E computed style.
 - DS7: given the stylesheet, every DS7 row of the case file names a rule whose `color` (for the top-bar focus ring, `outline-color`) is that row's foreground, and the pair measures ≥ 4.5:1 for text or ≥ 3:1 for an icon glyph or focus ring on the lightest surface the rule sits on; no rule sets text in `--muted-3`, `--muted-4`, `--dark-muted-2` or brand orange; on the rendered detail page a focused top-bar control shows `#8c9be8` and the timeline time `#6b6860` → unit test over the case file, E2E computed style.
-- DS8: [pending] slice 4: `docs/product/design-system.md` lists the tokens, roles, rules and data-viz palettes with measured ratios, and constitution §6 links to it.
+- DS8: given the stylesheet, every `:root` token outside the data, avatar, font and series families is a role named surface, text, border, accent, brand, icon or focus-ring holding a literal; `docs/product/design-system.md` lists each such token and each area token with its value, and lists none that is undefined; constitution §6 links that page; no rule sets `opacity` below 1, and the timeline filter counts, source chips, keywords and thread-status chips that used opacity or `--chip-text` are bound to solid pairs ≥ 4.5:1 in the normal and pressed states; on the rendered detail page the pressed and unpressed filter counts compute to `#3a53b0` and `#6b6860` at opacity 1 → unit test over the case file, E2E computed style.
 - DS9: [pending] slice 5: feed and digest badges use six semantic states (success, info, warning, progress, neutral, danger); feed "open" is info and "merged" is success.
 - DS10: [pending] slice 6: no colour literal appears in `apps/web` styles or components outside the token block.
 - DS11: [pending] slice 7: font sizes come from the 8-step scale (12.5px maps to 13px), and spacing and radius values from their scales (`--space-*`, `--radius-*`).
@@ -177,63 +192,69 @@ Generated from the case file by `bun run docs:test-plan`; the unit tests run
 exactly these rows.
 
 <!-- test-plan:start apps/web/test/design-system.cases.ts -->
-| id | theme | pair | foreground | background | min | ratio |
-| --- | --- | --- | --- | --- | --- | --- |
-| DS1 | light | avatar initials on --avatar-1 (indigo) | #ffffff | --avatar-1 | 4.5 | 6.9 |
-| DS1 | light | avatar initials on --avatar-2 (green) | #ffffff | --avatar-2 | 4.5 | 5.2 |
-| DS1 | light | avatar initials on --avatar-3 (rust) | #ffffff | --avatar-3 | 4.5 | 5.44 |
-| DS1 | light | avatar initials on --avatar-4 (purple) | #ffffff | --avatar-4 | 4.5 | 7.37 |
-| DS1 | light | avatar initials on --avatar-5 (steel blue, legacy #3f7fa0 darkened) | #ffffff | --avatar-5 | 4.5 | 4.86 |
-| DS1 | light | avatar initials on --avatar-6 (brown) | #ffffff | --avatar-6 | 4.5 | 5.25 |
-| DS2 | light | GitHub source badge (.src-github) | #4c4959 | #eeedf1 | 4.5 | 7.49 |
-| DS2 | light | GitHub badge in the profile header (.person-meta .src-github) | --accent | --accent-tint | 4.5 | 6.11 |
-| DS5 | light | reviews given outline (千草) on the card | --data-given-stroke | --surface | 3 | 3.63 |
-| DS5 | light | own PRs and comments outline (苔) on the card | --data-github-stroke | --surface | 3 | 3.72 |
-| DS5 | light | reviews received outline (藤) on the card | --data-received-stroke | --surface | 3 | 3.48 |
-| DS5 | light | Jira outline (青碧) on the card | --data-jira-stroke | --surface | 3 | 4.3 |
-| DS5 | light | dev@ outline (今様) on the card | --data-mail-stroke | --surface | 3 | 3.91 |
-| DS5 | light | unrecorded hatch line on its base | --data-unrecorded-line | --data-unrecorded-bg | 3 | 3.1 |
-| DS5 | light | reviews given swatch outline in the tooltip | --data-given-stroke | --dark-bar | 3 | 4.98 |
-| DS5 | light | own PRs swatch outline in the tooltip | --data-github-stroke | --dark-bar | 3 | 4.84 |
-| DS5 | light | reviews received swatch outline in the tooltip | --data-received-stroke | --dark-bar | 3 | 5.18 |
-| DS5 | light | Jira swatch outline in the tooltip | --data-jira-stroke | --dark-bar | 3 | 4.2 |
-| DS5 | light | dev@ swatch outline in the tooltip | --data-mail-stroke | --dark-bar | 3 | 4.61 |
-| DS5 | dark | reviews given outline (勿忘草) on the dark card | --data-given-stroke | #202027 | 3 | 7.61 |
-| DS5 | dark | own PRs outline (柳茶) on the dark card | --data-github-stroke | #202027 | 3 | 6.49 |
-| DS5 | dark | reviews received outline (藤) on the dark card | --data-received-stroke | #202027 | 3 | 4.64 |
-| DS5 | dark | Jira outline (水浅葱) on the dark card | --data-jira-stroke | #202027 | 3 | 7.15 |
-| DS5 | dark | dev@ outline (紅梅) on the dark card | --data-mail-stroke | #202027 | 3 | 5.15 |
-| DS5 | dark | unrecorded hatch line on its dark base | --data-unrecorded-line | --data-unrecorded-bg | 3 | 3.01 |
-| DS6 | light | area 1 (indigo) on the card | --data-area-1 | --surface | 3 | 6.9 |
-| DS6 | light | area 2 (rose) on the card | --data-area-2 | --surface | 3 | 6.03 |
-| DS6 | light | area 3 (green) on the card | --data-area-3 | --surface | 3 | 6.94 |
-| DS6 | light | area 4 (olive) on the card | --data-area-4 | --surface | 3 | 5.67 |
-| DS6 | light | area 5 (plum) on the card | --data-area-5 | --surface | 3 | 8.48 |
-| DS6 | light | area 6 (steel blue) on the card | --data-area-6 | --surface | 3 | 5.21 |
-| DS6 | light | area other (grey) on the card | --data-area-other | --surface | 3 | 4.75 |
-| DS7 | light | .examples-label | --text-muted | --page-bg | 4.5 | 5.06 |
-| DS7 | light | .filter-label | --text-muted | --page-bg | 4.5 | 5.06 |
-| DS7 | light | .card-project | --text-muted | --page-bg | 4.5 | 5.06 |
-| DS7 | light | .evidence-label | --text-muted | --page-bg | 4.5 | 5.06 |
-| DS7 | light | .topic-meta .k | --text-muted | --page-bg | 4.5 | 5.06 |
-| DS7 | light | .ai-item .n | --text-muted | --page-bg | 4.5 | 5.06 |
-| DS7 | light | .tl-period | --text-muted | --page-bg | 4.5 | 5.06 |
-| DS7 | light | .tl-foot | --text-muted | --page-bg | 4.5 | 5.06 |
-| DS7 | light | .rail-label | --text-muted | --page-bg | 4.5 | 5.06 |
-| DS7 | light | .rail-row .num | --text-muted | --page-bg | 4.5 | 5.06 |
-| DS7 | light | .rail-source > .num | --text-muted | --page-bg | 4.5 | 5.06 |
-| DS7 | light | .person-chart-table td.is-unrecorded | --text-muted | --page-bg | 4.5 | 5.06 |
-| DS7 | light | .person-tile-since | --text-muted | --page-bg | 4.5 | 5.06 |
-| DS7 | light | #q::placeholder | --text-muted | --surface-alt | 4.5 | 5.29 |
-| DS7 | light | .filter-row .count | --text-muted | --chip-bg | 4.5 | 4.89 |
-| DS7 | light | .tl-time | --text-muted | #fdf7e3 | 4.5 | 5.19 |
-| DS7 | light | .person-unavailable | --text-danger | --page-bg | 4.5 | 4.93 |
-| DS7 | light | .brand-scope | --dark-muted | --dark-bar | 4.5 | 5.46 |
-| DS7 | light | .status-early | #8a5a0e | #fdf2dc | 4.5 | 5.33 |
-| DS7 | light | .status-open | #1b7a36 | #dafbe1 | 4.5 | 4.86 |
-| DS7 | light | .search-icon | --icon-muted | --surface-alt | 3 | 3.1 |
-| DS7 | light | .source-link .ext | --icon-muted | --surface | 3 | 3.26 |
-| DS7 | light | .topbar :focus-visible | --focus-ring-inverse | --dark-bar | 3 | 6.85 |
+| id | theme | pair | foreground | background | surface | min | ratio |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| DS1 | light | avatar initials on --avatar-1 (indigo) | #ffffff | --avatar-1 |  | 4.5 | 6.9 |
+| DS1 | light | avatar initials on --avatar-2 (green) | #ffffff | --avatar-2 |  | 4.5 | 5.2 |
+| DS1 | light | avatar initials on --avatar-3 (rust) | #ffffff | --avatar-3 |  | 4.5 | 5.44 |
+| DS1 | light | avatar initials on --avatar-4 (purple) | #ffffff | --avatar-4 |  | 4.5 | 7.37 |
+| DS1 | light | avatar initials on --avatar-5 (steel blue, legacy #3f7fa0 darkened) | #ffffff | --avatar-5 |  | 4.5 | 4.86 |
+| DS1 | light | avatar initials on --avatar-6 (brown) | #ffffff | --avatar-6 |  | 4.5 | 5.25 |
+| DS2 | light | GitHub source badge (.src-github) | #4c4959 | #eeedf1 |  | 4.5 | 7.49 |
+| DS2 | light | GitHub badge in the profile header (.person-meta .src-github) | --accent | --surface-selected |  | 4.5 | 6.11 |
+| DS5 | light | reviews given outline (千草) on the card | --data-given-stroke | --surface-card |  | 3 | 3.63 |
+| DS5 | light | own PRs and comments outline (苔) on the card | --data-github-stroke | --surface-card |  | 3 | 3.72 |
+| DS5 | light | reviews received outline (藤) on the card | --data-received-stroke | --surface-card |  | 3 | 3.48 |
+| DS5 | light | Jira outline (青碧) on the card | --data-jira-stroke | --surface-card |  | 3 | 4.3 |
+| DS5 | light | dev@ outline (今様) on the card | --data-mail-stroke | --surface-card |  | 3 | 3.91 |
+| DS5 | light | unrecorded hatch line on its base | --data-unrecorded-line | --data-unrecorded-bg |  | 3 | 3.1 |
+| DS5 | light | reviews given swatch outline in the tooltip | --data-given-stroke | --surface-inverse |  | 3 | 4.98 |
+| DS5 | light | own PRs swatch outline in the tooltip | --data-github-stroke | --surface-inverse |  | 3 | 4.84 |
+| DS5 | light | reviews received swatch outline in the tooltip | --data-received-stroke | --surface-inverse |  | 3 | 5.18 |
+| DS5 | light | Jira swatch outline in the tooltip | --data-jira-stroke | --surface-inverse |  | 3 | 4.2 |
+| DS5 | light | dev@ swatch outline in the tooltip | --data-mail-stroke | --surface-inverse |  | 3 | 4.61 |
+| DS5 | dark | reviews given outline (勿忘草) on the dark card | --data-given-stroke | #202027 |  | 3 | 7.61 |
+| DS5 | dark | own PRs outline (柳茶) on the dark card | --data-github-stroke | #202027 |  | 3 | 6.49 |
+| DS5 | dark | reviews received outline (藤) on the dark card | --data-received-stroke | #202027 |  | 3 | 4.64 |
+| DS5 | dark | Jira outline (水浅葱) on the dark card | --data-jira-stroke | #202027 |  | 3 | 7.15 |
+| DS5 | dark | dev@ outline (紅梅) on the dark card | --data-mail-stroke | #202027 |  | 3 | 5.15 |
+| DS5 | dark | unrecorded hatch line on its dark base | --data-unrecorded-line | --data-unrecorded-bg |  | 3 | 3.01 |
+| DS6 | light | area 1 (indigo) on the card | --data-area-1 | --surface-card |  | 3 | 6.9 |
+| DS6 | light | area 2 (rose) on the card | --data-area-2 | --surface-card |  | 3 | 6.03 |
+| DS6 | light | area 3 (green) on the card | --data-area-3 | --surface-card |  | 3 | 6.94 |
+| DS6 | light | area 4 (olive) on the card | --data-area-4 | --surface-card |  | 3 | 5.67 |
+| DS6 | light | area 5 (plum) on the card | --data-area-5 | --surface-card |  | 3 | 8.48 |
+| DS6 | light | area 6 (steel blue) on the card | --data-area-6 | --surface-card |  | 3 | 5.21 |
+| DS6 | light | area other (grey) on the card | --data-area-other | --surface-card |  | 3 | 4.75 |
+| DS7 | light | .examples-label | --text-muted | --surface-page | the page: the darker of page and card, so the card passes too | 4.5 | 5.06 |
+| DS7 | light | .filter-label | --text-muted | --surface-page | the page: the darker of page and card, so the card passes too | 4.5 | 5.06 |
+| DS7 | light | .card-project | --text-muted | --surface-page | the page: the darker of page and card, so the card passes too | 4.5 | 5.06 |
+| DS7 | light | .evidence-label | --text-muted | --surface-page | the page: the darker of page and card, so the card passes too | 4.5 | 5.06 |
+| DS7 | light | .topic-meta .k | --text-muted | --surface-page | the page: the darker of page and card, so the card passes too | 4.5 | 5.06 |
+| DS7 | light | .ai-item .n | --text-muted | --surface-page | the page: the darker of page and card, so the card passes too | 4.5 | 5.06 |
+| DS7 | light | .tl-period | --text-muted | --surface-page | the page: the darker of page and card, so the card passes too | 4.5 | 5.06 |
+| DS7 | light | .tl-foot | --text-muted | --surface-page | the page: the darker of page and card, so the card passes too | 4.5 | 5.06 |
+| DS7 | light | .rail-label | --text-muted | --surface-page | the page: the darker of page and card, so the card passes too | 4.5 | 5.06 |
+| DS7 | light | .rail-row .num | --text-muted | --surface-page | the page: the darker of page and card, so the card passes too | 4.5 | 5.06 |
+| DS7 | light | .rail-source > .num | --text-muted | --surface-page | the page: the darker of page and card, so the card passes too | 4.5 | 5.06 |
+| DS7 | light | .person-chart-table td.is-unrecorded | --text-muted | --surface-page | the page: the darker of page and card, so the card passes too | 4.5 | 5.06 |
+| DS7 | light | .person-tile-since | --text-muted | --surface-page | the page: the darker of page and card, so the card passes too | 4.5 | 5.06 |
+| DS7 | light | #q::placeholder | --text-muted | --surface-sunken |  | 4.5 | 5.29 |
+| DS7 | light | .filter-row .count | --text-muted | --surface-chip | the chip (for facet rows, the hover background), darker than page and card | 4.5 | 4.89 |
+| DS7 | light | .tl-time | --text-muted | #fdf7e3 | the flashed timeline card, the darkest it sits on | 4.5 | 5.19 |
+| DS7 | light | .person-unavailable | --text-danger | --surface-page | the page: the darker of page and card, so the card passes too | 4.5 | 4.93 |
+| DS7 | light | .brand-scope | --text-inverse-muted | --surface-inverse |  | 4.5 | 5.46 |
+| DS7 | light | .status-early | #8a5a0e | #fdf2dc |  | 4.5 | 5.33 |
+| DS7 | light | .status-open | #1b7a36 | #dafbe1 |  | 4.5 | 4.86 |
+| DS7 | light | .search-icon | --icon-muted | --surface-sunken |  | 3 | 3.1 |
+| DS7 | light | .source-link .ext | --icon-muted | --surface-card |  | 3 | 3.26 |
+| DS7 | light | .topbar :focus-visible | --focus-ring-inverse | --surface-inverse |  | 3 | 6.85 |
+| DS8 | light | .tl-filter .count | --text-muted | --surface-card | the filter button; was opacity 0.7, 3.61:1 | 4.5 | 5.56 |
+| DS8 | light | .tl-filter[aria-pressed="true"] .count | --accent | --surface-selected | the pressed filter; was opacity 0.7, 3.25:1 | 4.5 | 6.11 |
+| DS8 | light | .source-dot | --text-muted | --surface-chip | the chip; was --chip-text #6f6c76, 4.52:1 | 4.5 | 4.89 |
+| DS8 | light | .source-dot.off | --text-muted | --surface-card | the card (no fill, outlined); was opacity 0.35 | 4.5 | 5.56 |
+| DS8 | light | .keyword | --text-muted | --surface-chip | the chip; was --chip-text | 4.5 | 4.89 |
+| DS8 | light | .thread-status | --text-muted | --surface-chip | the chip; was --chip-text | 4.5 | 4.89 |
 <!-- test-plan:end -->
 
 ## Non-goals
