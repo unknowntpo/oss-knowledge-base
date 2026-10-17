@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { badgeState } from "../badge-state";
 import { computed, ref, watch } from "vue";
 
 import { fetchFeedDetail, fetchSearchFeedDetail } from "../api";
@@ -122,7 +123,7 @@ function jumpToEvidence(id: string) {
       <div class="topic-head">
         <div class="topic-head-row">
           <span class="topic-id">{{ item.displayId }}</span>
-          <span v-if="item.status" class="status-badge" :class="`status-${item.status}`">{{ t(`status.${item.status}`) }}</span>
+          <span v-if="item.status" class="status-badge" :class="`status-${item.status}`" :data-state="badgeState(item.status)">{{ t(`status.${item.status}`) }}</span>
           <span class="card-project">{{ profile?.label ?? item.projectKey }}</span>
         </div>
         <h1 id="topic-title">{{ item.entry.title }}</h1>

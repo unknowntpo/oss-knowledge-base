@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { badgeState } from "../badge-state";
 import { useI18n } from "../i18n";
 import type { SearchResultV1 } from "../types";
 
@@ -19,7 +20,7 @@ const { t } = useI18n();
   >
     <div class="card-head">
       <span class="topic-id">#{{ rank }}</span>
-      <span v-if="result.projectStatus" class="status-badge" :class="`status-${result.projectStatus}`">{{ t(`status.${result.projectStatus}`) }}</span>
+      <span v-if="result.projectStatus" class="status-badge" :class="`status-${result.projectStatus}`" :data-state="badgeState(result.projectStatus)">{{ t(`status.${result.projectStatus}`) }}</span>
       <span class="card-project">{{ projectLabel }}</span>
     </div>
     <h3 class="card-title">{{ result.entry.title }}</h3>

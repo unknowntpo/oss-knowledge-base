@@ -33,8 +33,10 @@ proposal on 2026-10-17.
   the test fails otherwise.
 - A dark theme (gardening G89, G92) redefines the semantic and data blocks
   and adds dark case rows.
-- Compatibility: no data format, API or route changes. Visual changes are
-  limited to the contrast fixes of Spec 023 slices 1–4.
+- Compatibility: no data format, API or route changes. The visible changes
+  of Spec 023 are the contrast fixes (slices 1, 3, 4), the profile chart and
+  area donut palettes the owner chose (slice 2), and the unified badge
+  states (slice 5).
 
 ## Revisit when
 

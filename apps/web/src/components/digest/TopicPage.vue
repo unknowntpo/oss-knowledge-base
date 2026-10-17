@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { badgeState } from "../../badge-state";
 import { computed, ref } from "vue";
 import type { DigestProfile, TopicCard } from "@oss-knowledge-base/reference-pipeline/digest";
 
@@ -50,7 +51,7 @@ const date = (at: string | undefined) => (at === undefined ? "" : at.slice(0, 10
       <li v-for="id in shown" :key="id" class="thread-card" :data-source="digest.threads[id]?.source">
         <div class="thread-card-head">
           <a class="thread-id" :href="`#/feed/${encodeURIComponent(id)}`">{{ id }}</a>
-          <span v-if="digest.threads[id]?.status" class="thread-status" :class="`status-${digest.threads[id]?.status}`">
+          <span v-if="digest.threads[id]?.status" class="thread-status" :class="`status-${digest.threads[id]?.status}`" :data-state="badgeState(digest.threads[id]?.status)">
             {{ t(`status.${digest.threads[id]?.status}`) }}
           </span>
         </div>

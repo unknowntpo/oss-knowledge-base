@@ -16,7 +16,7 @@
   --surface-sunken: #faf9f7;           /* inputs, footer, hatch base */
   --surface-chip: #f2f0ec;             /* chips, hover rows */
   --surface-selected: #eef1fb;         /* selected filter, tab, chip */
-  --surface-selected-strong: #d9defa;  /* hover on a selected control, distribution bar */
+  --surface-selected-strong: #d9defa;  /* hover on a selected control */
   --surface-inverse: #16161a;          /* top bar, tooltip */
   --surface-inverse-raised: #202027;   /* controls on the top bar */
   /* Text (≥ 4.5:1 on every surface it is used on) */
@@ -40,6 +40,19 @@
   --border-hover: #b9c0e8;
   --border-selected: #d9defa;
   --border-inverse: #33333b;
+  /* Badge states (Spec 023 DS9): one system for feed, search and digest badges; text ≥ 4.5:1 on its tint */
+  --text-state-success: #1c5e44;       /* adopted, accepted, merged, resolved, implementing */
+  --surface-state-success: #dff2ea;
+  --text-state-info: #1d4e89;          /* open, discuss */
+  --surface-state-info: #e3eefa;
+  --text-state-warning: #7a4a12;       /* early, vote */
+  --surface-state-warning: #fbf1e3;
+  --text-state-progress: #a3542a;      /* discussing */
+  --surface-state-progress: #f7efe9;
+  --text-state-neutral: #6b5e79;       /* dropped, rejected, closed, unknown */
+  --surface-state-neutral: #efeef2;
+  --text-state-danger: #b8432a;        /* errors */
+  --surface-state-danger: #fbece8;
   /* 作者頭像（Spec 023 DS1；舊版 viewer 的 AVATAR_PALETTE，第 5 色加深到白字 4.86:1） */
   --avatar-1: #3a53b0;
   --avatar-2: #2b7a5b;
@@ -601,15 +614,13 @@ main { flex: 1 0 auto; }
   border-radius: 5px;
   white-space: nowrap;
 }
-.status-adopted { background: #e6f3ec; color: #1f7a4d; }
-.status-accepted { background: #e6f3ec; color: #1f7a4d; }
-.status-early { background: #fdf2dc; color: #8a5a0e; }
-.status-discussing { background: #f7efe9; color: #a3542a; }
-.status-dropped { background: #efeef2; color: #6b5e79; }
-.status-rejected { background: #efeef2; color: #6b5e79; }
-.status-open { background: #dafbe1; color: #1b7a36; }
-.status-merged { background: #fbefff; color: #8250df; }
-.status-closed { background: #ffebe9; color: #cf222e; }
+/* Spec 023 DS9: badge colours come from the state (src/badge-state.ts), never from the status key. */
+[data-state="success"] { background: var(--surface-state-success); color: var(--text-state-success); }
+[data-state="info"] { background: var(--surface-state-info); color: var(--text-state-info); }
+[data-state="warning"] { background: var(--surface-state-warning); color: var(--text-state-warning); }
+[data-state="progress"] { background: var(--surface-state-progress); color: var(--text-state-progress); }
+[data-state="neutral"] { background: var(--surface-state-neutral); color: var(--text-state-neutral); }
+[data-state="danger"] { background: var(--surface-state-danger); color: var(--text-state-danger); }
 
 .card-project {
   margin-left: auto;
@@ -1239,10 +1250,13 @@ mark {
 .bar {
   grid-column: 2;
   grid-row: 1;
-  height: 4px;
+  height: 6px;
   border-radius: 2px;
-  background: var(--surface-selected-strong);
-  min-width: 4px;
+  /* Spec 023 DS5: a data mark, like the profile chart: light translucent fill, ≥ 3:1 outline */
+  background: var(--data-bar-fill);
+  background: color-mix(in srgb, var(--data-bar-fill) var(--data-bar-alpha), transparent);
+  box-shadow: inset 0 0 0 1px var(--data-bar-stroke);
+  min-width: 6px;
 }
 
 .rail-source {
@@ -1564,9 +1578,6 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
 .stage-heading { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; }
 .stage-count { color: var(--text-muted); font-family: var(--font-mono); font-size: 12px; }
 .stage-badge { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 4px; white-space: nowrap; }
-.stage-discuss { background: #e3eefa; color: #1d4e89; }
-.stage-vote { background: #fcebd9; color: #8a4300; }
-.stage-implementing { background: #dff2ea; color: #1c5e44; }
 
 .kip-row-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
 .kip-key { font-family: var(--font-mono); font-size: 12px; color: var(--accent); }
@@ -1614,9 +1625,7 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
 .thread-cards { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .thread-card-head { display: flex; align-items: center; gap: 8px; }
 .thread-id { font-family: var(--font-mono); font-size: 12px; color: var(--accent); }
-.thread-status { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--surface-chip); color: var(--text-muted); }
-.thread-status.status-merged { background: #dff2ea; color: #1c5e44; }
-.thread-status.status-open, .thread-status.status-discussing { background: #e3eefa; color: #1d4e89; }
+.thread-status { font-size: 11px; padding: 1px 6px; border-radius: 4px; } /* colours: [data-state] (DS9) */
 .thread-title { display: block; margin: 6px 0 4px; font-weight: 600; color: var(--text-strong); text-decoration: none; }
 .thread-title:hover { color: var(--accent); }
 .thread-excerpt { margin: 4px 0; font-size: 13px; color: var(--text-secondary); }
@@ -1743,6 +1752,10 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
   --data-mail-stroke: #d05a6e;   /* 今様 imayou */
   --data-unrecorded-line: #928e86;
   --data-unrecorded-bg: #faf9f7;
+  /* Feed detail source-distribution bar */
+  --data-bar-fill: #a5dee4;      /* 瓶覗 kamenozoki */
+  --data-bar-alpha: 70%;
+  --data-bar-stroke: #566c73;    /* 藍鼠 ainezumi */
   --data-area-1: #3a53b0;
   --data-area-2: #ae3756;
   --data-area-3: #0b664f;

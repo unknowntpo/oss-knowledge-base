@@ -1,6 +1,6 @@
 # Spec 023: Design system for the web app
 
-Status: Accepted 2026-10-17 (owner approved the design-system audit and proposal with changes); slice 1 (colour bugs, DS1–DS3) implemented; slice 2 (data-viz tokens and palettes, DS4–DS6) implemented; slice 3 (text contrast, DS7) implemented; slice 4 (semantic layer, design-system page, DS8) implemented; slices 5–7 not implemented
+Status: Accepted 2026-10-17 (owner approved the design-system audit and proposal with changes); slice 1 (colour bugs, DS1–DS3) implemented; slice 2 (data-viz tokens and palettes, DS4–DS6) implemented; slice 3 (text contrast, DS7) implemented; slice 4 (semantic layer, design-system page, DS8) implemented; slice 5 (badge states, DS9) implemented; slices 6–7 not implemented
 Date: 2026-10-17
 Traceability: enforced
 Builds on: constitution §6 (visual language), ADR-0017 (the design system it links), Spec 019 (contributor profile chart and area donut), gardening G89 and G92
@@ -155,6 +155,20 @@ Slice 3, the E2E fixture's feed `/#/kafka/threads` and detail
    source chip on a feed card (`.source-dot.off`, 0.35) is outlined with
    `--text-muted` instead. `.tag-chip .count` (0.6, 2.74:1) had no element
    using it and is deleted.
+11. Badges have one system (`apps/web/src/badge-state.ts`). Visible changes:
+   feed "Open" goes from GitHub green to info blue and "Merged" from purple
+   to success green; "Closed without merge" from red to neutral; feed
+   "Adopted"/"Accepted" and "Early" move to the success and warning tints;
+   the KIP "Vote" stage from orange `#8a4300` to warning brown `#7a4a12`;
+   a topic thread "Discussing" from blue to progress rust. "Discuss" and
+   "Implementing" keep their colours.
+12. The feed-detail source-distribution bar is a data mark (`--data-bar-*`):
+   瓶覗 `#a5dee4` at 70% with a 1px 藍鼠 `#566c73` outline, 5.04:1 on the
+   page (it was `#d9defa`, 1.33:1, on a surface token). It is 6px high so the
+   fill shows inside the outline.
+13. The opacity rule allows `opacity: 0` (hidden, not faded) and reads
+   percentages; a fade on an element without text needs an entry, with its
+   reason, in the test's `NON_TEXT_FADES` list (empty today).
 
 ## Acceptance
 
@@ -169,7 +183,7 @@ Each item: precondition → action → observable result → evidence.
 - DS6: given the area tokens, every pair is ΔE00 ≥ 10 apart under normal, protan and deutan simulation (Machado 2009, full severity), every one measures ≥ 3:1 on the card, no data colour is orange (LCh hue 30–85° above chroma 15), and no area colour is within ΔE00 10 of an activity-chart colour → unit test, E2E computed style.
 - DS7: given the stylesheet, every DS7 row of the case file names a rule whose `color` (for the top-bar focus ring, `outline-color`) is that row's foreground, and the pair measures ≥ 4.5:1 for text or ≥ 3:1 for an icon glyph or focus ring on the lightest surface the rule sits on; no rule sets text in `--muted-3`, `--muted-4`, `--dark-muted-2` or brand orange; on the rendered detail page a focused top-bar control shows `#8c9be8` and the timeline time `#6b6860` → unit test over the case file, E2E computed style.
 - DS8: given the stylesheet, every `:root` token outside the data, avatar, font and series families is a role named surface, text, border, accent, brand, icon or focus-ring holding a literal; `docs/product/design-system.md` lists each such token and each area token with its value, and lists none that is undefined; constitution §6 links that page; no rule sets `opacity` below 1, and the timeline filter counts, source chips, keywords and thread-status chips that used opacity or `--chip-text` are bound to solid pairs ≥ 4.5:1 in the normal and pressed states; on the rendered detail page the pressed and unpressed filter counts compute to `#3a53b0` and `#6b6860` at opacity 1 → unit test over the case file, E2E computed style.
-- DS9: [pending] slice 5: feed and digest badges use six semantic states (success, info, warning, progress, neutral, danger); feed "open" is info and "merged" is success.
+- DS9: given any status (feed, search, topic threads) or proposal stage, `badgeState()` maps it to one of six states — success (adopted, accepted, merged, resolved, implementing), info (open, discuss), warning (early, vote), progress (discussing), neutral (dropped, rejected, closed, anything unknown), danger (errors) — the badge carries `data-state`, each state has one colour rule whose text measures ≥ 4.5:1 on its tint, and no status or stage class sets a colour of its own; on the rendered feed "Open" is info blue and "Merged" success green, and every stage and topic-thread badge computes to its state's colour → unit test over the case file, E2E computed style.
 - DS10: [pending] slice 6: no colour literal appears in `apps/web` styles or components outside the token block.
 - DS11: [pending] slice 7: font sizes come from the 8-step scale (12.5px maps to 13px), and spacing and radius values from their scales (`--space-*`, `--radius-*`).
 
@@ -244,8 +258,6 @@ exactly these rows.
 | DS7 | light | .tl-time | --text-muted | #fdf7e3 | the flashed timeline card, the darkest it sits on | 4.5 | 5.19 |
 | DS7 | light | .person-unavailable | --text-danger | --surface-page | the page: the darker of page and card, so the card passes too | 4.5 | 4.93 |
 | DS7 | light | .brand-scope | --text-inverse-muted | --surface-inverse |  | 4.5 | 5.46 |
-| DS7 | light | .status-early | #8a5a0e | #fdf2dc |  | 4.5 | 5.33 |
-| DS7 | light | .status-open | #1b7a36 | #dafbe1 |  | 4.5 | 4.86 |
 | DS7 | light | .search-icon | --icon-muted | --surface-sunken |  | 3 | 3.1 |
 | DS7 | light | .source-link .ext | --icon-muted | --surface-card |  | 3 | 3.26 |
 | DS7 | light | .topbar :focus-visible | --focus-ring-inverse | --surface-inverse |  | 3 | 6.85 |
@@ -254,7 +266,13 @@ exactly these rows.
 | DS8 | light | .source-dot | --text-muted | --surface-chip | the chip; was --chip-text #6f6c76, 4.52:1 | 4.5 | 4.89 |
 | DS8 | light | .source-dot.off | --text-muted | --surface-card | the card (no fill, outlined); was opacity 0.35 | 4.5 | 5.56 |
 | DS8 | light | .keyword | --text-muted | --surface-chip | the chip; was --chip-text | 4.5 | 4.89 |
-| DS8 | light | .thread-status | --text-muted | --surface-chip | the chip; was --chip-text | 4.5 | 4.89 |
+| DS5 | light | .bar | --data-bar-stroke | --surface-page | the page: the feed-detail rail sits on it, darker than a card | 3 | 5.04 |
+| DS9 | light | [data-state="success"] | --text-state-success | --surface-state-success | the badge's own tint | 4.5 | 6.59 |
+| DS9 | light | [data-state="info"] | --text-state-info | --surface-state-info | the badge's own tint | 4.5 | 7.14 |
+| DS9 | light | [data-state="warning"] | --text-state-warning | --surface-state-warning | the badge's own tint | 4.5 | 6.67 |
+| DS9 | light | [data-state="progress"] | --text-state-progress | --surface-state-progress | the badge's own tint | 4.5 | 4.79 |
+| DS9 | light | [data-state="neutral"] | --text-state-neutral | --surface-state-neutral | the badge's own tint | 4.5 | 5.19 |
+| DS9 | light | [data-state="danger"] | --text-state-danger | --surface-state-danger | the badge's own tint | 4.5 | 4.71 |
 <!-- test-plan:end -->
 
 ## Non-goals

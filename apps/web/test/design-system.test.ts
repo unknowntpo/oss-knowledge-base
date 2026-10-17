@@ -9,7 +9,8 @@ import { join } from "node:path";
 
 import { authorHue } from "../src/avatar";
 import { contrast, deltaE2000, resolveToken, rootTokens, simulate, themeTokens, toLch, type Vision } from "./colorlib";
-import { activityColourTokens, activityPalette, AREA_MIN_DELTA_E, areaTokens, authorHues, testPlanRows } from "./design-system.cases";
+import { activityColourTokens, activityPalette, AREA_MIN_DELTA_E, areaTokens, authorHues, badgeStates, testPlanRows } from "./design-system.cases";
+import { BADGE_STATES, badgeState } from "../src/badge-state";
 
 const css = await Bun.file(join(import.meta.dir, "..", "styles.css")).text();
 const tokens = rootTokens(css);
@@ -133,7 +134,7 @@ describe("Spec 023 data-viz palettes", () => {
 });
 
 describe("Spec 023 text contrast", () => {
-  const textRows = testPlanRows.filter((row) => row.id === "DS7" || row.id === "DS8");
+  const textRows = testPlanRows.filter((row) => row.id === "DS7" || row.id === "DS8" || row.id === "DS9");
 
   test.each(textRows)("$id: $pair is drawn in $foreground", (row) => {
     const property = row.pair.endsWith(":focus-visible") ? "outline-color" : "color";
@@ -151,9 +152,22 @@ describe("Spec 023 text contrast", () => {
     expect(weak.map(([selector]) => selector)).toEqual([]);
   });
 
-  test("DS8: no rule fades an element with opacity below 1 (text inside would drop below its pair; use a solid colour)", () => {
-    const faded = rules(css).filter(([, body]) => /(?:^|[;\s])opacity:\s*(?:0?\.\d+|0)\s*(?:;|$)/u.test(body));
-    expect(faded.map(([selector]) => selector)).toEqual([]);
+  // Opacity lowers the drawn contrast of any text inside without changing its token, so the pair
+  // tables cannot see it. `opacity: 0` (hidden, not faded) is allowed; a rule that fades a mark
+  // with no text in it goes in this list with its reason. Empty today.
+  const NON_TEXT_FADES: readonly string[] = [];
+  test("DS8: no rule fades an element with opacity between 0 and 1, as a number or a percentage (opacity: 0 is allowed)", () => {
+    const faded = rules(css).flatMap(([selector, body]) => [...body.matchAll(/(?:^|[;\s])opacity:\s*([\d.]+)(%?)\s*(?:!important)?\s*(?:;|$)/gu)]
+      .map((m) => ({ selector, value: Number(m[1]) / (m[2] === "%" ? 100 : 1) })))
+      .filter(({ selector, value }) => value > 0 && value < 1 && !NON_TEXT_FADES.includes(selector));
+    expect(faded).toEqual([]);
+  });
+
+  test("DS8: the opacity check catches a percentage and a number, and lets opacity: 0 through (positive control)", () => {
+    const sample = ".a { opacity: 60%; }\n.b { opacity: .5; }\n.c { opacity: 0; }\n.d { opacity: 1; }\n.e { fill-opacity: 0.5; }";
+    const caught = rules(sample).filter(([, body]) => [...body.matchAll(/(?:^|[;\s])opacity:\s*([\d.]+)(%?)\s*(?:!important)?\s*(?:;|$)/gu)]
+      .some((m) => { const v = Number(m[1]) / (m[2] === "%" ? 100 : 1); return v > 0 && v < 1; }));
+    expect(caught.map(([selector]) => selector)).toEqual([".a", ".b"]);
   });
 });
 
@@ -193,5 +207,21 @@ describe("Spec 023 semantic layer", () => {
   test("DS8: constitution §6 links the design system", () => {
     const section = constitution.slice(constitution.indexOf("## 6."), constitution.indexOf("## 7."));
     expect(section).toContain("(product/design-system.md)");
+  });
+});
+
+describe("Spec 023 badge states", () => {
+  test.each(badgeStates)("DS9: $key is shown as $state", ({ key, state }) => {
+    expect(badgeState(key)).toBe(state);
+  });
+
+  test("DS9: each of the six states has one colour rule, and no status or stage class sets a colour of its own", () => {
+    const all = rules(css);
+    for (const state of BADGE_STATES) {
+      expect(all.filter(([selector]) => selector === `[data-state="${state}"]`)).toHaveLength(1);
+    }
+    const keyClass = new RegExp(`\\.(?:status|stage)-(?:${badgeStates.map(({ key }) => key).join("|")})(?![\\w-])`, "u");
+    const own = all.filter(([selector, body]) => keyClass.test(selector) && /(?:^|[;\s])(?:color|background):/u.test(body));
+    expect(own.map(([selector]) => selector)).toEqual([]);
   });
 });
