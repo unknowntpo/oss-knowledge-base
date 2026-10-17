@@ -13,3 +13,16 @@ export function githubAvatarUrl(login: string | null | undefined, size: number):
   const pixels = Math.min(460, Math.max(16, Math.round(size * 2)));
   return `${AVATAR_HOST}/${login}?s=${pixels}`;
 }
+
+/** The number of `--avatar-N` tokens in `styles.css` (Spec 023 DS1). */
+export const AVATAR_HUES = 6;
+
+/**
+ * Spec 023 DS1: the avatar colour (1..6, `--avatar-N`) of an author in the feed-detail timeline,
+ * a deterministic hash of the name, as in the legacy viewer, so an author keeps one colour.
+ */
+export function authorHue(name: string): number {
+  let hash = 0;
+  for (let i = 0; i < name.length; i += 1) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  return (hash % AVATAR_HUES) + 1;
+}

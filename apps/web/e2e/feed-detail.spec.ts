@@ -115,3 +115,45 @@ test("H25: the default bucket still serves bm25-reference@1 (the @2 bucket is pl
   const hyphenated = await (await request.get("/api/search?q=KIP-405&limit=5")).json() as typeof body;
   expect(hyphenated.results.length).toBeGreaterThan(0);
 });
+
+// Spec 023: the computed colours on the real page (the stylesheet rules are unit-tested in
+// test/design-system.test.ts).
+function channelLuminance(rgb: string): number {
+  const [r, g, b] = (rgb.match(/\d+(\.\d+)?/gu) ?? []).slice(0, 3).map((v) => {
+    const c = Number(v) / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  }) as [number, number, number];
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+const ratio = (a: string, b: string) => {
+  const [hi, lo] = [channelLuminance(a), channelLuminance(b)].sort((x, y) => y - x) as [number, number];
+  return (hi + 0.05) / (lo + 0.05);
+};
+
+test("DS1, DS2: timeline avatars have a per-author background and GitHub badges stay slate", async ({ page }) => {
+  await page.goto("/#/feed/KAFKA-PR-43");
+  const avatar = page.locator(".tl-meta .avatar").first();
+  await expect(avatar).toHaveText("B");
+  await expect(avatar).toHaveAttribute("data-hue", "2");
+  const avatarColours = await avatar.evaluate((node) => {
+    const style = getComputedStyle(node);
+    return { color: style.color, background: style.backgroundColor };
+  });
+  expect(avatarColours.background).toBe("rgb(43, 122, 91)");
+  expect(ratio(avatarColours.color, avatarColours.background)).toBeGreaterThanOrEqual(4.5);
+
+  const badges = page.locator(".source-badge.src-github");
+  expect(await badges.count()).toBeGreaterThan(0);
+  for (const badge of await badges.all()) {
+    const colours = await badge.evaluate((node) => {
+      const style = getComputedStyle(node);
+      return [style.color, style.backgroundColor];
+    });
+    expect(colours).toEqual(["rgb(76, 73, 89)", "rgb(238, 237, 241)"]);
+  }
+
+  await page.goto(`/#/kafka/people/${encodeURIComponent("github:alice")}`);
+  const header = page.locator(".person-meta .source-badge.src-github");
+  await expect(header).toHaveCSS("color", "rgb(58, 83, 176)");
+  await expect(page.locator(".person-identity .source-badge.src-github")).toHaveCSS("color", "rgb(76, 73, 89)");
+});
