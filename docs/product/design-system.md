@@ -1,6 +1,6 @@
 # Design system (web app)
 
-Status: Active (Spec 023; slices 1–6 implemented, scales pending)
+Status: Active (Spec 023, implemented)
 
 This is the colour system of `apps/web`. It keeps the visual language that
 [constitution §6](../constitution.md#6-open-formats-and-a-tested-exit-path)
@@ -72,7 +72,7 @@ values directly; add a ramp only when a second theme needs to share one.
 | `--border-selected` | `#d9defa` | Border of a selected control | decorative |
 | `--border-inverse` | `#33333b` | Borders on the top bar | decorative |
 | `--border-inverse-strong` | `#000000` | The top bar's bottom edge | decorative |
-| `--text-on-accent` | `#ffffff` | Text on an accent fill (pressed chip, filter count badge), avatar initials | 6.90 on `--accent` |
+| `--text-on-accent` | `#ffffff` | The generic "white text on a dark fill" role: an accent fill (pressed chip, filter count badge) and the avatar colours | 6.90 on `--accent`, ≥ 4.86 on every `--avatar-*` |
 | `--text-trending` | `#9a4d2b` | "Trending" reason on a feed card | 6.05 card |
 | `--surface-trending-halo` | `#f8e7e1` | Ring around the trending dot (the dot is `--brand`) | decorative |
 | `--surface-highlight` | `#fbeeb8` | `<mark>` in search results | body text on it 11.15 |
@@ -185,13 +185,42 @@ deutan vision (11.01 unrounded, 10.8 with 8-bit quantised simulation). The
 enforced floor is 10. Every slice is at least ΔE00 10 from every activity
 colour.
 
+## Scales
+
+Fonts stay IBM Plex (Sans for UI, Mono for identifiers and counts, Serif for
+titles). A new step needs a reason in its PR; the DS11 test fails on a value
+outside these scales.
+
+| Type token | Size | Use |
+| --- | --- | --- |
+| `--fs-2xs` | 11px | Uppercase labels, axis text, badges |
+| `--fs-xs` | 12px | Meta, legends, tile detail |
+| `--fs-sm` | 13px | Secondary body, chips |
+| `--fs-md` | 14px | Body |
+| `--fs-lg` | 15px | Lede, card titles |
+| `--fs-xl` | 17px | Profile summary, band titles on phones |
+| `--fs-2xl` | 22px | Section and band titles |
+| `--fs-3xl` | 28px | Person name, tile numbers |
+| `--fs-display` | clamp(24px, 4vw, 34px) | Page titles |
+
+Spacing (`padding`, `margin`, `gap`): `--space-2`, `-4`, `-6`, `-8`, `-10`,
+`-12`, `-14`, `-16`, `-20`, `-24`, `-28`, `-32`, `-40`, `-48`, `-64`, `-96`
+(the number is the pixel value). Negative margins use
+`calc(var(--space-N) * -1)`.
+
+Radius: `--radius-xs` 2px (swatches, bars), `--radius-sm` 4px, `--radius-md`
+6px (controls), `--radius-lg` 8px (cards, buttons), `--radius-xl` 10px
+(tiles, panels), `--radius-pill` 999px, and `50%` for circles.
+
 ## Rules
 
 1. **Components use roles, not values.** A rule references a semantic,
    data, identity or component token. A colour literal (hex, `rgb()`,
-   `hsl()`, a named colour) outside the `:root` blocks of
-   `apps/web/styles.css`, or in a component's style, fill or stroke, fails
-   the DS10 test.
+   `hsl()`, `hwb()`, `lab()`, `lch()`, `oklab()`, `oklch()`, `color()`, or
+   one of the 148 CSS named colours) outside the `:root` blocks of
+   `apps/web/styles.css`, in a Vue `<style>` block or `style`/`fill`/`stroke`
+   attribute, in `apps/web/index.html`, or as a hex or colour-function
+   string in `apps/web/src` TypeScript fails the DS10 test.
 2. **Data tokens never alias UI tokens.** A hover, tint, border or muted
    change must not recolour a chart.
 3. **Text is ≥ 4.5:1 on the surface it sits on** (≥ 3:1 at 24px, or 18.66px

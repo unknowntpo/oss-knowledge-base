@@ -1,6 +1,6 @@
 # Spec 023: Design system for the web app
 
-Status: Accepted 2026-10-17 (owner approved the design-system audit and proposal with changes); slice 1 (colour bugs, DS1–DS3) implemented; slice 2 (data-viz tokens and palettes, DS4–DS6) implemented; slice 3 (text contrast, DS7) implemented; slice 4 (semantic layer, design-system page, DS8) implemented; slice 5 (badge states, DS9) implemented; slice 6 (no colour literals, DS10) implemented; slice 7 not implemented
+Status: Implemented 2026-10-18 (slices 1–7, DS1–DS11; accepted 2026-10-17 when the owner approved the design-system audit and proposal with changes)
 Date: 2026-10-17
 Traceability: enforced
 Builds on: constitution §6 (visual language), ADR-0017 (the design system it links), Spec 019 (contributor profile chart and area donut), gardening G89 and G92
@@ -179,6 +179,19 @@ Slice 3, the E2E fixture's feed `/#/kafka/threads` and detail
    or `--text-state-progress` is one line.
 15. The badge base classes (`.status-badge`, `.stage-badge`,
    `.thread-status`) set shape only; a colour on them fails DS9.
+16. Type, spacing and radius come from scales (`docs/product/design-system.md`,
+   Scales). Moving to them changes sizes slightly: 12.5px text (22 uses, the
+   profile page) becomes 13px; 9.5–10.5px becomes 11px; 16px card titles
+   15px; 19, 21, 23, 24px titles 17 or 22px; 26 and 30px tile numbers 28px;
+   the topic-page title can reach 34px instead of 32px. Odd spacings move to
+   the nearest step, ties to the smaller one (1→2, 3→2, 5→4, 7→6, 9→8,
+   11→10, 13→12, 18→16, 22→20, 26→24, …); radii 5→4, 7→6, 9→8. No page
+   scrolls sideways at 320, 375 or 1280 px.
+17. The DS10 component check reads content: Vue `<style>` blocks and
+   `style`/`fill`/`stroke` attributes and `index.html` go through the same
+   matcher as the stylesheet, and a `"#rgb"`/`"#rrggbb"` or colour-function
+   string in `apps/web/src` TypeScript fails unless the file is on the
+   test's allowlist (empty).
 
 ## Acceptance
 
@@ -195,7 +208,7 @@ Each item: precondition → action → observable result → evidence.
 - DS8: given the stylesheet, every `:root` token outside the data, avatar, font and series families is a role named surface, text, border, accent, brand, icon or focus-ring holding a literal; `docs/product/design-system.md` lists each such token and each area token with its value, and lists none that is undefined; constitution §6 links that page; no rule sets `opacity` below 1, and the timeline filter counts, source chips, keywords and thread-status chips that used opacity or `--chip-text` are bound to solid pairs ≥ 4.5:1 in the normal and pressed states; on the rendered detail page the pressed and unpressed filter counts compute to `#3a53b0` and `#6b6860` at opacity 1 → unit test over the case file, E2E computed style.
 - DS9: given any status (feed, search, topic threads) or proposal stage, `badgeState()` maps it to one of six states — success (adopted, accepted, merged, resolved, implementing), info (open, discuss), warning (early, vote), progress (discussing), neutral (dropped, rejected, closed, anything unknown), danger (errors) — the badge carries `data-state`, each state has one colour rule whose text measures ≥ 4.5:1 on its tint, and no status or stage class sets a colour of its own; on the rendered feed "Open" is info blue and "Merged" success green, and every stage and topic-thread badge computes to its state's colour → unit test over the case file, E2E computed style.
 - DS10: given `apps/web/styles.css`, no declaration outside the `:root` blocks holds a colour literal (hex, `rgb()`/`rgba()`, `hsl()`/`hsla()`, or a named colour; `transparent` and `currentColor` are allowed), and no component in `apps/web/src` puts one in a style, fill or stroke; every text pair the removed literals drew (on-accent text, trending reason, Jira and dev@ badges, freshness pills, digest warnings, key-points error) is bound to its tokens and measures ≥ 4.5:1 → unit test over the case file, with a positive control for the literal matcher.
-- DS11: [pending] slice 7: font sizes come from the 8-step scale (12.5px maps to 13px), and spacing and radius values from their scales (`--space-*`, `--radius-*`).
+- DS11: given `apps/web/styles.css`, the type scale is eight steps (11, 12, 13, 14, 15, 17, 22, 28px) plus `--fs-display`, every `font-size` outside `:root` is a `--fs-*` token (12.5px is now 13px; SVG text in the donut's viewBox is exempt), every `padding`, `margin` and `gap` is 0, `auto`, a percentage or a `--space-*` step (2–96px; the visually-hidden −1px margin is exempt), and every `border-radius` is a `--radius-*` step or 50%; on the rendered profile the legend and tile labels compute to 13px and the tile numbers to 28px → unit test, E2E computed style.
 
 ### Failure and retry
 Not applicable: styles have no runtime failure path; a missing token falls

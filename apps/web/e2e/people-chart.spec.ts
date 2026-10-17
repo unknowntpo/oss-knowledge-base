@@ -119,3 +119,10 @@ test("DS4, DS6: series are a translucent fill with a 3:1 outline, the legend mat
   await expect(page.locator('[data-chart-legend] [data-legend="received"] .person-swatch')).toHaveCSS("box-shadow", "rgb(139, 129, 195) 0px 0px 0px 1.5px inset");
   await expect(page.locator('.person-donut-slice[data-color="2"]').first()).toHaveCSS("stroke", "rgb(174, 55, 86)");
 });
+
+test("DS11: text that was 12.5px is 13px, from the type scale", async ({ page }) => {
+  await open(page, aliceRoute);
+  await expect(page.locator(".person-legend")).toHaveCSS("font-size", "13px");
+  await expect(page.locator(".person-tile dt").first()).toHaveCSS("font-size", "13px");
+  await expect(page.locator(".person-tile .person-tile-num").first()).toHaveCSS("font-size", "28px");
+});
