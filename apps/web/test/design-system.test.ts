@@ -49,7 +49,7 @@ describe("Spec 023 avatars", () => {
       expect(authorHue(name)).toBeGreaterThanOrEqual(1);
       expect(authorHue(name)).toBeLessThanOrEqual(6);
     }
-    expect(all.find(([selector]) => selector === ".avatar")?.[1]).toMatch(/color:\s*#fff\b/u);
+    expect(all.find(([selector]) => selector === ".avatar")?.[1]).toMatch(/color:\s*var\(--text-on-accent\)/u);
   });
 });
 
@@ -58,8 +58,9 @@ describe("Spec 023 source badges", () => {
     const github = rules(css).filter(([selector]) => selector.split(",").some((part) => /\.src-github\b/u.test(part)));
     const unscoped = github.filter(([selector]) => selector === ".src-github");
     expect(unscoped).toHaveLength(1);
-    expect(unscoped[0]![1]).toMatch(/background:\s*#eeedf1/u);
-    expect(unscoped[0]![1]).toMatch(/color:\s*#4c4959/u);
+    expect(unscoped[0]![1]).toMatch(/background:\s*var\(--source-github-tint\)/u);
+    expect(unscoped[0]![1]).toMatch(/color:\s*var\(--source-github\)/u);
+    expect([tokens.get("--source-github"), tokens.get("--source-github-tint")]).toEqual(["#4c4959", "#eeedf1"]);
     expect(github.map(([selector]) => selector).sort()).toEqual([".person-meta .src-github", ".src-github"]);
   });
 });
@@ -134,7 +135,7 @@ describe("Spec 023 data-viz palettes", () => {
 });
 
 describe("Spec 023 text contrast", () => {
-  const textRows = testPlanRows.filter((row) => row.id === "DS7" || row.id === "DS8" || row.id === "DS9");
+  const textRows = testPlanRows.filter((row) => ["DS7", "DS8", "DS9", "DS10"].includes(row.id));
 
   test.each(textRows)("$id: $pair is drawn in $foreground", (row) => {
     const property = row.pair.endsWith(":focus-visible") ? "outline-color" : "color";
@@ -190,14 +191,14 @@ describe("Spec 023 semantic layer", () => {
   const nonSemantic = /^--(?:data|avatar|font|series)-/u;
   const semantic = [...tokens.keys()].filter((name) => !nonSemantic.test(name));
 
-  test("DS8: every semantic token is a role named surface, text, border, accent, brand, icon or focus-ring, and holds a literal", () => {
-    expect(semantic.filter((name) => !/^--(?:surface|text|border|accent|brand|icon|focus-ring)(?:-|$)/u.test(name))).toEqual([]);
+  test("DS8: every semantic token is a role named surface, text, border, accent, brand, icon, focus-ring, shadow or source, and holds a literal", () => {
+    expect(semantic.filter((name) => !/^--(?:surface|text|border|accent|brand|icon|focus-ring|shadow|source)(?:-|$)/u.test(name))).toEqual([]);
     expect(semantic.filter((name) => tokens.get(name)!.includes("var("))).toEqual([]);
   });
 
   test("DS8: docs/product/design-system.md lists every semantic and area token with its value, and nothing that is not defined", () => {
     const missing = [...tokens].filter(([name]) => !nonSemantic.test(name) || name.startsWith("--data-area-"))
-      .filter(([name, value]) => !new RegExp(`\\| \`${name}\` \\| \`${value}\``, "iu").test(doc))
+      .filter(([name, value]) => !doc.toLowerCase().includes(`| \`${name}\` | \`${value}\``.toLowerCase()))
       .map(([name, value]) => `${name} ${value}`);
     expect(missing).toEqual([]);
     const listed = [...doc.matchAll(/^\| `(--[\w-]+)` \|/gmu)].map((m) => m[1]!);
@@ -221,7 +222,39 @@ describe("Spec 023 badge states", () => {
       expect(all.filter(([selector]) => selector === `[data-state="${state}"]`)).toHaveLength(1);
     }
     const keyClass = new RegExp(`\\.(?:status|stage)-(?:${badgeStates.map(({ key }) => key).join("|")})(?![\\w-])`, "u");
-    const own = all.filter(([selector, body]) => keyClass.test(selector) && /(?:^|[;\s])(?:color|background):/u.test(body));
+    // The base classes are shape only (DS9 follow-up): a colour on them would override the state rule
+    // that comes earlier in the file, as `.thread-status` once did.
+    const base = /\.(?:status-badge|stage-badge|thread-status)(?![\w-])/u;
+    const own = all.filter(([selector, body]) => (keyClass.test(selector) || base.test(selector)) && /(?:^|[;\s])(?:color|background(?:-color)?):/u.test(body));
     expect(own.map(([selector]) => selector)).toEqual([]);
+  });
+});
+
+describe("Spec 023 colour literals", () => {
+  // Hex, rgb(a), hsl(a) and named colours; `transparent` and `currentColor` are not colours to tokenise.
+  const NAMED = "white|black|red|green|blue|gray|grey|orange|yellow|purple|pink|silver|navy|maroon|teal|olive|lime|aqua|fuchsia";
+  const literal = new RegExp(`#[0-9a-f]{3,8}(?![\\w-])|\\b(?:rgba?|hsla?)\\(|(?<![\\w-])(?:${NAMED})(?![\\w-])`, "iu");
+  const literalsIn = (source: string) => rules(source)
+    .filter(([selector]) => !selector.startsWith(":root"))
+    .flatMap(([selector, body]) => body.split(";").map((declaration) => declaration.trim())
+      .filter((declaration) => declaration.includes(":") && literal.test(declaration.slice(declaration.indexOf(":") + 1)))
+      .map((declaration) => `${selector} { ${declaration} }`));
+
+  test("DS10: no colour literal in apps/web/styles.css outside the :root token blocks", () => {
+    expect(literalsIn(css)).toEqual([]);
+  });
+
+  test("DS10: the literal check catches hex, rgba(), a named colour, and not white-space or a token (positive control)", () => {
+    const sample = ".a { color: #fff; }\n.b { box-shadow: 0 0 1px rgba(0, 0, 0, .1); }\n.c { border: 1px solid white; }\n.d { white-space: nowrap; color: var(--text-muted); }\n:root { --x: #123456; }";
+    expect(literalsIn(sample)).toEqual([".a { color: #fff }", ".b { box-shadow: 0 0 1px rgba(0, 0, 0, .1) }", ".c { border: 1px solid white }"]);
+  });
+
+  test("DS10: no colour literal in a component's style, fill or stroke", async () => {
+    const found: string[] = [];
+    for await (const path of new Bun.Glob("src/**/*.{vue,ts}").scan({ cwd: join(import.meta.dir, "..") })) {
+      const source = await Bun.file(join(import.meta.dir, "..", path)).text();
+      for (const match of source.matchAll(/(?:fill|stroke|color|background|style)[^\n]{0,80}?(#[0-9a-f]{3,8}(?![\w-])|\b(?:rgba?|hsla?)\()/giu)) found.push(`${path}: ${match[0]}`);
+    }
+    expect(found).toEqual([]);
   });
 });

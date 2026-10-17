@@ -1,6 +1,6 @@
 # Spec 023: Design system for the web app
 
-Status: Accepted 2026-10-17 (owner approved the design-system audit and proposal with changes); slice 1 (colour bugs, DS1–DS3) implemented; slice 2 (data-viz tokens and palettes, DS4–DS6) implemented; slice 3 (text contrast, DS7) implemented; slice 4 (semantic layer, design-system page, DS8) implemented; slice 5 (badge states, DS9) implemented; slices 6–7 not implemented
+Status: Accepted 2026-10-17 (owner approved the design-system audit and proposal with changes); slice 1 (colour bugs, DS1–DS3) implemented; slice 2 (data-viz tokens and palettes, DS4–DS6) implemented; slice 3 (text contrast, DS7) implemented; slice 4 (semantic layer, design-system page, DS8) implemented; slice 5 (badge states, DS9) implemented; slice 6 (no colour literals, DS10) implemented; slice 7 not implemented
 Date: 2026-10-17
 Traceability: enforced
 Builds on: constitution §6 (visual language), ADR-0017 (the design system it links), Spec 019 (contributor profile chart and area donut), gardening G89 and G92
@@ -169,6 +169,16 @@ Slice 3, the E2E fixture's feed `/#/kafka/threads` and detail
 13. The opacity rule allows `opacity: 0` (hidden, not faded) and reads
    percentages; a fade on an element without text needs an entry, with its
    reason, in the test's `NON_TEXT_FADES` list (empty today).
+14. Colours live only in the `:root` blocks. The 42 literals left after
+   slice 5 became tokens with the same values (source identity, freshness
+   pills, on-accent text, highlight, flash, load error, trending, shadows,
+   chart column hover). Two values move: the trending dot uses `--brand`
+   (`#e35d3f` → `#e35b3f`, ΔE00 0.6) and the key-points error text uses
+   `--text-danger` (`#a3542a` → `#b8432a`, 5.42:1). The digest's warnings
+   use the warning state tokens, so a later change of `--text-state-warning`
+   or `--text-state-progress` is one line.
+15. The badge base classes (`.status-badge`, `.stage-badge`,
+   `.thread-status`) set shape only; a colour on them fails DS9.
 
 ## Acceptance
 
@@ -184,7 +194,7 @@ Each item: precondition → action → observable result → evidence.
 - DS7: given the stylesheet, every DS7 row of the case file names a rule whose `color` (for the top-bar focus ring, `outline-color`) is that row's foreground, and the pair measures ≥ 4.5:1 for text or ≥ 3:1 for an icon glyph or focus ring on the lightest surface the rule sits on; no rule sets text in `--muted-3`, `--muted-4`, `--dark-muted-2` or brand orange; on the rendered detail page a focused top-bar control shows `#8c9be8` and the timeline time `#6b6860` → unit test over the case file, E2E computed style.
 - DS8: given the stylesheet, every `:root` token outside the data, avatar, font and series families is a role named surface, text, border, accent, brand, icon or focus-ring holding a literal; `docs/product/design-system.md` lists each such token and each area token with its value, and lists none that is undefined; constitution §6 links that page; no rule sets `opacity` below 1, and the timeline filter counts, source chips, keywords and thread-status chips that used opacity or `--chip-text` are bound to solid pairs ≥ 4.5:1 in the normal and pressed states; on the rendered detail page the pressed and unpressed filter counts compute to `#3a53b0` and `#6b6860` at opacity 1 → unit test over the case file, E2E computed style.
 - DS9: given any status (feed, search, topic threads) or proposal stage, `badgeState()` maps it to one of six states — success (adopted, accepted, merged, resolved, implementing), info (open, discuss), warning (early, vote), progress (discussing), neutral (dropped, rejected, closed, anything unknown), danger (errors) — the badge carries `data-state`, each state has one colour rule whose text measures ≥ 4.5:1 on its tint, and no status or stage class sets a colour of its own; on the rendered feed "Open" is info blue and "Merged" success green, and every stage and topic-thread badge computes to its state's colour → unit test over the case file, E2E computed style.
-- DS10: [pending] slice 6: no colour literal appears in `apps/web` styles or components outside the token block.
+- DS10: given `apps/web/styles.css`, no declaration outside the `:root` blocks holds a colour literal (hex, `rgb()`/`rgba()`, `hsl()`/`hsla()`, or a named colour; `transparent` and `currentColor` are allowed), and no component in `apps/web/src` puts one in a style, fill or stroke; every text pair the removed literals drew (on-accent text, trending reason, Jira and dev@ badges, freshness pills, digest warnings, key-points error) is bound to its tokens and measures ≥ 4.5:1 → unit test over the case file, with a positive control for the literal matcher.
 - DS11: [pending] slice 7: font sizes come from the 8-step scale (12.5px maps to 13px), and spacing and radius values from their scales (`--space-*`, `--radius-*`).
 
 ### Failure and retry
@@ -208,13 +218,13 @@ exactly these rows.
 <!-- test-plan:start apps/web/test/design-system.cases.ts -->
 | id | theme | pair | foreground | background | surface | min | ratio |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| DS1 | light | avatar initials on --avatar-1 (indigo) | #ffffff | --avatar-1 |  | 4.5 | 6.9 |
-| DS1 | light | avatar initials on --avatar-2 (green) | #ffffff | --avatar-2 |  | 4.5 | 5.2 |
-| DS1 | light | avatar initials on --avatar-3 (rust) | #ffffff | --avatar-3 |  | 4.5 | 5.44 |
-| DS1 | light | avatar initials on --avatar-4 (purple) | #ffffff | --avatar-4 |  | 4.5 | 7.37 |
-| DS1 | light | avatar initials on --avatar-5 (steel blue, legacy #3f7fa0 darkened) | #ffffff | --avatar-5 |  | 4.5 | 4.86 |
-| DS1 | light | avatar initials on --avatar-6 (brown) | #ffffff | --avatar-6 |  | 4.5 | 5.25 |
-| DS2 | light | GitHub source badge (.src-github) | #4c4959 | #eeedf1 |  | 4.5 | 7.49 |
+| DS1 | light | avatar initials on --avatar-1 (indigo) | --text-on-accent | --avatar-1 |  | 4.5 | 6.9 |
+| DS1 | light | avatar initials on --avatar-2 (green) | --text-on-accent | --avatar-2 |  | 4.5 | 5.2 |
+| DS1 | light | avatar initials on --avatar-3 (rust) | --text-on-accent | --avatar-3 |  | 4.5 | 5.44 |
+| DS1 | light | avatar initials on --avatar-4 (purple) | --text-on-accent | --avatar-4 |  | 4.5 | 7.37 |
+| DS1 | light | avatar initials on --avatar-5 (steel blue, legacy #3f7fa0 darkened) | --text-on-accent | --avatar-5 |  | 4.5 | 4.86 |
+| DS1 | light | avatar initials on --avatar-6 (brown) | --text-on-accent | --avatar-6 |  | 4.5 | 5.25 |
+| DS2 | light | GitHub source badge (.src-github) | --source-github | --source-github-tint |  | 4.5 | 7.49 |
 | DS2 | light | GitHub badge in the profile header (.person-meta .src-github) | --accent | --surface-selected |  | 4.5 | 6.11 |
 | DS5 | light | reviews given outline (千草) on the card | --data-given-stroke | --surface-card |  | 3 | 3.63 |
 | DS5 | light | own PRs and comments outline (苔) on the card | --data-github-stroke | --surface-card |  | 3 | 3.72 |
@@ -273,6 +283,18 @@ exactly these rows.
 | DS9 | light | [data-state="progress"] | --text-state-progress | --surface-state-progress | the badge's own tint | 4.5 | 4.79 |
 | DS9 | light | [data-state="neutral"] | --text-state-neutral | --surface-state-neutral | the badge's own tint | 4.5 | 5.19 |
 | DS9 | light | [data-state="danger"] | --text-state-danger | --surface-state-danger | the badge's own tint | 4.5 | 4.71 |
+| DS10 | light | .tag-chip[aria-pressed="true"] | --text-on-accent | --accent | the pressed chip's accent fill | 4.5 | 6.9 |
+| DS10 | light | .filters-badge | --text-on-accent | --accent | its accent fill | 4.5 | 6.9 |
+| DS10 | light | .trending-reason | --text-trending | --surface-card | the card | 4.5 | 6.05 |
+| DS10 | light | .src-jira | --source-jira | --source-jira-tint | its own tint | 4.5 | 5.77 |
+| DS10 | light | .src-mail | --source-mail | --source-mail-tint | its own tint | 4.5 | 4.79 |
+| DS10 | light | .demo-pill | --text-pill | --surface-pill | its own fill on the top bar | 4.5 | 10.49 |
+| DS10 | light | .demo-pill.is-live | --text-pill-live | --surface-pill-live | its own fill | 4.5 | 11.35 |
+| DS10 | light | .demo-pill.is-overdue | --text-pill-overdue | --surface-pill-overdue | its own fill | 4.5 | 11.42 |
+| DS10 | light | .demo-pill.is-stale | --text-pill-stale | --surface-pill-stale | its own fill | 4.5 | 10.82 |
+| DS10 | light | .digest-freshness.is-stale | --text-state-warning | --surface-state-warning | its own tint | 4.5 | 6.67 |
+| DS10 | light | .digest-lag | --text-state-warning | --surface-page | the page: darker than a card | 4.5 | 6.78 |
+| DS10 | light | .key-points-state.is-error | --text-danger | --surface-card | the key-points card; was #a3542a | 4.5 | 5.42 |
 <!-- test-plan:end -->
 
 ## Non-goals
