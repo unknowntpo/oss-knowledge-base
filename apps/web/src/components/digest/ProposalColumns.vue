@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { badgeState } from "../../badge-state";
 import { computed } from "vue";
 import type { DigestProfile } from "@oss-knowledge-base/reference-pipeline/digest";
 
@@ -25,7 +26,7 @@ const newest = (cites: readonly string[]) => [...cites]
   <div class="stage-columns">
     <section v-for="column in columns" :key="column.stage" class="stage-column" :data-stage="column.stage">
       <h3 class="stage-heading">
-        <span class="stage-badge" :class="`stage-${column.stage}`">{{ t(`proposal.${kind}.stage.${column.stage}`) }}</span>
+        <span class="stage-badge" :class="`stage-${column.stage}`" :data-state="badgeState(column.stage)">{{ t(`proposal.${kind}.stage.${column.stage}`) }}</span>
         <span class="stage-count">{{ column.rows.length + column.more }}</span>
       </h3>
       <article v-for="row in column.rows" :key="row.key" class="kip-row" :data-stage="row.group">
@@ -33,7 +34,7 @@ const newest = (cites: readonly string[]) => [...cites]
           <span class="kip-key">{{ row.key }}</span>
           <span class="kip-title">{{ proposalTitle(row, digest.threads) }}</span>
           <span class="kip-badges">
-            <span v-for="stage in row.stages" :key="stage" class="stage-badge" :class="`stage-${stage}`">{{ t(`proposal.${kind}.stage.${stage}`) }}</span>
+            <span v-for="stage in row.stages" :key="stage" class="stage-badge" :class="`stage-${stage}`" :data-state="badgeState(stage)">{{ t(`proposal.${kind}.stage.${stage}`) }}</span>
           </span>
         </header>
         <DigestSentence v-if="row.line !== null" :sentence="row.line" :digest="digest" :feed-ids="feedIds" />

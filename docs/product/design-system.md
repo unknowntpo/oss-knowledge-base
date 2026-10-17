@@ -1,7 +1,6 @@
 # Design system (web app)
 
-Status: Active (Spec 023; slices 1–4 implemented, badges, literals and scales
-pending)
+Status: Active (Spec 023; slices 1–5 implemented, literals and scales pending)
 
 This is the colour system of `apps/web`. It keeps the visual language that
 [constitution §6](../constitution.md#6-open-formats-and-a-tested-exit-path)
@@ -51,7 +50,7 @@ values directly; add a ramp only when a second theme needs to share one.
 | `--surface-sunken` | `#faf9f7` | Inputs, footer, hatch base | — |
 | `--surface-chip` | `#f2f0ec` | Chips, hover rows | — |
 | `--surface-selected` | `#eef1fb` | Selected filter, tab or chip | — |
-| `--surface-selected-strong` | `#d9defa` | Hover on a selected control; the source-distribution bar | — |
+| `--surface-selected-strong` | `#d9defa` | Hover on a selected control | — |
 | `--surface-inverse` | `#16161a` | Top bar, tooltip | — |
 | `--surface-inverse-raised` | `#202027` | Controls on the top bar | — |
 | `--text-strong` | `#1c1b19` | Titles | 17.21 card, 15.12 chip |
@@ -73,6 +72,23 @@ values directly; add a ramp only when a second theme needs to share one.
 | `--border-selected` | `#d9defa` | Border of a selected control | decorative |
 | `--border-inverse` | `#33333b` | Borders on the top bar | decorative |
 
+## Badge states
+
+One system for every status and stage badge: feed and search cards
+(`.status-badge`), feed detail, proposal stages (`.stage-badge`) and topic
+threads (`.thread-status`). `badgeState()` in `apps/web/src/badge-state.ts`
+maps a status or stage key to a state; the badge carries `data-state`, and
+only the state sets colours. An unknown key is neutral.
+
+| State | Text token | Value | Tint token | Value | Ratio | Statuses and stages |
+| --- | --- | --- | --- | --- | --- | --- |
+| success | `--text-state-success` | `#1c5e44` | `--surface-state-success` | `#dff2ea` | 6.59 | adopted, accepted, merged, resolved, implementing |
+| info | `--text-state-info` | `#1d4e89` | `--surface-state-info` | `#e3eefa` | 7.14 | open, discuss |
+| warning | `--text-state-warning` | `#7a4a12` | `--surface-state-warning` | `#fbf1e3` | 6.67 | early, vote |
+| progress | `--text-state-progress` | `#a3542a` | `--surface-state-progress` | `#f7efe9` | 4.79 | discussing |
+| neutral | `--text-state-neutral` | `#6b5e79` | `--surface-state-neutral` | `#efeef2` | 5.19 | dropped, rejected, closed, anything else |
+| danger | `--text-state-danger` | `#b8432a` | `--surface-state-danger` | `#fbece8` | 4.71 | errors (no status uses it yet) |
+
 ## Data-viz palettes
 
 ### Profile activity chart (方案二・透明感)
@@ -92,6 +108,16 @@ legend, the count tiles and the tooltip use the same swatch.
 
 Dark values are on `:root[data-theme="dark"]`; no page sets the attribute
 yet (gardening G89, G92).
+
+### Feed detail source distribution
+
+A bar per source, its count as text beside it. Like the chart: a light
+translucent fill with a 1px outline that carries the 3:1.
+
+| Token | Value | Measured |
+| --- | --- | --- |
+| `--data-bar-fill` | 瓶覗 `#a5dee4` at `--data-bar-alpha` 70% | — |
+| `--data-bar-stroke` | 藍鼠 `#566c73` | 5.04 on the page, 5.54 on a card |
 
 ### Area donut (by rank)
 
@@ -132,8 +158,9 @@ colour.
    protan and deutan simulation, and contain no orange.
 7. **Every `color-mix()` follows a plain declaration** of the same property,
    so an older browser draws a solid colour.
-8. **One badge system and one source map** (Spec 023 slice 5). New screens
-   pick a state; they do not invent colours.
+8. **One badge system.** A badge picks one of the six states above through
+   `badgeState()`; no status or stage class sets a colour of its own. Source
+   badges keep the source identity colours.
 
 ## How to add a colour
 

@@ -64,8 +64,6 @@ export const testPlanRows = [
   { id: "DS7", theme: "light", pair: ".tl-time", foreground: "--text-muted", background: "#fdf7e3", surface: "the flashed timeline card, the darkest it sits on", min: 4.5, ratio: 5.19 },
   { id: "DS7", theme: "light", pair: ".person-unavailable", foreground: "--text-danger", background: "--surface-page", surface: "the page: the darker of page and card, so the card passes too", min: 4.5, ratio: 4.93 },
   { id: "DS7", theme: "light", pair: ".brand-scope", foreground: "--text-inverse-muted", background: "--surface-inverse", surface: "", min: 4.5, ratio: 5.46 },
-  { id: "DS7", theme: "light", pair: ".status-early", foreground: "#8a5a0e", background: "#fdf2dc", surface: "", min: 4.5, ratio: 5.33 },
-  { id: "DS7", theme: "light", pair: ".status-open", foreground: "#1b7a36", background: "#dafbe1", surface: "", min: 4.5, ratio: 4.86 },
   { id: "DS7", theme: "light", pair: ".search-icon", foreground: "--icon-muted", background: "--surface-sunken", surface: "", min: 3, ratio: 3.1 },
   { id: "DS7", theme: "light", pair: ".source-link .ext", foreground: "--icon-muted", background: "--surface-card", surface: "", min: 3, ratio: 3.26 },
   { id: "DS7", theme: "light", pair: ".topbar :focus-visible", foreground: "--focus-ring-inverse", background: "--surface-inverse", surface: "", min: 3, ratio: 6.85 },
@@ -74,7 +72,13 @@ export const testPlanRows = [
   { id: "DS8", theme: "light", pair: ".source-dot", foreground: "--text-muted", background: "--surface-chip", surface: "the chip; was --chip-text #6f6c76, 4.52:1", min: 4.5, ratio: 4.89 },
   { id: "DS8", theme: "light", pair: ".source-dot.off", foreground: "--text-muted", background: "--surface-card", surface: "the card (no fill, outlined); was opacity 0.35", min: 4.5, ratio: 5.56 },
   { id: "DS8", theme: "light", pair: ".keyword", foreground: "--text-muted", background: "--surface-chip", surface: "the chip; was --chip-text", min: 4.5, ratio: 4.89 },
-  { id: "DS8", theme: "light", pair: ".thread-status", foreground: "--text-muted", background: "--surface-chip", surface: "the chip; was --chip-text", min: 4.5, ratio: 4.89 },
+  { id: "DS5", theme: "light", pair: ".bar", foreground: "--data-bar-stroke", background: "--surface-page", surface: "the page: the feed-detail rail sits on it, darker than a card", min: 3, ratio: 5.04 },
+  { id: "DS9", theme: "light", pair: "[data-state=\"success\"]", foreground: "--text-state-success", background: "--surface-state-success", surface: "the badge's own tint", min: 4.5, ratio: 6.59 },
+  { id: "DS9", theme: "light", pair: "[data-state=\"info\"]", foreground: "--text-state-info", background: "--surface-state-info", surface: "the badge's own tint", min: 4.5, ratio: 7.14 },
+  { id: "DS9", theme: "light", pair: "[data-state=\"warning\"]", foreground: "--text-state-warning", background: "--surface-state-warning", surface: "the badge's own tint", min: 4.5, ratio: 6.67 },
+  { id: "DS9", theme: "light", pair: "[data-state=\"progress\"]", foreground: "--text-state-progress", background: "--surface-state-progress", surface: "the badge's own tint", min: 4.5, ratio: 4.79 },
+  { id: "DS9", theme: "light", pair: "[data-state=\"neutral\"]", foreground: "--text-state-neutral", background: "--surface-state-neutral", surface: "the badge's own tint", min: 4.5, ratio: 5.19 },
+  { id: "DS9", theme: "light", pair: "[data-state=\"danger\"]", foreground: "--text-state-danger", background: "--surface-state-danger", surface: "the badge's own tint", min: 4.5, ratio: 4.71 },
 ] as const;
 
 /** DS1: authors from the E2E fixture and the hue the legacy viewer's hash gives them. */
@@ -104,3 +108,14 @@ export const areaTokens = ["--data-area-1", "--data-area-2", "--data-area-3", "-
 export const AREA_MIN_DELTA_E = 10;
 /** The activity chart's colours on the same profile page, which no area colour may come near. */
 export const activityColourTokens = ["--data-given-fill", "--data-given-stroke", "--data-github-fill", "--data-github-stroke", "--data-received-fill", "--data-received-stroke", "--data-unrecorded-line"] as const;
+
+/** DS9: every status and proposal stage the app shows, and the badge state it maps to. */
+export const badgeStates = [
+  { key: "adopted", state: "success" }, { key: "accepted", state: "success" }, { key: "merged", state: "success" },
+  { key: "resolved", state: "success" }, { key: "implementing", state: "success" },
+  { key: "open", state: "info" }, { key: "discuss", state: "info" },
+  { key: "early", state: "warning" }, { key: "vote", state: "warning" },
+  { key: "discussing", state: "progress" },
+  { key: "dropped", state: "neutral" }, { key: "rejected", state: "neutral" }, { key: "closed", state: "neutral" },
+  { key: "something-new", state: "neutral" },
+] as const;

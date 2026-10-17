@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { badgeState } from "../badge-state";
 import { useI18n } from "../i18n";
 import type { FeedIndexEntry, FeedProjectProfile } from "../types";
 
@@ -25,7 +26,7 @@ function relativeTime(value: string | undefined): string {
   <RouterLink class="card" :to="`/feed/${encodeURIComponent(item.displayId)}`" :aria-label="t('a11y.openTopic', { id: item.displayId, title: item.entry.title })">
     <div class="card-head">
       <span class="topic-id">{{ item.displayId }}</span>
-      <span class="status-badge" :class="`status-${item.status}`">{{ t(`status.${item.status}`) }}</span>
+      <span class="status-badge" :class="`status-${item.status}`" :data-state="badgeState(item.status)">{{ t(`status.${item.status}`) }}</span>
       <span class="card-project">{{ profile?.label ?? item.projectKey }}</span>
     </div>
     <h3 class="card-title">{{ item.entry.title }}</h3>

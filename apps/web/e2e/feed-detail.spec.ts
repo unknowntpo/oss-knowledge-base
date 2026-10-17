@@ -180,3 +180,41 @@ test("DS8: timeline filter counts are solid colours that pass in both states", a
   await expect(github.locator(".count")).toHaveCSS("color", "rgb(58, 83, 176)");
   await expect(github.locator(".count")).toHaveCSS("opacity", "1");
 });
+
+// Spec 023 DS9: one badge system on feed, detail, proposals and topic pages.
+const STATE_TEXT: Record<string, string> = {
+  success: "rgb(28, 94, 68)", info: "rgb(29, 78, 137)", warning: "rgb(122, 74, 18)",
+  progress: "rgb(163, 84, 42)", neutral: "rgb(107, 94, 121)", danger: "rgb(184, 67, 42)",
+};
+
+test("DS9: open is info blue and merged success green on the feed; every digest badge takes its colour from its state", async ({ page }) => {
+  await page.goto("/#/kafka/threads");
+  const open = page.locator(".card", { hasText: "KAFKA-ISSUE-42" }).locator(".status-badge");
+  const merged = page.locator(".card", { hasText: "KAFKA-PR-43" }).locator(".status-badge");
+  await expect(open).toHaveAttribute("data-state", "info");
+  await expect(open).toHaveCSS("color", STATE_TEXT.info!);
+  await expect(open).toHaveCSS("background-color", "rgb(227, 238, 250)");
+  await expect(merged).toHaveAttribute("data-state", "success");
+  await expect(merged).toHaveCSS("color", STATE_TEXT.success!);
+
+  await page.goto("/#/kafka/");
+  await page.locator("#digest, .digest-notice").first().waitFor();
+  const vote = page.locator(".stage-badge.stage-vote").first();
+  await expect(vote).toHaveAttribute("data-state", "warning");
+  await expect(vote).toHaveCSS("color", STATE_TEXT.warning!);
+  await expect(page.locator(".stage-badge.stage-discuss").first()).toHaveCSS("color", STATE_TEXT.info!);
+  await expect(page.locator(".stage-badge.stage-implementing").first()).toHaveCSS("color", STATE_TEXT.success!);
+
+  await page.locator(".topic-card-title a").first().click();
+  const statuses = page.locator(".thread-status");
+  await expect(statuses.first()).toBeVisible();
+  for (const badge of await statuses.all()) {
+    const state = await badge.getAttribute("data-state");
+    await expect(badge).toHaveCSS("color", STATE_TEXT[state!]!);
+  }
+});
+
+test("DS5: the source-distribution bar is a translucent fill with a 3:1 outline", async ({ page }) => {
+  await page.goto("/#/feed/KAFKA-PR-43");
+  await expect(page.locator(".rail-source .bar").first()).toHaveCSS("box-shadow", "rgb(86, 108, 115) 0px 0px 0px 1px inset");
+});
