@@ -8,6 +8,7 @@ import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 
 import { authorHue } from "../src/avatar";
+import { colourStringsIn, literalsIn, literalsInMarkup, NAMED_COLOURS } from "./css-literals";
 import { contrast, deltaE2000, resolveToken, rootTokens, simulate, themeTokens, toLch, type Vision } from "./colorlib";
 import { activityColourTokens, activityPalette, AREA_MIN_DELTA_E, areaTokens, authorHues, badgeStates, testPlanRows } from "./design-system.cases";
 import { BADGE_STATES, badgeState } from "../src/badge-state";
@@ -188,7 +189,7 @@ const doc = await Bun.file(join(repo, "docs", "product", "design-system.md")).te
 const constitution = await Bun.file(join(repo, "docs", "constitution.md")).text();
 
 describe("Spec 023 semantic layer", () => {
-  const nonSemantic = /^--(?:data|avatar|font|series)-/u;
+  const nonSemantic = /^--(?:data|avatar|font|series|fs|space|radius)-/u;
   const semantic = [...tokens.keys()].filter((name) => !nonSemantic.test(name));
 
   test("DS8: every semantic token is a role named surface, text, border, accent, brand, icon, focus-ring, shadow or source, and holds a literal", () => {
@@ -231,30 +232,84 @@ describe("Spec 023 badge states", () => {
 });
 
 describe("Spec 023 colour literals", () => {
-  // Hex, rgb(a), hsl(a) and named colours; `transparent` and `currentColor` are not colours to tokenise.
-  const NAMED = "white|black|red|green|blue|gray|grey|orange|yellow|purple|pink|silver|navy|maroon|teal|olive|lime|aqua|fuchsia";
-  const literal = new RegExp(`#[0-9a-f]{3,8}(?![\\w-])|\\b(?:rgba?|hsla?)\\(|(?<![\\w-])(?:${NAMED})(?![\\w-])`, "iu");
-  const literalsIn = (source: string) => rules(source)
-    .filter(([selector]) => !selector.startsWith(":root"))
-    .flatMap(([selector, body]) => body.split(";").map((declaration) => declaration.trim())
-      .filter((declaration) => declaration.includes(":") && literal.test(declaration.slice(declaration.indexOf(":") + 1)))
-      .map((declaration) => `${selector} { ${declaration} }`));
+  const web = join(import.meta.dir, "..");
+  // A TypeScript file that must hold colour strings goes here with its reason. Empty today.
+  const TS_COLOUR_ALLOWLIST: readonly string[] = [];
 
   test("DS10: no colour literal in apps/web/styles.css outside the :root token blocks", () => {
     expect(literalsIn(css)).toEqual([]);
   });
 
-  test("DS10: the literal check catches hex, rgba(), a named colour, and not white-space or a token (positive control)", () => {
-    const sample = ".a { color: #fff; }\n.b { box-shadow: 0 0 1px rgba(0, 0, 0, .1); }\n.c { border: 1px solid white; }\n.d { white-space: nowrap; color: var(--text-muted); }\n:root { --x: #123456; }";
-    expect(literalsIn(sample)).toEqual([".a { color: #fff }", ".b { box-shadow: 0 0 1px rgba(0, 0, 0, .1) }", ".c { border: 1px solid white }"]);
+  test("DS10: no colour literal in a Vue <style> block, style/fill/stroke attribute, or apps/web/index.html", async () => {
+    const found: string[] = [];
+    for await (const path of new Bun.Glob("src/**/*.vue").scan({ cwd: web })) {
+      found.push(...literalsInMarkup(await Bun.file(join(web, path)).text()).map((hit) => `${path}: ${hit}`));
+    }
+    found.push(...literalsInMarkup(await Bun.file(join(web, "index.html")).text()).map((hit) => `index.html: ${hit}`));
+    expect(found).toEqual([]);
   });
 
-  test("DS10: no colour literal in a component's style, fill or stroke", async () => {
+  test("DS10: no hex or colour-function string in apps/web/src TypeScript or Vue scripts", async () => {
     const found: string[] = [];
-    for await (const path of new Bun.Glob("src/**/*.{vue,ts}").scan({ cwd: join(import.meta.dir, "..") })) {
-      const source = await Bun.file(join(import.meta.dir, "..", path)).text();
-      for (const match of source.matchAll(/(?:fill|stroke|color|background|style)[^\n]{0,80}?(#[0-9a-f]{3,8}(?![\w-])|\b(?:rgba?|hsla?)\()/giu)) found.push(`${path}: ${match[0]}`);
+    for await (const path of new Bun.Glob("src/**/*.{ts,vue}").scan({ cwd: web })) {
+      if (TS_COLOUR_ALLOWLIST.includes(path)) continue;
+      found.push(...colourStringsIn(await Bun.file(join(web, path)).text()).map((hit) => `${path}: ${hit}`));
     }
     expect(found).toEqual([]);
+  });
+
+  test("DS10: the checks catch hex, functions and named colours, and not white-space, color-mix, tokens or :root (positive control)", () => {
+    const sample = [
+      ".a { color: #fff; }", ".b { box-shadow: 0 0 1px rgba(0, 0, 0, .1); }", ".c { border: 1px solid rebeccapurple; }",
+      ".d { background: oklch(70% 0.1 200); }", ".e { fill: color(srgb 1 0 0); }", ".f { outline-color: lab(50% 20 30); }",
+      ".g { white-space: nowrap; color: var(--text-muted); background: color-mix(in srgb, var(--x) 50%, transparent); }",
+      ".h { font-family: Tan, sans-serif; }", ":root { --x: #123456; }",
+    ].join("\n");
+    expect(literalsIn(sample).map((hit) => hit.slice(0, 2))).toEqual([".a", ".b", ".c", ".d", ".e", ".f"]);
+    expect(literalsInMarkup("<template><svg><rect fill=\"#fff\" /></svg><p style=\"color: red\"></p></template>\n<style scoped>\n.x { border: 1px solid #123456; }\n</style>"))
+      .toEqual([".x { border: 1px solid #123456 }", "style=\"color: red\"", "fill=\"#fff\""]);
+    expect(colourStringsIn('export const PALETTE = ["#3a53b0"];\nconst ok = "#/feed/KAFKA-1";\nconst f = `rgb(0 0 0)`;')).toEqual(['"#3a53b0"', "`rgb(0 0 0)`"]);
+    expect(NAMED_COLOURS).toHaveLength(148);
+  });
+});
+
+describe("Spec 023 scales", () => {
+  const declarations = rules(css)
+    .filter(([selector]) => !selector.startsWith(":root"))
+    .flatMap(([selector, body]) => body.split(";").map((part) => part.trim()).filter((part) => part.includes(":"))
+      .map((part) => ({ selector, property: part.slice(0, part.indexOf(":")).trim(), value: part.slice(part.indexOf(":") + 1).trim() })));
+  // SVG text inside the donut's 42-unit viewBox is sized in user units, not CSS pixels.
+  const FONT_EXEMPT = [".person-donut-total", ".person-donut-unit"];
+  // The visually-hidden pattern's -1px margin is not spacing.
+  const SPACE_EXEMPT = [".visually-hidden"];
+
+  test("DS11: the type scale is eight steps and a display size (12.5px maps to 13px)", () => {
+    const scale = Object.fromEntries([...tokens].filter(([name]) => name.startsWith("--fs-")));
+    expect(scale).toEqual({
+      "--fs-2xs": "11px", "--fs-xs": "12px", "--fs-sm": "13px", "--fs-md": "14px", "--fs-lg": "15px",
+      "--fs-xl": "17px", "--fs-2xl": "22px", "--fs-3xl": "28px", "--fs-display": "clamp(24px, 4vw, 34px)",
+    });
+  });
+
+  test("DS11: every font size comes from the type scale", () => {
+    const off = declarations.filter(({ selector, property, value }) => property === "font-size" && !FONT_EXEMPT.includes(selector)
+      && !/^var\(--fs-[\w-]+\)$|^inherit$/u.test(value));
+    expect(off).toEqual([]);
+  });
+
+  test("DS11: every padding, margin and gap comes from the spacing scale (0, auto, % allowed)", () => {
+    const atom = /^(?:0|auto|-?[\d.]+%|var\(--space-\d+\)|calc\(var\(--space-\d+\) \* -1\))$/u;
+    const off = declarations.filter(({ selector, property, value }) => /^(?:padding|margin|gap|row-gap|column-gap)(?:-[a-z]+)?$/u.test(property)
+      && !SPACE_EXEMPT.includes(selector)
+      && !value.replace(/calc\(var\(--space-\d+\) \* -1\)/gu, "x").split(/\s+/u).every((part) => part === "x" || atom.test(part)));
+    expect(off).toEqual([]);
+    const steps = [...tokens].filter(([name]) => name.startsWith("--space-")).map(([, value]) => value);
+    expect(steps).toEqual(["2px", "4px", "6px", "8px", "10px", "12px", "14px", "16px", "20px", "24px", "28px", "32px", "40px", "48px", "64px", "96px"]);
+  });
+
+  test("DS11: every border radius comes from the radius scale (or 50% for a circle)", () => {
+    const off = declarations.filter(({ property, value }) => /^border(?:-[a-z]+)*-radius$/u.test(property)
+      && !value.split(/\s+/u).every((part) => /^(?:0|50%|var\(--radius-(?:xs|sm|md|lg|xl|pill)\))$/u.test(part)));
+    expect(off).toEqual([]);
   });
 });
