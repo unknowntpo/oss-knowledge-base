@@ -167,3 +167,16 @@ test("DS7: a focused top-bar control shows the light indigo ring; small labels u
   await expect(page.locator(".brand-scope")).toHaveCSS("color", "rgb(143, 140, 150)");
   await expect(page.locator(".tl-time").first()).toHaveCSS("color", "rgb(107, 104, 96)");
 });
+
+test("DS8: timeline filter counts are solid colours that pass in both states", async ({ page }) => {
+  await page.goto("/#/feed/KAFKA-PR-43");
+  const all = page.locator(".tl-filter", { hasText: "All sources" });
+  const github = page.locator(".tl-filter", { hasText: "GitHub" });
+  await expect(all).toHaveAttribute("aria-pressed", "true");
+  await expect(all.locator(".count")).toHaveCSS("color", "rgb(58, 83, 176)");
+  await expect(all.locator(".count")).toHaveCSS("opacity", "1");
+  await expect(github.locator(".count")).toHaveCSS("color", "rgb(107, 104, 96)");
+  await github.click();
+  await expect(github.locator(".count")).toHaveCSS("color", "rgb(58, 83, 176)");
+  await expect(github.locator(".count")).toHaveCSS("opacity", "1");
+});

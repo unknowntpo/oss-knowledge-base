@@ -74,6 +74,10 @@ screens should retain its recognizable typography, palette, spacing rhythm,
 and content-focused character while allowing components, interaction patterns,
 routes, and accessibility behavior to improve.
 
+[Design system](product/design-system.md) states that visual language as
+tokens, roles and rules, with the contrast and colour-vision checks that keep
+it readable (ADR-0017).
+
 ## 7. Specifications and assertions lead implementation
 
 Each feature starts with a bounded intent, observable acceptance scenarios,
@@ -97,3 +101,4 @@ impact, migration plan, and amendments to affected specs and tests. A feature
 implementation may not override this document implicitly.
 
 ADR-0005 amended the core/read-model boundary on 2026-08-25.
+ADR-0017 linked §6 to the design system on 2026-10-17 (no principle changed).

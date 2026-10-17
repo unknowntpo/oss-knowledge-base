@@ -133,19 +133,27 @@ describe("Spec 023 data-viz palettes", () => {
 });
 
 describe("Spec 023 text contrast", () => {
-  const textRows = testPlanRows.filter((row) => row.id === "DS7");
+  const textRows = testPlanRows.filter((row) => row.id === "DS7" || row.id === "DS8");
 
-  test.each(textRows)("DS7: $pair is drawn in $foreground", (row) => {
-    const rule = rules(css).find(([selector]) => selector.split(",").map((part) => part.trim()).includes(row.pair));
-    expect(rule).toBeDefined();
+  test.each(textRows)("$id: $pair is drawn in $foreground", (row) => {
     const property = row.pair.endsWith(":focus-visible") ? "outline-color" : "color";
-    const declared = new RegExp(`(?:^|[;\\s{])${property}:\\s*([^;]+);`, "u").exec(rule![1])?.[1]?.trim();
+    // The last declaration in source order wins (all these rules have the same specificity per selector).
+    const declared = rules(css)
+      .filter(([selector]) => selector.split(",").map((part) => part.trim()).includes(row.pair))
+      .map(([, body]) => new RegExp(`(?:^|[;\\s{])${property}:\\s*([^;]+);`, "u").exec(body)?.[1]?.trim())
+      .filter((value) => value !== undefined)
+      .at(-1);
     expect(declared).toBe(row.foreground.startsWith("--") ? `var(${row.foreground})` : row.foreground);
   });
 
   test("DS7: no rule sets text in a colour below the text floor (--muted-3, --muted-4, --dark-muted-2, brand orange)", () => {
-    const weak = rules(css).filter(([, body]) => /(?:^|[;\s])color:\s*var\(--(?:muted-3|muted-4|dark-muted-2|brand-orange)\)/u.test(body));
+    const weak = rules(css).filter(([, body]) => /(?:^|[;\s])color:\s*var\(--(?:muted-3|muted-4|dark-muted-2|brand-orange|brand)\)/u.test(body));
     expect(weak.map(([selector]) => selector)).toEqual([]);
+  });
+
+  test("DS8: no rule fades an element with opacity below 1 (text inside would drop below its pair; use a solid colour)", () => {
+    const faded = rules(css).filter(([, body]) => /(?:^|[;\s])opacity:\s*(?:0?\.\d+|0)\s*(?:;|$)/u.test(body));
+    expect(faded.map(([selector]) => selector)).toEqual([]);
   });
 });
 
@@ -157,5 +165,33 @@ describe("Spec 023 colour-mix fallback", () => {
       const declarations = body.split(";").map((part) => part.trim()).filter((part) => part.startsWith(`${property}:`));
       expect({ selector, first: declarations[0]?.includes("color-mix(") }).toEqual({ selector, first: false });
     }
+  });
+});
+
+const repo = join(import.meta.dir, "..", "..", "..");
+const doc = await Bun.file(join(repo, "docs", "product", "design-system.md")).text();
+const constitution = await Bun.file(join(repo, "docs", "constitution.md")).text();
+
+describe("Spec 023 semantic layer", () => {
+  const nonSemantic = /^--(?:data|avatar|font|series)-/u;
+  const semantic = [...tokens.keys()].filter((name) => !nonSemantic.test(name));
+
+  test("DS8: every semantic token is a role named surface, text, border, accent, brand, icon or focus-ring, and holds a literal", () => {
+    expect(semantic.filter((name) => !/^--(?:surface|text|border|accent|brand|icon|focus-ring)(?:-|$)/u.test(name))).toEqual([]);
+    expect(semantic.filter((name) => tokens.get(name)!.includes("var("))).toEqual([]);
+  });
+
+  test("DS8: docs/product/design-system.md lists every semantic and area token with its value, and nothing that is not defined", () => {
+    const missing = [...tokens].filter(([name]) => !nonSemantic.test(name) || name.startsWith("--data-area-"))
+      .filter(([name, value]) => !new RegExp(`\\| \`${name}\` \\| \`${value}\``, "iu").test(doc))
+      .map(([name, value]) => `${name} ${value}`);
+    expect(missing).toEqual([]);
+    const listed = [...doc.matchAll(/^\| `(--[\w-]+)` \|/gmu)].map((m) => m[1]!);
+    expect(listed.filter((name) => !tokens.has(name))).toEqual([]);
+  });
+
+  test("DS8: constitution §6 links the design system", () => {
+    const section = constitution.slice(constitution.indexOf("## 6."), constitution.indexOf("## 7."));
+    expect(section).toContain("(product/design-system.md)");
   });
 });
