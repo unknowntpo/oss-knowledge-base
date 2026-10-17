@@ -14,13 +14,13 @@
  * DS8 rows bind the same way; they cover text that used `opacity` or `--chip-text` before slice 4.
  */
 export const testPlanRows = [
-  { id: "DS1", theme: "light", pair: "avatar initials on --avatar-1 (indigo)", foreground: "#ffffff", background: "--avatar-1", surface: "", min: 4.5, ratio: 6.9 },
-  { id: "DS1", theme: "light", pair: "avatar initials on --avatar-2 (green)", foreground: "#ffffff", background: "--avatar-2", surface: "", min: 4.5, ratio: 5.2 },
-  { id: "DS1", theme: "light", pair: "avatar initials on --avatar-3 (rust)", foreground: "#ffffff", background: "--avatar-3", surface: "", min: 4.5, ratio: 5.44 },
-  { id: "DS1", theme: "light", pair: "avatar initials on --avatar-4 (purple)", foreground: "#ffffff", background: "--avatar-4", surface: "", min: 4.5, ratio: 7.37 },
-  { id: "DS1", theme: "light", pair: "avatar initials on --avatar-5 (steel blue, legacy #3f7fa0 darkened)", foreground: "#ffffff", background: "--avatar-5", surface: "", min: 4.5, ratio: 4.86 },
-  { id: "DS1", theme: "light", pair: "avatar initials on --avatar-6 (brown)", foreground: "#ffffff", background: "--avatar-6", surface: "", min: 4.5, ratio: 5.25 },
-  { id: "DS2", theme: "light", pair: "GitHub source badge (.src-github)", foreground: "#4c4959", background: "#eeedf1", surface: "", min: 4.5, ratio: 7.49 },
+  { id: "DS1", theme: "light", pair: "avatar initials on --avatar-1 (indigo)", foreground: "--text-on-accent", background: "--avatar-1", surface: "", min: 4.5, ratio: 6.9 },
+  { id: "DS1", theme: "light", pair: "avatar initials on --avatar-2 (green)", foreground: "--text-on-accent", background: "--avatar-2", surface: "", min: 4.5, ratio: 5.2 },
+  { id: "DS1", theme: "light", pair: "avatar initials on --avatar-3 (rust)", foreground: "--text-on-accent", background: "--avatar-3", surface: "", min: 4.5, ratio: 5.44 },
+  { id: "DS1", theme: "light", pair: "avatar initials on --avatar-4 (purple)", foreground: "--text-on-accent", background: "--avatar-4", surface: "", min: 4.5, ratio: 7.37 },
+  { id: "DS1", theme: "light", pair: "avatar initials on --avatar-5 (steel blue, legacy #3f7fa0 darkened)", foreground: "--text-on-accent", background: "--avatar-5", surface: "", min: 4.5, ratio: 4.86 },
+  { id: "DS1", theme: "light", pair: "avatar initials on --avatar-6 (brown)", foreground: "--text-on-accent", background: "--avatar-6", surface: "", min: 4.5, ratio: 5.25 },
+  { id: "DS2", theme: "light", pair: "GitHub source badge (.src-github)", foreground: "--source-github", background: "--source-github-tint", surface: "", min: 4.5, ratio: 7.49 },
   { id: "DS2", theme: "light", pair: "GitHub badge in the profile header (.person-meta .src-github)", foreground: "--accent", background: "--surface-selected", surface: "", min: 4.5, ratio: 6.11 },
   { id: "DS5", theme: "light", pair: "reviews given outline (千草) on the card", foreground: "--data-given-stroke", background: "--surface-card", surface: "", min: 3, ratio: 3.63 },
   { id: "DS5", theme: "light", pair: "own PRs and comments outline (苔) on the card", foreground: "--data-github-stroke", background: "--surface-card", surface: "", min: 3, ratio: 3.72 },
@@ -79,6 +79,18 @@ export const testPlanRows = [
   { id: "DS9", theme: "light", pair: "[data-state=\"progress\"]", foreground: "--text-state-progress", background: "--surface-state-progress", surface: "the badge's own tint", min: 4.5, ratio: 4.79 },
   { id: "DS9", theme: "light", pair: "[data-state=\"neutral\"]", foreground: "--text-state-neutral", background: "--surface-state-neutral", surface: "the badge's own tint", min: 4.5, ratio: 5.19 },
   { id: "DS9", theme: "light", pair: "[data-state=\"danger\"]", foreground: "--text-state-danger", background: "--surface-state-danger", surface: "the badge's own tint", min: 4.5, ratio: 4.71 },
+  { id: "DS10", theme: "light", pair: ".tag-chip[aria-pressed=\"true\"]", foreground: "--text-on-accent", background: "--accent", surface: "the pressed chip's accent fill", min: 4.5, ratio: 6.9 },
+  { id: "DS10", theme: "light", pair: ".filters-badge", foreground: "--text-on-accent", background: "--accent", surface: "its accent fill", min: 4.5, ratio: 6.9 },
+  { id: "DS10", theme: "light", pair: ".trending-reason", foreground: "--text-trending", background: "--surface-card", surface: "the card", min: 4.5, ratio: 6.05 },
+  { id: "DS10", theme: "light", pair: ".src-jira", foreground: "--source-jira", background: "--source-jira-tint", surface: "its own tint", min: 4.5, ratio: 5.77 },
+  { id: "DS10", theme: "light", pair: ".src-mail", foreground: "--source-mail", background: "--source-mail-tint", surface: "its own tint", min: 4.5, ratio: 4.79 },
+  { id: "DS10", theme: "light", pair: ".demo-pill", foreground: "--text-pill", background: "--surface-pill", surface: "its own fill on the top bar", min: 4.5, ratio: 10.49 },
+  { id: "DS10", theme: "light", pair: ".demo-pill.is-live", foreground: "--text-pill-live", background: "--surface-pill-live", surface: "its own fill", min: 4.5, ratio: 11.35 },
+  { id: "DS10", theme: "light", pair: ".demo-pill.is-overdue", foreground: "--text-pill-overdue", background: "--surface-pill-overdue", surface: "its own fill", min: 4.5, ratio: 11.42 },
+  { id: "DS10", theme: "light", pair: ".demo-pill.is-stale", foreground: "--text-pill-stale", background: "--surface-pill-stale", surface: "its own fill", min: 4.5, ratio: 10.82 },
+  { id: "DS10", theme: "light", pair: ".digest-freshness.is-stale", foreground: "--text-state-warning", background: "--surface-state-warning", surface: "its own tint", min: 4.5, ratio: 6.67 },
+  { id: "DS10", theme: "light", pair: ".digest-lag", foreground: "--text-state-warning", background: "--surface-page", surface: "the page: darker than a card", min: 4.5, ratio: 6.78 },
+  { id: "DS10", theme: "light", pair: ".key-points-state.is-error", foreground: "--text-danger", background: "--surface-card", surface: "the key-points card; was #a3542a", min: 4.5, ratio: 5.42 },
 ] as const;
 
 /** DS1: authors from the E2E fixture and the hue the legacy viewer's hash gives them. */

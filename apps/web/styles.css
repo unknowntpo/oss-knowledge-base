@@ -40,6 +40,38 @@
   --border-hover: #b9c0e8;
   --border-selected: #d9defa;
   --border-inverse: #33333b;
+  --border-inverse-strong: #000000;    /* the top bar's bottom edge */
+  --text-on-accent: #ffffff;           /* text on an accent fill: 6.90:1 */
+  --text-trending: #9a4d2b;            /* "Trending" reason on a card: 6.05:1 */
+  --surface-trending-halo: #f8e7e1;    /* ring around the trending dot */
+  --surface-highlight: #fbeeb8;        /* <mark> search highlight */
+  --surface-flash: #fdf7e3;            /* a timeline card just jumped to */
+  --border-flash: #e6d9a8;
+  --surface-error: #fff8f5;            /* load-error panel */
+  --border-error: #d7c7c1;
+  --surface-hover-column: rgba(58, 83, 176, 0.06); /* hovered chart column */
+  --shadow-hover: 0 6px 20px -14px rgba(40, 50, 120, 0.4);
+  --shadow-popover: 0 2px 8px rgba(0, 0, 0, 0.15);
+  /* Source identity (wiki uses --accent / --surface-selected) */
+  --source-jira: #2a6089;
+  --source-jira-tint: #e7eff6;
+  --source-mail: #a3542a;
+  --source-mail-tint: #f7efe9;
+  --source-github: #4c4959;
+  --source-github-tint: #eeedf1;
+  /* Freshness pill on the top bar, per state (Specs 010, 011, 021) */
+  --text-pill: #f0c9a5;
+  --border-pill: #5a3a2c;
+  --surface-pill: #2a1e18;
+  --text-pill-live: #b8e4c9;
+  --border-pill-live: #35644a;
+  --surface-pill-live: #17251e;
+  --text-pill-overdue: #e3dba6;
+  --border-pill-overdue: #5e5a2c;
+  --surface-pill-overdue: #232212;
+  --text-pill-stale: #f1d1a4;
+  --border-pill-stale: #755126;
+  --surface-pill-stale: #2b2115;
   /* Badge states (Spec 023 DS9): one system for feed, search and digest badges; text ≥ 4.5:1 on its tint */
   --text-state-success: #1c5e44;       /* adopted, accepted, merged, resolved, implementing */
   --surface-state-success: #dff2ea;
@@ -47,6 +79,7 @@
   --surface-state-info: #e3eefa;
   --text-state-warning: #7a4a12;       /* early, vote */
   --surface-state-warning: #fbf1e3;
+  --border-state-warning: #c9965a;     /* outlined warning (digest freshness) */
   --text-state-progress: #a3542a;      /* discussing */
   --surface-state-progress: #f7efe9;
   --text-state-neutral: #6b5e79;       /* dropped, rejected, closed, unknown */
@@ -165,7 +198,7 @@ select {
   height: 60px;
   padding: 0 24px;
   background: var(--surface-inverse);
-  border-bottom: 1px solid #000;
+  border-bottom: 1px solid var(--border-inverse-strong);
   color: var(--text-inverse);
   flex: 0 0 auto;
 }
@@ -215,9 +248,9 @@ select {
 .demo-pill {
   font-family: var(--font-mono);
   font-size: 11px;
-  color: #f0c9a5;
-  border: 1px solid #5a3a2c;
-  background: #2a1e18;
+  color: var(--text-pill);
+  border: 1px solid var(--border-pill);
+  background: var(--surface-pill);
   border-radius: 5px;
   padding: 2px 7px;
   white-space: nowrap;
@@ -225,31 +258,31 @@ select {
 }
 
 .demo-pill.is-live {
-  color: #b8e4c9;
-  border-color: #35644a;
-  background: #17251e;
+  color: var(--text-pill-live);
+  border-color: var(--border-pill-live);
+  background: var(--surface-pill-live);
 }
 
 /* Spec 021: the day's publication is late; milder than a stall, and not live. */
 .demo-pill.is-overdue {
-  color: #e3dba6;
-  border-color: #5e5a2c;
-  background: #232212;
+  color: var(--text-pill-overdue);
+  border-color: var(--border-pill-overdue);
+  background: var(--surface-pill-overdue);
 }
 
 .demo-pill.is-stale {
-  color: #f1d1a4;
-  border-color: #755126;
-  background: #2b2115;
+  color: var(--text-pill-stale);
+  border-color: var(--border-pill-stale);
+  background: var(--surface-pill-stale);
 }
 
 .load-error {
   max-width: 720px;
   margin: 96px auto;
   padding: 28px;
-  border: 1px solid #d7c7c1;
+  border: 1px solid var(--border-error);
   border-radius: 10px;
-  background: #fff8f5;
+  background: var(--surface-error);
 }
 
 .load-error button {
@@ -487,7 +520,7 @@ main { flex: 1 0 auto; }
 .tag-chip[aria-pressed="true"] {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--text-on-accent);
   font-weight: 600;
 }
 
@@ -588,7 +621,7 @@ main { flex: 1 0 auto; }
 }
 .card:hover {
   border-color: var(--border-hover);
-  box-shadow: 0 6px 20px -14px rgba(40, 50, 120, 0.4);
+  box-shadow: var(--shadow-hover);
 }
 .card > * { min-width: 0; overflow-wrap: anywhere; }
 
@@ -653,7 +686,7 @@ main { flex: 1 0 auto; }
   margin: 0;
   font-family: var(--font-mono);
   font-size: 10.5px;
-  color: #9a4d2b;
+  color: var(--text-trending);
 }
 
 .trending-dot {
@@ -661,8 +694,8 @@ main { flex: 1 0 auto; }
   height: 7px;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: #e35d3f;
-  box-shadow: 0 0 0 3px #f8e7e1;
+  background: var(--brand);
+  box-shadow: 0 0 0 3px var(--surface-trending-halo);
 }
 
 .exact-match {
@@ -743,7 +776,7 @@ main { flex: 1 0 auto; }
 }
 
 mark {
-  background: #fbeeb8;
+  background: var(--surface-highlight);
   color: inherit;
   border-radius: 2px;
   padding: 0 1px;
@@ -758,9 +791,9 @@ mark {
   white-space: nowrap;
 }
 .src-wiki { background: var(--surface-selected); color: var(--accent); }
-.src-jira { background: #e7eff6; color: #2a6089; }
-.src-mail { background: #f7efe9; color: #a3542a; }
-.src-github { background: #eeedf1; color: #4c4959; }
+.src-jira { background: var(--source-jira-tint); color: var(--source-jira); }
+.src-mail { background: var(--source-mail-tint); color: var(--source-mail); }
+.src-github { background: var(--source-github-tint); color: var(--source-github); }
 
 .author {
   display: inline-flex;
@@ -780,7 +813,7 @@ mark {
   font-family: var(--font-mono);
   font-size: 9.5px;
   font-weight: 600;
-  color: #fff;
+  color: var(--text-on-accent);
 }
 /* Spec 023 DS1: one colour per author (authorHue in src/avatar.ts); white initials ≥ 4.5:1 on each. */
 .avatar[data-hue="1"] { background: var(--avatar-1); }
@@ -1011,7 +1044,7 @@ mark {
   line-height: 1.55;
 }
 
-.key-points-state.is-error { color: #a3542a; }
+.key-points-state.is-error { color: var(--text-danger); }
 
 .ai-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; }
 
@@ -1141,9 +1174,9 @@ mark {
   border: 2px solid var(--border-strong);
 }
 .tl-item.is-wiki::before { border-color: var(--accent); }
-.tl-item.is-jira::before { border-color: #2a6089; }
-.tl-item.is-mail::before { border-color: #a3542a; }
-.tl-item.is-github::before { border-color: #4c4959; }
+.tl-item.is-jira::before { border-color: var(--source-jira); }
+.tl-item.is-mail::before { border-color: var(--source-mail); }
+.tl-item.is-github::before { border-color: var(--source-github); }
 
 .tl-card {
   border: 1px solid var(--border-default);
@@ -1208,8 +1241,8 @@ mark {
 .tl-link:hover { text-decoration: underline; text-underline-offset: 3px; }
 
 .tl-card.is-flash {
-  background: #fdf7e3;
-  border-color: #e6d9a8;
+  background: var(--surface-flash);
+  border-color: var(--border-flash);
 }
 
 /* 右欄 */
@@ -1368,7 +1401,7 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
     padding: 0 5px;
     border-radius: 9px;
     background: var(--accent);
-    color: #fff;
+    color: var(--text-on-accent);
     font-family: var(--font-mono);
     font-size: 11px;
     font-weight: 600;
@@ -1485,7 +1518,7 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
   border: 1px solid var(--border-strong);
 }
 
-.digest-freshness.is-stale { border-color: #c9965a; color: #7a4a12; background: #fbf1e3; }
+.digest-freshness.is-stale { border-color: var(--border-state-warning); color: var(--text-state-warning); background: var(--surface-state-warning); }
 
 .digest-headline {
   margin: 0 0 16px;
@@ -1508,7 +1541,7 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
 
 .digest-stats strong { font-size: 22px; color: var(--text-strong); margin-right: 4px; }
 .digest-lag, .ai-label, .quorum-note, .section-note { margin: 4px 0; font-size: 13px; color: var(--text-muted); }
-.digest-lag { color: #7a4a12; }
+.digest-lag { color: var(--text-state-warning); }
 
 .digest-section-title {
   margin: 34px 0 12px;
@@ -1541,7 +1574,7 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
 .highlight-title, .topic-card-title { margin: 0 0 6px; font-size: 16px; color: var(--text-strong); }
 .digest-sentence { margin: 6px 0; line-height: 1.55; }
 .digest-sentence.fallback { color: var(--text-secondary); }
-.not-translated { margin-left: 6px; font-size: 11px; color: #7a4a12; }
+.not-translated { margin-left: 6px; font-size: 11px; color: var(--text-state-warning); }
 
 .cite-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 6px; vertical-align: baseline; }
 .cite {
@@ -1819,8 +1852,8 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
 .person-chart-svg .person-chart-band { font-family: var(--font-sans); font-size: 12px; }
 .person-chart-svg .person-chart-lane { font-family: var(--font-sans); font-size: 11px; }
 .person-chart-hit { fill: transparent; }
-.person-chart-hit.is-on { fill: rgba(58, 83, 176, 0.06); }
-.person-chart-tip { position: absolute; transform: translateY(-100%); pointer-events: none; z-index: 2; display: flex; flex-direction: column; gap: 2px; background: var(--surface-inverse); color: var(--text-inverse); font-size: 12px; line-height: 1.45; padding: 7px 9px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); }
+.person-chart-hit.is-on { fill: var(--surface-hover-column); }
+.person-chart-tip { position: absolute; transform: translateY(-100%); pointer-events: none; z-index: 2; display: flex; flex-direction: column; gap: 2px; background: var(--surface-inverse); color: var(--text-inverse); font-size: 12px; line-height: 1.45; padding: 7px 9px; border-radius: 6px; box-shadow: var(--shadow-popover); }
 .person-chart-tip strong { font-weight: 600; }
 .person-chart-tip-row { display: flex; justify-content: space-between; gap: 10px; }
 .person-chart-tip-row > span { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }

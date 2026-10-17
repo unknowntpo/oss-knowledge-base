@@ -1,6 +1,6 @@
 # Design system (web app)
 
-Status: Active (Spec 023; slices 1–5 implemented, literals and scales pending)
+Status: Active (Spec 023; slices 1–6 implemented, scales pending)
 
 This is the colour system of `apps/web`. It keeps the visual language that
 [constitution §6](../constitution.md#6-open-formats-and-a-tested-exit-path)
@@ -33,7 +33,7 @@ severity.
 
 | Layer | Names | Rule |
 | --- | --- | --- |
-| Semantic | `--surface-*`, `--text-*`, `--border-*`, `--accent`, `--brand`, `--icon-muted`, `--focus-ring-inverse` | What components use for UI. Each holds a literal. A future dark theme redefines only this layer and the data layer. |
+| Semantic | `--surface-*`, `--text-*`, `--border-*`, `--accent`, `--brand`, `--icon-muted`, `--focus-ring-inverse`, `--shadow-*`, `--source-*` | What components use for UI. Each holds a literal. A future dark theme redefines only this layer and the data layer. |
 | Data | `--data-*` | Chart colours. Literals only; never an alias of a semantic token. |
 | Identity | `--avatar-1` … `--avatar-6` | Author avatars in the timeline (hashed by name). |
 | Component | `--series-fill`, `--series-alpha`, `--series-stroke` | Set per `[data-series]` from the data layer, read by chart marks and swatches. |
@@ -71,6 +71,48 @@ values directly; add a ramp only when a second theme needs to share one.
 | `--border-hover` | `#b9c0e8` | Hover border, a UI state only | never data |
 | `--border-selected` | `#d9defa` | Border of a selected control | decorative |
 | `--border-inverse` | `#33333b` | Borders on the top bar | decorative |
+| `--border-inverse-strong` | `#000000` | The top bar's bottom edge | decorative |
+| `--text-on-accent` | `#ffffff` | Text on an accent fill (pressed chip, filter count badge), avatar initials | 6.90 on `--accent` |
+| `--text-trending` | `#9a4d2b` | "Trending" reason on a feed card | 6.05 card |
+| `--surface-trending-halo` | `#f8e7e1` | Ring around the trending dot (the dot is `--brand`) | decorative |
+| `--surface-highlight` | `#fbeeb8` | `<mark>` in search results | body text on it 11.15 |
+| `--surface-flash` | `#fdf7e3` | A timeline card just jumped to | `--text-muted` on it 5.19 |
+| `--border-flash` | `#e6d9a8` | Its border | decorative |
+| `--surface-error` | `#fff8f5` | Load-error panel | body text on it 12.37 |
+| `--border-error` | `#d7c7c1` | Its border | decorative |
+| `--surface-hover-column` | `rgba(58, 83, 176, 0.06)` | Hovered column of the profile chart | — |
+| `--shadow-hover` | `0 6px 20px -14px rgba(40, 50, 120, 0.4)` | Card hover | — |
+| `--shadow-popover` | `0 2px 8px rgba(0, 0, 0, 0.15)` | Chart tooltip | — |
+
+### Source identity
+
+Wiki uses `--accent` on `--surface-selected` (6.11). Badges, timeline dots.
+
+| Token | Value | Role | Measured |
+| --- | --- | --- | --- |
+| `--source-jira` | `#2a6089` | Jira | 5.77 on its tint |
+| `--source-jira-tint` | `#e7eff6` | Jira badge fill | — |
+| `--source-mail` | `#a3542a` | dev@ | 4.79 on its tint |
+| `--source-mail-tint` | `#f7efe9` | dev@ badge fill | — |
+| `--source-github` | `#4c4959` | GitHub | 7.49 on its tint |
+| `--source-github-tint` | `#eeedf1` | GitHub badge fill | — |
+
+### Freshness pill (top bar)
+
+| Token | Value | Role | Measured |
+| --- | --- | --- | --- |
+| `--text-pill` | `#f0c9a5` | Pill text, no state class | 10.49 on its fill |
+| `--border-pill` | `#5a3a2c` | Its border | — |
+| `--surface-pill` | `#2a1e18` | Its fill | — |
+| `--text-pill-live` | `#b8e4c9` | Live | 11.35 |
+| `--border-pill-live` | `#35644a` | | — |
+| `--surface-pill-live` | `#17251e` | | — |
+| `--text-pill-overdue` | `#e3dba6` | Daily feed late (Spec 021) | 11.42 |
+| `--border-pill-overdue` | `#5e5a2c` | | — |
+| `--surface-pill-overdue` | `#232212` | | — |
+| `--text-pill-stale` | `#f1d1a4` | Data may be out of date | 10.82 |
+| `--border-pill-stale` | `#755126` | | — |
+| `--surface-pill-stale` | `#2b2115` | | — |
 
 ## Badge states
 
@@ -84,10 +126,14 @@ only the state sets colours. An unknown key is neutral.
 | --- | --- | --- | --- | --- | --- | --- |
 | success | `--text-state-success` | `#1c5e44` | `--surface-state-success` | `#dff2ea` | 6.59 | adopted, accepted, merged, resolved, implementing |
 | info | `--text-state-info` | `#1d4e89` | `--surface-state-info` | `#e3eefa` | 7.14 | open, discuss |
-| warning | `--text-state-warning` | `#7a4a12` | `--surface-state-warning` | `#fbf1e3` | 6.67 | early, vote |
+| warning | `--text-state-warning` | `#7a4a12` | `--surface-state-warning` | `#fbf1e3` | 6.67 | early, vote; also the digest's stale line (border `--border-state-warning` `#c9965a`), lag note and not-translated mark |
 | progress | `--text-state-progress` | `#a3542a` | `--surface-state-progress` | `#f7efe9` | 4.79 | discussing |
 | neutral | `--text-state-neutral` | `#6b5e79` | `--surface-state-neutral` | `#efeef2` | 5.19 | dropped, rejected, closed, anything else |
 | danger | `--text-state-danger` | `#b8432a` | `--surface-state-danger` | `#fbece8` | 4.71 | errors (no status uses it yet) |
+
+| Token | Value | Role | Measured |
+| --- | --- | --- | --- |
+| `--border-state-warning` | `#c9965a` | Border of an outlined warning (the digest's stale line) | decorative |
 
 ## Data-viz palettes
 
@@ -142,8 +188,10 @@ colour.
 ## Rules
 
 1. **Components use roles, not values.** A rule references a semantic,
-   data, identity or component token. Literals outside `:root` are being
-   removed (Spec 023 slice 6 adds the lint).
+   data, identity or component token. A colour literal (hex, `rgb()`,
+   `hsl()`, a named colour) outside the `:root` blocks of
+   `apps/web/styles.css`, or in a component's style, fill or stroke, fails
+   the DS10 test.
 2. **Data tokens never alias UI tokens.** A hover, tint, border or muted
    change must not recolour a chart.
 3. **Text is ≥ 4.5:1 on the surface it sits on** (≥ 3:1 at 24px, or 18.66px
