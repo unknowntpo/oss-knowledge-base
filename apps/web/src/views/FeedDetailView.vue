@@ -2,6 +2,7 @@
 import { computed, ref, watch } from "vue";
 
 import { fetchFeedDetail, fetchSearchFeedDetail } from "../api";
+import { authorHue } from "../avatar";
 import { useI18n } from "../i18n";
 import { personRoute, usePeopleEnabled, usePeopleRecorded } from "../people";
 import { useFeedStore } from "../store";
@@ -182,8 +183,8 @@ function jumpToEvidence(id: string) {
                 <div class="tl-card">
                   <div class="tl-meta">
                     <span class="source-badge" :class="`src-${record.source}`">{{ t(`source.${record.source}`) }}</span>
-                    <RouterLink v-if="personRoute(peopleEnabled, item.projectKey, record.source, record.author, peopleRecorded[item.projectKey])" class="author author-link" :to="personRoute(peopleEnabled, item.projectKey, record.source, record.author, peopleRecorded[item.projectKey])!"><span class="avatar" aria-hidden="true">{{ initials(record.author) }}</span>{{ record.author }}</RouterLink>
-                    <span v-else class="author"><span class="avatar" aria-hidden="true">{{ initials(record.author) }}</span>{{ record.author }}</span>
+                    <RouterLink v-if="personRoute(peopleEnabled, item.projectKey, record.source, record.author, peopleRecorded[item.projectKey])" class="author author-link" :to="personRoute(peopleEnabled, item.projectKey, record.source, record.author, peopleRecorded[item.projectKey])!"><span class="avatar" :data-hue="authorHue(record.author)" aria-hidden="true">{{ initials(record.author) }}</span>{{ record.author }}</RouterLink>
+                    <span v-else class="author"><span class="avatar" :data-hue="authorHue(record.author)" aria-hidden="true">{{ initials(record.author) }}</span>{{ record.author }}</span>
                     <span class="tl-kind">{{ record.role }} · {{ record.kind }}</span>
                     <span class="tl-time">{{ recordTime(record).slice(0, 10) }}</span>
                   </div>

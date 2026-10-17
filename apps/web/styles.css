@@ -30,13 +30,19 @@
   --text-2: #33312c;
   --text-3: #565349;
   --muted-1: #716e67;
-  --muted-2: #6b6860;
   --muted-3: #9a968d;
   --muted-4: #a7a39a;
   /* 邊框 */
   --border-1: #e6e2db;
   --border-2: #d8d4cc;
   --border-3: #f0eee9;
+  /* 作者頭像（Spec 023 DS1；舊版 viewer 的 AVATAR_PALETTE，第 5 色加深到白字 4.86:1） */
+  --avatar-1: #3a53b0;
+  --avatar-2: #2b7a5b;
+  --avatar-3: #a3542a;
+  --avatar-4: #7a3b8f;
+  --avatar-5: #3a7898;
+  --avatar-6: #96602a;
   /* 標籤 */
   --chip-bg: #f2f0ec;
   --chip-text: #6f6c76;
@@ -219,13 +225,6 @@ select {
   color: #f1d1a4;
   border-color: #755126;
   background: #2b2115;
-}
-
-.card-activity {
-  margin-left: auto;
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 12px;
 }
 
 .load-error {
@@ -770,6 +769,13 @@ mark {
   font-weight: 600;
   color: #fff;
 }
+/* Spec 023 DS1: one colour per author (authorHue in src/avatar.ts); white initials ≥ 4.5:1 on each. */
+.avatar[data-hue="1"] { background: var(--avatar-1); }
+.avatar[data-hue="2"] { background: var(--avatar-2); }
+.avatar[data-hue="3"] { background: var(--avatar-3); }
+.avatar[data-hue="4"] { background: var(--avatar-4); }
+.avatar[data-hue="5"] { background: var(--avatar-5); }
+.avatar[data-hue="6"] { background: var(--avatar-6); }
 
 .dot-sep { color: var(--border-2); }
 
@@ -1740,7 +1746,8 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
 .person-meta .person-login { font-size: 13px; color: var(--accent); text-decoration: none; }
 .person-meta .person-login:hover { text-decoration: underline; }
 .person-meta .person-community { color: var(--text-3); }
-.src-github { background: var(--accent-tint); color: var(--accent); }
+/* Spec 023 DS2: only the profile header shows the GitHub badge in the accent; elsewhere it stays slate. */
+.person-meta .src-github { background: var(--accent-tint); color: var(--accent); }
 .person-periods { flex: none; }
 .person-summary { margin: 0; font-size: 17px; line-height: 1.5; color: var(--text-1); overflow-wrap: anywhere; }
 .person-summary-lead { color: var(--muted-1); }
