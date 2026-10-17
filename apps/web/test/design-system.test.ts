@@ -1,5 +1,5 @@
 /**
- * Spec 023 (DS1–DS6): the stylesheet's colour pairs, the avatar hue, the GitHub source badge, the
+ * Spec 023 (DS1–DS7): the stylesheet's colour pairs, the avatar hue, the GitHub source badge, the
  * token references, and the data-viz palettes (owner's values, no aliasing of UI tokens, 3:1
  * outlines, CVD-separated areas), read from `apps/web/styles.css` without a browser. Computed
  * colours on the real page are checked in `e2e/feed-detail.spec.ts` and `e2e/people-chart.spec.ts`.
@@ -129,5 +129,33 @@ describe("Spec 023 data-viz palettes", () => {
       .map((series) => ({ area, series, distance: deltaE2000(colour(area), colour(series)) }))
       .filter((pair) => pair.distance < AREA_MIN_DELTA_E));
     expect(close).toEqual([]);
+  });
+});
+
+describe("Spec 023 text contrast", () => {
+  const textRows = testPlanRows.filter((row) => row.id === "DS7");
+
+  test.each(textRows)("DS7: $pair is drawn in $foreground", (row) => {
+    const rule = rules(css).find(([selector]) => selector.split(",").map((part) => part.trim()).includes(row.pair));
+    expect(rule).toBeDefined();
+    const property = row.pair.endsWith(":focus-visible") ? "outline-color" : "color";
+    const declared = new RegExp(`(?:^|[;\\s{])${property}:\\s*([^;]+);`, "u").exec(rule![1])?.[1]?.trim();
+    expect(declared).toBe(row.foreground.startsWith("--") ? `var(${row.foreground})` : row.foreground);
+  });
+
+  test("DS7: no rule sets text in a colour below the text floor (--muted-3, --muted-4, --dark-muted-2, brand orange)", () => {
+    const weak = rules(css).filter(([, body]) => /(?:^|[;\s])color:\s*var\(--(?:muted-3|muted-4|dark-muted-2|brand-orange)\)/u.test(body));
+    expect(weak.map(([selector]) => selector)).toEqual([]);
+  });
+});
+
+describe("Spec 023 colour-mix fallback", () => {
+  test("DS4: every color-mix() declaration follows a plain declaration of the same property", () => {
+    const mixed = rules(css).flatMap(([selector, body]) => [...body.matchAll(/([\w-]+):\s*color-mix\(/gu)].map((m) => ({ selector, body, property: m[1]! })));
+    expect(mixed.length).toBeGreaterThan(0);
+    for (const { selector, body, property } of mixed) {
+      const declarations = body.split(";").map((part) => part.trim()).filter((part) => part.startsWith(`${property}:`));
+      expect({ selector, first: declarations[0]?.includes("color-mix(") }).toEqual({ selector, first: false });
+    }
   });
 });

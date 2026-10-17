@@ -157,3 +157,13 @@ test("DS1, DS2: timeline avatars have a per-author background and GitHub badges 
   await expect(header).toHaveCSS("color", "rgb(58, 83, 176)");
   await expect(page.locator(".person-identity .source-badge.src-github")).toHaveCSS("color", "rgb(76, 73, 89)");
 });
+
+test("DS7: a focused top-bar control shows the light indigo ring; small labels use the text floor", async ({ page }) => {
+  await page.goto("/#/feed/KAFKA-PR-43");
+  await page.keyboard.press("Tab");
+  const locale = page.locator(".locale-control select");
+  await locale.focus();
+  await expect(locale).toHaveCSS("outline-color", "rgb(140, 155, 232)");
+  await expect(page.locator(".brand-scope")).toHaveCSS("color", "rgb(143, 140, 150)");
+  await expect(page.locator(".tl-time").first()).toHaveCSS("color", "rgb(107, 104, 96)");
+});

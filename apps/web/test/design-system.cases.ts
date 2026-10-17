@@ -7,7 +7,10 @@
  * `:root[data-theme="dark"]` on top) or a literal; `#202027` is the dark card and `#16161a` the
  * tooltip. `ratio` is the measured WCAG 2.x contrast,
  * rounded to two decimals; the test fails when the stylesheet's value no longer gives it or
- * when it is below `min`.
+ * when it is below `min`. DS7 rows name a selector in `pair`: its rule's `color` (or, for a focus
+ * ring, `outline-color`) must be that `foreground`, and `background` is the lightest surface it sits
+ * on (page, sunken field, chip on hover, the flashed timeline card). Text needs 4.5:1; an icon
+ * glyph or a focus ring 3:1.
  */
 export const testPlanRows = [
   { id: "DS1", theme: "light", pair: "avatar initials on --avatar-1 (indigo)", foreground: "#ffffff", background: "--avatar-1", min: 4.5, ratio: 6.9 },
@@ -42,6 +45,29 @@ export const testPlanRows = [
   { id: "DS6", theme: "light", pair: "area 5 (plum) on the card", foreground: "--data-area-5", background: "--surface", min: 3, ratio: 8.48 },
   { id: "DS6", theme: "light", pair: "area 6 (steel blue) on the card", foreground: "--data-area-6", background: "--surface", min: 3, ratio: 5.21 },
   { id: "DS6", theme: "light", pair: "area other (grey) on the card", foreground: "--data-area-other", background: "--surface", min: 3, ratio: 4.75 },
+  { id: "DS7", theme: "light", pair: ".examples-label", foreground: "--text-muted", background: "--page-bg", min: 4.5, ratio: 5.06 },
+  { id: "DS7", theme: "light", pair: ".filter-label", foreground: "--text-muted", background: "--page-bg", min: 4.5, ratio: 5.06 },
+  { id: "DS7", theme: "light", pair: ".card-project", foreground: "--text-muted", background: "--page-bg", min: 4.5, ratio: 5.06 },
+  { id: "DS7", theme: "light", pair: ".evidence-label", foreground: "--text-muted", background: "--page-bg", min: 4.5, ratio: 5.06 },
+  { id: "DS7", theme: "light", pair: ".topic-meta .k", foreground: "--text-muted", background: "--page-bg", min: 4.5, ratio: 5.06 },
+  { id: "DS7", theme: "light", pair: ".ai-item .n", foreground: "--text-muted", background: "--page-bg", min: 4.5, ratio: 5.06 },
+  { id: "DS7", theme: "light", pair: ".tl-period", foreground: "--text-muted", background: "--page-bg", min: 4.5, ratio: 5.06 },
+  { id: "DS7", theme: "light", pair: ".tl-foot", foreground: "--text-muted", background: "--page-bg", min: 4.5, ratio: 5.06 },
+  { id: "DS7", theme: "light", pair: ".rail-label", foreground: "--text-muted", background: "--page-bg", min: 4.5, ratio: 5.06 },
+  { id: "DS7", theme: "light", pair: ".rail-row .num", foreground: "--text-muted", background: "--page-bg", min: 4.5, ratio: 5.06 },
+  { id: "DS7", theme: "light", pair: ".rail-source > .num", foreground: "--text-muted", background: "--page-bg", min: 4.5, ratio: 5.06 },
+  { id: "DS7", theme: "light", pair: ".person-chart-table td.is-unrecorded", foreground: "--text-muted", background: "--page-bg", min: 4.5, ratio: 5.06 },
+  { id: "DS7", theme: "light", pair: ".person-tile-since", foreground: "--text-muted", background: "--page-bg", min: 4.5, ratio: 5.06 },
+  { id: "DS7", theme: "light", pair: "#q::placeholder", foreground: "--text-muted", background: "--surface-alt", min: 4.5, ratio: 5.29 },
+  { id: "DS7", theme: "light", pair: ".filter-row .count", foreground: "--text-muted", background: "--chip-bg", min: 4.5, ratio: 4.89 },
+  { id: "DS7", theme: "light", pair: ".tl-time", foreground: "--text-muted", background: "#fdf7e3", min: 4.5, ratio: 5.19 },
+  { id: "DS7", theme: "light", pair: ".person-unavailable", foreground: "--text-danger", background: "--page-bg", min: 4.5, ratio: 4.93 },
+  { id: "DS7", theme: "light", pair: ".brand-scope", foreground: "--dark-muted", background: "--dark-bar", min: 4.5, ratio: 5.46 },
+  { id: "DS7", theme: "light", pair: ".status-early", foreground: "#8a5a0e", background: "#fdf2dc", min: 4.5, ratio: 5.33 },
+  { id: "DS7", theme: "light", pair: ".status-open", foreground: "#1b7a36", background: "#dafbe1", min: 4.5, ratio: 4.86 },
+  { id: "DS7", theme: "light", pair: ".search-icon", foreground: "--icon-muted", background: "--surface-alt", min: 3, ratio: 3.1 },
+  { id: "DS7", theme: "light", pair: ".source-link .ext", foreground: "--icon-muted", background: "--surface", min: 3, ratio: 3.26 },
+  { id: "DS7", theme: "light", pair: ".topbar :focus-visible", foreground: "--focus-ring-inverse", background: "--dark-bar", min: 3, ratio: 6.85 },
 ] as const;
 
 /** DS1: authors from the E2E fixture and the hue the legacy viewer's hash gives them. */
