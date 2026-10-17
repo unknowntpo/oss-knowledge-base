@@ -3,19 +3,45 @@
  * docs/specs/023-design-system/spec.md (`bun run docs:test-plan` regenerates it).
  *
  * Each row is a colour pair. `foreground` and `background` are a token of `apps/web/styles.css`
- * (`--name`, resolved through aliases) or a literal. `ratio` is the measured WCAG 2.x contrast,
+ * (`--name`, resolved through aliases, from `:root` or, for `theme: "dark"`, from
+ * `:root[data-theme="dark"]` on top) or a literal; `#202027` is the dark card and `#16161a` the
+ * tooltip. `ratio` is the measured WCAG 2.x contrast,
  * rounded to two decimals; the test fails when the stylesheet's value no longer gives it or
  * when it is below `min`.
  */
 export const testPlanRows = [
-  { id: "DS1", pair: "avatar initials on --avatar-1 (indigo)", foreground: "#ffffff", background: "--avatar-1", min: 4.5, ratio: 6.9 },
-  { id: "DS1", pair: "avatar initials on --avatar-2 (green)", foreground: "#ffffff", background: "--avatar-2", min: 4.5, ratio: 5.2 },
-  { id: "DS1", pair: "avatar initials on --avatar-3 (rust)", foreground: "#ffffff", background: "--avatar-3", min: 4.5, ratio: 5.44 },
-  { id: "DS1", pair: "avatar initials on --avatar-4 (purple)", foreground: "#ffffff", background: "--avatar-4", min: 4.5, ratio: 7.37 },
-  { id: "DS1", pair: "avatar initials on --avatar-5 (steel blue, legacy #3f7fa0 darkened)", foreground: "#ffffff", background: "--avatar-5", min: 4.5, ratio: 4.86 },
-  { id: "DS1", pair: "avatar initials on --avatar-6 (brown)", foreground: "#ffffff", background: "--avatar-6", min: 4.5, ratio: 5.25 },
-  { id: "DS2", pair: "GitHub source badge (.src-github)", foreground: "#4c4959", background: "#eeedf1", min: 4.5, ratio: 7.49 },
-  { id: "DS2", pair: "GitHub badge in the profile header (.person-meta .src-github)", foreground: "--accent", background: "--accent-tint", min: 4.5, ratio: 6.11 },
+  { id: "DS1", theme: "light", pair: "avatar initials on --avatar-1 (indigo)", foreground: "#ffffff", background: "--avatar-1", min: 4.5, ratio: 6.9 },
+  { id: "DS1", theme: "light", pair: "avatar initials on --avatar-2 (green)", foreground: "#ffffff", background: "--avatar-2", min: 4.5, ratio: 5.2 },
+  { id: "DS1", theme: "light", pair: "avatar initials on --avatar-3 (rust)", foreground: "#ffffff", background: "--avatar-3", min: 4.5, ratio: 5.44 },
+  { id: "DS1", theme: "light", pair: "avatar initials on --avatar-4 (purple)", foreground: "#ffffff", background: "--avatar-4", min: 4.5, ratio: 7.37 },
+  { id: "DS1", theme: "light", pair: "avatar initials on --avatar-5 (steel blue, legacy #3f7fa0 darkened)", foreground: "#ffffff", background: "--avatar-5", min: 4.5, ratio: 4.86 },
+  { id: "DS1", theme: "light", pair: "avatar initials on --avatar-6 (brown)", foreground: "#ffffff", background: "--avatar-6", min: 4.5, ratio: 5.25 },
+  { id: "DS2", theme: "light", pair: "GitHub source badge (.src-github)", foreground: "#4c4959", background: "#eeedf1", min: 4.5, ratio: 7.49 },
+  { id: "DS2", theme: "light", pair: "GitHub badge in the profile header (.person-meta .src-github)", foreground: "--accent", background: "--accent-tint", min: 4.5, ratio: 6.11 },
+  { id: "DS5", theme: "light", pair: "reviews given outline (千草) on the card", foreground: "--data-given-stroke", background: "--surface", min: 3, ratio: 3.63 },
+  { id: "DS5", theme: "light", pair: "own PRs and comments outline (苔) on the card", foreground: "--data-github-stroke", background: "--surface", min: 3, ratio: 3.72 },
+  { id: "DS5", theme: "light", pair: "reviews received outline (藤) on the card", foreground: "--data-received-stroke", background: "--surface", min: 3, ratio: 3.48 },
+  { id: "DS5", theme: "light", pair: "Jira outline (青碧) on the card", foreground: "--data-jira-stroke", background: "--surface", min: 3, ratio: 4.3 },
+  { id: "DS5", theme: "light", pair: "dev@ outline (今様) on the card", foreground: "--data-mail-stroke", background: "--surface", min: 3, ratio: 3.91 },
+  { id: "DS5", theme: "light", pair: "unrecorded hatch line on its base", foreground: "--data-unrecorded-line", background: "--data-unrecorded-bg", min: 3, ratio: 3.1 },
+  { id: "DS5", theme: "light", pair: "reviews given swatch outline in the tooltip", foreground: "--data-given-stroke", background: "--dark-bar", min: 3, ratio: 4.98 },
+  { id: "DS5", theme: "light", pair: "own PRs swatch outline in the tooltip", foreground: "--data-github-stroke", background: "--dark-bar", min: 3, ratio: 4.84 },
+  { id: "DS5", theme: "light", pair: "reviews received swatch outline in the tooltip", foreground: "--data-received-stroke", background: "--dark-bar", min: 3, ratio: 5.18 },
+  { id: "DS5", theme: "light", pair: "Jira swatch outline in the tooltip", foreground: "--data-jira-stroke", background: "--dark-bar", min: 3, ratio: 4.2 },
+  { id: "DS5", theme: "light", pair: "dev@ swatch outline in the tooltip", foreground: "--data-mail-stroke", background: "--dark-bar", min: 3, ratio: 4.61 },
+  { id: "DS5", theme: "dark", pair: "reviews given outline (勿忘草) on the dark card", foreground: "--data-given-stroke", background: "#202027", min: 3, ratio: 7.61 },
+  { id: "DS5", theme: "dark", pair: "own PRs outline (柳茶) on the dark card", foreground: "--data-github-stroke", background: "#202027", min: 3, ratio: 6.49 },
+  { id: "DS5", theme: "dark", pair: "reviews received outline (藤) on the dark card", foreground: "--data-received-stroke", background: "#202027", min: 3, ratio: 4.64 },
+  { id: "DS5", theme: "dark", pair: "Jira outline (水浅葱) on the dark card", foreground: "--data-jira-stroke", background: "#202027", min: 3, ratio: 7.15 },
+  { id: "DS5", theme: "dark", pair: "dev@ outline (紅梅) on the dark card", foreground: "--data-mail-stroke", background: "#202027", min: 3, ratio: 5.15 },
+  { id: "DS5", theme: "dark", pair: "unrecorded hatch line on its dark base", foreground: "--data-unrecorded-line", background: "--data-unrecorded-bg", min: 3, ratio: 3.01 },
+  { id: "DS6", theme: "light", pair: "area 1 (indigo) on the card", foreground: "--data-area-1", background: "--surface", min: 3, ratio: 6.9 },
+  { id: "DS6", theme: "light", pair: "area 2 (rose) on the card", foreground: "--data-area-2", background: "--surface", min: 3, ratio: 6.03 },
+  { id: "DS6", theme: "light", pair: "area 3 (green) on the card", foreground: "--data-area-3", background: "--surface", min: 3, ratio: 6.94 },
+  { id: "DS6", theme: "light", pair: "area 4 (olive) on the card", foreground: "--data-area-4", background: "--surface", min: 3, ratio: 5.67 },
+  { id: "DS6", theme: "light", pair: "area 5 (plum) on the card", foreground: "--data-area-5", background: "--surface", min: 3, ratio: 8.48 },
+  { id: "DS6", theme: "light", pair: "area 6 (steel blue) on the card", foreground: "--data-area-6", background: "--surface", min: 3, ratio: 5.21 },
+  { id: "DS6", theme: "light", pair: "area other (grey) on the card", foreground: "--data-area-other", background: "--surface", min: 3, ratio: 4.75 },
 ] as const;
 
 /** DS1: authors from the E2E fixture and the hue the legacy viewer's hash gives them. */
@@ -23,3 +49,25 @@ export const authorHues = [
   { author: "bob", hue: 2 },
   { author: "alice", hue: 1 },
 ] as const;
+
+/** DS4: the activity series the owner chose on 2026-10-17 (方案二・透明感), per theme. */
+export const activityPalette = {
+  light: {
+    "--data-given-fill": "#7db9de", "--data-given-alpha": "55%", "--data-given-stroke": "#3a8fb7",
+    "--data-github-fill": "#91ad70", "--data-github-alpha": "50%", "--data-github-stroke": "#838a2d",
+    "--data-received-fill": "#8b81c3", "--data-received-alpha": "30%", "--data-received-stroke": "#8b81c3",
+    "--data-unrecorded-line": "#928e86", "--data-unrecorded-bg": "#faf9f7", "--data-stroke-width": "1.2px",
+  },
+  dark: {
+    "--data-given-fill": "#7db9de", "--data-given-alpha": "25%", "--data-given-stroke": "#7db9de",
+    "--data-github-fill": "#91ad70", "--data-github-alpha": "25%", "--data-github-stroke": "#91ad70",
+    "--data-received-fill": "#8b81c3", "--data-received-alpha": "22%", "--data-received-stroke": "#8b81c3",
+    "--data-unrecorded-line": "#716e7a", "--data-unrecorded-bg": "#26262e", "--data-stroke-width": "1.2px",
+  },
+} as const;
+
+/** DS6: the area categories in slice order, and the floors they keep. */
+export const areaTokens = ["--data-area-1", "--data-area-2", "--data-area-3", "--data-area-4", "--data-area-5", "--data-area-6", "--data-area-other"] as const;
+export const AREA_MIN_DELTA_E = 10;
+/** The activity chart's colours on the same profile page, which no area colour may come near. */
+export const activityColourTokens = ["--data-given-fill", "--data-given-stroke", "--data-github-fill", "--data-github-stroke", "--data-received-fill", "--data-received-stroke", "--data-unrecorded-line"] as const;

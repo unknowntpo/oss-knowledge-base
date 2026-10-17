@@ -1681,15 +1681,6 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
 .person-result-name { font-family: var(--font-mono); }
 
 /* Spec 019 W47–W53: area donut, avatars, public names */
-:root {
-  --area-1: #3a53b0;
-  --area-2: #e35b3f;
-  --area-3: #2f8f6b;
-  --area-4: #b07d1a;
-  --area-5: #8a4fb0;
-  --area-6: #3c8fbf;
-  --area-other: #a7a39a;
-}
 .person-title { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .person-title-text { min-width: 0; }
 .person-login { margin: 0; font-family: var(--font-mono); font-size: 13px; color: var(--text-3); overflow-wrap: anywhere; }
@@ -1704,13 +1695,13 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
 .person-area-body { display: flex; align-items: center; gap: 14px; margin-top: 6px; min-width: 0; }
 .person-donut { width: 120px; height: 120px; flex: none; transform: none; }
 .person-donut-track { stroke: var(--border-3); }
-.person-donut-slice[data-color="1"], .person-swatch[data-color="1"] { stroke: var(--area-1); background: var(--area-1); }
-.person-donut-slice[data-color="2"], .person-swatch[data-color="2"] { stroke: var(--area-2); background: var(--area-2); }
-.person-donut-slice[data-color="3"], .person-swatch[data-color="3"] { stroke: var(--area-3); background: var(--area-3); }
-.person-donut-slice[data-color="4"], .person-swatch[data-color="4"] { stroke: var(--area-4); background: var(--area-4); }
-.person-donut-slice[data-color="5"], .person-swatch[data-color="5"] { stroke: var(--area-5); background: var(--area-5); }
-.person-donut-slice[data-color="6"], .person-swatch[data-color="6"] { stroke: var(--area-6); background: var(--area-6); }
-.person-donut-slice[data-color="other"], .person-swatch[data-color="other"] { stroke: var(--area-other); background: var(--area-other); }
+.person-donut-slice[data-color="1"], .person-swatch[data-color="1"] { stroke: var(--data-area-1); background: var(--data-area-1); }
+.person-donut-slice[data-color="2"], .person-swatch[data-color="2"] { stroke: var(--data-area-2); background: var(--data-area-2); }
+.person-donut-slice[data-color="3"], .person-swatch[data-color="3"] { stroke: var(--data-area-3); background: var(--data-area-3); }
+.person-donut-slice[data-color="4"], .person-swatch[data-color="4"] { stroke: var(--data-area-4); background: var(--data-area-4); }
+.person-donut-slice[data-color="5"], .person-swatch[data-color="5"] { stroke: var(--data-area-5); background: var(--data-area-5); }
+.person-donut-slice[data-color="6"], .person-swatch[data-color="6"] { stroke: var(--data-area-6); background: var(--data-area-6); }
+.person-donut-slice[data-color="other"], .person-swatch[data-color="other"] { stroke: var(--data-area-other); background: var(--data-area-other); }
 .person-donut-total { font-family: var(--font-mono); font-size: 7px; font-weight: 600; fill: var(--text-strong); }
 .person-donut-unit { font-family: var(--font-mono); font-size: 4px; fill: var(--muted-1); }
 .person-area-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; min-width: 0; flex: 1; }
@@ -1727,17 +1718,53 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
 }
 .person-areas-threads { margin-top: 14px; }
 
-/* Spec 019 amendment (5), W56–W64: header summary, activity chart, count tiles */
+/* Spec 023 DS4–DS6: data colours. They never alias a UI token (hover, tint, border, muted).
+ * Activity series (方案二・透明感, Japanese traditional colours): a translucent fill with a fine outline;
+ * the outline carries the 3:1 contrast. Area categories are solid and share no colour with the series. */
 :root {
-  /* Chart series: the person's own actions saturated, reviews received a tint (mirrored below). */
-  --series-given: var(--accent);
-  --series-github: var(--area-3);
-  --series-jira: #2a6089;
-  --series-mail: #a3542a;
-  --series-received: var(--accent-hover-border);
-  --hatch-bg: var(--surface-alt);
-  --hatch-line: var(--border-2);
+  --data-stroke-width: 1.2px;
+  --data-given-fill: #7db9de;    /* 勿忘草 wasurenagusa */
+  --data-given-alpha: 55%;
+  --data-given-stroke: #3a8fb7;  /* 千草 chigusa */
+  --data-github-fill: #91ad70;   /* 柳茶 yanagicha */
+  --data-github-alpha: 50%;
+  --data-github-stroke: #838a2d; /* 苔 koke */
+  --data-received-fill: #8b81c3; /* 藤 fuji */
+  --data-received-alpha: 30%;
+  --data-received-stroke: #8b81c3;
+  --data-jira-fill: #66bab7;     /* 水浅葱 mizuasagi */
+  --data-jira-alpha: 50%;
+  --data-jira-stroke: #268785;   /* 青碧 seiheki */
+  --data-mail-fill: #e16b8c;     /* 紅梅 kohbai */
+  --data-mail-alpha: 40%;
+  --data-mail-stroke: #d05a6e;   /* 今様 imayou */
+  --data-unrecorded-line: #928e86;
+  --data-unrecorded-bg: #faf9f7;
+  --data-area-1: #3a53b0;
+  --data-area-2: #ae3756;
+  --data-area-3: #0b664f;
+  --data-area-4: #6b6a1a;
+  --data-area-5: #7a3266;
+  --data-area-6: #3f7292;
+  --data-area-other: #737372;
 }
+/* Defined ahead of a dark theme (gardening G89, G92); nothing sets data-theme yet. Measured on #202027. */
+:root[data-theme="dark"] {
+  --data-given-alpha: 25%;
+  --data-given-stroke: #7db9de;
+  --data-github-alpha: 25%;
+  --data-github-stroke: #91ad70;
+  --data-received-alpha: 22%;
+  --data-received-stroke: #8b81c3;
+  --data-jira-alpha: 25%;
+  --data-jira-stroke: #66bab7;
+  --data-mail-alpha: 25%;
+  --data-mail-stroke: #e16b8c;
+  --data-unrecorded-line: #716e7a;
+  --data-unrecorded-bg: #26262e;
+}
+
+/* Spec 019 amendment (5), W56–W64: header summary, activity chart, count tiles */
 .person { gap: 16px; }
 .person-head { gap: 10px; }
 .person-head-row { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px 20px; }
@@ -1754,23 +1781,21 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
 .person-section .section-heading { margin-bottom: 10px; }
 .person-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--text-3); }
 .person-legend li { display: inline-flex; align-items: center; gap: 6px; }
-.person-swatch[data-series="given"] { background: var(--series-given); }
-.person-swatch[data-series="github"] { background: var(--series-github); }
-.person-swatch[data-series="jira"] { background: var(--series-jira); }
-.person-swatch[data-series="mail"] { background: var(--series-mail); }
-.person-swatch[data-series="received"] { background: var(--series-received); }
+/* Spec 023 DS4: a series is a translucent fill with a fine outline, in the legend, tiles and tooltip as in the chart. */
+.person-swatch[data-series] { background: color-mix(in srgb, var(--series-fill) var(--series-alpha), transparent); box-shadow: inset 0 0 0 1.5px var(--series-stroke); }
 .person-swatch { display: inline-block; flex: none; }
-.person-swatch-hatch { background: repeating-linear-gradient(135deg, var(--hatch-line) 0 1.5px, var(--hatch-bg) 1.5px 5px); border: 1px solid var(--hatch-line); }
+.person-swatch-hatch { background: repeating-linear-gradient(135deg, var(--data-unrecorded-line) 0 1.5px, var(--data-unrecorded-bg) 1.5px 5px); border: 1px solid var(--data-unrecorded-line); }
 .person-chart { position: relative; margin-top: 10px; min-width: 0; }
 .person-chart-svg { display: block; max-width: 100%; height: auto; overflow: visible; }
 .person-chart-svg text { font-family: var(--font-mono); font-size: 11px; fill: var(--muted-1); }
-.person-chart-svg path[data-series="given"], .person-chart-svg rect[data-series="given"] { fill: var(--series-given); }
-.person-chart-svg path[data-series="github"], .person-chart-svg rect[data-series="github"] { fill: var(--series-github); }
-.person-chart-svg path[data-series="jira"], .person-chart-svg rect[data-series="jira"] { fill: var(--series-jira); }
-.person-chart-svg path[data-series="mail"], .person-chart-svg rect[data-series="mail"] { fill: var(--series-mail); }
-.person-chart-svg path[data-series="received"] { fill: var(--series-received); }
-.person-hatch-bg { fill: var(--hatch-bg); }
-.person-hatch-line { stroke: var(--hatch-line); stroke-width: 1.5; }
+[data-series="given"] { --series-fill: var(--data-given-fill); --series-alpha: var(--data-given-alpha); --series-stroke: var(--data-given-stroke); }
+[data-series="github"] { --series-fill: var(--data-github-fill); --series-alpha: var(--data-github-alpha); --series-stroke: var(--data-github-stroke); }
+[data-series="jira"] { --series-fill: var(--data-jira-fill); --series-alpha: var(--data-jira-alpha); --series-stroke: var(--data-jira-stroke); }
+[data-series="mail"] { --series-fill: var(--data-mail-fill); --series-alpha: var(--data-mail-alpha); --series-stroke: var(--data-mail-stroke); }
+[data-series="received"] { --series-fill: var(--data-received-fill); --series-alpha: var(--data-received-alpha); --series-stroke: var(--data-received-stroke); }
+.person-chart-svg [data-series] { fill: color-mix(in srgb, var(--series-fill) var(--series-alpha), transparent); stroke: var(--series-stroke); stroke-width: var(--data-stroke-width); }
+.person-hatch-bg { fill: var(--data-unrecorded-bg); }
+.person-hatch-line { stroke: var(--data-unrecorded-line); stroke-width: 1.5; }
 .person-chart-grid { stroke: var(--border-3); }
 .person-chart-axis { stroke: var(--border-2); }
 .person-chart-svg .person-chart-total { fill: var(--text-strong); font-weight: 600; }
