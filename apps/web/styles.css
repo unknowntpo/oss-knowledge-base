@@ -7,6 +7,7 @@
  * ========================================================================== */
 
 :root {
+  color-scheme: light;
   /* Spec 023 DS8: semantic tokens. Components use these roles (and --data-*, --avatar-*, fonts),
    * never a raw colour; a dark theme would redefine only this block. docs/product/design-system.md
    * lists each role with its measured contrast. */
@@ -41,6 +42,7 @@
   --border-selected: #d9defa;
   --border-inverse: #33333b;
   --border-inverse-strong: #000000;    /* the top bar's bottom edge */
+  --surface-popover: #16161a;          /* chart tooltip: the highest layer (Spec 024 DM7) */
   --text-on-accent: #ffffff;           /* text on an accent fill: 6.90:1 */
   --text-trending: #9a4d2b;            /* "Trending" reason on a card: 6.05:1 */
   --surface-trending-halo: #f8e7e1;    /* ring around the trending dot */
@@ -130,6 +132,78 @@
   --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Noto Sans TC", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
   --font-serif: "IBM Plex Serif", Georgia, "Noto Serif TC", serif;
+}
+
+:root[data-theme="dark"] {
+  /* Spec 024: the dark theme. The inline script in index.html sets data-theme before first paint
+   * (the OS preference unless the viewer chose otherwise). Ink greys with an indigo bias; elevation
+   * by lightness: top bar < page < sunken < card < chip < popover. Theme-invariant tokens (brand,
+   * freshness pills, fonts, scales) are listed in apps/web/test/dark-theme.test.ts. */
+  color-scheme: dark;
+  --surface-page: #18181d;
+  --surface-card: #202027;
+  --surface-sunken: #1c1c22;
+  --surface-chip: #27272f;
+  --surface-selected: #262b45;
+  --surface-selected-strong: #2a3051;
+  --surface-inverse: #101013;
+  --surface-inverse-raised: #1c1c22;
+  --text-strong: #f0eee9;
+  --text-primary: #e7e4de;
+  --text-body: #d8d5ce;
+  --text-secondary: #b9b5ad;
+  --text-muted: #a29e97;
+  --text-danger: #f0a1a1;
+  --text-inverse: #f0eee9;
+  --text-inverse-muted: #a19ea8;
+  --accent: #8c9be8;
+  --brand: #e35b3f;
+  --icon-muted: #86838d;
+  --focus-ring-inverse: #8c9be8;
+  --border-default: #33333c;
+  --border-strong: #44444f;
+  --border-subtle: #2a2a32;
+  --border-hover: #4f5992;
+  --border-selected: #3a4373;
+  --border-inverse: #2c2c34;
+  --border-inverse-strong: #2a2a32;
+  --surface-popover: #2c2c35;
+  --text-on-accent: #16161a;
+  --text-trending: #eda39c;
+  --surface-trending-halo: #3a2624;
+  --surface-highlight: #4a4220;
+  --surface-flash: #29271c;
+  --border-flash: #5a5236;
+  --surface-error: #2a2023;
+  --border-error: #5a3e42;
+  --surface-hover-column: rgba(140, 155, 232, 0.08);
+  --shadow-hover: 0 0 0 1px #4f5992;
+  --shadow-popover: 0 0 0 1px #3a3a44;
+  --source-jira: #93bcdc;
+  --source-jira-tint: #1d2a36;
+  --source-mail: #e7a5b6;
+  --source-mail-tint: #36232b;
+  --source-github: #b8b4c6;
+  --source-github-tint: #29282f;
+  --text-state-success: #8fd1b0;
+  --surface-state-success: #1d3129;
+  --text-state-info: #9cc0ec;
+  --surface-state-info: #1c2a3d;
+  --text-state-warning: #d9c27c;
+  --surface-state-warning: #2e2a1a;
+  --border-state-warning: #8a7a45;
+  --text-state-progress: #9991df;
+  --surface-state-progress: #2a2742;
+  --text-state-neutral: #b5afbf;
+  --surface-state-neutral: #2a2930;
+  --text-state-danger: #f0a1a1;
+  --surface-state-danger: #3a2226;
+  --avatar-1: #8c9be8;
+  --avatar-2: #7ebea5;
+  --avatar-3: #e0a0b0;
+  --avatar-4: #b39ddb;
+  --avatar-5: #84b6d6;
+  --avatar-6: #c9b27c;
 }
 
 * { box-sizing: border-box; }
@@ -1830,7 +1904,7 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
   --data-area-6: #3f7292;
   --data-area-other: #737372;
 }
-/* Defined ahead of a dark theme (gardening G89, G92); nothing sets data-theme yet. Measured on #202027. */
+/* Spec 023 DS4–DS5, Spec 024 DM6: dark data colours, measured on the dark card #202027. */
 :root[data-theme="dark"] {
   --data-given-alpha: 25%;
   --data-given-stroke: #7db9de;
@@ -1844,6 +1918,15 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
   --data-mail-stroke: #e16b8c;
   --data-unrecorded-line: #716e7a;
   --data-unrecorded-bg: #26262e;
+  --data-bar-alpha: 22%;
+  --data-bar-stroke: #8fb4ba;
+  --data-area-1: #7798e7;
+  --data-area-2: #e49ab2;
+  --data-area-3: #52a070;
+  --data-area-4: #b9b25e;
+  --data-area-5: #af7baa;
+  --data-area-6: #aabbe5;
+  --data-area-other: #888888;
 }
 
 /* Spec 019 amendment (5), W56–W64: header summary, activity chart, count tiles */
@@ -1886,7 +1969,7 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
 .person-chart-svg .person-chart-lane { font-family: var(--font-sans); font-size: var(--fs-2xs); }
 .person-chart-hit { fill: transparent; }
 .person-chart-hit.is-on { fill: var(--surface-hover-column); }
-.person-chart-tip { position: absolute; transform: translateY(-100%); pointer-events: none; z-index: 2; display: flex; flex-direction: column; gap: var(--space-2); background: var(--surface-inverse); color: var(--text-inverse); font-size: var(--fs-xs); line-height: 1.45; padding: var(--space-6) var(--space-8); border-radius: var(--radius-md); box-shadow: var(--shadow-popover); }
+.person-chart-tip { position: absolute; transform: translateY(-100%); pointer-events: none; z-index: 2; display: flex; flex-direction: column; gap: var(--space-2); background: var(--surface-popover); color: var(--text-inverse); font-size: var(--fs-xs); line-height: 1.45; padding: var(--space-6) var(--space-8); border-radius: var(--radius-md); box-shadow: var(--shadow-popover); }
 .person-chart-tip strong { font-weight: 600; }
 .person-chart-tip-row { display: flex; justify-content: space-between; gap: var(--space-10); }
 .person-chart-tip-row > span { display: inline-flex; align-items: center; gap: var(--space-4); min-width: 0; }

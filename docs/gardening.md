@@ -1110,19 +1110,6 @@ the two `viewer/` items below.
 - **Layer:** measurement script, then a CI check.
 - **Source:** Spec 019 amendment (4), 2026-10-15.
 
-### G89. Area colours are checked in light mode only
-- **Where:** `apps/web/styles.css` (`--data-area-1` … `--data-area-other`).
-- **Why:** the app has no dark theme today, so the area tokens are defined
-  once on `:root`. Since Spec 023 DS6 the light palette is checked for
-  colour-vision deficiency (every pair ΔE00 ≥ 10 under normal, protan and
-  deutan), but no dark area values exist. Every slice is also listed as text
-  with its count and share, so no number depends on colour.
-- **Fix:** when the app gains a dark theme, redefine the area tokens in
-  `:root[data-theme="dark"]` and add dark rows to
-  `apps/web/test/design-system.cases.ts`; the DS6 checks then run on them.
-- **Layer:** style tokens.
-- **Source:** Spec 019 amendment (4), 2026-10-15.
-
 ### G90. A Jira or dev@ page's data range still lists the review store
 - **Where:** `apps/web/src/components/PersonProfile.vue` (`details.person-range`
   `.person-coverage`).
@@ -1147,14 +1134,3 @@ the two `viewer/` items below.
 - **Layer:** chart model and its case file.
 - **Source:** Spec 019 amendment (5), 2026-10-16.
 
-### G92. Chart colours and hatching have dark values but no dark theme
-- **Where:** `apps/web/styles.css` (`--data-*` in `:root[data-theme="dark"]`).
-- **Why:** Spec 023 DS4–DS5 defines and measures the activity series and the
-  hatch for a dark theme (outlines ≥ 3:1 on `#202027`, hatch on `#26262e`),
-  but nothing sets `data-theme`, so the values are untested in a browser.
-  Every value is also in the tooltip and in "Show as table", and series are
-  separated by position (above or below the axis) as well as colour.
-- **Fix:** when the dark theme lands, render the profile in it and check the
-  computed outlines in E2E, as `people-chart.spec.ts` does for light.
-- **Layer:** style tokens.
-- **Source:** Spec 019 amendment (5), 2026-10-16.
