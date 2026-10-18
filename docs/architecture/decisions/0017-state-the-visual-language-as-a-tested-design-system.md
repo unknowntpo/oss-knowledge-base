@@ -31,8 +31,8 @@ proposal on 2026-10-17.
 
 - A new colour needs a role, a case row and an entry in the design system;
   the test fails otherwise.
-- A dark theme (gardening G89, G92) redefines the semantic and data blocks
-  and adds dark case rows.
+- The dark theme (Spec 024) redefines the semantic and data blocks and adds
+  dark case rows; it closed gardening G89 and G92.
 - Compatibility: no data format, API or route changes. The visible changes
   of Spec 023 are the contrast fixes (slices 1, 3, 4), the profile chart and
   area donut palettes the owner chose (slice 2), and the unified badge

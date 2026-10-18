@@ -19,6 +19,9 @@ each pair a reader sees.
   (`localStorage["osskb.theme"]`: `light`, `dark` or `system`), else the OS
   `prefers-color-scheme`. Dark values live in `:root[data-theme="dark"]`.
   Every table below gives both; "same" means the token is theme-invariant.
+  Readers choose on the top bar (淺色 / 深色 / 跟隨系統; one cycling button at
+  420 px and below). If a Content-Security-Policy is ever added, the inline
+  script needs its hash or a nonce in `script-src`.
 
 All ratios are WCAG 2.x contrast. Colour differences are CIEDE2000 (ΔE00);
 colour-vision simulation uses Machado, Oliveira and Fernandes (2009) at full

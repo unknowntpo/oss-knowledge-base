@@ -76,6 +76,9 @@ export const testPlanRows = [
   { id: "DM5", twin: "DS10", pair: ".digest-freshness.is-stale", foreground: "--text-state-warning", background: "--surface-state-warning", min: 4.5, light: 6.67, dark: 8.18 },
   { id: "DM5", twin: "DS10", pair: ".digest-lag", foreground: "--text-state-warning", background: "--surface-page", min: 4.5, light: 6.78, dark: 10.07 },
   { id: "DM5", twin: "DS10", pair: ".key-points-state.is-error", foreground: "--text-danger", background: "--surface-card", min: 4.5, light: 5.42, dark: 7.95 },
+  { id: "DM2", twin: "—", pair: ".theme-option (theme toggle, unchecked)", foreground: "--text-inverse-muted", background: "--surface-inverse-raised", min: 4.5, light: 4.9, dark: 6.44 },
+  { id: "DM2", twin: "—", pair: ".theme-option[aria-checked=\"true\"]", foreground: "--text-inverse", background: "--border-inverse", min: 4.5, light: 11.38, dark: 11.94 },
+  { id: "DM2", twin: "—", pair: "focus ring on the toggle (--focus-ring-inverse)", foreground: "--focus-ring-inverse", background: "--border-inverse", min: 3, light: 4.75, dark: 5.25 },
   { id: "DM7", twin: "—", pair: ".person-chart-tip (tooltip text)", foreground: "--text-inverse", background: "--surface-popover", min: 4.5, light: 16.41, dark: 11.93 },
   { id: "DM7", twin: "—", pair: ".person-chart-tip-note", foreground: "--text-inverse-muted", background: "--surface-popover", min: 4.5, light: 5.46, dark: 5.25 },
 ] as const;

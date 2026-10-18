@@ -97,3 +97,98 @@ for (const width of [320, 375]) {
     });
   }
 }
+
+// Spec 024 DM2: the top-bar toggle.
+const themeColors = (page: Page) => page.locator('meta[name="theme-color"]').evaluateAll((metas) => metas.map((meta) => meta.getAttribute("content")));
+
+test("DM2: the toggle switches the theme at once, persists across a reload, and updates theme-color", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 }); // the radio group shows above 420 px
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("/#/kafka/threads");
+  const group = page.getByRole("radiogroup", { name: "Theme" });
+  await expect(group.getByRole("radio", { name: "System" })).toHaveAttribute("aria-checked", "true");
+  await group.getByRole("radio", { name: "Dark" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator("body")).toHaveCSS("background-color", DARK_PAGE);
+  expect(await themeColors(page)).toEqual(["#101013", "#101013"]);
+  expect(await page.evaluate(() => window.localStorage.getItem("osskb.theme"))).toBe("dark");
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.getByRole("radio", { name: "Dark" })).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("radio", { name: "Light" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  expect(await themeColors(page)).toEqual(["#16161a", "#16161a"]);
+});
+
+test("DM2: 跟隨系統 follows a live OS change; zh-Hant labels", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 }); // the radio group shows above 420 px
+  await page.addInitScript(() => window.localStorage.setItem("community-kb-locale", "zh-Hant"));
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("/#/kafka/threads");
+  const group = page.getByRole("radiogroup", { name: "外觀" });
+  await group.getByRole("radio", { name: "深色" }).click();
+  await group.getByRole("radio", { name: "跟隨系統" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  expect(await page.evaluate(() => window.localStorage.getItem("osskb.theme"))).toBeNull();
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  expect(await themeColors(page)).toEqual(["#16161a", "#101013"]);
+  await expect(group.getByRole("radio", { name: "淺色" })).toBeVisible();
+});
+
+test("DM2: the toggle works from the keyboard with the light focus ring", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 }); // the radio group shows above 420 px
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/#/kafka/threads");
+  const system = page.getByRole("radio", { name: "System" });
+  await system.focus();
+  await page.keyboard.press("ArrowLeft");
+  const dark = page.getByRole("radio", { name: "Dark" });
+  await expect(dark).toBeFocused();
+  await expect(dark).toHaveAttribute("aria-checked", "true");
+  await expect(dark).toHaveCSS("outline-color", "rgb(140, 155, 232)");
+  await page.keyboard.press("ArrowLeft");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(page.getByRole("radio", { name: "Light" })).toHaveAttribute("tabindex", "0");
+});
+
+test("DM2: with storage that throws, the toggle still applies the theme for the session", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 }); // the radio group shows above 420 px
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "localStorage", { get() { throw new DOMException("blocked", "SecurityError"); } });
+  });
+  const errors = collectErrors(page);
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("/#/kafka/threads");
+  await page.getByRole("radio", { name: "Dark" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  expect(errors).toEqual([]);
+});
+
+for (const width of [320, 375]) {
+  test(`DM2: at ${width} px one theme button inside the top bar cycles the choice, and the stale pill wraps to no more lines than before`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.emulateMedia({ colorScheme: "dark" });
+    await page.goto("/#/kafka/threads");
+    await expect(page.locator("[data-theme-control]")).toBeHidden();
+    const button = page.locator("[data-theme-cycle]");
+    await expect(button).toHaveAccessibleName("Theme: System (press for Light)");
+    const bar = (await page.locator(".topbar").boundingBox())!;
+    const box = (await button.boundingBox())!;
+    expect(box.x + box.width).toBeLessThanOrEqual(width);
+    expect(box.y).toBeGreaterThanOrEqual(bar.y);
+    expect(box.y + box.height).toBeLessThanOrEqual(bar.y + bar.height);
+    // Before the toggle (main at 3df9bc2) the stale pill was 53 × 142 px at 320 and 108 × 57 px at 375.
+    expect(Math.round((await page.locator(".demo-pill").boundingBox())!.height)).toBeLessThanOrEqual(width === 320 ? 142 : 57);
+    await button.click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await expect(button).toHaveAccessibleName("Theme: Light (press for Dark)");
+    await button.click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    await button.click();
+    await expect(button).toHaveAttribute("data-theme-current", "system");
+  });
+}

@@ -3,35 +3,63 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <!-- Spec 024 DM1/DM3: set the theme before the stylesheet and the app load, so a dark OS never
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#16161a" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#101013" />
+    <!-- Spec 024 DM1–DM3: set the theme before the stylesheet and the app load, so a dark OS never
          sees a light first paint. The stored choice (osskb.theme: light, dark or system) wins; system
-         follows prefers-color-scheme, also when it changes. Storage errors fall back to system. -->
+         follows prefers-color-scheme, also when it changes. Storage errors fall back to system, and a
+         choice made while storage throws lasts for the session. The top-bar toggle calls
+         window.__osskbTheme.choose(). theme-color follows the resolved theme (the top bar's colour).
+         CSP: there is no Content-Security-Policy today; if one is added, this inline script needs its
+         sha256 hash (or a nonce) in script-src, or the page loses its theme before first paint. -->
     <script>
       (function () {
         var root = document.documentElement;
         var query = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
-        function stored() {
+        var KEY = "osskb.theme";
+        var BAR = { light: "#16161a", dark: "#101013" };
+        var session = null;
+        function valid(value) { return value === "light" || value === "dark" || value === "system"; }
+        function choice() {
+          if (session !== null) return session;
           try {
-            var value = window.localStorage.getItem("osskb.theme");
+            var value = window.localStorage.getItem(KEY);
             return value === "light" || value === "dark" ? value : "system";
           } catch (error) {
             return "system";
           }
         }
         function apply() {
-          var choice = stored();
-          root.dataset.theme = choice === "system" ? (query && query.matches ? "dark" : "light") : choice;
+          var current = choice();
+          var theme = current === "system" ? (query && query.matches ? "dark" : "light") : current;
+          root.dataset.theme = theme;
+          var metas = document.querySelectorAll ? document.querySelectorAll('meta[name="theme-color"]') : [];
+          for (var i = 0; i < metas.length; i += 1) {
+            var forDark = (metas[i].getAttribute("media") || "").indexOf("dark") >= 0;
+            metas[i].setAttribute("content", current === "system" ? (forDark ? BAR.dark : BAR.light) : BAR[theme]);
+          }
+          return theme;
         }
+        function choose(next) {
+          if (!valid(next)) return apply();
+          try {
+            if (next === "system") window.localStorage.removeItem(KEY);
+            else window.localStorage.setItem(KEY, next);
+            session = null;
+          } catch (error) {
+            session = next;
+          }
+          return apply();
+        }
+        window.__osskbTheme = { choice: choice, choose: choose };
         apply();
         if (query) {
-          var onChange = function () { if (stored() === "system") apply(); };
+          var onChange = function () { if (choice() === "system") apply(); };
           if (query.addEventListener) query.addEventListener("change", onChange);
           else if (query.addListener) query.addListener(onChange);
         }
       })();
     </script>
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#16161a" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#101013" />
     <title>Open Source Community Knowledge Base</title>
     <meta name="description" content="Evidence-first search and activity feed for open-source communities." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
