@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ThemeControl from "./components/ThemeControl.vue";
 import { computed, onMounted, onUnmounted, provide, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
@@ -139,12 +140,14 @@ const syncLabel = computed(() => {
       </select>
     </label>
     <div class="topbar-right">
+      <ThemeControl />
       <label class="locale-control">
         <span class="visually-hidden">{{ t("locale.label") }}</span>
         <select :value="locale" :aria-label="t('locale.label')" @change="setLocale(($event.target as HTMLSelectElement).value)">
           <option value="zh-Hant">中文</option>
           <option value="en">English</option>
         </select>
+        <span class="locale-short" aria-hidden="true">{{ locale === "en" ? "EN" : "中文" }}</span>
       </label>
       <span class="topbar-stat">
         {{ payload ? t("stats.feed", { topics: payload.entries.length, records: recordCount }) : "—" }}

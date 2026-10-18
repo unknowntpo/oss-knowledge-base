@@ -107,20 +107,64 @@ function runThemeScript(storedChoice: string, osDark: boolean, storage: "ok" | "
   const listeners: (() => void)[] = [];
   const query = { matches: osDark, addEventListener: (_: string, listener: () => void) => listeners.push(listener) };
   let value = stored;
+  const fail = () => { if (storage === "throws") throw new Error("SecurityError"); };
   const localStorage = {
-    getItem: () => { if (storage === "throws") throw new Error("SecurityError"); return value; },
+    getItem: () => { fail(); return value; },
+    setItem: (_: string, next: string) => { fail(); value = next; },
+    removeItem: () => { fail(); value = null; },
   };
-  const document = { documentElement: { dataset: {} as Record<string, string> } };
-  const window = { localStorage, matchMedia: () => query };
+  const meta = (media: string, content: string) => {
+    const attributes: Record<string, string> = { media, content };
+    return { getAttribute: (name: string) => attributes[name] ?? null, setAttribute: (name: string, next: string) => { attributes[name] = next; } };
+  };
+  const metas = [meta("(prefers-color-scheme: light)", "#16161a"), meta("(prefers-color-scheme: dark)", "#101013")];
+  const document = { documentElement: { dataset: {} as Record<string, string> }, querySelectorAll: () => metas };
+  const window: { localStorage: typeof localStorage; matchMedia: () => typeof query; __osskbTheme?: { choice(): string; choose(next: string): string } } = { localStorage, matchMedia: () => query };
   new Function("window", "document", script)(window, document);
   return {
     theme: () => document.documentElement.dataset.theme,
     setOs: (dark: boolean) => { query.matches = dark; for (const listener of listeners) listener(); },
     setStored: (next: string | null) => { value = next; },
+    stored: () => value,
+    choose: (next: string) => window.__osskbTheme!.choose(next),
+    choice: () => window.__osskbTheme!.choice(),
+    themeColors: () => metas.map((m) => m.getAttribute("content")),
   };
 }
 
 describe("Spec 024 theme resolution (the inline script)", () => {
+  test("DM2: choosing light, dark or system stores it, applies it at once, and survives a fresh run of the script", () => {
+    const page = runThemeScript("none", true, "ok");
+    expect(page.choose("light")).toBe("light");
+    expect([page.theme(), page.stored(), page.choice()]).toEqual(["light", "light", "light"]);
+    page.setOs(false);
+    page.setOs(true);
+    expect(page.theme()).toBe("light");
+    const reloaded = runThemeScript(page.stored() ?? "none", true, "ok");
+    expect(reloaded.theme()).toBe("light");
+    expect(page.choose("system")).toBe("dark");
+    expect([page.stored(), page.choice()]).toEqual([null, "system"]);
+    page.setOs(false);
+    expect(page.theme()).toBe("light");
+  });
+
+  test("DM2: with storage that throws, a choice applies for the session and is not overridden by an OS change", () => {
+    const page = runThemeScript("none", false, "throws");
+    expect(page.choose("dark")).toBe("dark");
+    page.setOs(true);
+    page.setOs(false);
+    expect([page.theme(), page.choice()]).toEqual(["dark", "dark"]);
+  });
+
+  test("DM2: theme-color follows the resolved theme when a choice overrides the OS, and the OS entries otherwise", () => {
+    const page = runThemeScript("dark", false, "ok");
+    expect(page.themeColors()).toEqual(["#101013", "#101013"]);
+    page.choose("light");
+    expect(page.themeColors()).toEqual(["#16161a", "#16161a"]);
+    page.choose("system");
+    expect(page.themeColors()).toEqual(["#16161a", "#101013"]);
+  });
+
   test.each(themeResolution)("DM1, DM3: stored $stored, OS dark $osDark, storage $storage → $theme", ({ stored, osDark, storage, theme }) => {
     expect(runThemeScript(stored, osDark, storage).theme()).toBe(theme);
   });

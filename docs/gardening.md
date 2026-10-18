@@ -1134,3 +1134,16 @@ the two `viewer/` items below.
 - **Layer:** chart model and its case file.
 - **Source:** Spec 019 amendment (5), 2026-10-16.
 
+### G93. At 320 px a stale freshness pill runs below the top bar
+- **Where:** `apps/web/styles.css` (`.demo-pill.is-stale` / `.is-overdue` at
+  ≤420 px, `.topbar { height: 60px }`).
+- **Why:** at 320 px the pill is about 50 px wide, so "Data may be out of date
+  · 53 d ago" wraps to eight lines (142 px) and is drawn over the tab row. The
+  Spec 011 and 021 tests check that the pill's own text is not clipped and that
+  it sits between the brand mark and the locale select, not that it stays
+  inside the 60 px bar. Present before Spec 024; the theme toggle keeps the
+  same line count.
+- **Fix:** at ≤420 px let the top bar grow (min-height) or put the pill on its
+  own row, and assert in E2E that the pill's box is inside the bar's.
+- **Layer:** E2E assertion, then style.
+- **Source:** Spec 024 slice B, 2026-10-18.

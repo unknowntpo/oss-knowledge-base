@@ -97,3 +97,131 @@ for (const width of [320, 375]) {
     });
   }
 }
+
+// Spec 024 DM2: the top-bar toggle.
+const themeColors = (page: Page) => page.locator('meta[name="theme-color"]').evaluateAll((metas) => metas.map((meta) => meta.getAttribute("content")));
+
+test("DM2: the toggle switches the theme at once, persists across a reload, and updates theme-color", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 }); // the radio group shows above 420 px
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("/#/kafka/threads");
+  const group = page.getByRole("radiogroup", { name: "Theme" });
+  await expect(group.getByRole("radio", { name: "System" })).toHaveAttribute("aria-checked", "true");
+  await group.getByRole("radio", { name: "Dark" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.locator("body")).toHaveCSS("background-color", DARK_PAGE);
+  expect(await themeColors(page)).toEqual(["#101013", "#101013"]);
+  expect(await page.evaluate(() => window.localStorage.getItem("osskb.theme"))).toBe("dark");
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.getByRole("radio", { name: "Dark" })).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("radio", { name: "Light" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  expect(await themeColors(page)).toEqual(["#16161a", "#16161a"]);
+});
+
+test("DM2: 跟隨系統 follows a live OS change; zh-Hant labels", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 }); // the radio group shows above 420 px
+  await page.addInitScript(() => window.localStorage.setItem("community-kb-locale", "zh-Hant"));
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("/#/kafka/threads");
+  const group = page.getByRole("radiogroup", { name: "外觀" });
+  await group.getByRole("radio", { name: "深色" }).click();
+  await group.getByRole("radio", { name: "跟隨系統" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  expect(await page.evaluate(() => window.localStorage.getItem("osskb.theme"))).toBeNull();
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  expect(await themeColors(page)).toEqual(["#16161a", "#101013"]);
+  await expect(group.getByRole("radio", { name: "淺色" })).toBeVisible();
+});
+
+test("DM2: the toggle works from the keyboard with the light focus ring", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 }); // the radio group shows above 420 px
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/#/kafka/threads");
+  const system = page.getByRole("radio", { name: "System" });
+  await system.focus();
+  await page.keyboard.press("ArrowLeft");
+  const dark = page.getByRole("radio", { name: "Dark" });
+  await expect(dark).toBeFocused();
+  await expect(dark).toHaveAttribute("aria-checked", "true");
+  await expect(dark).toHaveCSS("outline-color", "rgb(140, 155, 232)");
+  await page.keyboard.press("ArrowLeft");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(page.getByRole("radio", { name: "Light" })).toHaveAttribute("tabindex", "0");
+});
+
+test("DM2: with storage that throws, the toggle still applies the theme for the session", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 }); // the radio group shows above 420 px
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "localStorage", { get() { throw new DOMException("blocked", "SecurityError"); } });
+  });
+  const errors = collectErrors(page);
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("/#/kafka/threads");
+  await page.getByRole("radio", { name: "Dark" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  expect(errors).toEqual([]);
+});
+
+for (const width of [320, 375]) {
+  test(`DM2: at ${width} px one theme button inside the top bar cycles the choice, and the stale pill wraps to no more lines than before`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.emulateMedia({ colorScheme: "dark" });
+    await page.goto("/#/kafka/threads");
+    await expect(page.locator("[data-theme-control]")).toBeHidden();
+    const button = page.locator("[data-theme-cycle]");
+    await expect(button).toHaveAccessibleName("Theme: System (press for Light)");
+    const bar = (await page.locator(".topbar").boundingBox())!;
+    const box = (await button.boundingBox())!;
+    expect(box.x + box.width).toBeLessThanOrEqual(width);
+    expect(box.y).toBeGreaterThanOrEqual(bar.y);
+    expect(box.y + box.height).toBeLessThanOrEqual(bar.y + bar.height);
+    // Compare with the bar as it was before the toggle (main at 3df9bc2), in the same browser and fonts:
+    // no theme button, the full-width locale select, the old community width and gap. The pill must be
+    // at least as wide, so it cannot wrap to more lines in any font.
+    const pill = async () => { const box = (await page.locator(".demo-pill").boundingBox())!; return { width: Math.round(box.width), height: Math.round(box.height) }; };
+    const withToggle = await pill();
+    const before = await page.addStyleTag({ content: "@media (max-width: 420px) { .theme-cycle { display: none !important; } .locale-short { display: none !important; } .locale-control select { position: static !important; opacity: 1 !important; width: auto !important; height: 30px !important; padding: 0 var(--space-24) 0 var(--space-8) !important; } .community-control select { max-width: 92px !important; } .topbar-right { gap: var(--space-6) !important; } }" });
+    const without = await pill();
+    await before.evaluate((element) => element.remove());
+    expect(withToggle.width).toBeGreaterThanOrEqual(without.width);
+    expect(withToggle.height).toBeLessThanOrEqual(without.height);
+    await button.click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await expect(button).toHaveAccessibleName("Theme: Light (press for Dark)");
+    await button.click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    await button.click();
+    await expect(button).toHaveAttribute("data-theme-current", "system");
+  });
+}
+
+for (const width of [320, 375]) {
+  for (const locale of ["en", "zh-Hant"] as const) {
+    test(`DM2: at ${width} px (${locale}) the locale control shows its whole short label and still switches the language`, async ({ page }) => {
+      await page.addInitScript((value) => window.localStorage.setItem("community-kb-locale", value), locale);
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto("/#/kafka/threads");
+      const short = page.locator(".locale-short");
+      await expect(short).toHaveText(locale === "en" ? "EN" : "中文");
+      const clip = (locator: ReturnType<Page["locator"]>) => locator.evaluate((element) => element.scrollWidth - element.clientWidth);
+      expect(await clip(short)).toBeLessThanOrEqual(0);
+      await expect(page.locator(".locale-control select")).toHaveAccessibleName(locale === "en" ? "Language" : "語言");
+      await page.locator(".locale-control select").selectOption(locale === "en" ? "zh-Hant" : "en");
+      await expect(short).toHaveText(locale === "en" ? "中文" : "EN");
+    });
+  }
+}
+
+test("DM2: every theme option has its own accessible name (not only a title)", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/#/kafka/threads");
+  for (const [choice, name] of [["light", "Light"], ["dark", "Dark"], ["system", "System"]]) {
+    await expect(page.locator(`[data-theme-choice="${choice}"]`)).toHaveAttribute("aria-label", name);
+  }
+});

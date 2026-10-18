@@ -1,6 +1,6 @@
 # Spec 024: Dark theme
 
-Status: Accepted 2026-10-18 (owner approved the dark-mode mockup: "lgtm go"); slice A (tokens, first paint, OS preference: DM1, DM3–DM9) implemented; slice B (the three-way toggle, DM2) not implemented
+Status: Implemented 2026-10-18 (owner approved the dark-mode mockup: "lgtm go"); slice A (tokens, first paint, OS preference: DM1, DM3–DM9) and slice B (the three-way toggle, DM2) implemented
 Date: 2026-10-18
 Traceability: enforced
 Builds on: Spec 023 (design system, its tokens and case rows), ADR-0017, gardening G89 and G92
@@ -87,12 +87,27 @@ readers. `#9991df` keeps the 藤 hue (LCh 298°) and separates by lightness:
 4. `<meta name="theme-color">` has a light (`#16161a`) and a dark (`#101013`)
    entry by media query.
 5. The design-system page lists every token's light and dark value.
+6. Slice B: `window.__osskbTheme.choose()` (defined by the inline script) stores
+   and applies a choice; `apps/web/src/theme.ts` is the app's typed handle and
+   `ThemeControl.vue` the control. From 1440 px the options are text; below,
+   icons (☀ ☾ ◐) with the same accessible names; at 420 px and below a single
+   24 px button cycles light → dark → system. There the locale select is drawn
+   as a short label ("EN" / "中文", never clipped; the invisible native select
+   on top keeps its options, keyboard and accessible name "Language" / 語言),
+   which also gives the community switcher room for "Apache Kafka" (112 px).
+   The freshness pill is wider than before (53 → 68 px at 320, 108 → 123 px at
+   375), so it never wraps to more lines. The zh-Hant group name is 外觀; 主題 is reserved for digest topics.
+7. `theme-color`: while a stored choice overrides the OS, both entries carry
+   the resolved top-bar colour; under System each media entry keeps its own.
+8. Content-Security-Policy: none today. If one is added, the inline script
+   needs its sha256 hash or a nonce in `script-src`; without it the page loses
+   its theme before first paint (comment in `apps/web/index.html`).
 
 ## Acceptance
 
 ### Behavior
 - DM1: given no stored choice, when the page loads under a dark OS, `data-theme` is `dark` and the page background `#18181d` before the app script has run (the script request held); under a light OS it is `light`; while no choice is stored, a live OS change flips the theme; a stored `light` or `dark` wins over the OS and survives a reload → unit test running the inline script, E2E.
-- DM2: [pending] slice B: a three-way control on the top bar (淺色 / 深色 / 跟隨系統) writes `osskb.theme` and applies it without a reload; the choice persists per browser.
+- DM2: given the top bar, a radio group 淺色 / 深色 / 跟隨系統 (Light / Dark / System) applies a choice at once, stores `light` or `dark` in `osskb.theme` (System removes it), and the choice survives a reload; 跟隨系統 follows a live OS change; arrow keys move and select with the `--focus-ring-inverse` ring; when storage throws the choice holds for the session and an OS change does not override it; `theme-color` follows the resolved theme while a choice overrides the OS and the OS entries otherwise; at 420 px and below one button inside the top bar cycles the choice, the stale pill is at least as wide and no taller than in the bar without it, the short locale label (EN / 中文) is not clipped, and each theme option has an `aria-label` → unit test running the inline script, E2E.
 - DM3: given storage that throws, the page renders the OS theme with no console or page error → unit test, E2E.
 - DM4: given `apps/web/styles.css`, every `:root` token has a dark value or matches the theme-invariant list, the dark blocks define no token that `:root` lacks, and every dark value is a literal → unit test.
 - DM5: given each light colour pair of Spec 023 (DS1–DS10), its dark twin measures at or above the same floor with the dark tokens; dark progress stays wisteria and ΔE00 ≥ 10 from info and neutral under normal, protan and deutan vision → unit test over the case file.
@@ -189,6 +204,9 @@ exactly these rows (light and dark ratio of every Spec 023 pair).
 | DM5 | DS10 | .digest-freshness.is-stale | --text-state-warning | --surface-state-warning | 4.5 | 6.67 | 8.18 |
 | DM5 | DS10 | .digest-lag | --text-state-warning | --surface-page | 4.5 | 6.78 | 10.07 |
 | DM5 | DS10 | .key-points-state.is-error | --text-danger | --surface-card | 4.5 | 5.42 | 7.95 |
+| DM2 | — | .theme-option (theme toggle, unchecked) | --text-inverse-muted | --surface-inverse-raised | 4.5 | 4.9 | 6.44 |
+| DM2 | — | .theme-option[aria-checked="true"] | --text-inverse | --border-inverse | 4.5 | 11.38 | 11.94 |
+| DM2 | — | focus ring on the toggle (--focus-ring-inverse) | --focus-ring-inverse | --border-inverse | 3 | 4.75 | 5.25 |
 | DM7 | — | .person-chart-tip (tooltip text) | --text-inverse | --surface-popover | 4.5 | 16.41 | 11.93 |
 | DM7 | — | .person-chart-tip-note | --text-inverse-muted | --surface-popover | 4.5 | 5.46 | 5.25 |
 <!-- test-plan:end -->
