@@ -80,8 +80,8 @@
   --text-state-warning: #7a4a12;       /* early, vote */
   --surface-state-warning: #fbf1e3;
   --border-state-warning: #c9965a;     /* outlined warning (digest freshness) */
-  --text-state-progress: #a3542a;      /* discussing */
-  --surface-state-progress: #f7efe9;
+  --text-state-progress: #6b61b4;      /* discussing; 藤 wisteria (owner 2026-10-18), was rust #a3542a */
+  --surface-state-progress: #f1eff8;
   --text-state-neutral: #6b5e79;       /* dropped, rejected, closed, unknown */
   --surface-state-neutral: #efeef2;
   --text-state-danger: #b8432a;        /* errors */

@@ -184,7 +184,7 @@ test("DS8: timeline filter counts are solid colours that pass in both states", a
 // Spec 023 DS9: one badge system on feed, detail, proposals and topic pages.
 const STATE_TEXT: Record<string, string> = {
   success: "rgb(28, 94, 68)", info: "rgb(29, 78, 137)", warning: "rgb(122, 74, 18)",
-  progress: "rgb(163, 84, 42)", neutral: "rgb(107, 94, 121)", danger: "rgb(184, 67, 42)",
+  progress: "rgb(107, 97, 180)", neutral: "rgb(107, 94, 121)", danger: "rgb(184, 67, 42)",
 };
 
 test("DS9: open is info blue and merged success green on the feed; every digest badge takes its colour from its state", async ({ page }) => {

@@ -127,7 +127,7 @@ only the state sets colours. An unknown key is neutral.
 | success | `--text-state-success` | `#1c5e44` | `--surface-state-success` | `#dff2ea` | 6.59 | adopted, accepted, merged, resolved, implementing |
 | info | `--text-state-info` | `#1d4e89` | `--surface-state-info` | `#e3eefa` | 7.14 | open, discuss |
 | warning | `--text-state-warning` | `#7a4a12` | `--surface-state-warning` | `#fbf1e3` | 6.67 | early, vote; also the digest's stale line (border `--border-state-warning` `#c9965a`), lag note and not-translated mark |
-| progress | `--text-state-progress` | `#a3542a` | `--surface-state-progress` | `#f7efe9` | 4.79 | discussing |
+| progress | `--text-state-progress` | `#6b61b4` | `--surface-state-progress` | `#f1eff8` | 4.62 | discussing (藤 wisteria; ΔE00 ≥ 10.5 from info and 13.0 from neutral under normal, protan and deutan vision) |
 | neutral | `--text-state-neutral` | `#6b5e79` | `--surface-state-neutral` | `#efeef2` | 5.19 | dropped, rejected, closed, anything else |
 | danger | `--text-state-danger` | `#b8432a` | `--surface-state-danger` | `#fbece8` | 4.71 | errors (no status uses it yet) |
 
