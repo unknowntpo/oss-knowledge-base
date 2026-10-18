@@ -182,13 +182,15 @@ for (const width of [320, 375]) {
     expect(box.y).toBeGreaterThanOrEqual(bar.y);
     expect(box.y + box.height).toBeLessThanOrEqual(bar.y + bar.height);
     // Compare with the bar as it was before the toggle (main at 3df9bc2), in the same browser and fonts:
-    // no theme button, the locale select at its natural width, the old community width and gap.
-    const pillHeight = async () => Math.round((await page.locator(".demo-pill").boundingBox())!.height);
-    const withToggle = await pillHeight();
+    // no theme button, the locale select at its natural width, the old community width and gap. The pill must be
+    // at least as wide, so it cannot wrap to more lines in any font.
+    const pill = async () => { const box = (await page.locator(".demo-pill").boundingBox())!; return { width: Math.round(box.width), height: Math.round(box.height) }; };
+    const withToggle = await pill();
     const before = await page.addStyleTag({ content: "@media (max-width: 420px) { .theme-cycle { display: none !important; } .locale-control select { width: auto !important; padding: 0 var(--space-24) 0 var(--space-8) !important; } .community-control select { max-width: 92px !important; } .topbar-right { gap: var(--space-6) !important; } }" });
-    const without = await pillHeight();
+    const without = await pill();
     await before.evaluate((element) => element.remove());
-    expect(withToggle).toBeLessThanOrEqual(without);
+    expect(withToggle.width).toBeGreaterThanOrEqual(without.width);
+    expect(withToggle.height).toBeLessThanOrEqual(without.height);
     await button.click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
     await expect(button).toHaveAccessibleName("Theme: Light (press for Dark)");

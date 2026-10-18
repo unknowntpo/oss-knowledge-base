@@ -1814,12 +1814,12 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
 
 @media (max-width: 420px) {
   /* Leave room for a stalled-publication pill (Spec 011 V1): a compact switcher. */
-  .community-control select { max-width: 88px; padding: 0 var(--space-16) 0 var(--space-6); font-size: var(--fs-2xs); }
+  .community-control select { max-width: 86px; padding: 0 var(--space-16) 0 var(--space-6); font-size: var(--fs-2xs); }
   .topbar { gap: var(--space-8); padding: 0 var(--space-12); }
-  /* Spec 024 DM2: the theme button (28 px) is paid for by a compact locale select, so the pill keeps its width. */
+  /* Spec 024 DM2: the theme button (24 px) is paid for by a compact locale select and community switcher, so the pill keeps its width. */
   .locale-control select { width: 78px; padding: 0 var(--space-16) 0 var(--space-6); }
   .topbar-right { gap: var(--space-4); }
-  .theme-cycle { min-width: 28px; }
+  .theme-cycle { min-width: 24px; width: 24px; }
 }
 
 /* ---------------------- Spec 019 slice 2a: contributor profile ---------------------- */
