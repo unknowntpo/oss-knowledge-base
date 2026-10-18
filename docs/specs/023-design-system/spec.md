@@ -1,6 +1,6 @@
 # Spec 023: Design system for the web app
 
-Status: Implemented 2026-10-18 (slices 1–7, DS1–DS11; accepted 2026-10-17 when the owner approved the design-system audit and proposal with changes)
+Status: Implemented 2026-10-18 (slices 1–7, DS1–DS11; accepted 2026-10-17 when the owner approved the design-system audit and proposal with changes; amended 2026-10-18: progress badge is wisteria, Behavior 18)
 Date: 2026-10-17
 Traceability: enforced
 Builds on: constitution §6 (visual language), ADR-0017 (the design system it links), Spec 019 (contributor profile chart and area donut), gardening G89 and G92
@@ -160,7 +160,7 @@ Slice 3, the E2E fixture's feed `/#/kafka/threads` and detail
    to success green; "Closed without merge" from red to neutral; feed
    "Adopted"/"Accepted" and "Early" move to the success and warning tints;
    the KIP "Vote" stage from orange `#8a4300` to warning brown `#7a4a12`;
-   a topic thread "Discussing" from blue to progress rust. "Discuss" and
+   a topic thread "Discussing" from blue to progress (rust until 2026-10-18, then wisteria; Behavior 18). "Discuss" and
    "Implementing" keep their colours.
 12. The feed-detail source-distribution bar is a data mark (`--data-bar-*`):
    瓶覗 `#a5dee4` at 70% with a 1px 藍鼠 `#566c73` outline, 5.04:1 on the
@@ -192,6 +192,14 @@ Slice 3, the E2E fixture's feed `/#/kafka/threads` and detail
    matcher as the stylesheet, and a `"#rgb"`/`"#rrggbb"` or colour-function
    string in `apps/web/src` TypeScript fails unless the file is on the
    test's allowlist (empty).
+18. Amendment 2026-10-18 (owner): the progress state ("discussing") is 藤
+   wisteria, `#6b61b4` on `#f1eff8` (4.62:1), not rust. It stays ΔE00 ≥ 10.5
+   from info blue and ≥ 13.0 from neutral under normal, protan and deutan
+   vision (lightness carries the difference from info for red–green
+   colour-blind readers). Badges never share a page with the profile
+   activity chart, whose reviews-received series is the lighter 藤
+   `#8b81c3` as a 30% fill (ΔE00 12.1 from the badge text); the warning
+   state is unchanged.
 
 ## Acceptance
 
@@ -293,7 +301,7 @@ exactly these rows.
 | DS9 | light | [data-state="success"] | --text-state-success | --surface-state-success | the badge's own tint | 4.5 | 6.59 |
 | DS9 | light | [data-state="info"] | --text-state-info | --surface-state-info | the badge's own tint | 4.5 | 7.14 |
 | DS9 | light | [data-state="warning"] | --text-state-warning | --surface-state-warning | the badge's own tint | 4.5 | 6.67 |
-| DS9 | light | [data-state="progress"] | --text-state-progress | --surface-state-progress | the badge's own tint | 4.5 | 4.79 |
+| DS9 | light | [data-state="progress"] | --text-state-progress | --surface-state-progress | the badge's own tint | 4.5 | 4.62 |
 | DS9 | light | [data-state="neutral"] | --text-state-neutral | --surface-state-neutral | the badge's own tint | 4.5 | 5.19 |
 | DS9 | light | [data-state="danger"] | --text-state-danger | --surface-state-danger | the badge's own tint | 4.5 | 4.71 |
 | DS10 | light | .tag-chip[aria-pressed="true"] | --text-on-accent | --accent | the pressed chip's accent fill | 4.5 | 6.9 |

@@ -213,6 +213,17 @@ describe("Spec 023 semantic layer", () => {
 });
 
 describe("Spec 023 badge states", () => {
+  test("DS9: progress is wisteria (LCh hue 295–315°) and stays ΔE00 ≥ 10 from info and neutral under normal, protan and deutan vision", () => {
+    const progress = colour("--text-state-progress");
+    const hue = toLch(progress)[2];
+    expect(hue >= 295 && hue <= 315).toBe(true);
+    for (const other of ["--text-state-info", "--text-state-neutral"]) {
+      for (const vision of ["normal", "protan", "deutan"] as const) {
+        expect({ other, vision, apart: deltaE2000(simulate(progress, vision), simulate(colour(other), vision)) >= 10 }).toEqual({ other, vision, apart: true });
+      }
+    }
+  });
+
   test.each(badgeStates)("DS9: $key is shown as $state", ({ key, state }) => {
     expect(badgeState(key)).toBe(state);
   });
