@@ -253,11 +253,11 @@ exactly these rows.
 | DS5 | light | Jira outline (青碧) on the card | --data-jira-stroke | --surface-card |  | 3 | 4.3 |
 | DS5 | light | dev@ outline (今様) on the card | --data-mail-stroke | --surface-card |  | 3 | 3.91 |
 | DS5 | light | unrecorded hatch line on its base | --data-unrecorded-line | --data-unrecorded-bg |  | 3 | 3.1 |
-| DS5 | light | reviews given swatch outline in the tooltip | --data-given-stroke | --surface-inverse |  | 3 | 4.98 |
-| DS5 | light | own PRs swatch outline in the tooltip | --data-github-stroke | --surface-inverse |  | 3 | 4.84 |
-| DS5 | light | reviews received swatch outline in the tooltip | --data-received-stroke | --surface-inverse |  | 3 | 5.18 |
-| DS5 | light | Jira swatch outline in the tooltip | --data-jira-stroke | --surface-inverse |  | 3 | 4.2 |
-| DS5 | light | dev@ swatch outline in the tooltip | --data-mail-stroke | --surface-inverse |  | 3 | 4.61 |
+| DS5 | light | reviews given swatch outline in the tooltip | --data-given-stroke | --surface-popover |  | 3 | 4.98 |
+| DS5 | light | own PRs swatch outline in the tooltip | --data-github-stroke | --surface-popover |  | 3 | 4.84 |
+| DS5 | light | reviews received swatch outline in the tooltip | --data-received-stroke | --surface-popover |  | 3 | 5.18 |
+| DS5 | light | Jira swatch outline in the tooltip | --data-jira-stroke | --surface-popover |  | 3 | 4.2 |
+| DS5 | light | dev@ swatch outline in the tooltip | --data-mail-stroke | --surface-popover |  | 3 | 4.61 |
 | DS5 | dark | reviews given outline (勿忘草) on the dark card | --data-given-stroke | #202027 |  | 3 | 7.61 |
 | DS5 | dark | own PRs outline (柳茶) on the dark card | --data-github-stroke | #202027 |  | 3 | 6.49 |
 | DS5 | dark | reviews received outline (藤) on the dark card | --data-received-stroke | #202027 |  | 3 | 4.64 |
@@ -286,7 +286,7 @@ exactly these rows.
 | DS7 | light | .person-tile-since | --text-muted | --surface-page | the page: the darker of page and card, so the card passes too | 4.5 | 5.06 |
 | DS7 | light | #q::placeholder | --text-muted | --surface-sunken |  | 4.5 | 5.29 |
 | DS7 | light | .filter-row .count | --text-muted | --surface-chip | the chip (for facet rows, the hover background), darker than page and card | 4.5 | 4.89 |
-| DS7 | light | .tl-time | --text-muted | #fdf7e3 | the flashed timeline card, the darkest it sits on | 4.5 | 5.19 |
+| DS7 | light | .tl-time | --text-muted | --surface-flash | the flashed timeline card, the darkest it sits on | 4.5 | 5.19 |
 | DS7 | light | .person-unavailable | --text-danger | --surface-page | the page: the darker of page and card, so the card passes too | 4.5 | 4.93 |
 | DS7 | light | .brand-scope | --text-inverse-muted | --surface-inverse |  | 4.5 | 5.46 |
 | DS7 | light | .search-icon | --icon-muted | --surface-sunken |  | 3 | 3.1 |
