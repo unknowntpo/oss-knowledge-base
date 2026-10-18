@@ -43,6 +43,7 @@ function onKey(event: KeyboardEvent, index: number) {
       :aria-checked="choice === option"
       :tabindex="choice === option ? 0 : -1"
       :data-theme-choice="option"
+      :aria-label="t(`theme.${option}`)"
       :title="t(`theme.${option}`)"
       @click="select(option)"
       @keydown="onKey($event, index)"

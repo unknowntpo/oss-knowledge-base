@@ -91,10 +91,12 @@ readers. `#9991df` keeps the 藤 hue (LCh 298°) and separates by lightness:
    and applies a choice; `apps/web/src/theme.ts` is the app's typed handle and
    `ThemeControl.vue` the control. From 1440 px the options are text; below,
    icons (☀ ☾ ◐) with the same accessible names; at 420 px and below a single
-   24 px button cycles light → dark → system, paid for by a 78 px locale select
-   and an 86 px community switcher, so the freshness pill is at least as wide
-   as before (53 → 54 px at 320, 108 → 109 px at 375) and never wraps to more
-   lines. The zh-Hant group name is 外觀; 主題 is reserved for digest topics.
+   24 px button cycles light → dark → system. There the locale select is drawn
+   as a short label ("EN" / "中文", never clipped; the invisible native select
+   on top keeps its options, keyboard and accessible name "Language" / 語言),
+   which also gives the community switcher room for "Apache Kafka" (112 px).
+   The freshness pill is wider than before (53 → 68 px at 320, 108 → 123 px at
+   375), so it never wraps to more lines. The zh-Hant group name is 外觀; 主題 is reserved for digest topics.
 7. `theme-color`: while a stored choice overrides the OS, both entries carry
    the resolved top-bar colour; under System each media entry keeps its own.
 8. Content-Security-Policy: none today. If one is added, the inline script
@@ -105,7 +107,7 @@ readers. `#9991df` keeps the 藤 hue (LCh 298°) and separates by lightness:
 
 ### Behavior
 - DM1: given no stored choice, when the page loads under a dark OS, `data-theme` is `dark` and the page background `#18181d` before the app script has run (the script request held); under a light OS it is `light`; while no choice is stored, a live OS change flips the theme; a stored `light` or `dark` wins over the OS and survives a reload → unit test running the inline script, E2E.
-- DM2: given the top bar, a radio group 淺色 / 深色 / 跟隨系統 (Light / Dark / System) applies a choice at once, stores `light` or `dark` in `osskb.theme` (System removes it), and the choice survives a reload; 跟隨系統 follows a live OS change; arrow keys move and select with the `--focus-ring-inverse` ring; when storage throws the choice holds for the session and an OS change does not override it; `theme-color` follows the resolved theme while a choice overrides the OS and the OS entries otherwise; at 420 px and below one button inside the top bar cycles the choice and the stale pill is at least as wide and no taller than in the bar without it → unit test running the inline script, E2E.
+- DM2: given the top bar, a radio group 淺色 / 深色 / 跟隨系統 (Light / Dark / System) applies a choice at once, stores `light` or `dark` in `osskb.theme` (System removes it), and the choice survives a reload; 跟隨系統 follows a live OS change; arrow keys move and select with the `--focus-ring-inverse` ring; when storage throws the choice holds for the session and an OS change does not override it; `theme-color` follows the resolved theme while a choice overrides the OS and the OS entries otherwise; at 420 px and below one button inside the top bar cycles the choice, the stale pill is at least as wide and no taller than in the bar without it, the short locale label (EN / 中文) is not clipped, and each theme option has an `aria-label` → unit test running the inline script, E2E.
 - DM3: given storage that throws, the page renders the OS theme with no console or page error → unit test, E2E.
 - DM4: given `apps/web/styles.css`, every `:root` token has a dark value or matches the theme-invariant list, the dark blocks define no token that `:root` lacks, and every dark value is a literal → unit test.
 - DM5: given each light colour pair of Spec 023 (DS1–DS10), its dark twin measures at or above the same floor with the dark tokens; dark progress stays wisteria and ΔE00 ≥ 10 from info and neutral under normal, protan and deutan vision → unit test over the case file.

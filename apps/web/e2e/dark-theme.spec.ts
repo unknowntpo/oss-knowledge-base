@@ -182,11 +182,11 @@ for (const width of [320, 375]) {
     expect(box.y).toBeGreaterThanOrEqual(bar.y);
     expect(box.y + box.height).toBeLessThanOrEqual(bar.y + bar.height);
     // Compare with the bar as it was before the toggle (main at 3df9bc2), in the same browser and fonts:
-    // no theme button, the locale select at its natural width, the old community width and gap. The pill must be
+    // no theme button, the full-width locale select, the old community width and gap. The pill must be
     // at least as wide, so it cannot wrap to more lines in any font.
     const pill = async () => { const box = (await page.locator(".demo-pill").boundingBox())!; return { width: Math.round(box.width), height: Math.round(box.height) }; };
     const withToggle = await pill();
-    const before = await page.addStyleTag({ content: "@media (max-width: 420px) { .theme-cycle { display: none !important; } .locale-control select { width: auto !important; padding: 0 var(--space-24) 0 var(--space-8) !important; } .community-control select { max-width: 92px !important; } .topbar-right { gap: var(--space-6) !important; } }" });
+    const before = await page.addStyleTag({ content: "@media (max-width: 420px) { .theme-cycle { display: none !important; } .locale-short { display: none !important; } .locale-control select { position: static !important; opacity: 1 !important; width: auto !important; height: 30px !important; padding: 0 var(--space-24) 0 var(--space-8) !important; } .community-control select { max-width: 92px !important; } .topbar-right { gap: var(--space-6) !important; } }" });
     const without = await pill();
     await before.evaluate((element) => element.remove());
     expect(withToggle.width).toBeGreaterThanOrEqual(without.width);
@@ -200,3 +200,28 @@ for (const width of [320, 375]) {
     await expect(button).toHaveAttribute("data-theme-current", "system");
   });
 }
+
+for (const width of [320, 375]) {
+  for (const locale of ["en", "zh-Hant"] as const) {
+    test(`DM2: at ${width} px (${locale}) the locale control shows its whole short label and still switches the language`, async ({ page }) => {
+      await page.addInitScript((value) => window.localStorage.setItem("community-kb-locale", value), locale);
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto("/#/kafka/threads");
+      const short = page.locator(".locale-short");
+      await expect(short).toHaveText(locale === "en" ? "EN" : "中文");
+      const clip = (locator: ReturnType<Page["locator"]>) => locator.evaluate((element) => element.scrollWidth - element.clientWidth);
+      expect(await clip(short)).toBeLessThanOrEqual(0);
+      await expect(page.locator(".locale-control select")).toHaveAccessibleName(locale === "en" ? "Language" : "語言");
+      await page.locator(".locale-control select").selectOption(locale === "en" ? "zh-Hant" : "en");
+      await expect(short).toHaveText(locale === "en" ? "中文" : "EN");
+    });
+  }
+}
+
+test("DM2: every theme option has its own accessible name (not only a title)", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/#/kafka/threads");
+  for (const [choice, name] of [["light", "Light"], ["dark", "Dark"], ["system", "System"]]) {
+    await expect(page.locator(`[data-theme-choice="${choice}"]`)).toHaveAttribute("aria-label", name);
+  }
+});

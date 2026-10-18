@@ -147,6 +147,7 @@ const syncLabel = computed(() => {
           <option value="zh-Hant">中文</option>
           <option value="en">English</option>
         </select>
+        <span class="locale-short" aria-hidden="true">{{ locale === "en" ? "EN" : "中文" }}</span>
       </label>
       <span class="topbar-stat">
         {{ payload ? t("stats.feed", { topics: payload.entries.length, records: recordCount }) : "—" }}
