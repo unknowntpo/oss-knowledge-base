@@ -340,8 +340,10 @@ Behavior:
    when the spec's directory is in the production tag and no Deployed
    configuration row naming it is unset or none on Prod; `GitHub Pages` only
    for a spec named on the marker line `# publishes: Spec NNN` of
-   `.github/workflows/feature-map-site.yml` (today Spec 020; a mention
-   anywhere else in the file does not count); `Prod`, `Dev` and `GitHub Pages` only for a
+   `.github/workflows/feature-map-site.yml` (today Spec 020; in a workflow
+   from before that line, such as `main` before this change, its first
+   comment line when it starts `# Spec NNN.`; a mention anywhere else in the
+   file does not count); `Prod`, `Dev` and `GitHub Pages` only for a
    spec implemented, or partially implemented, on the ref; `none` always.
    Decision: a spec in the Prod tag may be marked `Dev`. That narrows (Dev
    runs `main`, which has everything the tag has), so it is allowed. Any
@@ -420,7 +422,9 @@ What a "Runs on" value may claim (B27), from `scripts/test/feature-map-site-runs
 | B27 | 007 | none (homelab spike) | Spike completed | no |  | v0.2.0 | # publishes: Spec 020 | — | none is always allowed |
 | B27 | 012 | Staging | Implemented (#27) | no |  | v0.2.0 | # publishes: Spec 020 | is not one of Prod, Dev, GitHub Pages, none | outside the vocabulary |
 | B27 | 024 | GitHub Pages | Implemented (#90, #91) | no |  | v0.2.0 | # publishes: Spec 020 / # Spec 024 is the dark theme; see also Spec 024 | .github/workflows/feature-map-site.yml publishes Spec 020 | a stray mention elsewhere in the workflow is not evidence |
-| B27 | 020 | GitHub Pages | Implemented (#66) | no |  | v0.2.0 | # Spec 020. Builds the feature-map page of every ref | .github/workflows/feature-map-site.yml publishes no spec | without the marker line nothing is published |
+| B27 | 020 | GitHub Pages | Implemented (#66) | no |  | v0.2.0 | name: Feature map site / # Builds every ref; see Spec 020 | .github/workflows/feature-map-site.yml publishes no spec | neither a marker line nor the header line: a mention is not evidence |
+| B27 | 020 | GitHub Pages | Implemented (#66) | no |  | v0.2.0 | name: Feature map site / # Spec 020. Builds the feature-map page of every ref | — | a workflow from before the marker: its header line `# Spec NNN.` is the marker |
+| B27 | 024 | GitHub Pages | Implemented (#90, #91) | no |  | v0.2.0 | # Spec 020. Builds the site / # see also Spec 024 | .github/workflows/feature-map-site.yml publishes Spec 020 | the header line only, not a later mention |
 <!-- test-plan:end -->
 
 Named tests: `scripts/test/feature-map-site.test.ts`, on the fixture tree

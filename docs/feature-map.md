@@ -294,7 +294,7 @@ There is no public `/status`: it exists only inside the Durable Object, and
 
 ## Acceptance IDs by spec
 
-"Runs on" is where a built spec runs: `Prod` (in the tag Prod is deployed from), `Dev`, `GitHub Pages`, or `none`. It can only narrow what the evidence shows, never widen it (Spec 020 B27): `Prod` needs the spec in the newest `v*` tag and no row of the Deployed configuration naming it unset or none on Prod; `GitHub Pages` needs the spec on the `# publishes: Spec NNN` line of `.github/workflows/feature-map-site.yml` (a mention elsewhere in the file does not count); `Dev` needs the spec implemented on `main`; a spec in the Prod tag may be marked `Dev`. A contradicting value fails the site build on `main`, naming the spec, the value and the evidence.
+"Runs on" is where a built spec runs: `Prod` (in the tag Prod is deployed from), `Dev`, `GitHub Pages`, or `none`. It can only narrow what the evidence shows, never widen it (Spec 020 B27): `Prod` needs the spec in the newest `v*` tag and no row of the Deployed configuration naming it unset or none on Prod; `GitHub Pages` needs the spec on the `# publishes: Spec NNN` line of `.github/workflows/feature-map-site.yml` (or, in a workflow from before that line, its first comment line `# Spec NNN.`; a mention elsewhere in the file does not count); `Dev` needs the spec implemented on `main`; a spec in the Prod tag may be marked `Dev`. A contradicting value fails the site build on `main`, naming the spec, the value and the evidence.
 
 | Spec | IDs | Surface | Runs on |
 | --- | --- | --- | --- |

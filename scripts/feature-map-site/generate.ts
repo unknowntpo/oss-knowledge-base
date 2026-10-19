@@ -191,12 +191,16 @@ export function runsOnError(input: {
 
 /**
  * The workflow that publishes the feature-map site to GitHub Pages. What it publishes is its one marker
- * line `# publishes: Spec NNN[, Spec NNN …]`; a spec mentioned anywhere else in the file does not count.
+ * line `# publishes: Spec NNN[, Spec NNN …]` (or, in a workflow from before that line, its first comment
+ * line when it starts `# Spec NNN.`); a spec mentioned anywhere else in the file does not count.
  */
 export const PAGES_WORKFLOW = ".github/workflows/feature-map-site.yml";
 
 export function pagesSpecs(tree: TreeReader): string[] {
-  const marker = tree.read(PAGES_WORKFLOW)?.split("\n").find((line) => /^#\s*publishes:/u.test(line));
+  const lines = tree.read(PAGES_WORKFLOW)?.split("\n") ?? [];
+  // A workflow from before the marker (main until 2026-10-19) names its spec on its first comment line, `# Spec 020. …`.
+  const header = lines.find((line) => line.startsWith("#"));
+  const marker = lines.find((line) => /^#\s*publishes:/u.test(line)) ?? (header !== undefined && /^# Spec \d{3}\./u.test(header) ? header.split(".")[0] : undefined);
   if (marker === undefined) return [];
   return [...new Set([...marker.matchAll(/\bSpec (\d{3})\b/gu)].map((match) => match[1]!))].sort();
 }
