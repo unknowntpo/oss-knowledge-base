@@ -1,6 +1,6 @@
 # Spec 020: Generated feature-map site
 
-Status: Implemented (#66, 2026-10-14; published at https://unknowntpo.github.io/oss-knowledge-base/); amended 2026-10-19: the status board (B19–B24)
+Status: Implemented (#66, 2026-10-14; published at https://unknowntpo.github.io/oss-knowledge-base/); amended 2026-10-19: the status board (B19–B26)
 Date: 2026-10-14
 Traceability: enforced
 Builds on: `docs/process/workflow.md` (verification kit, gardening), gardening G52
@@ -303,15 +303,20 @@ Behavior:
 
 1. Every page opens with a section `#status` (現況 · What is built, in
    progress and planned): one tile per group with its count, then the
-   groups: 已上線 Prod · Live on Prod; 僅 Dev · Live on Dev only; 進行中 · In
-   progress; 規劃中 · Planned; 其他 · Other (only when a spec is in it); 已知缺口
-   · Known gaps. Each spec appears in exactly one group, with its number
+   groups: 在 Prod 標籤中 · In the Prod tag (`<tag>`); 僅 Dev · Live on Dev
+   only; 發佈於 GitHub Pages · Published on GitHub Pages and 其他 · Other (each
+   only when a spec is in it); 進行中 · In progress; 規劃中 · Planned; 已知缺口 ·
+   Known gaps. The Prod group is not called "Live on Prod": Prod serves an
+   old snapshot, so being in the tag does not mean its data is live. Each spec appears in exactly one group, with its number
    linking to its `spec.md` at the page's commit, its title, and a reason.
 2. The group follows the rule in the test plan below (`specStage`): pending
    acceptance items or a Status starting "Partially implemented" → In
-   progress; "Implemented" → Live on Prod when the spec's directory is in the
-   production tag and no Deployed configuration row naming it is off on
-   Prod, else Live on Dev only (Dev deploys every push to `main`);
+   progress; "Implemented" → the group named by the spec's "Runs on" cell in
+   the feature map's Acceptance table when it has one (`Prod`, `Dev`,
+   `GitHub Pages`, `none` → Other); without it, In the Prod tag when the
+   spec's directory is in the production tag and no Deployed configuration
+   row naming it is off on Prod, else Live on Dev only (Dev deploys every
+   push to `main`);
    "Accepted" or "Draft" → Planned; any other first word (a spike) → Other.
 3. The production tag is the newest `v*` tag of the site whose page could be
    generated (`.github/workflows/ci.yml` deploys Prod on a `v*` tag). All
@@ -320,8 +325,10 @@ Behavior:
 4. A spec is off on Prod when a row of the Deployed configuration table cites
    `Spec <NNN>` in any cell and its Prod cell starts with `unset` or `none`;
    the reason lists the row's names.
-5. The Prod group also shows the Prod row of the Environments table, so the
-   reader sees what Prod runs (a snapshot, a publisher never deployed).
+5. The Prod group prints the feature map's paragraph that starts "Prod
+   today:" as it is (today: "Prod serves the 2026-08-25 snapshot; the Prod
+   publisher has never run"), and folds the Prod row of the Environments
+   table below it.
 6. Known gaps counts the open gardening items per category, each linking to
    its category on the page.
 7. Pending items are counted with the traceability gate's own parser
@@ -330,7 +337,7 @@ Behavior:
    Accepted, Draft, or (spikes only) Spike; B25 checks the repository.
 
 `data.json` gains `production`, `counts.specsByStage`, and per spec
-`acceptanceItems`, `pending`, `inProduction`, `offOnProd` and `stage`.
+`runsOn`, `acceptanceItems`, `pending`, `inProduction`, `offOnProd` and `stage`.
 
 ## Test plan
 
@@ -357,18 +364,24 @@ Generated from `scripts/test/feature-map-site.cases.ts` by
 The status board's rule (B19), from `scripts/test/feature-map-site-board.cases.ts`:
 
 <!-- test-plan:start scripts/test/feature-map-site-board.cases.ts -->
-| id | status | pending | inTag | offOnProd | stage | why |
-| --- | --- | --- | --- | --- | --- | --- |
-| B19 | Implemented (PR #7) | 0 | yes | 0 | prod | built and in the tag Prod runs |
-| B19 | Implemented (PR #7) | 0 | no | 0 | dev | built after the tag: Dev deploys every push to main |
-| B19 | Implemented (PR #7) | 0 | yes | 1 | dev | a flag naming the spec is unset on Prod |
-| B19 | Partially implemented: slices 1–2 | 3 | no | 0 | progress | partial status with pending items |
-| B19 | Partially implemented: slices 1–2 | 0 | yes | 0 | progress | the partial status alone, even in the tag |
-| B19 | Implemented | 2 | yes | 0 | progress | pending items win over the status word |
-| B19 | Accepted 2026-10-08 | 0 | yes | 0 | planned | accepted is not built |
-| B19 | Draft for owner review | 4 | no | 0 | planned | a draft with pending items is still planned |
-| B19 | Spike completed (#13) | 0 | no | 0 | other | no known first word |
-| B19 |  | 0 | no | 0 | other | no Status line |
+| id | status | pending | inTag | offOnProd | runsOn | stage | why |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| B19 | Implemented (PR #7) | 0 | yes | 0 | — | prod | built and in the tag Prod runs |
+| B19 | Implemented (PR #7) | 0 | no | 0 | — | dev | built after the tag: Dev deploys every push to main |
+| B19 | Implemented (PR #7) | 0 | yes | 1 | — | dev | a flag naming the spec is unset on Prod |
+| B19 | Partially implemented: slices 1–2 | 3 | no | 0 | — | progress | partial status with pending items |
+| B19 | Partially implemented: slices 1–2 | 0 | yes | 0 | — | progress | the partial status alone, even in the tag |
+| B19 | Implemented | 2 | yes | 0 | — | progress | pending items win over the status word |
+| B19 | Accepted 2026-10-08 | 0 | yes | 0 | — | planned | accepted is not built |
+| B19 | Draft for owner review | 4 | no | 0 | — | planned | a draft with pending items is still planned |
+| B19 | Spike completed (#13) | 0 | no | 0 | — | other | no known first word |
+| B19 |  | 0 | no | 0 | — | other | no Status line |
+| B19 | Implemented (#66) | 0 | no | 0 | GitHub Pages | pages | published elsewhere than Dev or Prod: the map says where |
+| B19 | Implemented (#1) | 0 | yes | 0 | Dev | dev | the map's Runs on wins over the tag |
+| B19 | Implemented (#1) | 0 | no | 0 | Prod | prod | the map's Runs on wins over the tag |
+| B19 | Implemented (#1) | 0 | no | 0 | none | other | built but runs nowhere |
+| B19 | Partially implemented | 1 | no | 0 | GitHub Pages | progress | unfinished work stays in progress wherever it runs |
+| B19 | Accepted | 0 | no | 0 | none | planned | not built: Runs on does not apply |
 <!-- test-plan:end -->
 
 Named tests: `scripts/test/feature-map-site.test.ts`, on the fixture tree
@@ -420,10 +433,14 @@ tag and another branch.
   membership, off-on-Prod names and group, and the group counts add up.
 - B23: the page opens with the board before the overview: a tile per group
   with its count, each spec under its group with a link and a reason,
-  bilingual headings, the production tag and the Prod environment row, and
+  bilingual headings, the production tag, the "Prod today:" caveat printed
+  in the Prod group, the Prod environment row, and
   the gardening categories with counts and links; Other only when used.
 - B25: every spec of this repository has a Status line the board
   understands; only a spike is Other.
+- B26: every spec of this repository has a "Runs on" value in the feature
+  map (`Prod`, `Dev`, `GitHub Pages` or `none`); Spec 020 alone is
+  Published on GitHub Pages.
 
 ### Failure and retry
 - B20: the production tag is the newest `v*` tag whose page builds (an

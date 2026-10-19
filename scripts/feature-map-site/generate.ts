@@ -34,7 +34,7 @@ export type StatusKind = "draft" | "accepted" | "partial" | "implemented" | "oth
  * from the spec's Status line, its `[pending]` acceptance items, whether its directory is in the
  * tree of the ref Prod runs (the newest `v*` tag), and the Deployed configuration rows that name it.
  */
-export type Stage = "prod" | "dev" | "progress" | "planned" | "other";
+export type Stage = "prod" | "dev" | "pages" | "progress" | "planned" | "other";
 
 /** The ref Prod is deployed from: the newest `v*` tag of the site (`.github/workflows/ci.yml` deploys Prod on a `v*` tag). */
 export interface ProductionRef {
@@ -56,6 +56,8 @@ export interface SpecEntry {
   /** From the feature map's "Acceptance IDs by spec" row, when it has one. */
   readonly acceptanceIds: string | null;
   readonly surface: string | null;
+  /** The "Runs on" cell of that row (`Prod`, `Dev`, `GitHub Pages`, `none`), when the table has the column. */
+  readonly runsOn: string | null;
   /** Acceptance items the traceability gate reads (enforced specs only), and how many are `[pending]`. */
   readonly acceptanceItems: number;
   readonly pending: number;
@@ -129,10 +131,16 @@ export function statusKind(status: string): StatusKind {
  * an implemented spec is on Prod when the production tag has it and no flag naming it is off there,
  * else on Dev only (Dev deploys every push to `main`); accepted or draft is planned.
  */
-export function specStage(input: { readonly statusKind: StatusKind; readonly pending: number; readonly inProduction: boolean; readonly offOnProd: number }): Stage {
+export function specStage(input: { readonly statusKind: StatusKind; readonly pending: number; readonly inProduction: boolean; readonly offOnProd: number; readonly runsOn?: string | null }): Stage {
   const { statusKind: kind, pending, inProduction, offOnProd } = input;
   if (kind === "implemented" || kind === "partial") {
     if (kind === "partial" || pending > 0) return "progress";
+    // The feature map's "Runs on" names where a built spec runs; it wins over the tag and the flags.
+    const runsOn = input.runsOn?.trim() ?? "";
+    if (/^GitHub Pages\b/iu.test(runsOn)) return "pages";
+    if (/^Prod\b/iu.test(runsOn)) return "prod";
+    if (/^Dev\b/iu.test(runsOn)) return "dev";
+    if (/^none\b/iu.test(runsOn)) return "other";
     return inProduction && offOnProd === 0 ? "prod" : "dev";
   }
   if (kind === "accepted" || kind === "draft") return "planned";
@@ -159,6 +167,7 @@ export function offOnProd(deployed: Table | null): ReadonlyMap<string, readonly 
 
 function readSpecs(tree: TreeReader, acceptance: Table | null, deployed: Table | null, production: ProductionRef | null): SpecEntry[] {
   const off = offOnProd(deployed);
+  const runsOnColumn = acceptance?.headers.findIndex((header) => plainText(header).trim().toLowerCase() === "runs on") ?? -1;
   const rows = new Map<string, readonly string[]>();
   for (const row of acceptance?.rows ?? []) {
     const number = /^\[(\d{3})\]\(/u.exec(row[0] ?? "")?.[1];
@@ -187,11 +196,12 @@ function readSpecs(tree: TreeReader, acceptance: Table | null, deployed: Table |
       status, statusKind: kind,
       acceptanceIds: row?.[1] ?? null,
       surface: row?.[2] ?? null,
+      runsOn: runsOnColumn < 0 || row === undefined ? null : plainText(row[runsOnColumn] ?? "").trim() || null,
       acceptanceItems: items.length,
       pending,
       inProduction,
       offOnProd: offNames,
-      stage: specStage({ statusKind: kind, pending, inProduction, offOnProd: offNames.length }),
+      stage: specStage({ statusKind: kind, pending, inProduction, offOnProd: offNames.length, runsOn: runsOnColumn < 0 || row === undefined ? null : plainText(row[runsOnColumn] ?? "") }),
     });
   }
   return specs;
@@ -254,7 +264,7 @@ export function buildData(input: { readonly repository: string; readonly ref: Re
   const specs = readSpecs(tree, acceptance, deployedConfiguration, production);
   if (specs.length === 0) notes.push(`${SPECS} has no spec`);
   const specsByStatus: Record<StatusKind, number> = { draft: 0, accepted: 0, partial: 0, implemented: 0, other: 0 };
-  const specsByStage: Record<Stage, number> = { prod: 0, dev: 0, progress: 0, planned: 0, other: 0 };
+  const specsByStage: Record<Stage, number> = { prod: 0, dev: 0, pages: 0, progress: 0, planned: 0, other: 0 };
   for (const spec of specs) {
     specsByStatus[spec.statusKind] += 1;
     specsByStage[spec.stage] += 1;
@@ -340,8 +350,9 @@ const STATUS_LABEL: Readonly<Record<StatusKind, string>> = { draft: "草稿", ac
 
 /** The board's groups, in reading order: zh-Hant first, English after, so a reader of either can follow. */
 const STAGES: readonly { readonly stage: Stage; readonly zh: string; readonly en: string; readonly rule: string }[] = [
-  { stage: "prod", zh: "已上線 Prod", en: "Live on Prod", rule: "已實作，且在 Prod 部署的標籤中，沒有在 Prod 關閉的設定。Implemented, in the tag Prod runs, and no flag of it is off on Prod." },
+  { stage: "prod", zh: "在 Prod 標籤中", en: "In the Prod tag", rule: "已實作，且在 Prod 部署的標籤中，沒有在 Prod 關閉的設定；Prod 實際提供什麼見下方。Implemented, in the tag Prod is deployed from, and no flag of it is off on Prod; what Prod actually serves is below." },
   { stage: "dev", zh: "僅 Dev", en: "Live on Dev only", rule: "已實作，但 Prod 沒有（在標籤之後才做，或設定只在 Dev 開啟）。Dev 在每次推送到 main 後部署。Implemented, but not on Prod: built after the tag, or switched on for Dev only. Dev deploys every push to main." },
+  { stage: "pages", zh: "發佈於 GitHub Pages", en: "Published on GitHub Pages", rule: "已實作，發佈在 GitHub Pages，而不是 Cloudflare 的 Dev 或 Prod（feature map 的 Runs on 欄）。Implemented and published on GitHub Pages, not on the Cloudflare Dev or Prod (the feature map's Runs on column)." },
   { stage: "progress", zh: "進行中", en: "In progress", rule: "部分實作，或仍有標為 [pending] 的驗收項目。Partially implemented, or acceptance items still tagged [pending]." },
   { stage: "planned", zh: "規劃中", en: "Planned", rule: "已接受或草稿，尚未實作。Accepted or draft, not built yet." },
   { stage: "other", zh: "其他", en: "Other", rule: "Status 行不是以 Implemented、Partially implemented、Accepted 或 Draft 開頭，例如已完成的 spike。The Status line starts with none of Implemented, Partially implemented, Accepted or Draft, e.g. a finished spike." },
@@ -351,12 +362,15 @@ const sentence = (zh: string, en: string) => `${zh} · ${en}`;
 
 function stageReason(spec: SpecEntry, production: SiteData["production"]): string {
   switch (spec.stage) {
-    case "prod": return sentence(`在 <code>${escapeHtml(production!.name)}</code> 中`, `in <code>${escapeHtml(production!.name)}</code>`);
+    case "pages": return sentence("發佈於 GitHub Pages", "published on GitHub Pages");
+    case "prod": if (production === null) return sentence("feature map 標為 Prod", "the feature map says Prod");
+      return sentence(`在 <code>${escapeHtml(production!.name)}</code> 中`, `in <code>${escapeHtml(production!.name)}</code>`);
     case "dev": {
       if (spec.offOnProd.length > 0) {
         const names = spec.offOnProd.map((name) => `<code>${escapeHtml(name)}</code>`).join(", ");
         return sentence(`Prod 未開啟 ${names}`, `off on Prod`);
       }
+      if (spec.runsOn !== null && /^Dev\b/iu.test(spec.runsOn)) return sentence("feature map 標為 Dev", "runs on Dev");
       if (production === null) return sentence("沒有 v* 標籤", "no v* tag in this build");
       return sentence(`<code>${escapeHtml(production.name)}</code> 之後才實作`, `built after <code>${escapeHtml(production.name)}</code>`);
     }
@@ -371,10 +385,12 @@ function stageReason(spec: SpecEntry, production: SiteData["production"]): strin
 function renderBoard(data: SiteData, sections: readonly Section[], mapLinks: Resolve): string {
   const { repository, ref, production, counts } = data;
   const blob = `https://github.com/${repository}/blob/${ref.sha}/`;
-  const tiles = STAGES.filter(({ stage }) => stage !== "other" || counts.specsByStage.other > 0).map(({ stage, zh, en }) =>
+  const shownStages = STAGES.filter(({ stage }) => (stage !== "other" && stage !== "pages") || counts.specsByStage[stage] > 0)
+    .map((entry) => entry.stage === "prod" && production !== null ? { ...entry, en: `${entry.en} (${production.name})` } : entry);
+  const tiles = shownStages.map(({ stage, zh, en }) =>
     `<a class="tile stage-${stage}" href="#stage-${stage}"><b>${counts.specsByStage[stage]}</b><span>${zh}</span><em>${en}</em></a>`);
   tiles.push(`<a class="tile stage-gaps" href="#stage-gaps"><b>${counts.gardeningItems}</b><span>已知缺口</span><em>Known gaps</em></a>`);
-  const groups = STAGES.filter(({ stage }) => stage !== "other" || counts.specsByStage.other > 0).map(({ stage, zh, en, rule }) => {
+  const groups = shownStages.map(({ stage, zh, en, rule }) => {
     const specs = data.specs.filter((spec) => spec.stage === stage);
     const items = specs.map((spec) => {
       const links = linker(repository, ref.sha, spec.path);
@@ -383,11 +399,15 @@ function renderBoard(data: SiteData, sections: readonly Section[], mapLinks: Res
     let note = "";
     if (stage === "prod") {
       const environments = tableOf(sectionNamed(sections, "Environments"));
+      // The map's "Prod today:" paragraph, printed as it is: what Prod serves, beside the tag's specs.
+      const prodToday = sections.flatMap((section) => section.blocks)
+        .map((block) => block.type === "paragraph" && /^Prod today:/u.test(block.text) ? block.text : null).find((text) => text !== null) ?? null;
       const row = environments?.rows.find((cells) => /^prod\b/iu.test(plainText(cells[0] ?? "").trim()));
       const describe = row === undefined ? "" : row.slice(1).map((value, index) =>
         `<li><b>${escapeHtml(plainText(environments!.headers[index + 1] ?? ""))}</b>：${renderInline(value, mapLinks)}</li>`).join("");
       note = `<p class="rule">${production === null ? "此建置沒有可讀的 <code>v*</code> 標籤，因此無法判斷 Prod。This build has no readable <code>v*</code> tag, so nothing counts as on Prod." :
         `Prod 由標籤 <code>${escapeHtml(production.name)}</code>（${escapeHtml(formatTime(production.date))}）部署。Prod runs tag <code>${escapeHtml(production.name)}</code>, committed ${escapeHtml(formatTime(production.date))}.`}</p>` +
+        (prodToday === null ? "" : `<p class="caveat">${renderInline(prodToday, mapLinks)}</p>`) +
         (describe === "" ? "" : `<details class="more env"><summary>Prod 環境 · Prod environment</summary><ul>${describe}</ul></details>`);
     }
     return `<section class="stage" id="stage-${stage}">
@@ -461,6 +481,8 @@ a.tile{color:inherit;text-decoration:none;border-top:4px solid var(--line)}a.til
 .stage h3{margin:0 0 4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .dot{width:10px;height:10px;border-radius:50%;background:var(--other);flex:none}.dot.prod{background:var(--implemented)}.dot.dev{background:var(--accepted)}.dot.progress{background:var(--progress)}.dot.gaps{background:var(--mute)}
 .rule{color:var(--mute);font-size:13px;margin:0 0 8px}
+.caveat{font-size:13px;margin:0 0 8px;padding:6px 10px;border-left:3px solid var(--mute);background:var(--bg);border-radius:4px}
+.tile.stage-pages{border-top-color:var(--accent)}.dot.pages{background:var(--accent)}
 .specs-list{list-style:none;padding:0;margin:6px 0 0}.specs-list li{padding:6px 0;border-top:1px solid var(--line)}
 .specs-list .num{font:600 13px ui-monospace,SFMono-Regular,Menlo,monospace;margin-right:.3em}
 .specs-list .why{display:block;color:var(--mute);font-size:13px}

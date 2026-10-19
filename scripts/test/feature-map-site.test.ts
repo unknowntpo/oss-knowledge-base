@@ -56,12 +56,12 @@ describe("feature-map site: parser", () => {
       {
         number: "001", directory: "001-alpha", path: "docs/specs/001-alpha/spec.md", title: "Alpha Thread",
         status: "Draft for implementation", statusKind: "draft", acceptanceIds: "A1–A3", surface: "Domain",
-        acceptanceItems: 0, pending: 0, inProduction: false, offOnProd: [], stage: "planned",
+        runsOn: null, acceptanceItems: 0, pending: 0, inProduction: false, offOnProd: [], stage: "planned",
       },
       {
         number: "002", directory: "002-beta", path: "docs/specs/002-beta/spec.md", title: "Beta `search`",
         status: "Implemented (PR #7, merged 2026-09-30)", statusKind: "implemented", acceptanceIds: "B1–B12 (B4 measure)", surface: "`/api/x`",
-        acceptanceItems: 0, pending: 0, inProduction: false, offOnProd: ["FLAG_A", "FLAG_B"], stage: "dev",
+        runsOn: null, acceptanceItems: 0, pending: 0, inProduction: false, offOnProd: ["FLAG_A", "FLAG_B"], stage: "dev",
       },
     ]);
     expect(data.counts.specsByStatus).toEqual({ draft: 1, accepted: 0, partial: 0, implemented: 1, other: 0 });
@@ -465,6 +465,15 @@ const boardMap = `# Feature map
 | \`MODE\` | Worker var | \`development\` | \`production\` | Names the environment; Spec 001 |
 | \`FLAG_A\`, \`FLAG_B\` | Worker vars | \`on\` (Spec 003) | unset: off | Spec 003 feature |
 | \`GATE\` | Durable Object | bound | none | Spec 003 and Spec 004 |
+
+Prod today: Prod serves the 2026-08-25 snapshot; the Prod publisher has never run.
+
+## Acceptance IDs by spec
+
+| Spec | IDs | Surface | Runs on |
+| --- | --- | --- | --- |
+| [001](specs/001-alpha/spec.md) | A1 | x | Prod |
+| [006](specs/006-site/spec.md) | F1 | site | GitHub Pages |
 `;
 const spec = (number: string, title: string, status: string, acceptance = "") =>
   `# Spec ${number}: ${title}\n\nStatus: ${status}\nTraceability: enforced\n\n## Intent\n\nx\n\n## Acceptance\n\n${acceptance}\n## Non-goals\n`;
@@ -476,6 +485,7 @@ const boardTree = memoryTree({
   "docs/specs/003-gamma/spec.md": spec("003", "Gamma", "Implemented (#3)", "- C1: one\n"),
   "docs/specs/004-delta/spec.md": spec("004", "Delta", "Partially implemented: slice 1", "- D1: one\n- D2: [pending] two\n- D3: [pending] three\n- D4: [measure] four\n"),
   "docs/specs/005-eps/spec.md": spec("005", "Eps", "Accepted 2026-10-01", "- E1: [pending] one\n"),
+  "docs/specs/006-site/spec.md": spec("006", "Site", "Implemented (#6)", "- F1: one\n"),
 });
 const tagTree = memoryTree({
   "docs/specs/001-alpha/spec.md": spec("001", "Alpha", "Draft"),
@@ -484,8 +494,8 @@ const tagTree = memoryTree({
 const boardSite = (refs: readonly RefInput[]) => buildSite(input(refs));
 
 describe("feature-map site: status board", () => {
-  test.each(boardRows)("$id: status \"$status\", $pending pending, in tag $inTag, $offOnProd off on Prod → $stage", (row) => {
-    expect(specStage({ statusKind: statusKind(row.status), pending: row.pending, inProduction: row.inTag, offOnProd: row.offOnProd })).toBe(row.stage);
+  test.each(boardRows)("$id: status \"$status\", $pending pending, in tag $inTag, $offOnProd off on Prod, runs on $runsOn → $stage", (row) => {
+    expect(specStage({ statusKind: statusKind(row.status), pending: row.pending, inProduction: row.inTag, offOnProd: row.offOnProd, runsOn: row.runsOn })).toBe(row.stage);
   });
 
   test("B20: Prod is the newest v* tag whose page builds, the same for every ref's board; without one nothing is on Prod", () => {
@@ -495,12 +505,14 @@ describe("feature-map site: status board", () => {
     expect(main.production).toEqual({ name: "v0.2.0", sha, date: ref.date });
     expect(JSON.parse(site.files.get("v0.1.0/data.json")!).production).toEqual(main.production);
     expect(main.specs.map((item: { number: string; inProduction: boolean }) => [item.number, item.inProduction])).toEqual([
-      ["001", true], ["002", false], ["003", true], ["004", false], ["005", false],
+      ["001", true], ["002", false], ["003", true], ["004", false], ["005", false], ["006", false],
     ]);
     // Positive control: the same main without any tag has no production, so nothing is on Prod.
     const alone = JSON.parse(boardSite([refInput("main", "branch", boardTree)]).files.get("main/data.json")!);
     expect(alone.production).toBeNull();
-    expect(alone.counts.specsByStage.prod).toBe(0);
+    // Only the map's own "Runs on: Prod" (001) keeps a spec on Prod without a tag.
+    expect(alone.specs.filter((item: { inProduction: boolean }) => item.inProduction)).toEqual([]);
+    expect(alone.specs.filter((item: { stage: string }) => item.stage === "prod").map((item: { number: string }) => item.number)).toEqual(["001"]);
     expect(boardSite([refInput("main", "branch", boardTree)]).files.get("main/index.html")).toContain("此建置沒有可讀的 <code>v*</code> 標籤");
   });
 
@@ -522,9 +534,11 @@ describe("feature-map site: status board", () => {
       ["003", 1, 0, ["FLAG_A", "FLAG_B", "GATE"], "dev"],
       ["004", 4, 2, ["GATE"], "progress"],
       ["005", 1, 1, [], "planned"],
+      ["006", 1, 0, [], "pages"],
     ]);
-    expect(main.counts.specsByStage).toEqual({ prod: 1, dev: 2, progress: 1, planned: 1, other: 0 });
-    expect(main.counts.specsByStatus).toEqual({ draft: 0, accepted: 1, partial: 1, implemented: 3, other: 0 });
+    expect(main.specs.map((item: { runsOn: string | null }) => item.runsOn)).toEqual(["Prod", null, null, null, null, "GitHub Pages"]);
+    expect(main.counts.specsByStage).toEqual({ prod: 1, dev: 2, pages: 1, progress: 1, planned: 1, other: 0 });
+    expect(main.counts.specsByStatus).toEqual({ draft: 0, accepted: 1, partial: 1, implemented: 4, other: 0 });
   });
 
   test("B23: the page opens with the board: counts per group, every spec under its group with a link and a reason, bilingual headings, gaps by category", () => {
@@ -533,12 +547,15 @@ describe("feature-map site: status board", () => {
     expect(main.indexOf('<section id="status">')).toBeGreaterThan(-1);
     expect(main.indexOf('<section id="status">')).toBeLessThan(main.indexOf('<section id="overview">'));
     const tiles = [...main.matchAll(/<a class="tile stage-(\w+)" href="#stage-\1"><b>(\d+)<\/b>/gu)].map((match) => [match[1], Number(match[2])]);
-    expect(tiles).toEqual([["prod", 1], ["dev", 2], ["progress", 1], ["planned", 1], ["gaps", 3]]);
-    for (const heading of ["已上線 Prod", "Live on Prod", "僅 Dev", "Live on Dev only", "進行中", "In progress", "規劃中", "Planned", "已知缺口", "Known gaps"]) expect(main).toContain(heading);
+    expect(tiles).toEqual([["prod", 1], ["dev", 2], ["pages", 1], ["progress", 1], ["planned", 1], ["gaps", 3]]);
+    for (const heading of ["在 Prod 標籤中", "In the Prod tag (v0.2.0)", "發佈於 GitHub Pages", "Published on GitHub Pages", "僅 Dev", "Live on Dev only", "進行中", "In progress", "規劃中", "Planned", "已知缺口", "Known gaps"]) expect(main).toContain(heading);
     const group = (stage: string) => main.slice(main.indexOf(`id="stage-${stage}"`), main.indexOf("</section>", main.indexOf(`id="stage-${stage}"`)));
     expect(group("prod")).toContain(`<a class="num" href="https://github.com/example/repo/blob/${sha}/docs/specs/001-alpha/spec.md">001</a>`);
     expect(group("prod")).toContain("Prod runs tag <code>v0.2.0</code>");
     expect(group("prod")).toContain("never deployed");
+    // The caveat is printed in the group, not folded away: what Prod actually serves.
+    expect(group("prod")).toContain('<p class="caveat">Prod today: Prod serves the 2026-08-25 snapshot; the Prod publisher has never run.</p>');
+    expect(group("pages")).toContain("006");
     expect(group("dev")).toContain("built after <code>v0.2.0</code>");
     expect(group("dev")).toContain("Prod 未開啟 <code>FLAG_A</code>, <code>FLAG_B</code>, <code>GATE</code>");
     expect(group("progress")).toContain("2 of 4 acceptance items pending");
@@ -549,6 +566,13 @@ describe("feature-map site: status board", () => {
     expect(main).toContain('<h3 id="g-cat-2">Process and docs');
     // "Other" appears only when a spec is in it.
     expect(main).not.toContain('id="stage-other"');
+    expect(main).not.toContain("Live on Prod");
+  });
+
+  test("B26: every spec of this repository has a Runs on value in the feature map, one of Prod, Dev, GitHub Pages or none", () => {
+    const specs = buildData({ repository, ref, tree: directoryTree(root) }).specs;
+    expect(specs.filter((item) => item.runsOn === null || !/^(Prod|Dev|GitHub Pages|none)\b/u.test(item.runsOn)).map((item) => `${item.number}: ${item.runsOn}`)).toEqual([]);
+    expect(specs.filter((item) => item.stage === "pages").map((item) => item.number)).toEqual(["020"]);
   });
 
   test("B25: every spec of this repository has one plain Status line the board understands (a spike is Other)", async () => {
