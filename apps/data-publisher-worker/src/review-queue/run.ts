@@ -5,6 +5,7 @@
  * (conditional), and always `last-run.json`. A failed source keeps the previous section.
  */
 import { MANIFEST_KEY, isFeedManifest } from "@oss-knowledge-base/serving-contract";
+import { errorText } from "@oss-knowledge-base/semantic-vectorize";
 import {
   buildKipRows,
   buildPrQueue,
@@ -377,7 +378,7 @@ export async function runReviewQueue(deps: ReviewQueueDeps): Promise<{ readonly 
       try {
         await bucket.putIfAbsent(objectKey, body);
       } catch (error) {
-        failure = { failureKind: "write", error: error instanceof Error ? error.message : String(error) };
+        failure = { failureKind: "write", error: errorText(error) };
         objectKey = null;
       }
       if (objectKey !== null) {
@@ -390,7 +391,7 @@ export async function runReviewQueue(deps: ReviewQueueDeps): Promise<{ readonly 
       }
     }
   } catch (error) {
-    failure = { failureKind: "internal", error: error instanceof Error ? error.message : String(error) };
+    failure = { failureKind: "internal", error: errorText(error) };
   }
   const completedMs = deps.now();
   const lastRun: ReviewQueueLastRun = {

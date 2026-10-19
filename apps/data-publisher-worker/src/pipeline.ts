@@ -313,7 +313,7 @@ export async function runDataPublication(input: {
       environment: input.environment,
       completedAt: input.materializedAt,
       failureKind: "pipeline",
-      error: error instanceof Error ? error.message : String(error),
+      error: errorText(error),
       retryAfterSeconds: 300,
       ...r2(),
       // Nothing was committed, so every source keeps its stored cursor and last success.

@@ -1559,3 +1559,90 @@ describe("Spec 014 slice 2 named tests", () => {
     expect(again.reused).toBe("pair");
   });
 });
+
+// Spec 014 D95 (gardening G43): the digest's error texts reach the public /health; they are
+// redacted like the search paths' (Spec 016 Behavior 24), after the error is classified.
+const SECRET_TOKEN = "sk-test-Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5MA";
+const ACCOUNT_ID = "0123456789abcdef0123456789abcdef";
+const LEAKY = `3036: spend limit reached for account ${ACCOUNT_ID} (Authorization: Bearer ${SECRET_TOKEN})`;
+const leaks = (value: unknown) => {
+  const text = JSON.stringify(value);
+  return [SECRET_TOKEN, ACCOUNT_ID].filter((secret) => text.includes(secret));
+};
+
+describe("Spec 014 D95: digest error texts are redacted", () => {
+  test("D95: a model error with a bearer token and an account id is classified as limit, then stored and served redacted", async () => {
+    const bucket = new MemoryBucket();
+    await publish(bucket);
+    const storage = new MemoryStorage();
+    const model = new FakeModel((kind, index) => (kind === "summarize" && index === 0 ? toModelCallError(new Error(LEAKY)) : undefined));
+    const { instance } = runner(bucket, storage, async () => false, model);
+    await instance.alarm();
+    const health = await instance.health();
+    const lastRun = health.lastRun!;
+    expect(lastRun.limited).toBe(true);
+    expect(lastRun.modelErrors.map((error) => error.kind)).toEqual(["limit"]);
+    expect(lastRun.modelErrors[0]!.message).toContain("Bearer [redacted]");
+    expect(lastRun.modelErrors[0]!.message).toStartWith("3036: spend limit reached for account [redacted]");
+    expect(leaks(storage.values.get("lastRun"))).toEqual([]);
+    expect(leaks(mergeHealth({ running: false }, health))).toEqual([]);
+  });
+
+  test("D95: an ordinary model error stays readable", async () => {
+    const model = new FakeModel((kind, index) => (kind === "summarize" && index === 0 ? toModelCallError(new Error("2003: Rate limited")) : undefined));
+    const { result } = await published(model);
+    expect(result.modelErrors.map((error) => [error.kind, error.message])).toEqual([["limit", "2003: Rate limited"]]);
+  });
+
+  test("D95: an internal read error and a write error with secrets are stored and served redacted", async () => {
+    const reading = new MemoryBucket();
+    await publish(reading);
+    reading.onRead = () => { throw new Error(LEAKY); };
+    const readStorage = new MemoryStorage();
+    const read = runner(reading, readStorage);
+    await read.instance.alarm();
+    const failedRead = (await read.instance.health()).lastRun!;
+    expect([failedRead.ok, failedRead.failureKind]).toEqual([false, "internal"]);
+    expect(failedRead.error).toContain("Bearer [redacted]");
+    expect(leaks(readStorage.values.get("lastRun"))).toEqual([]);
+
+    const writing = new MemoryBucket();
+    await publish(writing);
+    writing.putIfAbsent = async () => { throw new Error(`R2 put failed: ${LEAKY}`); };
+    const writeStorage = new MemoryStorage();
+    const write = runner(writing, writeStorage);
+    await write.instance.alarm();
+    const failedWrite = (await write.instance.health()).lastRun!;
+    expect([failedWrite.ok, failedWrite.failureKind]).toEqual([false, "write"]);
+    expect(failedWrite.error).toStartWith("Error: R2 put failed: 3036: spend limit reached for account [redacted]");
+    expect(leaks(writeStorage.values.get("lastRun"))).toEqual([]);
+    expect(leaks(mergeHealth({ running: false }, await write.instance.health()))).toEqual([]);
+  });
+
+  test("D95: a source-read error naming a token-like release id is stored redacted", async () => {
+    const bucket = new MemoryBucket();
+    await publish(bucket, { releaseId: `release-${ACCOUNT_ID}` });
+    const manifest = JSON.parse(bucket.objects.get(MANIFEST_KEY)!) as Record<string, unknown>;
+    // The manifest names a release whose objects are missing: DigestSourceError("Feed release <id> is incomplete").
+    bucket.objects.set(MANIFEST_KEY, JSON.stringify({ ...manifest, releaseId: ACCOUNT_ID }));
+    const storage = new MemoryStorage();
+    const { instance } = runner(bucket, storage);
+    await instance.alarm();
+    const lastRun = (await instance.health()).lastRun!;
+    expect(lastRun.failureKind).toBe("source-read");
+    expect(lastRun.error).toBe("Feed release [redacted] is incomplete");
+    expect(leaks(storage.values.get("lastRun"))).toEqual([]);
+  });
+});
+
+describe("Spec 014 D95: no run record stores raw error text", () => {
+  test("D95: no `error:` field in the Worker's sources is set from a raw message or String(error)", async () => {
+    const raw = /\berror:\s*(?:error instanceof Error \? error\.message : String\(error\)|String\(error\)|error\.message)(?![\w.])/u;
+    const found: string[] = [];
+    for await (const path of new Bun.Glob("src/**/*.ts").scan({ cwd: new URL("..", import.meta.url).pathname })) {
+      const lines = (await Bun.file(new URL(`../${path}`, import.meta.url)).text()).split("\n");
+      lines.forEach((line, index) => { if (raw.test(line)) found.push(`${path}:${index + 1}`); });
+    }
+    expect(found).toEqual([]);
+  });
+});

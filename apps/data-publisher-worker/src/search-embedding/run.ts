@@ -406,8 +406,7 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
       const mapped = toModelCallError(error);
       const kind = modelErrorKind(mapped);
       lastModelError = sanitizeErrorMessage(mapped.message);
-      // `errorShape` is the digest's and cuts without redacting; the message is replaced here.
-      if (modelErrors.length < MAX_RECORDED_ERRORS) modelErrors.push({ ...errorShape(model, kind, mapped), message: lastModelError });
+      if (modelErrors.length < MAX_RECORDED_ERRORS) modelErrors.push(errorShape(model, kind, mapped));
       if (kind === "limit") {
         lastFailure = { kind: "model-limit", message: lastModelError, batchSize: texts.length };
         run.limited = "model-limit";
@@ -717,7 +716,7 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
     if (run.failure === undefined && run.limited === "model-limit") run.failure = { kind: "model-limit", error: lastModelError };
     if (run.failure === undefined && (modelFailures > 0 || modelDown)) run.failure = { kind: "model", error: lastModelError };
   } catch (error) {
-    run.failure = error instanceof RunFailure ? { kind: error.kind, error: error.message } : { kind: "internal", error: message(error) };
+    run.failure = error instanceof RunFailure ? { kind: error.kind, error: sanitizeErrorMessage(error.message) } : { kind: "internal", error: message(error) };
   }
 
   const now = input.now();
