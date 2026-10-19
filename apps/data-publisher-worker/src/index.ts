@@ -19,7 +19,7 @@ import { runDataPublication, type PipelinePhaseMarker, type PipelineRunStatus } 
 import { SEARCH_QUERY_GATE_OBJECT_NAME, unboundQueryGateHealth, type EmbeddingAiBinding, type SemanticQueryGate, type VectorIndex } from "@oss-knowledge-base/semantic-vectorize";
 import { createSearchQueryGate } from "./search-query/gate";
 import { SearchEmbeddingRunner, unboundSearchEmbeddingHealth } from "./search-embedding/runner";
-import { sanitizeErrorMessage } from "./search-embedding/sanitize";
+import { errorText, sanitizeErrorMessage } from "./search-embedding/sanitize";
 import { redactRecord } from "./redact";
 
 interface Env {
@@ -427,7 +427,7 @@ export class PipelineState implements DurableObject {
       // Spec 018: the Cron fires once a day, so a truncated or failed run schedules its own
       // follow-up. A failure here must not throw: the runtime would run the publication again.
       await scheduleFollowUp(this.ctx.storage, status, Date.now())
-        .catch((error: unknown) => console.error(`Scheduling the follow-up run failed: ${error instanceof Error ? error.message : String(error)}`));
+        .catch((error: unknown) => console.error(`Scheduling the follow-up run failed: ${errorText(error)}`));
     } finally {
       this.running = false;
     }

@@ -701,6 +701,31 @@ describe("Spec 022 backfill", () => {
     expect(w.lastRun()!.startedAt).not.toBe(run.startedAt); // the daily run record is not replaced
     expect(JSON.stringify(run)).not.toContain("token-under-test");
   });
+
+  test("a failed run-record write is logged through the sanitizer for the run, the backfill and the refresh", async () => {
+    const w = await historyAfterFirstDay();
+    const records = new Set([GITHUB_REVIEWS_LAST_RUN_KEY, GITHUB_REVIEWS_BACKFILL_LAST_RUN_KEY, GITHUB_REVIEWS_REFRESH_LAST_RUN_KEY]);
+    const put = w.bucket.put.bind(w.bucket);
+    w.bucket.put = async (key, body) => {
+      if (records.has(key)) throw new Error(`R2 put failed: Authorization: Bearer s3cr3t.t0ken ${"Zm9v+/8=".repeat(6)}`);
+      return put(key, body);
+    };
+    const logged: string[] = [];
+    const realError = console.error;
+    console.error = (...args: unknown[]) => { logged.push(args.join(" ")); };
+    try {
+      await w.run();
+      await w.backfill(FROM);
+      await w.refresh();
+    } finally {
+      console.error = realError;
+    }
+    expect(logged).toEqual([
+      "Recording the review run failed: R2 put failed: Authorization: Bearer [redacted] [redacted]",
+      "Recording the review backfill failed: R2 put failed: Authorization: Bearer [redacted] [redacted]",
+      "Recording the review refresh failed: R2 put failed: Authorization: Bearer [redacted] [redacted]",
+    ]);
+  });
 });
 
 describe("Spec 022 areas (metadata@2)", () => {

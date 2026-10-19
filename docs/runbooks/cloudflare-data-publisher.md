@@ -362,6 +362,33 @@ about 28 thousand and 6.0 million. Act when:
 - `classA + classB` nears 20,000: that is the run's R2 requests against the
   Worker's `limits.subrequests`.
 
+## Observability / logs
+
+Workers Logs is on for both data Workers (`observability.enabled: true`,
+`head_sampling_rate: 1` in `apps/data-publisher-worker/wrangler.{development,production}.jsonc`):
+every invocation (Cron, alarm, `fetch`) and its `console` output is kept. Pages
+(`apps/web`) has no Workers Logs setting.
+
+- **Where:** Cloudflare dashboard → Workers & Pages → `oss-knowledge-base-data-dev`
+  (or `oss-knowledge-base-data-prod`) → Observability. Filter by trigger
+  (cron, alarm, fetch) or search the message text, e.g.
+  `search embedding run failed`, `after-publication hook failed`. Live tail without
+  storage: `bunx wrangler tail -c wrangler.development.jsonc` in `apps/data-publisher-worker`.
+- **Retention and budget:** 7 days on Workers Paid; 20 million log events a
+  month included per account (both Workers together), billed per further
+  million. Each invocation is at least one event; scheduled runs and their
+  alarms stay far below the budget, so check the dashboard's usage if
+  `/health` or `POST` routes see unusual traffic.
+- **What is logged:** every error text goes through `errorText` /
+  `sanitizeErrorMessage` (`packages/semantic-vectorize/src/sanitize.ts`), which
+  redacts `Bearer …` and token-like strings; no route logs request headers.
+  `apps/data-publisher-worker/test/observability.test.ts` fails on a `console`
+  call that interpolates a raw `error.message`.
+- **Disable:** set `"enabled": false` (or lower `head_sampling_rate`, 0–1) in the
+  environment's config and deploy it the usual way (Dev: merge to `main`; Prod:
+  the next `v*` tag). A dashboard toggle works at once but the next deploy
+  restores the config's value.
+
 ## Failure and rollback
 
 - A GitHub error, incomplete page sequence, validation error, or R2 error keeps
