@@ -625,13 +625,16 @@ describe("feature-map site: Runs on only narrows", () => {
 
   test("B27: in this repository, a stale but valid-looking Runs on fails the default page naming the spec, the value and the evidence", () => {
     const map = readFileSync(join(root, "docs/feature-map.md"), "utf8");
-    const production = repositoryProduction();
+    // Hermetic: not the newest local tag (which changes with every release, and CI's shallow checkout has none) but a
+    // synthetic tag holding every spec directory of this tree, the state after the next release. Each claim below must
+    // then fail on evidence a release cannot remove: Dev-only configuration (019), the Pages workflow (020, 024).
+    const production: ProductionRef = { name: "v9.9.9", sha, date: ref.date, specDirectories: directoryTree(root).list("docs/specs") };
     const claim = (number: string, value: string) => {
       const row = map.split("\n").find((line) => line.startsWith(`| [${number}](`))!;
       expect(row).toBeDefined();
       const edited = map.replace(row, row.replace(/\| [^|]+ \|$/u, `| ${value} |`));
       expect(edited).not.toBe(map);
-      // Only this spec's errors: without the tags (CI's shallow checkout) every Prod claim is unconfirmed too.
+      // Only this spec's errors.
       return buildData({ repository, ref, tree: withFile(directoryTree(root), "docs/feature-map.md", edited), production }).runsOnErrors
         .filter((error) => error.startsWith(`Spec ${number}:`));
     };
@@ -639,8 +642,10 @@ describe("feature-map site: Runs on only narrows", () => {
       const errors = claim(number, value);
       expect(errors.length).toBe(1);
       expect(errors[0]).toStartWith(`Spec ${number}: Runs on "${value}"`);
-      expect(errors[0]).toMatch(/contradicts the evidence|cannot be confirmed/u);
+      expect(errors[0]).toContain("contradicts the evidence");
     }
+    expect(claim("019", "Prod")[0]).toContain("Deployed configuration PEOPLE_ACTIVITY, PEOPLE_PROFILES unset or none on Prod");
+    expect(claim("020", "Prod")[0]).toContain("publishes it to GitHub Pages, not the Prod deploy");
     // Narrowing is allowed: 001 (in the Prod tag) marked Dev.
     expect(claim("001", "Dev")).toEqual([]);
     // The site build of the default page fails on such a claim.

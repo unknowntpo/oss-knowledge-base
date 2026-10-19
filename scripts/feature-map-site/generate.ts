@@ -160,8 +160,9 @@ export const RUNS_ON = ["Prod", "Dev", "GitHub Pages", "none"] as const;
 
 /**
  * Spec 020 B27: a "Runs on" value may only narrow what the evidence allows, never widen it.
- * `Prod` needs the spec's directory in the production tag and no Deployed configuration row naming it
- * off on Prod; `GitHub Pages` needs the feature-map-site workflow to publish it; `Prod`, `Dev` and
+ * `Prod` needs the spec's directory in the production tag, no Deployed configuration row naming it
+ * off on Prod, and the spec not published by the GitHub Pages workflow (every spec directory reaches the
+ * next tag, so the tag alone does not put a Pages-only spec on Prod); `GitHub Pages` needs the feature-map-site workflow to publish it; `Prod`, `Dev` and
  * `GitHub Pages` need the spec implemented (or partially) on this ref. `none` is always allowed, and so
  * is `Dev` for a spec in the Prod tag (narrowing). Returns why the value contradicts the evidence, or null.
  */
@@ -182,6 +183,7 @@ export function runsOnError(input: {
     if (input.production === null) return `${said} cannot be confirmed: this build has no readable v* tag`;
     if (!input.inProduction) return `${said} contradicts the evidence: its directory is not in ${input.production}`;
     if (input.offOnProd.length > 0) return `${said} contradicts the evidence: Deployed configuration ${input.offOnProd.join(", ")} unset or none on Prod`;
+    if (input.pagesSpecs.includes(input.number)) return `${said} contradicts the evidence: ${PAGES_WORKFLOW} publishes it to GitHub Pages, not the Prod deploy`;
   }
   if (claim === "GitHub Pages" && !input.pagesSpecs.includes(input.number)) {
     return `${said} contradicts the evidence: ${PAGES_WORKFLOW} publishes ${input.pagesSpecs.length === 0 ? "no spec" : input.pagesSpecs.map((number) => `Spec ${number}`).join(", ")}`;
