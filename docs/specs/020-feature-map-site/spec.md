@@ -337,8 +337,11 @@ Behavior:
 9. Amendment 2026-10-19 (verifier of #93): "Runs on" can only narrow the
    derived answer, never widen it, because the page is shown to outside
    readers and must not overclaim (`runsOnError`). `Prod` is accepted only
-   when the spec's directory is in the production tag and no Deployed
-   configuration row naming it is unset or none on Prod; `GitHub Pages` only
+   when the spec's directory is in the production tag, no Deployed
+   configuration row naming it is unset or none on Prod, and the
+   feature-map-site workflow does not publish it (amendment 2026-10-19, after
+   the v0.3.0 CI failure: every spec directory reaches the next tag, so the
+   tag alone would put the GitHub Pages-only Spec 020 on Prod); `GitHub Pages` only
    for a spec named on the marker line `# publishes: Spec NNN` of
    `.github/workflows/feature-map-site.yml` (today Spec 020; without that
    line nothing is on GitHub Pages, and a mention anywhere else in the file
@@ -411,6 +414,8 @@ What a "Runs on" value may claim (B27), from `scripts/test/feature-map-site-runs
 | B27 | 019 | Prod | Partially implemented | no | PEOPLE_ACTIVITY, PEOPLE_PROFILES | v0.2.0 | # publishes: Spec 020 | its directory is not in v0.2.0 | a Dev-only spec cannot be put in the Prod tag |
 | B27 | 020 | Prod | Implemented (#66) | no |  | v0.2.0 | # publishes: Spec 020 | its directory is not in v0.2.0 | the site is not part of Prod |
 | B27 | 024 | GitHub Pages | Implemented (#90, #91) | no |  | v0.2.0 | # publishes: Spec 020 | .github/workflows/feature-map-site.yml publishes Spec 020 | only what the workflow publishes is on GitHub Pages |
+| B27 | 020 | Prod | Implemented (#66) | yes |  | v0.3.0 | # publishes: Spec 020 | .github/workflows/feature-map-site.yml publishes it to GitHub Pages, not the Prod deploy | every spec directory reaches the next tag (020 is in v0.3.0); the site still is not part of Prod |
+| B27 | 019 | Prod | Partially implemented | yes | PEOPLE_ACTIVITY, PEOPLE_PROFILES | v0.3.0 | # publishes: Spec 020 | Deployed configuration PEOPLE_ACTIVITY, PEOPLE_PROFILES unset or none on Prod | in the tag (v0.3.0) but Dev-only: its flags are absent from the production wrangler files |
 | B27 | 001 | Dev | Implemented (baseline) | yes |  | v0.2.0 | # publishes: Spec 020 | — | narrowing: a spec in the Prod tag may be marked Dev |
 | B27 | 003 | Prod | Implemented (baseline) | yes |  | v0.2.0 | # publishes: Spec 020 | — | in the tag and nothing off on Prod |
 | B27 | 017 | Prod | Implemented (#52) | yes | SEARCH_LEXICAL_REVISION | v0.2.0 | # publishes: Spec 020 | Deployed configuration SEARCH_LEXICAL_REVISION unset or none on Prod | hypothetical: in the tag but its flag is off on Prod |
@@ -487,7 +492,9 @@ tag and another branch.
   and a rejected value on the default ref fails the site build; 001 → `Dev`
   is accepted; the specs on GitHub Pages are those on the feature-map-site
   workflow's `# publishes:` line, and a stray mention elsewhere in the file
-  does not count; this repository's column has no rejection (checked where
+  does not count; the three rejections hold against a tag holding every spec
+  directory (019 by its Dev-only configuration, 020 and 024 by the workflow),
+  so the test does not depend on which `v*` tags exist; this repository's column has no rejection (checked where
   the `v*` tags are present: locally and in the site build).
 
 ### Failure and retry
