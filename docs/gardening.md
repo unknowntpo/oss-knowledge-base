@@ -535,20 +535,6 @@ the two `viewer/` items below.
 - **Layer:** test.
 - **Source:** Prod release preparation, 2026-10-19.
 
-### G95. A new publisher reads GitHub one day back
-- **Where:** `apps/github-publisher/github-connector.ts`
-  (`initialLookbackDays ?? 1`); `apps/data-publisher-worker/src/index.ts`
-  does not set it.
-- **Why:** a publisher with empty state (the first Prod run) publishes one
-  day of GitHub beside 30 days of Jira and dev@, and replaces the recorded
-  snapshot with that. The Feed reaches the 35 days the state keeps only
-  after 35 daily runs.
-- **Fix:** if a fuller first Feed matters, a Worker variable for the first
-  lookback, bounded by the per-run cap and catch-ups (200 issues a source a
-  run, 6 runs a trigger), measured with `measure:memory` first.
-- **Layer:** test plus measurement.
-- **Source:** Prod release preparation, 2026-10-19.
-
 ## CI evidence
 
 ### G30. The evidence redaction gate does not decode every encoding

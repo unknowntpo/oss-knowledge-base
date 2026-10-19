@@ -32,6 +32,7 @@ Prod data Worker. Until then Prod serves the recorded snapshot of 2026-08-25
 | Feature | Prod | Why |
 | --- | --- | --- |
 | Daily publication: GitHub, dev@ (Pony Mail), Jira | on, `37 22 * * *` | the product; Jira and dev@ are anonymous, GitHub needs `GITHUB_SOURCE_TOKEN` |
+| First GitHub window 30 days (`GITHUB_INITIAL_LOOKBACK_DAYS=30`) | on | without it a new publisher reads GitHub one day back beside 30 days of Jira and dev@; used only while a repository has no cursor (Spec 018 T17–T20) |
 | Lexical search `bm25-reference@3` | on (`SEARCH_LEXICAL_REVISION`) | Pages deploy before the Worker in the same job, so the reader is at Spec 017 first |
 | Design system, dark theme (Specs 023, 024) | on | Pages only |
 | Semantic search (Spec 016) | off | needs a Prod index, gateway and backfill, and a Pages binding to the Worker's `SearchQueryGate`, which must exist before the Pages deploy: a second release |
@@ -66,9 +67,10 @@ and minutes :03–:18 (transient deploy API errors).
    Before the first deploy, `wrangler secret put` creates an empty draft
    Worker `oss-knowledge-base-data-prod` to hold them (no cron, no data
    access); the tag's deploy replaces its code and keeps the secrets. The
-   CI step "Require provisioned production runtime secrets" fails without
-   them, and a publication with no GitHub token throws in its alarm and
-   records nothing (gardening G94), so this step comes before the tag.
+   CI step "Require provisioned production runtime secrets" runs before
+   any deploy step, so a tag pushed without them fails and changes nothing;
+   a publication with no GitHub token would throw in its alarm and record
+   nothing (gardening G94).
 3. **Save the current Prod pointers** (the rollback target; read-only):
 
    ```sh
@@ -90,9 +92,8 @@ and minutes :03–:18 (transient deploy API errors).
    git tag -a v0.3.0 -m "Release v0.3.0" && git push origin v0.3.0
    ```
 
-   CI runs the full suite, then `deploy-production`: Pages, then the
-   Worker (migrations `v1`, `v2`, cron `37 22 * * *`), then the secret
-   check.
+   CI runs the full suite, then `deploy-production`: the secret check,
+   Pages, then the Worker (migrations `v1`, `v2`, cron `37 22 * * *`).
 5. **First publication now**, instead of waiting for 22:37 UTC:
 
    ```sh
@@ -100,6 +101,10 @@ and minutes :03–:18 (transient deploy API errors).
    curl -sS -X POST -H "Authorization: Bearer $(security find-generic-password -s osskb-prod-manual-trigger -a oss-knowledge-base-data-prod -w)" $W/run
    # 202 {"ok":true,"scheduled":true}
    ```
+
+   The `$(security … -w)` expands to the token in this shell's command
+   line: run it in your own terminal, not a shared or recorded one, and do
+   not screenshot or paste it.
 
 ### Verify after the release
 
@@ -115,14 +120,16 @@ bun run verify:health -- --target prod
 | When | Expected |
 | --- | --- |
 | After `deploy-production` passed, before any run | `/health` `environment: "production"`, `lastRun: null`, `digest: false`, `embedding: false`, `gate: false`, `reviews: false`. Pages still serves the 2026-08-25 snapshot, now with the stale notice |
-| A few minutes after step 5 | `lastRun.ok: true`, `lastRun.search.lexicalRevision: "bm25-reference@3"`, `sources.github/mail/jira.ok: true`. The first run may be cut at a per-source cap (200 issues; 30 days of Jira is about 550): `pollTruncated: true`, `followUp.reason: "catch-up"`, and up to 5 catch-ups 5 minutes apart follow by themselves |
-| When `followUp` is `null` and `running` is `false` | `pollTruncated: false`; `lastRun.r2.classA` = `copiedObjectCount + 3`; `/api/feed` within 150 s: `generatedAt` = `lastRun.completedAt`, sources `github`, `jira`, `mail`; `/api/search` `lexicalRevision: "bm25-reference@3"`; `verify:health` prints `consistent=true` |
+| A few minutes after step 5 | `lastRun.ok: true`, `lastRun.search.lexicalRevision: "bm25-reference@3"`, `sources.github/mail/jira.ok: true`, `pollTruncated: true`, `followUp.reason: "catch-up"`: the 30-day window is larger than one run's 200 issues a source, and up to 5 catch-ups 5 minutes apart follow by themselves |
+| About 30 minutes after step 5 (`followUp: null`, `running: false`) | 6 runs read up to 1,200 issues a source. Measured 2026-10-19 for 30 days (`bun run measure:daily-volume -- --hours 720`): Kafka GitHub 621 (4 runs, complete), Kafka Jira 494 (3 runs, complete), DataFusion GitHub 2,905 (15 runs: 1,200 read, oldest first). So `pollTruncated: true` still; DataFusion's newest updates are missing until it is complete |
+| Backlog complete: the 22:37 UTC tick and the next day's (1–3 ticks in all), or sooner with another `POST /run` each time `followUp` is `null` (each starts 6 more runs; 2 more are enough) | `pollTruncated: false`; `lastRun.r2.classA` = `copiedObjectCount + 3`; `/api/feed` within 150 s: `generatedAt` = `lastRun.completedAt`, sources `github`, `jira`, `mail`; `/api/search` `lexicalRevision: "bm25-reference@3"`; `verify:health` prints `consistent=true` |
 | After the 22:37 UTC run | a new `lastRun.completedAt` near 22:37; `classA` near the new objects + 3 |
 | Browser, desktop and 375 px | Feed with Jira and dev@ cards, Search, Detail, theme toggle; no person links (`/api/people` 404) and no digest on `/#/kafka/` (the no-digest notice) |
 
-The first Feed holds one day of GitHub and 30 days of Jira and dev@: a new
-publisher reads GitHub one day back (gardening G95). Each daily run adds a
-day; the publisher keeps 35 days.
+Memory: the full 30-day state is about Dev's 35-day state (9,323 events on
+2026-10-14). `bun run --cwd apps/data-publisher-worker measure:memory --
+--events 10000 --kafka 1` (10,000 GitHub and 1,454 dev@/Jira events)
+peaked at 62.1 MB at "write feed" against the 128 MB limit (2026-10-19).
 
 Stop and roll back when: `lastRun.ok: false` after the retries
 (`followUp: null`), a source `ok: false` two days in a row, `classA` far

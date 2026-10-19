@@ -24,6 +24,8 @@ import { sanitizeErrorMessage } from "./search-embedding/sanitize";
 interface Env {
   readonly PUBLICATION_ENVIRONMENT: "development" | "production";
   readonly GITHUB_SOURCE_TOKEN?: string;
+  /** Spec 018 T17: days a repository with no GitHub cursor is read back; integer 1..35, default 1. */
+  readonly GITHUB_INITIAL_LOOKBACK_DAYS?: string;
   readonly MANUAL_TRIGGER_TOKEN?: string;
   readonly OSS_KB_BUCKET: R2Bucket;
   readonly PIPELINE_STATE: DurableObjectNamespace;
@@ -199,6 +201,20 @@ function authorized(request: Request, env: Env): boolean {
 }
 // Keeps one run under the Durable Object memory limit; a larger backlog catches up over later runs.
 const MAX_ISSUES_PER_SOURCE = 200;
+/** The publication state keeps 35 days, so reading further back on a first run gains nothing. */
+const MAX_INITIAL_LOOKBACK_DAYS = 35;
+
+/**
+ * Spec 018 T17 (closes gardening G95): how far back a repository with no cursor is read. Unset, blank or not
+ * a whole number reads one day (the connector's default); larger values are clamped to 35 days.
+ * The connector applies it only while a repository has no cursor; the per-run cap still holds, so
+ * a long first window is read over catch-up runs and later ticks.
+ */
+export function githubInitialLookbackDays(env: Pick<Env, "GITHUB_INITIAL_LOOKBACK_DAYS">): number {
+  const value = env.GITHUB_INITIAL_LOOKBACK_DAYS?.trim() ?? "";
+  if (!/^\d+$/u.test(value)) return 1;
+  return Math.min(Math.max(Number(value), 1), MAX_INITIAL_LOOKBACK_DAYS);
+}
 
 export default {
   async scheduled(controller: ScheduledController, env: Env, context: ExecutionContext): Promise<void> {
@@ -387,6 +403,7 @@ export class PipelineState implements DurableObject {
         connector: new GitHubConnector({
           transport: new GitHubFetchTransport(this.env.GITHUB_SOURCE_TOKEN ?? ""),
           maxIssuesPerSource: MAX_ISSUES_PER_SOURCE,
+          initialLookbackDays: githubInitialLookbackDays(this.env),
         }),
         // Spec 012: public Apache sources, read anonymously; each may fail without stopping the run.
         sources: [
