@@ -203,20 +203,62 @@ for (const width of [320, 375]) {
 
 for (const width of [320, 375]) {
   for (const locale of ["en", "zh-Hant"] as const) {
-    test(`DM2: at ${width} px (${locale}) the locale control shows its whole short label and still switches the language`, async ({ page }) => {
+    test(`DM2: at ${width} px (${locale}) the short locale label sits inside the top bar, overlaps no other control, is hidden from assistive tech, and still switches the language`, async ({ page }) => {
       await page.addInitScript((value) => window.localStorage.setItem("community-kb-locale", value), locale);
       await page.setViewportSize({ width, height: 800 });
       await page.goto("/#/kafka/threads");
       const short = page.locator(".locale-short");
       await expect(short).toHaveText(locale === "en" ? "EN" : "中文");
-      const clip = (locator: ReturnType<Page["locator"]>) => locator.evaluate((element) => element.scrollWidth - element.clientWidth);
-      expect(await clip(short)).toBeLessThanOrEqual(0);
-      await expect(page.locator(".locale-control select")).toHaveAccessibleName(locale === "en" ? "Language" : "語言");
-      await page.locator(".locale-control select").selectOption(locale === "en" ? "zh-Hant" : "en");
+      const box = async (selector: string) => (await page.locator(selector).boundingBox())!;
+      const label = await box(".locale-short");
+      const bar = await box(".topbar");
+      expect(label.x).toBeGreaterThanOrEqual(bar.x);
+      expect(label.y).toBeGreaterThanOrEqual(bar.y);
+      expect(label.x + label.width).toBeLessThanOrEqual(bar.x + bar.width);
+      expect(label.y + label.height).toBeLessThanOrEqual(bar.y + bar.height);
+      const overlaps = (a: { x: number; y: number; width: number; height: number }, b: typeof a) =>
+        a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+      for (const other of [".community-control", "[data-theme-cycle]", ".demo-pill"]) {
+        expect({ other, overlaps: overlaps(label, await box(other)) }).toEqual({ other, overlaps: false });
+      }
+      // One announcement: the short label is hidden; the select carries the name and its own value.
+      await expect(short).toHaveAttribute("aria-hidden", "true");
+      const select = page.getByRole("combobox", { name: locale === "en" ? "Language" : "語言", exact: true });
+      await expect(select).toHaveCount(1);
+      await expect(page.getByText(locale === "en" ? "EN" : "中文", { exact: true }).filter({ visible: true })).toHaveAttribute("aria-hidden", "true");
+      await select.selectOption(locale === "en" ? "zh-Hant" : "en");
       await expect(short).toHaveText(locale === "en" ? "中文" : "EN");
     });
   }
 }
+
+test("DM2: at 375 px the locale focus ring follows the select's :focus-visible: shown after Tab, and after a mouse press exactly when the browser shows it on a native select", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 800 });
+  await page.goto("/#/kafka/threads");
+  const short = page.locator(".locale-short");
+  const select = page.locator(".locale-control select");
+  await expect(short).toHaveCSS("outline-style", "none");
+  await page.locator("[data-theme-cycle]").focus();
+  await page.keyboard.press("Tab");
+  await expect(select).toBeFocused();
+  await expect(short).toHaveCSS("outline-style", "solid");
+  await expect(short).toHaveCSS("outline-color", "rgb(140, 155, 232)");
+  // A mouse press (no key event). Chromium matches :focus-visible on a focused <select> even after a
+  // mouse press, as for text inputs, so the proxy ring must do what the native community select does.
+  await page.locator("main").click({ position: { x: 5, y: 5 } });
+  const press = async (selector: string) => {
+    const box = (await page.locator(selector).boundingBox())!;
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  };
+  await press(".community-switcher");
+  const native = await page.locator(".community-switcher").evaluate((element) => getComputedStyle(element).outlineStyle);
+  await page.locator("main").click({ position: { x: 5, y: 5 } });
+  await press(".locale-control select");
+  await expect(select).toBeFocused();
+  const matches = await select.evaluate((element) => element.matches(":focus-visible"));
+  await expect(short).toHaveCSS("outline-style", matches ? "solid" : "none");
+  expect(matches ? "solid" : "none").toBe(native);
+});
 
 test("DM2: every theme option has its own accessible name (not only a title)", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
