@@ -1704,3 +1704,92 @@ describe("Spec 014 D95: one runtime boundary for every /health and run body", ()
     expect(source.match(/Response\.json\(/gu)?.length ?? 0).toBe(1); // only inside the helper
   });
 });
+
+const HAN = /\p{Script=Han}/u;
+const generatedTexts = (digest: DigestV1) => [
+  ...digest.cards.filter((card) => card.status === "generated").flatMap((card) => card.sentences.map((sentence) => sentence.text)),
+  ...digest.proposals.flatMap((row) => (row.line === null ? [] : [row.line.text])),
+];
+
+describe("Spec 014 D96: the English generated cache is seeded only from English objects", () => {
+  test("D96: a previous en + zh-Hant pair with equal input hashes reuses the English sentences, and translations come from zh-Hant", async () => {
+    const { bucket, result: first } = await published(new FakeModel());
+    const previous = await objects(bucket, first);
+    // Positive control: the pair shares every input hash, and the zh-Hant sentences are Chinese.
+    const enHashes = previous.en.cards.flatMap((card) => (card.provenance === undefined ? [] : [card.provenance.inputHash]));
+    expect(enHashes.length).toBeGreaterThan(0);
+    expect(previous.zh.cards.flatMap((card) => (card.provenance === undefined ? [] : [card.provenance.inputHash]))).toEqual(enHashes);
+    expect(generatedTexts(previous.zh).every((text) => HAN.test(text))).toBe(true);
+
+    await publish(bucket, { releaseId: "next-release" });
+    const model = new FakeModel();
+    const result = await runDigest(input(bucket, { model }));
+    const { en, zh } = await objects(bucket, result);
+    expect(model.calls).not.toContain("summarize");
+    expect(en.coverage.cached).toBeGreaterThan(0);
+    expect(generatedTexts(en)).toEqual(generatedTexts(previous.en));
+    expect(generatedTexts(en).some((text) => HAN.test(text))).toBe(false);
+    // Translations are keyed by the English text hash and reused from zh-Hant: Chinese is not translated again.
+    // Every English text is unchanged, so every translation is a cache hit.
+    expect(model.calls).not.toContain("translate");
+    expect(generatedTexts(zh)).toEqual(generatedTexts(previous.zh));
+    expect(generatedTexts(zh).some((text) => text.includes("譯：譯："))).toBe(false);
+  });
+
+  test("D96: a polluted en object (Chinese sentences under English input hashes) is not reused; those cards are generated again", async () => {
+    const { bucket, result: first } = await published(new FakeModel());
+    const previous = await objects(bucket, first);
+    // The object the bug published: en with zh-Hant sentences under the same provenance. The first
+    // text is the one seen on Dev; the second has English names and identifiers (Latin-heavy).
+    const chinese = ["Kafka 將支援設定 TLS 命名群組（KIP-1376，已提出）。", "Andrew Schofield 提議為 share group 新增 TLS 設定（KIP-1376）。"];
+    let n = 0;
+    const pollute = <T extends { text: string }>(sentence: T): T => ({ ...sentence, text: chinese[n++ % 2]! });
+    const cards = previous.en.cards.map((card) => ({ ...card, sentences: card.sentences.map(pollute) }));
+    const proposals = previous.en.proposals.map((row) => (row.line === null ? row : { ...row, line: pollute(row.line) }));
+    bucket.objects.set(first.objectKeys!.en, JSON.stringify({ ...previous.en, cards, proposals }));
+    await publish(bucket, { releaseId: "next-release" });
+    const model = new FakeModel();
+    const result = await runDigest(input(bucket, { model }));
+    const { en } = await objects(bucket, result);
+    expect(n).toBeGreaterThan(1);
+    expect(generatedTexts(en).length).toBeGreaterThan(0);
+    expect(generatedTexts(en).some((text) => HAN.test(text))).toBe(false);
+    expect(model.calls.filter((kind) => kind === "summarize").length).toBe(generatedTexts(previous.en).length);
+  });
+
+  test("D96: with a translator whose zh-Hant output has no Han characters, en still reuses only the en sentences", async () => {
+    // Without the en-only rule the zh-Hant text would replace the English one; the Han rule cannot catch it.
+    const latinTranslator = () => new FakeModel((kind, _index, prompt) => {
+      if (kind !== "translate") return undefined;
+      const body = prompt.slice(prompt.indexOf("\n<"));
+      const items = JSON.parse(body.slice(body.indexOf("["), body.lastIndexOf("]") + 1)) as { id: string; text: string }[];
+      return JSON.stringify(items.map((item) => ({ id: item.id, text: `TR ${item.text}` })));
+    });
+    const { bucket, result: first } = await published(latinTranslator());
+    const previous = await objects(bucket, first);
+    expect(generatedTexts(previous.zh).every((text) => text.startsWith("TR "))).toBe(true); // positive control
+    await publish(bucket, { releaseId: "next-release" });
+    const model = latinTranslator();
+    const result = await runDigest(input(bucket, { model }));
+    const { en } = await objects(bucket, result);
+    expect(model.calls).not.toContain("summarize");
+    expect(generatedTexts(en)).toEqual(generatedTexts(previous.en));
+    expect(generatedTexts(en).some((text) => text.startsWith("TR "))).toBe(false);
+  });
+
+  test("D96: a cached English sentence quoting a short CJK name is reused", async () => {
+    const { bucket, result: first } = await published(new FakeModel());
+    const previous = await objects(bucket, first);
+    const index = previous.en.cards.findIndex((card) => card.status === "generated" && card.sentences.length > 0);
+    const named = `${previous.en.cards[index]!.sentences[0]!.text.replace(/\.$/u, "")}, reviewed by 王小明.`;
+    const cards = previous.en.cards.map((card, n) => (n !== index ? card
+      : { ...card, sentences: card.sentences.map((sentence, m) => (m === 0 ? { ...sentence, text: named } : sentence)) }));
+    bucket.objects.set(first.objectKeys!.en, JSON.stringify({ ...previous.en, cards }));
+    await publish(bucket, { releaseId: "next-release" });
+    const model = new FakeModel();
+    const result = await runDigest(input(bucket, { model }));
+    const { en } = await objects(bucket, result);
+    expect(generatedTexts(en)).toContain(named);
+    expect(model.calls).not.toContain("summarize");
+  });
+});
