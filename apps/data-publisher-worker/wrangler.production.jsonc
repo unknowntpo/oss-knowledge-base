@@ -8,6 +8,10 @@
     "cpu_ms": 300000,
     "subrequests": 20000
   },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
   "vars": {
     "PUBLICATION_ENVIRONMENT": "production",
     "SEARCH_LEXICAL_REVISION": "bm25-reference@3",
