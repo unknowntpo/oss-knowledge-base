@@ -891,3 +891,4 @@ class MemoryDestination implements PublicationDestination, PublicationObjectStor
 function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
   return left.byteLength === right.byteLength && left.every((byte, index) => byte === right[index]);
 }
+

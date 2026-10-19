@@ -8,6 +8,7 @@ import {
   callEstimate, clefRequestTokens, digestLedgerNeurons, estimateTokens, neurons, settledNeurons,
   type ClefModel, type ClefRequest, type ClefResponse, type PricedModel,
 } from "@oss-knowledge-base/reference-pipeline";
+import { sanitizeErrorMessage } from "@oss-knowledge-base/semantic-vectorize";
 
 export interface ModelUsage {
   readonly prompt_tokens?: number;
@@ -213,9 +214,14 @@ export class ModelCalls {
   }
 }
 
+/**
+ * The stored shape of a model error. `kind` is decided by the caller on the raw error (codes such as
+ * 3036 or 429 survive redaction, but a classifier must never depend on that); the message is
+ * redacted, then cut (Spec 014 D95, Spec 016 Behavior 24), because it reaches the public /health.
+ */
 export function errorShape(model: string, kind: "limit" | "retry", error: unknown): ModelErrorShape {
   const name = error instanceof Error ? error.constructor.name || error.name : typeof error;
-  const message = (error instanceof Error ? error.message : String(error)).slice(0, 200);
+  const message = sanitizeErrorMessage(error instanceof Error ? error.message : String(error));
   const code = error instanceof ModelCallError ? error.code : undefined;
   const status = error instanceof ModelCallError ? error.status : undefined;
   return { model, kind, name, message, ...(code === undefined ? {} : { code }), ...(status === undefined ? {} : { status }) };

@@ -153,7 +153,7 @@ export async function runGithubReviewsRefresh(deps: GithubReviewsDeps): Promise<
   const { revision, failure: configFailure } = resolveRunConfig(deps);
   let failure: Pick<GithubReviewsLastRun, "failureKind" | "error"> = configFailure;
   if (failure.failureKind === undefined && revision !== GITHUB_REVIEWS_AREAS_REVISION) {
-    failure = { failureKind: "config", error: `The refresh needs GITHUB_REVIEWS=${GITHUB_REVIEWS_AREAS_REVISION}` };
+    failure = { failureKind: "config", error: sanitizeErrorMessage(`The refresh needs GITHUB_REVIEWS=${GITHUB_REVIEWS_AREAS_REVISION}`) };
   }
   if (failure.failureKind === undefined) {
     for (const project of deps.projects) projects[project.projectId] = await refreshProject(deps, project, deps.now());

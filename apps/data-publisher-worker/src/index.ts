@@ -20,6 +20,7 @@ import { SEARCH_QUERY_GATE_OBJECT_NAME, unboundQueryGateHealth, type EmbeddingAi
 import { createSearchQueryGate } from "./search-query/gate";
 import { SearchEmbeddingRunner, unboundSearchEmbeddingHealth } from "./search-embedding/runner";
 import { sanitizeErrorMessage } from "./search-embedding/sanitize";
+import { redactRecord } from "./redact";
 
 interface Env {
   readonly PUBLICATION_ENVIRONMENT: "development" | "production";
@@ -126,6 +127,11 @@ export function digestModel(env: Pick<Env, "DIGEST_MODEL" | "DIGEST_GATEWAY_ID" 
   return env.DIGEST_MODEL === "workers-ai" && env.AI !== undefined && gateway !== "" ? new WorkersAiModel(env.AI, gateway) : undefined;
 }
 
+/** Spec 014 D95: every JSON body the Worker and its objects serve goes through the error redaction. */
+function json(body: unknown, init?: ResponseInit): Response {
+  return Response.json(redactRecord(body), init);
+}
+
 /**
  * `/health`: the publisher's body, unchanged, plus `digest` (null when the digest object fails),
  * `reviewQueue`, the review queue's `last-run.json` (null before the first run or on a read error),
@@ -135,7 +141,8 @@ export function digestModel(env: Pick<Env, "DIGEST_MODEL" | "DIGEST_GATEWAY_ID" 
  * `githubReviewsBackfill` (the last manual backfill call's record; null before the first one).
  */
 export function mergeHealth(publisher: unknown, digest: unknown, reviewQueue: unknown = null, searchEmbedding: unknown = null, searchQuery: unknown = null, githubReviews?: unknown, githubReviewsBackfill?: unknown, githubReviewsRefresh?: unknown): unknown {
-  return {
+  // D95: redacted here as well as in `json`, so callers of mergeHealth get a safe body too.
+  return redactRecord({
     ...(publisher as Record<string, unknown>),
     digest: digest ?? null,
     reviewQueue: reviewQueue ?? null,
@@ -149,7 +156,7 @@ export function mergeHealth(publisher: unknown, digest: unknown, reviewQueue: un
     ...(githubReviewsBackfill === undefined ? {} : { githubReviewsBackfill }),
     // Spec 022 RV41: the metadata refresh's record, only under `metadata@2` (absent under `metadata@1`, so its /health is unchanged).
     ...(githubReviewsRefresh === undefined ? {} : { githubReviewsRefresh }),
-  };
+  });
 }
 
 function reviewQueueRun(env: Env, dryRun: boolean) {
@@ -259,12 +266,12 @@ export default {
       const githubReviews = await reviewRecord(GITHUB_REVIEWS_LAST_RUN_KEY);
       const githubReviewsBackfill = await reviewRecord(GITHUB_REVIEWS_BACKFILL_LAST_RUN_KEY);
       const githubReviewsRefresh = githubReviewsAreas(env) ? await reviewRecord(GITHUB_REVIEWS_REFRESH_LAST_RUN_KEY) : undefined;
-      return Response.json(mergeHealth(await publisher.json(), digestHealth, reviewQueue, searchEmbedding, searchQuery, githubReviews, githubReviewsBackfill, githubReviewsRefresh));
+      return json(mergeHealth(await publisher.json(), digestHealth, reviewQueue, searchEmbedding, searchQuery, githubReviews, githubReviewsBackfill, githubReviewsRefresh));
     }
     if (request.method === "POST" && url.pathname === "/search-embedding/run") {
       if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
       const embedding = searchEmbeddingObject(env);
-      if (embedding === undefined) return Response.json({ ok: false, disabled: true }, { status: 403 });
+      if (embedding === undefined) return json({ ok: false, disabled: true }, { status: 403 });
       const forwarded = new URLSearchParams();
       for (const name of ["dryRun", "reset"]) if (url.searchParams.get(name) === "1") forwarded.set(name, "1");
       const profile = url.searchParams.get("profile");
@@ -281,30 +288,30 @@ export default {
       if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
       // Runs while the caller waits (about 1–3 min): no Durable Object holds this job (ADR-0016).
       const { lastRun } = await reviewQueueRun(env, url.searchParams.get("dryRun") === "1");
-      return Response.json(lastRun, { status: lastRun.ok ? 200 : 502 });
+      return json(lastRun, { status: lastRun.ok ? 200 : 502 });
     }
     if (request.method === "POST" && url.pathname === "/github-reviews/run") {
       if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
-      if (!githubReviewsSet(env)) return Response.json({ ok: false, disabled: true }, { status: 403 });
+      if (!githubReviewsSet(env)) return json({ ok: false, disabled: true }, { status: 403 });
       // Runs while the caller waits (seconds): no Durable Object holds this job.
       const lastRun = await githubReviewsRun(env, url.searchParams.get("dryRun") === "1");
-      return Response.json(lastRun, { status: lastRun.ok ? 200 : 502 });
+      return json(lastRun, { status: lastRun.ok ? 200 : 502 });
     }
     if (request.method === "POST" && url.pathname === "/github-reviews/backfill") {
       if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
-      if (!githubReviewsSet(env)) return Response.json({ ok: false, disabled: true }, { status: 403 });
+      if (!githubReviewsSet(env)) return json({ ok: false, disabled: true }, { status: 403 });
       const from = resolveBackfillFrom(url.searchParams.get("from"), Date.now());
-      if (!from.ok) return Response.json({ ok: false, error: from.error }, { status: 400 });
+      if (!from.ok) return json({ ok: false, error: from.error }, { status: 400 });
       // Spec 022 Behavior 13: one bounded chunk per project, while the caller waits (up to about 70 s).
       const lastRun = await runGithubReviewsBackfill({ ...githubReviewsDeps(env, url.searchParams.get("dryRun") === "1"), from: from.from });
-      return Response.json(lastRun, { status: lastRun.ok ? 200 : 502 });
+      return json(lastRun, { status: lastRun.ok ? 200 : 502 });
     }
     if (request.method === "POST" && url.pathname === "/github-reviews/refresh-areas") {
       if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
-      if (!githubReviewsSet(env)) return Response.json({ ok: false, disabled: true }, { status: 403 });
+      if (!githubReviewsSet(env)) return json({ ok: false, disabled: true }, { status: 403 });
       // Spec 022 Behavior 15: at most 500 pull requests per project, while the caller waits (about a minute).
       const lastRun = await runGithubReviewsRefresh(githubReviewsDeps(env, url.searchParams.get("dryRun") === "1"));
-      return Response.json(lastRun, { status: lastRun.ok ? 200 : 502 });
+      return json(lastRun, { status: lastRun.ok ? 200 : 502 });
     }
     if (request.method === "POST" && url.pathname === "/run") {
       if (!authorized(request, env)) {
@@ -350,7 +357,7 @@ export class PipelineState implements DurableObject {
     if (request.method === "GET" && path === "/status") {
       const status = await this.ctx.storage.get<PipelineRunStatus>("status");
       const phase = await this.ctx.storage.get<PipelinePhaseMarker>("phase");
-      return Response.json(healthBody({
+      return json(healthBody({
         environment: this.env.PUBLICATION_ENVIRONMENT,
         running: this.running,
         scheduled: runPending(false, await this.ctx.storage.getAlarm(), Date.now()),
@@ -363,13 +370,13 @@ export class PipelineState implements DurableObject {
     // A stale alarm (its retries exhausted) and a follow-up waiting for later (Spec 018) are
     // overwritten below instead of blocking the trigger; the trigger starts a new follow-up count.
     if (runStarting(this.running, await this.ctx.storage.getAlarm(), Date.now())) {
-      return Response.json({ ok: false, skipped: "already-running" }, { status: 409 });
+      return json({ ok: false, skipped: "already-running" }, { status: 409 });
     }
     await this.ctx.storage.put("requested-at", request.headers.get("x-scheduled-at") ?? new Date().toISOString());
     await this.ctx.storage.delete("run-lease"); // written by the pre-alarm implementation
     await this.ctx.storage.delete(FOLLOW_UP_KEY);
     await this.ctx.storage.setAlarm(Date.now());
-    return Response.json({ ok: true, scheduled: true }, { status: 202 });
+    return json({ ok: true, scheduled: true }, { status: 202 });
   }
 
   async alarm(): Promise<void> {
@@ -442,10 +449,10 @@ export class DigestRun implements DurableObject {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    if (request.method === "GET" && url.pathname === "/status") return Response.json(await this.runner.health());
+    if (request.method === "GET" && url.pathname === "/status") return json(await this.runner.health());
     if (request.method === "POST" && url.pathname === "/run") {
       const result = await this.runner.request(url.searchParams.get("dryRun") === "1");
-      return Response.json(result.body, { status: result.status });
+      return json(result.body, { status: result.status });
     }
     return new Response("Not found", { status: 404 });
   }
@@ -487,14 +494,14 @@ export class SearchEmbeddingRun implements DurableObject {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    if (request.method === "GET" && url.pathname === "/status") return Response.json(await this.runner.health());
+    if (request.method === "GET" && url.pathname === "/status") return json(await this.runner.health());
     if (request.method === "POST" && url.pathname === "/run") {
       const result = await this.runner.request({
         dryRun: url.searchParams.get("dryRun") === "1",
         reset: url.searchParams.get("reset") === "1",
         ...(url.searchParams.get("profile") === null ? {} : { profile: url.searchParams.get("profile")! }),
       });
-      return Response.json(result.body, { status: result.status });
+      return json(result.body, { status: result.status });
     }
     return new Response("Not found", { status: 404 });
   }
@@ -532,10 +539,10 @@ export class SearchQueryGate implements DurableObject {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    if (request.method === "GET" && url.pathname === "/status") return Response.json(await this.gate.health());
+    if (request.method === "GET" && url.pathname === "/status") return json(await this.gate.health());
     if (request.method === "POST" && url.pathname === "/query") {
       const body = await request.json().catch(() => undefined);
-      return Response.json(await this.gate.query(body as Parameters<SemanticQueryGate["query"]>[0]));
+      return json(await this.gate.query(body as Parameters<SemanticQueryGate["query"]>[0]));
     }
     return new Response("Not found", { status: 404 });
   }
