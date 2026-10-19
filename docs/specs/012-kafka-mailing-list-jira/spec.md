@@ -1,6 +1,6 @@
 # Spec 012: Kafka dev mailing list and Jira sources
 
-Status: Accepted 2026-10-06
+Status: Implemented (#27, 2026-10-06); dev@ and Jira are read by the Dev publisher; the Prod publisher has never been deployed
 Date: 2026-10-06
 Traceability: enforced
 Builds on: Spec 004, Spec 005, Spec 008, Spec 009; `docs/domain/community-model.md`

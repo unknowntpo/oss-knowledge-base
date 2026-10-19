@@ -1,6 +1,6 @@
 # Spec 006: Environment-isolated R2 Publication
 
-Status: Amended for independent environment Cron publishers
+Status: Implemented (`64b86c6`, #6–#9); amended for independent environment Cron publishers (ADR-0012, #15): the Dev publisher runs, the Prod publisher is configured but has never been deployed (no `v*` tag since `v0.2.0`)
 
 Owner: Project maintainers
 

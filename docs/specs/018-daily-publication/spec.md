@@ -1,6 +1,6 @@
 # Spec 018: Daily publication
 
-Status: Accepted 2026-10-13 (owner's decision; details by the implementer)
+Status: Implemented (#62, #65, #68; owner's decision 2026-10-13, details by the implementer); Dev publishes daily at 22:07 UTC; the Prod cron (22:37 UTC) is configured but never deployed
 Date: 2026-10-13
 Traceability: enforced
 Builds on: Spec 006, Spec 009, Spec 010, Spec 012, Spec 016, ADR-0012

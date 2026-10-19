@@ -540,18 +540,6 @@ the two `viewer/` items below.
 
 ## Process and docs
 
-### G11. Spec status lines drift from reality
-- **Where:** `docs/specs/*/spec.md`. Specs 008 and 009 said `Status: Draft`
-  after PRs #21 and #23 merged (fixed in this PR); 001 says "Draft for
-  implementation" and 002 "Implemented POC" in a list-item form the other
-  specs do not use.
-- **Why:** readers and agents use status to decide what is binding.
-- **Fix:** one `Status:` line form with a fixed vocabulary (Draft, Accepted,
-  Implemented (PR #n), Superseded); the merging PR updates it.
-- **Layer:** static check (extend `check:traceability` to require a valid
-  `Status:` line in every spec).
-- **Source:** gardener pass 2026-10-06.
-
 ### G13. `viewer/` placeholders
 - **Where:** `viewer/src/components/AskView.tsx:5` ("deferred for now"),
   `viewer/wrangler.toml:2` ("Static-only for now").

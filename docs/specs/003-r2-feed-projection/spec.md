@@ -1,6 +1,6 @@
 # Spec 003: Versioned R2 Feed Projection
 
-Status: POC deployed
+Status: Implemented (baseline `f57f96b`; R7 in #47); serves Dev and Prod (`v0.2.0`)
 
 ## Intent
 

@@ -1,6 +1,6 @@
 # Spec 022: GitHub pull-request reviews
 
-Status: Slice 1 implemented behind `GITHUB_REVIEWS`; set to `metadata@1` on Dev (decision 3, decided 2026-10-14), unset on Prod. Slice 2 (manual 12-month backfill, decision 5, decided 2026-10-14) implemented. Amendment 2026-10-15 (`metadata@2`: pull-request areas and display names, and the refresh) implemented and set on Dev by its enable PR; the refresh is run by hand after deploy (operator sequence below)
+Status: Implemented (slice 1 #70, slice 2 backfill #72, amendment `metadata@2` #78–#80; decisions 3 and 5 of 2026-10-14); `GITHUB_REVIEWS=metadata@2` on Dev (#71, #79), unset on Prod; the refresh is run by hand after deploy (operator sequence below)
 Date: 2026-10-14
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 009 (bounded memory), Spec 015 (review queue, ADR-0016), Spec 018 (daily publication), Spec 019 (contributor profile, decision 7)

@@ -1,6 +1,6 @@
 # Spec 020: Generated feature-map site
 
-Status: Draft for owner review (implemented in the same PR; decisions below; B16–B18 are observed after the merge)
+Status: Implemented (#66, 2026-10-14; published at https://unknowntpo.github.io/oss-knowledge-base/); amended 2026-10-19: the status board (B19–B24)
 Date: 2026-10-14
 Traceability: enforced
 Builds on: `docs/process/workflow.md` (verification kit, gardening), gardening G52
@@ -289,6 +289,49 @@ private.
    section when present, plus a check that each spec's "Decisions needed from
    owner" items are in it. Without the file nothing changes.
 
+## Amendment 2026-10-19: status board
+
+Intent (owner, 2026-10-19): the project is shown to outside readers, such as
+a hiring manager, who want to know at a glance what is built, what is in
+progress and what is planned. The page listed the specs' Status lines as
+written, and 14 of 24 were stale (Spec 020 itself said "Draft"), so the
+summary tiles said "accepted 9, draft 3" for a project whose specs were
+almost all built. The board derives each spec's place, so a stale word
+shows up as a wrong group instead of hiding in a long line.
+
+Behavior:
+
+1. Every page opens with a section `#status` (現況 · What is built, in
+   progress and planned): one tile per group with its count, then the
+   groups: 已上線 Prod · Live on Prod; 僅 Dev · Live on Dev only; 進行中 · In
+   progress; 規劃中 · Planned; 其他 · Other (only when a spec is in it); 已知缺口
+   · Known gaps. Each spec appears in exactly one group, with its number
+   linking to its `spec.md` at the page's commit, its title, and a reason.
+2. The group follows the rule in the test plan below (`specStage`): pending
+   acceptance items or a Status starting "Partially implemented" → In
+   progress; "Implemented" → Live on Prod when the spec's directory is in the
+   production tag and no Deployed configuration row naming it is off on
+   Prod, else Live on Dev only (Dev deploys every push to `main`);
+   "Accepted" or "Draft" → Planned; any other first word (a spike) → Other.
+3. The production tag is the newest `v*` tag of the site whose page could be
+   generated (`.github/workflows/ci.yml` deploys Prod on a `v*` tag). All
+   pages of one build use the same one. Without such a tag nothing is on
+   Prod and the board says so.
+4. A spec is off on Prod when a row of the Deployed configuration table cites
+   `Spec <NNN>` in any cell and its Prod cell starts with `unset` or `none`;
+   the reason lists the row's names.
+5. The Prod group also shows the Prod row of the Environments table, so the
+   reader sees what Prod runs (a snapshot, a publisher never deployed).
+6. Known gaps counts the open gardening items per category, each linking to
+   its category on the page.
+7. Pending items are counted with the traceability gate's own parser
+   (`acceptanceItems`), so the board and the gate agree.
+8. Every Status line starts with Implemented, Partially implemented,
+   Accepted, Draft, or (spikes only) Spike; B25 checks the repository.
+
+`data.json` gains `production`, `counts.specsByStage`, and per spec
+`acceptanceItems`, `pending`, `inProduction`, `offOnProd` and `stage`.
+
 ## Test plan
 
 Generated from `scripts/test/feature-map-site.cases.ts` by
@@ -309,6 +352,23 @@ Generated from `scripts/test/feature-map-site.cases.ts` by
 | B4 | /// | ref | nothing left: a fixed name |
 | B4 | versions.json | versions.json-ref | reserved root file |
 | B4 | index.html | index.html-ref | reserved root file |
+<!-- test-plan:end -->
+
+The status board's rule (B19), from `scripts/test/feature-map-site-board.cases.ts`:
+
+<!-- test-plan:start scripts/test/feature-map-site-board.cases.ts -->
+| id | status | pending | inTag | offOnProd | stage | why |
+| --- | --- | --- | --- | --- | --- | --- |
+| B19 | Implemented (PR #7) | 0 | yes | 0 | prod | built and in the tag Prod runs |
+| B19 | Implemented (PR #7) | 0 | no | 0 | dev | built after the tag: Dev deploys every push to main |
+| B19 | Implemented (PR #7) | 0 | yes | 1 | dev | a flag naming the spec is unset on Prod |
+| B19 | Partially implemented: slices 1–2 | 3 | no | 0 | progress | partial status with pending items |
+| B19 | Partially implemented: slices 1–2 | 0 | yes | 0 | progress | the partial status alone, even in the tag |
+| B19 | Implemented | 2 | yes | 0 | progress | pending items win over the status word |
+| B19 | Accepted 2026-10-08 | 0 | yes | 0 | planned | accepted is not built |
+| B19 | Draft for owner review | 4 | no | 0 | planned | a draft with pending items is still planned |
+| B19 | Spike completed (#13) | 0 | no | 0 | other | no known first word |
+| B19 |  | 0 | no | 0 | other | no Status line |
 <!-- test-plan:end -->
 
 Named tests: `scripts/test/feature-map-site.test.ts`, on the fixture tree
@@ -352,7 +412,23 @@ tag and another branch.
   job and minimal; actions are pinned like the repository's other workflows;
   it uses no secret.
 
+- B19: a spec's group follows the rule of the amendment's Behavior 2 (test
+  plan rows).
+- B21: a spec is off on Prod exactly when a Deployed configuration row cites
+  it and is unset or none on Prod; a row set on Prod turns nothing off.
+- B22: each spec carries its acceptance items, pending items, production
+  membership, off-on-Prod names and group, and the group counts add up.
+- B23: the page opens with the board before the overview: a tile per group
+  with its count, each spec under its group with a link and a reason,
+  bilingual headings, the production tag and the Prod environment row, and
+  the gardening categories with counts and links; Other only when used.
+- B25: every spec of this repository has a Status line the board
+  understands; only a spike is Other.
+
 ### Failure and retry
+- B20: the production tag is the newest `v*` tag whose page builds (an
+  unreadable newer tag is skipped), the same on every ref's page; without
+  one, nothing is on Prod and the board says so.
 - B8: a tree without `docs/feature-map.md` gets a page that says so, with its
   specs; its `versions.json` entry records the reason; the site builds.
 - B9: a feature map of another shape is rendered section by section and the
@@ -373,6 +449,11 @@ tag and another branch.
   `main/index.html` 182 KB (50 KB gzipped) and `main/data.json` 170 KB.
   Command: `bun run docs:feature-map-site -- --out <dir>` (prints each
   page's bytes and the total time). No model, no R2, no Cloudflare request.
+
+- B24: [measure] at 375 px the page has no horizontal scroll
+  (`scrollWidth` 375 = `clientWidth`) and the board's tiles fit three to a
+  row; at 1280 px all six tiles fit one row. Measured 2026-10-19 with
+  Playwright Chromium on a local build of this branch.
 
 ### Observability
 - B16: [deploy] after the merge, the run on `main` deploys;

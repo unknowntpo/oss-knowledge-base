@@ -6,7 +6,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { buildData, formatTime, renderErrorPage, renderPage, type RefKind, type RefMeta, type TreeReader } from "./generate";
+import { buildData, formatTime, renderErrorPage, renderPage, SPECS, type ProductionRef, type RefKind, type RefMeta, type TreeReader } from "./generate";
 import { escapeHtml } from "./markdown";
 
 export { switcherScript } from "./switcher";
@@ -95,10 +95,11 @@ export function buildSite(input: SiteInput): { readonly files: Map<string, strin
   const defaultSlug = slugs[0]!;
   const files = new Map<string, string>();
   const entries: VersionEntry[] = [];
+  const production = productionRef(input.repository, ordered, slugs);
   ordered.forEach((ref, index) => {
     const meta: RefMeta = { name: ref.name, slug: slugs[index]!, kind: ref.kind, sha: ref.sha, date: ref.date };
     try {
-      const data = buildData({ repository: input.repository, ref: meta, tree: ref.tree });
+      const data = buildData({ repository: input.repository, ref: meta, tree: ref.tree, production });
       const page = renderPage(data, { defaultSlug });
       files.set(`${meta.slug}/index.html`, page);
       files.set(`${meta.slug}/data.json`, `${JSON.stringify(data, null, 2)}\n`);
@@ -122,6 +123,21 @@ export function buildSite(input: SiteInput): { readonly files: Map<string, strin
   files.set("versions.json", `${JSON.stringify(versions, null, 2)}\n`);
   files.set("index.html", renderRoot(versions));
   return { files, versions };
+}
+
+/**
+ * The ref Prod runs (Spec 020 B20): the newest `v*` tag whose page can be generated. Every page's
+ * status board compares its specs with this one ref, so all pages agree on what Prod has.
+ */
+function productionRef(repository: string, ordered: readonly RefInput[], slugs: readonly string[]): ProductionRef | null {
+  for (const [index, ref] of ordered.entries()) {
+    if (ref.kind !== "tag" || !/^v\d/u.test(ref.name)) continue;
+    try {
+      buildData({ repository, ref: { name: ref.name, slug: slugs[index]!, kind: ref.kind, sha: ref.sha, date: ref.date }, tree: ref.tree });
+      return { name: ref.name, sha: ref.sha, date: ref.date, specDirectories: [...ref.tree.list(SPECS)] };
+    } catch { /* an unreadable tag is not what Prod runs; B10 gives it an error page */ }
+  }
+  return null;
 }
 
 /** The root page: goes to the default ref at once, and lists every ref for a reader whose browser does not. */

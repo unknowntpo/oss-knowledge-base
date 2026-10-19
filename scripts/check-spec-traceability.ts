@@ -11,25 +11,9 @@ import { dirname, join, relative } from "node:path";
 const root = join(import.meta.dir, "..");
 const testGlobs = ["apps/**/*.test.ts", "apps/**/*.spec.ts", "packages/**/*.test.ts", "scripts/test/*.test.ts"];
 
-interface AcceptanceItem {
-  readonly spec: string;
-  readonly id: string;
-  readonly tag?: "deploy" | "measure" | "pending";
-}
+import { acceptanceItems, type AcceptanceItem } from "./acceptance-items";
 
-export function acceptanceItems(spec: string, markdown: string): readonly AcceptanceItem[] {
-  if (!/^Traceability:\s*enforced\s*$/mu.test(markdown)) return [];
-  const lines = markdown.split("\n");
-  const start = lines.findIndex((line) => /^## Acceptance\s*$/u.test(line));
-  if (start < 0) return [];
-  const end = lines.findIndex((line, index) => index > start && /^## /u.test(line));
-  const section = lines.slice(start + 1, end < 0 ? undefined : end).join("\n");
-  return [...section.matchAll(/^- ([A-Z]+\d+):\s*(\[(deploy|measure|pending)\])?/gmu)].map((match) => ({
-    spec,
-    id: match[1]!,
-    ...(match[3] === undefined ? {} : { tag: match[3] as "deploy" | "measure" | "pending" }),
-  }));
-}
+export { acceptanceItems };
 
 export function testTitles(source: string): readonly string[] {
   return [...source.matchAll(/\b(?:test|it)(?:\.each\([^)]*\))?\(\s*(["'`])((?:\\.|(?!\1).)*)\1/gu)]

@@ -1,72 +1,80 @@
 # OSS Knowledge Base
 
-A searchable knowledge base for **Apache Kafka Improvement Proposals (KIPs)**,
-stored as an **Obsidian vault** and browsable two ways:
+A reader for open-source community activity: Apache Kafka and Apache
+DataFusion pull requests, issues, the Kafka dev@ mailing list and Jira,
+published once a day to Cloudflare R2 and served by a Vue app on Cloudflare
+Pages.
 
-1. **In Obsidian** — open [`vault/`](vault) as a vault. Notes, tags, wikilinks,
-   graph and backlinks all work natively.
-2. **In the web viewer** — a React + TypeScript SPA in [`viewer/`](viewer) that
-   parses the same vault and renders Browse, KIP detail, and (soon) Ask AI views.
+**What is built, in progress and planned:** see the generated status board at
+https://unknowntpo.github.io/oss-knowledge-base/ (rebuilt from this
+repository on every push; Spec 020). What each environment runs is in
+[`docs/feature-map.md`](docs/feature-map.md); known gaps are in
+[`docs/gardening.md`](docs/gardening.md).
 
-The vault is the **single source of truth**; the viewer derives its data from it.
+| Environment | URL |
+| --- | --- |
+| Dev (deployed on every push to `main`) | https://oss-knowledge-base-dev.pages.dev |
+| Prod (deployed on a `v*` tag; last tag `v0.2.0`, 2026-08-31) | https://oss-knowledge-base.pages.dev |
 
-> This describes the legacy implementation. The new system is a greenfield
-> rebuild: only the frontend visual language is a preservation requirement.
-> Vault storage, data models, ingestion, routes, and build pipelines may be
-> replaced; see [Project Constitution](docs/constitution.md) and
-> [Architecture Context](docs/architecture/context.md).
+## Features
 
-## Development control plane
+Each links to its spec; where it runs (Prod, Dev only, or behind a flag) is on
+the status board.
 
-New work follows a specification-driven flow: intent → acceptance assertions →
-architecture decisions → implementation plan → tested evidence.
+- Feed and thread detail with timeline and key points ([001](docs/specs/001-kafka-decision-thread/spec.md), [002](docs/specs/002-generated-hot-feed/spec.md)), served from versioned R2 objects ([003](docs/specs/003-r2-feed-projection/spec.md), [008](docs/specs/008-content-addressed-details/spec.md)).
+- Ingestion: GitHub ([004](docs/specs/004-replayable-github-feed/spec.md)), Kafka dev@ and Jira ([012](docs/specs/012-kafka-mailing-list-jira/spec.md)), GitHub pull-request reviews ([022](docs/specs/022-github-reviews/spec.md)); a data Worker per environment publishes once a day ([006](docs/specs/006-environment-isolated-r2-publication/spec.md), [009](docs/specs/009-bounded-memory-publication/spec.md), [018](docs/specs/018-daily-publication/spec.md)).
+- Search: evidence-first lexical search ([005](docs/specs/005-evidence-search/spec.md), [013](docs/specs/013-search-streaming/spec.md), [017](docs/specs/017-lexical-ranking/spec.md)) and hybrid semantic search on Workers AI and Vectorize ([016](docs/specs/016-semantic-search/spec.md)).
+- Freshness and stall visibility in the UI ([010](docs/specs/010-feed-freshness/spec.md), [011](docs/specs/011-stall-visibility/spec.md), [021](docs/specs/021-publication-overdue/spec.md)).
+- Weekly topic digest written by a model ([014](docs/specs/014-topic-digest/spec.md)); review queue for PRs and KIPs ([015](docs/specs/015-review-queue/spec.md)); contributor profiles ([019](docs/specs/019-contributor-profile/spec.md)).
+- Design system and dark theme ([023](docs/specs/023-design-system/spec.md), [024](docs/specs/024-dark-theme/spec.md)); the generated feature-map site ([020](docs/specs/020-feature-map-site/spec.md)); a Fluss/Flink compatibility spike ([007](docs/specs/007-fluss-flink-compatibility-spike/spec.md)).
 
-- [Product vision](docs/product/vision.md)
-- [Project constitution](docs/constitution.md)
-- [Project-neutral community model](docs/domain/community-model.md)
-- [Architecture context](docs/architecture/context.md)
-- [Spec 001: Kafka Decision Thread](docs/specs/001-kafka-decision-thread/spec.md)
-- [Spec 001 acceptance scenarios](docs/specs/001-kafka-decision-thread/acceptance.md)
-- [Implementation tasks](docs/tasks.md)
+## How work is done
 
-## Live Kafka + DataFusion slice
-
-The smallest end-to-end implementation is split by responsibility: Vue and
-Cloudflare Pages Functions live in `apps/web/`; GitHub polling and R2 publishing
-live in `apps/github-publisher/`; shared domain and serving contracts live in
-`packages/`.
+Specification-driven: intent → numbered acceptance items → tests that name
+those items → an independent verifier → Dev, then Prod. See
+[`docs/process/workflow.md`](docs/process/workflow.md), the
+[constitution](docs/constitution.md), [architecture](docs/architecture/context.md)
+and its [decision records](docs/architecture/decisions/).
 
 ```bash
 bun install
-bun run dev        # Vue :4177 + GitHub publisher :4178
-bun run test:unit  # deterministic domain behavior
-bun run test:integration # replay pipeline + Pages Function/R2 contracts
-bun run test:e2e   # fixture → local R2 → Pages Functions → Vue, desktop/mobile
-bun run typecheck  # all active TypeScript packages
-bun run --cwd apps/github-publisher test:live
+bun run dev                  # local app
+bun run typecheck
+bun run test:unit
+bun run test:integration
+bun run build && bun run test:e2e   # fixture → local R2 → Pages Functions → Vue
+bun run check:traceability   # every acceptance ID has a test
 ```
 
-This slice requires GitHub CLI authentication (`gh auth login`). In headless
-environments, set `GH_TOKEN`; the application never reads or writes the token
-itself and delegates authentication to `gh api`. The poller keeps one in-memory
-snapshot and GitHub CLI caches endpoint responses for five minutes. No LLM is
-used in this slice.
-
-Pull requests run `.github/workflows/ci.yml` with separate typecheck/build,
-unit, integration, and Playwright E2E gates. CI uses a recorded Kafka/DataFusion
-fixture and recreated local Wrangler/R2 state; it never spends GitHub API quota
-or requires an LLM/embedding credential.
+CI (`.github/workflows/ci.yml`) runs typecheck, unit, integration and
+Playwright gates on recorded fixtures, then deploys Dev on `main` and Prod on
+a `v*` tag.
 
 ## Repository layout
 
 ```
-apps/web/               Vue app + Pages Functions + local R2 tooling
-apps/github-publisher/  GitHub polling, Feed materialization, R2 publisher
-packages/domain/        source-neutral domain and Feed behavior
-packages/serving-contract/ FeedIndex/FeedDetail publication contract
-docs/                   specs, ADRs, domain model, and task state
+apps/web/                    Vue app, Pages Functions (/api/*), E2E
+apps/data-publisher-worker/  Cloudflare Worker: daily publication, digest, embeddings, review ingestion
+apps/github-publisher/       local GitHub polling and replay
+packages/domain/             source-neutral domain and Feed behavior
+packages/serving-contract/   Feed and Search publication contracts
+packages/reference-pipeline/ ingestion connectors, digest and review-queue cores
+packages/search/             lexical ranking and fusion
+packages/semantic-vectorize/ Vectorize adapter and query gate
+scripts/                     gates, verification kit, feature-map site
+docs/                        specs, ADRs, feature map, gardening list, runbooks
+```
 
-# Legacy implementation retained as migration reference
+The rest of this file describes the legacy KIP vault and viewer, kept as a
+migration reference.
+
+## Legacy implementation (migration reference)
+
+A searchable knowledge base for Kafka Improvement Proposals, stored as an
+Obsidian vault ([`vault/`](vault)) and browsed in a React viewer
+([`viewer/`](viewer)).
+
+```
 vault/                  Obsidian vault (source of truth)
   KIPs/KIP-*.md         one note per KIP — frontmatter metadata + body sections
   KIPs.md               index / map of content
@@ -78,7 +86,6 @@ viewer/                 "our own viewer" — React + TS + Vite SPA
   test/parse.test.ts        round-trips the vault losslessly against the seed
   test/build-data.test.ts   the generated index/detail payload contract
 tools/kips.seed.json    canonical import snapshot (provenance + parser fixture)
-.github/workflows/      Cloudflare Pages deploy for the viewer
 ```
 
 ## KIP note format
@@ -162,10 +169,9 @@ is no longer searchable in the browser — deep full-text search is the Ask AI
 Hosted on **Cloudflare Pages** (`kip-knowledge-base.pages.dev`). Two ways to ship:
 
 - **Local:** `cd viewer && bunx wrangler login` once, then `bun run deploy`.
-- **CI:** pushing to `main` runs `.github/workflows/deploy-cf-pages.yml`
-  (`bun install → test → build → wrangler pages deploy`). Add two repo secrets:
-  `CLOUDFLARE_API_TOKEN` (token with the *Cloudflare Pages: Edit* permission) and
-  `CLOUDFLARE_ACCOUNT_ID`. Project config lives in `viewer/wrangler.toml`.
+- **CI:** no workflow deploys the legacy viewer any more
+  (`deploy-cf-pages.yml` was removed); project config lives in
+  `viewer/wrangler.toml`.
 
 ## Ingestion
 

@@ -1,6 +1,6 @@
 # Spec 015: Review queue for PRs and KIPs
 
-Status: Accepted 2026-10-08 (decisions and governance amendment below)
+Status: Partially implemented: slices 1–2 (core and the Worker job, #38, #39; accepted 2026-10-08, decisions and governance amendment below); no cron starts the job on Dev or Prod (`REVIEW_QUEUE_CRON` unset); slice 3 (web) not built
 Date: 2026-10-08
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 009 (bounded memory), Spec 010 (freshness), Spec 012 (dev@ and Jira, ADR-0014), Spec 014 (topic digest, profile `proposal`), ADR-0016
