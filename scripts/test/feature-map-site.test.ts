@@ -487,7 +487,7 @@ const boardTree = memoryTree({
   "docs/specs/004-delta/spec.md": spec("004", "Delta", "Partially implemented: slice 1", "- D1: one\n- D2: [pending] two\n- D3: [pending] three\n- D4: [measure] four\n"),
   "docs/specs/005-eps/spec.md": spec("005", "Eps", "Accepted 2026-10-01", "- E1: [pending] one\n"),
   "docs/specs/006-site/spec.md": spec("006", "Site", "Implemented (#6)", "- F1: one\n"),
-  ".github/workflows/feature-map-site.yml": "# Spec 006. Builds the site.\n",
+  ".github/workflows/feature-map-site.yml": "# publishes: Spec 006\n# Spec 006 and Spec 003 are named here in passing.\n",
 });
 const tagTree = memoryTree({
   "docs/specs/001-alpha/spec.md": spec("001", "Alpha", "Draft"),
@@ -605,7 +605,8 @@ describe("feature-map site: Runs on only narrows", () => {
   test.each(runsOnRows)("$id: Spec $spec claims $claim → $error", (row) => {
     const error = runsOnError({
       number: row.spec, claim: row.claim, status: row.status, statusKind: statusKind(row.status), inProduction: row.inTag,
-      offOnProd: row.offOnProd === "" ? [] : row.offOnProd.split(", "), production: row.production, pagesSpecs: row.pages.split(", "),
+      offOnProd: row.offOnProd === "" ? [] : row.offOnProd.split(", "), production: row.production,
+      pagesSpecs: pagesSpecs(memoryTree({ ".github/workflows/feature-map-site.yml": `${row.workflow.split(" / ").join("\n")}\n` })),
     });
     if (row.error === null) expect(error).toBeNull();
     else {

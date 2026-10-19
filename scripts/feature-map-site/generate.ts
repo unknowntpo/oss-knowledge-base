@@ -189,12 +189,16 @@ export function runsOnError(input: {
   return null;
 }
 
-/** The workflow that publishes the feature-map site to GitHub Pages; the specs its file cites are what it publishes. */
+/**
+ * The workflow that publishes the feature-map site to GitHub Pages. What it publishes is its one marker
+ * line `# publishes: Spec NNN[, Spec NNN …]`; a spec mentioned anywhere else in the file does not count.
+ */
 export const PAGES_WORKFLOW = ".github/workflows/feature-map-site.yml";
 
 export function pagesSpecs(tree: TreeReader): string[] {
-  const text = tree.read(PAGES_WORKFLOW);
-  return text === null ? [] : [...new Set([...text.matchAll(/\bSpec (\d{3})\b/gu)].map((match) => match[1]!))].sort();
+  const marker = tree.read(PAGES_WORKFLOW)?.split("\n").find((line) => /^#\s*publishes:/u.test(line));
+  if (marker === undefined) return [];
+  return [...new Set([...marker.matchAll(/\bSpec (\d{3})\b/gu)].map((match) => match[1]!))].sort();
 }
 
 /** Spec number → names of the Deployed configuration rows that cite `Spec <number>` and whose Prod cell is unset or none. */

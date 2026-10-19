@@ -339,8 +339,9 @@ Behavior:
    readers and must not overclaim (`runsOnError`). `Prod` is accepted only
    when the spec's directory is in the production tag and no Deployed
    configuration row naming it is unset or none on Prod; `GitHub Pages` only
-   for a spec that `.github/workflows/feature-map-site.yml` cites (the specs
-   it publishes; today Spec 020); `Prod`, `Dev` and `GitHub Pages` only for a
+   for a spec named on the marker line `# publishes: Spec NNN` of
+   `.github/workflows/feature-map-site.yml` (today Spec 020; a mention
+   anywhere else in the file does not count); `Prod`, `Dev` and `GitHub Pages` only for a
    spec implemented, or partially implemented, on the ref; `none` always.
    Decision: a spec in the Prod tag may be marked `Dev`. That narrows (Dev
    runs `main`, which has everything the tag has), so it is allowed. Any
@@ -404,20 +405,22 @@ The status board's rule (B19), from `scripts/test/feature-map-site-board.cases.t
 What a "Runs on" value may claim (B27), from `scripts/test/feature-map-site-runs-on.cases.ts`:
 
 <!-- test-plan:start scripts/test/feature-map-site-runs-on.cases.ts -->
-| id | spec | claim | status | inTag | offOnProd | production | pages | error | why |
+| id | spec | claim | status | inTag | offOnProd | production | workflow | error | why |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| B27 | 019 | Prod | Partially implemented | no | PEOPLE_ACTIVITY, PEOPLE_PROFILES | v0.2.0 | 020 | its directory is not in v0.2.0 | a Dev-only spec cannot be put in the Prod tag |
-| B27 | 020 | Prod | Implemented (#66) | no |  | v0.2.0 | 020 | its directory is not in v0.2.0 | the site is not part of Prod |
-| B27 | 024 | GitHub Pages | Implemented (#90, #91) | no |  | v0.2.0 | 020 | .github/workflows/feature-map-site.yml publishes Spec 020 | only what the workflow publishes is on GitHub Pages |
-| B27 | 001 | Dev | Implemented (baseline) | yes |  | v0.2.0 | 020 | — | narrowing: a spec in the Prod tag may be marked Dev |
-| B27 | 003 | Prod | Implemented (baseline) | yes |  | v0.2.0 | 020 | — | in the tag and nothing off on Prod |
-| B27 | 017 | Prod | Implemented (#52) | yes | SEARCH_LEXICAL_REVISION | v0.2.0 | 020 | Deployed configuration SEARCH_LEXICAL_REVISION unset or none on Prod | hypothetical: in the tag but its flag is off on Prod |
-| B27 | 001 | Prod | Implemented (baseline) | no |  | — | 020 | cannot be confirmed: this build has no readable v* tag | no tag, no Prod |
-| B27 | 020 | GitHub Pages | Implemented (#66) | no |  | v0.2.0 | 020 | — | the workflow publishes it |
-| B27 | 015 | Dev | Partially implemented | no |  | v0.2.0 | 020 | — | partly built counts as implemented on main |
-| B27 | 005 | Dev | Accepted for implementation | yes |  | v0.2.0 | 020 | contradicts its Status, which is not implemented | hypothetical: not built cannot run anywhere |
-| B27 | 007 | none (homelab spike) | Spike completed | no |  | v0.2.0 | 020 | — | none is always allowed |
-| B27 | 012 | Staging | Implemented (#27) | no |  | v0.2.0 | 020 | is not one of Prod, Dev, GitHub Pages, none | outside the vocabulary |
+| B27 | 019 | Prod | Partially implemented | no | PEOPLE_ACTIVITY, PEOPLE_PROFILES | v0.2.0 | # publishes: Spec 020 | its directory is not in v0.2.0 | a Dev-only spec cannot be put in the Prod tag |
+| B27 | 020 | Prod | Implemented (#66) | no |  | v0.2.0 | # publishes: Spec 020 | its directory is not in v0.2.0 | the site is not part of Prod |
+| B27 | 024 | GitHub Pages | Implemented (#90, #91) | no |  | v0.2.0 | # publishes: Spec 020 | .github/workflows/feature-map-site.yml publishes Spec 020 | only what the workflow publishes is on GitHub Pages |
+| B27 | 001 | Dev | Implemented (baseline) | yes |  | v0.2.0 | # publishes: Spec 020 | — | narrowing: a spec in the Prod tag may be marked Dev |
+| B27 | 003 | Prod | Implemented (baseline) | yes |  | v0.2.0 | # publishes: Spec 020 | — | in the tag and nothing off on Prod |
+| B27 | 017 | Prod | Implemented (#52) | yes | SEARCH_LEXICAL_REVISION | v0.2.0 | # publishes: Spec 020 | Deployed configuration SEARCH_LEXICAL_REVISION unset or none on Prod | hypothetical: in the tag but its flag is off on Prod |
+| B27 | 001 | Prod | Implemented (baseline) | no |  | — | # publishes: Spec 020 | cannot be confirmed: this build has no readable v* tag | no tag, no Prod |
+| B27 | 020 | GitHub Pages | Implemented (#66) | no |  | v0.2.0 | # publishes: Spec 020 | — | the workflow publishes it |
+| B27 | 015 | Dev | Partially implemented | no |  | v0.2.0 | # publishes: Spec 020 | — | partly built counts as implemented on main |
+| B27 | 005 | Dev | Accepted for implementation | yes |  | v0.2.0 | # publishes: Spec 020 | contradicts its Status, which is not implemented | hypothetical: not built cannot run anywhere |
+| B27 | 007 | none (homelab spike) | Spike completed | no |  | v0.2.0 | # publishes: Spec 020 | — | none is always allowed |
+| B27 | 012 | Staging | Implemented (#27) | no |  | v0.2.0 | # publishes: Spec 020 | is not one of Prod, Dev, GitHub Pages, none | outside the vocabulary |
+| B27 | 024 | GitHub Pages | Implemented (#90, #91) | no |  | v0.2.0 | # publishes: Spec 020 / # Spec 024 is the dark theme; see also Spec 024 | .github/workflows/feature-map-site.yml publishes Spec 020 | a stray mention elsewhere in the workflow is not evidence |
+| B27 | 020 | GitHub Pages | Implemented (#66) | no |  | v0.2.0 | # Spec 020. Builds the feature-map page of every ref | .github/workflows/feature-map-site.yml publishes no spec | without the marker line nothing is published |
 <!-- test-plan:end -->
 
 Named tests: `scripts/test/feature-map-site.test.ts`, on the fixture tree
@@ -481,8 +484,9 @@ tag and another branch.
   (Behavior 9, test plan rows): 019 → `Prod`, 020 → `Prod` and 024 →
   `GitHub Pages` are rejected naming the spec, the value and the evidence,
   and a rejected value on the default ref fails the site build; 001 → `Dev`
-  is accepted; the specs on GitHub Pages are those the feature-map-site
-  workflow cites; this repository's column has no rejection (checked where
+  is accepted; the specs on GitHub Pages are those on the feature-map-site
+  workflow's `# publishes:` line, and a stray mention elsewhere in the file
+  does not count; this repository's column has no rejection (checked where
   the `v*` tags are present: locally and in the site build).
 
 ### Failure and retry
