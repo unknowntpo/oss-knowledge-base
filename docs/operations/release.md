@@ -136,6 +136,10 @@ project with the local-only `wrangler.jsonc`.
 
 ## v0.3.0: first Prod data release
 
+Tag `v0.3.0` (`987162a`) failed CI (Spec 020 B27 test) and deployed nothing;
+`v0.3.1` (`71b8f99`) is the deployed release: Prod on 2026-10-19 about 10:08 UTC,
+first `POST /run` ok at 10:19 UTC (`lexicalRevision` `bm25-reference@3`).
+
 The first tag since `v0.2.0` also deploys the Prod data Worker for the first
 time. Follow [the runbook's "First Prod release"](../runbooks/cloudflare-data-publisher.md#first-prod-release):
 secrets first, save the pointers, then the tag, then a manual first run.
@@ -149,17 +153,24 @@ Prod now publishes live data once a day instead of the recorded snapshot of 2026
 - Search ranks threads with `bm25-reference@3` (Specs 016, 017): `KIP770` equals `KIP-770`, a bare number lists every identifier, adjacent query words rank higher.
 - Freshness and stall visibility: a stale or overdue publication shows in the page (Specs 010, 011, 021).
 - Design system and dark theme with a three-way toggle (Specs 023, 024).
-- Workers Logs on the Prod data Worker (100% sampling, 7-day retention) for diagnosing runs from the dashboard.
 - Not on Prod yet: semantic search, the topic digest, review ingestion and contributor profiles (Dev only).
+```
+
+## v0.3.2: release-notes draft
+
+Not tagged yet. Release notes draft (for `gh release create v0.3.2 --repo unknowntpo/oss-knowledge-base --notes-file`):
+
+```markdown
+- Workers Logs on the Prod data Worker (100% sampling, 7-day retention) for diagnosing runs from the dashboard.
 ```
 
 ## Release command
 
-After the selected commit is merged and green on `main` (for `v0.3.0`, after
-the runbook's steps 2 and 3):
+After the selected commit is merged and green on `main` (for the first Prod
+release, `v0.3.1`, it was after the runbook's steps 2 and 3):
 
 ```bash
-VERSION=v0.3.0
+VERSION=v0.3.2
 git tag -a "$VERSION" -m "Release $VERSION"
 git push origin "$VERSION"
 ```

@@ -35,7 +35,6 @@ Prod data Worker. Until then Prod serves the recorded snapshot of 2026-08-25
 | First GitHub window 30 days (`GITHUB_INITIAL_LOOKBACK_DAYS=30`) | on | without it a new publisher reads GitHub one day back beside 30 days of Jira and dev@; used only while a repository has no cursor (Spec 018 T17–T20) |
 | Lexical search `bm25-reference@3` | on (`SEARCH_LEXICAL_REVISION`) | Pages deploy before the Worker in the same job, so the reader is at Spec 017 first |
 | Design system, dark theme (Specs 023, 024) | on | Pages only |
-| Workers Logs (`observability`, 100% head sampling) | on | runs are diagnosed from the dashboard instead of `/health` alone; see "Observability / logs" |
 | Semantic search (Spec 016) | off | needs a Prod index, gateway and backfill, and a Pages binding to the Worker's `SearchQueryGate`, which must exist before the Pages deploy: a second release |
 | Topic digest (Spec 014) | off | no `osskb-digest-prod` gateway; Spec 014 D34 eval thresholds come first |
 | Review ingestion, activity log, contributor profiles (Specs 022, 019) | off | Spec 019 decisions 3 and 8; nothing on Prod reads them |
