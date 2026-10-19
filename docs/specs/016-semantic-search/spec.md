@@ -269,7 +269,8 @@ project, and the separate gateway. These were left to the implementer:
     is treated like any other.
 21. **Every error text is redacted** (Behavior 24), in the embedding path
     only. The digest shares `errorShape` and still surfaces model errors
-    unredacted (gardening G43).
+    unredacted (gardening G43). Closed 2026-10-19 by Spec 014 D95:
+    `errorShape` itself now redacts.
 22. **The deadline is checked before every model call, and the call timeout
     is 30 seconds, not 60** (Behavior 19, third verdict). Checked only
     between batches, one split with 60-second timeouts could run 13 minutes

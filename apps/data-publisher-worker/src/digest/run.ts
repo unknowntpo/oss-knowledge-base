@@ -14,6 +14,7 @@ import {
   type CitedThread, type DigestProfile, type DigestV1, type Highlight, type ProposalRow, type Provenance,
   type Sentence, type Thread, type ThreadFeatures, type TopicCard,
 } from "@oss-knowledge-base/reference-pipeline";
+import { sanitizeErrorMessage } from "@oss-knowledge-base/semantic-vectorize";
 import { sha256Digest } from "@oss-knowledge-base/serving-contract";
 import { ModelCalls, type Calibration, type DigestModel, type ModelErrorShape } from "./model";
 import { DigestSourceError, readPinnedRelease, type DigestBucket } from "./store";
@@ -213,8 +214,9 @@ export async function runDigest(input: DigestRunInput): Promise<DigestRunResult>
   try {
     pinned = await readPinnedRelease(input.bucket, input.profile.projectKey);
   } catch (error) {
-    if (error instanceof DigestSourceError) return finish({ ok: false, reused: "none", failureKind: "source-read", error: error.message });
-    return finish({ ok: false, reused: "none", failureKind: "internal", error: String(error) });
+    // D95: run-record errors reach the public /health; redact before storing.
+    if (error instanceof DigestSourceError) return finish({ ok: false, reused: "none", failureKind: "source-read", error: sanitizeErrorMessage(error.message) });
+    return finish({ ok: false, reused: "none", failureKind: "internal", error: sanitizeErrorMessage(String(error)) });
   }
 
   try {
@@ -283,7 +285,7 @@ export async function runDigest(input: DigestRunInput): Promise<DigestRunResult>
       ...(input.dryRun ? { objects: { en, "zh-Hant": zh } } : {}),
     });
   } catch (error) {
-    return finish({ ok: false, reused: "none", sourceReleaseId: pinned.release.releaseId, failureKind: "write", error: String(error) });
+    return finish({ ok: false, reused: "none", sourceReleaseId: pinned.release.releaseId, failureKind: "write", error: sanitizeErrorMessage(String(error)) });
   }
 }
 

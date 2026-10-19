@@ -1559,3 +1559,148 @@ describe("Spec 014 slice 2 named tests", () => {
     expect(again.reused).toBe("pair");
   });
 });
+
+// Spec 014 D95 (gardening G43): the digest's error texts reach the public /health; they are
+// redacted like the search paths' (Spec 016 Behavior 24), after the error is classified.
+const SECRET_TOKEN = "FAKE0TEST0TOKEN0000000000000000000000";
+const ACCOUNT_ID = "00000000000000000000000000000000";
+const LEAKY = `3036: spend limit reached for account ${ACCOUNT_ID} (Authorization: Bearer ${SECRET_TOKEN})`;
+const leaks = (value: unknown) => {
+  const text = JSON.stringify(value);
+  return [SECRET_TOKEN, ACCOUNT_ID].filter((secret) => text.includes(secret));
+};
+
+describe("Spec 014 D95: digest error texts are redacted", () => {
+  test("D95: a model error with a bearer token and an account id is classified as limit, then stored and served redacted", async () => {
+    const bucket = new MemoryBucket();
+    await publish(bucket);
+    const storage = new MemoryStorage();
+    const model = new FakeModel((kind, index) => (kind === "summarize" && index === 0 ? toModelCallError(new Error(LEAKY)) : undefined));
+    const { instance } = runner(bucket, storage, async () => false, model);
+    await instance.alarm();
+    const health = await instance.health();
+    const lastRun = health.lastRun!;
+    expect(lastRun.limited).toBe(true);
+    expect(lastRun.modelErrors.map((error) => error.kind)).toEqual(["limit"]);
+    expect(lastRun.modelErrors[0]!.message).toContain("Bearer [redacted]");
+    expect(lastRun.modelErrors[0]!.message).toStartWith("3036: spend limit reached for account [redacted]");
+    expect(leaks(storage.values.get("lastRun"))).toEqual([]);
+    expect(leaks(mergeHealth({ running: false }, health))).toEqual([]);
+  });
+
+  test("D95: an ordinary model error stays readable", async () => {
+    const model = new FakeModel((kind, index) => (kind === "summarize" && index === 0 ? toModelCallError(new Error("2003: Rate limited")) : undefined));
+    const { result } = await published(model);
+    expect(result.modelErrors.map((error) => [error.kind, error.message])).toEqual([["limit", "2003: Rate limited"]]);
+  });
+
+  test("D95: an internal read error and a write error with secrets are stored and served redacted", async () => {
+    const reading = new MemoryBucket();
+    await publish(reading);
+    reading.onRead = () => { throw new Error(LEAKY); };
+    const readStorage = new MemoryStorage();
+    const read = runner(reading, readStorage);
+    await read.instance.alarm();
+    const failedRead = (await read.instance.health()).lastRun!;
+    expect([failedRead.ok, failedRead.failureKind]).toEqual([false, "internal"]);
+    expect(failedRead.error).toContain("Bearer [redacted]");
+    expect(leaks(readStorage.values.get("lastRun"))).toEqual([]);
+
+    const writing = new MemoryBucket();
+    await publish(writing);
+    writing.putIfAbsent = async () => { throw new Error(`R2 put failed: ${LEAKY}`); };
+    const writeStorage = new MemoryStorage();
+    const write = runner(writing, writeStorage);
+    await write.instance.alarm();
+    const failedWrite = (await write.instance.health()).lastRun!;
+    expect([failedWrite.ok, failedWrite.failureKind]).toEqual([false, "write"]);
+    expect(failedWrite.error).toStartWith("Error: R2 put failed: 3036: spend limit reached for account [redacted]");
+    expect(leaks(writeStorage.values.get("lastRun"))).toEqual([]);
+    expect(leaks(mergeHealth({ running: false }, await write.instance.health()))).toEqual([]);
+  });
+
+  test("D95: a source-read error naming a token-like release id is stored redacted", async () => {
+    const bucket = new MemoryBucket();
+    await publish(bucket, { releaseId: `release-${ACCOUNT_ID}` });
+    const manifest = JSON.parse(bucket.objects.get(MANIFEST_KEY)!) as Record<string, unknown>;
+    // The manifest names a release whose objects are missing: DigestSourceError("Feed release <id> is incomplete").
+    bucket.objects.set(MANIFEST_KEY, JSON.stringify({ ...manifest, releaseId: ACCOUNT_ID }));
+    const storage = new MemoryStorage();
+    const { instance } = runner(bucket, storage);
+    await instance.alarm();
+    const lastRun = (await instance.health()).lastRun!;
+    expect(lastRun.failureKind).toBe("source-read");
+    expect(lastRun.error).toBe("Feed release [redacted] is incomplete");
+    expect(leaks(storage.values.get("lastRun"))).toEqual([]);
+  });
+});
+
+/** The belt-and-braces source check (D95): an error-like key set from raw text. The runtime boundary is redactRecord. */
+// Not a property access (`error.message : …` in a ternary) and not a parameter type (`(error: unknown)`);
+// whitespace, including a line break, is consumed before the sanitizer check so it cannot be skipped.
+const RAW_ERROR = /(?<![.\w])(error|message|reason)\s*:(?!\s*unknown\b)\s*(?!\s)(?!(?:errorText|sanitizeErrorMessage)\()[^,}\n]*(?:\.message\b|String\(|\$\{)/gu;
+function rawErrorFields(source: string): number[] {
+  return [...source.matchAll(RAW_ERROR)].map((match) => source.slice(0, match.index).split("\n").length);
+}
+
+describe("Spec 014 D95: no run record stores raw error text", () => {
+  test("D95: the source check catches the bypasses the verifier found (positive control)", () => {
+    const sample = [
+      "x = { error: err.message };",
+      "x = { error: (error as Error).message };",
+      "x = { error: `failed: ${detail}` };",
+      "x = { message: String(error) };",
+      "x = { reason: e.message };",
+      "x = { error:\n    error.message };",
+      "x = { error: errorText(error) };",
+      "x = { error: sanitizeErrorMessage(`${a}`) };",
+      "x = { failureKind: \"write\" };",
+      "x = a ? error.message : String(error);",
+      ".catch((error: unknown) => console.error(`${error}`));",
+    ].join("\n");
+    expect(rawErrorFields(sample)).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
+  test("D95: no error, message or reason field in the Worker's sources is set from raw text", async () => {
+    const found: string[] = [];
+    for await (const path of new Bun.Glob("src/**/*.ts").scan({ cwd: new URL("..", import.meta.url).pathname })) {
+      const source = await Bun.file(new URL(`../${path}`, import.meta.url)).text();
+      for (const line of rawErrorFields(source)) found.push(`${path}:${line}`);
+    }
+    expect(found).toEqual([]);
+  });
+});
+
+
+describe("Spec 014 D95: one runtime boundary for every /health and run body", () => {
+  test("D95: redactRecord sanitizes string values under error, message and reason at any depth and leaves other keys", async () => {
+    const { redactRecord } = await import("../src/redact");
+    const body = {
+      releaseId: ACCOUNT_ID,
+      lastRun: { error: LEAKY, sources: { github: { reason: `Bearer ${SECRET_TOKEN}`, failureKind: "transport" } } },
+      modelErrors: [{ message: LEAKY, kind: "limit" }],
+      ok: false,
+    };
+    const redacted = redactRecord(body);
+    expect(redacted.releaseId).toBe(ACCOUNT_ID);
+    expect(leaks({ ...redacted, releaseId: null })).toEqual([]);
+    expect(redacted.lastRun.sources.github).toEqual({ reason: "Bearer [redacted]", failureKind: "transport" });
+    expect(redacted.modelErrors[0]!.kind).toBe("limit");
+    expect(body.lastRun.error).toBe(LEAKY); // the input is not mutated
+  });
+
+  test("D95: /health redacts a raw error that any object put under error, message or reason", () => {
+    const health = mergeHealth(
+      { ok: true, lastRun: { error: LEAKY, sources: { jira: { error: `Bearer ${SECRET_TOKEN}` } } } },
+      { lastRun: { modelErrors: [{ message: LEAKY }] } },
+      { failureKind: "internal", error: LEAKY },
+      { lastFailure: { reason: LEAKY } },
+    );
+    expect(leaks(health)).toEqual([]);
+  });
+
+  test("D95: every Response.json in the Worker entry goes through the redacting helper", async () => {
+    const source = await Bun.file(new URL("../src/index.ts", import.meta.url)).text();
+    expect(source.match(/Response\.json\(/gu)?.length ?? 0).toBe(1); // only inside the helper
+  });
+});

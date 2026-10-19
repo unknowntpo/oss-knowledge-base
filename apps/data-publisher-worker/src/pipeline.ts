@@ -29,7 +29,7 @@ import {
 } from "@oss-knowledge-base/serving-contract";
 
 import type { ActivityLogStatus } from "./people-activity/run";
-import { errorText } from "./search-embedding/sanitize";
+import { errorText, sanitizeErrorMessage } from "./search-embedding/sanitize";
 
 export interface PipelineStateRepository {
   read(): Promise<SerializedReferenceStateV1>;
@@ -246,7 +246,7 @@ export async function runDataPublication(input: {
         environment: input.environment,
         completedAt: input.materializedAt,
         failureKind: first.failureKind,
-        error: first.error,
+        error: sanitizeErrorMessage(first.error),
         retryAfterSeconds: first.retryAfterSeconds,
         ...withSources(sourceStatuses(polls, previousStatus, previousCheckpoint, input.materializedAt, new Map(), new Map())),
       });
@@ -313,7 +313,7 @@ export async function runDataPublication(input: {
       environment: input.environment,
       completedAt: input.materializedAt,
       failureKind: "pipeline",
-      error: error instanceof Error ? error.message : String(error),
+      error: errorText(error),
       retryAfterSeconds: 300,
       ...r2(),
       // Nothing was committed, so every source keeps its stored cursor and last success.
@@ -547,7 +547,7 @@ function sourceStatuses(
         published: published.get(key) ?? 0,
         gapCapped: false,
         failureKind: poll.failureKind,
-        error: poll.error,
+        error: sanitizeErrorMessage(poll.error),
       };
     }
   }

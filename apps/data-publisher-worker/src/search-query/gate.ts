@@ -6,6 +6,7 @@
 import { PRICES, type PricedModel } from "@oss-knowledge-base/reference-pipeline";
 import {
   SemanticQueryGate,
+  sanitizeErrorMessage,
   type EmbeddingAiBinding,
   type QueryGateConfig,
   type QueryGateLimits,
@@ -35,7 +36,7 @@ export function searchQueryGateConfig(deps: Pick<SearchQueryGateDeps, "flag" | "
   const config = searchEmbeddingConfig(deps);
   if (config.state !== "on") return config.state === "off" ? { state: "off" } : { state: "error", error: config.error };
   if (!Object.hasOwn(PRICES, config.profile.revision.model)) {
-    return { state: "error", error: `No Workers AI price is recorded for ${config.profile.revision.model}` };
+    return { state: "error", error: sanitizeErrorMessage(`No Workers AI price is recorded for ${config.profile.revision.model}`) };
   }
   return config;
 }

@@ -10,6 +10,7 @@
  * and the runtime never runs two alarms at once, so no conditional put (and no failed one) is sent.
  */
 import type { DomainEventV1 } from "@oss-knowledge-base/domain";
+import { errorText } from "@oss-knowledge-base/semantic-vectorize";
 import {
   activityMonthsFromEvents,
   encodeActivityMonth,
@@ -192,6 +193,6 @@ export async function appendActivityLog(input: {
       r2: r2(),
     };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error), durationMs: Date.now() - started, r2: r2() };
+    return { ok: false, error: errorText(error), durationMs: Date.now() - started, r2: r2() };
   }
 }

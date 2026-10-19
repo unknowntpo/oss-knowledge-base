@@ -1,6 +1,6 @@
 # Spec 014: Kafka topic digest
 
-Status: Implemented (slices 1–3 and 2b–2e: #33, #35, #36, #40, #43, #44, #68; accepted 2026-10-08); the digest runs on Dev only (`DIGEST_ENABLED`, cron 22:47 UTC), off on Prod
+Status: Implemented (slices 1–3 and 2b–2e: #33, #35, #36, #40, #43, #44, #68; accepted 2026-10-08; D95 error redaction 2026-10-19); the digest runs on Dev only (`DIGEST_ENABLED`, cron 22:47 UTC), off on Prod
 Date: 2026-10-06 (amended 2026-10-08 after design review)
 Traceability: enforced
 Builds on: Spec 002, Spec 005, Spec 008 (ADR-0013), Spec 010, Spec 011, Spec 012 (ADR-0014), Spec 013
@@ -1915,6 +1915,22 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
 - D60: `POST /digest/run?dryRun=1` (bearer) writes nothing to R2, returns
   both locale objects, adds its spend to `today.estimatedNeurons`, and
   records `dryRun: true`.
+- D95: error text in the digest run record is redacted before it is stored
+  or served (gardening G43; the rule of Spec 016 Behavior 24). Given a model
+  error, an internal read error, a write error or a source-read error whose
+  text holds `Bearer <token>` or a 32-character token (an account id), when
+  the run records it, `lastRun.modelErrors[].message` and `lastRun.error` in
+  storage and in the `/health` body show `Bearer [redacted]` and
+  `[redacted]` and neither secret; redaction comes before the 200-character
+  cut. The error kind is decided on the raw error first, so a 3036 spend
+  limit is still `limit`; an ordinary `2003: Rate limited` stays readable.
+  The publisher's failed-poll text (`lastRun.error`, `lastRun.sources[*].error`)
+  is redacted where it is recorded. Every JSON body the Worker serves
+  (`/health`, a run's response, a Durable Object's `/status`) passes
+  `redactRecord`, which redacts any string under an `error`, `message` or
+  `reason` key at any depth, so a future path that forgets is still
+  covered. A source check also fails when such a key is set from
+  `.message`, `String(…)` or a template literal without the sanitizer.
 
 ## Slices
 

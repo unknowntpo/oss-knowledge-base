@@ -406,8 +406,7 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
       const mapped = toModelCallError(error);
       const kind = modelErrorKind(mapped);
       lastModelError = sanitizeErrorMessage(mapped.message);
-      // `errorShape` is the digest's and cuts without redacting; the message is replaced here.
-      if (modelErrors.length < MAX_RECORDED_ERRORS) modelErrors.push({ ...errorShape(model, kind, mapped), message: lastModelError });
+      if (modelErrors.length < MAX_RECORDED_ERRORS) modelErrors.push(errorShape(model, kind, mapped));
       if (kind === "limit") {
         lastFailure = { kind: "model-limit", message: lastModelError, batchSize: texts.length };
         run.limited = "model-limit";
@@ -427,7 +426,7 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
       } catch (error) {
         if (attempt === 0) await input.delay(RETRY_DELAY_MS);
         else {
-          run.failure = { kind: "vector-store", error: `${label} failed: ${message(error)}` };
+          run.failure = { kind: "vector-store", error: sanitizeErrorMessage(`${label} failed: ${message(error)}`) };
           lastFailure = { kind: "vector-store", message: run.failure.error, batchSize: size };
         }
         continue;
@@ -449,7 +448,7 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
       try {
         info = await withTimeout("The vector index", limits.callTimeoutMs, () => index.describe());
       } catch (error) {
-        lastFailure = { kind: "vector-store", message: `The vector index did not answer: ${message(error)}`, batchSize: 0 };
+        lastFailure = { kind: "vector-store", message: sanitizeErrorMessage(`The vector index did not answer: ${message(error)}`), batchSize: 0 };
         throw new RunFailure("vector-store", lastFailure.message);
       }
       if (info.dimensions !== dimensions) {
@@ -717,7 +716,7 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
     if (run.failure === undefined && run.limited === "model-limit") run.failure = { kind: "model-limit", error: lastModelError };
     if (run.failure === undefined && (modelFailures > 0 || modelDown)) run.failure = { kind: "model", error: lastModelError };
   } catch (error) {
-    run.failure = error instanceof RunFailure ? { kind: error.kind, error: error.message } : { kind: "internal", error: message(error) };
+    run.failure = error instanceof RunFailure ? { kind: error.kind, error: sanitizeErrorMessage(error.message) } : { kind: "internal", error: message(error) };
   }
 
   const now = input.now();
