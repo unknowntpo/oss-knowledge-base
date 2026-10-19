@@ -1562,8 +1562,8 @@ describe("Spec 014 slice 2 named tests", () => {
 
 // Spec 014 D95 (gardening G43): the digest's error texts reach the public /health; they are
 // redacted like the search paths' (Spec 016 Behavior 24), after the error is classified.
-const SECRET_TOKEN = "sk-test-Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5MA";
-const ACCOUNT_ID = "0123456789abcdef0123456789abcdef";
+const SECRET_TOKEN = "FAKE0TEST0TOKEN0000000000000000000000";
+const ACCOUNT_ID = "00000000000000000000000000000000";
 const LEAKY = `3036: spend limit reached for account ${ACCOUNT_ID} (Authorization: Bearer ${SECRET_TOKEN})`;
 const leaks = (value: unknown) => {
   const text = JSON.stringify(value);

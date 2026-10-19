@@ -397,8 +397,8 @@ class MemoryDestination implements PublicationDestination, PublicationObjectStor
 
 describe("Spec 014 D95: publisher failure text is redacted at the record boundary", () => {
   test("D95: a source poll that fails with a token in its error is recorded redacted in lastRun.error and lastRun.sources", async () => {
-    const secret = "Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5MDEyMzQ1Ng";
-    const account = "0123456789abcdef0123456789abcdef";
+    const secret = "FAKE0TEST0TOKEN0000000000000000000000";
+    const account = "00000000000000000000000000000000";
     const leaky = {
       poll: async (): Promise<SourcePollResult> => ({
         complete: false, events: [], failureKind: "transport", retryAfterSeconds: 60,
