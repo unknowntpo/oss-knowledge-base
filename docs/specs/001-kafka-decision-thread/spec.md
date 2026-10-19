@@ -1,6 +1,7 @@
 # Spec 001: Kafka Decision Thread
 
-- Status: Draft for implementation
+Status: Implemented (baseline `f57f96b`, 2026-08-26; A13 in #49); on Prod since `v0.1.0`
+
 - Owner: Project maintainers
 - Created: 2026-08-17
 

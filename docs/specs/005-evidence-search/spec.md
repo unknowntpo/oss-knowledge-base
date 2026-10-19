@@ -1,6 +1,6 @@
 # Spec 005: Evidence-first Hybrid Search
 
-Status: Accepted for implementation
+Status: Implemented for Phases 0–1 (baseline `f57f96b`; on Prod since `v0.2.0`); Phases 2–3 continue in Specs 013, 016 and 017; Phases 4–5 not built
 
 Owner: Project maintainers
 

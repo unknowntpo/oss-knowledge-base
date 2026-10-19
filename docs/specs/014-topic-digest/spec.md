@@ -1,6 +1,6 @@
 # Spec 014: Kafka topic digest
 
-Status: Accepted 2026-10-08 (amendment review applied 2026-10-08)
+Status: Implemented (slices 1–3 and 2b–2e: #33, #35, #36, #40, #43, #44, #68; accepted 2026-10-08); the digest runs on Dev only (`DIGEST_ENABLED`, cron 22:47 UTC), off on Prod
 Date: 2026-10-06 (amended 2026-10-08 after design review)
 Traceability: enforced
 Builds on: Spec 002, Spec 005, Spec 008 (ADR-0013), Spec 010, Spec 011, Spec 012 (ADR-0014), Spec 013
@@ -1477,21 +1477,11 @@ Named tests, to be written:
 
 ## Acceptance
 
-Items tagged `[pending]` belong to slices 2 and 3 (see Slices). The
-traceability gate lists them without failing. It fails when a pending item
-already has a test (a stale tag) or when this spec's Status says
-Implemented. Each slice removes the tags it implements.
-
-Six IDs are only partly covered by slice 1: D9, D14, D24, D36, D39, and D55.
-- They stay untagged, because slice 1 tests their deterministic parts and a
-  pending tag would be stale.
-- Their remaining parts are rows in the pending case files:
-  - `topic-digest-run.cases.ts`: D9 provenance, D14 errors 3036 and 429, and
-    D55 call failure.
-  - `topic-digest-ui.cases.ts`: D24 escaping, D36 Proposals tab and
-    redirect, and D39 zh-Hant label.
-- The gate tracks those files as pending. Until slices 2 and 3 run them, the
-  gate blocks Status: Implemented.
+No item is `[pending]` any more: slices 2 and 3 removed their tags and run
+their case files (`topic-digest-run.cases.ts`, `topic-digest-ui.cases.ts`),
+which also cover the parts of D9, D14, D24, D36, D39 and D55 that slice 1
+left open (D9 provenance, D14 errors 3036 and 429, D55 call failure, D24
+escaping, D36 Proposals tab and redirect, D39 zh-Hant label).
 
 Withdrawn on 2026-10-08, with their numbers kept: D41 and D51 (vote tally,
 moved to Spec 015) and D52 (stored counts; counts are now computed only).

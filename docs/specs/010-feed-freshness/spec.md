@@ -1,6 +1,6 @@
 # Spec 010: Feed freshness
 
-Status: Accepted 2026-10-06 (workflow pilot 001); amended 2026-10-13 by Spec 018 (daily publication: stale after 27 h, days from 48 h) and 2026-10-14 by Spec 021 (between 24 h 30 min and 27 h the pill is the overdue warning)
+Status: Implemented (#24, 2026-10-06; workflow pilot 001); amended 2026-10-13 by Spec 018 (daily publication: stale after 27 h, days from 48 h) and 2026-10-14 by Spec 021 (between 24 h 30 min and 27 h the pill is the overdue warning)
 Date: 2026-10-04
 Traceability: enforced
 Builds on: Spec 003, Spec 008, Spec 018

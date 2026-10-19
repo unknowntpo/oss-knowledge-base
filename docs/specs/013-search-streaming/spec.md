@@ -1,6 +1,6 @@
 # Spec 013: Streamed Search publication with bounded lexical shards
 
-Status: Accepted 2026-10-06 — direction approved by the human; detailed design delegated
+Status: Implemented (#28, 2026-10-06; direction approved by the human, detailed design delegated)
 Date: 2026-10-06
 Traceability: enforced
 Builds on: Spec 005, Spec 008 (ADR-0013), Spec 009

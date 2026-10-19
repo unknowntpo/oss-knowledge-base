@@ -1,6 +1,6 @@
 # Spec 011: Stalled publication visible everywhere
 
-Status: Accepted 2026-10-06, design delegated by the human; amended 2026-10-13 by Spec 018 (the stall boundary is 27 h) and 2026-10-14 by Spec 021 (the narrow pill also shows the overdue warning from 24 h 30 min)
+Status: Implemented (#26, 2026-10-06; design delegated by the human); amended 2026-10-13 by Spec 018 (the stall boundary is 27 h) and 2026-10-14 by Spec 021 (the narrow pill also shows the overdue warning from 24 h 30 min)
 Date: 2026-10-06
 Traceability: enforced
 Builds on: Spec 010

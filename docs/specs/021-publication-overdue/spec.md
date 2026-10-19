@@ -1,6 +1,6 @@
 # Spec 021: Overdue daily publication visible
 
-Status: Draft 2026-10-14 (implemented in the same PR; design delegated, issue #64, gardening G66)
+Status: Implemented (#69, 2026-10-14; design delegated, issue #64, gardening G66)
 Date: 2026-10-14
 Traceability: enforced
 Builds on: Spec 010, Spec 011, Spec 018

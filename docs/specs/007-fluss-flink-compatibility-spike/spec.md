@@ -1,6 +1,6 @@
 # Spec 007: Fluss/Flink Compatibility Spike
 
-Status: Accepted for bounded cluster-backed compatibility slice
+Status: Spike completed (#13, #14, #16): the bounded cluster-backed compatibility slice runs on a homelab VM; nothing of it is deployed
 
 Owner: Project maintainers
 

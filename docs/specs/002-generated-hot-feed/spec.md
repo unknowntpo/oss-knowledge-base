@@ -1,6 +1,7 @@
 # Spec 002: Generated Hot Feed
 
-- Status: Implemented POC; behavior review continues
+Status: Implemented POC; behavior review continues
+
 - Owner: Project maintainers
 - Created: 2026-08-19
 - Revised: 2026-08-20
