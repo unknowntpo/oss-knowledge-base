@@ -689,8 +689,8 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
     - Sentences of a card or proposal row are reused when hash(input text,
       summarizer revision) matches. They are read only from `en` objects:
       the zh-Hant object carries the same input hashes over translated
-      sentences. A cached English sentence holding Han characters is not
-      reused (D96).
+      sentences. A cached English sentence with more Han characters than
+      Latin words is not reused (D96).
     - Translations are reused from the previous zh-Hant object, keyed by
       hash(English item text, translator revision).
     - Because the key is the model input itself, a reused result is the one
@@ -1944,9 +1944,16 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   hash(English text, translator revision), for `zh-Hant` (0 translation
   calls); translations are read only from zh-Hant objects. Given an `en`
   object the bug already published (zh-Hant sentences under English input
-  hashes), a cached sentence holding Han characters is not reused: the
-  card or row is generated again, so Behavior 30's English rules see
-  English text.
+  hashes), a cached sentence with more Han characters than Latin words is
+  not reused: the card or row is generated again, so Behavior 30's English
+  rules see English text. Words, not letters: an English sentence quoting
+  a short CJK name (for example "reviewed by 王小明") is still reused, and a
+  zh-Hant sentence full of English names and identifiers is still caught.
+  The en-only rule holds on its own: with a translator whose zh-Hant output
+  has no Han characters, `en` still reuses only the English sentences.
+  The heal works through the cache: a polluted `en` already under the
+  current release prefix is still served by pair or `en` reuse
+  (Behavior 12) until the next Feed release, the next day.
 
 ## Slices
 

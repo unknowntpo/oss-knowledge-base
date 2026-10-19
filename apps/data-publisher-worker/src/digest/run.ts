@@ -143,11 +143,16 @@ interface Caches {
 }
 
 /**
- * D96: a cached English sentence that holds Han characters came from a zh-Hant object (the bug
- * fixed by D96 published such en objects); it is not reused, so the card is generated again.
+ * D96: a cached English sentence whose Han characters outnumber its Latin words came from a
+ * zh-Hant object (the bug fixed by D96 published such en objects); it is not reused, so the card
+ * is generated again. Words, not letters: one Han character carries about a word, so an English
+ * sentence quoting a short CJK name is reused, and a zh-Hant sentence with English names and
+ * identifiers is still caught.
  */
-const HAN = /\p{Script=Han}/u;
-const plausiblyEnglish = (sentences: readonly Sentence[]) => sentences.every((sentence) => !HAN.test(sentence.text));
+const HAN = /\p{Script=Han}/gu;
+const LATIN_WORD = /\p{Script=Latin}+/gu;
+const looksTranslated = (text: string) => (text.match(HAN)?.length ?? 0) > (text.match(LATIN_WORD)?.length ?? 0);
+const plausiblyEnglish = (sentences: readonly Sentence[]) => sentences.every((sentence) => !looksTranslated(sentence.text));
 
 async function loadCaches(bucket: DigestBucket, keys: readonly string[]): Promise<Caches> {
   const caches: Caches = { features: new Map(), generated: new Map(), translations: new Map() };
