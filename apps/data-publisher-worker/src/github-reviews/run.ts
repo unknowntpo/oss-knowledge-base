@@ -29,7 +29,7 @@ import {
   type UpdatedItem,
 } from "@oss-knowledge-base/reference-pipeline";
 import { graphqlPage, newCounter, retryAfterSeconds, SourceError, type Counter, type Delay, type FetchLike } from "../review-queue/fetchers";
-import { sanitizeErrorMessage } from "../search-embedding/sanitize";
+import { errorText, sanitizeErrorMessage } from "../search-embedding/sanitize";
 import {
   GITHUB_REVIEWS_BACKFILL_LAST_RUN_KEY,
   GITHUB_REVIEWS_LAST_RUN_KEY,
@@ -412,7 +412,7 @@ export async function runGithubReviews(deps: GithubReviewsDeps): Promise<GithubR
   };
   if (deps.dryRun !== true) {
     await deps.bucket.put(GITHUB_REVIEWS_LAST_RUN_KEY, JSON.stringify(lastRun))
-      .catch((error: unknown) => console.error(`Recording the review run failed: ${error instanceof Error ? error.message : String(error)}`));
+      .catch((error: unknown) => console.error(`Recording the review run failed: ${errorText(error)}`));
   }
   return lastRun;
 }
@@ -560,7 +560,7 @@ export async function runGithubReviewsBackfill(deps: GithubReviewsDeps & { reado
   };
   if (deps.dryRun !== true) {
     await deps.bucket.put(GITHUB_REVIEWS_BACKFILL_LAST_RUN_KEY, JSON.stringify(lastRun))
-      .catch((error: unknown) => console.error(`Recording the review backfill failed: ${error instanceof Error ? error.message : String(error)}`));
+      .catch((error: unknown) => console.error(`Recording the review backfill failed: ${errorText(error)}`));
   }
   return lastRun;
 }

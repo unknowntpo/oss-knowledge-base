@@ -16,7 +16,7 @@ import {
   type PullAreaMeta,
 } from "@oss-knowledge-base/reference-pipeline";
 import { newCounter, SourceError } from "../review-queue/fetchers";
-import { sanitizeErrorMessage } from "../search-embedding/sanitize";
+import { errorText, sanitizeErrorMessage } from "../search-embedding/sanitize";
 import {
   MAX_PULLS_PER_RUN,
   MonthConflictError,
@@ -172,7 +172,7 @@ export async function runGithubReviewsRefresh(deps: GithubReviewsDeps): Promise<
   };
   if (deps.dryRun !== true) {
     await deps.bucket.put(GITHUB_REVIEWS_REFRESH_LAST_RUN_KEY, JSON.stringify(lastRun))
-      .catch((error: unknown) => console.error(`Recording the review refresh failed: ${error instanceof Error ? error.message : String(error)}`));
+      .catch((error: unknown) => console.error(`Recording the review refresh failed: ${errorText(error)}`));
   }
   return lastRun;
 }

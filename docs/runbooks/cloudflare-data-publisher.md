@@ -35,6 +35,7 @@ Prod data Worker. Until then Prod serves the recorded snapshot of 2026-08-25
 | First GitHub window 30 days (`GITHUB_INITIAL_LOOKBACK_DAYS=30`) | on | without it a new publisher reads GitHub one day back beside 30 days of Jira and dev@; used only while a repository has no cursor (Spec 018 T17–T20) |
 | Lexical search `bm25-reference@3` | on (`SEARCH_LEXICAL_REVISION`) | Pages deploy before the Worker in the same job, so the reader is at Spec 017 first |
 | Design system, dark theme (Specs 023, 024) | on | Pages only |
+| Workers Logs (`observability`, 100% head sampling) | on | runs are diagnosed from the dashboard instead of `/health` alone; see "Observability / logs" |
 | Semantic search (Spec 016) | off | needs a Prod index, gateway and backfill, and a Pages binding to the Worker's `SearchQueryGate`, which must exist before the Pages deploy: a second release |
 | Topic digest (Spec 014) | off | no `osskb-digest-prod` gateway; Spec 014 D34 eval thresholds come first |
 | Review ingestion, activity log, contributor profiles (Specs 022, 019) | off | Spec 019 decisions 3 and 8; nothing on Prod reads them |
@@ -361,6 +362,33 @@ about 28 thousand and 6.0 million. Act when:
   ($0.36 per further million). The fix is gardening G59.
 - `classA + classB` nears 20,000: that is the run's R2 requests against the
   Worker's `limits.subrequests`.
+
+## Observability / logs
+
+Workers Logs is on for both data Workers (`observability.enabled: true`,
+`head_sampling_rate: 1` in `apps/data-publisher-worker/wrangler.{development,production}.jsonc`):
+every invocation (Cron, alarm, `fetch`) and its `console` output is kept. Pages
+(`apps/web`) has no Workers Logs setting.
+
+- **Where:** Cloudflare dashboard → Workers & Pages → `oss-knowledge-base-data-dev`
+  (or `oss-knowledge-base-data-prod`) → Observability. Filter by trigger
+  (cron, alarm, fetch) or search the message text, e.g.
+  `search embedding run failed`, `after-publication hook failed`. Live tail without
+  storage: `bunx wrangler tail -c wrangler.development.jsonc` in `apps/data-publisher-worker`.
+- **Retention and budget:** 7 days on Workers Paid; 20 million log events a
+  month included per account (both Workers together), billed per further
+  million. Each invocation is at least one event; scheduled runs and their
+  alarms stay far below the budget, so check the dashboard's usage if
+  `/health` or `POST` routes see unusual traffic.
+- **What is logged:** every error text goes through `errorText` /
+  `sanitizeErrorMessage` (`packages/semantic-vectorize/src/sanitize.ts`), which
+  redacts `Bearer …` and token-like strings; no route logs request headers.
+  `apps/data-publisher-worker/test/observability.test.ts` fails on a `console`
+  call that interpolates a raw `error.message`.
+- **Disable:** set `"enabled": false` (or lower `head_sampling_rate`, 0–1) in the
+  environment's config and deploy it the usual way (Dev: merge to `main`; Prod:
+  the next `v*` tag). A dashboard toggle works at once but the next deploy
+  restores the config's value.
 
 ## Failure and rollback
 

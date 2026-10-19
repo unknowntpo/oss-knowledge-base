@@ -58,6 +58,7 @@ fails when a variable or binding of those files is missing here.
 | Pages binding `SEARCH_QUERY_GATE` | Pages Durable Object binding → class `SearchQueryGate` of the Worker `oss-knowledge-base-data-dev` (`script_name`) | bound (2026-10-13) | none | How the Pages Function reaches the query gate; there is no other route to it |
 | `GITHUB_SOURCE_TOKEN`, `MANUAL_TRIGGER_TOKEN` | Worker secrets | set | not set yet (checked 2026-10-19: the Prod Worker does not exist); put by `scripts/release/put-prod-secrets.sh` before the tag | GitHub reads; bearer token of the `POST` routes |
 | `limits` (`cpu_ms`, `subrequests`) | Worker limits | `300000`, `20000` | `300000`, `20000` | CPU time and subrequests allowed per invocation |
+| `observability` (`enabled`, `head_sampling_rate`) | Worker setting | `true`, `1` | `true`, `1` from the next `v*` tag | Workers Logs: every invocation's logs, 7-day retention, 20 million events a month included. Pages has none. Runbook "Observability / logs" |
 
 Dev today: one publication a day at 22:07 UTC (Spec 018); lexical `bm25-reference@3`; embeddings on, started by each publication and continued hourly while chunks are pending (Spec 016 Behavior 46);
 releases carry shard roots; the query gate enabled; and, since the

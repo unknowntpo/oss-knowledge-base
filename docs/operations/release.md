@@ -149,6 +149,7 @@ Prod now publishes live data once a day instead of the recorded snapshot of 2026
 - Search ranks threads with `bm25-reference@3` (Specs 016, 017): `KIP770` equals `KIP-770`, a bare number lists every identifier, adjacent query words rank higher.
 - Freshness and stall visibility: a stale or overdue publication shows in the page (Specs 010, 011, 021).
 - Design system and dark theme with a three-way toggle (Specs 023, 024).
+- Workers Logs on the Prod data Worker (100% sampling, 7-day retention) for diagnosing runs from the dashboard.
 - Not on Prod yet: semantic search, the topic digest, review ingestion and contributor profiles (Dev only).
 ```
 
