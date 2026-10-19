@@ -5,7 +5,7 @@
 | Environment | Worker | Cron (UTC) | State | R2 target | Code release |
 | --- | --- | --- | --- | --- | --- |
 | Development | `oss-knowledge-base-data-dev` | `7 22 * * *` (daily, 06:07 Asia/Taipei) | environment-local Durable Object | `oss-knowledge-base-dev` | push to `main` |
-| Production | `oss-knowledge-base-data-prod` | `37 22 * * *` (daily; this Worker has not been deployed yet) | environment-local Durable Object | `oss-knowledge-base-prod` | reachable `vX.Y.Z` tag |
+| Production | `oss-knowledge-base-data-prod` | `37 22 * * *` (daily; deployed from the first Prod release on, see below) | environment-local Durable Object | `oss-knowledge-base-prod` | reachable `vX.Y.Z` tag |
 
 Publication is **once a day** (Spec 018, owner's decision of 2026-10-13; it
 was hourly). A change that needs a new release — a new lexical revision, a
@@ -20,6 +20,140 @@ two Worker secrets:
 - `MANUAL_TRIGGER_TOKEN`: random bearer token for `POST /run`.
 
 Do not put either value in Wrangler configuration, Git, logs, or Pages.
+
+## First Prod release
+
+The first tag since `v0.2.0` deploys Prod Pages and, for the first time, the
+Prod data Worker. Until then Prod serves the recorded snapshot of 2026-08-25
+(184 entries, `bm25-reference@1`) and no publisher runs.
+
+### What the tag turns on
+
+| Feature | Prod | Why |
+| --- | --- | --- |
+| Daily publication: GitHub, dev@ (Pony Mail), Jira | on, `37 22 * * *` | the product; Jira and dev@ are anonymous, GitHub needs `GITHUB_SOURCE_TOKEN` |
+| Lexical search `bm25-reference@3` | on (`SEARCH_LEXICAL_REVISION`) | Pages deploy before the Worker in the same job, so the reader is at Spec 017 first |
+| Design system, dark theme (Specs 023, 024) | on | Pages only |
+| Semantic search (Spec 016) | off | needs a Prod index, gateway and backfill, and a Pages binding to the Worker's `SearchQueryGate`, which must exist before the Pages deploy: a second release |
+| Topic digest (Spec 014) | off | no `osskb-digest-prod` gateway; Spec 014 D34 eval thresholds come first |
+| Review ingestion, activity log, contributor profiles (Specs 022, 019) | off | Spec 019 decisions 3 and 8; nothing on Prod reads them |
+
+Cost with this set: one publication a day (plus up to 5 catch-ups and 3
+retries). Dev's steady run is about 620 Class A and 8,500 Class B; Prod
+adds about the same, about 19 thousand Class A and 0.26 million Class B a
+month, against the account's included 1 million and 10 million. No Workers
+AI, Vectorize or AI Gateway use. Storage is billed already: the Dev bucket
+holds 13.3 GB (2026-10-19) against the 10 GB included (gardening G9).
+
+### Owner steps, in order
+
+Avoid 21:50–22:50 UTC (Dev publication 22:07, Prod 22:37, Dev digest 22:47)
+and minutes :03–:18 (transient deploy API errors).
+
+1. **Merge** the release-prep PR. Wait for `main` CI and the Dev deploy to
+   pass.
+2. **Secrets** (needs `bunx wrangler login` on this Mac, and a GitHub
+   fine-grained token: github.com → Settings → Developer settings →
+   Fine-grained tokens, resource owner your account, "Public repositories",
+   no permissions beyond the default read of public data, expiry at least 90
+   days):
+
+   ```sh
+   scripts/release/put-prod-secrets.sh          # prompts for the GitHub token; generates MANUAL_TRIGGER_TOKEN into the Keychain
+   scripts/release/put-prod-secrets.sh --check  # present: GITHUB_SOURCE_TOKEN, present: MANUAL_TRIGGER_TOKEN
+   ```
+
+   Before the first deploy, `wrangler secret put` creates an empty draft
+   Worker `oss-knowledge-base-data-prod` to hold them (no cron, no data
+   access); the tag's deploy replaces its code and keeps the secrets. The
+   CI step "Require provisioned production runtime secrets" fails without
+   them, and a publication with no GitHub token throws in its alarm and
+   records nothing (gardening G94), so this step comes before the tag.
+3. **Save the current Prod pointers** (the rollback target; read-only):
+
+   ```sh
+   cd apps/data-publisher-worker
+   mkdir -p ~/osskb-prod-rollback
+   for k in public/v2/current.json public/search/v1/current.json; do
+     bunx wrangler r2 object get "oss-knowledge-base-prod/$k" --remote --pipe > ~/osskb-prod-rollback/$(echo $k | tr / _)
+   done
+   ```
+
+   Expected (2026-10-19): `osskb.feed-manifest.v2` with `releaseId`
+   `2026-08-25T08-29-41-122Z`, `entryCount` 184, and
+   `osskb.search-current.v1` with `indexRevision`
+   `feed-2026-08-25T08-29-41-122Z`.
+4. **Tag** the merged `main` commit:
+
+   ```sh
+   git switch main && git pull --ff-only
+   git tag -a v0.3.0 -m "Release v0.3.0" && git push origin v0.3.0
+   ```
+
+   CI runs the full suite, then `deploy-production`: Pages, then the
+   Worker (migrations `v1`, `v2`, cron `37 22 * * *`), then the secret
+   check.
+5. **First publication now**, instead of waiting for 22:37 UTC:
+
+   ```sh
+   W=https://oss-knowledge-base-data-prod.unknowntpo.workers.dev
+   curl -sS -X POST -H "Authorization: Bearer $(security find-generic-password -s osskb-prod-manual-trigger -a oss-knowledge-base-data-prod -w)" $W/run
+   # 202 {"ok":true,"scheduled":true}
+   ```
+
+### Verify after the release
+
+```sh
+W=https://oss-knowledge-base-data-prod.unknowntpo.workers.dev
+P=https://oss-knowledge-base.pages.dev
+curl -sS $W/health | jq '{environment, running, scheduled, followUp, lastRun: (.lastRun | {ok, completedAt, feedReleaseId, pollTruncated, copiedObjectCount, r2, search}), sources: (.sources | map_values({ok, lastSuccessAt, failureKind})), digest: .digest.enabled, embedding: .searchEmbedding.enabled, gate: .searchQuery.enabled, reviews: has("githubReviews")}'
+curl -sS $P/api/feed | jq '{schema, generatedAt, sources: (.sourceTypes | keys)}'
+curl -sS "$P/api/search?q=transaction&limit=3" | jq '.retrieval'
+bun run verify:health -- --target prod
+```
+
+| When | Expected |
+| --- | --- |
+| After `deploy-production` passed, before any run | `/health` `environment: "production"`, `lastRun: null`, `digest: false`, `embedding: false`, `gate: false`, `reviews: false`. Pages still serves the 2026-08-25 snapshot, now with the stale notice |
+| A few minutes after step 5 | `lastRun.ok: true`, `lastRun.search.lexicalRevision: "bm25-reference@3"`, `sources.github/mail/jira.ok: true`. The first run may be cut at a per-source cap (200 issues; 30 days of Jira is about 550): `pollTruncated: true`, `followUp.reason: "catch-up"`, and up to 5 catch-ups 5 minutes apart follow by themselves |
+| When `followUp` is `null` and `running` is `false` | `pollTruncated: false`; `lastRun.r2.classA` = `copiedObjectCount + 3`; `/api/feed` within 150 s: `generatedAt` = `lastRun.completedAt`, sources `github`, `jira`, `mail`; `/api/search` `lexicalRevision: "bm25-reference@3"`; `verify:health` prints `consistent=true` |
+| After the 22:37 UTC run | a new `lastRun.completedAt` near 22:37; `classA` near the new objects + 3 |
+| Browser, desktop and 375 px | Feed with Jira and dev@ cards, Search, Detail, theme toggle; no person links (`/api/people` 404) and no digest on `/#/kafka/` (the no-digest notice) |
+
+The first Feed holds one day of GitHub and 30 days of Jira and dev@: a new
+publisher reads GitHub one day back (gardening G95). Each daily run adds a
+day; the publisher keeps 35 days.
+
+Stop and roll back when: `lastRun.ok: false` after the retries
+(`followUp: null`), a source `ok: false` two days in a row, `classA` far
+above `copiedObjectCount + 3`, or `/api/feed` or `/api/search` answers 503.
+
+### Roll back
+
+Releases are immutable; a rollback moves pointers and deploys. Pages at
+`v0.2.0` read only `feed-manifest.v2` and lexical `@1`, so restore the data
+before the Pages.
+
+1. Stop the Prod publisher: Cloudflare dashboard → Workers →
+   `oss-knowledge-base-data-prod` → Settings → Trigger events → delete the
+   cron (browser). Check `/health` `running: false` and `followUp: null`.
+2. Restore the saved pointers:
+
+   ```sh
+   cd apps/data-publisher-worker
+   bunx wrangler r2 object put oss-knowledge-base-prod/public/v2/current.json --remote --content-type application/json --file ~/osskb-prod-rollback/public_v2_current.json
+   bunx wrangler r2 object put oss-knowledge-base-prod/public/search/v1/current.json --remote --content-type application/json --file ~/osskb-prod-rollback/public_search_v1_current.json
+   ```
+
+   `/api/feed` then shows `generatedAt` 2026-08-25 again (new Pages read v2).
+3. Only if the Pages themselves are wrong: Cloudflare dashboard → Pages →
+   `oss-knowledge-base` → Deployments → the `v0.2.0` deployment → Rollback
+   (browser).
+
+Do not use the `bootstrap-r2` workflow for this: its Prod job runs after,
+and needs, a Dev job that re-points Dev to the recorded snapshot too. Fix
+forward with a patch tag when the problem is in the code; the Worker cron
+is restored by that tag's deploy.
 
 ## Health and manual run
 
@@ -243,8 +377,8 @@ names it. `/health` `lastRun.search.lexicalRevision` shows what the last run
 wrote; `/api/search` `retrieval.lexicalRevision` shows what is served.
 
 Development sets `bm25-reference@3` (`wrangler.development.jsonc`; `@2` from
-Spec 016 H42, `@3` from Spec 017 N17); production does not set the variable
-and writes `@1`.
+Spec 016 H42, `@3` from Spec 017 N17); production sets `bm25-reference@3`
+from the first Prod release on (`wrangler.production.jsonc`, test `H39`).
 
 - Set `bm25-reference@2` only when the environment's Pages are at or after
   Spec 016 slice 2a. Older Pages answer every search with HTTP 503 for an

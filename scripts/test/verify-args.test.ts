@@ -10,6 +10,7 @@ import {
   parseUiArgs,
   resolveAt,
   reviewQueueLine,
+  targets,
   UsageError,
   type HealthReport,
 } from "../verify/args";
@@ -54,7 +55,7 @@ describe("parseUiArgs", () => {
   });
 
   test.each([
-    [["--target", "prod"], /--target/u],
+    [["--target", "staging"], /--target/u],
     [["--width", "0"], /--width/u],
     [["--locale", "fr"], /--locale/u],
     [["--view", "home"], /--view/u],
@@ -70,6 +71,7 @@ describe("parseUiArgs", () => {
 
   test("health accepts only a target", () => {
     expect(parseHealthArgs(["--target", "dev"])).toEqual({ target: "dev" });
+    expect(parseHealthArgs(["--target", "prod"])).toEqual({ target: "prod" });
     expect(() => parseHealthArgs(["--at", "now"])).toThrow(UsageError);
   });
 });
@@ -210,5 +212,15 @@ describe("Spec 015 review-queue line", () => {
   test("Q44: verify:health flags a last-run older than 2 h as a missing run", () => {
     expect(reviewQueueLine(run("2026-10-08T08:00:00.000Z"), at)).toBe("reviewQueue ok=true age=120m failures=none");
     expect(reviewQueueLine(run("2026-10-08T07:59:59.000Z"), at)).toBe("reviewQueue ok=true age=120m failures=none MISSING RUN (last-run older than 2 h)");
+  });
+});
+
+describe("targets", () => {
+  // Runbook "First Prod release": post-release checks read Prod's public Pages and publisher.
+  test("prod names the public Prod Pages site and the Prod publisher", () => {
+    expect(targets.prod).toEqual({
+      pages: "https://oss-knowledge-base.pages.dev",
+      publisher: "https://oss-knowledge-base-data-prod.unknowntpo.workers.dev",
+    });
   });
 });

@@ -150,7 +150,7 @@ Verifiers do not rebuild a harness per PR. The repository keeps:
   Update it in the PR that changes behavior.
 - `bun run verify:ui` (viewport, locale, controlled clock → screenshots and
   element states as JSON) and `bun run verify:health` (publisher `/health`
-  against `/api/feed`), for `--target local` or `dev`. Read-only; they never
+  against `/api/feed`), for `--target local`, `dev` or `prod`. Read-only; they never
   call the publisher's `/run`.
   Dev Pages is public today; if Cloudflare Access is turned on for it, set
   `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` first (see

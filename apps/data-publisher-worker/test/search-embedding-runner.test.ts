@@ -132,7 +132,8 @@ describe("Spec 016 embedding object", () => {
     // The flag, and nothing else, is what turns Dev on: without it the same configuration is off.
     expect(configured({ ...development, vars: { ...development.vars, SEARCH_EMBEDDING: "" } })).toEqual({ state: "off" });
 
-    expect(JSON.stringify(production)).not.toMatch(/SEARCH_|vectorize|SearchEmbedding|"ai"/u);
+    // Prod sets SEARCH_LEXICAL_REVISION (first Prod release) and nothing of the embedding path.
+    expect(JSON.stringify(production)).not.toMatch(/SEARCH_(?!LEXICAL_REVISION")|vectorize|SearchEmbedding|"ai"/u);
     expect(production.durable_objects.bindings.map((binding) => binding.name)).toEqual(["PIPELINE_STATE", "DIGEST_RUN"]);
     expect(production.migrations.map((migration) => migration.tag)).toEqual(["v1", "v2"]);
   });

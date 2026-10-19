@@ -134,9 +134,28 @@ development binding through the normal development deployment. A later
 accepted release tag applies the production binding. Do not deploy either
 project with the local-only `wrangler.jsonc`.
 
+## v0.3.0: first Prod data release
+
+The first tag since `v0.2.0` also deploys the Prod data Worker for the first
+time. Follow [the runbook's "First Prod release"](../runbooks/cloudflare-data-publisher.md#first-prod-release):
+secrets first, save the pointers, then the tag, then a manual first run.
+
+Release notes draft (for `gh release create v0.3.0 --repo unknowntpo/oss-knowledge-base --notes-file`):
+
+```markdown
+Prod now publishes live data once a day instead of the recorded snapshot of 2026-08-25.
+
+- Daily publication (22:37 UTC) from GitHub, the Kafka dev@ list and Jira (Specs 009–013, 018), with content-addressed details and streaming search releases.
+- Search ranks threads with `bm25-reference@3` (Specs 016, 017): `KIP770` equals `KIP-770`, a bare number lists every identifier, adjacent query words rank higher.
+- Freshness and stall visibility: a stale or overdue publication shows in the page (Specs 010, 011, 021).
+- Design system and dark theme with a three-way toggle (Specs 023, 024).
+- Not on Prod yet: semantic search, the topic digest, review ingestion and contributor profiles (Dev only).
+```
+
 ## Release command
 
-After the selected commit is merged and green on `main`:
+After the selected commit is merged and green on `main` (for `v0.3.0`, after
+the runbook's steps 2 and 3):
 
 ```bash
 VERSION=v0.3.0

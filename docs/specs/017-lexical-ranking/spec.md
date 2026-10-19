@@ -296,7 +296,11 @@ the Cron can run at any time, so order is enforced by the flag):
    for `/health` `lastRun.search.lexicalRevision` to read `bm25-reference@2`.
 5. **A wrong value** publishes nothing; both pointers stay; `/health` names
    the value.
-6. Production: unchanged by this spec and by the switch.
+6. Production: unchanged by this spec and by the switch. Amendment
+   2026-10-19: the first Prod release sets `bm25-reference@3` in
+   `wrangler.production.jsonc` (`H39`). Its tag deploys Pages before the
+   Worker in one job, and Prod had published nothing since the `@1`
+   snapshot, so no reader older than this spec meets an `@3` release.
 
 ## Test plan
 

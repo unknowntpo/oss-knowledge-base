@@ -1,4 +1,4 @@
-// bun run verify:ui -- --target local|dev --view feed,search-detail --width 375 --locale zh-Hant --at +27h1s
+// bun run verify:ui -- --target local|dev|prod --view feed,search-detail --width 375 --locale zh-Hant --at +27h1s
 // Opens the web app with a controlled viewport, locale and clock, then records a
 // screenshot and element states per view. Read-only: it only issues GET requests.
 import { mkdir, writeFile } from "node:fs/promises";
