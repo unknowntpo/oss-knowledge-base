@@ -7,8 +7,7 @@
  * - `status`: its Status line; `inTag`: its directory is in `production` (the newest buildable `v*` tag, `—`: none).
  * - `offOnProd`: Deployed configuration rows naming it that are unset or none on Prod.
  * - `workflow`: lines of `.github/workflows/feature-map-site.yml` (` / ` separates lines); only its
- *   `# publishes: Spec NNN[, Spec NNN]` line names what it publishes to GitHub Pages, or, in a workflow from
- *   before that line existed, its first comment line when it starts `# Spec NNN.`; a mention anywhere else does not count.
+ *   `# publishes: Spec NNN[, Spec NNN]` line names what it publishes to GitHub Pages; a mention anywhere else does not count.
  * - `error`: what the rejection says (`—`: the claim is accepted).
  */
 export const testPlanRows = [
@@ -25,7 +24,5 @@ export const testPlanRows = [
   { id: "B27", spec: "007", claim: "none (homelab spike)", status: "Spike completed", inTag: false, offOnProd: "", production: "v0.2.0", workflow: "# publishes: Spec 020", error: null, why: "none is always allowed" },
   { id: "B27", spec: "012", claim: "Staging", status: "Implemented (#27)", inTag: false, offOnProd: "", production: "v0.2.0", workflow: "# publishes: Spec 020", error: "is not one of Prod, Dev, GitHub Pages, none", why: "outside the vocabulary" },
   { id: "B27", spec: "024", claim: "GitHub Pages", status: "Implemented (#90, #91)", inTag: false, offOnProd: "", production: "v0.2.0", workflow: "# publishes: Spec 020 / # Spec 024 is the dark theme; see also Spec 024", error: ".github/workflows/feature-map-site.yml publishes Spec 020", why: "a stray mention elsewhere in the workflow is not evidence" },
-  { id: "B27", spec: "020", claim: "GitHub Pages", status: "Implemented (#66)", inTag: false, offOnProd: "", production: "v0.2.0", workflow: "name: Feature map site / # Builds every ref; see Spec 020", error: ".github/workflows/feature-map-site.yml publishes no spec", why: "neither a marker line nor the header line: a mention is not evidence" },
-  { id: "B27", spec: "020", claim: "GitHub Pages", status: "Implemented (#66)", inTag: false, offOnProd: "", production: "v0.2.0", workflow: "name: Feature map site / # Spec 020. Builds the feature-map page of every ref", error: null, why: "a workflow from before the marker: its header line `# Spec NNN.` is the marker" },
-  { id: "B27", spec: "024", claim: "GitHub Pages", status: "Implemented (#90, #91)", inTag: false, offOnProd: "", production: "v0.2.0", workflow: "# Spec 020. Builds the site / # see also Spec 024", error: ".github/workflows/feature-map-site.yml publishes Spec 020", why: "the header line only, not a later mention" },
+  { id: "B27", spec: "020", claim: "GitHub Pages", status: "Implemented (#66)", inTag: false, offOnProd: "", production: "v0.2.0", workflow: "name: Feature map site / # Spec 020. Builds every ref; see Spec 020", error: ".github/workflows/feature-map-site.yml publishes no spec", why: "no marker line, no GitHub Pages evidence: a header or any other mention does not count" },
 ] as const;
