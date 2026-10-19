@@ -370,6 +370,7 @@ function stageReason(spec: SpecEntry, production: SiteData["production"]): strin
         const names = spec.offOnProd.map((name) => `<code>${escapeHtml(name)}</code>`).join(", ");
         return sentence(`Prod 未開啟 ${names}`, `off on Prod`);
       }
+      if (production !== null && !spec.inProduction) return sentence(`<code>${escapeHtml(production.name)}</code> 之後才實作`, `built after <code>${escapeHtml(production.name)}</code>`);
       if (spec.runsOn !== null && /^Dev\b/iu.test(spec.runsOn)) return sentence("feature map 標為 Dev", "runs on Dev");
       if (production === null) return sentence("沒有 v* 標籤", "no v* tag in this build");
       return sentence(`<code>${escapeHtml(production.name)}</code> 之後才實作`, `built after <code>${escapeHtml(production.name)}</code>`);
@@ -432,7 +433,7 @@ ${gaps}
 </section>`);
   return `<section id="status">
 <h2>現況<small>What is built, in progress and planned</small></h2>
-<p class="lede">由各 spec 的 <code>Status:</code> 行、標為 <code>[pending]</code> 的驗收項目、Prod 部署的 <code>v*</code> 標籤，以及 feature map 的 Deployed configuration 自動推導，沒有手寫的狀態。Derived on every push from each spec's Status line, its <code>[pending]</code> acceptance items, the <code>v*</code> tag Prod runs, and the feature map's Deployed configuration; nothing here is written by hand.</p>
+<p class="lede">由各 spec 的 <code>Status:</code> 行、標為 <code>[pending]</code> 的驗收項目、feature map 的 Runs on 欄、Prod 部署的 <code>v*</code> 標籤，以及 Deployed configuration 自動推導，此頁沒有手寫的狀態。Derived on every push from each spec's Status line, its <code>[pending]</code> acceptance items, the feature map's Runs on column, the <code>v*</code> tag Prod is deployed from, and the Deployed configuration; nothing on this page is written by hand.</p>
 <div class="tiles board">${tiles.join("")}</div>
 <div class="stages">
 ${groups.join("\n")}
