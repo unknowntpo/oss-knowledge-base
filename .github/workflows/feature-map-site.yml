@@ -4,6 +4,8 @@ name: Feature map site
 # v* tags) with the generator of the default branch and publishes them as one GitHub Pages site.
 # A pull request builds the same site, plus its own tree, as a workflow artifact and publishes nothing.
 # No secret and no Cloudflare credential is used.
+# The next line is what the feature-map site's status board counts as published here (Spec 020 B27).
+# publishes: Spec 020
 
 on:
   pull_request:
