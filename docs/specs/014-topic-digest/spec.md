@@ -1924,8 +1924,13 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   `[redacted]` and neither secret; redaction comes before the 200-character
   cut. The error kind is decided on the raw error first, so a 3036 spend
   limit is still `limit`; an ordinary `2003: Rate limited` stays readable.
-  No `error:` field in the Worker's sources (publisher, digest, review
-  queue, people activity, search embedding) is set from a raw message.
+  The publisher's failed-poll text (`lastRun.error`, `lastRun.sources[*].error`)
+  is redacted where it is recorded. Every JSON body the Worker serves
+  (`/health`, a run's response, a Durable Object's `/status`) passes
+  `redactRecord`, which redacts any string under an `error`, `message` or
+  `reason` key at any depth, so a future path that forgets is still
+  covered. A source check also fails when such a key is set from
+  `.message`, `String(…)` or a template literal without the sanitizer.
 
 ## Slices
 

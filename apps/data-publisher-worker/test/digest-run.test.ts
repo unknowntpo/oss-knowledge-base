@@ -1635,14 +1635,72 @@ describe("Spec 014 D95: digest error texts are redacted", () => {
   });
 });
 
+/** The belt-and-braces source check (D95): an error-like key set from raw text. The runtime boundary is redactRecord. */
+// Not a property access (`error.message : …` in a ternary) and not a parameter type (`(error: unknown)`);
+// whitespace, including a line break, is consumed before the sanitizer check so it cannot be skipped.
+const RAW_ERROR = /(?<![.\w])(error|message|reason)\s*:(?!\s*unknown\b)\s*(?!\s)(?!(?:errorText|sanitizeErrorMessage)\()[^,}\n]*(?:\.message\b|String\(|\$\{)/gu;
+function rawErrorFields(source: string): number[] {
+  return [...source.matchAll(RAW_ERROR)].map((match) => source.slice(0, match.index).split("\n").length);
+}
+
 describe("Spec 014 D95: no run record stores raw error text", () => {
-  test("D95: no `error:` field in the Worker's sources is set from a raw message or String(error)", async () => {
-    const raw = /\berror:\s*(?:error instanceof Error \? error\.message : String\(error\)|String\(error\)|error\.message)(?![\w.])/u;
+  test("D95: the source check catches the bypasses the verifier found (positive control)", () => {
+    const sample = [
+      "x = { error: err.message };",
+      "x = { error: (error as Error).message };",
+      "x = { error: `failed: ${detail}` };",
+      "x = { message: String(error) };",
+      "x = { reason: e.message };",
+      "x = { error:\n    error.message };",
+      "x = { error: errorText(error) };",
+      "x = { error: sanitizeErrorMessage(`${a}`) };",
+      "x = { failureKind: \"write\" };",
+      "x = a ? error.message : String(error);",
+      ".catch((error: unknown) => console.error(`${error}`));",
+    ].join("\n");
+    expect(rawErrorFields(sample)).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
+  test("D95: no error, message or reason field in the Worker's sources is set from raw text", async () => {
     const found: string[] = [];
     for await (const path of new Bun.Glob("src/**/*.ts").scan({ cwd: new URL("..", import.meta.url).pathname })) {
-      const lines = (await Bun.file(new URL(`../${path}`, import.meta.url)).text()).split("\n");
-      lines.forEach((line, index) => { if (raw.test(line)) found.push(`${path}:${index + 1}`); });
+      const source = await Bun.file(new URL(`../${path}`, import.meta.url)).text();
+      for (const line of rawErrorFields(source)) found.push(`${path}:${line}`);
     }
     expect(found).toEqual([]);
+  });
+});
+
+
+describe("Spec 014 D95: one runtime boundary for every /health and run body", () => {
+  test("D95: redactRecord sanitizes string values under error, message and reason at any depth and leaves other keys", async () => {
+    const { redactRecord } = await import("../src/redact");
+    const body = {
+      releaseId: ACCOUNT_ID,
+      lastRun: { error: LEAKY, sources: { github: { reason: `Bearer ${SECRET_TOKEN}`, failureKind: "transport" } } },
+      modelErrors: [{ message: LEAKY, kind: "limit" }],
+      ok: false,
+    };
+    const redacted = redactRecord(body);
+    expect(redacted.releaseId).toBe(ACCOUNT_ID);
+    expect(leaks({ ...redacted, releaseId: null })).toEqual([]);
+    expect(redacted.lastRun.sources.github).toEqual({ reason: "Bearer [redacted]", failureKind: "transport" });
+    expect(redacted.modelErrors[0]!.kind).toBe("limit");
+    expect(body.lastRun.error).toBe(LEAKY); // the input is not mutated
+  });
+
+  test("D95: /health redacts a raw error that any object put under error, message or reason", () => {
+    const health = mergeHealth(
+      { ok: true, lastRun: { error: LEAKY, sources: { jira: { error: `Bearer ${SECRET_TOKEN}` } } } },
+      { lastRun: { modelErrors: [{ message: LEAKY }] } },
+      { failureKind: "internal", error: LEAKY },
+      { lastFailure: { reason: LEAKY } },
+    );
+    expect(leaks(health)).toEqual([]);
+  });
+
+  test("D95: every Response.json in the Worker entry goes through the redacting helper", async () => {
+    const source = await Bun.file(new URL("../src/index.ts", import.meta.url)).text();
+    expect(source.match(/Response\.json\(/gu)?.length ?? 0).toBe(1); // only inside the helper
   });
 });

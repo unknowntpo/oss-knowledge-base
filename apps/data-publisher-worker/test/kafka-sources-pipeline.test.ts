@@ -394,3 +394,23 @@ class MemoryDestination implements PublicationDestination, PublicationObjectStor
   async putCurrent(key: string, body: Uint8Array): Promise<void> { this.objects.set(key, body); }
   async putEvidence(key: string, body: Uint8Array): Promise<void> { this.objects.set(key, body); }
 }
+
+describe("Spec 014 D95: publisher failure text is redacted at the record boundary", () => {
+  test("D95: a source poll that fails with a token in its error is recorded redacted in lastRun.error and lastRun.sources", async () => {
+    const secret = "Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5MDEyMzQ1Ng";
+    const account = "0123456789abcdef0123456789abcdef";
+    const leaky = {
+      poll: async (): Promise<SourcePollResult> => ({
+        complete: false, events: [], failureKind: "transport", retryAfterSeconds: 60,
+        error: `GitHub API 401 for account ${account}: Bearer ${secret}`,
+      }),
+    };
+    const state = new MemoryState();
+    const status = await run(state, leaky, apacheFetch({ down: ["mail", "jira"] }), NOW, new MemoryDestination());
+    const text = JSON.stringify([status, state.last]);
+    expect(text).not.toContain(secret);
+    expect(text).not.toContain(account);
+    expect(status).toMatchObject({ ok: false, failureKind: "transport", error: "GitHub API 401 for account [redacted]: Bearer [redacted]" });
+    expect(status.sources?.github).toMatchObject({ ok: false, error: "GitHub API 401 for account [redacted]: Bearer [redacted]" });
+  });
+});

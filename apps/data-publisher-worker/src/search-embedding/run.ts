@@ -426,7 +426,7 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
       } catch (error) {
         if (attempt === 0) await input.delay(RETRY_DELAY_MS);
         else {
-          run.failure = { kind: "vector-store", error: `${label} failed: ${message(error)}` };
+          run.failure = { kind: "vector-store", error: sanitizeErrorMessage(`${label} failed: ${message(error)}`) };
           lastFailure = { kind: "vector-store", message: run.failure.error, batchSize: size };
         }
         continue;
@@ -448,7 +448,7 @@ export async function runSearchEmbedding(input: EmbeddingRunInput): Promise<Embe
       try {
         info = await withTimeout("The vector index", limits.callTimeoutMs, () => index.describe());
       } catch (error) {
-        lastFailure = { kind: "vector-store", message: `The vector index did not answer: ${message(error)}`, batchSize: 0 };
+        lastFailure = { kind: "vector-store", message: sanitizeErrorMessage(`The vector index did not answer: ${message(error)}`), batchSize: 0 };
         throw new RunFailure("vector-store", lastFailure.message);
       }
       if (info.dimensions !== dimensions) {
