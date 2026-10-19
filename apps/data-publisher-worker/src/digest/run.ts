@@ -142,6 +142,13 @@ interface Caches {
   readonly translations: Map<string, string>;
 }
 
+/**
+ * D96: a cached English sentence that holds Han characters came from a zh-Hant object (the bug
+ * fixed by D96 published such en objects); it is not reused, so the card is generated again.
+ */
+const HAN = /\p{Script=Han}/u;
+const plausiblyEnglish = (sentences: readonly Sentence[]) => sentences.every((sentence) => !HAN.test(sentence.text));
+
 async function loadCaches(bucket: DigestBucket, keys: readonly string[]): Promise<Caches> {
   const caches: Caches = { features: new Map(), generated: new Map(), translations: new Map() };
   for (const key of keys) {
@@ -150,17 +157,23 @@ async function loadCaches(bucket: DigestBucket, keys: readonly string[]): Promis
     for (const [inputHash, feature] of Object.entries(digest.features ?? {})) {
       if (feature.source !== "rules") caches.features.set(inputHash, feature);
     }
-    for (const card of digest.cards ?? []) {
-      if (card.provenance !== undefined && card.status === "generated") {
-        caches.generated.set(card.provenance.inputHash, { sentences: card.sentences, provenance: card.provenance });
+    // D96: both locales carry the same input hashes; only English sentences seed the English cache,
+    // and only zh-Hant objects seed the translation cache.
+    if (digest.locale === "en") {
+      for (const card of digest.cards ?? []) {
+        if (card.provenance !== undefined && card.status === "generated" && plausiblyEnglish(card.sentences)) {
+          caches.generated.set(card.provenance.inputHash, { sentences: card.sentences, provenance: card.provenance });
+        }
+      }
+      for (const row of digest.proposals ?? []) {
+        if (row.provenance !== undefined && row.line !== null && plausiblyEnglish([row.line])) {
+          caches.generated.set(row.provenance.inputHash, { sentences: [row.line], provenance: row.provenance });
+        }
       }
     }
-    for (const row of digest.proposals ?? []) {
-      if (row.provenance !== undefined && row.line !== null) {
-        caches.generated.set(row.provenance.inputHash, { sentences: [row.line], provenance: row.provenance });
-      }
+    if (digest.locale === "zh-Hant") {
+      for (const [textHash, text] of Object.entries(digest.translations ?? {})) caches.translations.set(textHash, text);
     }
-    for (const [textHash, text] of Object.entries(digest.translations ?? {})) caches.translations.set(textHash, text);
   }
   return caches;
 }
