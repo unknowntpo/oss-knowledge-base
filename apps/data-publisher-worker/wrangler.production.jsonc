@@ -9,7 +9,9 @@
     "subrequests": 20000
   },
   "vars": {
-    "PUBLICATION_ENVIRONMENT": "production"
+    "PUBLICATION_ENVIRONMENT": "production",
+    "SEARCH_LEXICAL_REVISION": "bm25-reference@3",
+    "GITHUB_INITIAL_LOOKBACK_DAYS": "30"
   },
   "triggers": {
     "crons": ["37 22 * * *"]

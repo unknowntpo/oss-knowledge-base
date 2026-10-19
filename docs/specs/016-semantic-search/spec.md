@@ -2024,7 +2024,8 @@ Items tagged `[pending]` belong to slice 4.
 - H39: given the deployed publisher configurations, development sets
   `SEARCH_LEXICAL_REVISION` to `bm25-reference@2` and production does not set
   it, so only Dev writes `@2` → evidence: `pipeline.test.ts`. (Slice 2a
-  shipped with neither set.)
+  shipped with neither set. Amended: Dev sets `@3` since Spec 017 N17, and
+  Prod sets `@3` from the first Prod release, runbook "First Prod release".)
 - H29: given each `H29` row of the hybrid plan and a gate that throws,
   answers `failed` or nonsense, never answers, is over budget, or is
   disabled, `/api/search` returns HTTP 200 with exactly the lexical response

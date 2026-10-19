@@ -251,6 +251,18 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: test -n "$CLOUDFLARE_API_TOKEN" && test -n "$CLOUDFLARE_ACCOUNT_ID"
+      # Before anything deploys: a tag pushed without the secrets fails here and changes nothing.
+      # The secrets live on the Worker (scripts/release/put-prod-secrets.sh creates a draft
+      # Worker for them before its first deploy), and a deploy keeps them.
+      - name: Require provisioned production runtime secrets
+        working-directory: apps/data-publisher-worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          configured="$(bunx wrangler secret list -c wrangler.production.jsonc)"
+          grep -q 'GITHUB_SOURCE_TOKEN' <<<"$configured"
+          grep -q 'MANUAL_TRIGGER_TOKEN' <<<"$configured"
       - name: Deploy the verified artifact to production
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -261,15 +273,6 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: bun run --cwd apps/data-publisher-worker deploy:production
-      - name: Require provisioned production runtime secrets
-        working-directory: apps/data-publisher-worker
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          configured="$(bunx wrangler secret list -c wrangler.production.jsonc)"
-          grep -q 'GITHUB_SOURCE_TOKEN' <<<"$configured"
-          grep -q 'MANUAL_TRIGGER_TOKEN' <<<"$configured"
 
   bootstrap-r2-development:
     name: Bootstrap development R2

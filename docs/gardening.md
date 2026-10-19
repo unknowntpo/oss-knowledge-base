@@ -503,6 +503,22 @@ the two `viewer/` items below.
 - **Layer:** operator run, then measured evidence.
 - **Source:** Spec 022 "Known limits" and Behavior 13–14, 2026-10-14.
 
+### G94. A publication without `GITHUB_SOURCE_TOKEN` throws in the alarm and records nothing
+- **Where:** `apps/data-publisher-worker/src/index.ts` (`PipelineState.alarm`
+  builds `GitHubFetchTransport` inside a `try`/`finally` with no `catch`);
+  `apps/data-publisher-worker/src/github-transport.ts` (throws on an empty
+  token).
+- **Why:** the throw escapes the alarm, so the runtime retries it and
+  `/health` keeps `lastRun: null` (or the previous run) with no
+  `failureKind`. Jira and dev@ need no token but are not published either.
+  The first Prod release avoids it by putting the secrets before the tag
+  (runbook "First Prod release", step 2).
+- **Fix:** build the transport inside `runDataPublication`'s failure handling,
+  so a missing token is a `github` source failure (`failureKind: config`) and
+  the anonymous sources still publish; test with an empty token.
+- **Layer:** test.
+- **Source:** Prod release preparation, 2026-10-19.
+
 ## CI evidence
 
 ### G30. The evidence redaction gate does not decode every encoding

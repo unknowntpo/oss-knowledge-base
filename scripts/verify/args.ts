@@ -1,7 +1,7 @@
 // Pure parts of the verification CLI (docs/feature-map.md, docs/process/workflow.md).
 // Kept free of I/O so the parsing, clock and summary rules are unit-tested.
 
-export type Target = "local" | "dev";
+export type Target = "local" | "dev" | "prod";
 
 export const targets: Readonly<Record<Target, { readonly pages: string; readonly publisher?: string }>> = {
   // `bun run e2e:prepare && bun run e2e:server` (fixture data, wrangler pages dev).
@@ -9,6 +9,12 @@ export const targets: Readonly<Record<Target, { readonly pages: string; readonly
   dev: {
     pages: "https://oss-knowledge-base-dev.pages.dev",
     publisher: "https://oss-knowledge-base-data-dev.unknowntpo.workers.dev",
+  },
+  // Public, no Access token is ever sent (scripts/verify/access.ts). The publisher URL exists
+  // from the first Prod release on (runbook "First Prod release").
+  prod: {
+    pages: "https://oss-knowledge-base.pages.dev",
+    publisher: "https://oss-knowledge-base-data-prod.unknowntpo.workers.dev",
   },
 };
 
@@ -93,7 +99,7 @@ function last(flags: Flags, name: string): string | undefined {
 
 function parseTarget(value: string | undefined): Target {
   const target = value ?? "local";
-  if (target !== "local" && target !== "dev") throw new UsageError(`--target must be local or dev, got ${target}`);
+  if (target !== "local" && target !== "dev" && target !== "prod") throw new UsageError(`--target must be local, dev or prod, got ${target}`);
   return target;
 }
 

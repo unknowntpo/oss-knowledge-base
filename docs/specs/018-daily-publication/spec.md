@@ -216,6 +216,15 @@ publication against in-memory upstreams, state and bucket).
   apart, with no read above the caps and no issue lost.
 - T12: a backlog beyond the catch-up limit stops at 6 runs and the next tick
   continues from the cursors, losing nothing.
+- T17: (amendment 2026-10-19, first Prod release) the Worker variable
+  `GITHUB_INITIAL_LOOKBACK_DAYS` is read as a whole number of days clamped
+  to 1..35; unset, blank, or anything else (`0`, `-5`, `7.5`, `30d`, `abc`)
+  is 1, the connector's default.
+- T18: with no cursor for a repository, the first GitHub read starts that
+  many days before the run; a repository with a cursor reads from its
+  cursor as before (the overlap), whatever the variable says.
+- T19: Prod sets `30`; Dev leaves it unset. Dev already has cursors, so it
+  would change nothing there.
 
 ### Budget
 - T13: [measure] a day's updates per source against the 200-per-run caps:
@@ -226,6 +235,13 @@ publication against in-memory upstreams, state and bucket).
   the one Spec 009 M1–M2 and Spec 013 L14 measure.
   Publications: 1 on a normal day and at most 9 per trigger (Behavior 6,
   tests T6 and T8), against 24 a day before.
+- T20: [measure] the first Prod window (T19): 30 days were 621 Kafka and
+  2,905 DataFusion GitHub issues and 494 Kafka Jira issues
+  (`bun run measure:daily-volume -- --hours 720`, 2026-10-19), so DataFusion
+  needs 15 runs, filled over 1–3 triggers at 200 issues a source a run
+  (T12: 6 runs a trigger). The state then holds about Dev's 35 days;
+  `measure:memory -- --events 10000 --kafka 1` (10,000 GitHub and 1,454
+  dev@/Jira events) peaked at 62.1 MB at "write feed" against 128 MB.
 
 ### Observability
 - T14: [deploy] on Dev after the deploy, the first Cron run is at 22:07 UTC:
@@ -307,5 +323,7 @@ publication against in-memory upstreams, state and bucket).
 
 - Enabling the digest or the review queue, or changing their specs' cadences.
 - Changing the per-run caps, the 30-day window, or the R2 layout.
-- A Prod data launch.
+- A Prod data launch. (The first Prod release, 2026-10-19, adds only the
+  first GitHub window, T17–T20; its steps are in the runbook's "First Prod
+  release".)
 - Alerting outside the page (Spec 011).

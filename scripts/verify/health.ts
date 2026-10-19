@@ -1,4 +1,4 @@
-// bun run verify:health -- --target dev
+// bun run verify:health -- --target dev|prod
 // Compares the publisher's /health with the generatedAt the page reads from /api/feed.
 // Read-only: GET only; it never calls the publisher's POST /run.
 import { STALE_AFTER_MS } from "../../apps/web/src/freshness";

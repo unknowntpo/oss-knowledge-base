@@ -639,15 +639,15 @@ describe("Spec 016 lexical revision of the published Search release", () => {
     expect(published(destination).manifest.lexicalRevision).toBe("bm25-reference@3");
   });
 
-  test("H39: the development publisher writes bm25-reference@3 (Spec 017 N17); production does not set the variable and writes @1", async () => {
+  test("H39: both publishers write bm25-reference@3 (Dev since Spec 017 N17; Prod from the first Prod release, runbook \"First Prod release\")", async () => {
     const development = (await config("development")).vars as Readonly<Record<string, string>>;
     const production = (await config("production")).vars as Readonly<Record<string, string>>;
     expect(development.PUBLICATION_ENVIRONMENT).toBe("development");
     expect(development.SEARCH_LEXICAL_REVISION).toBe("bm25-reference@3");
     expect(resolveSearchLexicalRevision(development.SEARCH_LEXICAL_REVISION)).toBe("bm25-reference@3");
     expect(production.PUBLICATION_ENVIRONMENT).toBe("production");
-    expect(Object.hasOwn(production, "SEARCH_LEXICAL_REVISION")).toBe(false);
-    expect(resolveSearchLexicalRevision(production.SEARCH_LEXICAL_REVISION)).toBe("bm25-reference@1");
+    expect(production.SEARCH_LEXICAL_REVISION).toBe("bm25-reference@3");
+    expect(resolveSearchLexicalRevision(production.SEARCH_LEXICAL_REVISION)).toBe("bm25-reference@3");
   });
 
   test.each(["bm25-reference@1", "bm25-reference@2"])("H41: /health lastRun.search reports the %s release's revision, chunk count, and lexical bytes", async (revision) => {
