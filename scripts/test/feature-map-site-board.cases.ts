@@ -7,7 +7,8 @@
  * - `pending`: its acceptance items tagged `[pending]`.
  * - `inTag`: its directory is in the tree of the newest `v*` tag (what Prod runs).
  * - `offOnProd`: Deployed configuration rows that name the spec and are unset or none on Prod.
- * - `runsOn`: the "Runs on" cell of the spec's row in the feature map's Acceptance table (`—`: no cell).
+ * - `runsOn`: the spec's "Runs on" cell in the feature map's Acceptance table after B27 accepted it
+ *   (`—`: no cell, or a rejected one: a claim the evidence contradicts never reaches this rule).
  * - `stage`: the board's group.
  */
 export const testPlanRows = [
@@ -21,10 +22,11 @@ export const testPlanRows = [
   { id: "B19", status: "Draft for owner review", pending: 4, inTag: false, offOnProd: 0, runsOn: null, stage: "planned", why: "a draft with pending items is still planned" },
   { id: "B19", status: "Spike completed (#13)", pending: 0, inTag: false, offOnProd: 0, runsOn: null, stage: "other", why: "no known first word" },
   { id: "B19", status: "", pending: 0, inTag: false, offOnProd: 0, runsOn: null, stage: "other", why: "no Status line" },
-  { id: "B19", status: "Implemented (#66)", pending: 0, inTag: false, offOnProd: 0, runsOn: "GitHub Pages", stage: "pages", why: "published elsewhere than Dev or Prod: the map says where" },
-  { id: "B19", status: "Implemented (#1)", pending: 0, inTag: true, offOnProd: 0, runsOn: "Dev", stage: "dev", why: "the map's Runs on wins over the tag" },
-  { id: "B19", status: "Implemented (#1)", pending: 0, inTag: false, offOnProd: 0, runsOn: "Prod", stage: "prod", why: "the map's Runs on wins over the tag" },
+  { id: "B19", status: "Implemented (#66)", pending: 0, inTag: false, offOnProd: 0, runsOn: "GitHub Pages", stage: "pages", why: "an accepted GitHub Pages claim: the site workflow publishes it" },
+  { id: "B19", status: "Implemented (#1)", pending: 0, inTag: true, offOnProd: 0, runsOn: "Dev", stage: "dev", why: "narrowing: a spec in the Prod tag marked Dev" },
+  { id: "B19", status: "Implemented (#1)", pending: 0, inTag: true, offOnProd: 0, runsOn: "Prod", stage: "prod", why: "an accepted Prod claim agrees with the tag" },
   { id: "B19", status: "Implemented (#1)", pending: 0, inTag: false, offOnProd: 0, runsOn: "none", stage: "other", why: "built but runs nowhere" },
   { id: "B19", status: "Partially implemented", pending: 1, inTag: false, offOnProd: 0, runsOn: "GitHub Pages", stage: "progress", why: "unfinished work stays in progress wherever it runs" },
   { id: "B19", status: "Accepted", pending: 0, inTag: false, offOnProd: 0, runsOn: "none", stage: "planned", why: "not built: Runs on does not apply" },
+  { id: "B19", status: "Implemented (#66)", pending: 0, inTag: false, offOnProd: 0, runsOn: null, stage: "dev", why: "no claim and not published by the site workflow" },
 ] as const;

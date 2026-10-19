@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildData, offOnProd, renderPage, specStage, statusKind } from "../feature-map-site/generate";
+import { buildData, offOnProd, pagesSpecs, renderPage, runsOnError, specStage, statusKind, type ProductionRef } from "../feature-map-site/generate";
 import { parseMarkdown, renderInline, splitRow } from "../feature-map-site/markdown";
 import {
   assignSlugs, buildSite, directoryTree, gitTree, pagesDecision, slugify, switcherScript,
@@ -11,6 +11,7 @@ import {
 } from "../feature-map-site/site";
 import { testPlanRows } from "./feature-map-site.cases";
 import { testPlanRows as boardRows } from "./feature-map-site-board.cases";
+import { testPlanRows as runsOnRows } from "./feature-map-site-runs-on.cases";
 
 /** Spec 020: the feature-map site generator. Every test name carries the acceptance ID it proves. */
 const root = join(import.meta.dir, "..", "..");
@@ -486,10 +487,15 @@ const boardTree = memoryTree({
   "docs/specs/004-delta/spec.md": spec("004", "Delta", "Partially implemented: slice 1", "- D1: one\n- D2: [pending] two\n- D3: [pending] three\n- D4: [measure] four\n"),
   "docs/specs/005-eps/spec.md": spec("005", "Eps", "Accepted 2026-10-01", "- E1: [pending] one\n"),
   "docs/specs/006-site/spec.md": spec("006", "Site", "Implemented (#6)", "- F1: one\n"),
+  ".github/workflows/feature-map-site.yml": "# Spec 006. Builds the site.\n",
 });
 const tagTree = memoryTree({
   "docs/specs/001-alpha/spec.md": spec("001", "Alpha", "Draft"),
   "docs/specs/003-gamma/spec.md": spec("003", "Gamma", "Draft"),
+});
+const withFile = (reader: TreeReader, path: string, text: string): TreeReader => ({
+  read: (name) => name === path ? text : reader.read(name),
+  list: (dir) => reader.list(dir),
 });
 const boardSite = (refs: readonly RefInput[]) => buildSite(input(refs));
 
@@ -507,13 +513,14 @@ describe("feature-map site: status board", () => {
     expect(main.specs.map((item: { number: string; inProduction: boolean }) => [item.number, item.inProduction])).toEqual([
       ["001", true], ["002", false], ["003", true], ["004", false], ["005", false], ["006", false],
     ]);
-    // Positive control: the same main without any tag has no production, so nothing is on Prod.
-    const alone = JSON.parse(boardSite([refInput("main", "branch", boardTree)]).files.get("main/data.json")!);
+    // Positive control: the same main without any tag has no production, so nothing is on Prod,
+    // and the map's "Runs on: Prod" for 001 cannot widen that (B27): the build of that default page fails.
+    expect(() => boardSite([refInput("main", "branch", boardTree)])).toThrow('main: Spec 001: Runs on "Prod" cannot be confirmed: this build has no readable v* tag');
+    const unclaimed = withFile(boardTree, "docs/feature-map.md", boardMap.replace("| A1 | x | Prod |", "| A1 | x | Dev |"));
+    const alone = JSON.parse(boardSite([refInput("main", "branch", unclaimed)]).files.get("main/data.json")!);
     expect(alone.production).toBeNull();
-    // Only the map's own "Runs on: Prod" (001) keeps a spec on Prod without a tag.
-    expect(alone.specs.filter((item: { inProduction: boolean }) => item.inProduction)).toEqual([]);
-    expect(alone.specs.filter((item: { stage: string }) => item.stage === "prod").map((item: { number: string }) => item.number)).toEqual(["001"]);
-    expect(boardSite([refInput("main", "branch", boardTree)]).files.get("main/index.html")).toContain("此建置沒有可讀的 <code>v*</code> 標籤");
+    expect(alone.specs.filter((item: { stage: string }) => item.stage === "prod")).toEqual([]);
+    expect(boardSite([refInput("main", "branch", unclaimed)]).files.get("main/index.html")).toContain("此建置沒有可讀的 <code>v*</code> 標籤");
   });
 
   test("B21: a spec is off on Prod when a Deployed configuration row names it and its Prod cell is unset or none", () => {
@@ -582,5 +589,69 @@ describe("feature-map site: status board", () => {
     expect(specs.filter((item) => item.stage === "other").map((item) => item.number)).toEqual(["007"]);
     // One form: a plain `Status:` line near the top (gardening G11), not a list item.
     expect(specs.filter((item) => !/^Status: \S/mu.test(readFileSync(join(root, item.path), "utf8").split("\n", 12).join("\n"))).map((item) => item.number)).toEqual([]);
+  });
+});
+
+/** This repository's production tag read from git, when this checkout has one (CI's shallow unit checkout has none). */
+function repositoryProduction(): ProductionRef | null {
+  const tags = execFileSync("git", ["tag", "-l", "v*", "--sort=-v:refname"], { cwd: root, encoding: "utf8" }).split("\n").filter((tag) => tag !== "");
+  if (tags.length === 0) return null;
+  const tag = tags[0]!;
+  const [tagSha, date] = execFileSync("git", ["log", "-1", "--format=%H%x09%cI", `${tag}^{commit}`], { cwd: root, encoding: "utf8" }).trim().split("\t");
+  return { name: tag, sha: tagSha!, date: new Date(date!).toISOString(), specDirectories: gitTree(root, tag).list("docs/specs") };
+}
+
+describe("feature-map site: Runs on only narrows", () => {
+  test.each(runsOnRows)("$id: Spec $spec claims $claim → $error", (row) => {
+    const error = runsOnError({
+      number: row.spec, claim: row.claim, status: row.status, statusKind: statusKind(row.status), inProduction: row.inTag,
+      offOnProd: row.offOnProd === "" ? [] : row.offOnProd.split(", "), production: row.production, pagesSpecs: row.pages.split(", "),
+    });
+    if (row.error === null) expect(error).toBeNull();
+    else {
+      expect(error).toContain(`Spec ${row.spec}: Runs on "${row.claim}"`);
+      expect(error).toContain(row.error);
+    }
+  });
+
+  test("B27: the specs on GitHub Pages are the ones the feature-map-site workflow cites; a rejected claim falls back to the derived group", () => {
+    expect(pagesSpecs(directoryTree(root))).toEqual(["020"]);
+    expect(pagesSpecs(memoryTree({}))).toEqual([]);
+    // Without a claim the workflow alone puts 020 on GitHub Pages; a rejected claim is ignored, never trusted.
+    expect(specStage({ statusKind: "implemented", pending: 0, inProduction: false, offOnProd: 0, runsOn: null, publishedByPages: true })).toBe("pages");
+    expect(specStage({ statusKind: "implemented", pending: 0, inProduction: false, offOnProd: 0, runsOn: null })).toBe("dev");
+  });
+
+  test("B27: in this repository, a stale but valid-looking Runs on fails the default page naming the spec, the value and the evidence", () => {
+    const map = readFileSync(join(root, "docs/feature-map.md"), "utf8");
+    const production = repositoryProduction();
+    const claim = (number: string, value: string) => {
+      const row = map.split("\n").find((line) => line.startsWith(`| [${number}](`))!;
+      expect(row).toBeDefined();
+      const edited = map.replace(row, row.replace(/\| [^|]+ \|$/u, `| ${value} |`));
+      expect(edited).not.toBe(map);
+      // Only this spec's errors: without the tags (CI's shallow checkout) every Prod claim is unconfirmed too.
+      return buildData({ repository, ref, tree: withFile(directoryTree(root), "docs/feature-map.md", edited), production }).runsOnErrors
+        .filter((error) => error.startsWith(`Spec ${number}:`));
+    };
+    for (const [number, value] of [["019", "Prod"], ["020", "Prod"], ["024", "GitHub Pages"]] as const) {
+      const errors = claim(number, value);
+      expect(errors.length).toBe(1);
+      expect(errors[0]).toStartWith(`Spec ${number}: Runs on "${value}"`);
+      expect(errors[0]).toMatch(/contradicts the evidence|cannot be confirmed/u);
+    }
+    // Narrowing is allowed: 001 (in the Prod tag) marked Dev.
+    expect(claim("001", "Dev")).toEqual([]);
+    // The site build of the default page fails on such a claim.
+    const edited = map.replace(/(\| \[019\]\([^\n]*)\| Dev \|$/mu, "$1| Prod |");
+    expect(edited).not.toBe(map);
+    expect(() => buildSite(input([{ name: "main", kind: "branch", sha, date: ref.date, tree: withFile(directoryTree(root), "docs/feature-map.md", edited) }])))
+      .toThrow('Spec 019: Runs on "Prod"');
+  });
+
+  test.skipIf(repositoryProduction() === null)("B27: this repository's Runs on column claims nothing the evidence contradicts (needs the v* tags; the site build checks it in CI)", () => {
+    const data = buildData({ repository, ref, tree: directoryTree(root), production: repositoryProduction() });
+    expect(data.runsOnErrors).toEqual([]);
+    expect(data.specs.filter((item) => item.stage === "pages").map((item) => item.number)).toEqual(["020"]);
   });
 });

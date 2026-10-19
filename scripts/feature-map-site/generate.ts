@@ -87,6 +87,8 @@ export interface SiteData {
   readonly status: "ok" | "no-feature-map";
   /** What this tree does not have, in the order found. */
   readonly notes: readonly string[];
+  /** "Runs on" values that claim more than the evidence (B27); the site build fails on the default ref's. */
+  readonly runsOnErrors: readonly string[];
   readonly featureMap: { readonly path: string; readonly title: string | null; readonly sections: readonly Section[] } | null;
   readonly deployedConfiguration: Table | null;
   readonly schedules: Table | null;
@@ -131,20 +133,68 @@ export function statusKind(status: string): StatusKind {
  * an implemented spec is on Prod when the production tag has it and no flag naming it is off there,
  * else on Dev only (Dev deploys every push to `main`); accepted or draft is planned.
  */
-export function specStage(input: { readonly statusKind: StatusKind; readonly pending: number; readonly inProduction: boolean; readonly offOnProd: number; readonly runsOn?: string | null }): Stage {
+export function specStage(input: {
+  readonly statusKind: StatusKind; readonly pending: number; readonly inProduction: boolean; readonly offOnProd: number;
+  /** A "Runs on" value that `runsOnError` accepted; a rejected one is passed as null. */
+  readonly runsOn?: string | null;
+  /** The feature-map-site workflow publishes this spec to GitHub Pages. */
+  readonly publishedByPages?: boolean;
+}): Stage {
   const { statusKind: kind, pending, inProduction, offOnProd } = input;
   if (kind === "implemented" || kind === "partial") {
     if (kind === "partial" || pending > 0) return "progress";
-    // The feature map's "Runs on" names where a built spec runs; it wins over the tag and the flags.
+    // "Runs on" can only narrow what the evidence allows (runsOnError), so taking it here never widens.
     const runsOn = input.runsOn?.trim() ?? "";
     if (/^GitHub Pages\b/iu.test(runsOn)) return "pages";
     if (/^Prod\b/iu.test(runsOn)) return "prod";
     if (/^Dev\b/iu.test(runsOn)) return "dev";
     if (/^none\b/iu.test(runsOn)) return "other";
+    if (input.publishedByPages === true) return "pages";
     return inProduction && offOnProd === 0 ? "prod" : "dev";
   }
   if (kind === "accepted" || kind === "draft") return "planned";
   return pending > 0 ? "progress" : "other";
+}
+
+export const RUNS_ON = ["Prod", "Dev", "GitHub Pages", "none"] as const;
+
+/**
+ * Spec 020 B27: a "Runs on" value may only narrow what the evidence allows, never widen it.
+ * `Prod` needs the spec's directory in the production tag and no Deployed configuration row naming it
+ * off on Prod; `GitHub Pages` needs the feature-map-site workflow to publish it; `Prod`, `Dev` and
+ * `GitHub Pages` need the spec implemented (or partially) on this ref. `none` is always allowed, and so
+ * is `Dev` for a spec in the Prod tag (narrowing). Returns why the value contradicts the evidence, or null.
+ */
+export function runsOnError(input: {
+  readonly number: string; readonly claim: string | null; readonly status: string; readonly statusKind: StatusKind;
+  readonly inProduction: boolean; readonly offOnProd: readonly string[]; readonly production: string | null;
+  readonly pagesSpecs: readonly string[];
+}): string | null {
+  if (input.claim === null) return null;
+  const claim = RUNS_ON.find((value) => new RegExp(`^${value}\\b`, "iu").test(input.claim!.trim()));
+  const said = `Spec ${input.number}: Runs on "${input.claim}"`;
+  if (claim === undefined) return `${said} is not one of ${RUNS_ON.join(", ")}`;
+  if (claim === "none") return null;
+  if (input.statusKind !== "implemented" && input.statusKind !== "partial") {
+    return `${said} contradicts its Status, which is not implemented: "${input.status}"`;
+  }
+  if (claim === "Prod") {
+    if (input.production === null) return `${said} cannot be confirmed: this build has no readable v* tag`;
+    if (!input.inProduction) return `${said} contradicts the evidence: its directory is not in ${input.production}`;
+    if (input.offOnProd.length > 0) return `${said} contradicts the evidence: Deployed configuration ${input.offOnProd.join(", ")} unset or none on Prod`;
+  }
+  if (claim === "GitHub Pages" && !input.pagesSpecs.includes(input.number)) {
+    return `${said} contradicts the evidence: ${PAGES_WORKFLOW} publishes ${input.pagesSpecs.length === 0 ? "no spec" : input.pagesSpecs.map((number) => `Spec ${number}`).join(", ")}`;
+  }
+  return null;
+}
+
+/** The workflow that publishes the feature-map site to GitHub Pages; the specs its file cites are what it publishes. */
+export const PAGES_WORKFLOW = ".github/workflows/feature-map-site.yml";
+
+export function pagesSpecs(tree: TreeReader): string[] {
+  const text = tree.read(PAGES_WORKFLOW);
+  return text === null ? [] : [...new Set([...text.matchAll(/\bSpec (\d{3})\b/gu)].map((match) => match[1]!))].sort();
 }
 
 /** Spec number → names of the Deployed configuration rows that cite `Spec <number>` and whose Prod cell is unset or none. */
@@ -165,8 +215,9 @@ export function offOnProd(deployed: Table | null): ReadonlyMap<string, readonly 
   return result;
 }
 
-function readSpecs(tree: TreeReader, acceptance: Table | null, deployed: Table | null, production: ProductionRef | null): SpecEntry[] {
+function readSpecs(tree: TreeReader, acceptance: Table | null, deployed: Table | null, production: ProductionRef | null, errors: string[]): SpecEntry[] {
   const off = offOnProd(deployed);
+  const published = pagesSpecs(tree);
   const runsOnColumn = acceptance?.headers.findIndex((header) => plainText(header).trim().toLowerCase() === "runs on") ?? -1;
   const rows = new Map<string, readonly string[]>();
   for (const row of acceptance?.rows ?? []) {
@@ -190,18 +241,21 @@ function readSpecs(tree: TreeReader, acceptance: Table | null, deployed: Table |
     const kind = statusKind(status);
     const inProduction = production?.specDirectories.includes(directory) ?? false;
     const offNames = off.get(number) ?? [];
+    const claim = runsOnColumn < 0 || row === undefined ? null : plainText(row[runsOnColumn] ?? "").trim() || null;
+    const error = runsOnError({ number, claim, status, statusKind: kind, inProduction, offOnProd: offNames, production: production?.name ?? null, pagesSpecs: published });
+    if (error !== null) errors.push(error);
     specs.push({
       number, directory, path,
       title: heading.replace(/^Spec\s+\d+\s*[:—-]\s*/iu, ""),
       status, statusKind: kind,
       acceptanceIds: row?.[1] ?? null,
       surface: row?.[2] ?? null,
-      runsOn: runsOnColumn < 0 || row === undefined ? null : plainText(row[runsOnColumn] ?? "").trim() || null,
+      runsOn: claim,
       acceptanceItems: items.length,
       pending,
       inProduction,
       offOnProd: offNames,
-      stage: specStage({ statusKind: kind, pending, inProduction, offOnProd: offNames.length, runsOn: runsOnColumn < 0 || row === undefined ? null : plainText(row[runsOnColumn] ?? "") }),
+      stage: specStage({ statusKind: kind, pending, inProduction, offOnProd: offNames.length, runsOn: error === null ? claim : null, publishedByPages: published.includes(number) }),
     });
   }
   return specs;
@@ -261,7 +315,8 @@ export function buildData(input: { readonly repository: string; readonly ref: Re
   const gardeningText = tree.read(GARDENING);
   if (gardeningText === null) notes.push(`${GARDENING} is not in this tree`);
   const gardening = gardeningText === null ? null : readGardening(gardeningText);
-  const specs = readSpecs(tree, acceptance, deployedConfiguration, production);
+  const runsOnErrors: string[] = [];
+  const specs = readSpecs(tree, acceptance, deployedConfiguration, production, runsOnErrors);
   if (specs.length === 0) notes.push(`${SPECS} has no spec`);
   const specsByStatus: Record<StatusKind, number> = { draft: 0, accepted: 0, partial: 0, implemented: 0, other: 0 };
   const specsByStage: Record<Stage, number> = { prod: 0, dev: 0, pages: 0, progress: 0, planned: 0, other: 0 };
@@ -276,6 +331,7 @@ export function buildData(input: { readonly repository: string; readonly ref: Re
     production: production === null ? null : { name: production.name, sha: production.sha, date: production.date },
     status: featureMap === null ? "no-feature-map" : "ok",
     notes,
+    runsOnErrors,
     featureMap,
     deployedConfiguration,
     schedules,
@@ -581,6 +637,9 @@ export function renderPage(data: SiteData, options: { readonly defaultSlug: stri
 
   if (data.featureMap === null) {
     parts.push(`<p class="notice">此版本沒有 feature map（<code>${FEATURE_MAP}</code> 不在這個 commit 的檔案樹中），以下只列出此版本有的資料。</p>`);
+  }
+  if (data.runsOnErrors.length > 0) {
+    parts.push(`<p class="notice">feature map 的 Runs on 與證據不符，現況以推導結果為準。Runs on contradicts the evidence; the board shows the derived group instead:</p><ul class="notice-list">${data.runsOnErrors.map((error) => `<li>${escapeHtml(error)}</li>`).join("")}</ul>`);
   }
   parts.push(renderBoard(data, sections, mapLinks));
   const by = counts.specsByStatus;

@@ -6,7 +6,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { buildData, formatTime, renderErrorPage, renderPage, SPECS, type ProductionRef, type RefKind, type RefMeta, type TreeReader } from "./generate";
+import { buildData, formatTime, PAGES_WORKFLOW, renderErrorPage, renderPage, SPECS, type ProductionRef, type RefKind, type RefMeta, type TreeReader } from "./generate";
 import { escapeHtml } from "./markdown";
 
 export { switcherScript } from "./switcher";
@@ -100,6 +100,8 @@ export function buildSite(input: SiteInput): { readonly files: Map<string, strin
     const meta: RefMeta = { name: ref.name, slug: slugs[index]!, kind: ref.kind, sha: ref.sha, date: ref.date };
     try {
       const data = buildData({ repository: input.repository, ref: meta, tree: ref.tree, production });
+      // The default page is what readers see: it may not claim more than the evidence (B27).
+      if (index === 0 && data.runsOnErrors.length > 0) throw new Error(data.runsOnErrors.join("; "));
       const page = renderPage(data, { defaultSlug });
       files.set(`${meta.slug}/index.html`, page);
       files.set(`${meta.slug}/data.json`, `${JSON.stringify(data, null, 2)}\n`);
@@ -183,10 +185,10 @@ export function directoryTree(root: string): TreeReader {
 export const git = (repo: string, ...args: string[]) =>
   execFileSync("git", args, { cwd: repo, encoding: "utf8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
 
-/** The `docs/` files of a revision, read from the object store: no checkout, no worktree. */
+/** The `docs/` files of a revision and the feature-map-site workflow (B27), read from the object store: no checkout, no worktree. */
 export function gitTree(repo: string, revision: string): TreeReader {
   let paths: Set<string> | undefined;
-  const all = () => paths ??= new Set(git(repo, "ls-tree", "-r", "-z", "--name-only", revision, "--", "docs").split("\0").filter((path) => path !== ""));
+  const all = () => paths ??= new Set(git(repo, "ls-tree", "-r", "-z", "--name-only", revision, "--", "docs", PAGES_WORKFLOW).split("\0").filter((path) => path !== ""));
   return {
     read: (path) => all().has(path) ? git(repo, "show", `${revision}:${path}`) : null,
     list(directory) {
