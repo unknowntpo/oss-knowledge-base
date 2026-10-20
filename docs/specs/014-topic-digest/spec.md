@@ -2261,8 +2261,8 @@ built yet; the command rejects the flag.
 
 The owner approved the Dev digest schedule on 2026-10-14. Until then no
 digest had been published: the three runs of 2026-10-08 were dry runs, and
-Dev `/api/digest` answered 404. Prod is unchanged (its digest is off and its
-data Worker has never been deployed).
+Dev `/api/digest` answered 404. Prod is unchanged (its digest is off; its data Worker was first deployed by
+`v0.3.1` on 2026-10-19).
 
 ### What made dry run 3 unusable
 

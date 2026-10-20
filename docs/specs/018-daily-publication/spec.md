@@ -1,6 +1,6 @@
 # Spec 018: Daily publication
 
-Status: Implemented (#62, #65, #68; owner's decision 2026-10-13, details by the implementer); Dev publishes daily at 22:07 UTC; the Prod cron (22:37 UTC) is configured but never deployed
+Status: Implemented (#62, #65, #68; owner's decision 2026-10-13, details by the implementer); Dev publishes daily at 22:07 UTC; Prod daily at 22:37 UTC since `v0.3.1` (deployed 2026-10-19; first Cron run 22:37 UTC ok)
 Date: 2026-10-13
 Traceability: enforced
 Builds on: Spec 006, Spec 009, Spec 010, Spec 012, Spec 016, ADR-0012
@@ -65,9 +65,13 @@ was the retry; under a daily Cron it would be a day away.
 Prod: `v0.1.0` (2026-08-26) and `v0.2.0` (2026-08-31) deployed Prod **Pages**
 (`Deploy production: success` in both CI runs;
 https://oss-knowledge-base.pages.dev serves the bootstrap snapshot generated
-2026-08-25). The Prod data Worker has never been deployed: its configuration
-was added on 2026-09-02 (`48ff871`), after the last tag. Its Cron therefore
-takes effect only at the next `v*` tag.
+2026-08-25). The Prod data Worker's configuration was added on 2026-09-02
+(`48ff871`), after the last tag, so its Cron took effect only at the next
+tag: `v0.3.1` deployed it on 2026-10-19 (`v0.3.0` failed CI and deployed
+nothing). The first `POST /run` (10:19 UTC) and its follow-ups finished the
+30-day backlog at 12:56 UTC (`pollTruncated` false, 6,950 chunks); the first
+Cron run at 22:37 UTC published release `2026-10-19T22-37-23-809Z` (3,981
+entries).
 
 ## Example
 
@@ -282,7 +286,7 @@ publication against in-memory upstreams, state and bucket).
 | What | Where | Cadence | Reads / writes | Cost per run | Needed | Recommendation |
 | --- | --- | --- | --- | --- | --- | --- |
 | Publisher Cron, Dev | `apps/data-publisher-worker/wrangler.development.jsonc` → `scheduled` → `PipelineState` alarm | `7 22 * * *` (was `7 * * * *`) | GitHub, Pony Mail, Jira → Durable Object state → R2 Feed and Search releases, pointers, evidence | 13 upstream pages in an hourly run; R2 about 40 Class A (new objects + 3) and about 8,200 Class B a run since PR #60 (8,150 Class A before it); `lastRun.r2` reports both; no model | Yes | Keep (this spec) |
-| Publisher Cron, Prod | `wrangler.production.jsonc` | `37 22 * * *` (was `37 * * * *`); the Worker has never been deployed | as Dev, Prod bucket | none today | Not until Prod data goes live | Keep the entry; it starts with the next `v*` tag |
+| Publisher Cron, Prod | `wrangler.production.jsonc` | `37 22 * * *` (was `37 * * * *`); deployed by `v0.3.1` (2026-10-19) | as Dev, Prod bucket | daily since 2026-10-19 | Prod data is live | Keep |
 | Publisher follow-ups | `PipelineState` alarm (`planFollowUp`) | 5 min after a truncated run (≤ 5); 10, 30, 60 min after a failure (≤ 3) | as a publication | one publication each | Yes, with a daily Cron | Keep |
 | Runtime alarm retry | Workers runtime | when an alarm handler dies (for example out of memory); exponential backoff, up to 6 retries (Cloudflare's documented behavior); an alarm 30 min overdue is treated as gone (`STALE_ALARM_MS`) | as a publication, under a new release id (Spec 009 M10) | one publication | Yes | Keep |
 | Embedding job | `SearchEmbeddingRun` alarm, started by each successful publication (`onPublished`) or `POST /search-embedding/run` | once per publication; then hourly while work is left; 00:05 UTC after a day cap (Spec 016 Behavior 46) | R2 Search pointer, manifest, shards (12 Class B) → Workers AI `bge-m3` through `osskb-search-dev` → Vectorize | 1 model call, 1 neuron for 7 chunks; caps 80 calls and 3,000 chunks a run, 400 calls and 2,500 neurons a day | Yes (Dev hybrid search) | Keep |
