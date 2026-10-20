@@ -1,0 +1,3298 @@
+{
+  "revision": "dev-2026-10-20",
+  "note": "Real model output from the Dev daily digest cron (completed 2026-10-19T22:48:55.352Z), release 2026-10-19T22-07-19-086Z, read from Dev Pages /api/digest (en and zh-Hant) after the D96 cache fix (aca18a4). Sentences are those kept after Behavior 9/30 validation; rejected sentences are not published (counts in provenance.rejections). zhHant holds the published translations for review only; eval does not read it.",
+  "provenance": {
+    "worker": "oss-knowledge-base-data-dev (Dev)",
+    "run": "scheduled digest cron 22:47 UTC",
+    "readVia": "https://oss-knowledge-base-dev.pages.dev/api/digest?projectId=apache-kafka&locale=en|zh-Hant",
+    "completedAt": "2026-10-19T22:48:55.352Z",
+    "sourceRelease": {
+      "releaseId": "2026-10-19T22-07-19-086Z",
+      "generatedAt": "2026-10-19T22:07:19.086Z"
+    },
+    "window": {
+      "start": "2026-10-12T22:07:19.086Z",
+      "end": "2026-10-19T22:07:19.086Z"
+    },
+    "revisions": {
+      "scoring": "digest-score@1",
+      "taxonomy": "kafka-topics@1",
+      "classifier": {
+        "model": "@cf/cloudflare/clef-flash",
+        "prompt": "digest-clef@2"
+      },
+      "summarizer": {
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "prompt": "digest-prompts@3"
+      },
+      "translator": {
+        "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+        "prompt": "digest-prompts@3"
+      }
+    },
+    "gateway": "Workers AI binding through AI Gateway osskb-digest-dev",
+    "estimatedNeurons": 1637,
+    "modelCalls": 29,
+    "cached": 398,
+    "fallbacks": 1,
+    "limited": false,
+    "candidates": 448,
+    "rejections": {
+      "unparsable": 1,
+      "status:verified": 1,
+      "status:fixed": 1
+    },
+    "style": {
+      "sentences": 44,
+      "personLed": 3,
+      "contentFree": 1
+    },
+    "calibration": {
+      "calls": 29,
+      "callsWithUsage": 27,
+      "clefCalls": 2,
+      "clefCallsWithUsage": 0,
+      "clefCanaryMisses": 0,
+      "estimatedInputTokens": 42041,
+      "reportedInputTokens": 28120,
+      "ratio": 0.99
+    },
+    "modelErrors": [],
+    "featureSources": {
+      "reconstructedFromPlacement": 448
+    },
+    "cardProvenance": {
+      "security": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "generatedAt": "2026-10-19T22:47:36.716Z"
+      },
+      "clients": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "generatedAt": "2026-10-19T22:47:36.716Z"
+      },
+      "connect": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "generatedAt": "2026-10-19T22:47:36.716Z"
+      },
+      "kraft": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "generatedAt": "2026-10-19T22:47:36.716Z"
+      },
+      "streams": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "generatedAt": "2026-10-19T22:47:36.716Z"
+      },
+      "group-coordination": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "generatedAt": "2026-10-19T22:47:36.716Z"
+      },
+      "storage": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "generatedAt": "2026-10-19T22:47:36.716Z"
+      },
+      "observability": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "generatedAt": "2026-10-19T22:47:36.716Z"
+      },
+      "share-groups": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "generatedAt": "2026-10-19T22:47:36.716Z"
+      },
+      "releases": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "generatedAt": "2026-10-19T22:47:36.716Z"
+      },
+      "community": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "generatedAt": "2026-10-19T22:47:36.716Z"
+      }
+    },
+    "highlightsProvenance": {
+      "source": "model",
+      "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "generatedAt": "2026-10-19T22:47:36.716Z"
+    },
+    "proposalProvenance": {
+      "KIP-1322": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+      },
+      "KIP-1376": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+      },
+      "KIP-1374": {
+        "source": "cache",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+      },
+      "KIP-1382": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+      },
+      "KIP-1325": null,
+      "KIP-1381": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+      },
+      "KIP-1324": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+      },
+      "KIP-1332": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+      },
+      "KIP-853": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+      },
+      "KIP-891": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+      },
+      "KIP-1314": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+      },
+      "KIP-1133": {
+        "source": "cache",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+      },
+      "KIP-939": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+      },
+      "KIP-995": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+      },
+      "KIP-909": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+      },
+      "KIP-1241": {
+        "source": "model",
+        "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+      }
+    }
+  },
+  "classify": {
+    "KAFKA-10731": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-12744": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-12759": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-14019": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-14102": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-14249": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-14302": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-14359": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-14369": {
+      "topic": "kraft",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-15370": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-15423": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-15677": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-15853": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-15864": {
+      "topic": "storage",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-15976": {
+      "topic": "connect",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-16020": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-16304": {
+      "topic": "storage",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-17249": {
+      "topic": "storage",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-18002": {
+      "topic": "connect",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-18141": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-18309": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-18905": {
+      "topic": "storage",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-19000": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-19070": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-19106": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-19261": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-19307": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-19308": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-19327": {
+      "topic": "connect",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-19651": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-19657": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-19804": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-19979": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-19992": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20047": {
+      "topic": "storage",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20077": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20118": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20125": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-20131": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20155": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20171": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20253": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20259": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20292": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20297": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20343": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20350": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-20370": {
+      "topic": "observability",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20390": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20391": {
+      "topic": "connect",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20397": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20402": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20455": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20579": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20580": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20657": {
+      "topic": "connect",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20676": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20684": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20698": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20744": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20824": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-20855": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20858": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20866": {
+      "topic": "storage",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20873": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20895": {
+      "topic": "kraft",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20917": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20924": {
+      "topic": "observability",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20925": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20960": {
+      "topic": "kraft",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20964": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-20999": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21022": {
+      "topic": "kraft",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21043": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21046": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21064": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21070": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21084": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21091": {
+      "topic": "observability",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21094": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21111": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21117": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21128": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-21129": {
+      "topic": "kraft",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21132": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21133": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21134": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21141": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21142": {
+      "topic": "kraft",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21148": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21149": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21151": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21153": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21156": {
+      "topic": "observability",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21160": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21167": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21169": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21170": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21178": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21181": {
+      "topic": "kraft",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21182": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21194": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21204": {
+      "topic": "storage",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21205": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21207": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21210": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21212": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21214": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21217": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21222": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21223": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21224": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21225": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21226": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21229": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21230": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21232": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-21234": {
+      "topic": "kraft",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21238": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21243": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21248": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21249": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21251": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21252": {
+      "topic": "kraft",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21253": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21255": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21256": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21257": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21258": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21264": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-21265": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21268": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-21269": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21271": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21274": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-21276": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21277": {
+      "topic": "kraft",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21278": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21280": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21284": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-21285": {
+      "topic": "kraft",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21287": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21288": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21289": {
+      "topic": "releases",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21293": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21294": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21295": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21298": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21299": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21300": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21301": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21302": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21303": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21305": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-21306": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21307": {
+      "topic": "share-groups",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-21309": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-4094": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-7187": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-9761": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-MAIL-01800f47": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-MAIL-0919aafa": {
+      "topic": "community",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-MAIL-1462c0e6": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-MAIL-1a966810": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-MAIL-1ea662ce": {
+      "topic": "releases",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-MAIL-3871c507": {
+      "topic": "observability",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-MAIL-3bc971ac": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-MAIL-50ec6dbd": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-MAIL-84a4a45a": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-MAIL-916d6ccc": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-MAIL-c899bc9c": {
+      "topic": "observability",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-MAIL-e07e6b7f": {
+      "topic": "releases",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-MAIL-f099b4e1": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-MAIL-fca6d63d": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-17731": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-18326": {
+      "topic": "connect",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-19228": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-19265": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-19382": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-19418": {
+      "topic": "connect",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-20011": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-20622": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-20641": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-20657": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21308": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21393": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21416": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21470": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21488": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21584": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21632": {
+      "topic": "kraft",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21672": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21674": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21735": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21765": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21790": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21831": {
+      "topic": "connect",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21843": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21852": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21864": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21889": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21892": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21898": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21906": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21909": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21925": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21933": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21935": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21938": {
+      "topic": "connect",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21942": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21953": {
+      "topic": "connect",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21954": {
+      "topic": "observability",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21961": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21972": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21975": {
+      "topic": "storage",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21991": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-21996": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-22001": {
+      "topic": "connect",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-22019": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-22027": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-22071": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-22213": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-22252": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-22513": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-22593": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-22821": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-22831": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-22865": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-22893": {
+      "topic": "storage",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-22911": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-22922": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-22943": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-22966": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-22967": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-22996": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23004": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23012": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23106": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23107": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23108": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23109": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23113": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23115": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23168": {
+      "topic": "kraft",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23203": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23268": {
+      "topic": "connect",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23274": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23298": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23300": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23312": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23338": {
+      "topic": "kraft",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23349": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23379": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23393": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23394": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23418": {
+      "topic": "kraft",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23424": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23440": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23442": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23443": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23445": {
+      "topic": "storage",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23452": {
+      "topic": "observability",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23453": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23463": {
+      "topic": "observability",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23483": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23488": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23514": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23519": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23520": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23522": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23524": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23525": {
+      "topic": "kraft",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23526": {
+      "topic": "connect",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23536": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23549": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23551": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23553": {
+      "topic": "connect",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23554": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23556": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23559": {
+      "topic": "storage",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23562": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23569": {
+      "topic": "storage",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23580": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23588": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23591": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23593": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23598": {
+      "topic": "connect",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23602": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23610": {
+      "topic": "kraft",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23615": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23625": {
+      "topic": "observability",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23636": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23651": {
+      "topic": "observability",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23662": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23663": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23665": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23671": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23673": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23681": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23682": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23685": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23686": {
+      "topic": "observability",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23687": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23688": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23690": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23691": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23695": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23696": {
+      "topic": "observability",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23698": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23699": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23701": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23704": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23705": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23706": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23708": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23709": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23711": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23712": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23715": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23717": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23719": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23722": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23723": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23724": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23725": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23726": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23728": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23729": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23730": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23731": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23732": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23733": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23734": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23735": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23736": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23737": {
+      "topic": "kraft",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23742": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23743": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23744": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23746": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23749": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23751": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23753": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23755": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23756": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23761": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23762": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23763": {
+      "topic": "observability",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23765": {
+      "topic": "storage",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23766": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23768": {
+      "topic": "share-groups",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23770": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23772": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23773": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23778": {
+      "topic": "kraft",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23779": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23780": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23781": {
+      "topic": "share-groups",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23782": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23783": {
+      "topic": "connect",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23784": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23785": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23786": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23787": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23789": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23790": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23791": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23793": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23794": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23795": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23796": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23797": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23798": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23799": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23800": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23801": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23802": {
+      "topic": "share-groups",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23803": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23804": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23805": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23806": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23807": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23808": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23809": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23810": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23811": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23812": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23813": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23814": {
+      "topic": "kraft",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23815": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23816": {
+      "topic": "storage",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23817": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23818": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23819": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23820": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23821": {
+      "topic": "share-groups",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23822": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23823": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23824": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23825": {
+      "topic": "observability",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23826": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23827": {
+      "topic": "storage",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23828": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23829": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23830": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23831": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23832": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23833": {
+      "topic": "releases",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23834": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23835": {
+      "topic": "kraft",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23836": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23837": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23838": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23839": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23840": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23841": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23842": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23843": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23844": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23845": {
+      "topic": "observability",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23846": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23847": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23848": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23849": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23850": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23851": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23852": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23853": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23854": {
+      "topic": "kraft",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23855": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23856": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23857": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23858": {
+      "topic": "kraft",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23859": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23860": {
+      "topic": "connect",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23861": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23862": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": true,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23863": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23864": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23865": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23866": {
+      "topic": "security",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23867": {
+      "topic": "share-groups",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23868": {
+      "topic": "other",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23869": {
+      "topic": "connect",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23870": {
+      "topic": "clients",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23871": {
+      "topic": "group-coordination",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23872": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    },
+    "KAFKA-PR-23873": {
+      "topic": "streams",
+      "topicConfidence": 1,
+      "routine": false,
+      "routineConfidence": 1
+    }
+  },
+  "cards": {
+    "clients": [
+      {
+        "text": "Java consumer with SubscriptionPattern stops refreshing metadata after an assigned topic is deleted (KAFKA-21309, open).",
+        "cites": [
+          "KAFKA-MAIL-50ec6dbd",
+          "KAFKA-21309"
+        ]
+      },
+      {
+        "text": "Producer close() hangs indefinitely if the in-flight transaction abort never succeeds (KAFKA-21132, open).",
+        "cites": [
+          "KAFKA-21132"
+        ]
+      },
+      {
+        "text": "Admin client types for Cluster Mirroring feature are added (KAFKA-PR-23829, closed).",
+        "cites": [
+          "KAFKA-PR-23829"
+        ]
+      }
+    ],
+    "community": [
+      {
+        "text": "Flaky Test Report returns 401 error (open, KAFKA-MAIL-0919aafa).",
+        "cites": [
+          "KAFKA-MAIL-0919aafa"
+        ]
+      }
+    ],
+    "connect": [
+      {
+        "text": "Documentation version references updated to 4.4 (KAFKA-PR-23869, merged).",
+        "cites": [
+          "KAFKA-PR-23869"
+        ]
+      },
+      {
+        "text": "Quickstart command examples made copy-friendly (KAFKA-PR-23526, merged).",
+        "cites": [
+          "KAFKA-PR-23526"
+        ]
+      },
+      {
+        "text": "Connect REST API return types improved (KAFKA-PR-22001, merged).",
+        "cites": [
+          "KAFKA-PR-22001"
+        ]
+      }
+    ],
+    "group-coordination": [
+      {
+        "text": "Assignor offloading for consumer groups would run on a background thread (KAFKA-20292, open).",
+        "cites": [
+          "KAFKA-PR-23688"
+        ]
+      },
+      {
+        "text": "Group spec copying would use SmallIntegerSet (KAFKA-PR-23871, open).",
+        "cites": [
+          "KAFKA-PR-23871"
+        ]
+      },
+      {
+        "text": "Client tests would migrate to RebalanceListener (KAFKA-20684, open).",
+        "cites": [
+          "KAFKA-PR-23863"
+        ]
+      }
+    ],
+    "kraft": [
+      {
+        "text": "Docker image would support KRaft dynamic quorum controllers",
+        "cites": [
+          "KAFKA-PR-23814"
+        ]
+      },
+      {
+        "text": "Empty batches in non-atomic batching are avoided",
+        "cites": [
+          "KAFKA-PR-23525"
+        ]
+      },
+      {
+        "text": "Dynamic configs less than half the value in server.properties may not take effect after restart",
+        "cites": [
+          "KAFKA-21285"
+        ]
+      }
+    ],
+    "observability": [
+      {
+        "text": "Client metrics match patterns would use RE2/J syntax (KAFKA-PR-23696, open).",
+        "cites": [
+          "KAFKA-PR-23696"
+        ]
+      },
+      {
+        "text": "Telemetry reporter would skip disabled sensor metrics (KAFKA-PR-23763, open).",
+        "cites": [
+          "KAFKA-PR-23763"
+        ]
+      },
+      {
+        "text": "Java client would honor TelemetryMaxBytes limit (KAFKA-PR-23452, open).",
+        "cites": [
+          "KAFKA-PR-23452"
+        ]
+      }
+    ],
+    "releases": [
+      {
+        "text": "Release 4.3.2 would fix bugs (KAFKA-MAIL-e07e6b7f, discussing).",
+        "cites": [
+          "KAFKA-MAIL-e07e6b7f"
+        ]
+      },
+      {
+        "text": "Release.py stage-docs is fixed for Hugo layout (KAFKA-PR-23833, merged).",
+        "cites": [
+          "KAFKA-PR-23833"
+        ]
+      },
+      {
+        "text": "Release 4.4.0 is proposed with 26 KIPs (KAFKA-MAIL-1ea662ce, discussing).",
+        "cites": [
+          "KAFKA-MAIL-1ea662ce"
+        ]
+      }
+    ],
+    "security": [
+      {
+        "text": "Kafka would support setting TLS named groups (KIP-1376, proposed).",
+        "cites": [
+          "KAFKA-MAIL-3bc971ac"
+        ]
+      },
+      {
+        "text": "Gradle would be upgraded to 9.8.2 for a security fix (KAFKA-21299, open).",
+        "cites": [
+          "KAFKA-21299"
+        ]
+      },
+      {
+        "text": "SslTransportLayer.transferFrom bug fix is proposed (KAFKA-21280, open).",
+        "cites": [
+          "KAFKA-21280"
+        ]
+      }
+    ],
+    "share-groups": [
+      {
+        "text": "Share group DLQ setup is added to ShareConsumeBenchSpec (KAFKA-PR-23867, merged).",
+        "cites": [
+          "KAFKA-PR-23867"
+        ]
+      },
+      {
+        "text": "Streams assignments are returned when all owned task sets are reported (KAFKA-PR-23768, merged).",
+        "cites": [
+          "KAFKA-PR-23768"
+        ]
+      }
+    ],
+    "storage": [
+      {
+        "text": "Log directory goes offline on disk error (KAFKA-16304, open).",
+        "cites": [
+          "KAFKA-PR-23445"
+        ]
+      },
+      {
+        "text": "Fetch response sent zero copy, with offline check (KAFKA-16304, open).",
+        "cites": [
+          "KAFKA-PR-23445"
+        ]
+      }
+    ],
+    "streams": [
+      {
+        "text": "Rack-aware assignment gets implemented for Streams standby tasks (KAFKA-20999, merged).",
+        "cites": [
+          "KAFKA-PR-23790"
+        ]
+      },
+      {
+        "text": "Deadlock between removeStreamThread and addStreamThread gets fixed (KAFKA-20873, merged).",
+        "cites": [
+          "KAFKA-PR-23004"
+        ]
+      },
+      {
+        "text": "Validation of Streams task assignor output is proposed (KAFKA-21170, open).",
+        "cites": [
+          "KAFKA-21170"
+        ]
+      }
+    ]
+  },
+  "proposals": {
+    "KIP-1133": {
+      "text": "Release docs 使用 Hugo layout（KAFKA-21289，已解決）",
+      "cites": [
+        "KAFKA-PR-23833",
+        "KAFKA-21289"
+      ]
+    },
+    "KIP-1241": {
+      "text": "Document for KIP-1241 would be updated (KAFKA-PR-23520, open).",
+      "cites": [
+        "KAFKA-PR-23520"
+      ]
+    },
+    "KIP-1314": {
+      "text": "Broker-side consumer group rebalance callback would provide a stable extension point (KAFKA-20402, open).",
+      "cites": [
+        "KAFKA-20402",
+        "KAFKA-PR-21961"
+      ]
+    },
+    "KIP-1322": {
+      "text": "Kraft gets metrics for fetch and election timeouts (KIP-1322, proposed).",
+      "cites": [
+        "KAFKA-MAIL-c899bc9c"
+      ]
+    },
+    "KIP-1324": {
+      "text": "Client configuration observability would be operator-driven (KIP-1324, proposed).",
+      "cites": [
+        "KAFKA-MAIL-3871c507"
+      ]
+    },
+    "KIP-1332": {
+      "text": "Compression support for KIP-1332 would be implemented (KAFKA-20579, open).",
+      "cites": [
+        "KAFKA-PR-23483"
+      ]
+    },
+    "KIP-1374": {
+      "text": "StreamsBuilder.globalTable would allow rekeying (KIP-1374, proposed).",
+      "cites": [
+        "KAFKA-MAIL-01800f47"
+      ]
+    },
+    "KIP-1376": {
+      "text": "Kafka would support setting TLS named groups (KIP-1376, proposed).",
+      "cites": [
+        "KAFKA-MAIL-3bc971ac"
+      ]
+    },
+    "KIP-1381": {
+      "text": "Brokers would disable compression types for client writes (KIP-1381, proposed).",
+      "cites": [
+        "KAFKA-MAIL-fca6d63d"
+      ]
+    },
+    "KIP-1382": {
+      "text": "Expose explicit configuration deletions to AlterConfigPolicy (proposed).",
+      "cites": [
+        "KAFKA-MAIL-f099b4e1"
+      ]
+    },
+    "KIP-853": {
+      "text": "Docker image would support KRaft dynamic quorum controllers",
+      "cites": [
+        "KAFKA-PR-23814",
+        "KAFKA-21277"
+      ]
+    },
+    "KIP-891": {
+      "text": "Kafka Connect multiversioning gets config and validation tests (KAFKA-PR-18326, open).",
+      "cites": [
+        "KAFKA-PR-18326"
+      ]
+    },
+    "KIP-909": {
+      "text": "Kafka Streams would be made KIP-909 ready",
+      "cites": [
+        "KAFKA-21046",
+        "KAFKA-PR-23685"
+      ]
+    },
+    "KIP-939": {
+      "text": "Transaction coordinator supports keepPreparedTxn=true (KAFKA-15370, open).",
+      "cites": [
+        "KAFKA-PR-21735"
+      ]
+    },
+    "KIP-995": {
+      "text": "Initial offsets can be specified while creating connectors (KAFKA-15976, resolved, KAFKA-PR-23783, merged).",
+      "cites": [
+        "KAFKA-15976",
+        "KAFKA-PR-23783"
+      ]
+    }
+  },
+  "headline": {
+    "text": "Kafka 4.4.0 proposed with 26 KIPs",
+    "cites": [
+      "KAFKA-MAIL-1ea662ce"
+    ]
+  },
+  "highlights": [
+    {
+      "title": "TLS named groups",
+      "body": {
+        "text": "Kafka would support setting TLS named groups",
+        "cites": [
+          "KAFKA-MAIL-3bc971ac"
+        ]
+      }
+    },
+    {
+      "title": "Gradle upgrade",
+      "body": {
+        "text": "Gradle would be upgraded to 9.8.2 for a security fix",
+        "cites": [
+          "KAFKA-21299"
+        ]
+      }
+    },
+    {
+      "title": "KRaft metrics",
+      "body": {
+        "text": "Kraft gets metrics for fetch and election timeouts",
+        "cites": [
+          "KAFKA-MAIL-c899bc9c"
+        ]
+      }
+    }
+  ],
+  "zhHant": {
+    "cards": {
+      "clients": [
+        "Java 訂閱者在指派主題被刪除後停止刷新元資料 (KAFKA-21309, 仍在進行)。",
+        "如果飛行中的事務中止永遠失敗，Producer close() 會無限期掛起 (KAFKA-21132, 仍在進行)。",
+        "Cluster Mirroring 功能的 Admin client 類型已新增 (KAFKA-PR-23829, 已合併)。"
+      ],
+      "community": [
+        "不穩定測試報告返回 401 錯誤 (仍在進行, KAFKA-MAIL-0919aafa)。"
+      ],
+      "connect": [
+        "文件版本參考已更新至 4.4 (KAFKA-PR-23869, 已合併)。",
+        "Quickstart 命令範例已改為易複製格式 (KAFKA-PR-23526, 已合併)。",
+        "Connect REST API 回傳類型已改善 (KAFKA-PR-22001, 已合併)。"
+      ],
+      "group-coordination": [
+        "消費者群組的 Assignor 遷移將在背景執行緒中運行 (KAFKA-20292, 仍在進行)。",
+        "群組規格複製將使用 SmallIntegerSet (KAFKA-PR-23871, 仍在進行)。",
+        "客戶端測試將遷移至 RebalanceListener (KAFKA-20684, 仍在進行)。"
+      ],
+      "kraft": [
+        "Docker 映像將支援 KRaft 動態仲裁控制器",
+        "非原子批次中的空批次將被避免",
+        "動態設定值小於 server.properties 中的一半，重啟後可能不會生效"
+      ],
+      "observability": [
+        "客戶端指標匹配模式將使用 RE2/J 語法 (KAFKA-PR-23696, 仍在進行)。",
+        "儀表板報告器將跳過停用的感測器指標 (KAFKA-PR-23763, 仍在進行)。",
+        "Java 客戶端將遵守 TelemetryMaxBytes 限制 (KAFKA-PR-23452, 仍在進行)。"
+      ],
+      "releases": [
+        "釋出 4.3.2 將修復錯誤 (KAFKA-MAIL-e07e6b7f, 正在討論)。",
+        "Release.py stage-docs 已修復 Hugo 設計 (KAFKA-PR-23833, 已合併)。",
+        "釋出 4.4.0 已提出，包含 26 個 KIP (KAFKA-MAIL-1ea662ce, 正在討論)。"
+      ],
+      "security": [
+        "Kafka 將支援設定 TLS 命名群組（KIP-1376，已提出）。",
+        "Gradle 將升級至 9.8.2 以修復安全性問題 (KAFKA-21299, 仍在進行)。",
+        "SslTransportLayer.transferFrom 的錯誤修復已提出 (KAFKA-21280, 仍在進行)。"
+      ],
+      "share-groups": [
+        "Share group DLQ 設定已新增至 ShareConsumeBenchSpec (KAFKA-PR-23867, 已合併)。",
+        "當所有擁有任務集報告後，Streams 指派將被回傳 (KAFKA-PR-23768, 已合併)。"
+      ],
+      "storage": [
+        "磁碟錯誤時日誌目錄將離線 (KAFKA-16304, 仍在進行)。",
+        "取得回應時會以零複製方式傳送，並進行離線檢查 (KAFKA-16304, 仍在進行)。"
+      ],
+      "streams": [
+        "Streams 備用任務的機架感知指派功能已實現 (KAFKA-20999, 已合併)。",
+        "removeStreamThread 與 addStreamThread 之間的死結已修復 (KAFKA-20873, 已合併)。",
+        "Streams 任務指派器輸出的驗證已提出 (KAFKA-21170, 仍在進行)。"
+      ]
+    },
+    "proposals": {
+      "KIP-1133": "Release docs 使用 Hugo layout（KAFKA-21289，已解決）",
+      "KIP-1241": "KIP-1241 的文件將被更新 (KAFKA-PR-23520, 仍在進行)。",
+      "KIP-1314": "代理端消費者群組重新平衡回呼將提供穩定的擴展點 (KAFKA-20402, 仍在進行)。",
+      "KIP-1322": "Kraft 將新增取得與選舉超時的指標 (KIP-1322, 已提出)。",
+      "KIP-1324": "客戶端設定可觀察性將由操作員驅動 (KIP-1324, 已提出)。",
+      "KIP-1332": "將實現 KIP-1332 的壓縮支援 (KAFKA-20579, 仍在進行)。",
+      "KIP-1374": "StreamsBuilder.globalTable 將允許重新設定金鑰（KIP-1374，已提出）",
+      "KIP-1376": "Kafka 將支援設定 TLS 命名群組（KIP-1376，已提出）。",
+      "KIP-1381": "代理將禁用客戶端寫入的壓縮類型 (KIP-1381, 已提出)。",
+      "KIP-1382": "將顯式設定刪除功能暴露給 AlterConfigPolicy (已提出)。",
+      "KIP-853": "Docker 映像將支援 KRaft 動態仲裁控制器",
+      "KIP-891": "Kafka Connect 多版本功能將新增設定與驗證測試 (KAFKA-PR-18326, 仍在進行)。",
+      "KIP-909": "Kafka 將被改為 KIP-909 就緒",
+      "KIP-939": "交易協調器將支援 keepPreparedTxn=true (KAFKA-15370, 仍在進行)。",
+      "KIP-995": "建立連接器時可指定初始偏移量 (KAFKA-15976, 已解決, KAFKA-PR-23783, 已合併)。"
+    },
+    "headline": "Kafka 4.4.0 已提出，包含 26 個 KIP",
+    "highlights": [
+      {
+        "title": "TLS 命名群組",
+        "body": "Kafka 將支援設定 TLS 命名群組"
+      },
+      {
+        "title": "Gradle 升級",
+        "body": "Gradle 將升級至 9.8.2 以修復安全性問題"
+      },
+      {
+        "title": "KRaft 指標",
+        "body": "Kraft 將新增取得與選舉超時的指標"
+      }
+    ]
+  }
+}

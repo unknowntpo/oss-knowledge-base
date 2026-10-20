@@ -27,6 +27,9 @@ import {
   SUMMARIZE_PROMPT,
   HIGHLIGHTS_PROMPT,
   TRANSLATE_PROMPT,
+  TRANSLATION_STATUS,
+  translatePrompt,
+  translationStatusDrift,
   PROMPT_REVISION,
   personLed,
   placement,
@@ -62,11 +65,16 @@ import {
 import fixtureJson from "./fixtures/topic-digest-kafka-2026-10-06.json";
 import labelsJson from "./fixtures/topic-digest-labels.v0.json";
 import recordedJson from "./fixtures/topic-digest-recorded.hand-2026-10-08.json";
+import devFixtureJson from "./fixtures/topic-digest-kafka-2026-10-19.json";
+import devRecordedJson from "./fixtures/topic-digest-recorded.dev-2026-10-20.json";
 import { testPlanRows } from "./topic-digest.cases";
 
 const fixture = fixtureJson as unknown as DigestFixture;
 const recorded = recordedJson as unknown as RecordedResponses;
 const labels = labelsJson as unknown as GoldenLabels;
+// Dev 2026-10-20: the cron output of release 2026-10-19T22-07-19-086Z and its week (D97 measurement).
+const devFixture = devFixtureJson as unknown as DigestFixture;
+const devRecorded = devRecordedJson as unknown as RecordedResponses;
 const KAFKA = KAFKA_DIGEST_PROFILE;
 const END = fixture.release.generatedAt;
 const START = "2026-09-29T13:07:37.000Z";
@@ -145,6 +153,25 @@ function lagAt(newestAt: string): string {
 function status(text: string, cited: CitedThread): string {
   const reason = rejectSentence({ text, cites: ["X-1"] }, { inputs: new Set(["X-1"]), threads: new Map([["X-1", cited]]), profile: KAFKA });
   return reason === null ? "kept" : "dropped";
+}
+
+
+/** D97: the rejection of `text` citing the given threads, or "kept". */
+function tense(text: string, cited: readonly CitedThread[]): string {
+  const ids = cited.map((_, index) => `X-${index + 1}`);
+  const reason = rejectSentence({ text, cites: ids }, { inputs: new Set(ids), threads: new Map(ids.map((id, index) => [id, cited[index]!])), profile: KAFKA });
+  return reason === null ? "kept" : `dropped (${reason})`;
+}
+const PR = (status: string, title = "KAFKA-1: x"): CitedThread => ({ title, source: "github", status });
+const MAIL = (title: string): CitedThread => ({ title, source: "mail", status: "discussing" });
+
+/** D99: what the translator guard does with a restored zh-Hant text. */
+function statusGuard(english: string, zh: string): string {
+  const drift = translationStatusDrift(english, zh);
+  if (drift === null) return "translated";
+  return drift.status === null
+    ? `English text kept, label Not translated (${drift.found} has no English status)`
+    : `English text kept, label Not translated (${drift.status}: ${TRANSLATION_STATUS[drift.status]![0]} missing; found ${drift.found ?? "none"})`;
 }
 
 type CaseRow = (typeof testPlanRows)[number];
@@ -314,10 +341,129 @@ const cases: Record<string, Case> = {
     const summary = examples[0] as { sentences?: { text: string }[] } | undefined;
     const highlights = examples[1] as { headline?: unknown; highlights?: unknown[] } | undefined;
     const example = summary?.sentences?.[0]?.text ?? "";
-    const ok = PROMPT_REVISION === "digest-prompts@3" && example !== "" && !contentFree(example) && !/^[A-Z]+-\d/u.test(example)
+    const ok = PROMPT_REVISION === "digest-prompts@4" && example !== "" && !contentFree(example) && !/^[A-Z]+-\d/u.test(example)
       && highlights?.headline !== undefined && Array.isArray(highlights.highlights)
       && /bare status line/u.test(SUMMARIZE_PROMPT) && /do not start a sentence with an id/u.test(SUMMARIZE_PROMPT);
-    return ok ? "digest-prompts@3; both JSON examples parse; the summarizer forbids bare status lines and leading ids" : PROMPT_REVISION;
+    return ok ? "digest-prompts@4; both JSON examples parse; the summarizer forbids bare status lines and leading ids" : PROMPT_REVISION;
+  },
+  "status tense|Dev 2026-10-20 #6: \"Admin client types for Cluster Mirroring feature are added (KAFKA-PR-23829, closed).\" cites KAFKA-PR-23829 (closed unmerged, \"KAFKA-21226: Add Admin client types\")": () =>
+    tense("Admin client types for Cluster Mirroring feature are added (KAFKA-PR-23829, closed).", [PR("closed", "KAFKA-21226: Add Admin client types")]),
+  "status tense|Dev 2026-10-20 #11: \"Empty batches in non-atomic batching are avoided\" cites KAFKA-PR-23525 (open)": () =>
+    tense("Empty batches in non-atomic batching are avoided", [PR("open", "KAFKA-21129: Avoid appending an empty batch in non-atomic batching")]),
+  "status tense|Dev 2026-10-20 #13: \"Rack-aware assignment gets implemented for Streams standby tasks (KAFKA-20999, merged).\" cites KAFKA-PR-23790 (merged, \"KAFKA-20999: [1/N] Add RackAwareStandbyPicker …\")": () =>
+    tense("Rack-aware assignment gets implemented for Streams standby tasks (KAFKA-20999, merged).", [PR("merged", "KAFKA-20999: [1/N] Add RackAwareStandbyPicker for rack-aware standby placement")]),
+  "status tense|Dev 2026-10-20 #48 (highlight): \"Kraft gets metrics for fetch and election timeouts\" cites KAFKA-MAIL-c899bc9c ([VOTE] KIP-1322)": () =>
+    tense("Kraft gets metrics for fetch and election timeouts", [MAIL("[VOTE] KIP-1322: Add metrics to Kraft that measure the number of fetch timeouts and election timeouts")]),
+  "status tense|Dev 2026-10-20 #30 (labeled ok): \"Kraft gets metrics for fetch and election timeouts (KIP-1322, proposed).\" cites KAFKA-MAIL-c899bc9c ([VOTE] KIP-1322)": () =>
+    tense("Kraft gets metrics for fetch and election timeouts (KIP-1322, proposed).", [MAIL("[VOTE] KIP-1322: Add metrics to Kraft that measure the number of fetch timeouts and election timeouts")]),
+  "status tense|Dev 2026-10-20 #14: \"Deadlock between removeStreamThread and addStreamThread gets fixed (KAFKA-20873, merged).\" cites KAFKA-PR-23004 (merged)": () =>
+    tense("Deadlock between removeStreamThread and addStreamThread gets fixed (KAFKA-20873, merged).", [PR("merged", "KAFKA-20873: Fix deadlock between removeStreamThread and addStreamThread")]),
+  "status tense|Dev 2026-10-20 #24: \"Share group DLQ setup is added to ShareConsumeBenchSpec (KAFKA-PR-23867, merged).\" cites KAFKA-PR-23867 (merged)": () =>
+    tense("Share group DLQ setup is added to ShareConsumeBenchSpec (KAFKA-PR-23867, merged).", [PR("merged")]),
+  "status tense|Dev 2026-10-20 #41: \"Transaction coordinator supports keepPreparedTxn=true (KAFKA-15370, open).\" cites KAFKA-PR-21735 (open)": () =>
+    `${tense("Transaction coordinator supports keepPreparedTxn=true (KAFKA-15370, open).", [PR("open")])} (a bare present verb is not a completion form)`,
+  "status tense|Dev 2026-10-20 #1: \"Kafka would support setting TLS named groups (KIP-1376, proposed).\" cites KAFKA-MAIL-3bc971ac ([DISCUSS] KIP-1376)": () =>
+    tense("Kafka would support setting TLS named groups (KIP-1376, proposed).", [MAIL("[DISCUSS] KIP-1376: TLS named groups")]),
+  "status tense|Dev 2026-10-20 #28: \"Release 4.4.0 is proposed with 26 KIPs (KAFKA-MAIL-1ea662ce, discussing).\" cites KAFKA-MAIL-1ea662ce ([VOTE] 4.4.0 RC4)": () =>
+    `${tense("Release 4.4.0 is proposed with 26 KIPs (KAFKA-MAIL-1ea662ce, discussing).", [MAIL("[VOTE] 4.4.0 RC4")])} (proposed is not a completion form)`,
+  "status tense|constructed: \"A first step adds the standby picker; more is added later (KAFKA-20999, part 1 of N, merged).\" cites a merged [1/N] PR": () =>
+    tense("A first step adds the standby picker; more is added later (KAFKA-20999, part 1 of N, merged).", [PR("merged", "KAFKA-20999: [1/N] Add RackAwareStandbyPicker")]),
+  "status tense|constructed: \"The headers store cleanup is finished (KAFKA-1, merged).\" cites a merged [3/3] PR": () =>
+    `${tense("The headers store cleanup is finished (KAFKA-1, merged).", [PR("merged", "KAFKA-1: Remaining cleanups, [3/3]")])} (the last part)`,
+  "status tense|constructed: \"The admin client now supports mirroring\" cites an open PR": () => tense("The admin client now supports mirroring", [PR("open")]),
+  "status tense|constructed: \"The admin client now supports mirroring\" cites an open PR and a merged PR": () =>
+    `${tense("The admin client now supports mirroring", [PR("open"), PR("merged")])} (a final item is cited)`,
+  "status tense|constructed: \"Mirroring types are added (KAFKA-1, closed).\" cites a merged PR and a closed PR": () =>
+    tense("Mirroring types are added (KAFKA-1, closed).", [PR("merged"), PR("closed")]),
+  "status tense|constructed: \"Mirroring types would be added (KAFKA-1, open).\" cites an open PR": () => tense("Mirroring types would be added (KAFKA-1, open).", [PR("open")]),
+  "status tense|constructed: \"Brokers would get a timeout metric (KIP-1, proposed).\" cites a [DISCUSS] thread": () =>
+    `${tense("Brokers would get a timeout metric (KIP-1, proposed).", [MAIL("[DISCUSS] KIP-1: x")])} (modal before gets)`,
+  "status tense|constructed: \"The leak is fixed (KAFKA-1, resolved).\" cites a resolved Jira issue": () =>
+    tense("The leak is fixed (KAFKA-1, resolved).", [{ title: "KAFKA-1: leak", source: "jira", status: "resolved" }]),
+  "status tense|constructed: \"Votes are counted; KIP-1 is supported (KIP-1, accepted).\" cites a [RESULT] [VOTE] thread": () =>
+    tense("Votes are counted; KIP-1 is supported (KIP-1, accepted).", [MAIL("[RESULT] [VOTE] KIP-1: x")]),
+  "prompt|summarizer and highlights prompts (status tense)": () => {
+    const summary = parseModelJson(SUMMARIZE_PROMPT.slice(SUMMARIZE_PROMPT.indexOf("\n{"))) as { sentences: Sentence[] };
+    const example = summary.sentences[0]!;
+    const examplePasses = tense(example.text, [PR("merged", "KAFKA-20999: [1/N] Add RackAwareStandbyPicker for rack-aware standby placement")]) === "kept";
+    const both = [SUMMARIZE_PROMPT, HIGHLIGHTS_PROMPT];
+    const ok = both.every((prompt) => /only when the cited item is merged or resolved/u.test(prompt) && /"would"/u.test(prompt)
+      && /"is proposed"/u.test(prompt) && /"is under vote"/u.test(prompt)) && /\[k\/N\]/u.test(SUMMARIZE_PROMPT)
+      && /"first step"/u.test(SUMMARIZE_PROMPT) && /"part k of N"/u.test(SUMMARIZE_PROMPT) && /"Allow brokers to disable"/u.test(SUMMARIZE_PROMPT) && examplePasses;
+    return ok ? "completion verbs only for merged or resolved items; would, is proposed, or is under vote otherwise; [k/N] PRs say first step or part k of N; the example passes Behavior 30" : "missing";
+  },
+  "translate status|Dev 2026-10-20 #6: \"… (KAFKA-PR-23829, closed).\" translated as \"… (KAFKA-PR-23829, 已合併)。\"": () =>
+    statusGuard("Admin client types for Cluster Mirroring feature are added (KAFKA-PR-23829, closed).", "Cluster Mirroring 功能的 Admin client 類型已新增 (KAFKA-PR-23829, 已合併)。"),
+  "translate status|Dev 2026-10-20 #2: \"… (KAFKA-21299, open).\" translated as \"… (KAFKA-21299, 仍在進行)。\"": () =>
+    statusGuard("Gradle would be upgraded to 9.8.2 for a security fix (KAFKA-21299, open).", "Gradle 將升級至 9.8.2 以修復安全性問題 (KAFKA-21299, 仍在進行)。"),
+  "translate status|Dev 2026-10-20 #1: \"… (KIP-1376, proposed).\" translated as \"…（KIP-1376，已提出）。\"": () =>
+    statusGuard("Kafka would support setting TLS named groups (KIP-1376, proposed).", "Kafka 將支援設定 TLS 命名群組（KIP-1376，已提出）。"),
+  "translate status|Dev 2026-10-20 #26: \"… (KAFKA-MAIL-e07e6b7f, discussing).\" translated as \"… (KAFKA-MAIL-e07e6b7f, 正在討論)。\"": () =>
+    statusGuard("Release 4.3.2 would fix bugs (KAFKA-MAIL-e07e6b7f, discussing).", "釋出 4.3.2 將修復錯誤 (KAFKA-MAIL-e07e6b7f, 正在討論)。"),
+  "translate status|Dev 2026-10-20 #42: \"… (KAFKA-15976, resolved, KAFKA-PR-23783, merged).\" translated as \"… (KAFKA-15976, 已解決, KAFKA-PR-23783, 已合併)。\"": () =>
+    statusGuard("Initial offsets can be specified while creating connectors (KAFKA-15976, resolved, KAFKA-PR-23783, merged).", "建立連接器時可指定初始偏移量 (KAFKA-15976, 已解決, KAFKA-PR-23783, 已合併)。"),
+  "translate status|Dev 2026-10-20 #3: \"SslTransportLayer.transferFrom bug fix is proposed (KAFKA-21280, open).\" translated as \"SslTransportLayer.transferFrom 的錯誤修復已提出 (KAFKA-21280, 仍在進行)。\"": () =>
+    `${statusGuard("SslTransportLayer.transferFrom bug fix is proposed (KAFKA-21280, open).", "SslTransportLayer.transferFrom 的錯誤修復已提出 (KAFKA-21280, 仍在進行)。")} (words outside the parentheses are not compared)`,
+  "translate status|Dev 2026-10-20 #29: \"Flaky Test Report returns 401 error (open, KAFKA-MAIL-0919aafa).\" translated as \"不穩定測試報告返回 401 錯誤 (仍在進行, KAFKA-MAIL-0919aafa)。\"": () =>
+    statusGuard("Flaky Test Report returns 401 error (open, KAFKA-MAIL-0919aafa).", "不穩定測試報告返回 401 錯誤 (仍在進行, KAFKA-MAIL-0919aafa)。"),
+  "translate status|Dev 2026-10-20 #11: \"Empty batches in non-atomic batching are avoided\" translated as \"非原子批次中的空批次將被避免\"": () =>
+    `${statusGuard("Empty batches in non-atomic batching are avoided", "非原子批次中的空批次將被避免")} (no status parenthetical)`,
+  "translate status|constructed: \"The fix would land (KAFKA-1, open).\" translated as \"修正將完成 (KAFKA-1)。\"": () => statusGuard("The fix would land (KAFKA-1, open).", "修正將完成 (KAFKA-1)。"),
+  "translate status|constructed: \"The fix landed (KAFKA-1, merged).\" translated as \"修正已完成 (KAFKA-1, 已合併, 已關閉)。\"": () =>
+    statusGuard("The fix landed (KAFKA-1, merged).", "修正已完成 (KAFKA-1, 已合併, 已關閉)。"),
+  "translate status|constructed: \"KIP-1 would add a metric (KIP-1, voting).\" translated as \"KIP-1 將新增指標（KIP-1，投票中）。\"": () =>
+    statusGuard("KIP-1 would add a metric (KIP-1, voting).", "KIP-1 將新增指標（KIP-1，投票中）。"),
+  "prompt|translation prompt for the Kafka profile": () => {
+    const prompt = translatePrompt(KAFKA);
+    const glossary = (KAFKA.glossary?.terms ?? []).filter(([en, zh]) => prompt.includes(`${en} → ${zh}`));
+    const statuses = Object.entries(TRANSLATION_STATUS).filter(([en, zh]) => prompt.includes(`${en} → ${zh[0]}`));
+    return `glossary ${glossary.map(([en, zh]) => `${en} → ${zh}`).join(", ")}; status words ${statuses.map(([en, zh]) => `${en} → ${zh[0]}`).join(", ")}`;
+  },
+  "status tense|constructed: \"The consumer gets stuck when the broker restarts (KAFKA-1, open).\" cites an open Jira issue": () =>
+    `${tense("The consumer gets stuck when the broker restarts (KAFKA-1, open).", [{ title: "KAFKA-1: x", source: "jira", status: "open" }])} (gets + a state word is not a delivery)`,
+  "status tense|constructed: \"Jobs that got stuck would be retried (KAFKA-1, open).\" cites an open PR": () => tense("Jobs that got stuck would be retried (KAFKA-1, open).", [PR("open")]),
+  "status tense|constructed: \"Members gets fenced after a timeout (KAFKA-1, open).\" cites an open Jira issue": () =>
+    `${tense("Members gets fenced after a timeout (KAFKA-1, open).", [{ title: "KAFKA-1: x", source: "jira", status: "open" }])} (gets + a participle outside the completion list)`,
+  "status tense|constructed: \"Brokers would now always reject the request\" cites an open PR": () => tense("Brokers would now always reject the request", [PR("open")]),
+  "status tense|constructed: \"The client now has a retry option\" cites an open PR": () => `${tense("The client now has a retry option", [PR("open")])} (has is not in the now-verb list)`,
+  "status tense|constructed: \"The KIP now proposes a byte-based trigger\" cites a [DISCUSS] thread": () => tense("The KIP now proposes a byte-based trigger", [MAIL("[DISCUSS] KIP-1: x")]),
+  "status tense|constructed: \"Retries are added, so the client would recover (KAFKA-1, open).\" cites an open PR": () => tense("Retries are added, so the client would recover (KAFKA-1, open).", [PR("open")]),
+  "status tense|constructed: \"Once reviewed, retries are added and would ship in 4.5 (KAFKA-1, open).\" cites an open PR": () =>
+    `${tense("Once reviewed, retries are added and would ship in 4.5 (KAFKA-1, open).", [PR("open")])} (the modal follows the completion form)`,
+  "status tense|constructed: \"Retries are added in May (KAFKA-1, open).\" cites an open PR": () =>
+    `${tense("Retries are added in May (KAFKA-1, open).", [PR("open")])} (May the month is not a modal)`,
+  "status tense|constructed: \"The fix got committed (KAFKA-1, open).\" cites an open PR": () => tense("The fix got committed (KAFKA-1, open).", [PR("open")]),
+  "status tense|constructed: \"The patch gets backported to 4.3 (KAFKA-1, open).\" cites an open PR": () => tense("The patch gets backported to 4.3 (KAFKA-1, open).", [PR("open")]),
+  "status tense|constructed: \"The change got reverted (KAFKA-1, open).\" cites an open PR": () => tense("The change got reverted (KAFKA-1, open).", [PR("open")]),
+  "status tense|constructed: \"The client now handles retries (KAFKA-1, open).\" cites an open PR": () => tense("The client now handles retries (KAFKA-1, open).", [PR("open")]),
+  "status tense|constructed: \"A fix that would be added is reviewed (KAFKA-1, open).\" cites an open PR": () =>
+    `${tense("A fix that would be added is reviewed (KAFKA-1, open).", [PR("open")])} (no completion form: would be added)`,
+  "recorded weeks|every recorded sentence: hand-2026-10-08 (37) and Dev 2026-10-20 (45)": () => {
+    const drops = (run: ReturnType<typeof replay>, name: (where: string, text: string) => string) => run.rejected.filter((entry) => entry.reason.startsWith("tense:"))
+      .map((entry) => `${entry.reason} ${name(entry.where, entry.sentence.text)}`);
+    const hand = replay(fixture, recorded, KAFKA);
+    const dev = replay(devFixture, devRecorded, KAFKA);
+    const devNumber: Record<string, string> = { "card:clients": "#6", "card:kraft": "#11", "card:streams": "#13", "proposal:KIP-1322": "#30", "proposal:KIP-891": "#38" };
+    const total = (run: ReturnType<typeof replay>) => run.kept.length + run.rejected.length;
+    if (total(hand) !== 37 || total(dev) !== 45) return `totals ${total(hand)} ${total(dev)}`;
+    return `hand: ${drops(hand, (where, text) => (where === "headline" ? `(headline "${text.slice(0, 17)} …")` : where)).map((item) => item.replace("tense:gets (", "tense:gets 1 (")).join(", ")}; Dev: ${drops(dev, (where) => devNumber[where] ?? where).join(", ")}`;
+  },
+  "translate status|constructed: \"KIP-1 would add a metric (KIP-1, voting).\" translated as \"KIP-1 將新增指標（KIP-1，投票進行中）。\"": () =>
+    `${statusGuard("KIP-1 would add a metric (KIP-1, voting).", "KIP-1 將新增指標（KIP-1，投票進行中）。")} (longest match: 投票進行中 is voting, not open)`,
+  "translate status|constructed: \"The fix would land (KAFKA-1, open).\" translated as \"修正將完成 (KAFKA-1, 投票進行中)。\"": () => statusGuard("The fix would land (KAFKA-1, open).", "修正將完成 (KAFKA-1, 投票進行中)。"),
+  "translate status|constructed: \"Release 4.3.2 would fix bugs (KAFKA-MAIL-1, discussing).\" translated as \"4.3.2 將修復錯誤 (KAFKA-MAIL-1, 討論進行中)。\"": () =>
+    statusGuard("Release 4.3.2 would fix bugs (KAFKA-MAIL-1, discussing).", "4.3.2 將修復錯誤 (KAFKA-MAIL-1, 討論進行中)。"),
+  "translate status|constructed: \"KIP-1 is under vote (KIP-1, under vote).\" translated as \"KIP-1 投票中（KIP-1，投票中）。\"": () =>
+    `${statusGuard("KIP-1 is under vote (KIP-1, under vote).", "KIP-1 投票中（KIP-1，投票中）。")} (under vote is voting)`,
+  "translate status|constructed: \"The types would be added (KAFKA-1, closed).\" translated as \"類型將新增 (KAFKA-1, 關閉（未合併）)。\"": () =>
+    statusGuard("The types would be added (KAFKA-1, closed).", "類型將新增 (KAFKA-1, 關閉（未合併）)。"),
+  "translate status|constructed: \"The fix would land (KAFKA-1, open).\" translated as \"修正將完成 (KAFKA-1, 尚未合併)。\"": () => statusGuard("The fix would land (KAFKA-1, open).", "修正將完成 (KAFKA-1, 尚未合併)。"),
+  "prompt|vote status wording in the summarizer prompt and the guard": () => {
+    const prompt = /"is under vote" and put "voting" in the parentheses/u.test(SUMMARIZE_PROMPT) && /"is under vote" and put "voting" in the parentheses/u.test(HIGHLIGHTS_PROMPT);
+    const guard = statusGuard("KIP-1 would add a metric (KIP-1, voting).", "（KIP-1，投票中）") === "translated"
+      && statusGuard("KIP-1 would add a metric (KIP-1, under vote).", "（KIP-1，投票中）") === "translated"
+      && statusGuard("KIP-1 would add a metric (KIP-1, under vote).", "（KIP-1，已提出）") !== "translated";
+    return prompt && guard ? "the summarizer asks for \"is under vote\" with voting in the parentheses; the guard maps voting and under vote to 投票中" : `prompt ${prompt} guard ${guard}`;
   },
   "features|Kafka profile description of other": () => KAFKA.taxonomy.descriptions?.other ?? "missing",
   "prompt|translation prompt": () => {
@@ -628,8 +774,8 @@ const cases: Record<string, Case> = {
   "status words|constructed: \"KAFKA-1 was fixed\" citing an open Jira issue": () => status("KAFKA-1 was fixed", { title: "KAFKA-1: x", source: "jira", status: "open" }),
   "status words|constructed: \"KIP-1 was accepted\" citing a [RESULT] [VOTE] thread": () => status("KIP-1 was accepted", { title: "[RESULT] [VOTE] KIP-1: x", source: "mail", status: "discussing" }),
   "status words|constructed: \"KIP-1 was accepted\" citing only a [VOTE] thread": () => status("KIP-1 was accepted", { title: "[VOTE] KIP-1: x", source: "mail", status: "discussing" }),
-  "status words|constructed: \"The merged_state flag is added\" citing an open PR": () =>
-    `${keep({ text: "The merged_state flag is added", cites: ["KAFKA-PR-23659"] }, ["KAFKA-PR-23659"])} (identifier, not the word merged)`,
+  "status words|constructed: \"The merged_state flag would be added\" citing an open PR": () =>
+    `${keep({ text: "The merged_state flag would be added", cites: ["KAFKA-PR-23659"] }, ["KAFKA-PR-23659"])} (identifier, not the word merged)`,
   "status words|constructed: \"The pre_merged branch is ready\" citing an open PR": () =>
     `${keep({ text: "The pre_merged branch is ready", cites: ["KAFKA-PR-23659"] }, ["KAFKA-PR-23659"])} (identifier, not the word merged)`,
   "summary|constructed: sentence of 121 emoji (242 UTF-16 units)": () =>
@@ -732,6 +878,41 @@ describe("Spec 014 offline eval and measure", () => {
     for (const sentence of corrected) {
       expect(rejectSentence(sentence, { inputs: new Set(sentence.cites), threads: states, profile: KAFKA })).toBeNull();
     }
+  });
+
+  test("D101: eval counts zh-Hant translation error classes; label files without them stay valid", () => {
+    const pending = evaluate(fixture, recorded, labels, KAFKA).translation;
+    expect(pending).toEqual({
+      labeled: 0, byClass: { "status-drift": 0, "term-error": 0, omission: 0 },
+      guard: { checked: 0, rejected: 0, labeledStatusDrift: 0, labeledStatusDriftCaught: 0 },
+      thresholds: { "status-drift": 0, "term-error": 2, omission: 0 }, meetsThresholds: "pending human labels",
+    });
+    // Dev 2026-10-20 (draft golden labels #6, #16, #22, #43, #2) plus one sentence with no translation label.
+    const week = [
+      { where: "card:clients", text: "Admin client types for Cluster Mirroring feature are added (KAFKA-PR-23829, closed).", cites: ["KAFKA-PR-23829"],
+        zhHant: "Cluster Mirroring 功能的 Admin client 類型已新增 (KAFKA-PR-23829, 已合併)。", translationErrors: ["status-drift"] },
+      { where: "card:group-coordination", text: "Assignor offloading for consumer groups would run on a background thread (KAFKA-20292, open).", cites: ["KAFKA-PR-23688"],
+        zhHant: "消費者群組的 Assignor 遷移將在背景執行緒中運行 (KAFKA-20292, 仍在進行)。", translationErrors: ["term-error"] },
+      { where: "card:observability", text: "Telemetry reporter would skip disabled sensor metrics (KAFKA-PR-23763, open).", cites: ["KAFKA-PR-23763"],
+        zhHant: "儀表板報告器將跳過停用的感測器指標 (KAFKA-PR-23763, 仍在進行)。", translationErrors: ["term-error"] },
+      { where: "proposal:KIP-909", text: "Kafka Streams would be made KIP-909 ready", cites: ["KAFKA-21046"],
+        zhHant: "Kafka 將被改為 KIP-909 就緒", translationErrors: ["omission"] },
+      { where: "card:security", text: "Gradle would be upgraded to 9.8.2 for a security fix (KAFKA-21299, open).", cites: ["KAFKA-21299"],
+        zhHant: "Gradle 將升級至 9.8.2 以修復安全性問題 (KAFKA-21299, 仍在進行)。", translationErrors: [] },
+      { where: "card:storage", text: "Log directory goes offline on disk error (KAFKA-16304, open).", cites: ["KAFKA-PR-23445"],
+        zhHant: "磁碟錯誤時日誌目錄將離線 (KAFKA-16304, 仍在進行)。" },
+    ] as const;
+    const labeled = evaluate(fixture, recorded, { ...labels, sentences: week }, KAFKA).translation;
+    expect(labeled.labeled).toBe(5);
+    expect(labeled.byClass).toEqual({ "status-drift": 1, "term-error": 2, omission: 1 });
+    expect(labeled.guard).toEqual({ checked: 6, rejected: 1, labeledStatusDrift: 1, labeledStatusDriftCaught: 1 });
+    expect(labeled.meetsThresholds).toBe(false);
+    // Positive control: two term errors alone meet the proposed thresholds; a third does not.
+    const terms = week.filter((sentence) => "translationErrors" in sentence && sentence.translationErrors.join() === "term-error");
+    expect(evaluate(fixture, recorded, { ...labels, sentences: terms }, KAFKA).translation.meetsThresholds).toBe(true);
+    expect(evaluate(fixture, recorded, { ...labels, sentences: [...terms, terms[0]!] }, KAFKA).translation.meetsThresholds).toBe(false);
+    // A labels file may override a proposed threshold.
+    expect(evaluate(fixture, recorded, { ...labels, sentences: [...terms, terms[0]!], thresholds: { "term-error": 3 } }, KAFKA).translation.meetsThresholds).toBe(true);
   });
 
   test("D25: a cold run estimates at most 4,500 neurons and a steady run at most 2,000", () => {

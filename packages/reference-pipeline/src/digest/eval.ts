@@ -8,11 +8,12 @@ import { parseClassification } from "./classify";
 import { clefRequest, clefRequestTokens, packClefBatches } from "./clef";
 import { estimateTokens, MAX_TOKENS, neurons, type PricedModel } from "./estimate";
 import { cardInput, mix } from "./mixing";
-import { HIGHLIGHTS_PROMPT, NO_THINK, SUMMARIZE_PROMPT, TRANSLATE_PROMPT } from "./prompts";
+import { HIGHLIGHTS_PROMPT, NO_THINK, SUMMARIZE_PROMPT, translatePrompt } from "./prompts";
 import { chooseHighlights, digestCounts } from "./present";
 import { proposalRows } from "./proposals";
 import { protect } from "./protect";
 import type { DigestDetail, DigestEntry, DigestProfile, Highlight, Sentence, Thread, ThreadFeatures, TopicCard } from "./types";
+import { translationStatusDrift } from "./translation";
 import { rejectSentence, validateSentences, type CitedThread, type Rejection } from "./validate";
 
 export interface DigestFixture {
@@ -33,11 +34,66 @@ export interface RecordedResponses {
 
 export type ErrorClass = "status-mismatch" | "misattribution" | "invented-claim" | "overbroad-stance";
 
+/** D101: error classes of a zh-Hant translation, judged against its English sentence. */
+export type TranslationErrorClass = "status-drift" | "term-error" | "omission";
+export const TRANSLATION_ERROR_CLASSES = ["status-drift", "term-error", "omission"] as const satisfies readonly TranslationErrorClass[];
+/** D102 (proposed, pending owner confirmation): most labeled translation errors per week for Prod. */
+export const TRANSLATION_THRESHOLDS: Readonly<Record<TranslationErrorClass, number>> = { "status-drift": 0, "term-error": 2, omission: 0 };
+
+/** One labeled sentence of a recorded week. Every field but `text` is optional (D101). */
+export interface LabeledSentence {
+  readonly text: string;
+  readonly where?: string;
+  readonly cites?: readonly string[];
+  readonly label?: string;
+  /** The published zh-Hant translation of `text`. */
+  readonly zhHant?: string;
+  /** Translation labels: absent means not labeled, [] means labeled correct. */
+  readonly translationErrors?: readonly TranslationErrorClass[];
+}
+
 export interface GoldenLabels {
   readonly revision: string;
   /** Important thread display ids, labeled by the human (empty until labeled). */
   readonly important: readonly string[];
   readonly negatives: readonly { readonly text: string; readonly cites: readonly string[]; readonly class: ErrorClass; readonly origin: string }[];
+  readonly sentences?: readonly LabeledSentence[];
+  /** Per-class thresholds; a translation class here overrides `TRANSLATION_THRESHOLDS`. */
+  readonly thresholds?: Readonly<Record<string, number>>;
+}
+
+export interface TranslationReport {
+  readonly labeled: number;
+  readonly byClass: Readonly<Record<TranslationErrorClass, number>>;
+  /** D99's deterministic guard on every sentence with a zh-Hant text. */
+  readonly guard: { readonly checked: number; readonly rejected: number; readonly labeledStatusDrift: number; readonly labeledStatusDriftCaught: number };
+  readonly thresholds: Readonly<Record<TranslationErrorClass, number>>;
+  readonly meetsThresholds: boolean | "pending human labels";
+}
+
+/** D101: counts labeled translation errors per class and runs the status guard on each translation. */
+export function translationReport(labels: GoldenLabels): TranslationReport {
+  const sentences = labels.sentences ?? [];
+  const labeled = sentences.filter((sentence) => sentence.translationErrors !== undefined);
+  const byClass = Object.fromEntries(TRANSLATION_ERROR_CLASSES.map((name) => [name,
+    labeled.filter((sentence) => sentence.translationErrors!.includes(name)).length])) as Record<TranslationErrorClass, number>;
+  const translated = sentences.filter((sentence) => sentence.zhHant !== undefined);
+  const caught = translated.filter((sentence) => translationStatusDrift(sentence.text, sentence.zhHant!) !== null);
+  const drift = (sentence: LabeledSentence) => sentence.translationErrors?.includes("status-drift") === true;
+  const thresholds = Object.fromEntries(TRANSLATION_ERROR_CLASSES.map((name) => [name,
+    typeof labels.thresholds?.[name] === "number" ? labels.thresholds[name] : TRANSLATION_THRESHOLDS[name]])) as Record<TranslationErrorClass, number>;
+  return {
+    labeled: labeled.length,
+    byClass,
+    guard: {
+      checked: translated.length,
+      rejected: caught.length,
+      labeledStatusDrift: translated.filter(drift).length,
+      labeledStatusDriftCaught: caught.filter(drift).length,
+    },
+    thresholds,
+    meetsThresholds: labeled.length === 0 ? "pending human labels" : TRANSLATION_ERROR_CLASSES.every((name) => byClass[name] <= thresholds[name]),
+  };
 }
 
 export const BATCH = { classify: 20, translate: 60 } as const;
@@ -139,6 +195,7 @@ export interface EvalReport {
   readonly errorClasses: Readonly<Record<ErrorClass, { readonly fixtures: number; readonly rejectedByRules: number }>>;
   readonly recall: string;
   readonly lagging: readonly string[];
+  readonly translation: TranslationReport;
 }
 
 export function evaluate(fixture: DigestFixture, recorded: RecordedResponses, labels: GoldenLabels, profile: DigestProfile): EvalReport {
@@ -177,6 +234,7 @@ export function evaluate(fixture: DigestFixture, recorded: RecordedResponses, la
     errorClasses,
     recall,
     lagging: Object.entries(run.coverage).filter(([, value]) => value.lagging).map(([source]) => source),
+    translation: translationReport(labels),
   };
 }
 
@@ -204,7 +262,7 @@ export function measure(fixture: DigestFixture, recorded: RecordedResponses, pro
   let translationCalls = 0;
   for (let index = 0; index < items.length; index += BATCH.translate) {
     const batch = items.slice(index, index + BATCH.translate);
-    const input = `${TRANSLATE_PROMPT}\n<items>\n${batch.map((text) => protect(text, []).masked).join("\n")}\n</items>\n${NO_THINK}`;
+    const input = `${translatePrompt(profile)}\n<items>\n${batch.map((text) => protect(text, []).masked).join("\n")}\n</items>\n${NO_THINK}`;
     // zh-Hant output: about one CJK character (one token) per two English characters.
     const outputTokens = Math.ceil(batch.reduce((sum, text) => sum + text.length, 0) / 2);
     translation += neurons(MODELS.translator, estimateTokens(input), Math.min(outputTokens, MAX_TOKENS.translation));

@@ -13,3 +13,4 @@ export * from "./parse";
 export * from "./protect";
 export * from "./types";
 export * from "./validate";
+export * from "./translation";

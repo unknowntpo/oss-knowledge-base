@@ -43,6 +43,15 @@ export const KAFKA_DIGEST_PROFILE: DigestProfile = {
     ],
     quorumNote: "proposal.apache-kafka.quorumNote",
   },
+  // D100: terms the 2026-10-20 Dev output mistranslated (offloading → 遷移, telemetry → 儀表板), plus
+  // Kafka terms that must stay stable.
+  glossary: {
+    revision: "kafka-glossary@1",
+    terms: [
+      ["offloading", "卸載"], ["telemetry", "遙測"], ["assignor", "指派器"], ["share group", "share group"],
+      ["rebalance", "再平衡"], ["KRaft", "KRaft"],
+    ],
+  },
 };
 
 export const DATAFUSION_DIGEST_PROFILE: DigestProfile = {
