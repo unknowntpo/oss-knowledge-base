@@ -429,7 +429,15 @@ const cases: Record<string, Case> = {
   "status tense|constructed: \"The KIP now proposes a byte-based trigger\" cites a [DISCUSS] thread": () => tense("The KIP now proposes a byte-based trigger", [MAIL("[DISCUSS] KIP-1: x")]),
   "status tense|constructed: \"Retries are added, so the client would recover (KAFKA-1, open).\" cites an open PR": () => tense("Retries are added, so the client would recover (KAFKA-1, open).", [PR("open")]),
   "status tense|constructed: \"Once reviewed, retries are added and would ship in 4.5 (KAFKA-1, open).\" cites an open PR": () =>
-    `${tense("Once reviewed, retries are added and would ship in 4.5 (KAFKA-1, open).", [PR("open")])} (a modal in the same clause)`,
+    `${tense("Once reviewed, retries are added and would ship in 4.5 (KAFKA-1, open).", [PR("open")])} (the modal follows the completion form)`,
+  "status tense|constructed: \"Retries are added in May (KAFKA-1, open).\" cites an open PR": () =>
+    `${tense("Retries are added in May (KAFKA-1, open).", [PR("open")])} (May the month is not a modal)`,
+  "status tense|constructed: \"The fix got committed (KAFKA-1, open).\" cites an open PR": () => tense("The fix got committed (KAFKA-1, open).", [PR("open")]),
+  "status tense|constructed: \"The patch gets backported to 4.3 (KAFKA-1, open).\" cites an open PR": () => tense("The patch gets backported to 4.3 (KAFKA-1, open).", [PR("open")]),
+  "status tense|constructed: \"The change got reverted (KAFKA-1, open).\" cites an open PR": () => tense("The change got reverted (KAFKA-1, open).", [PR("open")]),
+  "status tense|constructed: \"The client now handles retries (KAFKA-1, open).\" cites an open PR": () => tense("The client now handles retries (KAFKA-1, open).", [PR("open")]),
+  "status tense|constructed: \"A fix that would be added is reviewed (KAFKA-1, open).\" cites an open PR": () =>
+    `${tense("A fix that would be added is reviewed (KAFKA-1, open).", [PR("open")])} (no completion form: would be added)`,
   "recorded weeks|every recorded sentence: hand-2026-10-08 (37) and Dev 2026-10-20 (45)": () => {
     const drops = (run: ReturnType<typeof replay>, name: (where: string, text: string) => string) => run.rejected.filter((entry) => entry.reason.startsWith("tense:"))
       .map((entry) => `${entry.reason} ${name(entry.where, entry.sentence.text)}`);

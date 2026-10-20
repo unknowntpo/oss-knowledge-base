@@ -976,6 +976,10 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
       not cached, so the next run translates it again. There is no retry in
       the same run: it would repeat the same prompt at extra cost, and the
       English text is correct.
+    - Known limitation: the guard compares the set of statuses, not which
+      status belongs to which cite, so "(KAFKA-1, open, KAFKA-2, merged)"
+      → "(KAFKA-1, 已合併, KAFKA-2, 仍在進行)" passes. The golden set's
+      `status-drift` label catches it (D101).
     - **Glossary** (D100). The project profile may carry a glossary
       `{revision, terms: [English, zh-Hant][]}`; the translation prompt
       lists it. Kafka's (`kafka-glossary@1`): offloading → 卸載, telemetry →
@@ -1067,18 +1071,22 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
         `also`, then one of: added, fixed, implemented, improved,
         supported, avoided, removed, resolved, enabled, introduced,
         completed, finished, updated, upgraded, replaced, migrated,
-        deprecated, prevented, corrected, addressed;
+        deprecated, prevented, corrected, addressed, committed, backported,
+        reverted, delivered, released, shipped, landed;
       - `gets` or `got` alone before a deliverable ("Kraft gets metrics"),
         but not before a state word (stuck, lost, stale, hung, wrong,
         worse, slow, slower, out, into, to, in, back, rid, through) or
         another word ending in `ed` ("gets fenced");
       - `now` followed by one of supports, uses, includes, returns,
         rejects, allows, accepts, runs, exposes, provides, enables, emits,
-        honors, skips, validates, requires ("now supports"; not "now has"
-        or "now proposes").
-      A form is not counted in a clause (text between `,`, `;`, or `:`)
-      that also holds would, will, could, may, might, or should ("Jobs
-      that got stuck would be retried").
+        honors, skips, validates, requires, handles, defaults, retries,
+        tracks, reports, logs, caches, persists ("now supports"; not "now
+        has" or "now proposes").
+      A form is not counted when a modal (would, will, could, may, might,
+      should; case-sensitive, so "May" the month is not one) comes before
+      it in its clause (text between `,`, `;`, or `:`). A modal after the
+      form does not exempt it: "retries are added and would ship in 4.5"
+      is dropped.
       A *final* cited item is a merged PR, a resolved Jira issue, or a
       `[RESULT]` or `[ANNOUNCE]` thread. A PR whose title holds `[k/N]`, or
       `[k/n]` with k < n, is a *partial* PR. A sentence with a completion
@@ -1092,7 +1100,10 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
       "would", "will", "is proposed", "is under vote", and bare present
       verbs ("supports") are not completion forms. The precision cases
       ("gets stuck", "would now always reject", "now has", "now
-      proposes") come from the verifier of PR #101. Known false positives
+      proposes") come from the verifier of PR #101.
+      Known limitations: a completion claim in words outside these lists
+      ("X lands", "X is in trunk") is not caught; the golden set checks
+      it (Behavior 31). Known false positives
       are listed under D97.
     - **Stance verbs.** A sentence containing `objected`, `opposed`,
       `rejected`, `refused`, `disagreed`, `pushed back`, or `blocked` is
@@ -1440,7 +1451,13 @@ synthetic; the others use values captured from Dev.
 | D97 | status tense | constructed: "The client now has a retry option" cites an open PR | kept (has is not in the now-verb list) |
 | D97 | status tense | constructed: "The KIP now proposes a byte-based trigger" cites a [DISCUSS] thread | kept |
 | D97 | status tense | constructed: "Retries are added, so the client would recover (KAFKA-1, open)." cites an open PR | dropped (tense:are added) |
-| D97 | status tense | constructed: "Once reviewed, retries are added and would ship in 4.5 (KAFKA-1, open)." cites an open PR | kept (a modal in the same clause) |
+| D97 | status tense | constructed: "Once reviewed, retries are added and would ship in 4.5 (KAFKA-1, open)." cites an open PR | dropped (tense:are added) (the modal follows the completion form) |
+| D97 | status tense | constructed: "Retries are added in May (KAFKA-1, open)." cites an open PR | dropped (tense:are added) (May the month is not a modal) |
+| D97 | status tense | constructed: "The fix got committed (KAFKA-1, open)." cites an open PR | dropped (tense:got committed) |
+| D97 | status tense | constructed: "The patch gets backported to 4.3 (KAFKA-1, open)." cites an open PR | dropped (tense:gets backported) |
+| D97 | status tense | constructed: "The change got reverted (KAFKA-1, open)." cites an open PR | dropped (tense:got reverted) |
+| D97 | status tense | constructed: "The client now handles retries (KAFKA-1, open)." cites an open PR | dropped (tense:now handles) |
+| D97 | status tense | constructed: "A fix that would be added is reviewed (KAFKA-1, open)." cites an open PR | kept (no completion form: would be added) |
 | D97 | recorded weeks | every recorded sentence: hand-2026-10-08 (37) and Dev 2026-10-20 (45) | hand: tense:gets 1 (headline "4.4.0 gets an RC4 …"); Dev: tense:closed #6, tense:are avoided #11, tense:partial #13, tense:gets #30, tense:gets #38 |
 | D98 | prompt | summarizer and highlights prompts (status tense) | completion verbs only for merged or resolved items; would, is proposed, or is under vote otherwise; [k/N] PRs say first step or part k of N; the example passes Behavior 30 |
 | D99 | translate status | Dev 2026-10-20 #6: "… (KAFKA-PR-23829, closed)." translated as "… (KAFKA-PR-23829, 已合併)。" | English text kept, label Not translated (closed: 已關閉 missing; found 已合併) |
@@ -2144,7 +2161,11 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   proposes …" are kept. Both recorded weeks are committed fixtures
   (`topic-digest-kafka-2026-10-19.json`,
   `topic-digest-recorded.dev-2026-10-20.json`), so the measurement is a
-  test row.
+  test row. The re-verifier's false negatives ("got committed", "gets
+  backported", "got reverted", "now handles", "are added in May", "are
+  added and would ship") are dropped since; the recorded weeks still drop
+  the same 6 sentences. Known limitations: completion wording outside the
+  lists, and the translation guard's set comparison (Behavior 25).
 - D98: the summarizer and highlights prompts ask for status-faithful tense:
   completion verbs only when the cited item is merged or resolved; "would"
   or "is proposed" for open, closed-unmerged, or discussed items; "is

@@ -36,34 +36,37 @@ const STANCE = ["objected", "opposed", "rejected", "refused", "disagreed", "push
  * metrics") and "now" before a verb from NOW_VERBS ("now supports"). Not completion forms: "would",
  * "will", "is proposed", bare present verbs ("supports"), "gets"/"got" before a state word or another
  * participle ("gets stuck", "gets fenced"), "now" before other words ("now has", "now proposes"),
- * and any form in a clause (text between , ; :) that also holds a modal.
+ * and a form preceded by a modal in its clause (text between , ; :). A modal after the form
+ * ("are added and would ship") does not exempt it.
  */
 const COMPLETION_PARTICIPLES = [
   "added", "fixed", "implemented", "improved", "supported", "avoided", "removed", "resolved", "enabled",
   "introduced", "completed", "finished", "updated", "upgraded", "replaced", "migrated", "deprecated",
-  "prevented", "corrected", "addressed",
+  "prevented", "corrected", "addressed", "committed", "backported", "reverted", "delivered", "released",
+  "shipped", "landed",
 ] as const;
 /** Verbs that, after "now", describe shipped behavior. Chosen from what a delivered change does. */
 const NOW_VERBS = [
   "supports", "uses", "includes", "returns", "rejects", "allows", "accepts", "runs", "exposes", "provides",
-  "enables", "emits", "honors", "skips", "validates", "requires",
+  "enables", "emits", "honors", "skips", "validates", "requires", "handles", "defaults", "retries", "tracks",
+  "reports", "logs", "caches", "persists",
 ] as const;
 /** Words after a bare "gets"/"got" that describe a state, not a deliverable. */
 const STATE_WORDS = ["stuck", "lost", "stale", "hung", "wrong", "worse", "slow", "slower", "out", "into", "to", "in", "back", "rid", "through"] as const;
-const MODAL = /(?<![A-Za-z0-9_])(?:would|will|could|may|might|should)(?![A-Za-z0-9_])/iu;
+/** Case-sensitive, so "May" (the month) is not a modal; a sentence-initial modal is capitalized. */
+const MODAL = /(?<![A-Za-z0-9_])(?:would|will|could|may|might|should|Would|Will|Could|Might|Should)(?![A-Za-z0-9_])/u;
 const COMPLETION_FORMS: readonly RegExp[] = [
   new RegExp(`(?<![A-Za-z0-9_])(?:is|are|was|were|has\\s+been|have\\s+been|gets|got)\\s+(?:(?:now|already|finally|also)\\s+)?(?:${COMPLETION_PARTICIPLES.join("|")})(?![A-Za-z0-9_])`, "iu"),
   new RegExp(`(?<![A-Za-z0-9_])(?:gets|got)(?![A-Za-z0-9_])(?!\\s+(?:${STATE_WORDS.join("|")}|[A-Za-z]+ed)(?![A-Za-z0-9_]))`, "iu"),
   new RegExp(`(?<![A-Za-z0-9_])now\\s+(?:${NOW_VERBS.join("|")})(?![A-Za-z0-9_])`, "iu"),
 ];
 
-/** The first completion form in a clause without a modal (D97). */
+/** The first completion form not preceded by a modal in its clause (D97). */
 function completionForm(text: string): string | null {
   for (const clause of text.split(/[,;:，；：]/u)) {
-    if (MODAL.test(clause)) continue;
     for (const pattern of COMPLETION_FORMS) {
       const match = pattern.exec(clause);
-      if (match !== null) return match[0].toLowerCase().replace(/\s+/gu, " ");
+      if (match !== null && !MODAL.test(clause.slice(0, match.index))) return match[0].toLowerCase().replace(/\s+/gu, " ");
     }
   }
   return null;
