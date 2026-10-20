@@ -460,7 +460,6 @@ describe("Spec 026 cost guard", () => {
     const tripped = guard({ inApp: { neuronsToday: async () => 9_000, vectorize: async () => null } });
     await tripped.runner.check({ dryRun: false });
     expect((await tripped.runner.health()).status).toBe("tripped");
-    expect(await tripped.runner.publicStatus()).toEqual({ status: "tripped", enforced: false });
 
     const unconfigured = guard({ token: undefined });
     const health = await unconfigured.runner.health();
@@ -565,11 +564,5 @@ describe("Spec 026 cost guard", () => {
     const { runner, network, storage } = guard({ inApp: { neuronsToday: async () => { neurons += 1; return 1; }, vectorize: async () => { vectors += 1; return null; } } });
     await runner.check({ dryRun: false });
     expect([network.calls.length, neurons, vectors, storage.writes]).toEqual([1, 1, 1, 1]);
-  });
-
-  test("CG12: the Pages Function addresses the same object name as the Worker", async () => {
-    const source = await Bun.file(new URL("../../web/functions/api/cost-guard.ts", import.meta.url)).text();
-    expect(source).toContain(`"${COST_GUARD_OBJECT_NAME}"`);
-    expect(COST_GUARD_OBJECT_NAME).toBe("cost-guard-v1");
   });
 });

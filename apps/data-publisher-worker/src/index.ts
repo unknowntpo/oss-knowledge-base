@@ -718,7 +718,6 @@ export class CostGuard implements DurableObject {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/status") return json(await this.runner.health());
-    if (request.method === "GET" && url.pathname === "/public") return json(await this.runner.publicStatus());
     if (request.method === "GET" && url.pathname === "/decision") return json(await this.runner.decision());
     if (request.method === "POST" && url.pathname === "/check") return json(await this.runner.check({ dryRun: url.searchParams.get("dryRun") === "1" }));
     if (request.method === "POST" && url.pathname === "/reset") return json(await this.runner.reset());

@@ -1,14 +1,14 @@
 # Spec 026: Account-wide cost guard and circuit breaker
 
-Status: Draft (owner decision 2026-10-20; implemented behind `COST_GUARD`, unset in every environment)
+Status: Draft (owner decisions 2026-10-20; implemented behind `COST_GUARD`, unset in every environment; no web change)
 Date: 2026-10-20
 Traceability: enforced
-Builds on: Spec 008 (R2 operations), Spec 010, 011, 021 (stalls visible on the page), Spec 014 (digest neuron ledger), Spec 016 (embedding ledger, query gate), Spec 018 (daily publication)
+Builds on: Spec 008 (R2 operations), Spec 010, 021 (a paused publication shows as a stall), Spec 014 (digest neuron ledger), Spec 016 (embedding ledger, query gate), Spec 018 (daily publication)
 
 ## Intent
 
 The owner learns that the account is heading past a Cloudflare free
-allowance from `/health` and from the page, a day after it starts, not from
+allowance from the Worker's `/health`, a day after it starts, not from
 a billing email weeks later. When a metric is clearly past its threshold,
 the optional spend (digest, embeddings, semantic queries) stops by itself
 until the owner resets it; lexical search and the Feed keep working.
@@ -74,8 +74,8 @@ until the token exists (Dev monitor step captures the real ones):
 | `vectorizeQueriedDimensions` | (240 + 9,764) × 1,024 = 10,244,096 | 50,000,000 | 20.48 | 31.88 | ok |
 | `workersAiNeurons` (today) | 0 | 10,000 | 0 | 0 | ok |
 
-`costGuard.status` is `warn` (the stored dimensions), the breaker stays
-closed, and the page shows "Usage near the free allowance".
+`costGuard.status` is `warn` (the stored dimensions) and the breaker stays
+closed.
 
 ## Simplification review
 
@@ -91,8 +91,7 @@ closed, and the page shows "Usage near the free allowance".
    - Manual reset only: the owner; an automatic reset would re-open into the
      same fault.
    - Dry run: the operator, to see the numbers before enabling `enforce`.
-   - The page notice: the owner's rule that problems show in the UI without
-     push alerts (Specs 010/011/021).
+
 2. **Delete.**
    - A new cron: the check rides the publication tick (Dev 22:07, Prod 22:37).
    - An R2 state object: the breaker and the last check live in Durable
@@ -102,6 +101,13 @@ closed, and the page shows "Usage near the free allowance".
    - A breaker per metric: one breaker; it remembers every metric that
      tripped while it was open.
    - Config vars per threshold: one const profile in code; changing it is a PR.
+   - Any web change (owner, 2026-10-20). No visitor flow needs the breaker
+     state: a paused publication already shows through the freshness pill
+     (Specs 010, 021), a digest that did not run shows "Digest updated X
+     ago", and the fallback from semantic to lexical search is invisible to
+     readers. The state lives only in the Worker's `/health.costGuard`, for
+     the owner and a future SRE agent. (A first draft added
+     `GET /api/cost-guard` and a top-bar notice; withdrawn with CG12.)
    - Re-enforcing the publication's Class A invariant at runtime: it is
      already tested (Specs 008, 018); the guard pauses the publication only
      when R2 Class A itself trips (Behavior 9).
@@ -191,22 +197,7 @@ closed, and the page shows "Usage near the free allowance".
     first check, else the worst metric status (`warn` or `ok`; `unavailable`
     counts as ok). `metrics[key]` is `{value, allowance, percent,
     projectedPercent, period, scope, source, status}`.
-14. Page: `GET /api/cost-guard` (Pages Function) reads the same object
-    through a `COST_GUARD_STATE` binding (`script_name`) and returns
-    `{status, enforced}` (no numbers); without the binding, or while the
-    Worker's `COST_GUARD` is off, `{status:"off"}`.
-    The top bar shows `.cost-guard-pill` next to the freshness pill: `warn`,
-    or `tripped` while only monitoring, reads "Usage near the free allowance"
-    / "用量接近免費額度" with the overdue tokens; `tripped` while enforced reads
-    "Cost guard: semantic search and digests paused" / "費用保護：語意搜尋與摘要已暫停"
-    with the stale tokens. Any other answer or a failed read shows nothing.
-    No new colour token. This is the one change this PR makes at runtime:
-    every page load sends one `GET /api/cost-guard`, which answers
-    `{status:"off"}` (cached 30 s at the edge, `max-age=30,
-    stale-while-revalidate=120`) while no Pages environment has the binding.
-    The browser cannot know whether the binding exists, so the request is
-    not skipped; a failed read only hides the notice.
-15. No log line, `/health` field, stored state or response contains the
+14. No log line, `/health` field, stored state or response contains the
     token. Every error text passes the existing sanitizer.
 
 ## Test plan
@@ -241,23 +232,6 @@ Generated from `apps/data-publisher-worker/test/cost-guard.cases.ts` by
 | CG2 | a value that could not be read | r2ClassA | — | 2026-10-20T22:07:00Z | — | — | unavailable |
 <!-- test-plan:end -->
 
-The page notice (CG12) is generated from `apps/web/test/cost-guard-notice.cases.ts`; a dash
-is an absent field or no notice.
-
-<!-- test-plan:start apps/web/test/cost-guard-notice.cases.ts -->
-| id | case | status | enforced | en | zh | className |
-| --- | --- | --- | --- | --- | --- | --- |
-| CG12 | every metric is under its warning share | ok | no | — | — | — |
-| CG12 | no check has run yet | pending | no | — | — | — |
-| CG12 | the Pages project has no binding | off | — | — | — | — |
-| CG12 | a requirement (token, account) is missing | unconfigured | no | — | — | — |
-| CG12 | a metric is past its warning share while monitoring | warn | no | Usage near the free allowance | 用量接近免費額度 | is-warn |
-| CG12 | a metric is past its warning share while enforcing | warn | yes | Usage near the free allowance | 用量接近免費額度 | is-warn |
-| CG12 | the breaker is open while enforcing | tripped | yes | Cost guard: semantic search and digests paused | 費用保護：語意搜尋與摘要已暫停 | is-tripped |
-| CG12 | the breaker would be open, but only monitoring | tripped | no | Usage near the free allowance | 用量接近免費額度 | is-warn |
-| CG12 | the breaker is open and enforced is not a boolean | tripped | — | Usage near the free allowance | 用量接近免費額度 | is-warn |
-| CG12 | a malformed body (no known status) | — | yes | — | — | — |
-<!-- test-plan:end -->
 
 ## Acceptance
 
@@ -275,7 +249,9 @@ Each item: precondition → action → observable result → evidence.
 - CG9: given in-app ledgers (digest 120, embedding 46, gate 3 neurons today; index 9,764 vectors of 1,024 dimensions; 240 index queries this month), the check reports 169 neurons, 9,998,336 stored and 10,244,096 queried dimensions; without the `AI` binding the neuron metric is unavailable, without `SEARCH_VECTORS` both Vectorize metrics are → check test.
 - CG10: `POST /cost-guard/check?dryRun=1` returns the evaluation and writes nothing, also when a metric is tripped → route test.
 - CG11: `/health` `costGuard` has the shape of Behavior 13 for `pending`, `ok`, `warn`, `tripped` and `unconfigured` → health test.
-- CG12: `GET /api/cost-guard` returns `{status:"off"}` without the binding and `{status, enforced}` from the object with it; the notice text and class follow Behavior 14 for each status in both locales, and nothing shows for `ok`, `pending`, `off`, `unconfigured` or a failed read → case rows and UI test.
+
+CG12 (a page notice from `GET /api/cost-guard`) is withdrawn: the owner
+removed the web part on 2026-10-20 (Simplification review, Delete).
 
 ### Failure and retry
 - CG13: given `monitor` and a missing token, account id or binding, the check returns `unconfigured` with a reason naming the missing item, makes no fetch and writes nothing → check test.
@@ -289,12 +265,12 @@ Each item: precondition → action → observable result → evidence.
 
 ### Observability
 - CG19: [deploy] on Dev with `COST_GUARD=monitor` and the token set, `POST /cost-guard/check?dryRun=1` returns R2 numbers within 5 % of the dashboard's month-to-date operations, and the real GraphQL response is saved as a fixture that replaces the documented-shape one (G96).
-- CG20: [deploy] after the first daily tick, `/health` `costGuard.checkedAt` is that tick's time and the page shows the notice exactly when `status` is `warn` or `tripped`.
+- CG20: [deploy] after the first daily tick, `/health` `costGuard.checkedAt` is that tick's time, and the web app has no request or element for the cost guard.
 
-## Decisions pending owner confirmation
+## Decisions (confirmed by the owner, 2026-10-20)
 
-The owner decided to build the guard (2026-10-20). These four choices inside
-it are the implementer's and stay pending until the owner confirms them:
+The owner decided to build the guard and, on reviewing #105, confirmed the
+four choices below and removed the web part (Simplification review).
 
 1. **Vectorize stored dimensions warn and never trip** (Behavior 6). Dev is
    already at 99.98 % of the 10 million included, and the overage is $0.05 per
@@ -324,9 +300,8 @@ This PR: `COST_GUARD` unset on Dev and Prod; no binding, no secret, no
 migration. Owner creates the token after review.
 
 1. **Dev monitor** (PR): add the `CostGuard` class migration (`v5`) and the
-   `COST_GUARD_STATE` binding, `CF_ACCOUNT_ID`, `COST_GUARD=monitor`; Pages
-   Dev binding `COST_GUARD_STATE` (`script_name` `oss-knowledge-base-data-dev`).
-   Put the secret, run the dry check (CG19), watch one week of daily checks.
+   `COST_GUARD_STATE` binding on the Worker, `CF_ACCOUNT_ID`,
+   `COST_GUARD=monitor`. Put the secret, run the dry check (CG19), watch one week of daily checks.
 2. **Dev enforce** (PR): `COST_GUARD=enforce` after `/health` shows the
    breaker closed; check that a forced trip (reset afterwards) refuses as CG7.
 3. **Prod** (release): same as 1, then 2, with migration `v3` and the

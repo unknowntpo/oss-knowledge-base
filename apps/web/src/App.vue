@@ -3,8 +3,7 @@ import ThemeControl from "./components/ThemeControl.vue";
 import { computed, onMounted, onUnmounted, provide, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
-import { fetchCostGuard, fetchFeed } from "./api";
-import { costGuardNotice, type CostGuardNotice } from "./cost-guard";
+import { fetchFeed } from "./api";
 import { feedFreshness, freshnessText } from "./freshness";
 import { useI18n } from "./i18n";
 import { feedStoreKey } from "./store";
@@ -94,11 +93,8 @@ async function tick() {
   }
   now.value = Date.now();
 }
-// Spec 026 Behavior 14: read once; a failed read shows nothing and never holds up the Feed.
-const costNotice = ref<CostGuardNotice>();
 onMounted(() => {
   void refresh();
-  void fetchCostGuard().then((body) => { costNotice.value = costGuardNotice(body); });
   clock = setInterval(() => { void tick(); }, 60_000);
 });
 onUnmounted(() => clearInterval(clock));
@@ -137,7 +133,6 @@ const syncLabel = computed(() => {
     <span class="demo-pill" :class="pillClass">
       {{ syncLabel }}
     </span>
-    <span v-if="costNotice" class="cost-guard-pill" :class="costNotice.className" role="status">{{ t(costNotice.key) }}</span>
     <label class="community-control">
       <span class="visually-hidden">{{ t("nav.community") }}</span>
       <select class="community-switcher" :value="projectKey" :aria-label="t('nav.community')" @change="switchProject(($event.target as HTMLSelectElement).value)">

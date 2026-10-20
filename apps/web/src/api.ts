@@ -71,13 +71,3 @@ export async function fetchPeopleConfig(): Promise<{ readonly enabled: boolean; 
 export function fetchPeopleSearch(projectKey: string, query: string): Promise<PeopleSearchV1> {
   return json<PeopleSearchV1>(`/api/people/${encodeURIComponent(projectKey)}?${new URLSearchParams({ q: query })}`);
 }
-
-/** Spec 026 Behavior 14: the cost-guard answer, or `undefined` for anything but a 200. Never throws. */
-export async function fetchCostGuard(): Promise<unknown> {
-  try {
-    const response = await fetch("/api/cost-guard", { headers: { accept: "application/json" } });
-    return response.ok ? await response.json() : undefined;
-  } catch {
-    return undefined;
-  }
-}

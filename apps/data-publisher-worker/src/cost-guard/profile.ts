@@ -49,8 +49,8 @@ export const COST_GUARD_THRESHOLDS = {
   minElapsedForProjection: 0.25,
 } as const;
 
-/** The one guard object; the Pages Function addresses the same name (`apps/web/functions/api/cost-guard.ts`). */
+/** The one guard object. */
 export const COST_GUARD_OBJECT_NAME = "cost-guard-v1";
 
-/** What the query gate answers while refused: the Pages reader then stays lexical for an hour. */
+/** What the query gate answers while refused: the search reader then stays lexical for an hour. */
 export const COST_GUARD_RETRY_AFTER_MS = 3_600_000;

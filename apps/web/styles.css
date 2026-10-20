@@ -383,28 +383,6 @@ select {
   background: var(--surface-pill-stale);
 }
 
-/* Spec 026: usage near the free allowance (overdue tokens) or the cost guard has paused work (stale tokens). */
-.cost-guard-pill {
-  font-family: var(--font-mono);
-  font-size: var(--fs-2xs);
-  border: 1px solid;
-  border-radius: var(--radius-sm);
-  padding: var(--space-2) var(--space-6);
-  white-space: nowrap;
-}
-
-.cost-guard-pill.is-warn {
-  color: var(--text-pill-overdue);
-  border-color: var(--border-pill-overdue);
-  background: var(--surface-pill-overdue);
-}
-
-.cost-guard-pill.is-tripped {
-  color: var(--text-pill-stale);
-  border-color: var(--border-pill-stale);
-  background: var(--surface-pill-stale);
-}
-
 .load-error {
   max-width: 720px;
   margin: var(--space-96) auto;
@@ -1597,8 +1575,7 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
   /* Narrow screens show the pill only for a stalled (Spec 011) or overdue (Spec 021) publication, wrapped to fit. */
   .demo-pill:not(.is-stale):not(.is-overdue) { display: none; }
   .demo-pill.is-stale,
-  .demo-pill.is-overdue,
-  .cost-guard-pill { min-width: 0; white-space: normal; }
+  .demo-pill.is-overdue { min-width: 0; white-space: normal; }
   .brand-name,
   .brand-scope { display: none; }
   .topbar-right { gap: var(--space-6); }

@@ -165,10 +165,4 @@ export class CostGuardRunner {
       : worstStatus(state.metrics);
     return { mode: this.mode, status, reason, checkedAt: state.checkedAt, metrics: state.metrics, breaker: state.breaker, lastResetAt: state.lastResetAt, lastError: state.lastError };
   }
-
-  /** Behavior 14: what the page may know, without numbers. */
-  async publicStatus(): Promise<{ readonly status: CostGuardStatus | "off"; readonly enforced: boolean }> {
-    if (this.mode === "off") return { status: "off", enforced: false };
-    return { status: (await this.health()).status, enforced: this.mode === "enforce" };
-  }
 }

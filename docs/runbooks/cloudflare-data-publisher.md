@@ -393,9 +393,9 @@ The account id is not secret: the enable PR sets `CF_ACCOUNT_ID` as a var.
 
 ### Enable `monitor` on Dev (the enable PR)
 
-The PR adds the `CostGuard` migration (`v5`), the `COST_GUARD_STATE` binding
-on the Worker and on Pages (`script_name: oss-knowledge-base-data-dev`),
-`CF_ACCOUNT_ID`, and `COST_GUARD=monitor`. After its deploy:
+The PR adds the `CostGuard` migration (`v5`), the Worker's
+`COST_GUARD_STATE` binding, `CF_ACCOUNT_ID`, and `COST_GUARD=monitor`. The
+breaker state is read only from `/health`; the web app shows nothing for it. After its deploy:
 
 ```sh
 DEV=https://oss-knowledge-base-data-dev.unknowntpo.workers.dev
@@ -420,7 +420,7 @@ curl -sS "$DEV/health" | jq '.costGuard | {mode, status, reason, checkedAt, brea
 | --- | --- | --- |
 | `pending` | configured, no check yet | wait for the next tick, or run the dry check |
 | `ok` | every metric under 60 % | nothing |
-| `warn` | a metric at 60 % or more (Vectorize stored dimensions only ever warns) | look at the metric; the page shows "Usage near the free allowance" |
+| `warn` | a metric at 60 % or more (Vectorize stored dimensions only ever warns) | look at the metric |
 | `tripped` | the breaker is open (`breaker.reason`, `breaker.metrics`) | under `enforce`: digest, embeddings and semantic queries refuse; publication pauses only if `breaker.metrics` has `r2ClassA` |
 | `unconfigured` | `reason` names the missing token, account id or binding | fix the configuration |
 
