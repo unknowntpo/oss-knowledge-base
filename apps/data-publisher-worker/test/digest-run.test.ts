@@ -535,6 +535,42 @@ const cases: Record<string, () => Promise<string>> = {
     return first.notTranslated === true && first.text === en.cards[0]!.sentences[0]!.text && noPlaceholders
       ? "that item Not translated (English kept); no placeholder text in zh-Hant" : `${first.text}`;
   },
+  "translate|constructed: a card sentence \"… (KAFKA-PR-n, open).\" is translated with 已合併 in its parentheses": async () => {
+    const model = new FakeModel((kind, _index, prompt) => {
+      if (kind !== "summarize") return undefined;
+      const id = /^\[([A-Z]+-[A-Za-z0-9-]+)\]/mu.exec(prompt.slice(prompt.indexOf("\n<")))![1]!;
+      return JSON.stringify({ sentences: [{ text: `The change would land (${id}, open).`, cites: [id] }] });
+    });
+    const original = model.run.bind(model);
+    let drifted = "";
+    model.run = async (name, prompt, max) => {
+      const output = await original(name, prompt, max);
+      if (kindOf(prompt) !== "translate") return output;
+      const items = JSON.parse(output) as { id: string; text: string }[];
+      drifted = items.find((item) => item.id.startsWith("card:"))!.id;
+      return JSON.stringify(items.map((item) => ({ ...item, text: item.text.replace(", open)", item.id === drifted ? ", 已合併)" : ", 仍在進行)") })));
+    };
+    const { bucket, result } = await published(model);
+    const { en, zh } = await objects(bucket, result);
+    const [, topic, index] = drifted.split(":");
+    const card = zh.cards.find((item) => item.topic === topic)!;
+    const enCard = en.cards.find((item) => item.topic === topic)!;
+    const item = card.sentences[Number(index)]!;
+    const cachedValues = Object.values(zh.translations ?? {});
+    const others = zh.cards.flatMap((each) => each.sentences).filter((sentence) => sentence !== item);
+    return item.notTranslated === true && item.text === enCard.sentences[Number(index)]!.text
+      && result.rejections["translate:status-drift"] === 1 && !cachedValues.some((text) => text.includes("已合併"))
+      && others.length > 0 && others.every((sentence) => sentence.notTranslated !== true)
+      ? "that item Not translated (English kept); rejections[\"translate:status-drift\"] 1; not cached; the other items translated"
+      : JSON.stringify({ item, rejections: result.rejections });
+  },
+  "translate|constructed: Kafka profile with glossary kafka-glossary@1": async () => {
+    const model = new FakeModel();
+    const { bucket, result } = await published(model);
+    const { zh } = await objects(bucket, result);
+    const prompts = model.prompts.filter((prompt) => kindOf(prompt) === "translate");
+    return `revisions.translator.prompt ${zh.revisions.translator.prompt}; ${prompts.length > 0 && prompts.every((prompt) => prompt.includes("offloading → 卸載")) ? "every translation prompt lists offloading → 卸載" : "glossary missing"}`;
+  },
   "highlights|constructed: one highlight cites a thread that no kept sentence cites": async () => {
     const model = new FakeModel();
     const original = model.run.bind(model);

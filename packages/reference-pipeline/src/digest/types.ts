@@ -40,6 +40,11 @@ export interface DigestProfile {
   };
   readonly machineUsers: readonly string[];
   readonly proposal: ProposalProfile;
+  /**
+   * D100: translator glossary, English term → zh-Hant term (identical when the term stays English).
+   * Its revision is part of the translator revision.
+   */
+  readonly glossary?: { readonly revision: string; readonly terms: readonly (readonly [string, string])[] };
 }
 
 /** A Feed index entry, reduced to what the digest reads. */

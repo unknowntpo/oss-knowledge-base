@@ -10,7 +10,7 @@ import {
   parseModelJson, CLEF_EXCERPT_CHARS, CLEF_MAX_REQUESTS, CLEF_MODELS, CLEF_REVISION, clefFeatures, clefRequest, clefRequestTokens, packClefBatches,
   styleOf,
   RULES_REVISION, rulesClassify, SCORING_REVISION, selectCandidates, sourceCoverage, SUMMARIZE_PROMPT,
-  threadText, TRANSLATE_PROMPT, validateSentences, digestWindowStart,
+  threadText, translatePrompt, translationStatusDrift, translatorPromptRevision, validateSentences, digestWindowStart,
   type CitedThread, type DigestProfile, type DigestV1, type Highlight, type ProposalRow, type Provenance,
   type Sentence, type Thread, type ThreadFeatures, type TopicCard,
 } from "@oss-knowledge-base/reference-pipeline";
@@ -106,7 +106,7 @@ function revisionsFor(profile: DigestProfile, model: DigestModel | undefined): R
       : model.decide !== undefined ? { model: CLEF_MODELS.flash, prompt: CLEF_REVISION }
       : { model: MODELS.summarizer, prompt: PROMPT_REVISION },
     summarizer: model === undefined ? none : { model: MODELS.summarizer, prompt: PROMPT_REVISION },
-    translator: model === undefined ? none : { model: MODELS.translator, prompt: PROMPT_REVISION },
+    translator: model === undefined ? none : { model: MODELS.translator, prompt: translatorPromptRevision(profile) },
   };
 }
 
@@ -266,7 +266,7 @@ export async function runDigest(input: DigestRunInput): Promise<DigestRunResult>
       // Complete English, missing or incomplete zh-Hant: translation only (B2, D61).
       // A new pair: the reused English with this run's coverage, then zh-Hant (Behavior 18, D79).
       const caches = await loadCaches(input.bucket, [...pair.zh, ...(pointer?.objectKeys?.["zh-Hant"] === undefined ? [] : [pointer.objectKeys["zh-Hant"]])]);
-      const translated = await translate(en, caches, calls, selectCandidates(pinned.entries, pinned.details, input.profile, pinned.release.generatedAt), revisions, samples);
+      const translated = await translate(en, caches, calls, selectCandidates(pinned.entries, pinned.details, input.profile, pinned.release.generatedAt), revisions, samples, input.profile, rejections);
       const pairOut = withRunCoverage(en, translated, calls, input.spentToday);
       styled = styleOfDigest(pairOut.en);
       const keys = await pairKeys(prefix, pairOut.en, pairOut.zh);
@@ -287,7 +287,7 @@ export async function runDigest(input: DigestRunInput): Promise<DigestRunResult>
     ];
     const caches = await loadCaches(input.bucket, cacheKeys);
     const composed = await compose(pinned, caches, calls, revisions, input, rejections, samples);
-    const translated = await translate(composed, caches, calls, selectCandidates(pinned.entries, pinned.details, input.profile, pinned.release.generatedAt), revisions, samples);
+    const translated = await translate(composed, caches, calls, selectCandidates(pinned.entries, pinned.details, input.profile, pinned.release.generatedAt), revisions, samples, input.profile, rejections);
     const { en, zh } = withRunCoverage(composed, translated, calls, input.spentToday);
     styled = styleOfDigest(en);
     const { en: enKey, zh: zhKey } = await pairKeys(prefix, en, zh);
@@ -593,6 +593,8 @@ async function translate(
   candidates: readonly Thread[],
   revisions: Revisions,
   samples: RawSamples,
+  profile: DigestProfile,
+  rejections: Record<string, number>,
 ): Promise<DigestV1> {
   const translatorRevision = `${revisions.translator.model}|${revisions.translator.prompt}`;
   // Names to protect: for a card or row, the authors of the records given to the model; for the
@@ -631,7 +633,7 @@ async function translate(
   }
   for (let index = 0; index < todo.length; index += TRANSLATE_BATCH) {
     const batch = todo.slice(index, index + TRANSLATE_BATCH);
-    const prompt = `${TRANSLATE_PROMPT}\n<items>\n${JSON.stringify(batch.map((entry) => ({ id: entry.item.id, text: entry.masked })))}\n</items>\n${NO_THINK}`;
+    const prompt = `${translatePrompt(profile)}\n<items>\n${JSON.stringify(batch.map((entry) => ({ id: entry.item.id, text: entry.masked })))}\n</items>\n${NO_THINK}`;
     let parsed: unknown;
     for (let attempt = 0; attempt < 2 && calls.enabled; attempt += 1) {
       const output = await calls.call(MODELS.translator, prompt, MAX_TOKENS.translation);
@@ -647,8 +649,14 @@ async function translate(
     }
     for (const entry of batch) {
       const translatedText = byId.get(entry.item.id);
-      const restored = translatedText === undefined ? null : restore(translatedText, entry.spans);
+      let restored = translatedText === undefined ? null : restore(translatedText, entry.spans);
       if (restored === null) samples.add(`translate:${entry.item.id}`, translatedText === undefined ? "missing" : "placeholders", translatedText);
+      else if (translationStatusDrift(entry.item.text, restored) !== null) {
+        // D99: a translation that changes the status word keeps the English text, uncached.
+        samples.add(`translate:${entry.item.id}`, "status-drift", restored);
+        rejections["translate:status-drift"] = (rejections["translate:status-drift"] ?? 0) + 1;
+        restored = null;
+      }
       result.set(entry.item.id, restored);
       if (restored !== null) translations[entry.textHash] = restored;
     }
