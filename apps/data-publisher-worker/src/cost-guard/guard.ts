@@ -135,7 +135,7 @@ export class CostGuardRunner {
       ...(options.dryRun ? { wouldTrip: !previous.breaker.tripped && breaker.tripped } : {}),
     };
     if (!options.dryRun) {
-      await this.deps.storage.put(STATE, { ...previous, checkedAt: now.toISOString(), metrics, breaker, lastError: lastError ?? previous.lastError } satisfies StoredState);
+      await this.deps.storage.put(STATE, { ...previous, checkedAt: now.toISOString(), metrics, breaker, lastError } satisfies StoredState);
     }
     return result;
   }

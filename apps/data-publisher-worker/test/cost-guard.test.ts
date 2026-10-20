@@ -522,6 +522,17 @@ describe("Spec 026 cost guard", () => {
     }
   });
 
+  test("CG14: a successful check after a failed one clears lastError", async () => {
+    let fail = true;
+    const { runner } = guard({}, () => (fail ? new Response("upstream error", { status: 500 }) : Response.json(r2Usage)));
+    await runner.check({ dryRun: false });
+    expect((await runner.health()).lastError).toMatchObject({ at: TICK.toISOString() });
+    fail = false;
+    const result = await runner.check({ dryRun: false }) as { ok: boolean; lastError: unknown };
+    expect(result).toMatchObject({ ok: true, lastError: null });
+    expect((await runner.health()).lastError).toBeNull();
+  });
+
   test("CG16: the token is in no log line, stored state, health body or check response, on success or failure", async () => {
     const logged: string[] = [];
     console.error = (...args: unknown[]) => { logged.push(args.map(String).join(" ")); };

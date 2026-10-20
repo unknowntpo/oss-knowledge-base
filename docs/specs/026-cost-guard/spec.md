@@ -182,7 +182,7 @@ closed, and the page shows "Usage near the free allowance".
     without writing state or opening the breaker.
 12. A failed GraphQL request (HTTP error, `errors[]`, malformed body) leaves
     the R2 metrics `unavailable`, records `lastError {message, at}`
-    (sanitized), keeps the in-app metrics, and never opens the breaker on
+    (sanitized; the next successful real check sets it back to null), keeps the in-app metrics, and never opens the breaker on
     missing data. Each real check is one Durable Object write.
 13. `/health` `costGuard` (only while `COST_GUARD` is set):
     `{mode, status, reason, checkedAt, metrics, breaker, lastResetAt,
@@ -200,7 +200,12 @@ closed, and the page shows "Usage near the free allowance".
     / "用量接近免費額度" with the overdue tokens; `tripped` while enforced reads
     "Cost guard: semantic search and digests paused" / "費用保護：語意搜尋與摘要已暫停"
     with the stale tokens. Any other answer or a failed read shows nothing.
-    No new colour token.
+    No new colour token. This is the one change this PR makes at runtime:
+    every page load sends one `GET /api/cost-guard`, which answers
+    `{status:"off"}` (cached 30 s at the edge, `max-age=30,
+    stale-while-revalidate=120`) while no Pages environment has the binding.
+    The browser cannot know whether the binding exists, so the request is
+    not skipped; a failed read only hides the notice.
 15. No log line, `/health` field, stored state or response contains the
     token. Every error text passes the existing sanitizer.
 
@@ -274,7 +279,7 @@ Each item: precondition → action → observable result → evidence.
 
 ### Failure and retry
 - CG13: given `monitor` and a missing token, account id or binding, the check returns `unconfigured` with a reason naming the missing item, makes no fetch and writes nothing → check test.
-- CG14: given a GraphQL HTTP 500, a body with `errors[]`, or a malformed body, the R2 metrics are `unavailable`, `lastError` is set, in-app metrics are kept and the breaker stays closed → check test.
+- CG14: given a GraphQL HTTP 500, a body with `errors[]`, or a malformed body, the R2 metrics are `unavailable`, `lastError` is set, in-app metrics are kept and the breaker stays closed; a later successful check clears `lastError` → check test.
 - CG15: given the guard object throwing or answering 500 under `enforce`, the digest, embedding and query gate proceed (fail open) → feature test.
 - CG16: given a token value, no console output, stored state, `/health` body or check response of a successful or failing check contains it → log test.
 - CG17: given a metric over its threshold after a reset, the next real check opens the breaker again; a new month does not close it → breaker test.
@@ -285,6 +290,33 @@ Each item: precondition → action → observable result → evidence.
 ### Observability
 - CG19: [deploy] on Dev with `COST_GUARD=monitor` and the token set, `POST /cost-guard/check?dryRun=1` returns R2 numbers within 5 % of the dashboard's month-to-date operations, and the real GraphQL response is saved as a fixture that replaces the documented-shape one (G96).
 - CG20: [deploy] after the first daily tick, `/health` `costGuard.checkedAt` is that tick's time and the page shows the notice exactly when `status` is `warn` or `tripped`.
+
+## Decisions pending owner confirmation
+
+The owner decided to build the guard (2026-10-20). These four choices inside
+it are the implementer's and stay pending until the owner confirms them:
+
+1. **Vectorize stored dimensions warn and never trip** (Behavior 6). Dev is
+   already at 99.98 % of the 10 million included, and the overage is $0.05 per
+   100 million dimensions, so tripping would turn off semantic search for a
+   cost of fractions of a cent. Alternative: trip at 80 % like the others.
+2. **Publication pauses only on an R2 Class A trip** (Behavior 9). It is the
+   core product and its Class A is bounded by a tested invariant (≈ 24,000 a
+   month); a Class A trip at 800,000 means something writes far beyond that,
+   and the only Class A incident came from the publication. Alternatives:
+   never pause it, or pause it on any trip.
+3. **Fail open** (Behavior 10). When the guard object cannot answer, every
+   feature proceeds under its own caps, so the guard is not a single point of
+   failure for search. Alternative: fail closed, which stops semantic search
+   and the digest whenever the object is unavailable.
+4. **A separate `CostGuard` Durable Object, not `PipelineState`.** The query
+   gate asks for a decision on every semantic query; `PipelineState` runs
+   the publication for minutes of CPU (`cpu_ms` 300,000), and a request to it
+   waits while that work holds the object. The check must also run while the
+   publication is stuck or paused, since the Class A incident came from the
+   publication. Cost: one new class and migration per environment (in the
+   enable PRs). Alternative: keep the breaker in `PipelineState` storage, with
+   no migration and the query path behind the publication.
 
 ## Rollout
 
