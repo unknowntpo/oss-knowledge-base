@@ -65,11 +65,16 @@ import {
 import fixtureJson from "./fixtures/topic-digest-kafka-2026-10-06.json";
 import labelsJson from "./fixtures/topic-digest-labels.v0.json";
 import recordedJson from "./fixtures/topic-digest-recorded.hand-2026-10-08.json";
+import devFixtureJson from "./fixtures/topic-digest-kafka-2026-10-19.json";
+import devRecordedJson from "./fixtures/topic-digest-recorded.dev-2026-10-20.json";
 import { testPlanRows } from "./topic-digest.cases";
 
 const fixture = fixtureJson as unknown as DigestFixture;
 const recorded = recordedJson as unknown as RecordedResponses;
 const labels = labelsJson as unknown as GoldenLabels;
+// Dev 2026-10-20: the cron output of release 2026-10-19T22-07-19-086Z and its week (D97 measurement).
+const devFixture = devFixtureJson as unknown as DigestFixture;
+const devRecorded = devRecordedJson as unknown as RecordedResponses;
 const KAFKA = KAFKA_DIGEST_PROFILE;
 const END = fixture.release.generatedAt;
 const START = "2026-09-29T13:07:37.000Z";
@@ -413,6 +418,44 @@ const cases: Record<string, Case> = {
     const glossary = (KAFKA.glossary?.terms ?? []).filter(([en, zh]) => prompt.includes(`${en} → ${zh}`));
     const statuses = Object.entries(TRANSLATION_STATUS).filter(([en, zh]) => prompt.includes(`${en} → ${zh[0]}`));
     return `glossary ${glossary.map(([en, zh]) => `${en} → ${zh}`).join(", ")}; status words ${statuses.map(([en, zh]) => `${en} → ${zh[0]}`).join(", ")}`;
+  },
+  "status tense|constructed: \"The consumer gets stuck when the broker restarts (KAFKA-1, open).\" cites an open Jira issue": () =>
+    `${tense("The consumer gets stuck when the broker restarts (KAFKA-1, open).", [{ title: "KAFKA-1: x", source: "jira", status: "open" }])} (gets + a state word is not a delivery)`,
+  "status tense|constructed: \"Jobs that got stuck would be retried (KAFKA-1, open).\" cites an open PR": () => tense("Jobs that got stuck would be retried (KAFKA-1, open).", [PR("open")]),
+  "status tense|constructed: \"Members gets fenced after a timeout (KAFKA-1, open).\" cites an open Jira issue": () =>
+    `${tense("Members gets fenced after a timeout (KAFKA-1, open).", [{ title: "KAFKA-1: x", source: "jira", status: "open" }])} (gets + a participle outside the completion list)`,
+  "status tense|constructed: \"Brokers would now always reject the request\" cites an open PR": () => tense("Brokers would now always reject the request", [PR("open")]),
+  "status tense|constructed: \"The client now has a retry option\" cites an open PR": () => `${tense("The client now has a retry option", [PR("open")])} (has is not in the now-verb list)`,
+  "status tense|constructed: \"The KIP now proposes a byte-based trigger\" cites a [DISCUSS] thread": () => tense("The KIP now proposes a byte-based trigger", [MAIL("[DISCUSS] KIP-1: x")]),
+  "status tense|constructed: \"Retries are added, so the client would recover (KAFKA-1, open).\" cites an open PR": () => tense("Retries are added, so the client would recover (KAFKA-1, open).", [PR("open")]),
+  "status tense|constructed: \"Once reviewed, retries are added and would ship in 4.5 (KAFKA-1, open).\" cites an open PR": () =>
+    `${tense("Once reviewed, retries are added and would ship in 4.5 (KAFKA-1, open).", [PR("open")])} (a modal in the same clause)`,
+  "recorded weeks|every recorded sentence: hand-2026-10-08 (37) and Dev 2026-10-20 (45)": () => {
+    const drops = (run: ReturnType<typeof replay>, name: (where: string, text: string) => string) => run.rejected.filter((entry) => entry.reason.startsWith("tense:"))
+      .map((entry) => `${entry.reason} ${name(entry.where, entry.sentence.text)}`);
+    const hand = replay(fixture, recorded, KAFKA);
+    const dev = replay(devFixture, devRecorded, KAFKA);
+    const devNumber: Record<string, string> = { "card:clients": "#6", "card:kraft": "#11", "card:streams": "#13", "proposal:KIP-1322": "#30", "proposal:KIP-891": "#38" };
+    const total = (run: ReturnType<typeof replay>) => run.kept.length + run.rejected.length;
+    if (total(hand) !== 37 || total(dev) !== 45) return `totals ${total(hand)} ${total(dev)}`;
+    return `hand: ${drops(hand, (where, text) => (where === "headline" ? `(headline "${text.slice(0, 17)} …")` : where)).map((item) => item.replace("tense:gets (", "tense:gets 1 (")).join(", ")}; Dev: ${drops(dev, (where) => devNumber[where] ?? where).join(", ")}`;
+  },
+  "translate status|constructed: \"KIP-1 would add a metric (KIP-1, voting).\" translated as \"KIP-1 將新增指標（KIP-1，投票進行中）。\"": () =>
+    `${statusGuard("KIP-1 would add a metric (KIP-1, voting).", "KIP-1 將新增指標（KIP-1，投票進行中）。")} (longest match: 投票進行中 is voting, not open)`,
+  "translate status|constructed: \"The fix would land (KAFKA-1, open).\" translated as \"修正將完成 (KAFKA-1, 投票進行中)。\"": () => statusGuard("The fix would land (KAFKA-1, open).", "修正將完成 (KAFKA-1, 投票進行中)。"),
+  "translate status|constructed: \"Release 4.3.2 would fix bugs (KAFKA-MAIL-1, discussing).\" translated as \"4.3.2 將修復錯誤 (KAFKA-MAIL-1, 討論進行中)。\"": () =>
+    statusGuard("Release 4.3.2 would fix bugs (KAFKA-MAIL-1, discussing).", "4.3.2 將修復錯誤 (KAFKA-MAIL-1, 討論進行中)。"),
+  "translate status|constructed: \"KIP-1 is under vote (KIP-1, under vote).\" translated as \"KIP-1 投票中（KIP-1，投票中）。\"": () =>
+    `${statusGuard("KIP-1 is under vote (KIP-1, under vote).", "KIP-1 投票中（KIP-1，投票中）。")} (under vote is voting)`,
+  "translate status|constructed: \"The types would be added (KAFKA-1, closed).\" translated as \"類型將新增 (KAFKA-1, 關閉（未合併）)。\"": () =>
+    statusGuard("The types would be added (KAFKA-1, closed).", "類型將新增 (KAFKA-1, 關閉（未合併）)。"),
+  "translate status|constructed: \"The fix would land (KAFKA-1, open).\" translated as \"修正將完成 (KAFKA-1, 尚未合併)。\"": () => statusGuard("The fix would land (KAFKA-1, open).", "修正將完成 (KAFKA-1, 尚未合併)。"),
+  "prompt|vote status wording in the summarizer prompt and the guard": () => {
+    const prompt = /"is under vote" and put "voting" in the parentheses/u.test(SUMMARIZE_PROMPT) && /"is under vote" and put "voting" in the parentheses/u.test(HIGHLIGHTS_PROMPT);
+    const guard = statusGuard("KIP-1 would add a metric (KIP-1, voting).", "（KIP-1，投票中）") === "translated"
+      && statusGuard("KIP-1 would add a metric (KIP-1, under vote).", "（KIP-1，投票中）") === "translated"
+      && statusGuard("KIP-1 would add a metric (KIP-1, under vote).", "（KIP-1，已提出）") !== "translated";
+    return prompt && guard ? "the summarizer asks for \"is under vote\" with voting in the parentheses; the guard maps voting and under vote to 投票中" : `prompt ${prompt} guard ${guard}`;
   },
   "features|Kafka profile description of other": () => KAFKA.taxonomy.descriptions?.other ?? "missing",
   "prompt|translation prompt": () => {

@@ -22,7 +22,7 @@ export const CLASSIFY_PROMPT = [
 const STATUS_TENSE = [
   "Use completion verbs (added, implemented, fixed, improved, supported, gets, now supports)",
   "only when the cited item is merged or resolved. For an open or closed-unmerged PR, an open issue,",
-  'or a discussion, write "would" or "is proposed"; for a vote, write "is under vote".',
+  'or a discussion, write "would" or "is proposed"; for a vote, write "is under vote" and put "voting" in the parentheses.',
 ].join("\n");
 
 export const SUMMARIZE_PROMPT = [
@@ -59,14 +59,17 @@ export const HIGHLIGHTS_PROMPT = [
  * first word is the one the prompt asks for; the others are accepted by the status guard.
  */
 export const TRANSLATION_STATUS: Readonly<Record<string, readonly string[]>> = {
-  open: ["仍在進行", "進行中", "開啟中"],
+  open: ["仍在進行", "進行中", "開放中", "開啟中", "尚未合併"],
   merged: ["已合併"],
-  closed: ["已關閉"],
-  proposed: ["已提出", "提案中"],
-  discussing: ["討論中", "正在討論"],
+  closed: ["已關閉", "關閉（未合併）", "關閉(未合併)"],
+  proposed: ["已提出", "已提案", "提案中"],
+  discussing: ["討論中", "討論進行中", "正在討論"],
   resolved: ["已解決"],
-  voting: ["投票中"],
+  voting: ["投票中", "投票進行中", "正在投票"],
 };
+
+/** English parenthetical words that mean the same status as a `TRANSLATION_STATUS` key. */
+export const STATUS_ALIASES: Readonly<Record<string, string>> = { "under vote": "voting", "in vote": "voting" };
 
 function statusList(): string {
   return Object.entries(TRANSLATION_STATUS).map(([english, words]) => `${english} → ${words[0]}`).join(", ");

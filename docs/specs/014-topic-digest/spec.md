@@ -955,12 +955,17 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
     - **Status guard** (D99, 2026-10-20). The prompt names the zh-Hant word
       for each status word: open → 仍在進行, merged → 已合併, closed → 已關閉,
       proposed → 已提出, discussing → 討論中, resolved → 已解決, voting →
-      投票中. A translation is also rejected when:
+      投票中. The English parentheses may also say `under vote` or `in
+      vote` for voting. Accepted zh-Hant variants: open 進行中, 開放中,
+      開啟中, 尚未合併; closed 關閉（未合併）; proposed 已提案, 提案中;
+      discussing 討論進行中, 正在討論; voting 投票進行中, 正在投票.
+      zh-Hant status words are matched longest first, left to right, so
+      投票進行中 is voting and never open's 進行中. Parts are the
+      comma-separated parts of the outermost parentheses, so a nested
+      "關閉（未合併）" stays one part. A translation is also rejected when:
       - a status word inside the English sentence's parentheses (a
         comma-separated part such as `closed` in "(KAFKA-PR-23829, closed)")
-        has none of its zh-Hant words (the one above, or the accepted
-        variants 進行中, 開啟中, 提案中, 正在討論) anywhere in the
-        translation; or
+        has none of its zh-Hant words anywhere in the translation; or
       - a part inside the translation's parentheses holds a zh-Hant status
         word whose English status is not in the English parentheses.
       Words outside the parentheses are not compared, so "bug fix is
@@ -1063,8 +1068,17 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
         supported, avoided, removed, resolved, enabled, introduced,
         completed, finished, updated, upgraded, replaced, migrated,
         deprecated, prevented, corrected, addressed;
-      - `gets` or `got` alone ("Kraft gets metrics");
-      - `now` followed by a word ending in `s` ("now supports").
+      - `gets` or `got` alone before a deliverable ("Kraft gets metrics"),
+        but not before a state word (stuck, lost, stale, hung, wrong,
+        worse, slow, slower, out, into, to, in, back, rid, through) or
+        another word ending in `ed` ("gets fenced");
+      - `now` followed by one of supports, uses, includes, returns,
+        rejects, allows, accepts, runs, exposes, provides, enables, emits,
+        honors, skips, validates, requires ("now supports"; not "now has"
+        or "now proposes").
+      A form is not counted in a clause (text between `,`, `;`, or `:`)
+      that also holds would, will, could, may, might, or should ("Jobs
+      that got stuck would be retried").
       A *final* cited item is a merged PR, a resolved Jira issue, or a
       `[RESULT]` or `[ANNOUNCE]` thread. A PR whose title holds `[k/N]`, or
       `[k/n]` with k < n, is a *partial* PR. A sentence with a completion
@@ -1076,7 +1090,9 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
         `initial step`, `part <k> of`, or `step <k>`;
       - as `tense:<form>` when no cited item is final.
       "would", "will", "is proposed", "is under vote", and bare present
-      verbs ("supports") are not completion forms. Known false positives
+      verbs ("supports") are not completion forms. The precision cases
+      ("gets stuck", "would now always reject", "now has", "now
+      proposes") come from the verifier of PR #101. Known false positives
       are listed under D97.
     - **Stance verbs.** A sentence containing `objected`, `opposed`,
       `rejected`, `refused`, `disagreed`, `pushed back`, or `blocked` is
@@ -1417,6 +1433,15 @@ synthetic; the others use values captured from Dev.
 | D97 | status tense | constructed: "Brokers would get a timeout metric (KIP-1, proposed)." cites a [DISCUSS] thread | kept (modal before gets) |
 | D97 | status tense | constructed: "The leak is fixed (KAFKA-1, resolved)." cites a resolved Jira issue | kept |
 | D97 | status tense | constructed: "Votes are counted; KIP-1 is supported (KIP-1, accepted)." cites a [RESULT] [VOTE] thread | kept |
+| D97 | status tense | constructed: "The consumer gets stuck when the broker restarts (KAFKA-1, open)." cites an open Jira issue | kept (gets + a state word is not a delivery) |
+| D97 | status tense | constructed: "Jobs that got stuck would be retried (KAFKA-1, open)." cites an open PR | kept |
+| D97 | status tense | constructed: "Members gets fenced after a timeout (KAFKA-1, open)." cites an open Jira issue | kept (gets + a participle outside the completion list) |
+| D97 | status tense | constructed: "Brokers would now always reject the request" cites an open PR | kept |
+| D97 | status tense | constructed: "The client now has a retry option" cites an open PR | kept (has is not in the now-verb list) |
+| D97 | status tense | constructed: "The KIP now proposes a byte-based trigger" cites a [DISCUSS] thread | kept |
+| D97 | status tense | constructed: "Retries are added, so the client would recover (KAFKA-1, open)." cites an open PR | dropped (tense:are added) |
+| D97 | status tense | constructed: "Once reviewed, retries are added and would ship in 4.5 (KAFKA-1, open)." cites an open PR | kept (a modal in the same clause) |
+| D97 | recorded weeks | every recorded sentence: hand-2026-10-08 (37) and Dev 2026-10-20 (45) | hand: tense:gets 1 (headline "4.4.0 gets an RC4 …"); Dev: tense:closed #6, tense:are avoided #11, tense:partial #13, tense:gets #30, tense:gets #38 |
 | D98 | prompt | summarizer and highlights prompts (status tense) | completion verbs only for merged or resolved items; would, is proposed, or is under vote otherwise; [k/N] PRs say first step or part k of N; the example passes Behavior 30 |
 | D99 | translate status | Dev 2026-10-20 #6: "… (KAFKA-PR-23829, closed)." translated as "… (KAFKA-PR-23829, 已合併)。" | English text kept, label Not translated (closed: 已關閉 missing; found 已合併) |
 | D99 | translate status | Dev 2026-10-20 #2: "… (KAFKA-21299, open)." translated as "… (KAFKA-21299, 仍在進行)。" | translated |
@@ -1429,6 +1454,13 @@ synthetic; the others use values captured from Dev.
 | D99 | translate status | constructed: "The fix would land (KAFKA-1, open)." translated as "修正將完成 (KAFKA-1)。" | English text kept, label Not translated (open: 仍在進行 missing; found none) |
 | D99 | translate status | constructed: "The fix landed (KAFKA-1, merged)." translated as "修正已完成 (KAFKA-1, 已合併, 已關閉)。" | English text kept, label Not translated (已關閉 has no English status) |
 | D99 | translate status | constructed: "KIP-1 would add a metric (KIP-1, voting)." translated as "KIP-1 將新增指標（KIP-1，投票中）。" | translated |
+| D99 | translate status | constructed: "KIP-1 would add a metric (KIP-1, voting)." translated as "KIP-1 將新增指標（KIP-1，投票進行中）。" | translated (longest match: 投票進行中 is voting, not open) |
+| D99 | translate status | constructed: "The fix would land (KAFKA-1, open)." translated as "修正將完成 (KAFKA-1, 投票進行中)。" | English text kept, label Not translated (open: 仍在進行 missing; found 投票進行中) |
+| D99 | translate status | constructed: "Release 4.3.2 would fix bugs (KAFKA-MAIL-1, discussing)." translated as "4.3.2 將修復錯誤 (KAFKA-MAIL-1, 討論進行中)。" | translated |
+| D99 | translate status | constructed: "KIP-1 is under vote (KIP-1, under vote)." translated as "KIP-1 投票中（KIP-1，投票中）。" | translated (under vote is voting) |
+| D99 | translate status | constructed: "The types would be added (KAFKA-1, closed)." translated as "類型將新增 (KAFKA-1, 關閉（未合併）)。" | translated |
+| D99 | translate status | constructed: "The fix would land (KAFKA-1, open)." translated as "修正將完成 (KAFKA-1, 尚未合併)。" | translated |
+| D98 | prompt | vote status wording in the summarizer prompt and the guard | the summarizer asks for "is under vote" with voting in the parentheses; the guard maps voting and under vote to 投票中 |
 | D100 | prompt | translation prompt for the Kafka profile | glossary offloading → 卸載, telemetry → 遙測, assignor → 指派器, share group → share group, rebalance → 再平衡, KRaft → KRaft; status words open → 仍在進行, merged → 已合併, closed → 已關閉, proposed → 已提出, discussing → 討論中, resolved → 已解決, voting → 投票中 |
 <!-- test-plan:end -->
 
@@ -2102,26 +2134,37 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   proposed)" (#30), "Kafka Connect multiversioning gets config and
   validation tests (KAFKA-PR-18326, open)" (#38), and the hand-written
   headline "4.4.0 gets an RC4 after a signature problem in RC3, and
-  KIP-1349 is being voted on." These are accepted: a dropped proposal
-  line falls back to its thread title, and D98 asks for "would get".
+  KIP-1349 is being voted on." These are accepted: each states a
+  proposal, an open PR, or a vote as done; a dropped proposal line falls
+  back to its thread title, and D98 asks for "would get". After the
+  verifier's precision fixes (state words after gets/got, modal clauses,
+  the now-verb list) the same 6 sentences are dropped, and "The consumer
+  gets stuck …", "Jobs that got stuck would be retried", "Brokers would
+  now always reject …", "The client now has …", and "The KIP now
+  proposes …" are kept. Both recorded weeks are committed fixtures
+  (`topic-digest-kafka-2026-10-19.json`,
+  `topic-digest-recorded.dev-2026-10-20.json`), so the measurement is a
+  test row.
 - D98: the summarizer and highlights prompts ask for status-faithful tense:
   completion verbs only when the cited item is merged or resolved; "would"
   or "is proposed" for open, closed-unmerged, or discussed items; "is
-  under vote" for a vote; "first step" or "part k of N" for a `[k/N]` PR;
+  under vote" for a vote, with `voting` in the parentheses; "first step"
+  or "part k of N" for a `[k/N]` PR;
   and the title's modality ("Allow brokers to disable" is not "brokers
   would disable", the Dev 2026-10-20 invented claim #34). The summarizer's
   example sentence passes Behavior 30. The prompt revision is
   `digest-prompts@4`, which invalidates the cached English sentences and
   translations: the next Dev run is close to a cold run (`bun run digest
-  -- measure`: 2,211 estimated neurons cold on the Dev 2026-10-19 week,
-  about 2,830 calibrated (× 1.28), within the 5,000 cap of D91).
+  -- measure`: 2,215 estimated neurons cold on the Dev 2026-10-19 week,
+  about 2,835 calibrated (× 1.28), within the 5,000 cap of D91).
 - D99: a zh-Hant translation that drops the status word of the English
   parentheses, or adds a status the English parentheses do not carry, is
   not used (Behavior 25 status guard): the item keeps its English text
   labeled "Not translated", `rejections["translate:status-drift"]` counts
   it, and it is not cached. Dev 2026-10-20 #6 "(KAFKA-PR-23829, closed)" →
   "(KAFKA-PR-23829, 已合併)" is rejected; #1, #2, #3, #26, #29, and #42 are
-  kept. On all 48 Dev 2026-10-20 translations the guard rejects #6 and
+  kept; "(KIP-1, voting)" → "（KIP-1，投票進行中）" is kept, and "(KAFKA-1,
+  open)" → "(KAFKA-1, 投票進行中)" is rejected. On all 48 Dev 2026-10-20 translations the guard rejects #6 and
   #40, the English row that D96's cache bug left in Chinese.
 - D100: the translation prompt lists the profile glossary, and the
   translator revision is `digest-prompts@4|kafka-glossary@1` for Kafka.
@@ -2481,10 +2524,12 @@ and add zh-Hant translation quality to the Prod gate. Eval line for
 
 | Week | Sentences | Dropped | By the tense rule | Labeled errors rejected | Guard on zh-Hant | Cold estimate |
 | --- | --- | --- | --- | --- | --- | --- |
-| hand-2026-10-08 | 37 | 11 (10 before) | 1 (headline, a false positive) | status-mismatch 2/2, stance 1/1 | no zh-Hant recorded | 1,595 neurons (1,513 at @3) |
-| Dev 2026-10-20 | 45 | 6 (0 before) | 5: #6, #11, #13, #30, #38 (#30 and #38 false positives) | status-mismatch 4/4; invented-claim 0/1 | 48 checked, 2 rejected (#6, and #40 the D96 residue) | 2,211 neurons (2,159 at @3) |
+| hand-2026-10-08 | 37 | 11 (10 before) | 1 (headline, a false positive) | status-mismatch 2/2, stance 1/1 | no zh-Hant recorded | 1,599 neurons (1,513 at @3) |
+| Dev 2026-10-20 | 45 | 6 (0 before) | 5: #6, #11, #13, #30, #38 (#30 and #38 false positives) | status-mismatch 4/4; invented-claim 0/1 | 48 checked, 2 rejected (#6, and #40 the D96 residue) | 2,215 neurons (2,159 at @3) |
 
 The Dev 2026-10-20 week's sixth drop is the #48 highlight
 (`cite-outside-inputs`, because the #30 line it cites was dropped; alone it
 is `tense:gets`). The thresholds in D102 are proposed and wait for the
-owner.
+owner. The verifier's precision fixes (D97 state words, modal clauses,
+now-verb list; D99 longest-match zh-Hant words, `under vote`) leave these
+numbers unchanged.

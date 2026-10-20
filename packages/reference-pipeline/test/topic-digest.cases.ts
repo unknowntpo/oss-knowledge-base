@@ -208,6 +208,16 @@ export const testPlanRows = [
   { id: "D97", rule: "status tense", input: "constructed: \"Brokers would get a timeout metric (KIP-1, proposed).\" cites a [DISCUSS] thread", expected: "kept (modal before gets)" },
   { id: "D97", rule: "status tense", input: "constructed: \"The leak is fixed (KAFKA-1, resolved).\" cites a resolved Jira issue", expected: "kept" },
   { id: "D97", rule: "status tense", input: "constructed: \"Votes are counted; KIP-1 is supported (KIP-1, accepted).\" cites a [RESULT] [VOTE] thread", expected: "kept" },
+  // D97 precision (verifier, 2026-10-20): state words after gets/got, modal clauses, and "now" outside the verb list.
+  { id: "D97", rule: "status tense", input: "constructed: \"The consumer gets stuck when the broker restarts (KAFKA-1, open).\" cites an open Jira issue", expected: "kept (gets + a state word is not a delivery)" },
+  { id: "D97", rule: "status tense", input: "constructed: \"Jobs that got stuck would be retried (KAFKA-1, open).\" cites an open PR", expected: "kept" },
+  { id: "D97", rule: "status tense", input: "constructed: \"Members gets fenced after a timeout (KAFKA-1, open).\" cites an open Jira issue", expected: "kept (gets + a participle outside the completion list)" },
+  { id: "D97", rule: "status tense", input: "constructed: \"Brokers would now always reject the request\" cites an open PR", expected: "kept" },
+  { id: "D97", rule: "status tense", input: "constructed: \"The client now has a retry option\" cites an open PR", expected: "kept (has is not in the now-verb list)" },
+  { id: "D97", rule: "status tense", input: "constructed: \"The KIP now proposes a byte-based trigger\" cites a [DISCUSS] thread", expected: "kept" },
+  { id: "D97", rule: "status tense", input: "constructed: \"Retries are added, so the client would recover (KAFKA-1, open).\" cites an open PR", expected: "dropped (tense:are added)" },
+  { id: "D97", rule: "status tense", input: "constructed: \"Once reviewed, retries are added and would ship in 4.5 (KAFKA-1, open).\" cites an open PR", expected: "kept (a modal in the same clause)" },
+  { id: "D97", rule: "recorded weeks", input: "every recorded sentence: hand-2026-10-08 (37) and Dev 2026-10-20 (45)", expected: "hand: tense:gets 1 (headline \"4.4.0 gets an RC4 …\"); Dev: tense:closed #6, tense:are avoided #11, tense:partial #13, tense:gets #30, tense:gets #38" },
   // D98: the summarizer and highlights prompts ask for status-faithful tense.
   { id: "D98", rule: "prompt", input: "summarizer and highlights prompts (status tense)", expected: "completion verbs only for merged or resolved items; would, is proposed, or is under vote otherwise; [k/N] PRs say first step or part k of N; the example passes Behavior 30" },
   // D99: the translation keeps the English parenthetical's status word (Behavior 25).
@@ -222,6 +232,13 @@ export const testPlanRows = [
   { id: "D99", rule: "translate status", input: "constructed: \"The fix would land (KAFKA-1, open).\" translated as \"修正將完成 (KAFKA-1)。\"", expected: "English text kept, label Not translated (open: 仍在進行 missing; found none)" },
   { id: "D99", rule: "translate status", input: "constructed: \"The fix landed (KAFKA-1, merged).\" translated as \"修正已完成 (KAFKA-1, 已合併, 已關閉)。\"", expected: "English text kept, label Not translated (已關閉 has no English status)" },
   { id: "D99", rule: "translate status", input: "constructed: \"KIP-1 would add a metric (KIP-1, voting).\" translated as \"KIP-1 將新增指標（KIP-1，投票中）。\"", expected: "translated" },
+  { id: "D99", rule: "translate status", input: "constructed: \"KIP-1 would add a metric (KIP-1, voting).\" translated as \"KIP-1 將新增指標（KIP-1，投票進行中）。\"", expected: "translated (longest match: 投票進行中 is voting, not open)" },
+  { id: "D99", rule: "translate status", input: "constructed: \"The fix would land (KAFKA-1, open).\" translated as \"修正將完成 (KAFKA-1, 投票進行中)。\"", expected: "English text kept, label Not translated (open: 仍在進行 missing; found 投票進行中)" },
+  { id: "D99", rule: "translate status", input: "constructed: \"Release 4.3.2 would fix bugs (KAFKA-MAIL-1, discussing).\" translated as \"4.3.2 將修復錯誤 (KAFKA-MAIL-1, 討論進行中)。\"", expected: "translated" },
+  { id: "D99", rule: "translate status", input: "constructed: \"KIP-1 is under vote (KIP-1, under vote).\" translated as \"KIP-1 投票中（KIP-1，投票中）。\"", expected: "translated (under vote is voting)" },
+  { id: "D99", rule: "translate status", input: "constructed: \"The types would be added (KAFKA-1, closed).\" translated as \"類型將新增 (KAFKA-1, 關閉（未合併）)。\"", expected: "translated" },
+  { id: "D99", rule: "translate status", input: "constructed: \"The fix would land (KAFKA-1, open).\" translated as \"修正將完成 (KAFKA-1, 尚未合併)。\"", expected: "translated" },
+  { id: "D98", rule: "prompt", input: "vote status wording in the summarizer prompt and the guard", expected: "the summarizer asks for \"is under vote\" with voting in the parentheses; the guard maps voting and under vote to 投票中" },
   // D100: the translator prompt carries the profile's glossary.
   { id: "D100", rule: "prompt", input: "translation prompt for the Kafka profile", expected: "glossary offloading → 卸載, telemetry → 遙測, assignor → 指派器, share group → share group, rebalance → 再平衡, KRaft → KRaft; status words open → 仍在進行, merged → 已合併, closed → 已關閉, proposed → 已提出, discussing → 討論中, resolved → 已解決, voting → 投票中" },
 ] as const;

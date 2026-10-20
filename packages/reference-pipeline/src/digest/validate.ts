@@ -31,20 +31,43 @@ const STATUS_WORDS: readonly (readonly [readonly string[], (thread: CitedThread)
 const STANCE = ["objected", "opposed", "rejected", "refused", "disagreed", "pushed back", "blocked"] as const;
 
 /**
- * D97: completion forms. Participles after is/are/was/were/has been/have been/gets/got state that
- * the work is done; "gets"/"got" alone ("Kraft gets metrics") and "now <verb>s" do too. "would",
- * "will", "is proposed", and bare present verbs ("supports") are not completion forms.
+ * D97: completion forms. A participle from the list after is/are/was/were/has been/have been/
+ * gets/got states that the work is done; so do bare "gets"/"got" before a deliverable ("Kraft gets
+ * metrics") and "now" before a verb from NOW_VERBS ("now supports"). Not completion forms: "would",
+ * "will", "is proposed", bare present verbs ("supports"), "gets"/"got" before a state word or another
+ * participle ("gets stuck", "gets fenced"), "now" before other words ("now has", "now proposes"),
+ * and any form in a clause (text between , ; :) that also holds a modal.
  */
 const COMPLETION_PARTICIPLES = [
   "added", "fixed", "implemented", "improved", "supported", "avoided", "removed", "resolved", "enabled",
   "introduced", "completed", "finished", "updated", "upgraded", "replaced", "migrated", "deprecated",
   "prevented", "corrected", "addressed",
 ] as const;
+/** Verbs that, after "now", describe shipped behavior. Chosen from what a delivered change does. */
+const NOW_VERBS = [
+  "supports", "uses", "includes", "returns", "rejects", "allows", "accepts", "runs", "exposes", "provides",
+  "enables", "emits", "honors", "skips", "validates", "requires",
+] as const;
+/** Words after a bare "gets"/"got" that describe a state, not a deliverable. */
+const STATE_WORDS = ["stuck", "lost", "stale", "hung", "wrong", "worse", "slow", "slower", "out", "into", "to", "in", "back", "rid", "through"] as const;
+const MODAL = /(?<![A-Za-z0-9_])(?:would|will|could|may|might|should)(?![A-Za-z0-9_])/iu;
 const COMPLETION_FORMS: readonly RegExp[] = [
   new RegExp(`(?<![A-Za-z0-9_])(?:is|are|was|were|has\\s+been|have\\s+been|gets|got)\\s+(?:(?:now|already|finally|also)\\s+)?(?:${COMPLETION_PARTICIPLES.join("|")})(?![A-Za-z0-9_])`, "iu"),
-  /(?<![A-Za-z0-9_])(?:gets|got)(?![A-Za-z0-9_])/iu,
-  /(?<![A-Za-z0-9_])now\s+[a-z]+s(?![A-Za-z0-9_])/iu,
+  new RegExp(`(?<![A-Za-z0-9_])(?:gets|got)(?![A-Za-z0-9_])(?!\\s+(?:${STATE_WORDS.join("|")}|[A-Za-z]+ed)(?![A-Za-z0-9_]))`, "iu"),
+  new RegExp(`(?<![A-Za-z0-9_])now\\s+(?:${NOW_VERBS.join("|")})(?![A-Za-z0-9_])`, "iu"),
 ];
+
+/** The first completion form in a clause without a modal (D97). */
+function completionForm(text: string): string | null {
+  for (const clause of text.split(/[,;:，；：]/u)) {
+    if (MODAL.test(clause)) continue;
+    for (const pattern of COMPLETION_FORMS) {
+      const match = pattern.exec(clause);
+      if (match !== null) return match[0].toLowerCase().replace(/\s+/gu, " ");
+    }
+  }
+  return null;
+}
 /** A "[k/N]" or "[k/n]" PR title with k < n: one part of a series (D97). */
 const PARTIAL = /\[\s*(\d+)\s*\/\s*(N|\d+)\s*\]/iu;
 /** Wording that says a partial PR is one step (D97). */
@@ -61,21 +84,40 @@ function final(thread: CitedThread): boolean {
   return /\[(?:result|announce)\]/iu.test(thread.title);
 }
 
-/** The status words inside the sentence's parentheses: "(KAFKA-1, closed)" gives ["closed"]. */
+/**
+ * The comma-separated parts inside the sentence's outermost parentheses, lowercased:
+ * "(KAFKA-1, closed)" gives ["kafka-1", "closed"]; nested parentheses stay inside their part
+ * ("(KAFKA-1, 關閉（未合併）)" gives ["kafka-1", "關閉（未合併）"]).
+ */
 export function parentheticalWords(text: string): string[] {
-  return [...text.matchAll(/[(（]([^()（）]*)[)）]/gu)]
-    .flatMap((match) => match[1]!.split(/[,，、;；]/u).map((part) => part.trim().toLowerCase()).filter((part) => part !== ""));
+  const groups: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const char of text) {
+    if (char === "(" || char === "（") {
+      if (depth > 0) current += char;
+      depth += 1;
+    } else if ((char === ")" || char === "）") && depth > 0) {
+      depth -= 1;
+      if (depth > 0) current += char;
+      else {
+        groups.push(current);
+        current = "";
+      }
+    } else if (depth > 0) current += char;
+  }
+  return groups.flatMap((group) => group.split(/[,，、;；]/u).map((part) => part.trim().toLowerCase()).filter((part) => part !== ""));
 }
 
 /** D97: a completion form needs a final cited item; "(…, closed)" never allows one; a partial PR needs step wording. */
 function tenseRejection(text: string, cited: readonly CitedThread[]): Rejection | null {
-  const form = COMPLETION_FORMS.map((pattern) => pattern.exec(text)).find((match) => match !== null);
-  if (form === undefined) return null;
+  const form = completionForm(text);
+  if (form === null) return null;
   if (parentheticalWords(text).includes("closed")) return "tense:closed";
   const steps = STEP_WORDING.test(text);
   if (cited.some((thread) => final(thread) && (steps || !partial(thread)))) return null;
   if (cited.some((thread) => final(thread) && partial(thread))) return "tense:partial";
-  return `tense:${form[0]!.toLowerCase().replace(/\s+/gu, " ")}`;
+  return `tense:${form}`;
 }
 
 function hasWord(text: string, word: string): boolean {
