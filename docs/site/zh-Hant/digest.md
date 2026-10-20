@@ -46,7 +46,8 @@ Dev 環境每天把過去七天的 Kafka 動態整理成一份簡短的雙語摘
 - 時態規則只認得列出的說法：「X lands」「X is in trunk」抓不到，要靠黃金資料集把關。
 - 狀態詞檢查比對的是狀態的集合，而不是哪個狀態屬於哪個引用；兩個項目的狀態對調時會通過，要靠 `status-drift` 標註抓出。
 - 較早的狀態詞規則也會擋掉「would be released」這類帶情態詞的句子（[issue #104](https://github.com/unknowntpo/oss-knowledge-base/issues/104)，未解決）。
-- 在 2026-10-20 的 Dev 週資料上，時態規則擋下 5 句，其中 2 句是誤判（[Spec 014](docs/specs/014-topic-digest/spec.md) D97）。
+- 已知誤判（[issue #104](https://github.com/unknowntpo/oss-knowledge-base/issues/104)）：以「Now <名詞>」開頭的句子，例如「Now logs are structured」，會被當成 `now logs`，因為列表中有幾個動詞也是名詞。
+- 在 2026-10-20 的 Dev 週資料上，時態規則擋下 5 句卡片與提案句和 1 條重點，全都把尚未完成的工作寫成已完成；兩個已記錄的週資料都是版本庫中的測試資料，所以規則的準確度可以離線重現（[Spec 014](docs/specs/014-topic-digest/spec.md) D97）。
 
 ## 成本 {#cost}
 

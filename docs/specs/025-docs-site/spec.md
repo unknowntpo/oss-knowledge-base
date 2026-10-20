@@ -204,7 +204,7 @@ estimated neurons) and are dated on the page.
 - DOC15: Every content error fails the build with the file and the problem: a missing counterpart page, an unregistered page, a heading without `{#id}`, a missing title, a link to a missing or out-of-repository path or a disallowed scheme, an unknown value or flow. Evidence: test-plan rows.
 
 ### Budget
-- DOC16: [measure] The site stays small and fast to build: 13 files, 428,415 bytes in total, the largest page 57,444 bytes, built in about 80 ms (`bun run docs:build`, 2026-10-20, after merging `main` at `22ab663`). Limits: total under 1 MB, each page under 150 KB, Cloudflare Pages' 20,000 files per deployment. Hosting static assets on Pages costs nothing; one deploy per push to `main`.
+- DOC16: [measure] The site stays small and fast to build: 13 files, 429,296 bytes in total, the largest page 57,444 bytes, built in about 80 ms (`bun run docs:build`, 2026-10-20, after merging `main` at `22ab663`). Limits: total under 1 MB, each page under 150 KB, Cloudflare Pages' 20,000 files per deployment. Hosting static assets on Pages costs nothing; one deploy per push to `main`.
 
 ### Observability
 - DOC17: [deploy] After the owner creates the project, the next push to `main` deploys; the `deploy-docs` job summary says "Published https://oss-knowledge-base-docs.pages.dev at <sha>", `build.json` names the commit, and every page's footer shows it. Before that, the job summary says the project does not exist.

@@ -2165,7 +2165,10 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   backported", "got reverted", "now handles", "are added in May", "are
   added and would ship") are dropped since; the recorded weeks still drop
   the same 6 sentences. Known limitations: completion wording outside the
-  lists, and the translation guard's set comparison (Behavior 25).
+  lists, and the translation guard's set comparison (Behavior 25). Known
+  false positive (#104): a sentence starting "Now <noun>" such as "Now logs
+  are structured (…, open)" matches `now logs`, because several now-verbs
+  are also nouns.
 - D98: the summarizer and highlights prompts ask for status-faithful tense:
   completion verbs only when the cited item is merged or resolved; "would"
   or "is proposed" for open, closed-unmerged, or discussed items; "is
@@ -2546,7 +2549,7 @@ and add zh-Hant translation quality to the Prod gate. Eval line for
 | Week | Sentences | Dropped | By the tense rule | Labeled errors rejected | Guard on zh-Hant | Cold estimate |
 | --- | --- | --- | --- | --- | --- | --- |
 | hand-2026-10-08 | 37 | 11 (10 before) | 1 (headline, a false positive) | status-mismatch 2/2, stance 1/1 | no zh-Hant recorded | 1,599 neurons (1,513 at @3) |
-| Dev 2026-10-20 | 45 | 6 (0 before) | 5: #6, #11, #13, #30, #38 (#30 and #38 false positives) | status-mismatch 4/4; invented-claim 0/1 | 48 checked, 2 rejected (#6, and #40 the D96 residue) | 2,215 neurons (2,159 at @3) |
+| Dev 2026-10-20 | 45 | 6 (0 before) | 5: #6, #11, #13, #30, #38 (all state unfinished work as done; #30 and #38 were labeled ok before review) | status-mismatch 4/4; invented-claim 0/1 | 48 checked, 2 rejected (#6, and #40 the D96 residue) | 2,215 neurons (2,159 at @3) |
 
 The Dev 2026-10-20 week's sixth drop is the #48 highlight
 (`cite-outside-inputs`, because the #30 line it cites was dropped; alone it

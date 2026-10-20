@@ -46,7 +46,8 @@ Status as of 2026-10-20: the gate has not passed, so the digest runs on Dev only
 - The tense rule only knows the listed forms: "X lands" or "X is in trunk" is not caught; the golden set is the backstop.
 - The status guard compares the set of statuses, not which status belongs to which citation, so swapped statuses for two items pass; the `status-drift` label catches them.
 - The older status-word rule also drops modal sentences such as "would be released" ([issue #104](https://github.com/unknowntpo/oss-knowledge-base/issues/104), open).
-- On the Dev week of 2026-10-20 the tense rule dropped 5 sentences, 2 of them false positives ([Spec 014](docs/specs/014-topic-digest/spec.md), D97).
+- Known false positive ([issue #104](https://github.com/unknowntpo/oss-knowledge-base/issues/104)): a sentence starting "Now <noun>", such as "Now logs are structured", matches `now logs`, because several of the listed verbs are also nouns.
+- On the Dev week of 2026-10-20 the tense rule dropped 5 card and proposal sentences and 1 highlight, all stating unfinished work as done; both recorded weeks are committed test fixtures, so the rule's precision is reproducible offline ([Spec 014](docs/specs/014-topic-digest/spec.md), D97).
 
 ## Cost {#cost}
 
