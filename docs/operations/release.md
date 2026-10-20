@@ -150,7 +150,7 @@ https://github.com/unknowntpo/oss-knowledge-base/releases/tag/v0.3.1.
 `v0.3.1` deployed the Prod data Worker for the first time, following [the runbook's "First Prod release"](../runbooks/cloudflare-data-publisher.md#first-prod-release):
 secrets first, save the pointers, then the tag, then a manual first run.
 
-Release notes draft (for `gh release create v0.3.0 --repo unknowntpo/oss-knowledge-base --notes-file`):
+Release notes, published with the release as `v0.3.1` (https://github.com/unknowntpo/oss-knowledge-base/releases/tag/v0.3.1; drafted for `v0.3.0`, which failed CI):
 
 ```markdown
 Prod now publishes live data once a day instead of the recorded snapshot of 2026-08-25.
