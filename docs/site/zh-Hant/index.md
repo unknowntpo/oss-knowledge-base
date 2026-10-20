@@ -8,7 +8,7 @@
 
 | 項目 | 內容 |
 | --- | --- |
-| 社群 | Apache Kafka（GitHub、Jira、dev@ 郵件串）與 Apache DataFusion（GitHub） |
+| 社群 | Apache Kafka（GitHub、Jira、dev@ 郵件列表）與 Apache DataFusion（GitHub） |
 | 線上網站 | Prod [oss-knowledge-base.pages.dev](https://oss-knowledge-base.pages.dev/)（版本 `v0.3.1`，2026-10-19）與 Dev [oss-knowledge-base-dev.pages.dev](https://oss-knowledge-base-dev.pages.dev/)（每次 push 到 `main`） |
 | 執行環境 | Cloudflare：每個環境一個排程 Worker 寫入 R2 物件儲存；Pages 提供 Vue 網站與唯讀 API |
 | 開發方式 | {{value:specs}} 份書面規格，其中 {{value:enforcedSpecs}} 份的驗收項目由機器檢查；每個變更都經過獨立的 AI 驗證 |

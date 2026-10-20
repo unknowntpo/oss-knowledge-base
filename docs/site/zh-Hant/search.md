@@ -12,7 +12,7 @@
 
 | 參數 | 值 | 來源 |
 | --- | --- | --- |
-| 段落大小 | 最多 180 字，重疊 30 字 | [chunking.ts](packages/search/src/chunking.ts) |
+| 段落大小 | 最多 180 個詞，重疊 30 個詞 | [chunking.ts](packages/search/src/chunking.ts) |
 | `k1`、`b` | 1.2、0.75 | [lexical-search.ts](packages/search/src/lexical-search.ts) |
 | 欄位權重 | 標題 4、標籤 2、內文與作者 1 | [lexical-search.ts](packages/search/src/lexical-search.ts) |
 | 編號精確命中加分 | +1000（一定排第一） | [lexical-search.ts](packages/search/src/lexical-search.ts) |
@@ -22,7 +22,7 @@
 ### 斷詞與編號 {#tokens}
 
 - 有大小寫邊界的字，會同時以原字與小寫分段建立索引：`HTTPServer` 也能用 `http` 和 `server` 找到。索引與查詢使用同一個斷詞器。
-- 社群編號在斷詞前由各社群的設定檔正規化，而不是寫死在核心搜尋裡：`KIP770`、`kip770`、`KIP-770` 是同一個查詢；單獨的 `770` 會精確命中該專案中所有這個號碼的編號（KIP、Jira issue、pull request）。中間不接受空白，所以 `Kafka 4.2.0` 不會被當成 `KAFKA-4`（[identifiers.ts](packages/search/src/identifiers.ts)、[profiles.ts](packages/reference-pipeline/src/search/profiles.ts)）。
+- 社群編號在斷詞前由各社群的設定檔正規化，而不是寫死在核心搜尋裡：`KIP770`、`kip770`、`KIP-770` 是同一個查詢；單獨的 `770` 會命中該專案中所有這個號碼的編號（KIP、Jira issue、pull request）。中間不接受空白，所以 `Kafka 4.2.0` 不會被當成 `KAFKA-4`（[identifiers.ts](packages/search/src/identifiers.ts)、[profiles.ts](packages/reference-pipeline/src/search/profiles.ts)）。
 
 ### thread 分數與相鄰加分 {#adjacency}
 
@@ -59,6 +59,6 @@ Spec 017 在一份 Dev release（2026-10-12）的快照上比較第 2 與第 3 �
 
 ### 查詢預算 {#budget}
 
-公開的搜尋框不能讓人刷爆費用。每個語意查詢都要經過一個 Durable Object 帳本；選它是因為硬上限需要單一、強一致的計數器（最終一致的儲存可能超用）。每個 UTC 日上限：1,000 neurons、1,000 次索引查詢；每小時：100 次模型呼叫；查詢最長 500 字元；結果快取一小時（[query-gate.ts](packages/semantic-vectorize/src/query-gate.ts)）。**neuron** 是 Workers AI 的計費單位；帳號每天含 10,000，由週報、向量化工作與查詢共用（見[流程與成本](process.html#budgets)）。超過預算時，搜尋只回傳關鍵字結果。
+公開的搜尋框不能讓人刷爆費用。每個語意查詢都要經過一個 Durable Object 帳本；選它是因為硬上限需要單一、強一致的計數器（最終一致的儲存可能超用）。每個 UTC 日上限：1,000 neurons、1,000 次索引查詢；每小時：100 次模型呼叫；查詢最長 500 字元；結果快取一小時（[query-gate.ts](packages/semantic-vectorize/src/query-gate.ts)）。**neuron** 是 Workers AI 的計費單位；帳號每天含 10,000，與週報、向量化工作共用（見[流程與成本](process.html#budgets)）。超過預算時，搜尋只回傳關鍵字結果。
 
 > Prod 搜尋只有關鍵字（`v0.3.1` 起為 `bm25-reference@3`，2026-10-19）。Spec 016 與 017 有部分標註由實作者完成，尚待負責人確認；設計筆記目前仍標示為「討論中」。

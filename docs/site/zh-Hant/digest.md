@@ -10,7 +10,7 @@ Dev 環境每天把過去七天的 Kafka 動態整理成一份簡短的雙語摘
 
 ## 為什麼要用規則檢查模型 {#rules}
 
-2026-10-08 檢視一週真實輸出時，發現有句子聲稱某個 PR 已合併，但它其實還開著；也有句子說某人反對，但沒有人這樣說過。光靠 prompt 擋不住，所以每句話在發布前都要對照來源紀錄檢查，不合格的句子直接丟掉，不嘗試修補（[validate.ts](packages/reference-pipeline/src/digest/validate.ts)）：
+檢視 2026-10-08 那一週的真實輸出時，發現有句子聲稱某個 PR 已合併，但它其實還開著；也有句子說某人反對，但沒有人這樣說過。光靠 prompt 擋不住，所以每句話在發布前都要對照來源紀錄檢查，不合格的句子直接丟掉，不嘗試修補（[validate.ts](packages/reference-pipeline/src/digest/validate.ts)）：
 
 | 拒絕原因 | 擋下什麼 |
 | --- | --- |

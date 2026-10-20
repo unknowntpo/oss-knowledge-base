@@ -75,7 +75,7 @@
        },
        "lead": {
         "en": "The digest pins one published release and never calls GitHub, Jira or the mailing list itself, so a run can be reproduced from its input.",
-        "zh-Hant": "週報固定讀某一份已發布的 release，自己不呼叫 GitHub、Jira 或郵件串，所以每次執行都能依輸入重現。"
+        "zh-Hant": "週報固定讀某一份已發布的 release，自己不呼叫 GitHub、Jira 或郵件列表，所以每次執行都能依輸入重現。"
        },
        "sources": [
         "docs/specs/014-topic-digest/spec.md"

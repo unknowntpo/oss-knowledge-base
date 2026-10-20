@@ -177,9 +177,9 @@ jobs:
           grep -q 'MANUAL_TRIGGER_TOKEN' <<<"$configured"
 
   deploy-docs:
-    # Spec 025: the public documentation site. Deploys only when the Cloudflare Pages project
-    # oss-knowledge-base-docs already exists (the owner creates it once); until then it skips with
-    # a notice. It never creates the project. Pull requests deploy nothing (no preview deploys).
+    # Spec 025: the public documentation site. Deploys to the Cloudflare Pages project
+    # oss-knowledge-base-docs (created by the owner 2026-10-20); if the project is ever missing it
+    # skips with a notice. It never creates the project. Pull requests deploy nothing (no preview deploys).
     name: Deploy documentation site
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     needs: [static, unit]

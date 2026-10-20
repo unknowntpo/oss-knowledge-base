@@ -8,7 +8,7 @@
 
 ## 四個階段 {#stages}
 
-1. **收集。** 各環境的 cron 觸發發布器。它從 Durable Object 裡保存的各來源游標讀取 GitHub、Jira 與 Kafka dev@ 郵件串；一個來源失敗不會擋住其他來源，程式中途掛掉也會從停下的地方續跑（[ADR-0014](docs/architecture/decisions/0014-publish-per-source-with-independent-cursors.md)）。
+1. **收集。** 各環境的 cron 觸發發布器。它從 Durable Object 裡保存的各來源游標讀取 GitHub、Jira 與 Kafka dev@ 郵件列表；一個來源失敗不會擋住其他來源，程式中途掛掉也會從停下的地方續跑（[ADR-0014](docs/architecture/decisions/0014-publish-per-source-with-independent-cursors.md)）。
 2. **處理。** [apps/data-publisher-worker/src/pipeline.ts](apps/data-publisher-worker/src/pipeline.ts) 的 `runDataPublication` 用確定性的規則整理 thread（發布流程中不使用語言模型），寫出 Feed release，並建立搜尋索引。
 3. **儲存。** R2 存放不可變的 release 與內容定址的詳細物件；只有小小的 `current.json` 指標會變，而且最後才寫。所以讀者看到的一定是一份完整的 release，回復也只要改指標（[Spec 006](docs/specs/006-environment-isolated-r2-publication/spec.md)、[Spec 008](docs/specs/008-content-addressed-details/spec.md)）。
 4. **應用。** Pages Functions 讀 R2、回傳快取 30 秒的 JSON，由 Vue 網站呈現。部署程式碼不會發布資料：資料只來自 Worker（[docs/operations/release.md](docs/operations/release.md)）。

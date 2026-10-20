@@ -42,7 +42,7 @@ Tags are never moved or reused; a rollback redeploys an earlier tag ([docs/opera
 
 R2 bills two request classes: **Class A** (writes and lists, $4.50 per million after 1 million a month) and **Class B** (reads, $0.36 per million after 10 million). A conditional write that fails its precondition is still Class A ([Spec 008](docs/specs/008-content-addressed-details/spec.md)).
 
-- **Cause.** A change on 2026-09-30 replaced "read, then write if absent" with one conditional write per object, including the thousands of objects that already existed. An hourly Dev run sent about 8,150 Class A requests, roughly 5.9 million a month.
+- **Cause.** A change on 2026-09-30 replaced "read, then write if absent" with one conditional write per object, including the thousands of objects that already existed. An hourly Dev run sent about 8,190 Class A requests, roughly 5.98 million a month.
 - **Detection.** On 2026-10-13 the billing page showed 1.2 million Class A since 2026-10-07, projecting about $20 for the month, against 6.23 thousand Class B.
 - **Fix 1.** Check existence with a cheap read (`head`, Class B) and write only new objects: about 38 Class A per hourly run instead of about 8,190. Invariant: Class A ≤ new objects + 3.
 - **Fix 2.** Every run reports its own R2 requests in `/health` (`lastRun.r2`), so cost is observable per run.
@@ -59,7 +59,7 @@ The account is on the Workers Paid plan; the design keeps each meter inside the 
 | R2 Class A | 1 million a month | about 19 thousand a month for Dev and Prod together |
 | R2 Class B | 10 million a month | about 0.26 million a month |
 | R2 storage | 10 GB | already exceeded on Dev (13.3 GB, 2026-10-19), tracked in [docs/gardening.md](docs/gardening.md) |
-| Vectorize | 10 million stored dimensions | about 8.8 million (8,586 chunks × 1,024) |
+| Vectorize | 10 million stored dimensions | about 10.0 million as of 2026-10-20 (9,764 chunks embedded × 1,024), close to the included amount |
 
 Committed `measure:*` commands reproduce these numbers offline (see the root [package.json](package.json)); for example `bun run measure:daily-volume` checks that a day's volume fits the per-run source caps.
 
@@ -68,6 +68,6 @@ Committed `measure:*` commands reproduce these numbers offline (see the root [pa
 - **`/health`** on each publisher: the last run's outcome per source, objects written, R2 requests, search index size, and today's AI spend against its cap. It never returns credentials.
 - **Freshness in the product:** every view shows how old the data is; late after 24 h 30 min, stale after 27 h ([Spec 021](docs/specs/021-publication-overdue/spec.md)). A stall is visible to every reader without push alerts.
 - **`bun run verify:health`** compares `/health` with what the site serves, for Dev or Prod, read-only ([scripts/verify/health.ts](scripts/verify/health.ts)).
-- **Workers Logs** on the data Workers with redacted error text; on Prod from the next release.
+- **Workers Logs** with redacted error text: on the Dev data Worker now; Prod gets them with the next tag (`v0.3.2`).
 
 > As of 2026-10-20 at the commit in the footer. Billing figures come from Spec 008 and the runbook; run figures from the public `/health` endpoints.

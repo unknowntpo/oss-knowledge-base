@@ -10,7 +10,7 @@ Models run on Cloudflare Workers AI through AI Gateway (a proxy that adds rate a
 
 ## Why rules check the model {#rules}
 
-A design review of a real week (2026-10-08) found sentences that claimed a pull request was merged while it was still open, and that attributed objections nobody made. Prompting alone does not prevent this, so every sentence is checked against the source records before publication, and a failing sentence is dropped rather than repaired ([validate.ts](packages/reference-pipeline/src/digest/validate.ts)):
+A design review of a real week of output (the week of 2026-10-08) found sentences that claimed a pull request was merged while it was still open, and that attributed objections nobody made. Prompting alone does not prevent this, so every sentence is checked against the source records before publication, and a failing sentence is dropped rather than repaired ([validate.ts](packages/reference-pipeline/src/digest/validate.ts)):
 
 | Rejection | What it catches |
 | --- | --- |

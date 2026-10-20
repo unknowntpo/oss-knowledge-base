@@ -1,6 +1,6 @@
 # Spec 025: Public documentation site
 
-Status: Implemented (publication approved by the owner 2026-10-20; the Cloudflare Pages project `oss-knowledge-base-docs` was created by the owner that day; the first deploy runs when this spec's PR merges)
+Status: Implemented (publication approved by the owner 2026-10-20; the Cloudflare Pages project `oss-knowledge-base-docs` was created by the owner that day through the Cloudflare API, with no deployment yet; the first deployment runs on the push to `main` that merges this spec)
 Date: 2026-10-20
 Traceability: enforced
 Builds on: Spec 020 (feature-map site, its Markdown subset), Spec 023/024 (design tokens, dark theme), `docs/process/workflow.md`
@@ -204,10 +204,10 @@ estimated neurons) and are dated on the page.
 - DOC15: Every content error fails the build with the file and the problem: a missing counterpart page, an unregistered page, a heading without `{#id}`, a missing title, a link to a missing or out-of-repository path or a disallowed scheme, an unknown value or flow. Evidence: test-plan rows.
 
 ### Budget
-- DOC16: [measure] The site stays small and fast to build: 13 files, 429,323 bytes in total, the largest page 57,444 bytes, built in about 80 ms (`bun run docs:build`, 2026-10-20, after merging `main` at `22ab663`). Limits: total under 1 MB, each page under 150 KB, Cloudflare Pages' 20,000 files per deployment. Hosting static assets on Pages costs nothing; one deploy per push to `main`.
+- DOC16: [measure] The site stays small and fast to build: 13 files, 429,527 bytes in total, the largest page 57,444 bytes, built in about 80 ms (`bun run docs:build`, 2026-10-20, after merging `main` at `22ab663`). Limits: total under 1 MB, each page under 150 KB, Cloudflare Pages' 20,000 files per deployment. Hosting static assets on Pages costs nothing; one deploy per push to `main`.
 
 ### Observability
-- DOC17: [deploy] After the owner creates the project, the next push to `main` deploys; the `deploy-docs` job summary says "Published https://oss-knowledge-base-docs.pages.dev at <sha>", `build.json` names the commit, and every page's footer shows it. Before that, the job summary says the project does not exist.
+- DOC17: [deploy] The project exists (2026-10-20), so the push to `main` that merges this spec deploys; the `deploy-docs` job summary says "Published https://oss-knowledge-base-docs.pages.dev at <sha>", `build.json` names the commit, and every page's footer shows it. Before that, the job summary says the project does not exist.
 
 ## Test plan
 
@@ -254,7 +254,7 @@ and audit row first checks that the unchanged fixture builds and audits clean (p
 
 ## One-time setup (owner)
 
-1. Done 2026-10-20 by the owner. Create the Pages project once, with the owner's own Cloudflare login (not CI):
+1. Done 2026-10-20: the owner created the project through the Cloudflare API (subdomain `oss-knowledge-base-docs.pages.dev`, no deployment yet). For reference, the equivalent command with the owner's own login (never CI):
    `bunx wrangler pages project create oss-knowledge-base-docs --production-branch=main`
    (or the dashboard: Workers & Pages → Create → Pages → Upload assets, name
    `oss-knowledge-base-docs`, production branch `main`).

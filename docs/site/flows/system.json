@@ -50,7 +50,7 @@
               "lead": { "en": "Anonymous reads of the Apache Jira search API over a window that grows with the gap since the last success.", "zh-Hant": "匿名讀取 Apache Jira 搜尋 API，時間視窗依上次成功至今的間隔放大。" },
               "sources": ["packages/reference-pipeline/src/kafka-connectors.ts", "docs/specs/012-kafka-mailing-list-jira/spec.md"] },
             { "id": "src-mail", "icon": "@", "kind": "src",
-              "title": { "en": "Kafka dev@ mailing list", "zh-Hant": "Kafka dev@ 郵件串" },
+              "title": { "en": "Kafka dev@ mailing list", "zh-Hant": "Kafka dev@ 郵件列表" },
               "meta": { "en": "Pony Mail archive", "zh-Hant": "Pony Mail 封存" },
               "lead": { "en": "KIP discussions and votes live here. Subjects starting `[jira]` or `[PR]` are dropped because those records already come from Jira and GitHub.", "zh-Hant": "KIP 的討論與投票都在這裡。主旨以 `[jira]` 或 `[PR]` 開頭的信會被略過，因為這些已由 Jira 與 GitHub 收集。" },
               "facts": [
