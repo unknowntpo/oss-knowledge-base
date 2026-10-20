@@ -327,8 +327,9 @@ Behavior:
    `Spec <NNN>` in any cell and its Prod cell starts with `unset` or `none`;
    the reason lists the row's names.
 5. The Prod group prints the feature map's paragraph that starts "Prod
-   today:" as it is (today: "Prod serves the 2026-08-25 snapshot; the Prod
-   publisher has never run"), and folds the Prod row of the Environments
+   today:" as it is (today: "`v0.3.1` (2026-10-19); the Prod publisher
+   publishes once a day at 22:37 UTC …"; for example, before `v0.3.1` it read
+   "Prod serves the 2026-08-25 snapshot; the Prod publisher has never run"), and folds the Prod row of the Environments
    table below it.
 6. Known gaps counts the open gardening items per category, each linking to
    its category on the page.

@@ -95,6 +95,8 @@ Production promotions and public browser smoke tests:
 | --- | --- | --- | --- |
 | `v0.1.0` | recorded in its workflow | first production promotion | passed 2026-08-26 |
 | `v0.2.0` | `308d3fa` | [run 33351078887](https://github.com/unknowntpo/oss-knowledge-base/actions/runs/33351078887) | passed 2026-09-01 |
+| `v0.3.0` | `987162a` | CI failed (Spec 020 B27 test) | nothing deployed |
+| `v0.3.1` | `71b8f99` | [release](https://github.com/unknowntpo/oss-knowledge-base/releases/tag/v0.3.1) | deployed 2026-10-19 about 10:08 UTC |
 
 For `v0.2.0`, both public sites were readable after promotion. Production
 Search returned query-scoped project facets for `Kafka Streams` (DataFusion 1,
@@ -140,11 +142,15 @@ Tag `v0.3.0` (`987162a`) failed CI (Spec 020 B27 test) and deployed nothing;
 `v0.3.1` (`71b8f99`) is the deployed release: Prod on 2026-10-19 about 10:08 UTC,
 first `POST /run` ok at 10:19 UTC (`lexicalRevision` `bm25-reference@3`).
 
-The first tag since `v0.2.0` also deploys the Prod data Worker for the first
-time. Follow [the runbook's "First Prod release"](../runbooks/cloudflare-data-publisher.md#first-prod-release):
+Backlog complete at 12:56 UTC (`pollTruncated` false, 6,950 chunks); the
+first daily Cron run (22:37 UTC) published release `2026-10-19T22-37-23-809Z`
+(3,981 entries). GitHub release:
+https://github.com/unknowntpo/oss-knowledge-base/releases/tag/v0.3.1.
+
+`v0.3.1` deployed the Prod data Worker for the first time, following [the runbook's "First Prod release"](../runbooks/cloudflare-data-publisher.md#first-prod-release):
 secrets first, save the pointers, then the tag, then a manual first run.
 
-Release notes draft (for `gh release create v0.3.0 --repo unknowntpo/oss-knowledge-base --notes-file`):
+Release notes, published with the release as `v0.3.1` (https://github.com/unknowntpo/oss-knowledge-base/releases/tag/v0.3.1; drafted for `v0.3.0`, which failed CI):
 
 ```markdown
 Prod now publishes live data once a day instead of the recorded snapshot of 2026-08-25.

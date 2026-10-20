@@ -1,6 +1,6 @@
 # Spec 017: Lexical ranking of threads and phrases (`bm25-reference@3`)
 
-Status: Implemented (PR #52, merged 2026-10-12) and deployed on Dev; the implementer's decisions of 2026-10-12 below are still to be confirmed by the owner; the Dev publisher is switched to `bm25-reference@3` (N17, `[deploy]`: observed 2026-10-12, Results "Live Dev at `@3`"); Prod unchanged
+Status: Implemented (PR #52, merged 2026-10-12) and deployed on Dev; the implementer's decisions of 2026-10-12 below are still to be confirmed by the owner; the Dev publisher is switched to `bm25-reference@3` (N17, `[deploy]`: observed 2026-10-12, Results "Live Dev at `@3`"); Prod writes `@3` since `v0.3.1` (first Prod run 2026-10-19)
 Date: 2026-10-12
 Traceability: enforced
 Builds on: Spec 005 (lexical search, exact identifiers first), Spec 013 (streaming reader, stored statistics), Spec 016 (`bm25-reference@2`, the revision flag, golden v2, open questions 6 and 7)

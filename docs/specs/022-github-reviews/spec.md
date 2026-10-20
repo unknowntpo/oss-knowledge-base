@@ -943,7 +943,7 @@ and 9 R2 requests a day, one `/health` field. Nothing in the publication.
 9. To turn off: remove the variable. The stored objects stay and are not
    read by anything.
 
-Prod stays off: its data Worker has never been deployed (Spec 018).
+Prod stays off: `GITHUB_REVIEWS` is unset on the Prod data Worker (deployed since `v0.3.1`, Spec 018).
 
 ## Decisions needed from owner
 
