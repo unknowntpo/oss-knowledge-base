@@ -478,8 +478,8 @@
           "zh-Hant": "翻譯"
          },
          "v": {
-          "en": "D102, proposed: `status-drift` 0, `omission` 0, `term-error` ≤ 2 per week",
-          "zh-Hant": "D102，提議中：每週 `status-drift` 0、`omission` 0、`term-error` ≤ 2"
+          "en": "D102, decided 2026-10-20: `status-drift` 0, `omission` 0, `term-error` ≤ 2 per week",
+          "zh-Hant": "D102，2026-10-20 定案：每週 `status-drift` 0、`omission` 0、`term-error` ≤ 2"
          }
         }
        ]

@@ -907,11 +907,11 @@ describe("Spec 014 offline eval and measure", () => {
     expect(labeled.byClass).toEqual({ "status-drift": 1, "term-error": 2, omission: 1 });
     expect(labeled.guard).toEqual({ checked: 6, rejected: 1, labeledStatusDrift: 1, labeledStatusDriftCaught: 1 });
     expect(labeled.meetsThresholds).toBe(false);
-    // Positive control: two term errors alone meet the proposed thresholds; a third does not.
+    // Positive control: two term errors alone meet the D102 thresholds; a third does not.
     const terms = week.filter((sentence) => "translationErrors" in sentence && sentence.translationErrors.join() === "term-error");
     expect(evaluate(fixture, recorded, { ...labels, sentences: terms }, KAFKA).translation.meetsThresholds).toBe(true);
     expect(evaluate(fixture, recorded, { ...labels, sentences: [...terms, terms[0]!] }, KAFKA).translation.meetsThresholds).toBe(false);
-    // A labels file may override a proposed threshold.
+    // A labels file may override a D102 threshold.
     expect(evaluate(fixture, recorded, { ...labels, sentences: [...terms, terms[0]!], thresholds: { "term-error": 3 } }, KAFKA).translation.meetsThresholds).toBe(true);
   });
 

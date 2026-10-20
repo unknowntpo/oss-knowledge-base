@@ -1140,8 +1140,8 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
     - `digest -- eval` reports the labeled count, counts per translation
       class, and the status guard (D99) on every sentence with `zhHant`:
       how many it rejects and how many labeled `status-drift` it catches.
-    - Prod also requires the translation thresholds (D102, proposed
-      2026-10-20, pending the owner's confirmation): `status-drift` 0,
+    - Prod also requires the translation thresholds (D102, decided by the
+      owner 2026-10-20): `status-drift` 0,
       `omission` 0, `term-error` at most 2 per labeled week. A labels file's
       `thresholds` may override them per class.
 32. **Withdrawn: vote tally.** Withdrawn 2026-10-08. Vote counts move to Spec
@@ -1250,7 +1250,7 @@ accepted.
   in this spec's review log before merge.
 - **Thresholds.** They are set by the human after labeling (open question 1).
   Prod shows the digest only after they are met (D34). The translation
-  thresholds are proposed in D102.
+  thresholds are decided in D102 (owner, 2026-10-20).
 
 ## Test plan
 
@@ -2199,7 +2199,8 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   fields evaluate as before.
 - D102: [measure] before Prod shows the digest, the labeled week also meets
   the translation thresholds: `status-drift` 0, `omission` 0, `term-error`
-  at most 2 (proposed 2026-10-20; the owner confirms or changes them).
+  at most 2 per labeled week (decided by the owner 2026-10-20; a labels
+  file's `thresholds` may override them per class).
 
 ## Slices
 
@@ -2553,7 +2554,7 @@ and add zh-Hant translation quality to the Prod gate. Eval line for
 
 The Dev 2026-10-20 week's sixth drop is the #48 highlight
 (`cite-outside-inputs`, because the #30 line it cites was dropped; alone it
-is `tense:gets`). The thresholds in D102 are proposed and wait for the
-owner. The verifier's precision fixes (D97 state words, modal clauses,
+is `tense:gets`). The owner approved the D102 thresholds as final on
+2026-10-20. The verifier's precision fixes (D97 state words, modal clauses,
 now-verb list; D99 longest-match zh-Hant words, `under vote`) leave these
 numbers unchanged.

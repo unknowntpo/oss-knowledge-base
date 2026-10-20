@@ -37,7 +37,7 @@ export type ErrorClass = "status-mismatch" | "misattribution" | "invented-claim"
 /** D101: error classes of a zh-Hant translation, judged against its English sentence. */
 export type TranslationErrorClass = "status-drift" | "term-error" | "omission";
 export const TRANSLATION_ERROR_CLASSES = ["status-drift", "term-error", "omission"] as const satisfies readonly TranslationErrorClass[];
-/** D102 (proposed, pending owner confirmation): most labeled translation errors per week for Prod. */
+/** D102 (decided by the owner 2026-10-20): most labeled translation errors per week for Prod. */
 export const TRANSLATION_THRESHOLDS: Readonly<Record<TranslationErrorClass, number>> = { "status-drift": 0, "term-error": 2, omission: 0 };
 
 /** One labeled sentence of a recorded week. Every field but `text` is optional (D101). */

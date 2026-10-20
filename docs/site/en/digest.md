@@ -35,7 +35,7 @@ The digest reaches Prod only after a human labels one real week and the evaluati
 - **Error classes** for English sentences: `status-mismatch`, `misattribution`, `invented-claim`, `overbroad-stance`.
 - **Translation error classes** (D101): `status-drift`, `term-error`, `omission`; a labelled sentence can carry them, and `eval` also runs the status guard over every translated sentence.
 - **Fixed thresholds:** zero `status-mismatch` and zero `overbroad-stance`. Thresholds for the other two classes and for recall of important threads (an example in the spec is recall ≥ 0.8) are the owner's to set.
-- **Translation thresholds (D102, proposed, awaiting the owner):** `status-drift` 0, `omission` 0, `term-error` at most 2 per labelled week; a labels file may override them.
+- **Translation thresholds (D102, decided by the owner on 2026-10-20):** `status-drift` 0, `omission` 0, `term-error` at most 2 per labelled week; a labels file may override them.
 - **Golden set:** a labels file in the repository; today it holds the five negatives from the 2026-10-08 review and no important-thread labels yet ([topic-digest-labels.v0.json](packages/reference-pipeline/test/fixtures/topic-digest-labels.v0.json)).
 - **Evaluation:** `bun run digest -- eval` (offline, no network) reports kept and dropped sentences by reason, whether every labelled error was rejected, and recall; `bun run digest -- measure` fails when a run would exceed its neuron, call or read limits ([scripts/digest.ts](packages/reference-pipeline/scripts/digest.ts), [eval.ts](packages/reference-pipeline/src/digest/eval.ts)).
 

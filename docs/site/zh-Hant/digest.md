@@ -35,7 +35,7 @@ Dev 環境每天把過去七天的 Kafka 動態整理成一份簡短的雙語摘
 - **英文句子的錯誤類別：** `status-mismatch`、`misattribution`、`invented-claim`、`overbroad-stance`。
 - **翻譯的錯誤類別**（D101）：`status-drift`、`term-error`、`omission`；已標註的句子可以帶這些類別，`eval` 也會對每個已翻譯句子執行狀態詞檢查。
 - **已定的門檻：** `status-mismatch` 為 0、`overbroad-stance` 為 0。另外兩類以及重要 thread 召回率的門檻由負責人決定（規格中的例子是召回率 ≥ 0.8）。
-- **翻譯門檻（D102，提議中，待負責人確認）：** 每個已標註週 `status-drift` 0、`omission` 0、`term-error` 最多 2；標註檔可以覆寫。
+- **翻譯門檻（D102，負責人已於 2026-10-20 定案）：** 每個已標註週 `status-drift` 0、`omission` 0、`term-error` 最多 2；標註檔可以覆寫。
 - **黃金資料集：** 版本庫中的一份標註檔；目前只有 2026-10-08 檢視時找到的 5 個反例，還沒有重要 thread 的標註（[topic-digest-labels.v0.json](packages/reference-pipeline/test/fixtures/topic-digest-labels.v0.json)）。
 - **評估：** `bun run digest -- eval`（離線，不連網）依原因統計保留與丟棄的句子、每個已標註錯誤是否被擋下，以及召回率；`bun run digest -- measure` 在一次執行可能超過 neuron、呼叫數或讀取次數上限時失敗（[scripts/digest.ts](packages/reference-pipeline/scripts/digest.ts)、[eval.ts](packages/reference-pipeline/src/digest/eval.ts)）。
 
