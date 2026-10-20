@@ -1,0 +1,259 @@
+{
+  "id": "system",
+  "label": { "en": "The daily publication, from source to screen", "zh-Hant": "每日發布：從來源到畫面" },
+  "initial": "p-commit",
+  "note": {
+    "en": "Run numbers are from the Dev and Prod publishers' public `/health` read on 2026-10-20 (last runs 2026-10-19 22:07 and 22:37 UTC).",
+    "zh-Hant": "執行數字取自 2026-10-20 讀取的 Dev 與 Prod 發布器公開 `/health`（最近一次執行：2026-10-19 22:07 與 22:37 UTC）。"
+  },
+  "columns": [
+    {
+      "title": { "en": "1 · Collection", "zh-Hant": "1 · 收集" },
+      "cards": [
+        {
+          "id": "trig", "title": { "en": "Triggers", "zh-Hant": "觸發" }, "count": "3",
+          "nodes": [
+            { "id": "cron-pub", "icon": "⏱", "kind": "web",
+              "title": { "en": "Daily publication cron", "zh-Hant": "每日發布 cron" },
+              "meta": { "en": "Dev 22:07 · Prod 22:37 UTC", "zh-Hant": "Dev 22:07 · Prod 22:37 UTC" },
+              "lead": { "en": "Each environment has its own Worker with its own cron, so Dev and Prod never share state. Publication was hourly until 2026-10-13 and is now daily to cut R2 cost (Spec 018).", "zh-Hant": "每個環境各有一個 Worker 與自己的 cron，Dev 與 Prod 不共用狀態。發布原本每小時一次，2026-10-13 起改為每天一次以降低 R2 成本（Spec 018）。" },
+              "facts": [
+                { "k": { "en": "Dev", "zh-Hant": "Dev" }, "v": { "en": "`7 22 * * *` (06:07 Asia/Taipei)", "zh-Hant": "`7 22 * * *`（台北時間 06:07）" } },
+                { "k": { "en": "Prod", "zh-Hant": "Prod" }, "v": { "en": "`37 22 * * *`", "zh-Hant": "`37 22 * * *`" } },
+                { "k": { "en": "Trade-off", "zh-Hant": "取捨" }, "v": { "en": "Data can be up to about 24 hours old; a token-protected manual trigger publishes sooner.", "zh-Hant": "資料最多約 24 小時舊；要更早發布只能用需要 token 的手動觸發。" } }
+              ],
+              "sources": ["apps/data-publisher-worker/wrangler.development.jsonc", "apps/data-publisher-worker/wrangler.production.jsonc", "docs/specs/018-daily-publication/spec.md"] },
+            { "id": "cron-digest", "icon": "⏱", "kind": "web",
+              "title": { "en": "Digest cron", "zh-Hant": "週報 cron" },
+              "meta": { "en": "Dev 22:47 UTC", "zh-Hant": "Dev 22:47 UTC" },
+              "tag": { "kind": "dev", "text": { "en": "Dev only", "zh-Hant": "僅 Dev" } },
+              "lead": { "en": "Forty minutes after the Dev publication, the weekly digest reads the snapshot that was just published. If a publication is still running it waits 15 minutes, at most 4 times.", "zh-Hant": "Dev 發布後 40 分鐘，週報讀取剛發布的快照。若發布還在跑，就延後 15 分鐘，最多 4 次。" },
+              "sources": ["docs/specs/014-topic-digest/spec.md", "docs/runbooks/cloudflare-data-publisher.md"] },
+            { "id": "followup", "icon": "↻", "kind": "rule",
+              "title": { "en": "Catch-up and retries", "zh-Hant": "追趕與重試" },
+              "meta": { "en": "+5 min · 10/30/60 min", "zh-Hant": "+5 分 · 10/30/60 分" },
+              "lead": { "en": "A run that hit a source's per-run cap runs again 5 minutes later (at most 5 times); a failed run is retried after 10, 30 and 60 minutes. One trigger causes at most 9 publications.", "zh-Hant": "某個來源達到單次上限的 run，5 分鐘後再跑一次（最多 5 次）；失敗的 run 在 10、30、60 分鐘後重試。一次觸發最多造成 9 次發布。" },
+              "sources": ["apps/data-publisher-worker/src/run-schedule.ts", "docs/specs/018-daily-publication/spec.md"] }
+          ]
+        },
+        {
+          "id": "src", "title": { "en": "Sources", "zh-Hant": "來源" }, "count": "4",
+          "nodes": [
+            { "id": "src-gh", "icon": "GH", "kind": "src",
+              "title": { "en": "GitHub pull requests and issues", "zh-Hant": "GitHub PR 與 issue" },
+              "meta": { "en": "apache/kafka · apache/datafusion", "zh-Hant": "apache/kafka · apache/datafusion" },
+              "lead": { "en": "Read with the GitHub REST API from an updated-time cursor, at most 200 issues per repository per run; the rest is caught up by follow-up runs.", "zh-Hant": "用 GitHub REST API 依更新時間游標讀取，每個 repo 每次最多 200 筆，其餘由後續的追趕 run 補上。" },
+              "sources": ["docs/feature-map.md", "docs/specs/004-replayable-github-feed/spec.md"] },
+            { "id": "src-jira", "icon": "JI", "kind": "src",
+              "title": { "en": "Jira (KAFKA project)", "zh-Hant": "Jira（KAFKA 專案）" },
+              "meta": { "en": "≤ 2 pages of 100 a run", "zh-Hant": "每次最多 2 頁、每頁 100" },
+              "lead": { "en": "Anonymous reads of the Apache Jira search API over a window that grows with the gap since the last success.", "zh-Hant": "匿名讀取 Apache Jira 搜尋 API，時間視窗依上次成功至今的間隔放大。" },
+              "sources": ["packages/reference-pipeline/src/kafka-connectors.ts", "docs/specs/012-kafka-mailing-list-jira/spec.md"] },
+            { "id": "src-mail", "icon": "@", "kind": "src",
+              "title": { "en": "Kafka dev@ mailing list", "zh-Hant": "Kafka dev@ 郵件串" },
+              "meta": { "en": "Pony Mail archive", "zh-Hant": "Pony Mail 封存" },
+              "lead": { "en": "KIP discussions and votes live here. Subjects starting `[jira]` or `[PR]` are dropped because those records already come from Jira and GitHub.", "zh-Hant": "KIP 的討論與投票都在這裡。主旨以 `[jira]` 或 `[PR]` 開頭的信會被略過，因為這些已由 Jira 與 GitHub 收集。" },
+              "facts": [
+                { "k": { "en": "Shared rules", "zh-Hant": "共同規則" }, "v": { "en": "One retry after a 5xx or 429; a response over 4 MiB fails that source as `too-large`; a failing source never blocks the others.", "zh-Hant": "5xx 或 429 重試一次；回應超過 4 MiB 時該來源以 `too-large` 失敗；一個來源失敗不會擋住其他來源。" } }
+              ],
+              "sources": ["packages/reference-pipeline/src/kafka-connectors.ts", "docs/specs/012-kafka-mailing-list-jira/spec.md"] },
+            { "id": "src-rev", "icon": "GH", "kind": "src",
+              "title": { "en": "GitHub pull request reviews", "zh-Hant": "GitHub PR review" },
+              "meta": { "en": "metadata only", "zh-Hant": "只收中繼資料" },
+              "tag": { "kind": "dev", "text": { "en": "Dev only", "zh-Hant": "僅 Dev" } },
+              "lead": { "en": "Who reviewed what and when, without comment text; it feeds contributor profiles.", "zh-Hant": "誰在何時 review 了什麼，不含留言內容；用於貢獻者頁面。" },
+              "sources": ["docs/specs/022-github-reviews/spec.md"] }
+          ]
+        },
+        {
+          "id": "state", "title": { "en": "State", "zh-Hant": "狀態" },
+          "nodes": [
+            { "id": "do-pipe", "icon": "DO", "kind": "rule",
+              "title": { "en": "PipelineState", "zh-Hant": "PipelineState" },
+              "meta": { "en": "Durable Object", "zh-Hant": "Durable Object" },
+              "lead": { "en": "Holds each source's cursor, the current phase and the last run, so a crash resumes from the last committed cursor instead of starting over.", "zh-Hant": "保存每個來源的游標、目前階段與上一次 run；程式中途掛掉時，會從最後提交的游標續跑，而不是從頭開始。" },
+              "sources": ["apps/data-publisher-worker/src/index.ts", "docs/architecture/decisions/0014-publish-per-source-with-independent-cursors.md"] }
+          ]
+        }
+      ]
+    },
+    {
+      "title": { "en": "2 · Processing", "zh-Hant": "2 · 處理" },
+      "cards": [
+        {
+          "id": "pub", "title": { "en": "runDataPublication", "zh-Hant": "runDataPublication" }, "count": "6",
+          "nodes": [
+            { "id": "p-poll", "icon": "1", "kind": "rule",
+              "title": { "en": "Poll the sources", "zh-Hant": "讀取來源" },
+              "lead": { "en": "Reads every source sequentially from its cursor.", "zh-Hant": "依游標逐一讀取每個來源。" },
+              "sources": ["apps/data-publisher-worker/src/pipeline.ts"] },
+            { "id": "p-norm", "icon": "2", "kind": "rule",
+              "title": { "en": "Materialize threads", "zh-Hant": "整理成 thread" },
+              "meta": { "en": "rules, no model", "zh-Hant": "規則，不用模型" },
+              "lead": { "en": "A deterministic TypeScript materializer groups records into threads and extracts identifiers such as `KIP-1150` from titles and bodies. The same input always gives the same output.", "zh-Hant": "確定性的 TypeScript materializer 把紀錄整理成 thread，並從標題與內文抽出 `KIP-1150` 這類編號。相同輸入一定得到相同輸出。" },
+              "sources": ["packages/reference-pipeline/src/materializer.ts", "docs/architecture/decisions/0006-use-typescript-reference-materializer-before-flink.md"] },
+            { "id": "p-feed", "icon": "3", "kind": "rule",
+              "title": { "en": "Write the Feed release", "zh-Hant": "寫出 Feed release" },
+              "lead": { "en": "An immutable snapshot: a list of entries plus one detail object per thread. A detail is stored once under the SHA-256 of its bytes and reused by later releases (content addressing).", "zh-Hant": "不可變的快照：一份列表加上每個 thread 的詳細物件。詳細物件以內容的 SHA-256 為鍵只存一次，之後的 release 直接重用（內容定址）。" },
+              "facts": [
+                { "k": { "en": "Last run", "zh-Hant": "最近一次" }, "v": { "en": "Dev 791 new + 7,796 reused objects; Prod 378 new + 7,596 reused", "zh-Hant": "Dev 新增 791、重用 7,796 個物件；Prod 新增 378、重用 7,596 個" } }
+              ],
+              "sources": ["packages/serving-contract/src/r2.ts", "docs/specs/008-content-addressed-details/spec.md"] },
+            { "id": "p-lex", "icon": "4", "kind": "rule",
+              "title": { "en": "Build the search index", "zh-Hant": "建立搜尋索引" },
+              "meta": { "en": "bm25-reference@3", "zh-Hant": "bm25-reference@3" },
+              "lead": { "en": "Chunks every thread, computes corpus statistics once, and writes BM25 shards plus a `terms.json` that says which shard holds each term. See [Search](search.html).", "zh-Hant": "把每個 thread 切成段落，一次算好語料統計，寫出 BM25 分片與記錄每個詞在哪些分片的 `terms.json`。詳見[搜尋](search.html)。" },
+              "facts": [
+                { "k": { "en": "Last run", "zh-Hant": "最近一次" }, "v": { "en": "Dev 9,764 chunks in 11 shards; Prod 7,118 chunks in 8 shards", "zh-Hant": "Dev 9,764 段、11 個分片；Prod 7,118 段、8 個分片" } }
+              ],
+              "sources": ["packages/serving-contract/src/search-r2.ts", "docs/specs/013-search-streaming/spec.md"] },
+            { "id": "p-commit", "icon": "5", "kind": "rule",
+              "title": { "en": "Switch pointers, record evidence", "zh-Hant": "切換指標、記錄證據" },
+              "lead": { "en": "Objects are written first and the small `current.json` pointers last, so a reader sees either the old release or the new one, never half of one. The run then records what it wrote and what it cost.", "zh-Hant": "先寫物件，最後才更新小小的 `current.json` 指標，所以讀者看到的一定是完整的舊版或新版，不會看到一半。接著記錄這次寫了什麼、花了多少。" },
+              "facts": [
+                { "k": { "en": "R2 per run", "zh-Hant": "每次 R2 請求" }, "v": { "en": "Dev 794 Class A / 8,590 Class B; Prod 381 / 7,977", "zh-Hant": "Dev Class A 794 / Class B 8,590；Prod 381 / 7,977" } },
+                { "k": { "en": "Invariant", "zh-Hant": "不變式" }, "v": { "en": "Class A ≤ new objects + 3", "zh-Hant": "Class A ≤ 新物件數 + 3" } }
+              ],
+              "sources": ["apps/data-publisher-worker/src/pipeline.ts", "docs/specs/006-environment-isolated-r2-publication/spec.md"] },
+            { "id": "p-act", "icon": "6", "kind": "rule",
+              "title": { "en": "Append the activity log", "zh-Hant": "追加活動紀錄" },
+              "tag": { "kind": "dev", "text": { "en": "Dev only", "zh-Hant": "僅 Dev" } },
+              "lead": { "en": "Per-person monthly activity files for contributor profiles (`PEOPLE_ACTIVITY=log@1`).", "zh-Hant": "為貢獻者頁面寫入每人每月的活動檔（`PEOPLE_ACTIVITY=log@1`）。" },
+              "sources": ["docs/specs/019-contributor-profile/spec.md"] }
+          ]
+        },
+        {
+          "id": "after", "title": { "en": "After publication", "zh-Hant": "發布之後" }, "count": "Dev",
+          "nodes": [
+            { "id": "emb", "icon": "AI", "kind": "ai",
+              "title": { "en": "Embed new chunks", "zh-Hant": "產生段落向量" },
+              "meta": { "en": "bge-m3 · 1,024 dims", "zh-Hant": "bge-m3 · 1,024 維" },
+              "tag": { "kind": "dev", "text": { "en": "Dev only", "zh-Hant": "僅 Dev" } },
+              "lead": { "en": "Turns each new search chunk into a vector for semantic search, capped at 2,500 estimated neurons and 400 calls a day.", "zh-Hant": "把新的搜尋段落轉成向量供語意搜尋使用，每天上限 2,500 估計 neurons、400 次呼叫。" },
+              "sources": ["docs/specs/016-semantic-search/spec.md"] },
+            { "id": "digest", "icon": "AI", "kind": "ai",
+              "title": { "en": "Weekly topic digest", "zh-Hant": "每週主題週報" },
+              "meta": { "en": "Clef → Llama → rules → Qwen", "zh-Hant": "Clef → Llama → 規則 → Qwen" },
+              "tag": { "kind": "dev", "text": { "en": "Dev only", "zh-Hant": "僅 Dev" } },
+              "lead": { "en": "Classifies, summarises, validates and translates the last 7 days. See [Weekly digest](digest.html).", "zh-Hant": "分類、摘要、驗證並翻譯過去 7 天的動態。詳見[週報](digest.html)。" },
+              "sources": ["apps/data-publisher-worker/src/digest/run.ts"] }
+          ]
+        }
+      ]
+    },
+    {
+      "title": { "en": "3 · Storage", "zh-Hant": "3 · 儲存" },
+      "cards": [
+        {
+          "id": "r2pub", "title": { "en": "R2 · public objects", "zh-Hant": "R2 · 公開物件" }, "count": "R2",
+          "nodes": [
+            { "id": "r2-ptr", "icon": "R2", "kind": "r2",
+              "title": { "en": "Pointers", "zh-Hant": "指標" },
+              "meta": { "en": "public/v2/current.json", "zh-Hant": "public/v2/current.json" },
+              "lead": { "en": "The only mutable objects. Everything they point to is immutable, so rollback is a pointer change.", "zh-Hant": "唯一會變動的物件；它指向的內容都不可變，所以回復只要改指標。" },
+              "sources": ["docs/specs/008-content-addressed-details/spec.md"] },
+            { "id": "r2-feed", "icon": "R2", "kind": "r2",
+              "title": { "en": "Feed releases and details", "zh-Hant": "Feed release 與詳細物件" },
+              "meta": { "en": "objects/details/<sha256>.json", "zh-Hant": "objects/details/<sha256>.json" },
+              "lead": { "en": "One release per run; details shared by content digest across releases.", "zh-Hant": "每次 run 一個 release；詳細物件依內容雜湊在各 release 間共用。" },
+              "sources": ["docs/architecture/decisions/0013-share-detail-objects-by-content-digest.md"] },
+            { "id": "r2-search", "icon": "R2", "kind": "r2",
+              "title": { "en": "Search releases", "zh-Hant": "搜尋 release" },
+              "meta": { "en": "manifest · terms.json · shards", "zh-Hant": "manifest · terms.json · 分片" },
+              "lead": { "en": "Versioned independently of the feed, so the ranker can change without touching the feed.", "zh-Hant": "與 feed 分開版本化，排序演算法可以獨立更換。" },
+              "sources": ["docs/architecture/decisions/0007-publish-independent-versioned-search-releases.md"] },
+            { "id": "r2-digest", "icon": "R2", "kind": "r2",
+              "title": { "en": "Digest objects", "zh-Hant": "週報物件" },
+              "meta": { "en": "en.json · zh-Hant.<hash>.json", "zh-Hant": "en.json · zh-Hant.<hash>.json" },
+              "tag": { "kind": "dev", "text": { "en": "Dev only", "zh-Hant": "僅 Dev" } },
+              "lead": { "en": "The English digest and its Traditional Chinese translation for one source release.", "zh-Hant": "某一份來源 release 的英文週報與繁體中文翻譯。" },
+              "sources": ["docs/specs/014-topic-digest/spec.md"] }
+          ]
+        },
+        {
+          "id": "other", "title": { "en": "Other state", "zh-Hant": "其他狀態" },
+          "nodes": [
+            { "id": "r2-int", "icon": "R2", "kind": "r2",
+              "title": { "en": "Internal R2 objects", "zh-Hant": "內部 R2 物件" },
+              "meta": { "en": "publication sets · people", "zh-Hant": "發布紀錄 · 人員" },
+              "lead": { "en": "Evidence of each publication, and on Dev the review and activity month files. Not served directly.", "zh-Hant": "每次發布的證據，以及 Dev 上的 review 與活動月檔；不直接對外提供。" },
+              "sources": ["docs/specs/008-content-addressed-details/spec.md"] },
+            { "id": "vec", "icon": "V", "kind": "r2",
+              "title": { "en": "Vectorize index", "zh-Hant": "Vectorize 向量索引" },
+              "meta": { "en": "cosine · one namespace per project", "zh-Hant": "cosine · 每個專案一個 namespace" },
+              "tag": { "kind": "dev", "text": { "en": "Dev only", "zh-Hant": "僅 Dev" } },
+              "lead": { "en": "Cloudflare's vector database, behind a replaceable interface so it is never the public contract.", "zh-Hant": "Cloudflare 的向量資料庫，放在可替換的介面後面，不成為對外契約。" },
+              "sources": ["packages/semantic-vectorize/src/vector-index.ts"] },
+            { "id": "gate", "icon": "DO", "kind": "rule",
+              "title": { "en": "Search query gate", "zh-Hant": "搜尋查詢閘門" },
+              "meta": { "en": "1,000 neurons a day", "zh-Hant": "每天 1,000 neurons" },
+              "tag": { "kind": "dev", "text": { "en": "Dev only", "zh-Hant": "僅 Dev" } },
+              "lead": { "en": "A Durable Object ledger that every semantic query must pass, so a public search box cannot overspend. Over budget means lexical results only.", "zh-Hant": "每個語意查詢都要經過的 Durable Object 帳本，讓公開搜尋框不會超支；超過預算就只回傳關鍵字結果。" },
+              "sources": ["packages/semantic-vectorize/src/query-gate.ts"] }
+          ]
+        }
+      ]
+    },
+    {
+      "title": { "en": "4 · Application", "zh-Hant": "4 · 應用" },
+      "cards": [
+        {
+          "id": "api", "title": { "en": "Read API (Pages Functions)", "zh-Hant": "讀取 API（Pages Functions）" }, "count": "GET",
+          "nodes": [
+            { "id": "api-feed", "icon": "/", "kind": "web",
+              "title": { "en": "Feed and detail", "zh-Hant": "Feed 與詳細內容" },
+              "lead": { "en": "Reads the pointer, then the release, then one detail object. Every 200 response is cached for 30 seconds with stale-while-revalidate 120. The browser never touches R2.", "zh-Hant": "先讀指標，再讀 release，再讀一個詳細物件。每個 200 回應快取 30 秒、stale-while-revalidate 120 秒。瀏覽器從不直接碰 R2。" },
+              "sources": ["apps/web/functions/api", "docs/architecture/decisions/0004-use-pages-functions-and-r2-serving-projections.md"] },
+            { "id": "api-search", "icon": "/", "kind": "web",
+              "title": { "en": "Search", "zh-Hant": "搜尋" },
+              "meta": { "en": "lexical; hybrid on Dev", "zh-Hant": "關鍵字；Dev 為混合" },
+              "lead": { "en": "Reads `current.json`, the manifest, `terms.json`, then only the shards a query term names.", "zh-Hant": "讀 `current.json`、manifest、`terms.json`，再只讀查詢詞出現的分片。" },
+              "sources": ["docs/specs/013-search-streaming/spec.md"] },
+            { "id": "api-digest", "icon": "/", "kind": "web",
+              "title": { "en": "Digest and people", "zh-Hant": "週報與人員" },
+              "tag": { "kind": "dev", "text": { "en": "Prod 404", "zh-Hant": "Prod 404" } },
+              "lead": { "en": "Return 404 on Prod because the features are off there.", "zh-Hant": "因為 Prod 未開啟這些功能，所以在 Prod 回 404。" },
+              "sources": ["docs/feature-map.md"] }
+          ]
+        },
+        {
+          "id": "views", "title": { "en": "Web app (Vue)", "zh-Hant": "網站（Vue）" },
+          "nodes": [
+            { "id": "v-week", "icon": "▤", "kind": "web",
+              "title": { "en": "This week", "zh-Hant": "This week" },
+              "tag": { "kind": "dev", "text": { "en": "content on Dev", "zh-Hant": "Dev 有內容" } },
+              "lead": { "en": "The digest: headline, highlights, KIP proposals, topic cards, collapsed routine maintenance.", "zh-Hant": "週報：標題、重點、KIP 提案、主題卡片、收合的例行維護。" },
+              "sources": ["apps/web/src/routes.ts"] },
+            { "id": "v-threads", "icon": "▤", "kind": "web",
+              "title": { "en": "All threads and search", "zh-Hant": "所有 thread 與搜尋" },
+              "lead": { "en": "The thread list with search in the same view, and a detail page per thread with its full timeline and source links.", "zh-Hant": "thread 列表與同一畫面的搜尋，以及每個 thread 的詳細頁（完整時間軸與來源連結）。" },
+              "sources": ["apps/web/src/routes.ts"] },
+            { "id": "v-fresh", "icon": "●", "kind": "web",
+              "title": { "en": "Freshness indicator", "zh-Hant": "資料新鮮度" },
+              "meta": { "en": "late > 24.5 h · stale > 27 h", "zh-Hant": "逾時 > 24.5 小時 · 過期 > 27 小時" },
+              "lead": { "en": "Every view shows how old the data is, so a stalled publisher is visible without anyone reading logs.", "zh-Hant": "每個畫面都顯示資料多舊，發布器卡住時不必看 log 也看得出來。" },
+              "sources": ["apps/web/src/freshness.ts", "docs/specs/021-publication-overdue/spec.md"] }
+          ]
+        },
+        {
+          "id": "mon", "title": { "en": "Monitoring", "zh-Hant": "監控" },
+          "nodes": [
+            { "id": "health", "icon": "♥", "kind": "web",
+              "title": { "en": "/health", "zh-Hant": "/health" },
+              "lead": { "en": "Public, read-only status of the last run: per-source success, objects written, R2 requests, search index size, AI spend today. It never returns credentials.", "zh-Hant": "公開、唯讀的上次執行狀態：各來源是否成功、寫了多少物件、R2 請求數、搜尋索引大小、今天的 AI 用量。不會回傳任何憑證。" },
+              "sources": ["apps/data-publisher-worker/src/health.ts"] },
+            { "id": "verify", "icon": "✓", "kind": "rule",
+              "title": { "en": "verify:health", "zh-Hant": "verify:health" },
+              "lead": { "en": "A committed command that compares `/health` with what the site serves, for Dev or Prod, using GET only.", "zh-Hant": "版本庫內的指令，只用 GET 比對 `/health` 與網站實際提供的資料，可對 Dev 或 Prod 執行。" },
+              "sources": ["scripts/verify/health.ts"] }
+          ]
+        }
+      ]
+    }
+  ],
+  "links": [
+    ["trig", "pub"], ["src", "pub"], ["state", "pub"], ["pub", "after"],
+    ["pub", "r2pub"], ["pub", "other"], ["after", "r2pub"], ["after", "other"],
+    ["r2pub", "api"], ["other", "api"], ["api", "views"]
+  ]
+}

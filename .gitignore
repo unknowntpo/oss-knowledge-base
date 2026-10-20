@@ -19,3 +19,4 @@ apps/web/.e2e/
 playwright-report/
 playwright-report-development/
 test-results/
+dist/docs-site/
