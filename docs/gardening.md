@@ -479,7 +479,7 @@ the two `viewer/` items below.
   (`onlyIf.etagMatches`) are unproven in the runtime.
 - **Fix:** follow the spec's enabling steps and record RV25. Delete this
   entry when RV25 is recorded and the flag is on wherever the publisher
-  runs (Prod's data Worker is not deployed, Spec 018).
+  runs (Prod's data Worker runs since `v0.3.1` with `GITHUB_REVIEWS` unset).
 - **Layer:** owner decision, then deploy evidence.
 - **Source:** Spec 022, 2026-10-14.
 

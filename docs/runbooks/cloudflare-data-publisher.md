@@ -5,7 +5,7 @@
 | Environment | Worker | Cron (UTC) | State | R2 target | Code release |
 | --- | --- | --- | --- | --- | --- |
 | Development | `oss-knowledge-base-data-dev` | `7 22 * * *` (daily, 06:07 Asia/Taipei) | environment-local Durable Object | `oss-knowledge-base-dev` | push to `main` |
-| Production | `oss-knowledge-base-data-prod` | `37 22 * * *` (daily; deployed from the first Prod release on, see below) | environment-local Durable Object | `oss-knowledge-base-prod` | reachable `vX.Y.Z` tag |
+| Production | `oss-knowledge-base-data-prod` | `37 22 * * *` (daily; deployed by `v0.3.1` on 2026-10-19, see below) | environment-local Durable Object | `oss-knowledge-base-prod` | reachable `vX.Y.Z` tag |
 
 Publication is **once a day** (Spec 018, owner's decision of 2026-10-13; it
 was hourly). A change that needs a new release — a new lexical revision, a
@@ -23,9 +23,12 @@ Do not put either value in Wrangler configuration, Git, logs, or Pages.
 
 ## First Prod release
 
-The first tag since `v0.2.0` deploys Prod Pages and, for the first time, the
-Prod data Worker. Until then Prod serves the recorded snapshot of 2026-08-25
-(184 entries, `bm25-reference@1`) and no publisher runs.
+Done: `v0.3.1` (`71b8f99`) deployed Prod Pages and, for the first time, the
+Prod data Worker on 2026-10-19 (`v0.3.0` failed CI and deployed nothing).
+First `POST /run` 10:19 UTC; backlog complete 12:56 UTC (`pollTruncated`
+false, 6,950 chunks); first Cron run 22:37 UTC ok. Before it Prod served the
+recorded snapshot of 2026-08-25 (184 entries, `bm25-reference@1`). The steps
+below are the record of that release and the procedure for rebuilding Prod.
 
 ### What the tag turns on
 
@@ -386,7 +389,7 @@ every invocation (Cron, alarm, `fetch`) and its `console` output is kept. Pages
   call that interpolates a raw `error.message`.
 - **Disable:** set `"enabled": false` (or lower `head_sampling_rate`, 0–1) in the
   environment's config and deploy it the usual way (Dev: merge to `main`; Prod:
-  the next `v*` tag). A dashboard toggle works at once but the next deploy
+  the next `v*` tag; Prod gets Workers Logs with `v0.3.2`). A dashboard toggle works at once but the next deploy
   restores the config's value.
 
 ## Failure and rollback
