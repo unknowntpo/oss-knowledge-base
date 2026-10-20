@@ -1,127 +1,514 @@
 {
-  "id": "digest",
-  "label": { "en": "One digest run (DigestRun Durable Object)", "zh-Hant": "一次週報執行（DigestRun Durable Object）" },
-  "initial": "s5",
-  "note": {
-    "en": "Run numbers are from the Dev run of 2026-10-19 22:47 UTC (`/health` `digest.lastRun`, read 2026-10-20). Prod has the digest off.",
-    "zh-Hant": "執行數字取自 Dev 2026-10-19 22:47 UTC 那次執行（`/health` 的 `digest.lastRun`，2026-10-20 讀取）。Prod 未開啟週報。"
-  },
-  "columns": [
+ "id": "digest",
+ "label": {
+  "en": "One digest run (DigestRun Durable Object)",
+  "zh-Hant": "一次週報執行（DigestRun Durable Object）"
+ },
+ "initial": "s5",
+ "note": {
+  "en": "Run numbers are from the Dev run of 2026-10-19 22:47 UTC (`/health` `digest.lastRun`, read 2026-10-20). Prod has the digest off.",
+  "zh-Hant": "執行數字取自 Dev 2026-10-19 22:47 UTC 那次執行（`/health` 的 `digest.lastRun`，2026-10-20 讀取）。Prod 未開啟週報。"
+ },
+ "columns": [
+  {
+   "title": {
+    "en": "Input",
+    "zh-Hant": "輸入"
+   },
+   "cards": [
     {
-      "title": { "en": "Input", "zh-Hant": "輸入" },
-      "cards": [
-        { "id": "in-trig", "title": { "en": "Trigger", "zh-Hant": "觸發" },
-          "nodes": [
-            { "id": "cron", "icon": "⏱", "kind": "web",
-              "title": { "en": "Digest cron", "zh-Hant": "週報 cron" },
-              "meta": { "en": "Dev 22:47 UTC", "zh-Hant": "Dev 22:47 UTC" },
-              "tag": { "kind": "off", "text": { "en": "Prod off", "zh-Hant": "Prod 關閉" } },
-              "lead": { "en": "Runs 40 minutes after the Dev publication; waits 15 minutes at a time, at most 4 times, while a publication is still running.", "zh-Hant": "在 Dev 發布後 40 分鐘執行；發布還在跑時每次延後 15 分鐘，最多 4 次。" },
-              "sources": ["apps/data-publisher-worker/wrangler.development.jsonc", "docs/runbooks/cloudflare-data-publisher.md"] }
-          ] },
-        { "id": "in-feed", "title": { "en": "Feed release", "zh-Hant": "Feed release" }, "count": "R2",
-          "nodes": [
-            { "id": "feed", "icon": "R2", "kind": "r2",
-              "title": { "en": "The day's snapshot", "zh-Hant": "當天的快照" },
-              "meta": { "en": "2026-10-19T22-07-19-086Z", "zh-Hant": "2026-10-19T22-07-19-086Z" },
-              "lead": { "en": "The digest pins one published release and never calls GitHub, Jira or the mailing list itself, so a run can be reproduced from its input.", "zh-Hant": "週報固定讀某一份已發布的 release，自己不呼叫 GitHub、Jira 或郵件串，所以每次執行都能依輸入重現。" },
-              "sources": ["docs/specs/014-topic-digest/spec.md"] }
-          ] }
-      ]
+     "id": "in-trig",
+     "title": {
+      "en": "Trigger",
+      "zh-Hant": "觸發"
+     },
+     "nodes": [
+      {
+       "id": "cron",
+       "icon": "⏱",
+       "kind": "web",
+       "title": {
+        "en": "Digest cron",
+        "zh-Hant": "週報 cron"
+       },
+       "meta": {
+        "en": "Dev 22:47 UTC",
+        "zh-Hant": "Dev 22:47 UTC"
+       },
+       "tag": {
+        "kind": "off",
+        "text": {
+         "en": "Prod off",
+         "zh-Hant": "Prod 關閉"
+        }
+       },
+       "lead": {
+        "en": "Runs 40 minutes after the Dev publication; waits 15 minutes at a time, at most 4 times, while a publication is still running.",
+        "zh-Hant": "在 Dev 發布後 40 分鐘執行；發布還在跑時每次延後 15 分鐘，最多 4 次。"
+       },
+       "sources": [
+        "apps/data-publisher-worker/wrangler.development.jsonc",
+        "docs/runbooks/cloudflare-data-publisher.md"
+       ]
+      }
+     ]
     },
     {
-      "title": { "en": "DigestRun steps", "zh-Hant": "DigestRun 步驟" },
-      "cards": [
-        { "id": "run", "title": { "en": "Pipeline", "zh-Hant": "流程" }, "count": "7",
-          "nodes": [
-            { "id": "s1", "icon": "1", "kind": "rule",
-              "title": { "en": "Select candidates", "zh-Hant": "挑選候選 thread" },
-              "meta": { "en": "7-day window · 448", "zh-Hant": "7 天視窗 · 448 個" },
-              "lead": { "en": "Threads with at least one human record in the 7 days ending at the release time; bot records are ignored.", "zh-Hant": "在 release 時間往前 7 天內，至少有一筆人類紀錄的 thread；機器人的紀錄不算。" },
-              "sources": ["packages/reference-pipeline/src/digest/candidates.ts"] },
-            { "id": "s2", "icon": "2", "kind": "ai",
-              "title": { "en": "Classify by topic", "zh-Hant": "依主題分類" },
-              "meta": { "en": "Clef flash · 398 cached", "zh-Hant": "Clef flash · 398 個命中快取" },
-              "lead": { "en": "`@cf/cloudflare/clef-flash` answers one multiple-choice question per thread: 12 topics (releases, clients, streams, KRaft, security, …) or routine maintenance.", "zh-Hant": "`@cf/cloudflare/clef-flash` 對每個 thread 回答一題選擇題：12 個主題（releases、clients、streams、KRaft、security…）或例行維護。" },
-              "facts": [
-                { "k": { "en": "Thresholds", "zh-Hant": "門檻" }, "v": { "en": "routine section ≥ 0.6; a topic below 0.35 becomes Uncategorized", "zh-Hant": "例行維護需 ≥ 0.6；主題信心低於 0.35 歸入「未分類」" } },
-                { "k": { "en": "Cache", "zh-Hant": "快取" }, "v": { "en": "keyed by the classifier input and revision: an unchanged thread is not asked again", "zh-Hant": "以分類輸入與版本為鍵：thread 沒變就不重問" } }
-              ],
-              "sources": ["packages/reference-pipeline/src/digest/classify.ts"] },
-            { "id": "s3", "icon": "3", "kind": "rule",
-              "title": { "en": "Score and place", "zh-Hant": "計分與放置" },
-              "meta": { "en": "5 threads per card", "zh-Hant": "每卡 5 個 thread" },
-              "lead": { "en": "Score = Σ 0.5^(age in days / 3.5) / k over human records, where k is the author's nth record in the thread, so one person repeating themselves counts less. Each thread lands in exactly one place: a card, routine or Uncategorized.", "zh-Hant": "分數 = Σ 0.5^(天數 / 3.5) / k（加總人類紀錄，k 是該作者在此 thread 的第幾則），同一人重複發言的分量遞減。每個 thread 只會出現在一個地方：主題卡、例行維護或未分類。" },
-              "sources": ["packages/reference-pipeline/src/digest/candidates.ts", "packages/reference-pipeline/src/digest/mixing.ts"] },
-            { "id": "s4", "icon": "4", "kind": "ai",
-              "title": { "en": "Summarize", "zh-Hant": "寫摘要" },
-              "meta": { "en": "Llama 3.3 70B · temperature 0", "zh-Hant": "Llama 3.3 70B · temperature 0" },
-              "lead": { "en": "`@cf/meta/llama-3.3-70b-instruct-fp8-fast` writes up to 3 sentences per card, 1 per KIP row, then a headline and 3 highlights. It only sees the selected threads, and every sentence must cite them, e.g. `(KAFKA-PR-23829, closed)`.", "zh-Hant": "`@cf/meta/llama-3.3-70b-instruct-fp8-fast` 每張卡最多寫 3 句、每個 KIP 列 1 句，再寫一個標題與 3 條重點。模型只看得到被選中的 thread，每句都必須引用它們，例如 `(KAFKA-PR-23829, closed)`。" },
-              "sources": ["packages/reference-pipeline/src/digest/prompts.ts", "apps/data-publisher-worker/src/digest/workers-ai.ts"] },
-            { "id": "s5", "icon": "5", "kind": "rule",
-              "title": { "en": "Validate every sentence", "zh-Hant": "逐句驗證" },
-              "meta": { "en": "rules · 3 rejected", "zh-Hant": "規則 · 擋下 3 句" },
-              "lead": { "en": "Deterministic checks drop a sentence instead of publishing it: wrong length, no citation, a citation outside the inputs, a status word the source does not support (\"merged\" for an open PR, \"verified\" without a [RESULT] thread), a stance word (\"objected\", \"rejected\"), or a second proposal in one line. A card left empty shows \"AI summary unavailable\".", "zh-Hant": "用確定性的規則擋句子，不合格就不發布：長度不對、沒有引用、引用了輸入以外的東西、狀態詞與來源不符（PR 還 open 卻寫 merged、沒有 [RESULT] 卻寫 verified）、立場詞（objected、rejected）、一行裡出現第二個提案。整張卡都被擋下時顯示「AI summary unavailable」。" },
-              "facts": [
-                { "k": { "en": "Last run", "zh-Hant": "最近一次" }, "v": { "en": "1 unparsable model output, 1 `status:verified`, 1 `status:fixed`", "zh-Hant": "1 個無法解析的模型輸出、1 個 `status:verified`、1 個 `status:fixed`" } },
-                { "k": { "en": "In review", "zh-Hant": "審查中" }, "v": { "en": "a status-tense rule (\"is added\" for an unfinished item) in [PR #101](https://github.com/unknowntpo/oss-knowledge-base/pull/101)", "zh-Hant": "時態規則（項目未完成卻寫 is added）在 [PR #101](https://github.com/unknowntpo/oss-knowledge-base/pull/101)" } }
-              ],
-              "sources": ["packages/reference-pipeline/src/digest/validate.ts"] },
-            { "id": "s6", "icon": "6", "kind": "ai",
-              "title": { "en": "Translate to zh-Hant", "zh-Hant": "翻成繁體中文" },
-              "meta": { "en": "Qwen3 30B", "zh-Hant": "Qwen3 30B" },
-              "lead": { "en": "`@cf/qwen/qwen3-30b-a3b-fp8` translates the validated English in batches of 60. Identifiers, citations and links are swapped for placeholders first; if one is lost, the item stays in English and is labelled \"Not translated\".", "zh-Hant": "`@cf/qwen/qwen3-30b-a3b-fp8` 以每批 60 句翻譯通過驗證的英文。編號、引用與連結先換成佔位符；若佔位符遺失，該項保留英文並標示「Not translated」。" },
-              "facts": [
-                { "k": { "en": "In review", "zh-Hant": "審查中" }, "v": { "en": "a status guard and a Kafka glossary for the translation in [PR #101](https://github.com/unknowntpo/oss-knowledge-base/pull/101)", "zh-Hant": "翻譯的狀態詞檢查與 Kafka 術語表在 [PR #101](https://github.com/unknowntpo/oss-knowledge-base/pull/101)" } }
-              ],
-              "sources": ["packages/reference-pipeline/src/digest/protect.ts"] },
-            { "id": "s7", "icon": "7", "kind": "r2",
-              "title": { "en": "Write both locales", "zh-Hant": "寫出兩種語言" },
-              "lead": { "en": "`en.json`, then `zh-Hant.<hash>.json`, then the pointer, so the site never shows a translation without its source.", "zh-Hant": "先寫 `en.json`，再寫 `zh-Hant.<hash>.json`，最後才更新指標，網站不會出現沒有原文的翻譯。" },
-              "sources": ["apps/data-publisher-worker/src/digest/store.ts"] }
-          ] },
-        { "id": "budget-card", "title": { "en": "Spend control", "zh-Hant": "用量控管" },
-          "nodes": [
-            { "id": "budget", "icon": "$", "kind": "rule",
-              "title": { "en": "Neuron ledger", "zh-Hant": "Neuron 帳本" },
-              "meta": { "en": "29 calls · 1,637 / 5,000", "zh-Hant": "29 次呼叫 · 1,637 / 5,000" },
-              "lead": { "en": "Every model call is charged to a daily ledger before it is made; over 5,000 estimated neurons a UTC day the run stops. A second limit sits in AI Gateway: 60 requests an hour and $2 a month.", "zh-Hant": "每次呼叫模型之前先記帳；同一 UTC 日超過 5,000 估計 neurons 就停止。第二道限制在 AI Gateway：每小時 60 次、每月 2 美元。" },
-              "sources": ["packages/reference-pipeline/src/digest/estimate.ts", "docs/runbooks/cloudflare-data-publisher.md"] }
-          ] }
-      ]
-    },
-    {
-      "title": { "en": "Output", "zh-Hant": "輸出" },
-      "cards": [
-        { "id": "out", "title": { "en": "Digest objects", "zh-Hant": "週報物件" }, "count": "R2",
-          "nodes": [
-            { "id": "out-en", "icon": "en", "kind": "r2",
-              "title": { "en": "English digest", "zh-Hant": "英文週報" },
-              "lead": { "en": "What the quality gate reviews: cards, KIP block, headline and highlights, each sentence with its citations.", "zh-Hant": "品質門檻審的就是這份：卡片、KIP 區塊、標題與重點，每句附引用。" },
-              "sources": ["docs/specs/014-topic-digest/spec.md"] },
-            { "id": "out-zh", "icon": "繁", "kind": "r2",
-              "title": { "en": "Traditional Chinese", "zh-Hant": "繁體中文" },
-              "lead": { "en": "Item-for-item translation of the English digest.", "zh-Hant": "英文週報逐項對應的翻譯。" },
-              "sources": ["docs/specs/014-topic-digest/spec.md"] }
-          ] },
-        { "id": "page", "title": { "en": "Web app", "zh-Hant": "網站" },
-          "nodes": [
-            { "id": "week", "icon": "▤", "kind": "web",
-              "title": { "en": "This week", "zh-Hant": "This week" },
-              "tag": { "kind": "dev", "text": { "en": "Dev only", "zh-Hant": "僅 Dev" } },
-              "lead": { "en": "Top to bottom: headline, window and stats, up to 3 highlights, KIP proposals by stage (discuss, vote, implementing), topic cards, then Uncategorized and Routine collapsed.", "zh-Hant": "由上到下：標題、時間範圍與統計、最多 3 條重點、依階段排列的 KIP 提案（討論、投票、實作中）、主題卡片，最後是收合的未分類與例行維護。" },
-              "sources": ["apps/web/src/components/digest/DigestWeek.vue"] }
-          ] },
-        { "id": "gate-card", "title": { "en": "Before Prod", "zh-Hant": "上 Prod 前" },
-          "nodes": [
-            { "id": "gate", "icon": "✓", "kind": "rule",
-              "title": { "en": "Quality gate", "zh-Hant": "品質門檻" },
-              "tag": { "kind": "off", "text": { "en": "not passed", "zh-Hant": "未通過" } },
-              "lead": { "en": "A human labels one real week sentence by sentence; `bun run digest -- eval` counts the errors. Prod is enabled only when the thresholds are met.", "zh-Hant": "人工逐句標註一個真實的週報，`bun run digest -- eval` 計算錯誤數；達到門檻才開 Prod。" },
-              "sources": ["packages/reference-pipeline/src/digest/eval.ts", "packages/reference-pipeline/scripts/digest.ts"] }
-          ] }
-      ]
+     "id": "in-feed",
+     "title": {
+      "en": "Feed release",
+      "zh-Hant": "Feed release"
+     },
+     "count": "R2",
+     "nodes": [
+      {
+       "id": "feed",
+       "icon": "R2",
+       "kind": "r2",
+       "title": {
+        "en": "The day's snapshot",
+        "zh-Hant": "當天的快照"
+       },
+       "meta": {
+        "en": "2026-10-19T22-07-19-086Z",
+        "zh-Hant": "2026-10-19T22-07-19-086Z"
+       },
+       "lead": {
+        "en": "The digest pins one published release and never calls GitHub, Jira or the mailing list itself, so a run can be reproduced from its input.",
+        "zh-Hant": "週報固定讀某一份已發布的 release，自己不呼叫 GitHub、Jira 或郵件串，所以每次執行都能依輸入重現。"
+       },
+       "sources": [
+        "docs/specs/014-topic-digest/spec.md"
+       ]
+      }
+     ]
     }
+   ]
+  },
+  {
+   "title": {
+    "en": "DigestRun steps",
+    "zh-Hant": "DigestRun 步驟"
+   },
+   "cards": [
+    {
+     "id": "run",
+     "title": {
+      "en": "Pipeline",
+      "zh-Hant": "流程"
+     },
+     "count": "7",
+     "nodes": [
+      {
+       "id": "s1",
+       "icon": "1",
+       "kind": "rule",
+       "title": {
+        "en": "Select candidates",
+        "zh-Hant": "挑選候選 thread"
+       },
+       "meta": {
+        "en": "7-day window · 448",
+        "zh-Hant": "7 天視窗 · 448 個"
+       },
+       "lead": {
+        "en": "Threads with at least one human record in the 7 days ending at the release time; bot records are ignored.",
+        "zh-Hant": "在 release 時間往前 7 天內，至少有一筆人類紀錄的 thread；機器人的紀錄不算。"
+       },
+       "sources": [
+        "packages/reference-pipeline/src/digest/candidates.ts"
+       ]
+      },
+      {
+       "id": "s2",
+       "icon": "2",
+       "kind": "ai",
+       "title": {
+        "en": "Classify by topic",
+        "zh-Hant": "依主題分類"
+       },
+       "meta": {
+        "en": "Clef flash · 398 cached",
+        "zh-Hant": "Clef flash · 398 個命中快取"
+       },
+       "lead": {
+        "en": "`@cf/cloudflare/clef-flash` answers one multiple-choice question per thread: 12 topics (releases, clients, streams, KRaft, security, …) or routine maintenance.",
+        "zh-Hant": "`@cf/cloudflare/clef-flash` 對每個 thread 回答一題選擇題：12 個主題（releases、clients、streams、KRaft、security…）或例行維護。"
+       },
+       "facts": [
+        {
+         "k": {
+          "en": "Thresholds",
+          "zh-Hant": "門檻"
+         },
+         "v": {
+          "en": "routine section ≥ 0.6; a topic below 0.35 becomes Uncategorized",
+          "zh-Hant": "例行維護需 ≥ 0.6；主題信心低於 0.35 歸入「未分類」"
+         }
+        },
+        {
+         "k": {
+          "en": "Cache",
+          "zh-Hant": "快取"
+         },
+         "v": {
+          "en": "keyed by the classifier input and revision: an unchanged thread is not asked again",
+          "zh-Hant": "以分類輸入與版本為鍵：thread 沒變就不重問"
+         }
+        }
+       ],
+       "sources": [
+        "packages/reference-pipeline/src/digest/classify.ts"
+       ]
+      },
+      {
+       "id": "s3",
+       "icon": "3",
+       "kind": "rule",
+       "title": {
+        "en": "Score and place",
+        "zh-Hant": "計分與放置"
+       },
+       "meta": {
+        "en": "5 threads per card",
+        "zh-Hant": "每卡 5 個 thread"
+       },
+       "lead": {
+        "en": "Score = Σ 0.5^(age in days / 3.5) / k over human records, where k is the author's nth record in the thread, so one person repeating themselves counts less. Each thread lands in exactly one place: a card, routine or Uncategorized.",
+        "zh-Hant": "分數 = Σ 0.5^(天數 / 3.5) / k（加總人類紀錄，k 是該作者在此 thread 的第幾則），同一人重複發言的分量遞減。每個 thread 只會出現在一個地方：主題卡、例行維護或未分類。"
+       },
+       "sources": [
+        "packages/reference-pipeline/src/digest/candidates.ts",
+        "packages/reference-pipeline/src/digest/mixing.ts"
+       ]
+      },
+      {
+       "id": "s4",
+       "icon": "4",
+       "kind": "ai",
+       "title": {
+        "en": "Summarize",
+        "zh-Hant": "寫摘要"
+       },
+       "meta": {
+        "en": "Llama 3.3 70B · digest-prompts@4",
+        "zh-Hant": "Llama 3.3 70B · digest-prompts@4"
+       },
+       "lead": {
+        "en": "`@cf/meta/llama-3.3-70b-instruct-fp8-fast` writes up to 3 sentences per card, 1 per KIP row, then a headline and 3 highlights. It only sees the selected threads, and every sentence must cite them, e.g. `(KAFKA-PR-23829, closed)`.",
+        "zh-Hant": "`@cf/meta/llama-3.3-70b-instruct-fp8-fast` 每張卡最多寫 3 句、每個 KIP 列 1 句，再寫一個標題與 3 條重點。模型只看得到被選中的 thread，每句都必須引用它們，例如 `(KAFKA-PR-23829, closed)`。"
+       },
+       "sources": [
+        "packages/reference-pipeline/src/digest/prompts.ts",
+        "apps/data-publisher-worker/src/digest/workers-ai.ts"
+       ],
+       "facts": [
+        {
+         "k": {
+          "en": "Prompt",
+          "zh-Hant": "Prompt"
+         },
+         "v": {
+          "en": "`digest-prompts@4` (D98, 2026-10-20): status-faithful wording; \"would\" or \"is proposed\" for open, discussed or voted items",
+          "zh-Hant": "`digest-prompts@4`（D98，2026-10-20）：措辭忠於狀態；open、討論中、投票中的項目只能用 would 或 is proposed"
+         }
+        }
+       ]
+      },
+      {
+       "id": "s5",
+       "icon": "5",
+       "kind": "rule",
+       "title": {
+        "en": "Validate every sentence",
+        "zh-Hant": "逐句驗證"
+       },
+       "meta": {
+        "en": "rules · 3 rejected",
+        "zh-Hant": "規則 · 擋下 3 句"
+       },
+       "lead": {
+        "en": "Deterministic checks drop a sentence instead of publishing it: wrong length, no citation, a citation outside the inputs, a status word the source does not support (\"merged\" for an open PR, \"verified\" without a [RESULT] thread), a stance word (\"objected\", \"rejected\"), or a second proposal in one line. A card left empty shows \"AI summary unavailable\".",
+        "zh-Hant": "用確定性的規則擋句子，不合格就不發布：長度不對、沒有引用、引用了輸入以外的東西、狀態詞與來源不符（PR 還 open 卻寫 merged、沒有 [RESULT] 卻寫 verified）、立場詞（objected、rejected）、一行裡出現第二個提案。整張卡都被擋下時顯示「AI summary unavailable」。"
+       },
+       "facts": [
+        {
+         "k": {
+          "en": "Last run",
+          "zh-Hant": "最近一次"
+         },
+         "v": {
+          "en": "1 unparsable model output, 1 `status:verified`, 1 `status:fixed`",
+          "zh-Hant": "1 個無法解析的模型輸出、1 個 `status:verified`、1 個 `status:fixed`"
+         }
+        },
+        {
+         "k": {
+          "en": "Tense rule",
+          "zh-Hant": "時態規則"
+         },
+         "v": {
+          "en": "D97 on Dev since 2026-10-20: completion forms need a final cited item; `tense:closed`, `tense:partial` for `[k/N]` PRs; a modal earlier in the clause exempts",
+          "zh-Hant": "D97，2026-10-20 起在 Dev：完成語氣需要有已完成的引用項目；`tense:closed`；`[k/N]` 分段 PR 為 `tense:partial`；同一子句中前面有情態詞則不算"
+         }
+        }
+       ],
+       "sources": [
+        "packages/reference-pipeline/src/digest/validate.ts"
+       ]
+      },
+      {
+       "id": "s6",
+       "icon": "6",
+       "kind": "ai",
+       "title": {
+        "en": "Translate to zh-Hant",
+        "zh-Hant": "翻成繁體中文"
+       },
+       "meta": {
+        "en": "Qwen3 30B",
+        "zh-Hant": "Qwen3 30B"
+       },
+       "lead": {
+        "en": "`@cf/qwen/qwen3-30b-a3b-fp8` translates the validated English in batches of 60. Identifiers, citations and links are swapped for placeholders first; if one is lost, the item stays in English and is labelled \"Not translated\".",
+        "zh-Hant": "`@cf/qwen/qwen3-30b-a3b-fp8` 以每批 60 句翻譯通過驗證的英文。編號、引用與連結先換成佔位符；若佔位符遺失，該項保留英文並標示「Not translated」。"
+       },
+       "facts": [
+        {
+         "k": {
+          "en": "Status guard",
+          "zh-Hant": "狀態詞檢查"
+         },
+         "v": {
+          "en": "D99: on a status mismatch the item keeps English, counts `translate:status-drift`, and is not cached",
+          "zh-Hant": "D99：狀態詞不一致時保留英文、計入 `translate:status-drift`，且不寫入快取"
+         }
+        },
+        {
+         "k": {
+          "en": "Glossary",
+          "zh-Hant": "術語表"
+         },
+         "v": {
+          "en": "`kafka-glossary@1` (D100): offloading → 卸載, telemetry → 遙測, …",
+          "zh-Hant": "`kafka-glossary@1`（D100）：offloading → 卸載、telemetry → 遙測…"
+         }
+        }
+       ],
+       "sources": [
+        "packages/reference-pipeline/src/digest/protect.ts",
+        "packages/reference-pipeline/src/digest/translation.ts",
+        "packages/reference-pipeline/src/digest/profiles.ts"
+       ]
+      },
+      {
+       "id": "s7",
+       "icon": "7",
+       "kind": "r2",
+       "title": {
+        "en": "Write both locales",
+        "zh-Hant": "寫出兩種語言"
+       },
+       "lead": {
+        "en": "`en.json`, then `zh-Hant.<hash>.json`, then the pointer, so the site never shows a translation without its source.",
+        "zh-Hant": "先寫 `en.json`，再寫 `zh-Hant.<hash>.json`，最後才更新指標，網站不會出現沒有原文的翻譯。"
+       },
+       "sources": [
+        "apps/data-publisher-worker/src/digest/store.ts"
+       ]
+      }
+     ]
+    },
+    {
+     "id": "budget-card",
+     "title": {
+      "en": "Spend control",
+      "zh-Hant": "用量控管"
+     },
+     "nodes": [
+      {
+       "id": "budget",
+       "icon": "$",
+       "kind": "rule",
+       "title": {
+        "en": "Neuron ledger",
+        "zh-Hant": "Neuron 帳本"
+       },
+       "meta": {
+        "en": "29 calls · 1,637 / 5,000",
+        "zh-Hant": "29 次呼叫 · 1,637 / 5,000"
+       },
+       "lead": {
+        "en": "Every model call is charged to a daily ledger before it is made; over 5,000 estimated neurons a UTC day the run stops. A second limit sits in AI Gateway: 60 requests an hour and $2 a month.",
+        "zh-Hant": "每次呼叫模型之前先記帳；同一 UTC 日超過 5,000 估計 neurons 就停止。第二道限制在 AI Gateway：每小時 60 次、每月 2 美元。"
+       },
+       "sources": [
+        "packages/reference-pipeline/src/digest/estimate.ts",
+        "docs/runbooks/cloudflare-data-publisher.md"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": {
+    "en": "Output",
+    "zh-Hant": "輸出"
+   },
+   "cards": [
+    {
+     "id": "out",
+     "title": {
+      "en": "Digest objects",
+      "zh-Hant": "週報物件"
+     },
+     "count": "R2",
+     "nodes": [
+      {
+       "id": "out-en",
+       "icon": "en",
+       "kind": "r2",
+       "title": {
+        "en": "English digest",
+        "zh-Hant": "英文週報"
+       },
+       "lead": {
+        "en": "What the quality gate reviews: cards, KIP block, headline and highlights, each sentence with its citations.",
+        "zh-Hant": "品質門檻審的就是這份：卡片、KIP 區塊、標題與重點，每句附引用。"
+       },
+       "sources": [
+        "docs/specs/014-topic-digest/spec.md"
+       ]
+      },
+      {
+       "id": "out-zh",
+       "icon": "繁",
+       "kind": "r2",
+       "title": {
+        "en": "Traditional Chinese",
+        "zh-Hant": "繁體中文"
+       },
+       "lead": {
+        "en": "Item-for-item translation of the English digest.",
+        "zh-Hant": "英文週報逐項對應的翻譯。"
+       },
+       "sources": [
+        "docs/specs/014-topic-digest/spec.md"
+       ]
+      }
+     ]
+    },
+    {
+     "id": "page",
+     "title": {
+      "en": "Web app",
+      "zh-Hant": "網站"
+     },
+     "nodes": [
+      {
+       "id": "week",
+       "icon": "▤",
+       "kind": "web",
+       "title": {
+        "en": "This week",
+        "zh-Hant": "This week"
+       },
+       "tag": {
+        "kind": "dev",
+        "text": {
+         "en": "Dev only",
+         "zh-Hant": "僅 Dev"
+        }
+       },
+       "lead": {
+        "en": "Top to bottom: headline, window and stats, up to 3 highlights, KIP proposals by stage (discuss, vote, implementing), topic cards, then Uncategorized and Routine collapsed.",
+        "zh-Hant": "由上到下：標題、時間範圍與統計、最多 3 條重點、依階段排列的 KIP 提案（討論、投票、實作中）、主題卡片，最後是收合的未分類與例行維護。"
+       },
+       "sources": [
+        "apps/web/src/components/digest/DigestWeek.vue"
+       ]
+      }
+     ]
+    },
+    {
+     "id": "gate-card",
+     "title": {
+      "en": "Before Prod",
+      "zh-Hant": "上 Prod 前"
+     },
+     "nodes": [
+      {
+       "id": "gate",
+       "icon": "✓",
+       "kind": "rule",
+       "title": {
+        "en": "Quality gate",
+        "zh-Hant": "品質門檻"
+       },
+       "tag": {
+        "kind": "off",
+        "text": {
+         "en": "not passed",
+         "zh-Hant": "未通過"
+        }
+       },
+       "lead": {
+        "en": "A human labels one real week sentence by sentence; `bun run digest -- eval` counts the errors. Prod is enabled only when the thresholds are met.",
+        "zh-Hant": "人工逐句標註一個真實的週報，`bun run digest -- eval` 計算錯誤數；達到門檻才開 Prod。"
+       },
+       "sources": [
+        "packages/reference-pipeline/src/digest/eval.ts",
+        "packages/reference-pipeline/scripts/digest.ts"
+       ],
+       "facts": [
+        {
+         "k": {
+          "en": "English",
+          "zh-Hant": "英文"
+         },
+         "v": {
+          "en": "`status-mismatch` 0, `overbroad-stance` 0 (fixed); others set by the owner",
+          "zh-Hant": "`status-mismatch` 0、`overbroad-stance` 0（已定）；其餘由負責人決定"
+         }
+        },
+        {
+         "k": {
+          "en": "Translation",
+          "zh-Hant": "翻譯"
+         },
+         "v": {
+          "en": "D102, proposed: `status-drift` 0, `omission` 0, `term-error` ≤ 2 per week",
+          "zh-Hant": "D102，提議中：每週 `status-drift` 0、`omission` 0、`term-error` ≤ 2"
+         }
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "links": [
+  [
+   "in-trig",
+   "run"
   ],
-  "links": [["in-trig", "run"], ["in-feed", "run"], ["run", "budget-card"], ["run", "out"], ["out", "page"]]
+  [
+   "in-feed",
+   "run"
+  ],
+  [
+   "run",
+   "budget-card"
+  ],
+  [
+   "run",
+   "out"
+  ],
+  [
+   "out",
+   "page"
+  ]
+ ]
 }
