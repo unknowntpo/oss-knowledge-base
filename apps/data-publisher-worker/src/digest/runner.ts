@@ -43,7 +43,12 @@ export interface DigestRunnerDeps {
   readonly delay: (ms: number) => Promise<void>;
   /** Whether the publisher runs or will still start a run (`publisherBusy` of its status). */
   readonly publisherBusy: () => Promise<boolean>;
+  /** Spec 026 Behavior 9: true while the cost guard enforces an open breaker; absent is never. */
+  readonly costGuardRefuses?: () => Promise<boolean>;
 }
+
+/** Spec 026 Behavior 9: the answer of a request the cost guard refused. */
+export const COST_GUARD_REFUSAL = { status: 503, body: { ok: false, skipped: "cost-guard" } } as const;
 
 export interface DigestHealth {
   readonly enabled: boolean;
@@ -81,6 +86,7 @@ export class DigestRunner {
   /** `POST /digest/run[?dryRun=1]`: 409 while a run is pending or active (D22). */
   async request(dryRun: boolean): Promise<{ readonly status: number; readonly body: unknown }> {
     if (!this.deps.enabled) return { status: 403, body: { ok: false, disabled: true } };
+    if (await this.deps.costGuardRefuses?.()) return COST_GUARD_REFUSAL;
     if (runPending(this.running, await this.deps.storage.getAlarm(), this.deps.now().getTime())) {
       return { status: 409, body: { ok: false, skipped: "already-running" } };
     }
@@ -96,6 +102,11 @@ export class DigestRunner {
   /** The alarm: defer while the publisher is busy, at most four times, then run (D59, D87). */
   async alarm(): Promise<void> {
     if (!this.deps.enabled) return;
+    // Spec 026: a refused alarm runs nothing and is not re-armed; the next cron or request starts again.
+    if (await this.deps.costGuardRefuses?.()) {
+      console.log("digest: refused by the cost guard");
+      return;
+    }
     const deferrals = (await this.deps.storage.get<number>("deferrals")) ?? 0;
     if (deferrals < MAX_DEFERRALS && await this.deps.publisherBusy()) {
       await this.deps.storage.put("deferrals", deferrals + 1);

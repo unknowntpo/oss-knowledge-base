@@ -365,6 +365,88 @@ about 28 thousand and 6.0 million. Act when:
 - `classA + classB` nears 20,000: that is the run's R2 requests against the
   Worker's `limits.subrequests`.
 
+## Cost guard (Spec 026)
+
+Account-wide cost monitoring and a circuit breaker
+([spec](../specs/026-cost-guard/spec.md)). Off everywhere until the enable PRs
+(`COST_GUARD` unset, no `COST_GUARD_STATE` binding, no token). The check rides
+the publisher tick once a day, reads R2 operations and storage for the whole
+account over the GraphQL Analytics API, and adds Vectorize and Workers AI
+estimates from this Worker's own ledgers. It writes one Durable Object key
+and makes no R2 request.
+
+### Create the token (owner, once per environment)
+
+1. Cloudflare dashboard → My Profile → API Tokens → Create Token → Create
+   Custom Token.
+2. Permissions: **Account › Account Analytics › Read**, and nothing else.
+   Account Resources: include only this account. No zone permission, no IP
+   filter needed, a TTL if you want one.
+3. Put it as a Worker secret (it is read from stdin, never echoed):
+
+```sh
+cd apps/data-publisher-worker
+bunx wrangler secret put CF_ANALYTICS_TOKEN -c wrangler.development.jsonc
+```
+
+The account id is not secret: the enable PR sets `CF_ACCOUNT_ID` as a var.
+
+### Enable `monitor` on Dev (the enable PR)
+
+The PR adds the `CostGuard` migration (`v5`), the `COST_GUARD_STATE` binding
+on the Worker and on Pages (`script_name: oss-knowledge-base-data-dev`),
+`CF_ACCOUNT_ID`, and `COST_GUARD=monitor`. After its deploy:
+
+```sh
+DEV=https://oss-knowledge-base-data-dev.unknowntpo.workers.dev
+# Evaluate now; writes nothing, opens nothing.
+curl -sS -X POST -H "authorization: Bearer $MANUAL_TRIGGER_TOKEN" "$DEV/cost-guard/check?dryRun=1" \
+  | jq '{ok, status, metrics: (.metrics | map_values({value, percent, projectedPercent, status})), unclassifiedActions, lastError}'
+```
+
+Expect `ok: true` and R2 Class A/B within a few percent of the dashboard's
+R2 → Metrics month to date. `unclassifiedActions` lists action types the
+pricing page does not name (counted as Class A); report any. Save the raw
+GraphQL answer as the fixture (CG19). Stop and unset `COST_GUARD` if `ok` is
+false twice.
+
+### Read `/health`
+
+```sh
+curl -sS "$DEV/health" | jq '.costGuard | {mode, status, reason, checkedAt, breaker, lastError, metrics: (.metrics | map_values("\(.percent)% \(.status)"))}'
+```
+
+| `status` | Meaning | Do |
+| --- | --- | --- |
+| `pending` | configured, no check yet | wait for the next tick, or run the dry check |
+| `ok` | every metric under 60 % | nothing |
+| `warn` | a metric at 60 % or more (Vectorize stored dimensions only ever warns) | look at the metric; the page shows "Usage near the free allowance" |
+| `tripped` | the breaker is open (`breaker.reason`, `breaker.metrics`) | under `enforce`: digest, embeddings and semantic queries refuse; publication pauses only if `breaker.metrics` has `r2ClassA` |
+| `unconfigured` | `reason` names the missing token, account id or binding | fix the configuration |
+
+`scope: "account"` metrics (R2) cover both environments; `scope: "worker"`
+ones only this Worker (Prod has no `AI` or index, so they are `unavailable`).
+
+### Reset the breaker
+
+Only by hand; a check, a new month or a deploy never closes it.
+
+```sh
+curl -sS -X POST -H "authorization: Bearer $MANUAL_TRIGGER_TOKEN" "$DEV/cost-guard/reset"
+# {"ok":true,"breaker":{"tripped":false},"lastResetAt":"…"}
+```
+
+Before resetting, find and fix the cause (for R2 Class A: compare
+`lastRun.r2.classA` with `copiedObjectCount + 3`, section above). If the
+metric is still over its threshold, the next check opens the breaker again;
+to keep working until the month renews, set `COST_GUARD=monitor` instead.
+
+### Turn off
+
+Unset `COST_GUARD` (a var change and deploy). Nothing is refused, no check
+runs, and `/health` loses `costGuard`; the stored breaker stays in the object
+and applies again only if `enforce` is set again.
+
 ## Observability / logs
 
 Workers Logs is on for both data Workers (`observability.enabled: true`,

@@ -1,0 +1,24 @@
+{
+  "data": {
+    "viewer": {
+      "accounts": [
+        {
+          "operations": [
+            { "sum": { "requests": 12000 }, "dimensions": { "actionType": "PutObject" } },
+            { "sum": { "requests": 3000 }, "dimensions": { "actionType": "ListObjects" } },
+            { "sum": { "requests": 150000 }, "dimensions": { "actionType": "GetObject" } },
+            { "sum": { "requests": 20000 }, "dimensions": { "actionType": "HeadObject" } },
+            { "sum": { "requests": 500 }, "dimensions": { "actionType": "DeleteObject" } },
+            { "sum": { "requests": 7 }, "dimensions": { "actionType": "SomeNewAction" } }
+          ],
+          "storage": [
+            { "max": { "payloadSize": 1200000000, "metadataSize": 1000000 }, "dimensions": { "bucketName": "oss-knowledge-base-dev", "datetime": "2026-10-20T21:00:00Z" } },
+            { "max": { "payloadSize": 1100000000, "metadataSize": 900000 }, "dimensions": { "bucketName": "oss-knowledge-base-dev", "datetime": "2026-10-19T21:00:00Z" } },
+            { "max": { "payloadSize": 300000000, "metadataSize": 200000 }, "dimensions": { "bucketName": "oss-knowledge-base-prod", "datetime": "2026-10-20T20:00:00Z" } }
+          ]
+        }
+      ]
+    }
+  },
+  "errors": null
+}
