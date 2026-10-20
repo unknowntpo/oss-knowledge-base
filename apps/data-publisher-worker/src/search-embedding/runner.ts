@@ -40,6 +40,8 @@ export interface SearchEmbeddingRunnerDeps {
   readonly now: () => Date;
   readonly delay: (ms: number) => Promise<void>;
   readonly limits?: Partial<EmbeddingLimits>;
+  /** Spec 026 Behavior 9: true while the cost guard enforces an open breaker; absent is never. */
+  readonly costGuardRefuses?: () => Promise<boolean>;
 }
 
 export type SearchEmbeddingConfig =
@@ -152,6 +154,11 @@ export class SearchEmbeddingRunner {
     if (options.dryRun === true && options.reset === true) return { status: 400, body: { ok: false, error: "reset cannot be combined with dryRun" } };
     if (config.state === "off") return this.requestWhileOff(options);
     if (config.state === "error") return { status: 500, body: await this.recordConfigError(config, options.dryRun === true) };
+    // Spec 026 Behavior 9: refused, only a reset is served, and it schedules nothing.
+    if (await this.deps.costGuardRefuses?.()) {
+      if (options.reset !== true) return { status: 503, body: { ok: false, skipped: "cost-guard" } };
+      return { status: 200, body: { ok: true, scheduled: false, forgotten: await this.state.clear() } };
+    }
     // An alarm set for later is a continuation (Behavior 46); a trigger replaces it and runs now.
     if (runStarting(this.running, await this.deps.storage.getAlarm(), this.deps.now().getTime())) {
       return { status: 409, body: { ok: false, skipped: "already-running" } };
@@ -187,6 +194,11 @@ export class SearchEmbeddingRunner {
       if (config.state === "off") return;
       if (config.state === "error") {
         await this.recordConfigError(config, false);
+        return;
+      }
+      // Spec 026: a refused alarm (a continuation too) embeds nothing and is not re-armed.
+      if (await this.deps.costGuardRefuses?.()) {
+        console.log("search embedding: refused by the cost guard");
         return;
       }
       const result = await this.execute(config, false);

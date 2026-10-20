@@ -1135,3 +1135,17 @@ the two `viewer/` items below.
   own row, and assert in E2E that the pill's box is inside the bar's.
 - **Layer:** E2E assertion, then style.
 - **Source:** Spec 024 slice B, 2026-10-18.
+
+### G96. Cost guard: Vectorize and Workers AI are this Worker's estimates; R2 fixture is not recorded
+- **Where:** `apps/data-publisher-worker/src/cost-guard/` (`inAppSources` in
+  `src/index.ts`), `test/fixtures/cost-guard/graphql-r2-usage.json`.
+- **Why:** no GraphQL dataset for Vectorize is documented, and
+  `aiInferenceAdaptive` is named in one footnote without fields, so both are
+  estimated from this Worker's ledgers (`scope: "worker"`), not read for the
+  account. The R2 fixture follows the documented shape; that `actionType`
+  values equal the pricing page's operation names is assumed.
+- **Fix:** with the Dev token, introspect the schema for Vectorize and
+  `aiInferenceAdaptive` fields; if they exist, read them for the account and
+  drop the estimates. Replace the fixture with a recorded answer (CG19).
+- **Layer:** fixture test, then code.
+- **Source:** Spec 026, 2026-10-20.

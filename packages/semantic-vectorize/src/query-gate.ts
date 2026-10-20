@@ -371,6 +371,18 @@ export class SemanticQueryGate implements SemanticQueryPort {
     await this.deps.storage.put(LAST_ERROR, entry).catch(() => undefined);
   }
 
+  /**
+   * Spec 026 Behavior 4: index queries of the UTC month `YYYY-MM`, summed from the daily ledgers
+   * (the gate never deletes them). The cost guard turns them into Vectorize queried dimensions.
+   */
+  async monthIndexQueries(month: string): Promise<number> {
+    if (!/^\d{4}-\d{2}$/u.test(month)) throw new Error(`Not a month: ${month}`);
+    const days = await this.deps.storage.list<QueryDayLedger>({ prefix: `spend:${month}-`, limit: 31 });
+    let total = 0;
+    for (const ledger of days.values()) total += typeof ledger?.indexQueries === "number" ? ledger.indexQueries : 0;
+    return total;
+  }
+
   async health(): Promise<QueryGateHealth> {
     const config = this.deps.config();
     const now = this.deps.now();
