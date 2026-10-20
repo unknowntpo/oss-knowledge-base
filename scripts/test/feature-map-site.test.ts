@@ -586,7 +586,8 @@ describe("feature-map site: status board", () => {
     const specs = buildData({ repository, ref, tree: directoryTree(root) }).specs;
     expect(specs.length).toBeGreaterThanOrEqual(24);
     expect(specs.filter((item) => item.statusKind === "other" && !/^Spike\b/u.test(item.status)).map((item) => `${item.number}: ${item.status}`)).toEqual([]);
-    expect(specs.filter((item) => item.stage === "other").map((item) => item.number)).toEqual(["007"]);
+    // 025: the docs site runs on Cloudflare Pages, outside the board's vocabulary (Runs on none).
+    expect(specs.filter((item) => item.stage === "other").map((item) => item.number)).toEqual(["007", "025"]);
     // One form: a plain `Status:` line near the top (gardening G11), not a list item.
     expect(specs.filter((item) => !/^Status: \S/mu.test(readFileSync(join(root, item.path), "utf8").split("\n", 12).join("\n"))).map((item) => item.number)).toEqual([]);
   });

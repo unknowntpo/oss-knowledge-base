@@ -1140,8 +1140,8 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
     - `digest -- eval` reports the labeled count, counts per translation
       class, and the status guard (D99) on every sentence with `zhHant`:
       how many it rejects and how many labeled `status-drift` it catches.
-    - Prod also requires the translation thresholds (D102, proposed
-      2026-10-20, pending the owner's confirmation): `status-drift` 0,
+    - Prod also requires the translation thresholds (D102, decided by the
+      owner 2026-10-20): `status-drift` 0,
       `omission` 0, `term-error` at most 2 per labeled week. A labels file's
       `thresholds` may override them per class.
 32. **Withdrawn: vote tally.** Withdrawn 2026-10-08. Vote counts move to Spec
@@ -1250,7 +1250,7 @@ accepted.
   in this spec's review log before merge.
 - **Thresholds.** They are set by the human after labeling (open question 1).
   Prod shows the digest only after they are met (D34). The translation
-  thresholds are proposed in D102.
+  thresholds are decided in D102 (owner, 2026-10-20).
 
 ## Test plan
 
@@ -2165,7 +2165,10 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   backported", "got reverted", "now handles", "are added in May", "are
   added and would ship") are dropped since; the recorded weeks still drop
   the same 6 sentences. Known limitations: completion wording outside the
-  lists, and the translation guard's set comparison (Behavior 25).
+  lists, and the translation guard's set comparison (Behavior 25). Known
+  false positive (#104): a sentence starting "Now <noun>" such as "Now logs
+  are structured (…, open)" matches `now logs`, because several now-verbs
+  are also nouns.
 - D98: the summarizer and highlights prompts ask for status-faithful tense:
   completion verbs only when the cited item is merged or resolved; "would"
   or "is proposed" for open, closed-unmerged, or discussed items; "is
@@ -2196,7 +2199,8 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   fields evaluate as before.
 - D102: [measure] before Prod shows the digest, the labeled week also meets
   the translation thresholds: `status-drift` 0, `omission` 0, `term-error`
-  at most 2 (proposed 2026-10-20; the owner confirms or changes them).
+  at most 2 per labeled week (decided by the owner 2026-10-20; a labels
+  file's `thresholds` may override them per class).
 
 ## Slices
 
@@ -2546,11 +2550,11 @@ and add zh-Hant translation quality to the Prod gate. Eval line for
 | Week | Sentences | Dropped | By the tense rule | Labeled errors rejected | Guard on zh-Hant | Cold estimate |
 | --- | --- | --- | --- | --- | --- | --- |
 | hand-2026-10-08 | 37 | 11 (10 before) | 1 (headline, a false positive) | status-mismatch 2/2, stance 1/1 | no zh-Hant recorded | 1,599 neurons (1,513 at @3) |
-| Dev 2026-10-20 | 45 | 6 (0 before) | 5: #6, #11, #13, #30, #38 (#30 and #38 false positives) | status-mismatch 4/4; invented-claim 0/1 | 48 checked, 2 rejected (#6, and #40 the D96 residue) | 2,215 neurons (2,159 at @3) |
+| Dev 2026-10-20 | 45 | 6 (0 before) | 5: #6, #11, #13, #30, #38 (all state unfinished work as done; #30 and #38 were labeled ok before review) | status-mismatch 4/4; invented-claim 0/1 | 48 checked, 2 rejected (#6, and #40 the D96 residue) | 2,215 neurons (2,159 at @3) |
 
 The Dev 2026-10-20 week's sixth drop is the #48 highlight
 (`cite-outside-inputs`, because the #30 line it cites was dropped; alone it
-is `tense:gets`). The thresholds in D102 are proposed and wait for the
-owner. The verifier's precision fixes (D97 state words, modal clauses,
+is `tense:gets`). The owner approved the D102 thresholds as final on
+2026-10-20. The verifier's precision fixes (D97 state words, modal clauses,
 now-verb list; D99 longest-match zh-Hant words, `under vote`) leave these
 numbers unchanged.
