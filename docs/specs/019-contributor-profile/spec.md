@@ -1864,7 +1864,7 @@ identity's own page lists its assigned KIPs with no link at all.
    corroborated). No name comparison is made; the display name is shown
    only as text.
 6. **Not evidence for links.** The assignee of a KIP's issue does not feed
-   edge B or any other link rule in this revision (open decision 6).
+   edge B or any other link rule in this revision (deferred by the owner, 2026-10-21).
 
 **Job boundaries.** The `kip-pages` job fetches the issues because the keys
 come from the page it reads; its responsibility stays "what a KIP page
@@ -1906,27 +1906,30 @@ Omnia Ibrahim, Gaurav Narula, Luke Chen and Federico Valeri each get
 | The job inside the identity-link job or the publication | **deleted**: its own job, own budget, own failure |
 | The issue's reporter as a source | **deleted**: 97 of 208 agree with the starter; reporters are often committers filing for others |
 | A separate job for the Jira read | **deleted**: the keys come from the page the `kip-pages` job reads; a second job would hand over a key list and add a trigger |
-| The assignee as link evidence | **deleted** for now (open decision 6) |
+| The assignee as link evidence | **deleted** for now (deferred by the owner, 2026-10-21) |
+
+### Owner decisions on the KIP-authors revision (2026-10-21)
+
+The owner accepted every recommendation of this revision:
+
+1. **Confluence is a source**, through the separate `kip-pages` job.
+2. **Author-name link rule 2 is accepted**: same KIP, exact `nameKey`, and
+   a message in that KIP's dev@ discussion within the coverage; the basis is
+   shown.
+3. **Upstream budget**: cron 03:43 UTC, at most 10 cwiki and 3 Jira
+   requests per run, at least 2 s apart.
+4. **The Jira assignee is its own line**, between the author line and the
+   discussion starter ("assigned the KIP's Jira issue (KAFKA-n)").
+5. **The `JIRA:` field's issue is not Jira ↔ dev@ link evidence** for now:
+   deferred; it would need its own precision check.
 
 ### Open for the owner
 
-1. **Confluence as a source** through the `kip-pages` job (recommended
-   above), or the dev@ starter only (KIP-1165 would list one of nine
-   authors).
-2. **Link rule 2 for author names** (same KIP and exact name on dev@,
-   labelled), or author names linked only through `declared` entries.
-3. **Cron 03:43 UTC, 10 requests per run, 2 s apart** for cwiki.
-4. **The owner's own `declared` entry**: the public evidence URL (the TODO
-   in resolution 2).
-5. Decision 8 (still open) now also covers storing author names read from
-   KIP pages, and KIP issues' assignee keys, on Prod.
-6. **The KIP issue's assignee as edge B evidence**: the page's `JIRA:` field
-   ties an issue to a KIP more reliably than the issue's summary; using it
-   for Jira ↔ dev@ links would need its own precision check. Not proposed
-   in this revision.
-7. **The assignee's place**: line 2 between the author line and the starter
-   (recommended), or corroborating evidence only (shown as "also assigned"
-   and never a line of its own).
+1. **The owner's own `declared` entry**: the public evidence URL (the TODO
+   in resolution 2). Low priority: KIP-1371 already reaches
+   `github:unknowntpo` through its assignee (W111).
+2. **Decision 8** (terms and privacy) before Prod, now also covering author
+   names read from KIP pages and KIP issues' assignee keys.
 
 ## Test plan
 
