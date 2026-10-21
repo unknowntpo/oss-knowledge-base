@@ -1,6 +1,6 @@
 # Spec 026: Account-wide cost guard and circuit breaker
 
-Status: Draft (owner decisions 2026-10-20; implemented behind `COST_GUARD`, unset in every environment; no web change)
+Status: Implemented (#105, 2026-10-20; owner decisions 2026-10-20; no web change); rollout step 1 (Dev monitor: `COST_GUARD=monitor`, `COST_GUARD_STATE`, migration `v5`, `CF_ACCOUNT_ID`) in the Dev monitor enable PR, 2026-10-21; CG19 waits for the first successful check; `COST_GUARD` unset on Prod
 Date: 2026-10-20
 Traceability: enforced
 Builds on: Spec 008 (R2 operations), Spec 010, 021 (a paused publication shows as a stall), Spec 014 (digest neuron ledger), Spec 016 (embedding ledger, query gate), Spec 018 (daily publication)
