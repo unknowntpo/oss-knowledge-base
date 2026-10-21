@@ -146,8 +146,9 @@ the two `viewer/` items below.
 - **Why:** every run (one a day since Spec 018, plus follow-ups and manual
   runs) adds a release and new pool objects; nothing is
   deleted, so storage and list cost grow without bound.
-- **Fix:** own spec: keep the last N releases plus anything reachable from
-  them; mark-and-sweep with a dry-run report first.
+- **Fix:** [Spec 029](specs/029-r2-retention/spec.md) (draft, 2026-10-21)
+  covers the Feed and Search releases, their evidence and both detail pools;
+  the prefixes under **Also** and the digest's per-release objects stay here.
 - **Also:** Spec 015 adds `public/review-queue/v1/<projectId>/<sha256>.json`
   (one object per changed hourly run) and `internal/rosters/v1/`; keep the
   objects `current.json` points to and the last few.
