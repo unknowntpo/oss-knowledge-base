@@ -1,6 +1,6 @@
 # Spec 019: Contributor profile
 
-Status: Partially implemented (accepted 2026-10-14, all nine owner decisions recorded; amended 2026-10-15): slice 1 is Spec 022; slices 2a, 2b, 3 and amendments (4) and (5) implemented (#74–#78, #81) and on Dev only (`PEOPLE_PROFILES=true`, `PEOPLE_ACTIVITY=log@1`), off on Prod; slices 4–7 not implemented
+Status: Partially implemented (accepted 2026-10-14, all nine owner decisions recorded; amended 2026-10-15): slice 1 is Spec 022; slices 2a, 2b, 3 and amendments (4) and (5) implemented (#74–#78, #81) and on Dev (`PEOPLE_PROFILES=true`, `PEOPLE_ACTIVITY=log@1`); on Prod the activity log (`PEOPLE_ACTIVITY=log@1`) and Spec 022's reviews are recorded from `v0.3.2` (owner, 2026-10-21; set on `main`, off on Prod until that tag deploys) while profiles stay off (`PEOPLE_PROFILES` unset) until a later tag ([amendment (6)](#amendment-2026-10-21-6-prod-in-two-releases)); slices 4–7 not implemented
 Date: 2026-10-13 (decisions recorded 2026-10-14; amendment and decision 10 2026-10-15)
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 008 (content-addressed objects), Spec 009 (bounded memory), Spec 012 (dev@ and Jira), Spec 014 (digest profiles), Spec 015 (governance profile and ASF roster), Spec 016/017 (search, "exact matches first"), Spec 018 (daily publication)
@@ -1311,6 +1311,31 @@ received bar of 2026-08 (30) sets the scale (step 10, 30 below, 20 above).
 `mail:andrew schofield`, 12 months: 2025-11 to 2026-08 one hatched band,
 2026-09 19 messages, 2026-10 4. The chart's case file uses these counts
 (numbers only, no identity) as its `dev-shaped` rows.
+
+## Amendment 2026-10-21 (6): Prod in two releases
+
+Owner decision 2026-10-21: ship contributor profiles to Prod, in this order:
+Prod records reviews (Spec 022) and the activity log, enough history exists,
+then `PEOPLE_PROFILES=true` on Prod Pages. A Prod configuration deploys only
+with a `v*` tag, so this takes two tags:
+
+| Tag | Prod data Worker | Prod Pages |
+| --- | --- | --- |
+| `v0.3.2` | `GITHUB_REVIEWS=metadata@2`, `PEOPLE_ACTIVITY=log@1`; the 12-month review backfill by hand after the deploy | unchanged: `PEOPLE_PROFILES` unset, `/api/people` 404, nothing links (W25, W28, W42, W53 hold on Prod) |
+| the next tag, after the backfill and one more daily run | unchanged | `PEOPLE_PROFILES=true`; changes the Prod side of W25, W28, W42 and W53 and decision 3 (P-g) |
+
+History: reviews reach 12 months back by the backfill (Spec 022 Behavior
+13). The activity log has no backfill: its first append records the 35 days
+the publication state holds (amendment (2)), and grows a day at a time. Prod's
+state starts 2026-09-19 10:19 UTC (its first 30-day window), so the first
+Prod append must come after 2026-10-24 10:19 UTC, or its coverage line
+claims days Prod never read.
+
+Open for the owner before `v0.3.2`: decision 8 (terms check before anything
+goes beyond Dev) is not recorded as done. Storing review and activity rows in
+the Prod bucket is beyond Dev even while no page shows them, so either the
+check is recorded or the decision is narrowed to the public page. Before the
+profile tag, decision 3 (Dev only) is revised as well.
 
 ## Slices
 

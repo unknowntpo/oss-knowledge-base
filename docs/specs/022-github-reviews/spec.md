@@ -1,6 +1,6 @@
 # Spec 022: GitHub pull-request reviews
 
-Status: Implemented (slice 1 #70, slice 2 backfill #72, amendment `metadata@2` #78–#80; decisions 3 and 5 of 2026-10-14); `GITHUB_REVIEWS=metadata@2` on Dev (#71, #79), unset on Prod; the refresh is run by hand after deploy (operator sequence below)
+Status: Implemented (slice 1 #70, slice 2 backfill #72, amendment `metadata@2` #78–#80; decisions 3 and 5 of 2026-10-14); `GITHUB_REVIEWS=metadata@2` on Dev (#71, #79); on Prod from `v0.3.2` (owner, 2026-10-21; set on `main`, unset on Prod until that tag deploys), with the 12-month backfill run by hand after the deploy ([Enabling on Prod](#enabling-on-prod-v032)); the refresh is run by hand after deploy (operator sequence below)
 Date: 2026-10-14
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 009 (bounded memory), Spec 015 (review queue, ADR-0016), Spec 018 (daily publication), Spec 019 (contributor profile, decision 7)
@@ -10,7 +10,8 @@ Builds on: Spec 004 (GitHub connector), Spec 009 (bounded memory), Spec 015 (rev
 > This spec is that ingestion. The code merged switched off: with
 > `GITHUB_REVIEWS` unset the Worker sends no extra request and `/health` is
 > byte-identical. On 2026-10-14 the owner decided to enable it on Dev
-> (decision 3); Prod stays off. The five choices listed in
+> (decision 3); Prod stays off. On 2026-10-21 the owner decided to record
+> reviews on Prod from `v0.3.2` ([Enabling on Prod](#enabling-on-prod-v032)). The five choices listed in
 > [Decisions needed from owner](#decisions-needed-from-owner) were all
 > decided by the owner on 2026-10-14 (decision 5: a 12-month backfill).
 
@@ -808,7 +809,7 @@ set wrongly.
 | RV15 | The cursor write fails after the month write | The next run adds nothing, writes no month, moves the cursor |
 | RV16 | Another run writes the month in between | `conflict`; the other run's object stays; the cursor stays |
 | RV22 | The busiest measured day; 700 pull requests | 3 listing pages and 7 GraphQL requests; 500 read, 6 keyed pages and 20 GraphQL requests |
-| RV26 | Both Wrangler files; a Dev tick on an empty bucket | Dev `metadata@1`, Prod unset; each project lists from one day back |
+| RV26 | Both Wrangler files; a Dev tick on an empty bucket | Dev `metadata@2`, Prod `metadata@2` (from `v0.3.2`); each project lists from one day back |
 | RV27 | The backfill route: wrong token, flag unset, `from` missing, malformed or too old, a dry call, a real call | 401, 403, 400 with nothing sent, 200 writing nothing, 200 with both projects done |
 | RV28 | Six months of history after a first day, cap 5 | Four calls read 5, 6, 6 and 3 pull requests; reviews before `from` and at or after `until` are not stored; `coverageFrom` moves to `from`, `updatedAt` does not |
 | RV29 | A daily run between backfill calls and after the last | It lists from its own cursor, does not touch the progress, keeps `coverageFrom` |
@@ -852,7 +853,7 @@ Each item: precondition → action → observable result → evidence.
 - RV28: given a daily cursor and history since `from`, each backfill call lists from its own cursor (the first from `from`), reads at most the cap's worth of pull requests, and stores only reviews submitted in [`from`, `until`) with `until` the daily `coverageFrom` at the start; a review before `from` is not stored; a May review on a pull request updated again today is; when the listing reaches the present the daily `coverageFrom` becomes `from`, its `updatedAt` is unchanged, and the progress is complete; a further call sends nothing to GitHub → case rows and run test.
 - RV29: given a backfill in progress or finished, the daily run lists from its own cursor minus 300 s, never reads or writes the backfill progress, and keeps the `coverageFrom` the backfill set → run test.
 - RV30: given an item updated between two listing pages of a backfill call, no item is skipped: each request is `page=1` with `since` one second before the last item received, and a page entirely inside that second moves to the next page instead → case rows and run test.
-- RV26: given the Dev configuration, `GITHUB_REVIEWS` is `metadata@2` (`metadata@1` until the enable PR of the 2026-10-15 amendment) and the Prod configuration has no `GITHUB_REVIEWS`; given Dev's value and an empty bucket, a publication tick schedules the same publication and each project's run lists from one day before the tick and writes only its first cursor and the run record → Worker test reading both Wrangler files.
+- RV26: given the Dev configuration, `GITHUB_REVIEWS` is `metadata@2` (`metadata@1` until the enable PR of the 2026-10-15 amendment) and the Prod configuration has `metadata@2` (none until the Prod enable PR of 2026-10-21, deployed by `v0.3.2`); given Dev's value and an empty bucket, a publication tick schedules the same publication and each project's run lists from one day before the tick and writes only its first cursor and the run record → Worker test reading both Wrangler files.
 
 ### Failure and retry
 - RV41: given the flag at `metadata@1`, a refresh call is a `config` failure that sends nothing to GitHub; without a daily cursor the project fails as `config` with nothing read; a dry call reads the bucket and GitHub (the pull requests it would fill) and writes nothing, not even its record; a month written by another run between the refresh's read and write is a `conflict` and the next call completes it; a pull request GitHub no longer resolves is stored as `{"labels":[]}` and counted in `droppedPulls`, so the refresh ends → run tests.
@@ -943,7 +944,26 @@ and 9 R2 requests a day, one `/health` field. Nothing in the publication.
 9. To turn off: remove the variable. The stored objects stay and are not
    read by anything.
 
-Prod stays off: `GITHUB_REVIEWS` is unset on the Prod data Worker (deployed since `v0.3.1`, Spec 018).
+Prod stayed off in `v0.3.1`: `GITHUB_REVIEWS` is unset on the Prod data Worker it deployed (Spec 018).
+
+## Enabling on Prod (`v0.3.2`)
+
+Owner decision 2026-10-21: contributor profiles (Spec 019) go to Prod, with
+the data recorded first. The Prod enable PR sets `"GITHUB_REVIEWS":
+"metadata@2"` in `apps/data-publisher-worker/wrangler.production.jsonc`;
+merged, it changes nothing on Prod, because `deploy-production` runs only on
+a `v*` tag. The tag `v0.3.2` deploys it. Prod starts at `metadata@2`
+directly, so the first run and every backfill call store `pulls` and
+`people` and the refresh of Behavior 15 has nothing to fill. The steps of
+Enabling on Dev apply with the Prod URL, except step 6's conditional write,
+which Dev has proven since 2026-10-14 (checked again on Prod by its second
+run). Steps, timings and stop conditions: runbook, "Contributor data on Prod
+(`v0.3.2`, Specs 022, 019)". The backfill's `from` is 12 months before the
+day it is run (decision 5); its cost is the 12-month row of "Backfill: what
+it covers, and its cost" (about 120 Class A, bound about 300).
+
+Not verified: that the Prod `GITHUB_SOURCE_TOKEN` may use GraphQL (the dry
+run checks it first and writes nothing).
 
 ## Decisions needed from owner
 
@@ -1000,4 +1020,4 @@ Prod stays off: `GITHUB_REVIEWS` is unset on the Prod data Worker (deployed sinc
   store is outside it.
 - Pruning review months (Behavior 14 proposes it; not built).
 - Scheduling the review queue, or changing its read.
-- Prod.
+- Prod, until the owner's decision of 2026-10-21 ([Enabling on Prod](#enabling-on-prod-v032)).

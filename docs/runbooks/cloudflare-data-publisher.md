@@ -40,7 +40,7 @@ below are the record of that release and the procedure for rebuilding Prod.
 | Design system, dark theme (Specs 023, 024) | on | Pages only |
 | Semantic search (Spec 016) | off | needs a Prod index, gateway and backfill, and a Pages binding to the Worker's `SearchQueryGate`, which must exist before the Pages deploy: a second release |
 | Topic digest (Spec 014) | off | no `osskb-digest-prod` gateway; Spec 014 D34 eval thresholds come first |
-| Review ingestion, activity log, contributor profiles (Specs 022, 019) | off | Spec 019 decisions 3 and 8; nothing on Prod reads them |
+| Review ingestion, activity log, contributor profiles (Specs 022, 019) | off in `v0.3.1` | Spec 019 decisions 3 and 8; nothing on Prod reads them. From `v0.3.2` the Worker records reviews and the activity log; profiles stay off: [Contributor data on Prod](#contributor-data-on-prod-v032-specs-022-019) |
 
 Cost with this set: one publication a day (plus up to 5 catch-ups and 3
 retries). Dev's steady run is about 620 Class A and 8,500 Class B; Prod
@@ -344,7 +344,7 @@ curl -sS https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/health | jq 
 | Embedding job | after each publication, and hourly while work is left, Dev | 0 | 2 + shards (about 12) |
 | Digest | once a day on Dev (22:47 UTC), plus manual `POST /digest/run` | 2–4 (one `list`, the pointer, two objects when new) | up to 300 |
 | Review queue | manual `POST /review-queue/run` | 3–4 | 4–5 |
-| GitHub review ingestion (Spec 022) | Dev: each publisher tick (`GITHUB_REVIEWS=metadata@1`); Prod: off | 5 (two month objects, two cursors, the run record); up to 9 | 4; up to 8 |
+| GitHub review ingestion (Spec 022) | Dev: each publisher tick (`GITHUB_REVIEWS=metadata@2`); Prod: each publisher tick from `v0.3.2` (off in `v0.3.1`) | 5 (two month objects, two cursors, the run record); up to 9 | 4; up to 8 |
 | GitHub review backfill (Spec 022, once) | manual `POST /github-reviews/backfill`, about 12 calls | per call: months written (at most 13 per project), progress per project, the record; about 120 in all, bound about 300 | per call: cursor, progress, months read per project; at most about 300 in all |
 | `/health` | per request | 0 | 1; 3 while `GITHUB_REVIEWS` is set (also `githubReviews` and `githubReviewsBackfill`) |
 | Pages `/api/*` | per request | 0 | 2–3; `/api/search` at most 13 on Dev |
@@ -827,7 +827,7 @@ where it is not bound.
 `PEOPLE_ACTIVITY=log@1` makes each publication append the records its state
 holds to `internal/people/v1/<projectId>/` (month objects, their summaries,
 `state.json`) before the state is compacted. On for Dev (`log@1`, the enable
-PR of 2026-10-15); off on Prod. Unset: no R2 request, no `appending-activity` phase, no
+PR of 2026-10-15); on Prod from `v0.3.2` (off in `v0.3.1`; [Contributor data on Prod](#contributor-data-on-prod-v032-specs-022-019)). Unset: no R2 request, no `appending-activity` phase, no
 `lastRun.activity`. Format, identity rules and cost: [Spec 019 amendment
 (2)](../specs/019-contributor-profile/spec.md#amendment-2026-10-15-2-slice-2b-the-activity-log).
 
@@ -903,7 +903,7 @@ coverage 35 days before that run.
 ## GitHub review ingestion (Spec 022)
 
 On for Dev (`GITHUB_REVIEWS=metadata@1` since 2026-10-14, `metadata@2` since 2026-10-15, Spec 022
-decision 3); off on Prod, where the Worker sends no request for it and
+decision 3); on Prod from `v0.3.2` (owner, 2026-10-21; [Contributor data on Prod](#contributor-data-on-prod-v032-specs-022-019)). Off in `v0.3.1`, where the Worker sends no request for it and
 `/health` has no `githubReviews` field. The first Dev tick after the deploy
 reads one day back and stores `coverageFrom` there (RV26). The steps, the
 dry run that checks the token first, and the expected values are in
@@ -1041,3 +1041,97 @@ Avoid 21:55–22:35 UTC (the tick) and 22:45–22:50 UTC (the digest).
   than 30 labels; raise `LABELS_PER_PULL` before going on.
 - To turn off: set the variable back to `metadata@1`. Stored `pulls` and
   `people` stay and are kept by later runs.
+
+## Contributor data on Prod (`v0.3.2`, Specs 022, 019)
+
+Owner decision 2026-10-21: contributor profiles go to Prod in steps. First
+Prod records (this section, tag `v0.3.2`), then the history is backfilled,
+then `PEOPLE_PROFILES=true` on Prod Pages in a later tag. `v0.3.2` sets, in
+`apps/data-publisher-worker/wrangler.production.jsonc`,
+`GITHUB_REVIEWS=metadata@2` and `PEOPLE_ACTIVITY=log@1`; Prod Pages are
+unchanged (`PEOPLE_PROFILES` unset, so `/api/people` stays 404 and nothing
+links, W25). Merging to `main` changes nothing on Prod: `deploy-production`
+in `.github/workflows/ci.yml` runs only on a `v*` tag reachable from `main`.
+
+Prod URL: `https://oss-knowledge-base-data-prod.unknowntpo.workers.dev`
+(below `$PROD`). The bearer token is the Prod `MANUAL_TRIGGER_TOKEN`. Avoid
+21:50–23:05 UTC: Dev publication 22:07, Prod publication 22:37, Dev digest
+22:47, and both review runs share their ticks.
+
+### Before the tag
+
+1. **Not before 2026-10-24 10:20 UTC.** The activity log's first append
+   states coverage from 35 days before it (Spec 019 amendment (2)). Prod's
+   state starts at its first window, 30 days before the first `POST /run`
+   (2026-10-19 10:19 UTC), so 2026-09-19 10:19 UTC. An append before
+   2026-10-24 10:19 UTC would claim up to five days that Prod never read.
+   The first append is the first Prod publication after the deploy (the
+   22:37 tick or a `POST /run`).
+2. Spec 019 decision 8 (terms check before anything goes beyond Dev) is
+   recorded as satisfied for storing review and activity data on Prod, or
+   the owner narrows it to the public page. Until then, do not tag.
+3. Prod `/health`: `lastRun.ok` `true`, `running` `false`, no
+   `githubReviews` and no `lastRun.activity`.
+
+### After `deploy-production` passed (day 0)
+
+1. `/health`: `githubReviews`, `githubReviewsBackfill` and
+   `githubReviewsRefresh` are `null`; still no `lastRun.activity`.
+2. Review dry run, which proves the Prod `GITHUB_SOURCE_TOKEN` may use
+   GraphQL: `POST $PROD/github-reviews/run?dryRun=1`. Expect `ok: true`,
+   `revision: "metadata@2"`, about 4 and 6 requests, `labelsTruncated: 0`.
+   **Stop** (remove `GITHUB_REVIEWS` in a new tag) on `auth` or `schema`.
+3. First real run: `POST $PROD/github-reviews/run`. It writes each
+   project's cursor with `coverageFrom` one day back (RV26).
+4. Second real run, at least 30 minutes later (or the 22:37 tick): a
+   project with new reviews shows `monthsWritten` at least 1 or `changed`
+   above 0, and no `failureKind: conflict`. On `conflict`, stop.
+5. First activity append: the 22:37 tick (or `POST $PROD/run`). Expect
+   `lastRun.ok: true`; `lastRun.activity.ok: true`, `revision: "log@1"`,
+   `monthsRead` = `monthsWritten` (September and October per project),
+   `monthsUnchanged: 0`, `coverageFrom` 35 days before the run, `r2.classA`
+   at most 50 and `durationMs` under 10,000. `lastRun.r2.classA` still
+   equals `copiedObjectCount + 3`: the append's R2 is counted apart. Stop on
+   the conditions of [Enable on Dev](#enable-on-dev-the-enable-pr), step 5.
+
+### Backfill (day 0 or 1, after step 4)
+
+The same route and loop as [Backfill](#backfill-spec-022-behavior-13-decision-5-12-months),
+with `$PROD` and `from` 12 months before the day it is run (on 2026-10-25:
+`from=2025-10-25`). Dry call first, then calls until both projects are
+`done`. Under `metadata@2` each backfill call also stores `pulls` and
+`people`, so no `refresh-areas` is needed. One
+`POST $PROD/github-reviews/refresh-areas?dryRun=1` afterwards confirms it:
+`pullsMissing` 0 and `graphqlRequests` 0 per project.
+
+Expected cost, from Spec 022's 12-month measurement (Dev, 2026-10-14; Prod's
+window is a week later and within a few percent): about 12 to 13 calls of up
+to 70 s (about 15 minutes), about 150 GitHub REST and 400 GraphQL requests
+(bound about 475), R2 about 120 Class A (bound about 300) and at most about
+300 Class B, about 8 MB stored. The GitHub requests use about 3% and 8% of
+one hour's REST and GraphQL budget even if every call falls in one hour.
+
+### Daily cost once on
+
+Reviews: 5 Class A (up to 9) and 4 Class B (up to 8) a tick, about 10 GitHub
+requests. Activity log: 2 × `monthsWritten` + 2 Class A (usually 4 to 6, at
+most 50) and at most 26 Class B a run. `/health` costs 3 more Class B per
+request (`githubReviews`, `githubReviewsBackfill`, `githubReviewsRefresh`).
+Together about 300 to 450 Class A a month on top of Prod's publications,
+against the account's 1 million included. The publication's own
+`lastRun.r2.classA` stays `copiedObjectCount + 3`.
+
+### Day 1: before profiles
+
+The next tick: `githubReviews.projects.*.coverageFrom` equals the backfill's
+`from`; `lastRun.activity.monthsUnchanged` at least 1 and `coverageFrom`
+unchanged. Then the profile tag (`PEOPLE_PROFILES=true` in
+`apps/web/wrangler.production.jsonc`) may be prepared; it also changes the
+Prod side of W25, W28, W42 and W53 and Spec 019 decision 3 (P-g).
+
+### Turn off
+
+Remove `GITHUB_REVIEWS` and `PEOPLE_ACTIVITY` from
+`apps/data-publisher-worker/wrangler.production.jsonc` and tag. Stored
+objects under `internal/github-reviews/v1/` and `internal/people/v1/` stay
+and nothing on Prod reads them while `PEOPLE_PROFILES` is unset.

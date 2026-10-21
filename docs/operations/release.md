@@ -168,7 +168,23 @@ Not tagged yet. Release notes draft (for `gh release create v0.3.2 --repo unknow
 
 ```markdown
 - Workers Logs on the Prod data Worker (100% sampling, 7-day retention) for diagnosing runs from the dashboard.
+- The Prod data Worker records GitHub pull-request reviews (Spec 022, `metadata@2`) and the contributor activity log (Spec 019, `log@1`), with a 12-month review backfill run by hand after the deploy. Contributor profiles stay off on Prod until a later release.
 ```
+
+`v0.3.2` is the first of two releases for contributor profiles on Prod
+(owner, 2026-10-21): it starts recording; `PEOPLE_PROFILES=true` on Prod
+Pages comes in a later tag, after the backfill and one more daily run.
+Before tagging, and the steps after the deploy: [runbook, Contributor data on
+Prod](../runbooks/cloudflare-data-publisher.md#contributor-data-on-prod-v032-specs-022-019).
+In short:
+
+1. Tag no earlier than 2026-10-24 10:20 UTC (the activity log would otherwise
+   claim days Prod never read), outside 21:50–23:05 UTC, and only after Spec
+   019 decision 8 is recorded for storing this data on Prod.
+2. Day 0: review dry run, two real runs, the first activity append at the
+   22:37 UTC tick.
+3. Day 0 or 1: the 12-month review backfill (about 13 calls, 15 minutes).
+4. Day 1: the next tick confirms `coverageFrom`; then the profile tag.
 
 ## Release command
 
