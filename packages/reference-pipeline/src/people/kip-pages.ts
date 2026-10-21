@@ -285,6 +285,11 @@ export interface KipPagesRunDeps {
   readonly delay: (ms: number) => Promise<void>;
   /** Reads and parses, writes nothing. */
   readonly dryRun?: boolean;
+  /**
+   * Epoch ms the run must finish its requests by (the cron path: the scheduled handler's wall-clock
+   * limit). A request that could end after it is not sent; the run fails closed and says so.
+   */
+  readonly deadline?: number;
 }
 
 class RunFailure extends Error {
@@ -402,9 +407,14 @@ export async function runKipPages(deps: KipPagesRunDeps): Promise<KipPagesHealth
   let error: string | undefined;
   const headers = { Accept: "application/json", "User-Agent": SOURCE_USER_AGENT };
   let upstreamCalls = 0;
-  const call = async (url: string): Promise<unknown> => {
+  /** One upstream request, counted under `counter` once it is sent. */
+  const call = async (url: string, counter: "requests" | "jiraRequests"): Promise<unknown> => {
     if (upstreamCalls > 0) await deps.delay(KIP_PAGES_BUDGET.spacingMs);
+    if (deps.deadline !== undefined && deps.now() + KIP_PAGES_BUDGET.timeoutMs > deps.deadline) {
+      throw new RunFailure(`stopped before ${new URL(url).host}: the request could outlast the run's wall-clock limit`);
+    }
     upstreamCalls += 1;
+    counts[counter] += 1;
     let response: Response;
     try {
       response = await deps.fetch(url, { headers, signal: AbortSignal.timeout(KIP_PAGES_BUDGET.timeoutMs) });
@@ -444,8 +454,7 @@ export async function runKipPages(deps: KipPagesRunDeps): Promise<KipPagesHealth
     let url: string | undefined = kipSearchUrl(deps.profile, since);
     while (url !== undefined) {
       if (counts.requests >= KIP_PAGES_BUDGET.cwikiRequests) throw new RunFailure(`the window needs more than ${KIP_PAGES_BUDGET.cwikiRequests} cwiki requests`, "over-budget");
-      counts.requests += 1;
-      const answer = searchPages(await call(url));
+      const answer = searchPages(await call(url, "requests"));
       results.push(...answer.pages);
       counts.pagesRead += answer.pages.length;
       url = answer.next === undefined ? undefined : new URL(answer.next.startsWith("/") ? `${answer.base}${answer.next}` : answer.next).href;
@@ -478,9 +487,8 @@ export async function runKipPages(deps: KipPagesRunDeps): Promise<KipPagesHealth
     }
     const readings = new Map<string, KipIssueV1["assignee"]>();
     for (let offset = 0; offset < toRead.length; offset += KIP_PAGES_BUDGET.jiraKeysPerRequest) {
-      counts.jiraRequests += 1;
       const batch = toRead.slice(offset, offset + KIP_PAGES_BUDGET.jiraKeysPerRequest);
-      const answered = assigneesOf(await call(jiraAssigneeUrl(batch)));
+      const answered = assigneesOf(await call(jiraAssigneeUrl(batch), "jiraRequests"));
       // Only the keys asked for: an issue answered under another key (moved) is not this page's.
       for (const key of batch) if (answered.has(key)) readings.set(key, answered.get(key)!);
     }

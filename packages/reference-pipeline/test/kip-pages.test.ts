@@ -323,6 +323,13 @@ const checks: Record<string, () => Promise<void> | void> = {
     expect(bucket.table()!.pages[0]!.issues).toEqual([{ key: "KAFKA-7000", assignee: { key: "b-key", display: "Person B" }, readAt: "2026-10-21T03:43:00.000Z" }]);
     expect(text).not.toContain("Person A");
   },
+  "W108 a key no longer answered": async () => {
+    const bucket = new MemoryBucket(previous([tablePage(8, 1, ["KAFKA-8000", "KAFKA-8001"], () => ({ key: "a-key", display: "Person A" }))]));
+    const source = upstream([searchAnswer([fakePage(8, 2, jiraHeader("KAFKA-8000", "KAFKA-8001"))])], [jiraAnswer([{ key: "KAFKA-8001", assignee: null }])]);
+    const result = await runKipPages(deps(bucket, source));
+    expect(result.lastRun?.ok).toBe(true);
+    expect(bucket.table()!.pages[0]!.issues).toEqual([{ key: "KAFKA-8001", assignee: null, readAt: "2026-10-21T03:43:00.000Z" }]);
+  },
   "W110 Jira fields kept": async () => {
     const bucket = new MemoryBucket();
     const source = upstream([searchAnswer([recorded(1371)])], [json(jiraFixture.response)]);
@@ -364,6 +371,31 @@ const checks: Record<string, () => Promise<void> | void> = {
     expect(timeout.lastRun?.error).toContain("timed out");
     await failClosed(json("<html>busy</html>"));
     await failClosed(json({ results: "not a list" }));
+  },
+  "W97 a failure status with a well-formed body": async () => {
+    await failClosed(json({ results: [fakePage(1, 2, "<p>Authors: Someone New</p>")], _links: { base: BASE } }, 429));
+    const before = previous([tablePage(1, 1, ["KAFKA-1001"])]);
+    const bucket = new MemoryBucket(before);
+    const source = upstream([searchAnswer([fakePage(1, 2, jiraHeader("KAFKA-1002"))])], [json({ startAt: 0, maxResults: 100, total: 0, issues: [] }, 503)]);
+    const result = await runKipPages(deps(bucket, source));
+    expect(result.lastRun).toMatchObject({ ok: false, status: "failed", jiraRequests: 1 });
+    expect(bucket.puts()).toEqual([`put ${KIP_PAGES_LAST_RUN_KEY}`]);
+    expect(bucket.objects.get(kipAuthorsKey("apache-kafka"))).toBe(JSON.stringify(before[kipAuthorsKey("apache-kafka")]));
+  },
+  "W97 the cron's wall-clock limit": async () => {
+    let clock = WEDNESDAY;
+    const answers = Array.from({ length: 10 }, (_, index) => () => {
+      clock += 85_000;
+      return searchAnswer([fakePage(300 + index, 1, "<p/>")], `/rest/api/content/search?start=${50 * (index + 1)}`);
+    });
+    const bucket = new MemoryBucket();
+    const source = upstream(answers);
+    const result = await runKipPages(deps(bucket, source, WEDNESDAY, { now: () => clock, deadline: WEDNESDAY + 14 * 60_000 }));
+    expect(source.requests.length).toBe(9);
+    expect(result.lastRun).toMatchObject({ ok: false, status: "failed", requests: 9 });
+    expect(result.lastRun?.error).toContain("wall-clock limit");
+    expect(bucket.puts()).toEqual([`put ${KIP_PAGES_LAST_RUN_KEY}`]);
+    expect(bucket.health().lastRun?.ok).toBe(false);
   },
   "W97 over budget": async () => {
     const before = previous([tablePage(1, 1, [])]);

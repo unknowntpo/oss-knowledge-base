@@ -1,5 +1,5 @@
 {
- "recorded": "2026-10-21, anonymous GET https://cwiki.apache.org/confluence/rest/api/content/search, expand=body.view,version, limit=50; three CQL title~ queries for the KIPs named in the case rows. Each body.view is cut after the first heading that follows the Status heading (or after the first heading when there is none): everything the parser reads.",
+ "recorded": "2026-10-21, anonymous GET https://cwiki.apache.org/confluence/rest/api/content/search, expand=body.view,version, limit=50; three CQL title~ queries for the KIPs named in the case rows. The two email addresses in author lines (KIP-1183, KIP-1300) are replaced by someone@example.org, keeping their markup. Each body.view is cut after the first heading that follows the Status heading (or after the first heading when there is none): everything the parser reads.",
  "responses": [
   {
    "results": [
@@ -402,7 +402,7 @@
      },
      "body": {
       "view": {
-       "value": "<p><div class=\"toc-macro client-side-toc-macro conf-macro output-block\" data-headerelements=\"H1,H2,H3,H4,H5,H6,H7\" data-hasbody=\"false\" data-macro-name=\"toc\"></div></p><h1 id=\"KIP1183:UnifiedSharedStorage-Status\">Status</h1><p><strong>Current state</strong>:<span> </span><em>&quot;Under Discussion&quot;</em></p><p><strong>Discussion thread</strong>: <a class=\"external-link\" href=\"https://lists.apache.org/thread/k9ydcdyxdyfgoy73cgsgs8w46yhpxrw2\" rel=\"nofollow\">https://lists.apache.org/thread/k9ydcdyxdyfgoy73cgsgs8w46yhpxrw2</a></p><p><strong>JIRA</strong>:<span> </span></p><p><span><strong>Authors</strong>: xinyu&lt;xinyuzhou@<a class=\"external-link\" href=\"http://automq.com\" rel=\"nofollow\">automq.com</a>&gt;</span></p><p>Please keep the discussion on the mailing list rather than commenting on the wiki (wiki discussions get unwieldy fast).</p><h1 class=\"heading-1 ace-line old-record-id-T1EndNS1QoPTOMxC9SUcgVEWn1b\" id=\"KIP1183:UnifiedSharedStorage-Motivation\">Motivation</h1> [trimmed by the recording]",
+       "value": "<p><div class=\"toc-macro client-side-toc-macro conf-macro output-block\" data-headerelements=\"H1,H2,H3,H4,H5,H6,H7\" data-hasbody=\"false\" data-macro-name=\"toc\"></div></p><h1 id=\"KIP1183:UnifiedSharedStorage-Status\">Status</h1><p><strong>Current state</strong>:<span> </span><em>&quot;Under Discussion&quot;</em></p><p><strong>Discussion thread</strong>: <a class=\"external-link\" href=\"https://lists.apache.org/thread/k9ydcdyxdyfgoy73cgsgs8w46yhpxrw2\" rel=\"nofollow\">https://lists.apache.org/thread/k9ydcdyxdyfgoy73cgsgs8w46yhpxrw2</a></p><p><strong>JIRA</strong>:<span> </span></p><p><span><strong>Authors</strong>: xinyu&lt;someone@<a class=\"external-link\" href=\"http://example.org\" rel=\"nofollow\">example.org</a>&gt;</span></p><p>Please keep the discussion on the mailing list rather than commenting on the wiki (wiki discussions get unwieldy fast).</p><h1 class=\"heading-1 ace-line old-record-id-T1EndNS1QoPTOMxC9SUcgVEWn1b\" id=\"KIP1183:UnifiedSharedStorage-Motivation\">Motivation</h1> [trimmed by the recording]",
        "representation": "view"
       }
      }
@@ -451,7 +451,7 @@
      },
      "body": {
       "view": {
-       "value": "<p><strong>Status:</strong> <span class=\"inline-comment-marker\" data-ref=\"f4d94919-6afb-4b5e-9785-1d8a5e05c01f\">Draft</span></p><p><strong>Author:</strong> Viquar Khan (Vaquar.khan@gmail.com)</p><p><strong>Discussion thread:</strong> TBD</p><p>Jira:</p><p><br/></p><h2 data-path-to-node=\"2\" id=\"KIP1300:AutomatedContributionQualityandAIGeneratedPullRequestValidation-Motivation\">Motivation</h2> [trimmed by the recording]",
+       "value": "<p><strong>Status:</strong> <span class=\"inline-comment-marker\" data-ref=\"f4d94919-6afb-4b5e-9785-1d8a5e05c01f\">Draft</span></p><p><strong>Author:</strong> Viquar Khan (someone@example.org)</p><p><strong>Discussion thread:</strong> TBD</p><p>Jira:</p><p><br/></p><h2 data-path-to-node=\"2\" id=\"KIP1300:AutomatedContributionQualityandAIGeneratedPullRequestValidation-Motivation\">Motivation</h2> [trimmed by the recording]",
        "representation": "view"
       }
      }

@@ -31,7 +31,14 @@ export function kipPagesSet(env: Pick<KipPagesEnv, "KIP_PAGES">): boolean {
   return (env.KIP_PAGES?.trim() ?? "") !== "";
 }
 
-export function kipPagesRun(env: KipPagesEnv, dryRun: boolean): Promise<KipPagesHealthV1> {
+/**
+ * The scheduled handler may run 15 minutes; the worst case of a run is 13 requests of 90 s plus
+ * 12 pauses of 2 s, about 19.9 minutes. The cron path stops before a request that could end after
+ * 14 minutes, leaving time to write `last-run.json`. `POST /kip-pages/run` has no such limit.
+ */
+export const KIP_PAGES_CRON_WALL_MS = 14 * 60_000;
+
+export function kipPagesRun(env: KipPagesEnv, dryRun: boolean, deadline?: number): Promise<KipPagesHealthV1> {
   return runKipPages({
     flag: env.KIP_PAGES ?? "",
     profile: KAFKA_KIP_PAGES,
@@ -40,6 +47,7 @@ export function kipPagesRun(env: KipPagesEnv, dryRun: boolean): Promise<KipPages
     now: () => Date.now(),
     delay: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
     dryRun,
+    ...(deadline === undefined ? {} : { deadline }),
   });
 }
 

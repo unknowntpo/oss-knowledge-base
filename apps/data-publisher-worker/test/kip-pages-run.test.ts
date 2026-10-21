@@ -155,6 +155,20 @@ describe("Spec 019 amendment (7) slice B: the kip-pages job in the publisher Wor
     await check();
   });
 
+  test("W100: with IDENTITY_LINKS also set, /health carries both records, neither hiding the other", async () => {
+    const both = environment({ flag: "authors@1" });
+    const env = { ...both.env, IDENTITY_LINKS: "corroborated@1" };
+    const body = await (await worker.fetch(new Request("https://data.example/health"), env as never)).json() as Record<string, unknown>;
+    expect(body.kipPages).toEqual({ revision: "authors@1", lastRun: null, lastGoodAt: null, coverageFrom: null });
+    expect("identityLinks" in body && body.identityLinks === null).toBe(true);
+    // Each alone: only its own field.
+    const kipOnly = await (await both.request("/health")).json() as Record<string, unknown>;
+    expect(["kipPages" in kipOnly, "identityLinks" in kipOnly]).toEqual([true, false]);
+    const linksOnly = environment();
+    const linksBody = await (await worker.fetch(new Request("https://data.example/health"), { ...linksOnly.env, IDENTITY_LINKS: "corroborated@1" } as never)).json() as Record<string, unknown>;
+    expect(["kipPages" in linksBody, "identityLinks" in linksBody]).toEqual([false, true]);
+  });
+
   test("W99: both Worker configurations leave KIP_PAGES, KIP_PAGES_CRON and the 03:43 cron entry unset", async () => {
     for (const name of ["development", "production"]) {
       const text = await Bun.file(new URL(`../wrangler.${name}.jsonc`, import.meta.url)).text();
