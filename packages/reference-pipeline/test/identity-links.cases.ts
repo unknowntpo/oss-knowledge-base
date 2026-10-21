@@ -49,6 +49,6 @@ export const testPlanRows = [
   { id: "W83", case: "rows written before the flag", data: "constructed", input: "month with dev@ rows and no opens field", expected: "no starter from them; note states the start" },
   { id: "W84", case: "issue reassigned", data: "constructed", input: "KAFKA-n assignee A in 2026-09, B in 2026-10", expected: "paired with B only, counted once" },
   { id: "W85", case: "job off", data: "constructed", input: "IDENTITY_LINKS unset", expected: "cron no-op, route 404, no R2 call, no /health field" },
-  { id: "W87", case: "profile reads", data: "constructed", input: "cold, then within 10 min", expected: "at most 27 reads, then 0" },
-  { id: "W91", case: "health shape", data: "constructed", input: "a finished run", expected: "identityLinks {revision, lastRun {ok, status, at, durationMs, inputs, links, rejected, people, kipStarters, r2}, lastGoodAt}" },
+  { id: "W87", case: "profile reads", data: "constructed", input: "cold, then within 10 min", expected: "at most 28 reads (links.json and authors.json), then 0" },
+  { id: "W91", case: "health shape", data: "constructed", input: "a finished run", expected: "identityLinks {revision, lastRun {ok, status, at, durationMs, inputs (with committersAt), links, rejected, people, kipStarters, r2}, lastGoodAt}" },
 ];
