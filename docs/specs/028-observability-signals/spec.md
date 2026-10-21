@@ -1,6 +1,6 @@
 # Spec 028: Observability signals (metrics first)
 
-Status: Draft (owner intent 2026-10-21: metrics → structured logs → traces; spec only, nothing implemented)
+Status: Draft (owner intent 2026-10-21: metrics → structured logs → traces; D1 decided 2026-10-21: metrics in Workers Analytics Engine; spec only, nothing implemented)
 Date: 2026-10-21
 Traceability: enforced
 Builds on: Spec 010, 011, 018, 021 (freshness and stalls), Spec 008 and 018 (R2 Class A invariant), Spec 014 (digest), Spec 026 (cost guard), Spec 027 (read-only SRE agent, PR #106, not merged)
@@ -16,9 +16,9 @@ by fixed rules over recorded numbers, not by a model. Owner intent
    traces, one layer per slice.
 2. **Traces are costly**: the last layer, sampled, and only after an explicit
    owner decision. Not enabled by this spec's first slice.
-3. **One correlation key on every signal**: a metric record, a log line and
-   (later) a span of the same run carry the same `runId`; Cloudflare's own
-   invocation id is added where the platform provides it.
+3. **One correlation key on every signal**: a metric data point, a log line
+   and (later) a span of the same run carry the same `runId`; Cloudflare's
+   own invocation id is added where the platform provides it.
 4. **Deterministic detection**: rules judge thresholds. A firing rule is what
    later wakes the Spec 027 agent for diagnosis; the agent never detects.
 
@@ -39,21 +39,27 @@ lines are free text with no key that joins them to a run.
   joined to the publication that scheduled it.
 - `wrangler.{development,production}.jsonc` set `observability.enabled: true`,
   `head_sampling_rate: 1` and no `observability.traces`: logs on, traces off.
+- Wrangler in the repository: `^4.125.0` in `apps/data-publisher-worker` and
+  `apps/web`, locked at `4.125.0` (`bun.lock`). The `analytics` binding needs
+  ≥ 4.145.0, so **slice 1 upgrades Wrangler** (Workers Issues, D3, needs
+  ≥ 4.134.0 too).
 
 ### Verified sources (read 2026-10-21)
 
 | Fact | Source | Verified |
 | --- | --- | --- |
-| Workers Traces: `observability.traces.enabled`, `head_sampling_rate` (default 1); automatic spans for fetch, binding calls (KV, R2, Durable Objects), RPC and handlers (fetch, scheduled, queue); 7-day retention; early beta; `observability.enabled` alone turns on logs only | [Traces](https://developers.cloudflare.com/workers/observability/traces/) | documented |
-| Custom spans: `import { tracing } from "cloudflare:workers"` (also `ctx.tracing`), `enterSpan(name, cb, ...args)`, `startActiveSpan`, `startSpan`, `getActiveSpan` | [Custom spans](https://developers.cloudflare.com/workers/observability/traces/custom-spans/) | documented (on the subpage, not the main Traces page) |
-| Span attributes: `faas.invocation_id` on every span; `cloudflare.ray_id` on root spans; `faas.cron`, `cloudflare.scheduled_time` on scheduled handlers | [Spans and attributes](https://developers.cloudflare.com/workers/observability/traces/spans-and-attributes/) | documented |
-| Workers Logs: `console.log` of an object is indexed by field (filterable keys); Paid 20 million events a month, $0.60 per million beyond, 7-day retention, until 2026-12-01, then Cloudflare Observability pricing. The page names no per-event request or invocation id field (`$workers.requestId` is **not** on that page) | [Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/) | documented; invocation-id field name unverified (OB19) |
-| From 2026-12-01, Paid: 50 GB ingestion and 10 GB-month storage per billing cycle included, $0.25 per GB ingestion and $0.10 per GB-month beyond; logs and traces share the allowance; Free: 0.5 GB a day | [Observability pricing](https://developers.cloudflare.com/observability/pricing/) | documented |
-| OTLP export: `observability.traces` / `.logs` take `destinations` and `persist` (default `true`; `false` exports without storing at Cloudflare). Workers infrastructure metrics and custom metrics cannot be exported through OpenTelemetry; only traces and logs | [OpenTelemetry export](https://developers.cloudflare.com/workers/observability/opentelemetry-export/) | documented; that Analytics Engine counts as "custom metrics" is an inference (the page does not name it) |
-| Workers Issues: groups occurrences of one Worker's failures (uncaught exception, failed invocation, 5xx, logged error) into issues; per-issue automations to a coding agent, webhook, chat or incident tool; `observability.issues.enabled: true` (Wrangler ≥ 4.134.0); open beta, free; no history before enabling | [Workers Issues](https://developers.cloudflare.com/workers/observability/issues/) | documented |
-| Workers Analytics Engine (WAE): Paid includes 10 million data points written and 1 million read queries a month, then $0.25 per million writes and $1.00 per million reads; **not billed yet**; Free 100,000 writes and 10,000 reads a day | [WAE pricing](https://developers.cloudflare.com/analytics/analytics-engine/pricing/) | documented |
-| WAE limits: 20 blobs, 20 doubles, 1 index (≤ 96 bytes) per point; 16 KB of blobs; 250 points per invocation; 3-month retention; adaptive sampling at write and read (`_sample_interval`; use `sum(_sample_interval)` instead of `count()`) | [Limits](https://developers.cloudflare.com/analytics/analytics-engine/limits/), [Sampling](https://developers.cloudflare.com/analytics/analytics-engine/sampling/) | documented |
-| WAE API: binding `analytics_engine_datasets: [{binding, dataset}]`; `writeDataPoint({blobs, doubles, indexes})` returns immediately (written in the background); SQL at `POST /client/v4/accounts/{account_id}/analytics_engine/sql` with a token holding Account Analytics Read (the same permission as Spec 026's `CF_ANALYTICS_TOKEN`) | [Get started](https://developers.cloudflare.com/analytics/analytics-engine/get-started/), [SQL API](https://developers.cloudflare.com/analytics/analytics-engine/sql-api/) | documented; query limits not documented |
+| Workers Analytics Engine (WAE) pricing: Paid includes 10 million data points written and 1 million read queries a month, then $0.25 per million writes and $1.00 per million reads; **not billed yet**; Free 100,000 writes and 10,000 reads a day | [WAE pricing](https://developers.cloudflare.com/analytics/analytics-engine/pricing/) | documented |
+| WAE limits: 20 blobs, 20 doubles, 1 index (≤ 96 bytes) per point; 16 KB of blobs; 250 points per invocation; **3-month retention**; adaptive sampling at write and read (`_sample_interval`) | [Limits](https://developers.cloudflare.com/analytics/analytics-engine/limits/), [Sampling](https://developers.cloudflare.com/analytics/analytics-engine/sampling/) | documented |
+| WAE write: binding `analytics_engine_datasets: [{binding, dataset}]`; `writeDataPoint({blobs, doubles, indexes})` returns immediately (written in the background); exactly one index | [Get started](https://developers.cloudflare.com/analytics/analytics-engine/get-started/) | documented |
+| Analytics SQL Workers binding: `"analytics": {"binding": "ANALYTICS_SQL"}`, Wrangler ≥ 4.145.0; `env.ANALYTICS_SQL.query({query, params})` → `{data, rows, statistics {elapsed_ms, rows_read, bytes_read}}`; one `SELECT`; time filters in SQL; no `FORMAT`, no `accountTag` predicate (the binding scopes the account); **no API token**; no automatic retry, a thrown error has `retryable`; WAE tables as `events.analyticsEngine."<dataset>"`; Log Explorer-backed datasets not supported | [Workers binding](https://developers.cloudflare.com/analytics/sql-api/workers-binding/) | documented; beta status, limits and pricing not stated on the page |
+| SQL API: beta since 2026-10-02, one endpoint for event, state, log (Workers Logs) and WAE datasets, Workers binding without a token, available on all plans, "powers Monitors"; no pricing stated | [Changelog 2026-10-02](https://developers.cloudflare.com/changelog/post/2026-10-02-sql-api-beta/), [SQL API](https://developers.cloudflare.com/analytics/sql-api/) | documented; limits not documented |
+| Dataset names: Workers Logs `logs.workersLogs` (example columns `timestamp`, `scriptName`, `logType`); WAE `events.analyticsEngine."<dataset>"` (`timestamp`, `index1`, `blob1`, `double1`); full columns and custom attributes (7 days) only through the introspection endpoint | [Datasets](https://developers.cloudflare.com/analytics/sql-api/datasets/) | documented; whether the binding can read `logs.workersLogs` (Log Explorer-backed or not) and the column holding a logged `runId` are **unverified** (OB21) |
+| Monitors: a SQL API query on a schedule (1 min for most datasets) returning one numeric `value`; threshold (`<`…`!=` over a window), anomaly (z-score vs a baseline ≤ 24 h, ≥ 30 min history) or SLO; "a query that returns no rows produces no signal"; delivery by email (≤ 20), webhook, PagerDuty (Business+); repeat interval 1 min–168 h; custom SQL must include an account or zone filter; no documented state or history page | [Monitors](https://developers.cloudflare.com/notifications/monitors/) | documented; pricing and beta status not stated |
+| Workers Logs: `console.log` of an object is indexed by field; Paid 20 million events a month, $0.60 per million beyond, 7-day retention, until 2026-12-01, then Observability pricing. The page names no per-event request or invocation id field (`$workers.requestId` is **not** on that page) | [Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/) | documented; invocation-id field name unverified (OB19) |
+| From 2026-12-01, Paid: 50 GB ingestion and 10 GB-month storage per billing cycle included, $0.25 per GB and $0.10 per GB-month beyond; logs and traces share the allowance | [Observability pricing](https://developers.cloudflare.com/observability/pricing/) | documented |
+| Workers Traces: `observability.traces.enabled`, `head_sampling_rate` (default 1); automatic spans for fetch, bindings (KV, R2, Durable Objects), RPC and handlers; 7-day retention; early beta. Custom spans: `tracing.enterSpan` from `cloudflare:workers`. Span attributes: `faas.invocation_id` on every span, `cloudflare.ray_id` on root spans | [Traces](https://developers.cloudflare.com/workers/observability/traces/), [Custom spans](https://developers.cloudflare.com/workers/observability/traces/custom-spans/), [Spans and attributes](https://developers.cloudflare.com/workers/observability/traces/spans-and-attributes/) | documented |
+| OTLP export: `destinations`, `persist` (default `true`); Workers infrastructure and custom metrics cannot be exported through OpenTelemetry | [OpenTelemetry export](https://developers.cloudflare.com/workers/observability/opentelemetry-export/) | documented; WAE counted as "custom metrics" is an inference |
+| Workers Issues: groups one Worker's failures (uncaught exception, failed invocation, 5xx, logged error); automations to an agent, webhook, chat or incident tool; `observability.issues.enabled` (Wrangler ≥ 4.134.0); open beta, free | [Workers Issues](https://developers.cloudflare.com/workers/observability/issues/) | documented |
 
 ## Example
 
@@ -64,138 +70,184 @@ Dev `/health`, read 2026-10-20 23:45 UTC (public, unauthenticated `GET`):
   "lastRun": { "ok": true, "completedAt": "2026-10-20T22:07:19.086Z",
     "pollTruncated": false, "copiedObjectCount": 821, "reusedObjectCount": 7854,
     "r2": { "classA": 824, "classB": 8678 },
-    "sources": { "github": { "ok": true }, "mail": { "ok": true }, "jira": { "ok": true } } },
+    "sources": { "github": { "ok": true, "lastSuccessAt": "2026-10-20T22:07:19.086Z" },
+                 "mail": { "ok": true }, "jira": { "ok": true } } },
   "digest": { "enabled": true,
     "lastRun": { "ok": true, "completedAt": "2026-10-20T22:49:08.123Z",
       "candidates": 449, "rejections": { "unparsable": 4, "empty": 1 } } } }
 ```
 
-The slice 1 record this run would have stored (`runId` new; every other value
-copied from `lastRun`):
+The data point this run would have written to `osskb_signals_dev` (`runId`
+new; every other value copied from `lastRun`):
 
-```json
-{ "runId": "pub-2026-10-20T22-07-00-000Z", "kind": "publication",
-  "completedAt": "2026-10-20T22:07:19.086Z", "ok": true,
-  "sources": { "github": true, "mail": true, "jira": true },
-  "pollTruncated": false, "classA": 824, "copiedObjectCount": 821 }
+```text
+indexes: ["pub-2026-10-20T22-07-00-000Z"]
+blobs:   ["publication", "development", ""]                 // kind, env, sourceRunId
+doubles: [1, 1, 1, 1, 0, 824, 821, 0, 1792534039086]         // ok, github, mail, jira, pollTruncated, classA, copiedObjectCount, rejections, completedAtMs
 ```
 
-Rules evaluated at 2026-10-20 23:45 UTC with that record (plus a digest
-record with 5 rejections and earlier days' records alike):
+Rules at 2026-10-20 23:45 UTC (`state` = the Durable Object's current
+status, read on every `/health`; `analytics` = WAE history, evaluated at the
+end of each run):
 
-| Rule | Value | Threshold | Status |
-| --- | --- | --- | --- |
-| `publication.freshness` | 1 h 38 min since `completedAt` | warn > 24.5 h, firing > 27 h | ok |
-| `source.success` (github, mail, jira) | all `ok` | firing after 2 consecutive UTC days failed | ok |
-| `publication.pollTruncated` | false | firing when true for > 48 h | ok |
-| `r2.classAInvariant` | 824 ≤ 821 + 3 | firing when `classA > copiedObjectCount + 3` | ok |
-| `digest.freshness` | 56 min | firing > 48 h | ok |
-| `digest.rejections` | 5 | firing when ≥ 10 and > 3 × median of the previous 7 | ok |
+| Rule | Source | Value | Threshold | Status |
+| --- | --- | --- | --- | --- |
+| `publication.freshness` | state | 1 h 38 min since the newest `lastSuccessAt` | warn > 24.5 h, firing > 27 h | ok |
+| `r2.classAInvariant` | state | 824 ≤ 821 + 3 | firing when `classA > copiedObjectCount + 3` | ok |
+| `digest.freshness` | state | 56 min | firing > 48 h | ok |
+| `source.success` (github, mail, jira) | analytics | all `ok` | firing after 2 consecutive UTC days failed | ok |
+| `publication.pollTruncated` | analytics | false | firing when true for > 48 h | ok |
+| `digest.rejections` | analytics | 5 | firing when ≥ 10 and > 3 × median of the previous 7 | ok |
 
 Expected `/health.signals`: `{status: "ok", evaluatedAt:
-"2026-10-20T23:45:03Z", rules: [6 entries, all "ok"]}`. The 2026-10-13 hourly
-runs (`classA` ≈ 8,190, `copiedObjectCount` ≈ 35) would make
-`r2.classAInvariant` `firing` with `since` = the first such run's
-`completedAt` and `runId` = the newest offending run.
+"2026-10-20T23:45:03Z", analyticsEvaluatedAt: "2026-10-20T22:49:09Z",
+rules: [6 entries, all "ok"]}`. The 2026-10-13 hourly runs (`classA` ≈ 8,190,
+`copiedObjectCount` ≈ 35) would make `r2.classAInvariant` `firing`.
+
+## Solution space
+
+| Option | Detection | History | Surface | Verdict |
+| --- | --- | --- | --- | --- |
+| A. Rules in the Worker on Durable Object state only | yes | none beyond the current status | `/health` | keeps the stall rule; cannot judge trends |
+| B. A ring of recent records in Durable Object storage (first draft) | yes | 14 runs | `/health` | withdrawn (owner D1, 2026-10-21) |
+| **C. WAE data points + Analytics SQL binding, plus A for current-state rules** | yes | 3 months, SQL | `/health` | **chosen** (D1): history and SQL without a token; the stall rule still runs on state when WAE is down |
+| D. Cloudflare Monitors on the same WAE dataset | threshold, anomaly or SLO on one numeric `value` per evaluation, every ≥ 1 min | WAE | email, webhook, PagerDuty only; no documented state page | not adopted in slice 1 (below) |
+| E. Workers Logs queries only | via the telemetry API (Write-scoped token, Spec 027 Decision 6) | 7 days | none | rejected: logs are for explaining, not judging |
+
+**Monitors (D).** It can express our thresholds (one `value` vs a fixed
+number over a window) and a consecutive-failure rule rewritten as a count
+over a window (for example failed days in the last 2 UTC days ≥ 2). It
+cannot alert on absence as documented: "a query that returns no rows
+produces no signal", so a stall (no new point) only fires if the query is
+written to always return one row (an aggregate without `GROUP BY` returning
+0; an **inference** to test). It delivers only by push (email, webhook,
+PagerDuty), and no page lists monitor state, so it does not meet the owner's
+rule that stalls are visible in the UI. Custom SQL there must carry an
+account filter, while the binding forbids one, so the rules would be written
+twice. Recommendation: keep `/health.signals` as the in-product surface and
+the only detector in slice 1; reconsider Monitors as the agent's wake-up
+path (webhook) under D5, or as an email backup the owner opts into.
 
 ## Simplification review
 
 1. **Question every requirement.**
-   - A run record: needed because two rules (A2, A3) judge history that one
-     `/health` read cannot show. Owner (intent 1).
-   - `runId`: owner (intent 3). No existing id fits: `feedReleaseId` exists
-     only for a successful run, and a publication spans several invocations
-     (follow-ups, alarm retries), so Cloudflare's per-invocation id cannot be
-     the run key; it is added beside it (Behavior 6).
-   - `/health.signals`: the owner reads `/health` (owner rule: no push
-     alerts; the UI shows it) and Spec 027's `get_health` already reads
-     it, so no new route.
+   - A data point per run: two rules (consecutive source failures,
+     `pollTruncated` duration) and the rejection baseline need history that
+     one `/health` read cannot show. Owner (intent 1, D1).
+   - `runId`: owner (intent 3). `feedReleaseId` exists only for a successful
+     run, and a publication spans several invocations (follow-ups, alarm
+     retries), so Cloudflare's per-invocation id cannot be the run key. It is
+     the WAE index, so every point is addressable by it.
+   - Current-state rules stay on Durable Object state: owner (D1 revision),
+     so `/health` still judges a stall when WAE or the binding is unavailable.
+   - `/health.signals`: the owner reads `/health` (no push alerts; the UI
+     shows it) and Spec 027's `get_health` already reads it.
 2. **Delete.**
-   - A5 cost guard %: `costGuard.status` (Spec 026) already applies 60 / 80;
-     a second copy would drift. **Deleted**; the agent reads `costGuard`.
-   - A6 site consistency (Pages `/api/feed` vs `/health`): the Worker cannot
-     see the Pages site; `bun run verify:health` already compares them.
-     **Deferred** to the CI/agent side (non-goal here).
-   - A9 CI on `main`/tag: GitHub, not the Worker; Spec 027's
-     `get_ci_status` covers it. **Deleted** from this spec.
-   - An external metrics store in slice 1: the rules need ≤ 14 records per
-     kind; Durable Object storage already holds run state, needs no binding,
-     no token and no query API. WAE stays an owner decision (D1).
-   - A new cron or route: rules are evaluated when `/health` is read, so a
-     stall (no run at all) still shows.
-   - Push alerts, Workers Issues automations, traces: owner decisions (D2, D3).
-3. **Simplify.** `metricRecord(status)` and `evaluateSignals(records, now)`
-   are pure functions; the Durable Object only appends and trims.
-4. **Shorten the cycle.** Thresholds are one generated case table; tests use
-   recorded `/health` shapes and a fixed clock; no network.
-5. **Automate last.** Waking the agent on `firing` is a Spec 027 amendment,
-   after the rules have run on Dev for a week (Rollout).
+   - The 14-record ring in Durable Object storage: **deleted** (owner D1);
+     the object keeps only the status it already writes, plus the last trend
+     result inside that same write.
+   - SQL on every `/health` read: `/health` is public and unauthenticated, so
+     each read would be a query anyone can trigger. **Deleted**: trend rules
+     are evaluated once at the end of each run and stored with the status.
+   - A5 cost guard %, A6 site consistency, A9 CI status: owned by Spec 026,
+     `bun run verify:health` and Spec 027 `get_ci_status`.
+   - An API token for WAE reads: the binding needs none.
+   - Push alerts, Monitors, Workers Issues automations, traces: owner
+     decisions (D2, D3, D5).
+3. **Simplify.** `metricPoint(status)`, `trendRules(current, history)` and
+   `stateRules(status, trend, now)` are pure functions; the run only writes
+   the point, runs ≤ 3 queries and stores the result.
+4. **Shorten the cycle.** Thresholds are one generated case table; WAE and
+   the SQL binding are faked in tests; no network.
+5. **Automate last.** Waking the agent on `firing` is a Spec 027 amendment
+   (D5), after a week on Dev.
 
 ## Behavior
 
-### Slice 1: metric records, rules, correlation key
+### Slice 1: metrics in WAE, rules, correlation key
 
-1. `OBSERVABILITY_SIGNALS` unset, blank or `off`: no record is written,
-   `/health` has no `signals` key, no log line changes shape. `on` enables
-   Behaviors 2–8. Any other value behaves as off and `/health.signals` is
-   `{status: "unconfigured", reason}`.
+1. `OBSERVABILITY_SIGNALS` unset, blank or `off`: nothing is written or
+   queried, `/health` has no `signals` key, log lines keep today's shape. `on`
+   enables Behaviors 2–9. Any other value behaves as off with
+   `/health.signals` `{status: "unconfigured", reason}`; `on` without the
+   `SIGNALS` (WAE) or `ANALYTICS_SQL` binding runs the state rules and marks
+   the analytics rules `unknown` with a reason naming the missing binding.
 2. Each publication run gets `runId = "pub-" + <startedAt, ISO with ":" and
    "." replaced by "-">` when it starts; follow-up invocations and alarm
    retries of the same run keep it. A digest run gets `"dig-" + …` and
    records `sourceRunId` (the publication whose release it read). `runId`
    appears on `/health` `lastRun.runId` and `digest.lastRun.runId`.
-3. When a run finishes (ok or failed), `metricRecord(status)` builds one
-   record from values already in the run status: publication `{runId, kind,
-   completedAt, ok, sources {key: ok}, pollTruncated, classA,
-   copiedObjectCount}`; digest `{runId, kind, sourceRunId, completedAt, ok,
-   rejections (sum of values)}`. No new measurement is taken.
-4. The owning Durable Object (`PipelineState` for publications, `DigestRun`
-   for digests) appends the record to one storage key and keeps the newest
-   14; one storage write per run, no R2 operation.
-5. Reading `/health` evaluates `evaluateSignals(records, now)` with these
-   rules (thresholds are one const profile in code; changing one is a PR):
+3. When a run finishes (ok or failed), `metricPoint(status)` builds one data
+   point from values already in the run status, with the fixed positional
+   schema of the Example (`indexes: [runId]`; `blobs: [kind, env,
+   sourceRunId]`; `doubles: [ok, github, mail, jira, pollTruncated, classA,
+   copiedObjectCount, rejections, completedAtMs]`, unused slots 0), and calls
+   `env.SIGNALS.writeDataPoint` once per run, not per invocation. Datasets:
+   `osskb_signals_dev` and `osskb_signals_prod` (one account, so one per
+   environment).
+4. Right after the write, `trendRules` reads history through
+   `env.ANALYTICS_SQL.query` with ≤ 3 parameterized `SELECT`s on
+   `events.analyticsEngine."osskb_signals_<env>"`, each bounded by
+   `timestamp` (≤ 8 days back), excluding `index1 = runId` (the point just
+   written may not be readable yet), and combines the history with the
+   current status in memory. The result `{evaluatedAt, rules}` is stored in
+   the status write the run already makes (no extra Durable Object write).
+   `/health` never queries WAE.
+5. Rules (thresholds are one const profile in code; changing one is a PR):
 
-   | Rule | Input | warn | firing |
-   | --- | --- | --- | --- |
-   | `publication.freshness` | now − newest ok publication `completedAt` | > 24.5 h (Spec 021 `OVERDUE_AFTER_MS`) | > 27 h (Spec 010 `STALE_AFTER_MS`) |
-   | `source.success` (per source) | newest `sources[key]` per UTC day | newest run failed | the newest runs on 2 consecutive UTC days failed |
-   | `publication.pollTruncated` | streak of `pollTruncated: true` | newest run true | streak older than 48 h |
-   | `r2.classAInvariant` | newest publication | — | `classA > copiedObjectCount + 3` |
-   | `digest.freshness` (only when the digest is enabled) | now − newest ok digest `completedAt` | — | > 48 h |
-   | `digest.rejections` | newest digest record | — | ≥ 10 and > 3 × median of the previous 7 (needs ≥ 3 previous) |
+   | Rule | Source | Input | warn | firing |
+   | --- | --- | --- | --- | --- |
+   | `publication.freshness` | state, at read time | now − newest `sources[*].lastSuccessAt` (a failed run carries it forward) | > 24.5 h (Spec 021 `OVERDUE_AFTER_MS`) | > 27 h (Spec 010 `STALE_AFTER_MS`) |
+   | `r2.classAInvariant` | state | `lastRun` | — | `classA > copiedObjectCount + 3` |
+   | `digest.freshness` (only when the digest is enabled) | state, at read time | now − `digest.lastRun.completedAt` of the newest ok run | — | > 48 h |
+   | `source.success` (per source) | analytics | newest point per UTC day, plus the current run | current run failed | the newest runs on 2 consecutive UTC days failed |
+   | `publication.pollTruncated` | analytics | streak of `pollTruncated = 1` ending at the current run | current run true | streak older than 48 h |
+   | `digest.rejections` | analytics | current digest run vs the previous 7 digest points | — | ≥ 10 and > 3 × median (needs ≥ 3 previous) |
 
-   Each rule entry is `{id, status: ok|warn|firing|unknown, value,
+   Each rule entry is `{id, source, status: ok|warn|firing|unknown, value,
    threshold, since, runId}`; `since` is when the condition first held,
-   `runId` the newest record that shows it. A rule without enough records is
-   `unknown` (never `firing` on missing data).
-6. `/health.signals` = `{status, evaluatedAt, rules}`; `status` is the worst
-   rule status (`unknown` counts as ok). This is the hand-off contract for
-   Spec 027: the agent reads it through `get_health`; it does not recompute
-   the thresholds.
-7. Every log line emitted in a run's path (`pipeline.ts`, the publication,
+   `runId` the newest run that shows it. Missing data is `unknown`, never
+   `firing`.
+6. A history row with `_sample_interval ≠ 1` makes the rules that read it
+   `unknown` with reason `sampled`: at about one point a day per environment
+   sampling is not expected (an inference, checked by OB19), and an exact
+   rule must not run on a sample.
+7. `/health.signals` = `{status, evaluatedAt, analyticsEvaluatedAt, rules,
+   lastError}`; `status` is the worst rule status (`unknown` counts as ok).
+   This is the hand-off contract for Spec 027: the agent reads it through
+   `get_health` and does not recompute thresholds.
+8. Every log line emitted in a run's path (`pipeline.ts`, the publication,
    follow-up and cost-guard lines of `index.ts`, digest and embedding runners)
    is `console.log|error({message, runId, kind, ...})` (an object, so Workers
-   Logs indexes `runId`); the `message` text is the one logged today and
-   still passes the sanitizer. The platform's own per-invocation metadata on
-   each event is kept as is; its field name is recorded in the feature map
-   once OB19 reads a real Dev event.
-8. No record, rule entry or log field contains a token or a request body.
+   Logs indexes `runId`); `message` is today's text and still passes the
+   sanitizer.
+9. No data point, rule entry, query parameter or log field contains a token
+   or a request body.
+
+### Correlation through one SQL interface
+
+10. The join key is `runId`: WAE `index1`, the log field `runId`, and (slice
+    3) the span attribute `osskb.run_id`. The SQL API exposes both
+    `events.analyticsEngine."osskb_signals_<env>"` and `logs.workersLogs`, so
+    one SQL interface can put a run's metrics beside its log lines. Whether
+    the Workers binding can read `logs.workersLogs`, and which column holds a
+    logged `runId`, are not documented; OB21 checks both on Dev (by the
+    introspection endpoint with `include_custom_attributes=true`). Until then
+    the join is an operator query, not Worker code.
 
 ### Slice 2: structured logs (later)
 
-9. One log schema for the Worker: `{event, level, runId, kind, env, ...}`
-   with a fixed event-name list per phase (start, source read, write, finish,
-   retry, error), so a Workers Logs query by `runId` reconstructs one run.
-   Errors keep going through `console.error`, so Workers Issues (D3) can group
-   them without extra code.
+11. One log schema: `{event, level, runId, kind, env, ...}` with a fixed
+    event-name list per phase (start, source read, write, finish, retry,
+    error), so a query by `runId` reconstructs one run. Errors keep going
+    through `console.error`, so Workers Issues (D3) can group them.
 
 ### Slice 3: traces (later, owner decision D2)
 
-10. Only after D2: `observability.traces.enabled: true` with the sampling
-    rate the owner picks, and custom spans (`tracing.enterSpan`) around the
-    pipeline phases with attribute `osskb.run_id = runId`, so a span joins
-    the metric record and log lines by `runId` and Cloudflare's
-    `faas.invocation_id` joins spans of one invocation.
+12. Only after D2: `observability.traces.enabled: true` at the rate the owner
+    picks, and custom spans (`tracing.enterSpan`) around the pipeline phases
+    with attribute `osskb.run_id = runId`; `faas.invocation_id` joins spans
+    of one invocation.
 
 ## Test plan
 
@@ -222,7 +274,7 @@ over each).
 | OB10 | `digest.rejections` | 9, median 2 | ok |
 | OB10 | `digest.rejections` | 10, median 3 | firing |
 | OB10 | `digest.rejections` | 10, median 4 | ok |
-| OB10 | `digest.rejections` | 40, 2 previous records | unknown |
+| OB10 | `digest.rejections` | 40, 2 previous points | unknown |
 
 ## Acceptance
 
@@ -231,85 +283,110 @@ untagged item is `[pending]` until the slice that implements it removes its
 tag.
 
 ### Behavior
-- OB1: [pending] given `OBSERVABILITY_SIGNALS` unset, blank, `off`, `on` or `yes`, resolving it gives off, off, off, on, invalid; while off a run writes no record, `/health` has no `signals` key and log lines keep today's shape → worker test.
+- OB1: [pending] given `OBSERVABILITY_SIGNALS` unset, blank, `off`, `on` or `yes`, resolving it gives off, off, off, on, invalid; while off a run writes no point, makes no query, `/health` has no `signals` key and log lines keep today's shape → worker test.
 - OB2: [pending] a publication started at 2026-10-20T22:07:00.000Z gets `runId` `pub-2026-10-20T22-07-00-000Z`; its follow-up invocation and an alarm retry keep it; `/health` `lastRun.runId` equals it; a digest run over that release records it as `sourceRunId` → pipeline test.
-- OB3: [pending] given the Example's `lastRun`, `metricRecord` returns exactly the Example record; a failed run yields `ok: false` and the sources' `ok` values → record test.
-- OB4: [pending] given 14 stored records, a 15th run leaves the newest 14, with one storage write and no R2 call → Durable Object test.
-- OB5: [pending] `publication.freshness` gives the statuses of the test-plan rows → case rows.
-- OB6: [pending] `source.success` gives the statuses of the test-plan rows (per UTC day, per source) → case rows.
+- OB3: [pending] given the Example's `lastRun`, `metricPoint` returns exactly the Example's indexes, blobs and doubles, and a run with a follow-up invocation calls `writeDataPoint` once → point test.
+- OB4: [pending] at the end of a run, the fake `ANALYTICS_SQL` receives ≤ 3 `SELECT`s on `events.analyticsEngine."osskb_signals_dev"`, each with a `timestamp` bound ≤ 8 days, the run's `runId` excluded as a parameter, no `accountTag` predicate and no `FORMAT`; the trend result is stored in the run's existing status write (Durable Object write count unchanged) → trend test.
+- OB5: [pending] `publication.freshness` gives the statuses of the test-plan rows from Durable Object state at read time → case rows.
+- OB6: [pending] `source.success` gives the statuses of the test-plan rows from history plus the current run (per UTC day, per source) → case rows.
 - OB7: [pending] `publication.pollTruncated` gives the statuses of the test-plan rows → case rows.
-- OB8: [pending] `r2.classAInvariant` gives the statuses of the test-plan rows; the 2026-10-13 shape (`classA` 8,190, `copiedObjectCount` 35) fires with `since` at the first offending record → case rows.
+- OB8: [pending] `r2.classAInvariant` gives the statuses of the test-plan rows from state; the 2026-10-13 shape (`classA` 8,190, `copiedObjectCount` 35) fires → case rows.
 - OB9: [pending] `digest.freshness` gives the statuses of the test-plan rows and is absent while the digest is disabled → case rows.
 - OB10: [pending] `digest.rejections` gives the statuses of the test-plan rows → case rows.
-- OB11: [pending] `/health.signals` has `{status, evaluatedAt, rules}` with one entry per rule of Behavior 5, `status` the worst entry (`unknown` as ok), for the Example (all ok) and for one firing rule → health test.
+- OB11: [pending] `/health.signals` has `{status, evaluatedAt, analyticsEvaluatedAt, rules, lastError}` with one entry per rule of Behavior 5 and its `source`, `status` the worst entry (`unknown` as ok), for the Example (all ok) and for one firing rule; a `/health` read makes no SQL query → health test.
 - OB12: [pending] every log call in the run path receives an object with `message`, `runId` and `kind`, and `message` equals today's text for the same event → log test.
 
 ### Failure and retry
-- OB13: [pending] given no records (first deploy) every rule is `unknown` and `signals.status` is `ok`; given records but no run for 30 h, `publication.freshness` is `firing` at read time without any run → evaluation test.
-- OB14: [pending] given the record write throwing, the publication still completes and reports ok, and the error is logged with its `runId` → pipeline test.
-- OB15: [pending] given a crash after the run status is written but before the record, the next run's evaluation treats the gap as missing data (no false `firing` from the missing record); given the same record appended twice (retry), it is stored once (keyed by `runId`) → Durable Object test.
-- OB16: [pending] given a token value in an error text, no record, `/health` body or log object contains it → sanitizer test.
+- OB13: [pending] given no history (first deploy) every analytics rule is `unknown` and `signals.status` is `ok`; given no run for 30 h, `publication.freshness` is `firing` at read time without any run or query → evaluation test.
+- OB14: [pending] given `writeDataPoint` throwing, or the `SIGNALS` or `ANALYTICS_SQL` binding missing, the publication completes and reports ok, the state rules are evaluated, the analytics rules are `unknown` with a reason, and the error is logged with its `runId` → pipeline test.
+- OB15: [pending] given the SQL query throwing with `retryable: true` it is retried once after a bounded backoff, with `retryable: false` not at all, and on failure the analytics rules are `unknown` and `lastError` is set; given a history row with `_sample_interval` 10 the rules reading it are `unknown` (`sampled`); given two points with the same `index1` (a retried run) they count once → trend test.
+- OB16: [pending] given a token value in an error text, no data point, query parameter, `/health` body or log object contains it → sanitizer test.
 
 ### Budget
-- OB17: [measure] slice 1 adds per run one Durable Object storage write (record ≤ 1 KB, key ≤ 14 KB) and zero R2, Workers AI or external requests; `/health` evaluation stays under 5 ms CPU for 14 + 14 records; measured by `bun test test/signals.test.ts -t OB17` (in `apps/data-publisher-worker`), which counts calls and times the evaluation.
+- OB17: [measure] slice 1 adds per run 1 `writeDataPoint`, ≤ 3 SQL queries (1 retry each at most), 0 extra Durable Object writes and 0 R2, Workers AI or external HTTP requests; `/health` makes 0 queries and its evaluation stays under 5 ms CPU; measured by `bun test test/signals.test.ts -t OB17` (in `apps/data-publisher-worker`), which counts binding calls and times the evaluation.
 - OB18: [measure] slice 1 adds ≤ 100 bytes per log line and ≤ 20 lines per run (≤ 2 KB a run, ≤ 0.2 MB a month for both environments), measured by `bun test test/signals.test.ts -t OB18` over a recorded run's log calls.
 
 ### Observability
-- OB19: [deploy] on Dev with `OBSERVABILITY_SIGNALS=on`, after the first daily tick `/health.signals.status` is `ok`, `lastRun.runId` is set, a Workers Logs query filtered on that `runId` returns the run's lines, and the event's platform invocation-id field name is recorded in the feature map.
-- OB20: [deploy] after 7 days on Dev, `/health.signals` matches the rules recomputed by hand from the 7 daily `/health` reads, with no `firing` the owner does not confirm.
+- OB19: [deploy] on Dev with `OBSERVABILITY_SIGNALS=on` and Wrangler ≥ 4.145.0, after the first daily tick `/health.signals.status` is `ok`, `lastRun.runId` is set, a SQL query on `osskb_signals_dev` returns one row with `index1` = that `runId` and `_sample_interval` 1, a Workers Logs query on that `runId` returns the run's lines, and the event's platform invocation-id field name is recorded in the feature map.
+- OB20: [deploy] after 7 days on Dev, `/health.signals` matches the rules recomputed by hand from the 7 daily `/health` reads and the WAE rows, with no `firing` the owner does not confirm, and every row has `_sample_interval` 1.
+- OB21: [deploy] on Dev, the introspection endpoint on `logs.workersLogs` (with `include_custom_attributes=true`) shows the column holding `runId`; one SQL query (HTTP SQL API by the operator, and the binding if it accepts the dataset) returns a run's log lines and its WAE point by `runId`; the spec and feature map record whether the binding can read `logs.workersLogs`.
 
 ## Cost estimate per slice
 
 Allowances are those of Verified sources; both environments are on one account.
 
-| Slice | What is added | Volume | Cost |
+| Slice | What is added | Volume (both envs) | Cost |
 | --- | --- | --- | --- |
-| 1. Metric records + rules + `runId` in logs | 1 Durable Object write per run; ≤ 2 KB of log text per run; CPU on `/health` | ≈ 2 runs/day/env → ≈ 120 writes and ≤ 0.24 MB of logs a month (both envs) | $0: inside Workers Paid included Durable Object requests and Workers Logs (20 million events; after 2026-12-01, ≪ 50 GB) |
-| 1b. (if D1 = WAE) one data point per run | `writeDataPoint` + ≤ 2 SQL reads per day per env | ≈ 120 points and ≈ 120 reads a month vs 10 million / 1 million included | $0 (WAE is not billed yet; at list price still $0 within the allowance) |
-| 2. Structured logs | ≈ 30 events × ≤ 500 B per run | ≈ 15 KB/run → ≈ 2 MB a month (both envs) | $0: < 0.01 % of the 50 GB ingestion and 10 GB-month storage |
-| 3. Traces (D2) | automatic spans for every R2, fetch and DO call | a Dev publication makes ≈ 9,500 R2 calls (`classA` 824 + `classB` 8,678 on 2026-10-20), Prod ≈ 8,400; assuming 0.5–1 KB a span: ≈ 5–10 MB per run → ≈ 0.3–0.6 GB a month for both at rate 1 | $0 within 50 GB if nothing else on the account ingests much; each GB beyond costs $0.25 + $0.10/GB-month. Span size is an **assumption** to measure on Dev before Prod |
+| 1. WAE points + rules + `runId` in logs | 1 point per run; ≤ 3 binding queries per run; ≤ 2 KB of log text per run; no extra Durable Object write | ≈ 3 runs a day (Dev publication + digest, Prod publication) → ≈ 90 points and ≤ 300 queries a month vs 10 million writes and 1 million reads included; ≤ 0.2 MB of logs | $0. WAE is not billed yet; at list price still $0 inside the allowance. Whether binding queries count as WAE reads, and SQL API pricing, are not documented |
+| 2. Structured logs | ≈ 30 events × ≤ 500 B per run | ≈ 15 KB a run → ≈ 2 MB a month | $0: < 0.01 % of the 50 GB ingestion and 10 GB-month storage (after 2026-12-01) |
+| 3. Traces (D2) | automatic spans for every R2, fetch and Durable Object call | a Dev publication makes ≈ 9,500 R2 calls (`classA` 824 + `classB` 8,678 on 2026-10-20), Prod ≈ 8,400; at an **assumed** 0.5–1 KB a span ≈ 5–10 MB a run → ≈ 0.3–0.6 GB a month at rate 1 | $0 within 50 GB if nothing else on the account ingests much; beyond, $0.25 per GB + $0.10 per GB-month. Span size to measure on Dev first |
+| Monitors (D5, if adopted) | ≥ 1 query a minute per monitor | not estimated: Monitors and SQL API pricing are not documented | unknown |
 
-## Decisions still open (owner)
+## Caveats
 
-1. **D1 Metrics store.** Recommend slice 1 on Durable Object storage only
-   (no binding, no token, rules testable offline). Option: also write each
-   record to WAE (3-month history, SQL, $0 today) once a dashboard or
-   month-long trend is wanted; reading it needs the Account Analytics Read
-   token (the same permission as Spec 026). WAE data cannot be exported via
-   OTel, and sampling needs `_sample_interval`-weighted queries.
+- **Adaptive sampling.** WAE samples heavy traffic per index; at about one
+  point per run per index nothing should be sampled. That is an inference;
+  Behavior 6 makes a sampled row `unknown`, and OB19 and OB20 check
+  `_sample_interval` on Dev.
+- **Retention.** WAE keeps 3 months; the rules look back ≤ 8 days. Longer
+  trends need an export, out of scope.
+- **Beta.** The SQL API (and so the binding) is beta since 2026-10-02; WAE
+  billing has not started. Both can change; a binding failure degrades only
+  the analytics rules (Behavior 1, OB14).
+- **Ingestion delay.** A point may not be readable right after
+  `writeDataPoint`; the current run is therefore taken from memory and
+  excluded from the query (Behavior 4).
+- **Wrangler.** The repository locks 4.125.0; slice 1 bumps both Worker
+  packages to ≥ 4.145.0 and must keep `bun run test:ci` green.
+
+## Decisions
+
+Decided (owner, 2026-10-21):
+
+1. **D1 Metrics store: Workers Analytics Engine**, one data point per run
+   with `runId` as the index; trend rules read it through the Analytics SQL
+   binding; current-state rules stay on Durable Object state so `/health`
+   still judges a stall without WAE.
+
+Still open:
+
 2. **D2 Traces: whether, when, and the rate.** Not in slice 1. Head sampling
-   decides per invocation, and the publisher runs about once a day, so a rate
+   decides per invocation and the publisher runs about once a day, so a rate
    of 0.1 would drop 9 of 10 daily runs entirely: for this Worker the useful
-   choices are 1 (all, ≈ 0.3–0.6 GB a month, measured first on Dev) or off.
-   Alternative: `persist: false` with an OTLP destination, which exports
-   without counting toward Cloudflare storage.
-3. **D3 Workers Issues.** Free, open beta, groups `console.error` and failed
-   invocations; recommend enabling on Dev after slice 2 (errors carry
-   `runId`), with no automation until Spec 027 can take a webhook; owner rule
-   "no push alerts" applies to any automation.
+   choices are 1 (≈ 0.3–0.6 GB a month, measured on Dev first) or off.
+   Alternative: `persist: false` with an OTLP destination.
+3. **D3 Workers Issues.** Free, open beta; recommend enabling on Dev after
+   slice 2 (errors carry `runId`), with no automation; "no push alerts"
+   applies to any automation.
 4. **D4 Thresholds.** The 48 h digest freshness and the rejection spike
-   (≥ 10 and > 3 × median) are first guesses from one week of Dev data;
-   confirm or adjust after OB20.
-5. **D5 Waking the agent.** Recommend a Spec 027 amendment: the scheduled run
-   calls `/health` first and starts the model only when `signals.status` is
-   `firing` (or `warn` twice), so a healthy day costs no model call.
+   (≥ 10 and > 3 × median) are first guesses; confirm after OB20.
+5. **D5 Waking the agent, and Monitors.** Recommend a Spec 027 amendment:
+   the scheduled run reads `/health` first and starts the model only when
+   `signals.status` is `firing` (or `warn` twice). Monitors (webhook) is the
+   alternative wake-up path if the agent moves to Cloudflare; not adopted
+   now (Solution space).
+6. **D6 Binding for logs.** If OB21 shows the binding cannot read
+   `logs.workersLogs`, the run-level join stays an operator query (HTTP SQL
+   API with a token the owner holds); no Worker code reads logs.
 
 ## Rollout
 
-1. **Slice 1 (PR):** records, rules, `runId`, behind `OBSERVABILITY_SIGNALS`
-   unset everywhere; OB1–OB18.
-2. **Dev enable (PR):** `OBSERVABILITY_SIGNALS=on`; OB19 after the next
-   tick, OB20 after 7 days. Stop and roll back (unset) on a `firing` the
-   owner does not confirm, or a failed publication caused by the record write.
-3. **Prod (release)** after OB20.
+1. **Slice 1 (PR):** Wrangler ≥ 4.145.0, data points, rules, `runId`, behind
+   `OBSERVABILITY_SIGNALS` unset and no new binding in any environment;
+   OB1–OB18.
+2. **Dev enable (PR):** `SIGNALS` (`osskb_signals_dev`) and `ANALYTICS_SQL`
+   bindings, `OBSERVABILITY_SIGNALS=on`; OB19 and OB21 after the next tick,
+   OB20 after 7 days. Stop and roll back (unset the flag) on a `firing` the
+   owner does not confirm, a failed publication caused by the signal code,
+   or a sampled row.
+3. **Prod (release)** after OB20, with `osskb_signals_prod`.
 4. **Slice 2** (structured logs), then D3; **slice 3** only after D2.
 
 ## Non-goals
 
-- Push alerts or notifications (owner rule).
+- Push alerts or notifications (owner rule); Monitors in slice 1.
 - The agent's diagnosis and any change to Spec 027 (D5 is its amendment).
-- Site consistency (A6) and CI status (A9) checks; cost thresholds (A5,
-  Spec 026 owns them).
+- Site consistency (A6), CI status (A9) and cost thresholds (A5, Spec 026).
 - Reading R2 directly; any new R2 operation.
 - Traces in slice 1; OTLP export destinations.
-- Thresholds as runtime config; dashboards.
+- Thresholds as runtime config; dashboards; history beyond WAE's 3 months.
