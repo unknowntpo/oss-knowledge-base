@@ -2128,8 +2128,9 @@ Amendment (7), the profile page (`PEOPLE_KIPS`): rows of the page slice (slice C
 | --- | --- | --- | --- | --- |
 | W74 | own KIPs on a dev@ page | recorded | PEOPLE_KIPS=true; mail:arnab nandy | [data-section=kips] lists KIP-1381 and KIP-1382 with titles, 2026-10-16 and thread links |
 | W74 | linked KIPs on a GitHub page | constructed | PEOPLE_KIPS=true; github:x corroborated to mail:x | KIPs of mail:x with basis corroborated and the evidence links |
+| W74 | a starter-only line's title | constructed | no KIP page; subjects "[DISCUSS] KIP-9201: First title", "DISCUSS: KIP-9202 - Second title", "[discuss] KIP-9203：Third title" | titles "First title", "Second title", "Third title" |
 | W74 | flag off | constructed | PEOPLE_KIPS unset | no kips section; links.json not read |
-| W75 | the note | constructed | coverageFrom 2026-09-10, table generatedAt 2026-10-22T02:17Z | definition, "KIPs started before 9/10 are not listed", links computed 10/22 |
+| W75 | the note | constructed | coverageFrom 2026-09-10, table generatedAt 2026-10-22T02:17Z | definition, "KIPs started before 2026-09-10 are not listed", links computed 2026-10-22 |
 | W80 | link table missing or corrupt | constructed | links.json absent / not JSON | 200; own KIPs listed; "links not available" |
 | W83 | rows written before the flag | constructed | month with dev@ rows and no opens field | no starter from them; note states the start |
 | W87 | profile reads | constructed | cold, then within 10 min | at most 28 reads (links.json and authors.json), then 0 |

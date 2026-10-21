@@ -165,6 +165,9 @@ export interface PersonKipsInput {
 }
 
 const FACT_ORDER = { author: 0, assignee: 1, starter: 2 } as const;
+
+/** A line's title: the page title or thread subject without a leading `[DISCUSS]` / `DISCUSS:` and `KIP-n:`. */
+const kipTitle = (raw: string) => raw.replace(/^\s*(?:\[DISCUSS\]|DISCUSS\s*:)?\s*KIP-\d+\s*[:：-]?\s*/iu, "");
 const kipNumber = (kip: string) => Number(kip.slice(4));
 
 /** W74–W111: the identity's KIP lines and the section's notes. */
@@ -274,7 +277,7 @@ export function personKips(input: PersonKipsInput): PersonKipsV1 {
       if (facts.length === 0) continue;
       lines.push({
         kip,
-        title: page.title.replace(/^KIP-\d+\s*[:：-]?\s*/u, ""),
+        title: kipTitle(page.title),
         pageUrl: page.url,
         facts: facts.sort((a, b) => FACT_ORDER[a.basis] - FACT_ORDER[b.basis]),
         ...(page.status === "listed" ? {
@@ -286,7 +289,7 @@ export function personKips(input: PersonKipsInput): PersonKipsV1 {
     }
     if (!starterOnPage) {
       const facts = starterFact(starter);
-      if (facts.length > 0) lines.push({ kip, title: starter!.title, facts, ...discussionOf(starter) });
+      if (facts.length > 0) lines.push({ kip, title: kipTitle(starter!.title), facts, ...discussionOf(starter) });
     }
   }
   return {
