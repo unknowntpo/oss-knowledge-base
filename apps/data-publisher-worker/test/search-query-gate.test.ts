@@ -229,6 +229,8 @@ describe("Spec 016 query gate object and /health", () => {
       { tag: "v2", new_sqlite_classes: ["DigestRun"] },
       { tag: "v3", new_sqlite_classes: ["SearchEmbeddingRun"] },
       { tag: "v4", new_sqlite_classes: ["SearchQueryGate"] },
+      // Spec 026 rollout step 1 (Dev monitor).
+      { tag: "v5", new_sqlite_classes: ["CostGuard"] },
     ]);
     // Every bound class is exported by the entry module and migrated exactly once.
     const migrated = development.migrations.flatMap((migration) => migration.new_sqlite_classes);
