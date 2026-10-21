@@ -345,7 +345,7 @@ export const kipProfileChecks: Record<string, () => Promise<void>> = {
     const after = new Month("2026-10").mail("t2", "[DISCUSS] KIP-9301: constructed", "Old Starter", "05", true).build();
     const mixed = await profile("mail:old starter", { months: [before, after], authors: authorsTable([]) });
     expect(mixed.kips!.lines.map((line) => line.kip)).toEqual(["KIP-9301"]);
-    expect(text(section(await render(mixed)))).toContain("Thread starts are recorded from 2026-10-05; earlier threads have no starter.");
+    expect(text(section(await render(mixed)))).toContain("The earliest thread start in the record is 2026-10-05; a thread whose first message is not recorded has no starter.");
     // Positive control: the same September row with the flag is a starter.
     const flagged = new Month("2026-09").mail("t1", "[DISCUSS] KIP-9300: constructed", "Old Starter", "20", true).build();
     expect((await profile("mail:old starter", { months: [flagged], authors: authorsTable([]) })).kips!.lines.map((line) => line.kip)).toEqual(["KIP-9300"]);

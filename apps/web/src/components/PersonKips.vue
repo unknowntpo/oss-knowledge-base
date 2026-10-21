@@ -64,8 +64,7 @@ function startsNote(): string | undefined {
           <span class="person-kip-key">{{ t("people.kips.jira") }}</span><template v-for="(issue, index) in line.issues" :key="issue.key">{{ index > 0 ? ", " : "" }}<a :href="issue.url" target="_blank" rel="noopener noreferrer">{{ issue.key }}</a><span class="person-kip-rule">{{ ` (${issue.assignee ?? t("people.kips.unassigned")})` }}</span></template>
         </p>
         <p v-if="line.discussion" class="person-kip-thread" data-discussion>
-          <a :href="line.discussion.url" target="_blank" rel="noopener noreferrer">{{ t("people.kips.discussion") }}</a>
-          <span class="person-kip-rule">{{ t("people.kips.startedBy", { name: line.discussion.starter, date: day(line.discussion.at) }) }}</span>
+          <a :href="line.discussion.url" target="_blank" rel="noopener noreferrer">{{ t("people.kips.discussion") }}</a>{{ " " }}<span class="person-kip-rule">{{ t("people.kips.startedBy", { name: line.discussion.starter, date: day(line.discussion.at) }) }}</span>
         </p>
       </li>
     </ol>

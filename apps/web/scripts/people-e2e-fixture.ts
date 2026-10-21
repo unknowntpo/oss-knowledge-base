@@ -17,8 +17,11 @@ import {
   githubReviewsMonthKey,
   githubReviewsStateKey,
   reviewMonth,
+  type IdentityLinksTableV1,
   type ReviewRow,
 } from "@oss-knowledge-base/reference-pipeline";
+import { kipAuthorsKey, type KipAuthorsTableV1 } from "@oss-knowledge-base/reference-pipeline/kip-pages";
+import { profileIdentityLinksKey } from "@oss-knowledge-base/reference-pipeline/people";
 
 const DAY_MS = 86_400_000;
 
@@ -106,6 +109,50 @@ export function peopleE2eObjects(nowMs: number): readonly { readonly key: string
     { key: githubReviewsStateKey(projectId), body: JSON.stringify({ schema: GITHUB_REVIEWS_STATE_SCHEMA, updatedAt: new Date(nowMs - DAY_MS).toISOString(), coverageFrom }) },
     ...[...byMonth].map(([month, rows]) => ({ key: githubReviewsMonthKey(projectId, month), body: encodeReviewMonth(projectId, month, rows, extras(rows)) })),
     ...peopleE2eActivityObjects(nowMs),
+    ...peopleE2eKipObjects(nowMs),
+  ];
+}
+
+/**
+ * Spec 019 amendment (7), slice C: a constructed `authors.json` and identity-link table, read only
+ * where `PEOPLE_KIPS=true` (unset in every configuration, so the E2E pages do not show them; the
+ * section's screenshots start `pages dev` with the binding). Dana Mailer started the KIP-1368
+ * discussion above and is on its author line; `github:alice` reaches "Alice Example" on dev@ through
+ * a declared link and her Jira account through a corroborated one.
+ */
+export function peopleE2eKipObjects(nowMs: number): readonly { readonly key: string; readonly body: string }[] {
+  const projectId = "apache-kafka";
+  const readAt = new Date(nowMs - DAY_MS).toISOString();
+  const issue = (key: string) => `https://issues.apache.org/jira/browse/${key}`;
+  const authors: KipAuthorsTableV1 = {
+    schema: "osskb.kip-authors.v1", generatedAt: readAt, coverageFrom: new Date(nowMs - 366 * DAY_MS).toISOString(),
+    pages: [
+      {
+        kip: 1368, pageId: "900001368", version: 3, title: "KIP-1368: constructed proposal", url: "https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=900001368",
+        status: "listed", authors: ["Dana Mailer", "Alice Example", "Erin Plain"].map((name) => ({ name, nameKey: name })),
+        jira: "one", issues: [{ key: "KAFKA-11368", assignee: { key: "JIRAUSER900010", display: "Alice Example" }, readAt }],
+      },
+      {
+        kip: 1370, pageId: "900001370", version: 1, title: "KIP-1370: constructed follow-up without an author line", url: "https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=900001370",
+        status: "no-list", authors: [], jira: "several",
+        issues: [{ key: "KAFKA-11370", assignee: { key: "JIRAUSER900010", display: "Alice Example" }, readAt }, { key: "KAFKA-11371", assignee: null, readAt }],
+      },
+    ],
+  };
+  const links: IdentityLinksTableV1 = {
+    schema: "osskb.identity-links.v1", revision: "corroborated@1", projectId, generatedAt: readAt,
+    inputs: { coverageFrom: new Date(nowMs - 36 * DAY_MS).toISOString(), months: [], activityUpdatedAt: readAt, rosterAt: null },
+    people: [{
+      members: [{ id: "github:alice" }, { id: "jira-account:JIRAUSER900010", display: "Alice Example" }, { id: "mail:alice example" }],
+      links: [
+        { a: "github:alice", b: "jira-account:JIRAUSER900010", basis: "corroborated", evidence: ["KAFKA-143", "KAFKA-144", "KAFKA-145"].map((id) => ({ id, url: issue(id) })) },
+        { a: "github:alice", b: "mail:alice example", basis: "declared", evidence: [{ id: "declared", url: "https://example.org/e2e/alice" }], date: "2026-10-21", reviewer: "e2e" },
+      ],
+    }],
+  };
+  return [
+    { key: kipAuthorsKey(projectId), body: JSON.stringify(authors) },
+    { key: profileIdentityLinksKey(projectId), body: JSON.stringify(links) },
   ];
 }
 
