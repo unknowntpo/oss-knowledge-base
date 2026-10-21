@@ -76,6 +76,32 @@ function environment(options: Options = {}) {
 const run = (token?: string) => ({ method: "POST", ...(token === undefined ? {} : { headers: { authorization: `Bearer ${token}` } }) });
 
 const checks: Record<string, () => Promise<void>> = {
+  "W97 the cron's deadline": async () => {
+    const realNow = Date.now;
+    /** The first reading is the tick's start; every later one is 13 minutes on, as after slow requests. */
+    const slowClock = () => {
+      let reads = 0;
+      Date.now = () => NOW + (reads++ === 0 ? 0 : 13 * 60_000);
+    };
+    try {
+      const cron = environment({ flag: "authors@1" });
+      slowClock();
+      await cron.tick(KIP_CRON);
+      const record = JSON.parse(cron.objects.get(KIP_PAGES_LAST_RUN_KEY)!) as { lastRun: { ok: boolean; status: string; error?: string; requests: number } };
+      expect(cron.outbound).toEqual([]);
+      expect(record.lastRun).toMatchObject({ ok: false, status: "failed", requests: 0 });
+      expect(record.lastRun.error).toContain("wall-clock limit");
+      // The manual route has no deadline: the same clock still sends the request.
+      const manual = environment({ flag: "authors@1" });
+      slowClock();
+      const response = await manual.request("/kip-pages/run", run("manual-under-test"));
+      expect(response.status).toBe(200);
+      expect(manual.outbound.length).toBe(1);
+      expect((await response.json() as { lastRun: { ok: boolean } }).lastRun.ok).toBe(true);
+    } finally {
+      Date.now = realNow;
+    }
+  },
   "W98 isolation": async () => {
     const failing = environment({ flag: "authors@1", cwiki: "throws", failPuts: true });
     await failing.tick(KIP_CRON);

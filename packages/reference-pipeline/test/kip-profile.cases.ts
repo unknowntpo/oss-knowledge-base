@@ -1,7 +1,6 @@
 /**
- * Spec 019 amendment (7) test plan, the profile page (`PEOPLE_KIPS`): [pending] until the slice
- * that adds `[data-section="kips"]` runs it. Moved out of `identity-links.cases.ts` so slice A (the
- * identity-link job) can run its rows.
+ * Spec 019 amendment (7) test plan, the profile page (`PEOPLE_KIPS`, slice C): the section
+ * `[data-section="kips"]`, its notes, and the reads it adds. Run by `apps/web/test/people-kips.test.ts`.
  */
 export const testPlanRows = [
   { id: "W74", case: "own KIPs on a dev@ page", data: "recorded", input: "PEOPLE_KIPS=true; mail:arnab nandy", expected: "[data-section=kips] lists KIP-1381 and KIP-1382 with titles, 2026-10-16 and thread links" },

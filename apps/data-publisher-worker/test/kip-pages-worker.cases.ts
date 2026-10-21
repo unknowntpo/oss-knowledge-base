@@ -6,6 +6,7 @@
  * a stub environment with a recording bucket and stub Durable Objects.
  */
 export const testPlanRows = [
+  { id: "W97", case: "the cron's deadline", data: "constructed", input: "the job's cron tick and POST /kip-pages/run, with a clock that reads 13 minutes later after the run starts", expected: "the tick passes a 14-minute deadline: no cwiki request, ok false, the error names the limit; the route passes none: one cwiki request, ok true" },
   { id: "W98", case: "isolation", data: "constructed", input: "the job's cron tick with cwiki throwing and the bucket failing its puts", expected: "publication, digest and every other job not started; no write outside internal/kips/v1/; the tick does not throw" },
   { id: "W98", case: "the publication tick", data: "constructed", input: "the publication's cron tick with KIP_PAGES set", expected: "the publication is scheduled; no cwiki or Jira request; nothing under internal/kips/v1/" },
   { id: "W99", case: "job off", data: "constructed", input: "KIP_PAGES unset, KIP_PAGES_CRON set", expected: "cron no-op, route 404, no cwiki request, no R2 call, no /health field" },

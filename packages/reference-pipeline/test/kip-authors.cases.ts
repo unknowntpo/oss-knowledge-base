@@ -1,7 +1,7 @@
 /**
  * Spec 019 amendment (7), KIP authors revision: several authors per KIP, read from the KIP page's
  * author line by the `kip-pages` job, with the dev@ starter as fallback; the committers page as
- * `declared` links. [pending] until the amendment's merge PR runs it. `recorded` rows come from
+ * `declared` links. Run by `apps/web/test/people-kips.test.ts` (slice C). `recorded` rows come from
  * public reads of cwiki.apache.org (Confluence REST, anonymous) and Pony Mail on 2026-10-21;
  * `constructed` rows are made up to reach a boundary.
  *
