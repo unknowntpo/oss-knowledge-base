@@ -47,6 +47,7 @@ export const testPlanRows = [
   { id: "W82", case: "two runs at once", data: "constructed", input: "cron and manual run on the same inputs", expected: "equal bytes; plain puts only" },
   { id: "W84", case: "issue reassigned", data: "constructed", input: "KAFKA-n assignee A in 2026-09, B in 2026-10", expected: "paired with B only, counted once" },
   { id: "W85", case: "job off", data: "constructed", input: "IDENTITY_LINKS unset", expected: "cron no-op, route 404, no R2 call, no /health field" },
+  { id: "W85", case: "an unsupported flag value", data: "constructed", input: "IDENTITY_LINKS \"true\" after a good run", expected: "502; no table written; the failed record keeps lastGoodAt and tables; 1 Class B" },
   { id: "W91", case: "health shape", data: "constructed", input: "a finished run", expected: "identityLinks {revision, lastRun {ok, status, at, durationMs, inputs (with committersAt), links, rejected (with competitor), people, kipStarters, bytesWritten, r2}, lastGoodAt, tables}" },
   { id: "W103", case: "committers capture as declared entries", data: "recorded", input: "the capture of https://kafka.apache.org/community/committers/, 2026-10-21 (68 pairs)", expected: "68 declared entries github:<login> ↔ mail:<name key>, evidence the committers page" },
   { id: "W103", case: "a name twice on the page", data: "constructed", input: "two cards named \"A B\" with two logins", expected: "no entry for either" },

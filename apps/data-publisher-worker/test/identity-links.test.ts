@@ -559,9 +559,11 @@ const cases: Record<string, (row: Row) => Promise<void> | void> = {
     expect(bucket.operations.filter((operation) => operation === `get ${IDENTITY_LINKS_LAST_RUN_KEY}`).length).toBe(3);
     // A previous run record that does not parse fails closed too.
     bucket.failGet = undefined;
-    bucket.objects.set(IDENTITY_LINKS_LAST_RUN_KEY, "not json");
-    const corrupt = await run(bucket);
-    expect([corrupt.lastRun.status, corrupt.lastRun.error?.includes(IDENTITY_LINKS_LAST_RUN_KEY)]).toEqual(["failed", true]);
+    for (const malformed of ["not json", JSON.stringify({ lastGoodAt: null, tables: { [KAFKA]: 1 } })]) {
+      bucket.objects.set(IDENTITY_LINKS_LAST_RUN_KEY, malformed);
+      const corrupt = await run(bucket);
+      expect([corrupt.lastRun.status, corrupt.lastRun.error?.includes(IDENTITY_LINKS_LAST_RUN_KEY)]).toEqual(["failed", true]);
+    }
     expect(bucket.objects.get(identityLinksKey(KAFKA))).toBe(good);
     // A month the state lists but R2 lacks fails closed as well (it could hide a competing pairing).
     const missing = seeded();
@@ -686,6 +688,17 @@ const cases: Record<string, (row: Row) => Promise<void> | void> = {
     // An unsupported value fails the run (502), never another job.
     const wrong = environment("true", seeded());
     expect((await wrong.manual()).status).toBe(502);
+  },
+  "W85|an unsupported flag value": async () => {
+    const bucket = seeded();
+    const good = await run(bucket);
+    const table = bucket.objects.get(identityLinksKey(KAFKA));
+    // A digest of a project no longer in the profiles is dropped on the next record.
+    bucket.objects.set(IDENTITY_LINKS_LAST_RUN_KEY, JSON.stringify({ ...good, tables: { ...good.tables, "apache-gone": "00" } }));
+    bucket.puts.length = 0;
+    const wrong = await run(bucket, { flag: "true" });
+    expect([wrong.lastRun.status, wrong.lastGoodAt, wrong.tables, wrong.lastRun.r2.classB]).toEqual(["failed", good.lastGoodAt, good.tables, 1]);
+    expect([bucket.puts.map((put) => put.key), bucket.objects.get(identityLinksKey(KAFKA)) === table]).toEqual([[IDENTITY_LINKS_LAST_RUN_KEY], true]);
   },
   "W91|health shape": async () => {
     const env = environment("corroborated@1", seeded());

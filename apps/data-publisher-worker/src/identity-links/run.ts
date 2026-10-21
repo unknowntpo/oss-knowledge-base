@@ -185,12 +185,15 @@ export async function runIdentityLinks(input: RunIdentityLinksInput): Promise<Id
   let previous: Partial<IdentityLinksRecord> | undefined;
   const tables: Record<string, string> = {};
   try {
+    // The one read that carries `lastGoodAt` and the written tables' digests, also into a failed
+    // run, so it comes before the flag check.
+    previous = await readJson(bucket, IDENTITY_LINKS_LAST_RUN_KEY, parseRecord);
+    const projects = new Set(input.profiles.filter((profile) => profile.corroboration !== undefined).map((profile) => profile.projectId));
+    // Digests of projects no longer in the profiles are dropped.
+    for (const [projectId, digest] of Object.entries(previous?.tables ?? {})) if (projects.has(projectId)) tables[projectId] = digest;
     if (input.flag?.trim() !== IDENTITY_LINKS_REVISION) {
       throw new Error(`IDENTITY_LINKS "${input.flag}" is not supported (${IDENTITY_LINKS_REVISION}, or unset)`);
     }
-    // The one read that carries `lastGoodAt` and the written tables' digests, also into a failed run.
-    previous = await readJson(bucket, IDENTITY_LINKS_LAST_RUN_KEY, parseRecord);
-    Object.assign(tables, previous?.tables ?? {});
     for (const profile of input.profiles) {
       const config = profile.corroboration;
       if (config === undefined) continue;
