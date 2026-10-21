@@ -14,6 +14,7 @@ import { GitHubFetchTransport } from "./github-transport";
 import { R2PublicationDestination } from "./r2-destination";
 import { FOLLOW_UP_KEY, runPending, runStarting, scheduleFollowUp, type FollowUpMarker } from "./run-schedule";
 import { healthBody } from "./health";
+import { kipPagesHealth, kipPagesRun, kipPagesSet } from "./kip-pages/run";
 import { appendActivityLog, peopleActivitySet, R2ActivityBucket } from "./people-activity/run";
 import { runDataPublication, type PipelinePhaseMarker, type PipelineRunStatus } from "./pipeline";
 import { SEARCH_QUERY_GATE_OBJECT_NAME, unboundQueryGateHealth, type EmbeddingAiBinding, type SemanticQueryGate, type VectorIndex } from "@oss-knowledge-base/semantic-vectorize";
@@ -96,6 +97,13 @@ interface Env {
   readonly CF_ACCOUNT_ID?: string;
   /** Spec 026: the `CostGuard` object (breaker and last check). Unbound until the Dev enable. */
   readonly COST_GUARD_STATE?: DurableObjectNamespace;
+  /**
+   * Spec 019 amendment (7): `authors@1` runs the `kip-pages` job (KIP page author lines and the
+   * `JIRA:` field's assignees, `internal/kips/v1/`). Unset is off: no request, no R2 call, no `/health` field.
+   */
+  readonly KIP_PAGES?: string;
+  /** Spec 019 amendment (7): the `kip-pages` job's cron expression (`43 3 * * *` once enabled). */
+  readonly KIP_PAGES_CRON?: string;
 }
 
 const sourceFetch = (url: string, init: { readonly headers: Readonly<Record<string, string>> }) =>
@@ -317,6 +325,11 @@ export function githubInitialLookbackDays(env: Pick<Env, "GITHUB_INITIAL_LOOKBAC
 
 export default {
   async scheduled(controller: ScheduledController, env: Env, context: ExecutionContext): Promise<void> {
+    // Spec 019 amendment (7), W98/W99: the kip-pages tick runs that job only, and nothing while `KIP_PAGES` is unset.
+    if (matches(controller.cron, env.KIP_PAGES_CRON)) {
+      if (kipPagesSet(env)) context.waitUntil(kipPagesRun(env, false).then(() => undefined));
+      return;
+    }
     const target = cronTarget(controller.cron, env.DIGEST_CRON, env.REVIEW_QUEUE_CRON);
     if (target === "review-queue") {
       context.waitUntil(reviewQueueRun(env, false).then(() => undefined));
@@ -385,7 +398,10 @@ export default {
       const githubReviewsBackfill = await reviewRecord(GITHUB_REVIEWS_BACKFILL_LAST_RUN_KEY);
       const githubReviewsRefresh = githubReviewsAreas(env) ? await reviewRecord(GITHUB_REVIEWS_REFRESH_LAST_RUN_KEY) : undefined;
       const costGuard = await costGuardHealth(env);
-      return json(mergeHealth(await publisher.json(), digestHealth, reviewQueue, searchEmbedding, searchQuery, githubReviews, githubReviewsBackfill, githubReviewsRefresh, costGuard));
+      // Spec 019 amendment (7), W100: present only while `KIP_PAGES` is set.
+      const kipPages = await kipPagesHealth(env);
+      const merged = mergeHealth(await publisher.json(), digestHealth, reviewQueue, searchEmbedding, searchQuery, githubReviews, githubReviewsBackfill, githubReviewsRefresh, costGuard) as Record<string, unknown>;
+      return json(kipPages === undefined ? merged : { ...merged, kipPages });
     }
     if (request.method === "POST" && url.pathname === "/search-embedding/run") {
       if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
@@ -441,6 +457,14 @@ export default {
       }
       const dryRun = url.pathname === "/cost-guard/check" && url.searchParams.get("dryRun") === "1";
       return guard.fetch(`https://cost-guard.internal${url.pathname.slice("/cost-guard".length)}${dryRun ? "?dryRun=1" : ""}`, { method: "POST" });
+    }
+    if (request.method === "POST" && url.pathname === "/kip-pages/run") {
+      // W99: no route while the flag is unset.
+      if (!kipPagesSet(env)) return new Response("Not found", { status: 404 });
+      if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
+      // Runs while the caller waits (at most 13 upstream requests, 2 s apart): no Durable Object holds this job.
+      const result = await kipPagesRun(env, url.searchParams.get("dryRun") === "1");
+      return json(result, { status: result.lastRun?.ok === true ? 200 : 502 });
     }
     if (request.method === "POST" && url.pathname === "/run") {
       if (!authorized(request, env)) {
