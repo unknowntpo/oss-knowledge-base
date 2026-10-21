@@ -14,6 +14,9 @@ Builds on: Spec 004 (GitHub connector), Spec 008 (content-addressed objects), Sp
 > per-source coverage stated on the page; **2b** adds the activity log
 > ([amendment (2)](#amendment-2026-10-15-2-slice-2b-the-activity-log): what
 > is stored, identity, the real-data Example, budget and worst-case cost).
+> [Amendment (7)](#amendment-2026-10-21-7-kips-a-person-started-and-corroborated-links)
+> (specified, not implemented) lists the KIPs a person started and adds a
+> third link basis, `corroborated`, computed by its own job.
 > Items of later slices stay `[pending]`.
 
 ## Intent
@@ -39,7 +42,9 @@ Three likely uses. The owner decided which are in scope (decision 1,
 1. A number on the page has one stated definition and one stated period, and
    links to the records it counts.
 2. Two identities are shown as one person only when a declared source says
-   so. Two unlinked identities are better than one wrong merge.
+   so. Two unlinked identities are better than one wrong merge. *Amendment
+   (7), 2026-10-21: or when deterministic co-occurrence corroborates it
+   (basis `corroborated`), after a precision check, with the basis shown.*
 3. What the data cannot show is said on the page, not left blank.
 
 ### Non-goals
@@ -374,6 +379,10 @@ spec fills them rather than adding a parallel type.
      (`identityLinks`: two identity keys, the evidence URL, the date, who
      reviewed it). Evidence must be a public statement by the person or the
      project, for example the project's committers page.
+   - `corroborated` (amendment (7), 2026-10-21): repeated co-occurrence on
+     `KAFKA-n` (GitHub ↔ Jira) or `KIP-n` (Jira ↔ dev@), computed daily by
+     the identity-link job, enabled only after its precision check. See
+     [the rule](#the-corroborated-rule).
 3. **Everything else stays separate.** When two unlinked identities have the
    same normalized display name, each page says "An identity with the same
    name exists on <source>: possibly the same person" with a link. Counts are
@@ -1324,6 +1333,7 @@ slice is one PR with its own verifier pass.
 | 2b | Activity log written at publish time from the events the pipeline already has; the profile reads it beside the reviews; Jira and dev@ identities get pages; their author names link | A per-source profile is correct against the Example and grows by a day per day | W1–W4, W9, W17, W19, W22, W34 |
 | 3 | Person result in Search: exact login first, then login prefixes, at most three; `/api/people/:project?q=` reads the review store's cached months (2026-10-15 amendment) | A login leads to the page in one step, thread ranking unchanged, no metered call | W7, W40–W45 |
 | 4 | Stable keys (GitHub id, Jira account key), roster links, `identityLinks`, the labelled sample, "possibly the same person" | Zero wrong merges on the sample | W14–W16 |
+| 4a (amendment (7), 2026-10-21) | KIPs a person started (request time); Jira `assignee` and account keys; the identity-link job and its `corroborated` links; the precision check; the page section behind `PEOPLE_KIPS` | A person's KIPs are listed with the basis of every link, and no corroborated link contradicts the truth set | W66–W92; W16 extended |
 | 5 | 12-month backfill of reviews: Spec 022's store, filled by its own PR (the start-date change proposed in Spec 022; about 509 requests, 20 runs, about 8 MB, measured from search totals) | Review activity reaches back 12 months | Spec 022's items |
 | 6 | 12-month backfill of the activity log: GitHub issues, pull requests and conversation comments; Jira; dev@. **Cost not measured.** dev@: 12 monthly archives (one Pony Mail request per month; message count and bytes unknown). Jira: unknown (issues updated in 12 months, pages of 100, comments inline). GitHub: listing 3,668 Kafka and 9,032 DataFusion items (GitHub search totals, 2026-10-14) plus one comment request per item with comments, unmeasured. **This is the next measurement**, before the slice is specified | A 12-month trajectory on day one for every source; request budget respected | W21 |
 | 7 (decision 10) | Per-project contributor list sortable by separate metric columns, from per-month summaries written at publish time | A list for everyone without parsing 12 months of rows per request | W30–W33 |
@@ -1346,6 +1356,305 @@ Changes of 2026-10-14, besides the order:
   its "pull requests commented" figures stay as measured; W1 keeps them. The
   review counts of the same people are added to the case file when slice 1
   has data.
+
+## Amendment 2026-10-21 (7): KIPs a person started, and corroborated links
+
+Owner's request (2026-10-21): a person's profile lists the KIPs they
+authored, and identities on different sources may be linked by repeated,
+deterministic co-occurrence, not only by the roster or a declared entry.
+Decisions of the owner, the same day (decision 11):
+
+1. "Authored" means **started the discussion**: the sender of the first
+   message of the earliest `[DISCUSS] KIP-n` thread on dev@, within the
+   recorded range. Confluence is not read.
+2. A third link basis, **`corroborated`**: repeated co-occurrence on shared
+   identifiers (`KAFKA-n`, `KIP-n`), deterministic, no model. Thresholds 3
+   and 2 are provisional until a precision check passes.
+3. "One job must not carry too many tasks": linking is **its own job**, with
+   its own trigger, inputs, output, budget, `/health` status and failure
+   isolation. It is not a step of the publication or of the activity append.
+4. Profiles read the job's link table behind a flag, Dev first; Prod is a
+   separate owner-approved step (after amendment (6)'s profile tag).
+5. Public pages only; every link shows its basis; a link can be removed and
+   the next run splits the profile.
+
+This amendment revises precision rule 2 of the Intent, decision 5, rule 2
+of [Identity resolution](#the-rule), and step 5 of the simplification
+review ("No job proposes links"). Rules 3 and 4 stand: no similarity, no
+fuzzy matching, no email, no login equal to an ASF id. It is specified
+only; nothing is implemented.
+
+### Example (real data, read 2026-10-21)
+
+Dev release `2026-10-20T22:07:19Z` (anonymous `/api/feed` and
+`/api/detail`; the activity log's Kafka coverage starts
+`2026-09-10T02:45:16Z`, `/health`), plus read-only public upstream calls:
+GitHub search, ASF Jira REST, Pony Mail `stats.lua`, and the Kafka
+committers page. No R2 object was read.
+
+**(a) Who started which KIP.** The release holds 21 dev@ threads whose title
+is a `DISCUSS` title naming one KIP. In 11 the oldest recorded message is a
+root (its subject has no `Re:`); in 10 every recorded message is a reply.
+
+| KIP | Starter in the data | Root | Note |
+| --- | --- | --- | --- |
+| KIP-1377 | Aditya Kousik | 2026-09-17 | |
+| KIP-1342 | Ming-Yen Chung | 2026-09-18 | |
+| KIP-1378 | Edoardo Comar | 2026-09-18 | title `DISCUSS: KIP-1378 …`, no brackets |
+| KIP-1371 | Eric Chang | 2026-09-22 | |
+| KIP-1379 | David Jacot | 2026-10-02 | |
+| KIP-1165 | Viktor Somogyi-Vass | 2026-10-05 | the only `[DISCUSS] KIP-1165` thread Pony Mail returns for 2024-01 to 2026-10; whether he wrote the KIP page is not known (Confluence is not read), so the page says "started the discussion" |
+| KIP-1376 | Mickael Maison | 2026-10-06 | 18 messages |
+| KIP-1381, KIP-1382 | Arnab nandy | 2026-10-16 | two KIPs, one person |
+| KIP-1384 | PoAn Yang | 2026-10-20 | |
+| KIP-1383 | Andrew Schofield | 2026-10-20 | |
+| KIP-1368, 1262, 1374, 1325, 785, 1324, 1163, 1153, 1349, 1365 | none | | replies only. KIP-1163 was started 2025-04-23 by Ivan Yurchenko, before the coverage: nobody is credited, which is correct for "within the recorded range" |
+
+KIP-1153 was used twice in 2025 (Pony Mail: pritam kumar on 2025-04-04,
+Connect microsecond precision; 黃竣陽 on 2025-04-12, a Streams KIP). The
+earliest thread wins, so a renumbered KIP credits nobody for the reused
+number. Both are before the coverage anyway.
+
+**(b) GitHub ↔ Jira through `KAFKA-n`.** 270 apache/kafka pull requests
+created 2026-09-15 to 2026-10-21 name a `KAFKA-n` in their title (221
+distinct keys; 205 assigned in Jira). Pairing each pull request's author with
+the Jira assignee of the key gives 77 logins, 80 Jira accounts and 89 pairs.
+
+| Pair | Distinct `KAFKA-n` | Largest competing pairing | Strict (no competitor) | Dominance 3 |
+| --- | --- | --- | --- | --- |
+| `chickenchickenlove` ↔ JIRAUSER303328 "sanghyeok An" | 19 | 0 | link | link |
+| `harmadasg` ↔ JIRAUSER306203 "Gergely Harmadás" | 10 | 2 (`m1a2st` opened 2 pull requests on his issues) | no | link |
+| `unknowntpo` ↔ JIRAUSER306218 "Eric Chang" | 5 | 0 | link | link |
+| `dybyte` ↔ JIRAUSER312871 "Doyeon Kim" | 5 | 1 (one issue assigned to `chia7712`) | no | link |
+| `dajac` ↔ `dajac` "David Jacot" | 3 | 0 | link | link |
+| `brandboat` ↔ `brandboat` "Kuan Po Tseng" | 3 | 1 (`Alwaysgaurav1` on one of his issues) | no | link |
+| `m1a2st` ↔ JIRAUSER306203 / JIRAUSER305187 "Ken Huang" / JIRAUSER300229 "PoAn Yang" | 2 / 2 / 1 | — | no | no |
+| `dybyte`, `dino2895`, `jim0987795064` ↔ `chia7712` "Chia-Ping Tsai" | 1 each | — | no | no |
+| `see-quick` ↔ `mimaison` / JIRAUSER301401 "Maros Orsak" | 1 / 1 | — | no | no |
+
+28 pairs reach 3 keys. With no competitor at all, 21 qualify; the other 7
+(`harmadasg`, `dybyte`, `nileshkumar3`, `gitedmond`, `egyedt`, `dino2895`,
+`brandboat`) each lose to one or two pull requests someone else opened on
+their issues: exactly the committer-or-peer pattern the owner named. The
+known false-positive patterns stay unlinked under both rules: a committer
+assigned to issues others fixed (`chia7712`), and a contributor splitting
+work across three people's issues (`m1a2st`).
+
+**(c) Jira ↔ dev@ through `KIP-n`.** Of the 11 starters, three have a Jira
+issue whose **summary** names the KIP, with the starter's name as reporter
+or assignee: KIP-1371 (KAFKA-20995, reporter and assignee JIRAUSER306218
+"Eric Chang"), KIP-1378 (KAFKA-21127, `ecomar` "Edoardo Comar"), KIP-1379
+(KAFKA-21200, `dajac` "David Jacot"). All three issues are in the Dev
+release. Each is one KIP, so **none reaches 2** in today's coverage.
+KAFKA-20728 names KIP-1376 only in its description; its reporter (Netan
+Mangal) and assignee (Arnab Nandy) are not the starter (Mickael Maison).
+That is why the rule reads the summary only, although the log's Jira `kips`
+also come from the description.
+
+**What the rule would show today.** `mail:eric chang` lists KIP-1371 (no
+link needed). `github:unknowntpo` is linked to Jira "Eric Chang"
+(corroborated, 5 keys) but not to `mail:eric chang` (1 KIP < 2), so the
+GitHub page lists no KIP until a second KIP or a declared link. `dajac`
+qualifies on GitHub ↔ Jira; Jira lists a second KIP of his in the last 365
+days (KIP-1319), whose `[DISCUSS]` root is before the coverage. Transitive
+GitHub ↔ dev@ links today: 0.
+
+### Started a KIP discussion (the rule)
+
+1. A dev@ thread is a KIP discussion when its title (reply prefixes removed,
+   `threadTitle`) starts with `[DISCUSS]` or `DISCUSS:` (any case) and names
+   exactly one KIP (`extractKeys`). A title naming two KIPs credits nobody.
+2. Its **root** is the oldest recorded message of the thread whose subject
+   has no reply prefix. A thread with no root in the data has no starter.
+3. For KIP-n, the starter of the thread with the earliest root is "started
+   the discussion of KIP-n". Later threads with the same number credit
+   nobody.
+4. Only the activity log's coverage counts. A KIP whose discussion started
+   earlier is not listed for anyone, and the page says so.
+5. Computed at request time from the activity months the profile already
+   reads (a pure function, `kipStarters`), so the dev@ identity's own list
+   needs no link and no new read. The link job uses the same function.
+
+### What the stored data gains
+
+| Where | Change | Why |
+| --- | --- | --- |
+| Activity log, dev@ `message` rows | `opens: true` when the message's subject has no reply prefix; absent otherwise | Rule 2. The thread entry's `author` is the oldest message **in the state**, which slides; a row flag is fixed once written, because rows are keyed by record id and never removed |
+| Jira connector | `fields` adds `assignee`; the event keeps `reporter.key`, `assignee.key` and `assignee.displayName`, nothing else of either user object | Edge A needs the assignee's stable key; edge B the reporter's and assignee's |
+| Activity log, Jira thread entries | `reporter` and `assignee`: `{key, display}` or `null` | The link job's input. The newest month's entry of an issue wins (an issue is in the month of its last update, amendment (2)) |
+
+- Rows written before the change have no `opens` and count as "no root".
+  The first run after the change rebuilds the 35 days in the state, so
+  starters are known from 35 days before that run (W83).
+- **Privacy of the Jira account key.** ASF Jira's anonymous REST response
+  carries `key` (`dajac`, `JIRAUSER306218`), `name`, `displayName`,
+  `timeZone`, `avatarUrls` and `active`, and no email. Only `key` and
+  `displayName` are kept. `timeZone` would be a derived attribute (P-k);
+  `name` is not needed. The key is stored only in internal objects and
+  appears in no `/api/feed`, `/api/detail` or `/api/people` response; pages
+  show display names and link to the Jira issues. No email or address part
+  is stored or matched (P-c; rule 4 unchanged).
+- Jira person ids stay `jira:<name key>` until slice 4 switches them (G76);
+  the link table names Jira accounts as `jira-account:<key>` with the
+  display name beside it.
+
+### The `corroborated` rule
+
+Thresholds live in the community profile (`PeopleProfile.corroboration`,
+Kafka: `{issueKey: "KAFKA-", minIssues: 3, dominance: 3, minKips: 2}`;
+DataFusion: none, so the job skips it). The rule revision is
+`corroborated@1`; changing a number is a new revision and needs a new
+precision check.
+
+**Edge A, GitHub ↔ Jira, through `KAFKA-n`.**
+
+1. For every pull-request thread in the activity months, the `KAFKA-n` keys
+   in its title, read with the Kafka search profile's identifier pattern
+   (`compileIdentifierProfiles(searchIdentifierProfiles).identifiersOf`,
+   Spec 016), are paired with the thread author's login. Bot authors and
+   unassigned issues give nothing.
+2. Each key is paired with its Jira assignee's account key (newest entry).
+   A pair `(X, Y)` counts **distinct** keys, so a backport of the same key
+   counts once.
+3. Link `X ↔ Y` when `n(X, Y) ≥ 3` and `n(X, Y) ≥ 3 × n` of every other
+   pairing of `X` and of every other pairing of `Y` ("dominance 3").
+
+Why dominance and not "no conflict at all": the competing pairings in the
+Example are single pull requests someone opened on another person's issue
+(a committer finishing work, a peer taking over). "No competitor" drops 7
+of 28 pairs for that alone. Dominance 3 still refuses every split pattern of
+the Example (`m1a2st`: 2/2/1, `chia7712`: 1/1/1) and refuses a pair as soon
+as a competitor has a third of its evidence. The residual risk is a person
+who only ever opens pull requests on one other person's issues and has no
+Jira assignment of their own; no conflict test can see it, so the precision
+check measures it.
+
+**Edge B, Jira ↔ dev@, through `KIP-n`.**
+
+1. For every KIP-n with a starter (rule above), the Jira issues whose title
+   (`KAFKA-n: <summary>`) names KIP-n, read with `extractKeys` on the title,
+   not the stored `kips`.
+2. Pair the starter's dev@ identity with the issue's reporter and assignee
+   accounts whose display name has the same `nameKey` as the starter.
+3. Link when a pair holds on **≥ 2 distinct KIPs** and **no competitor**:
+   the dev@ identity pairs with no other Jira account, and the account with
+   no other dev@ identity. Strict here because the evidence already rests on
+   a name, which is user-editable and not unique.
+
+**Components.**
+
+- Edges join into components. GitHub ↔ dev@ exists only through a Jira
+  account whose two edges qualify on their own; there is no direct
+  GitHub ↔ dev@ edge.
+- A component holding two GitHub logins, two Jira accounts or two dev@
+  identities publishes none of its corroborated links (`conflict`).
+- With roster and declared links: a corroborated link that would put two ASF
+  ids, or two people the declared list keeps apart, into one component is
+  dropped (`contradiction`). Roster and declared links are never dropped
+  for a corroborated one.
+- **Removal.** An `identityLinks` entry `{a, b, remove: true, evidence,
+  date, reviewer}` suppresses that pair (declared removal); a suppressed
+  identity (P-e) gets no link at all. Both take effect at the next run,
+  which splits the profile; profiles are derived, never the source of truth.
+
+### The identity-link job
+
+| | |
+| --- | --- |
+| Trigger | Its own cron entry, `17 2 * * *` (02:17 UTC) in the Dev publisher Worker's configuration, dispatched by `IDENTITY_LINKS_CRON` as the digest is by `DIGEST_CRON`; and `POST /identity-links/run[?dryRun=1]` (`Bearer MANUAL_TRIGGER_TOKEN`). 02:17 is clear of the Dev publication (22:07; its retries end by about 00:00), the digest (22:47, deferred at most 4 × 15 min) and the Prod publication (22:37; retries end by about 00:30). Daily; not real time |
+| Inputs (the hand-off) | Objects other jobs already write: the activity log `internal/people/v1/<projectId>/state.json` and its month objects (publication's append, amendment (2)); the roster `internal/rosters/v1/asf/<projectId>.json` (Spec 015; may be absent: then no roster links and no roster contradiction check, stated in the output); the community profile's `identityLinks` and suppression list (code). It reads no publication state, no Durable Object, no upstream API |
+| Output | `internal/identity/v1/<projectId>/links.json` (`osskb.identity-links.v1`): `revision`, `generatedAt`, `inputs {coverageFrom, months[], activityUpdatedAt, rosterAt}`, `people[]` with `members[]` (`github:<login>`, `jira-account:<key>` + display, `mail:<name key>`) and `links[]` `{a, b, basis, evidence[]}`; evidence ids are `KAFKA-n` with the pull requests, or `KIP-n` with the Jira issue and the dev@ thread, each with its URL. Sorted, so equal inputs give equal bytes. Written only when the bytes change. Then `internal/identity/v1/last-run.json`, the status `/health` reads |
+| Budget | Per project with a `corroboration` config (Kafka): at most 1 + 12 months + 1 roster + 1 previous table = 15 Class B and 2 Class A per run (450 B and 62 A a month, against 10 M and 1 M free). Months are read one at a time and reduced to the facts the rule needs before the next is read (Spec 009) |
+| Status | `/health` `identityLinks` while `IDENTITY_LINKS` is set (W91) |
+| Isolation | Runs in its own invocation; never starts, waits for, or is started by the publication or the digest; writes only under `internal/identity/v1/`. Any failed or unparsable read of a project fails that project closed: no table is written and the last good one stays (a missing month could remove a competing pairing and so create a false link). The next day's run, or a manual run, retries. Profiles read the last good table; the publication never reads it |
+| Off | `IDENTITY_LINKS` unset: the cron entry and the route do nothing, read nothing, and `/health` has no field |
+
+### Precision check before enabling
+
+The thresholds are provisional. Before profiles read corroborated links on
+any environment:
+
+1. **Truth set.** The Kafka committers page (68 committers, each with a name
+   and a GitHub login: a public statement by the project, the evidence
+   kind `declared` already accepts), captured as a committed fixture with
+   its date; plus the roster where the store has it.
+2. **Blind run.** The rule never reads the truth set.
+3. **Classify** every corroborated component that holds a committer's
+   GitHub login, or a Jira or dev@ display name equal (`nameKey`) to a
+   committer's name. `agree`: its GitHub login and its Jira or dev@ name
+   belong to the same committer. `contradict`: it joins a committer to
+   another committer's login or name. `unlabelled`: anything else. The
+   name comparison is an oracle for the check only, never a link basis.
+4. **Label the rest.** Every other corroborated link joins the labelled
+   sample of W16 (same / different / unknown, from public evidence, by the
+   owner).
+5. **Gate.** `contradict` = 0, committer `unlabelled` = 0, and no labelled
+   link "different". Recall (committers with evidence who are not linked)
+   is reported, not gated.
+6. **Measured twice.** Offline, from public upstream data only, by a
+   committed command (`bun run measure:identity-links -- --from <date>
+   --to <date>`; W89), and on Dev from the real inputs by
+   `POST /identity-links/run?dryRun=1` (W90). The enable PR records the
+   window, the counts, and the commit of the labelled sample.
+
+Today's offline reading (window above): 28 corroborated links, 3 touching
+committers (`bbejeck`, `frankvicky`, `dajac`), 3 agree, 0 contradict;
+25 links to label. Zero errors in 3 says little; zero in 28 bounds the error
+rate below about 11 % (95 %, rule of three), which is why the labelled
+sample is part of the gate and the page always shows the basis.
+
+### The page
+
+- A section `[data-section="kips"]` after `activity`: "Started the
+  discussion of" with KIP-n, the thread title, the root date and a link to
+  the dev@ thread. On a dev@ identity it lists its own KIPs. On an identity
+  linked to a dev@ identity it lists that identity's KIPs with the basis
+  ("roster", "declared", "corroborated") and "how linked": the evidence ids
+  as links.
+- The identities section shows each link with its basis and evidence.
+- "How this is computed" states the definition, the coverage start, that
+  earlier KIPs are not listed, and the link table's `generatedAt`.
+- No count of KIPs is compared with anyone; no rank (P-a).
+
+### Flags and order
+
+| Step | Change | Expected |
+| --- | --- | --- |
+| 1 | Merge PR: activity-log fields, Jira `assignee`, the job, `kipStarters`, the page section; `IDENTITY_LINKS` and `PEOPLE_KIPS` unset everywhere | Nothing changes at runtime except the two stored fields (W67, W88) |
+| 2 | Dev: `IDENTITY_LINKS=corroborated@1` and its cron entry | `/health` `identityLinks.lastRun.ok`; the table exists; no page reads it |
+| 3 | Precision gate (offline and Dev dry run) | Recorded in the enable PR |
+| 4 | Dev Pages: `PEOPLE_KIPS=true` | The section and the linked identities appear (W74, W92) |
+| 5 | Prod | Separate owner approval, after amendment (6)'s profile tag |
+
+### Simplification review
+
+| Item | Kept? |
+| --- | --- |
+| Confluence KIP pages as the author source | **deleted** (decision 11.1) |
+| A stored list of KIP starters | **deleted**: request time, from months already read |
+| A separate Worker for the job | **deleted**: its own cron entry and invocation give the isolation; a second Worker adds secrets and a deploy |
+| A Durable Object lock | **deleted**: the job is deterministic and writes plain puts; two concurrent runs write equal bytes |
+| A shadow mode | **deleted**: the Worker flag on with the Pages flag off is the shadow |
+| Jira `name`, `timeZone`, avatar | **deleted** (privacy; not needed) |
+| Rejected pairs stored in the table | **deleted**: counts in `/health` only |
+| Follow-up runs after a failure | **deleted**: the next day's run, or a manual run |
+| Jira descriptions as KIP evidence | **deleted** (KAFKA-20728) |
+| Similarity, email, model | still **deleted** (rule 4) |
+
+### Open for the owner
+
+1. **Dominance 3** instead of "no competitor" for edge A (recommended
+   above; 28 links instead of 21 in the Example).
+2. **Edge B at 2 KIPs** fires for nobody in today's coverage, including
+   `unknowntpo` / Eric Chang. Keep 2 (and wait, or add a `declared` link),
+   or lower it, which needs its own precision check.
+3. **Truth set**: accept the committers page as `declared` evidence for the
+   check (and, separately, whether to write its 68 pairs into
+   `identityLinks`).
+4. Whether a page may name the person who started a KIP when the KIP page
+   lists other authors (KIP-1165 shows the gap; Confluence is not read).
+5. Decision 8 (terms) applies to storing Jira account keys on Prod as it
+   does to amendment (6).
 
 ## Test plan
 
@@ -1467,6 +1776,61 @@ Amendment (5): the chart model's rows (`apps/web/test/profile-chart.cases.ts`, c
 | W11 | a Jira identity in a community without Jira (DataFusion) | recorded | jira:Chia-Ping Tsai @ datafusion | 404 | — | — | — | — | — |
 <!-- test-plan:end -->
 
+Amendment (7): KIP starters, the stored fields, the `corroborated` rule and
+the job, from the Example's recorded values (labelled `recorded`) and
+constructed boundaries.
+
+<!-- test-plan:start packages/reference-pipeline/test/identity-links.cases.ts [pending] -->
+| id | case | data | input | expected |
+| --- | --- | --- | --- | --- |
+| W66 | a root message starts the KIP discussion | recorded | KAFKA-MAIL-3bc971ac: root "[DISCUSS] KIP-1376: …" by Mickael Maison 2026-10-06, 17 replies | KIP-1376 started by mail:mickael maison |
+| W66 | replies only | recorded | KAFKA-MAIL-fd63cd54: 22 messages, all "Re: [DISCUSS] KIP-1368 …" | KIP-1368 has no starter |
+| W66 | title without brackets | recorded | "DISCUSS: KIP-1378: Allow Consumer Group Renaming …" by Edoardo Comar | KIP-1378 started by mail:edoardo comar |
+| W66 | one KIP number used by two threads | recorded + constructed | KIP-1153 roots: pritam kumar 2025-04-04, 黃竣陽 2025-04-12 (both inside a constructed coverage) | KIP-1153 started by mail:pritam kumar only |
+| W66 | a title naming two KIPs | constructed | root "[DISCUSS] KIP-1 and KIP-2" | no starter for either |
+| W66 | a [VOTE] root is not a discussion | constructed | root "[VOTE] KIP-1376" before the [DISCUSS] root | starter from the [DISCUSS] thread |
+| W67 | the root flag on dev@ rows | recorded | messages "[DISCUSS] KIP-1342: …" and "Re: [DISCUSS] KIP-1342: …" | opens: true on the first row only |
+| W67 | the flag survives the state sliding | constructed | month written with the root row; a later run's state holds only replies | the root row keeps opens: true |
+| W67 | Jira accounts on the thread entry | recorded | KAFKA-20995 reporter and assignee JIRAUSER306218 "Eric Chang" | reporter {key JIRAUSER306218, display Eric Chang}, assignee the same |
+| W68 | only key and display name are kept | recorded | Jira user object with key, name, displayName, timeZone, avatarUrls, active (and a constructed emailAddress) | event, activity log, link table and every API response hold no name, timeZone, avatar, active or email |
+| W68 | an unassigned issue | recorded | one of the 16 unassigned keys of the Example | assignee null; no pairing |
+| W69 | five keys, no competitor | recorded | unknowntpo ↔ JIRAUSER306218 on KAFKA-21152, 21172, 21252, 21262, 21276 | linked, corroborated, 5 keys as evidence |
+| W69 | dominance with a competitor | recorded | harmadasg ↔ JIRAUSER306203 10 keys; m1a2st ↔ JIRAUSER306203 2 keys | harmadasg linked; m1a2st not |
+| W69 | split pairings | recorded | m1a2st ↔ JIRAUSER306203 2, JIRAUSER305187 2, JIRAUSER300229 1 | no link for m1a2st |
+| W69 | a committer assigned to issues others fixed | recorded | dybyte, dino2895, jim0987795064 ↔ chia7712 1 key each | no link to chia7712 |
+| W69 | a backport counts once | constructed | 3 pull requests naming one KAFKA-n | n = 1, no link |
+| W69 | dominance boundary | constructed | X ↔ Y 6 keys, X ↔ Z 2 keys / X ↔ Y 6, X ↔ Z 3 | linked / not linked |
+| W69 | minimum boundary | constructed | X ↔ Y 2 keys, no competitor | not linked |
+| W70 | one KIP is not enough | recorded | KIP-1371 started by Eric Chang; KAFKA-20995 "KIP-1371: …" reporter Eric Chang | no Jira ↔ dev@ link |
+| W70 | two KIPs | recorded + constructed | KIP-1371 as recorded and a constructed second KIP with the same pairing | mail:eric chang ↔ jira-account:JIRAUSER306218 linked |
+| W70 | a KIP named only in the description | recorded | KAFKA-20728 (KIP-1376 in the description; reporter Netan Mangal, assignee Arnab Nandy) | not an issue for KIP-1376; no pairing |
+| W70 | two Jira accounts with the starter's name | constructed | two accounts "A B" each on a KIP started by mail:a b | no link (strict) |
+| W71 | transitive only through both edges | constructed | github:x ↔ jira-account:k (3 keys) and jira-account:k ↔ mail:x (2 KIPs) | one person: github, Jira and dev@ |
+| W71 | one edge short | recorded | github:unknowntpo ↔ JIRAUSER306218 (5 keys); mail:eric chang ↔ JIRAUSER306218 (1 KIP) | GitHub and Jira linked; mail:eric chang separate |
+| W71 | two logins in one component | constructed | github:a and github:b both reach jira-account:k | no corroborated link of that component; conflict 1 |
+| W72 | contradicts the roster | constructed | a corroborated chain joining two names of two ASF ids | link dropped; contradiction 1; roster links kept |
+| W72 | declared removal | constructed | identityLinks {a: github:unknowntpo, b: jira-account:JIRAUSER306218, remove: true} | pair not linked at the next run |
+| W72 | suppressed identity | constructed | github:x on the suppression list | no link touches github:x |
+| W73 | table format and order | recorded | the W69 recorded rows, twice, in different input order | byte-equal tables; each link has basis and evidence ids with URLs |
+| W74 | own KIPs on a dev@ page | recorded | PEOPLE_KIPS=true; mail:arnab nandy | [data-section=kips] lists KIP-1381 and KIP-1382 with titles, 2026-10-16 and thread links |
+| W74 | linked KIPs on a GitHub page | constructed | PEOPLE_KIPS=true; github:x corroborated to mail:x | KIPs of mail:x with basis corroborated and the evidence links |
+| W74 | flag off | constructed | PEOPLE_KIPS unset | no kips section; links.json not read |
+| W75 | the note | constructed | coverageFrom 2026-09-10, table generatedAt 2026-10-22T02:17Z | definition, "KIPs started before 9/10 are not listed", links computed 10/22 |
+| W76 | a month read fails | constructed | bucket throws on 2026-09.json | no table written; last good kept; lastRun.ok false with the key |
+| W77 | no activity log | constructed | state.json absent | status no-input; nothing written |
+| W77 | no roster | constructed | roster object absent | table written without roster links; inputs.rosterAt null |
+| W78 | unchanged inputs | constructed | second run on the same objects | links.json not written; last-run.json written |
+| W79 | crash between writes | constructed | throw after links.json put | next run writes last-run.json; table unchanged |
+| W80 | link table missing or corrupt | constructed | links.json absent / not JSON | 200; own KIPs listed; "links not available" |
+| W81 | isolation from the publication | constructed | the job throws on its cron | publication not started or changed; nothing written outside internal/identity/v1/ |
+| W82 | two runs at once | constructed | cron and manual run on the same inputs | equal bytes; plain puts only |
+| W83 | rows written before the flag | constructed | month with dev@ rows and no opens field | no starter from them; note states the start |
+| W84 | issue reassigned | constructed | KAFKA-n assignee A in 2026-09, B in 2026-10 | paired with B only, counted once |
+| W85 | job off | constructed | IDENTITY_LINKS unset | cron no-op, route 404, no R2 call, no /health field |
+| W87 | profile reads | constructed | cold, then within 10 min | at most 27 reads, then 0 |
+| W91 | health shape | constructed | a finished run | identityLinks {revision, lastRun {ok, status, at, durationMs, inputs, links, rejected, people, kipStarters, r2}, lastGoodAt} |
+<!-- test-plan:end -->
+
 ## Acceptance
 
 Each item: precondition → action → observable result → evidence. All are
@@ -1505,6 +1869,16 @@ Each item: precondition → action → observable result → evidence. All are
 - W64: at 320 and 375 px the redesigned profile (GitHub with the activity log, and dev@ only) has no horizontal overflow, the chart fits its card, and the tiles are two columns (three for three tiles at 375 px) → E2E with screenshots.
 - W65: opening a profile and switching the period sends exactly one `/api/people/:project/:id` request and no other API request beyond what the page sent before → E2E counting requests.
 - W34: given an activity month, its stored summary holds, for every identity in the month, the counters `indexActivityMonth` computes for it (decision 10: one function for the reader and the summary) → test over every month of the recorded store.
+- W66: [pending] given dev@ rows of the activity log, a KIP's starter is the author of the root (subject without a reply prefix) of the earliest thread whose title starts with `[DISCUSS]` or `DISCUSS:` and names exactly that one KIP; a thread of replies only, a later thread with the same number, a title naming two KIPs and a `[VOTE]` thread credit nobody (amendment (7)) → case rows, recorded (KIP-1376, KIP-1368, KIP-1378, KIP-1153) and constructed.
+- W67: [pending] given the publication's activity append, a dev@ `message` row carries `opens: true` exactly when its subject has no reply prefix, and a root row keeps it when a later state holds only replies; a Jira thread entry carries `reporter` and `assignee` as `{key, display}` or `null`, from the newest month → unit tests on the row builder and the merge, with a positive control (a reply row has no flag).
+- W68: [pending] given a recorded ASF Jira user object (`key`, `name`, `displayName`, `timeZone`, `avatarUrls`, `active`, plus a constructed `emailAddress`), the connector requests `assignee` and keeps only `key` and `displayName`; no event, activity object, link table, `/api/feed`, `/api/detail` or `/api/people` response contains a `name`, time zone, avatar, `active`, an email address or a Jira account key → case rows and a response scan, both sides.
+- W69: [pending] given pull-request threads and Jira assignees, GitHub login X and Jira account Y are linked `corroborated` when they share at least 3 distinct `KAFKA-n` (read with the Kafka search profile's identifier pattern) and that count is at least 3 times every other pairing of X and of Y; bots and unassigned issues pair nothing → case rows, recorded (`unknowntpo`, `harmadasg`, `m1a2st`, `chia7712`) and constructed boundaries (2 keys; 6 vs 2; 6 vs 3; a backport).
+- W70: [pending] given KIP starters and Jira issues whose summary names the KIP, a dev@ identity and a Jira account whose display name has the same `nameKey` as the starter (reporter or assignee) are linked `corroborated` on at least 2 distinct KIPs, with no other account for that identity and no other identity for that account; a KIP named only in the description pairs nothing → case rows (KIP-1371 alone: no link; KAFKA-20728; two accounts with one name).
+- W71: [pending] given qualifying edges, a GitHub login and a dev@ identity are one person only through a Jira account with both edges; a component with two identities of one source publishes none of its corroborated links and counts a `conflict` → case rows (`unknowntpo` / Eric Chang: GitHub and Jira linked, dev@ separate).
+- W72: [pending] given roster and declared links, a corroborated link that would join two ASF ids or two people the declared list keeps apart is dropped and counted as `contradiction`; an `identityLinks` entry with `remove: true` suppresses its pair and a suppressed identity gets no link, both from the next run → case rows, with a positive control (the same inputs without the entry link the pair).
+- W73: [pending] given the same inputs in any order, the job writes byte-equal `osskb.identity-links.v1` tables in which every link has a basis and its evidence ids (`KAFKA-n` with pull requests; `KIP-n` with the Jira issue and the dev@ thread), each with its URL → unit test.
+- W74: [pending] given `PEOPLE_KIPS=true`, the profile of a dev@ identity lists the KIPs it started (title, root date, dev@ thread link) in `[data-section="kips"]` after `activity`, and the profile of an identity linked to it lists them with the basis and the evidence links; given the flag unset, there is no section and `links.json` is not read → API and component tests, both sides.
+- W75: [pending] given a profile with the section, "how this is computed" states "started the discussion" (not "authored"), the activity log's coverage start, that KIPs started earlier are not listed, and the link table's `generatedAt` → component test.
 
 ### Failure and retry
 
@@ -1523,6 +1897,16 @@ Each item: precondition → action → observable result → evidence. All are
 - W30: [pending] (slice 7) given month summaries for a project, the list answers one row per non-bot, non-suppressed identity with separate counts per column and no composite field; a source not recorded yet is "not recorded", not 0 → API test.
 - W31: [pending] (slice 7) the reader sorts by any one column, either direction, ties by name; the default order is by name → component test.
 - W32: [pending] (slice 7) the list is served on Dev only and with `X-Robots-Tag: noindex`, under the gate of W25 → configuration and API test.
+- W76: [pending] given a read of an activity month, the roster or the previous table that fails or does not parse, the job writes no table for that project, keeps the last good one, and records `ok: false` with the object key → test with a failing bucket.
+- W77: [pending] given no activity `state.json`, the run reports `no-input` and writes nothing; given no roster object, it writes a table without roster links and `inputs.rosterAt: null` → case rows.
+- W78: [pending] given unchanged inputs, a second run does not write `links.json` and writes `last-run.json` only → counting bucket, with a positive control (one changed month rewrites the table).
+- W79: [pending] given a crash after the table is written and before `last-run.json`, the next run converges (table unchanged, status written); the table is always written before the status → test that throws between the two puts.
+- W80: [pending] given `links.json` missing or unparsable, `/api/people/:project/:id` answers 200 with the identity's own KIPs and says links are not available → API test.
+- W81: [pending] given the job throws on its cron, the publication is neither started nor changed, the publication's cron never runs the job, and the job writes nothing outside `internal/identity/v1/` → Worker test on `scheduled` with both cron strings and a recording bucket.
+- W82: [pending] given a cron run and a manual run on the same inputs at once, both write equal bytes with plain puts (no conditional put) → unit test.
+- W83: [pending] given dev@ rows written before `opens` existed, none is a root, and the note states from when starters are known → case rows.
+- W84: [pending] given a Jira issue whose assignee changed between two months, only the newest entry pairs, and the key counts once → case rows.
+- W85: [pending] given `IDENTITY_LINKS` unset, the cron entry and `POST /identity-links/run` do nothing (the route answers 404), make no R2 call, and `/health` has no `identityLinks` → Worker test.
 
 ### Budget
 
@@ -1535,6 +1919,10 @@ Each item: precondition → action → observable result → evidence. All are
 - W20: [measure] review ingestion adds at most one GitHub request per pull request updated that day, and a day's batch stays inside the hourly request limit (slice 1; measured by Spec 022 RV21 and RV22 with `measure:github-reviews`).
 - W54: [measure] the area distributions of `m1a2st` and `chia7712` in amendment (4)'s Example, from public GitHub data (search `reviewed-by:` / `author:` updated since 2026-07-15, read 2026-10-15), reproduced by `areaDistribution` with the Kafka taxonomy.
 - W21: [measure] the 12-month backfill of slice 6 states its request count and stored size per source (GitHub, Jira, dev@'s 12 monthly archives) before it runs, measured, not estimated, and stays under each source's limit; it runs outside the publication.
+- W86: [measure] one identity-link run for Kafka with 12 full activity months reads at most 15 objects (Class B) and writes at most 2 (Class A), keeps one month parsed at a time, and reports peak heap and duration; DataFusion makes no call (command `measure:identity-links -- --budget`, against a constructed log of Dev's size; amendment (7)).
+- W87: [pending] given a cold isolate with `PEOPLE_KIPS=true`, one profile request reads at most 27 objects (W29's 26 and `links.json`), and a second within 10 minutes reads none → API test with a counting bucket.
+- W88: [measure] the first activity append after the change rewrites at most the months in the 35-day state once and then nothing for unchanged rows; a Jira page of 100 issues with `assignee` stays under the 4 MiB source limit; the bytes added per page are reported (command `measure:memory --activity 1` and a recorded Jira page).
+- W89: [measure] before enabling, `measure:identity-links -- --from <date> --to <date>` (public upstream data only: GitHub search, ASF Jira REST, Pony Mail, the committers page) reports corroborated links, committers touched, `agree`, `contradict`, committer `unlabelled`, and links to label; the gate is `contradict` 0, committer `unlabelled` 0, and no link labelled "different" in W16's sample; recall is reported. Recorded 2026-10-21 for 2026-09-15 to 2026-10-21: 28 links, 3 committers, 3 agree, 0 contradict, 25 to label.
 
 ### Observability
 
@@ -1544,6 +1932,9 @@ Each item: precondition → action → observable result → evidence. All are
 - W27: given a community with sources the profile does not read yet, the response lists each with status "not recorded" and the page shows "<sources>: not recorded yet" without a count; given the review store, the page shows "Reviews: <from> to <until>" with the dates of the response → case rows and component test, both sides.
 - W28: given the Dev configuration, a GitHub record's author in Detail links to `/#/<project>/people/github:<login>`; a bot author does not link; a Jira or dev@ author links to `jira:<name key>` or `mail:<name key>` only where `/api/people` lists that source in `recorded` (2b), and not before the log's first append (2a); given the Prod configuration, no author links → component test and E2E, both sides.
 - W29: given a cold isolate, one profile request reads at most 26 objects from R2 for its project (the two `state.json` objects, 12 review months none before Spec 022's `coverageFrom`, and 12 activity months none before the log's `coverageFrom`; a Jira or dev@ identity reads no review month); a second request within 10 minutes reads none; one after 10 minutes reads them again → API test with a counting bucket (amended 2026-10-15 for 2b: 13 before).
+- W90: [deploy] on Dev with `IDENTITY_LINKS=corroborated@1` and `PEOPLE_KIPS` unset, `POST /identity-links/run?dryRun=1` gives the W89 counts from the real inputs, with `contradict` 0, before the Pages flag is set; the enable PR records both readings, the window and the commit of the labelled sample.
+- W91: [pending] `/health` `identityLinks` is `{revision, lastRun {ok, status (ok, unchanged, no-input, failed), at, durationMs, inputs {months, activityUpdatedAt, rosterAt}, links {roster, declared, corroborated}, rejected {dominance, minimum, conflict, contradiction, removed}, people, kipStarters, bytesWritten, r2 {classA, classB}, error?}, lastGoodAt}` while `IDENTITY_LINKS` is set → unit test on the field.
+- W92: [deploy] on Dev after step 4 of amendment (7), `/health` `identityLinks.lastRun.ok` is true on two consecutive days, and the profile of `mail:arnab nandy` lists KIP-1381 and KIP-1382 (or, if they left the coverage, the note says so).
 
 ## Success criteria
 
@@ -1573,6 +1964,7 @@ record.
 | 8 | Terms and policy | **GitHub Terms of Service, the ASF privacy policy and the GDPR must be checked before anything goes beyond Dev** | Privacy section, P-g (Dev only); W25 | Skipping it risks having to take the feature down |
 | 9 | Removal | **By issue or email; removed at the next daily publication** | P-e; W12 | A self-service form needs authentication of the requester |
 | 10 | Contributor list (2026-10-15) | **Per-project list, sortable by separate metric columns** (reviews given, PRs authored/merged, comments, Jira, dev@, last active), no composite score, bots excluded, Dev only; built after the profile | Slice 7; W30–W33; revises decision 1 (U3 in this form) and P-a | A single activity score or rank (rejected again); no list at all (the owner wants it) |
+| 11 | KIP authorship and corroborated links (2026-10-21) | **"Authored" = started the earliest `[DISCUSS] KIP-n` thread on dev@, within the recorded range; a third link basis `corroborated` (GitHub ↔ Jira on ≥ 3 `KAFKA-n`, Jira ↔ dev@ on ≥ 2 `KIP-n`, provisional until a precision check); linking is its own job; profiles read its table behind a flag, Dev first** | Amendment (7); W66–W92; revises precision rule 2, decision 5, identity rule 2 | Confluence KIP pages as the author source; linking as a step of the publication or of the activity append; similarity or model-based matching |
 
 ## Could not be verified
 
@@ -1595,6 +1987,13 @@ record.
 - All terms of service and law (section Privacy).
 - The month estimates for when each limit breaks are linear extrapolations
   from one 35-day release.
+- Amendment (7): whether the starter of a KIP discussion wrote the KIP page
+  (Confluence is not read; KIP-1165); whether ASF Jira account keys can change
+  (`key` is documented as stable for Jira Server; not checked for ASF's
+  instance); the precision of `corroborated` beyond the 3 committers and 28
+  links of the 2026-10-21 reading, until the 25 links are labelled; how many
+  Jira issues of the Example's keys are in the Dev activity log (all 221
+  were read from Jira directly).
 
 ## Appendix: records behind the Example
 
