@@ -17,6 +17,7 @@ import { R2PublicationDestination } from "./r2-destination";
 import { FOLLOW_UP_KEY, runPending, runStarting, scheduleFollowUp, type FollowUpMarker } from "./run-schedule";
 import { healthBody } from "./health";
 import { identityLinksSet, R2IdentityLinksBucket, runIdentityLinks } from "./identity-links/run";
+import { KIP_PAGES_CRON_WALL_MS, kipPagesHealth, kipPagesRun, kipPagesSet } from "./kip-pages/run";
 import { appendActivityLog, peopleActivitySet, R2ActivityBucket } from "./people-activity/run";
 import { runDataPublication, type PipelinePhaseMarker, type PipelineRunStatus } from "./pipeline";
 import { SEARCH_QUERY_GATE_OBJECT_NAME, unboundQueryGateHealth, type EmbeddingAiBinding, type SemanticQueryGate, type VectorIndex } from "@oss-knowledge-base/semantic-vectorize";
@@ -106,6 +107,13 @@ interface Env {
    */
   readonly IDENTITY_LINKS?: string;
   readonly IDENTITY_LINKS_CRON?: string;
+  /**
+   * Spec 019 amendment (7): `authors@1` runs the `kip-pages` job (KIP page author lines and the
+   * `JIRA:` field's assignees, `internal/kips/v1/`). Unset is off: no request, no R2 call, no `/health` field.
+   */
+  readonly KIP_PAGES?: string;
+  /** Spec 019 amendment (7): the `kip-pages` job's cron expression (`43 3 * * *` once enabled). */
+  readonly KIP_PAGES_CRON?: string;
 }
 
 const sourceFetch = (url: string, init: { readonly headers: Readonly<Record<string, string>> }) =>
@@ -217,11 +225,13 @@ const matches = (cron: string, configured: string | undefined) => configured !==
  * Spec 014 Behavior 21 and Spec 015 Q57: a tick starts the digest or the review queue only when it
  * is that job's configured cron; any other tick publishes.
  */
-export function cronTarget(cron: string, digestCron: string | undefined, reviewQueueCron?: string, identityLinksCron?: string): "digest" | "review-queue" | "identity-links" | "publisher" {
+export function cronTarget(cron: string, digestCron: string | undefined, reviewQueueCron?: string, identityLinksCron?: string, kipPagesCron?: string): "digest" | "review-queue" | "identity-links" | "kip-pages" | "publisher" {
   if (matches(cron, digestCron)) return "digest";
   if (matches(cron, reviewQueueCron)) return "review-queue";
   // Spec 019 amendment (7): the identity-link job's own tick never publishes (W81).
   if (matches(cron, identityLinksCron)) return "identity-links";
+  // Spec 019 amendment (7): nor does the kip-pages job's (W98, W99).
+  if (matches(cron, kipPagesCron)) return "kip-pages";
   return "publisher";
 }
 
@@ -329,10 +339,16 @@ export function githubInitialLookbackDays(env: Pick<Env, "GITHUB_INITIAL_LOOKBAC
 
 export default {
   async scheduled(controller: ScheduledController, env: Env, context: ExecutionContext): Promise<void> {
-    const target = cronTarget(controller.cron, env.DIGEST_CRON, env.REVIEW_QUEUE_CRON, env.IDENTITY_LINKS_CRON);
+    const target = cronTarget(controller.cron, env.DIGEST_CRON, env.REVIEW_QUEUE_CRON, env.IDENTITY_LINKS_CRON, env.KIP_PAGES_CRON);
     if (target === "identity-links") {
       // W85: with the flag unset the tick does nothing; W81: it never starts the publication.
       if (identityLinksSet(env.IDENTITY_LINKS)) context.waitUntil(identityLinksRun(env, {}).then(() => undefined));
+      return;
+    }
+    if (target === "kip-pages") {
+      // Spec 019 amendment (7), W98/W99: the kip-pages tick runs that job only, and nothing while `KIP_PAGES` is unset.
+      // The scheduled handler has 15 minutes of wall time; the run stops before a request that could outlast 14 (W97).
+      if (kipPagesSet(env)) context.waitUntil(kipPagesRun(env, false, Date.now() + KIP_PAGES_CRON_WALL_MS).then(() => undefined));
       return;
     }
     if (target === "review-queue") {
@@ -402,13 +418,17 @@ export default {
       const githubReviewsBackfill = await reviewRecord(GITHUB_REVIEWS_BACKFILL_LAST_RUN_KEY);
       const githubReviewsRefresh = githubReviewsAreas(env) ? await reviewRecord(GITHUB_REVIEWS_REFRESH_LAST_RUN_KEY) : undefined;
       const costGuard = await costGuardHealth(env);
-      const health = mergeHealth(await publisher.json(), digestHealth, reviewQueue, searchEmbedding, searchQuery, githubReviews, githubReviewsBackfill, githubReviewsRefresh, costGuard);
-      // Spec 019 amendment (7), W91: the identity-link job's record while `IDENTITY_LINKS` is set; null before its first run.
-      if (!identityLinksSet(env.IDENTITY_LINKS)) return json(health);
-      const identityLinks = await env.OSS_KB_BUCKET.get(IDENTITY_LINKS_LAST_RUN_KEY)
-        .then((object) => (object === null ? null : object.json()))
-        .catch(() => null);
-      return json({ ...(health as Record<string, unknown>), identityLinks });
+      const health = mergeHealth(await publisher.json(), digestHealth, reviewQueue, searchEmbedding, searchQuery, githubReviews, githubReviewsBackfill, githubReviewsRefresh, costGuard) as Record<string, unknown>;
+      // Spec 019 amendment (7): each job's record only while its flag is set (W91 identityLinks, null before its first run; W100 kipPages).
+      const identityLinks = identityLinksSet(env.IDENTITY_LINKS)
+        ? await env.OSS_KB_BUCKET.get(IDENTITY_LINKS_LAST_RUN_KEY).then((object) => (object === null ? null : object.json())).catch(() => null)
+        : undefined;
+      const kipPages = await kipPagesHealth(env);
+      return json({
+        ...health,
+        ...(identityLinks === undefined ? {} : { identityLinks }),
+        ...(kipPages === undefined ? {} : { kipPages }),
+      });
     }
     if (request.method === "POST" && url.pathname === "/search-embedding/run") {
       if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
@@ -472,6 +492,14 @@ export default {
       // Runs while the caller waits (seconds): no Durable Object holds this job.
       const record = await identityLinksRun(env, { dryRun: url.searchParams.get("dryRun") === "1", blind: url.searchParams.get("blind") === "1" });
       return json(record, { status: record.lastRun.ok ? 200 : 502 });
+    }
+    if (request.method === "POST" && url.pathname === "/kip-pages/run") {
+      // W99: no route while the flag is unset.
+      if (!kipPagesSet(env)) return new Response("Not found", { status: 404 });
+      if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
+      // Runs while the caller waits (at most 13 upstream requests, 2 s apart): no Durable Object holds this job.
+      const result = await kipPagesRun(env, url.searchParams.get("dryRun") === "1");
+      return json(result, { status: result.lastRun?.ok === true ? 200 : 502 });
     }
     if (request.method === "POST" && url.pathname === "/run") {
       if (!authorized(request, env)) {

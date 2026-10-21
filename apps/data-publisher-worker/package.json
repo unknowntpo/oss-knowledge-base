@@ -12,7 +12,8 @@
     "measure:review-queue": "bun scripts/measure-review-queue.ts",
     "measure:github-reviews": "bun scripts/measure-github-reviews.ts",
     "measure:search-embedding": "bun scripts/measure-search-embedding.ts",
-    "measure:search-query-budget": "bun scripts/measure-search-query-budget.ts"
+    "measure:search-query-budget": "bun scripts/measure-search-query-budget.ts",
+    "measure:kip-pages": "bun scripts/measure-kip-pages.ts"
   },
   "dependencies": {
     "@oss-knowledge-base/domain": "workspace:*",

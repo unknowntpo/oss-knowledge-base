@@ -1,0 +1,825 @@
+{
+ "recorded": "2026-10-21, anonymous GET https://cwiki.apache.org/confluence/rest/api/content/search, expand=body.view,version, limit=50; three CQL title~ queries for the KIPs named in the case rows. The two email addresses in author lines (KIP-1183, KIP-1300) are replaced by someone@example.org, keeping their markup. Each body.view is cut after the first heading that follows the Status heading (or after the first heading when there is none): everything the parser reads.",
+ "responses": [
+  {
+   "results": [
+    {
+     "id": "350783996",
+     "type": "page",
+     "status": "current",
+     "title": "KIP-1165: Object Consolidation for Diskless",
+     "version": {
+      "by": {
+       "type": "known",
+       "username": "viktorsomogyi",
+       "userKey": "8aa980875d3a4e78015e3d640f0803b6",
+       "profilePicture": {
+        "path": "/confluence/download/attachments/73636090/user-avatar",
+        "width": 48,
+        "height": 48,
+        "isDefault": false
+       },
+       "displayName": "Viktor Somogyi",
+       "_links": {
+        "self": "https://cwiki.apache.org/confluence/rest/api/user?key=8aa980875d3a4e78015e3d640f0803b6"
+       },
+       "_expandable": {
+        "status": ""
+       }
+      },
+      "when": "2026-10-02T14:55:08.000Z",
+      "message": "",
+      "number": 21,
+      "minorEdit": false,
+      "hidden": false,
+      "_links": {
+       "self": "https://cwiki.apache.org/confluence/rest/experimental/content/350783996/version/21"
+      },
+      "_expandable": {
+       "content": "/rest/api/content/350783996"
+      }
+     },
+     "_links": {
+      "webui": "/spaces/KAFKA/pages/350783996/KIP-1165+Object+Consolidation+for+Diskless",
+      "edit": "/pages/resumedraft.action?draftId=350783996&draftShareId=0360e4a2-2286-4c7d-ab4a-cf4afc2bc8ae",
+      "tinyui": "/x/-InoF",
+      "self": "https://cwiki.apache.org/confluence/rest/api/content/350783996"
+     },
+     "body": {
+      "view": {
+       "value": "<p><span><strong>Authors:</strong> Greg Harris, Ivan Yurchenko, Jorge Quilcate, Giuseppe Lillo, Anatolii Popov, Juha Mynttinen, Josep Prat, Filip Yonov, Viktor Somogyi-Vass</span></p><p><div class=\"toc-macro client-side-toc-macro conf-macro output-block\" data-headerelements=\"H1,H2,H3,H4,H5,H6,H7\" data-hasbody=\"false\" data-macro-name=\"toc\"></div></p><h1 id=\"KIP1165:ObjectConsolidationforDiskless-Status\">Status</h1><p><strong>Current state</strong>: Under Discussion (Re-Opened)</p><p><strong>Discussion thread</strong>: <em><a class=\"external-link\" href=\"https://lists.apache.org/thread/ljxc495nf39myp28pmf77sm2xydwjm6d\" rel=\"nofollow\">here</a> [Change the link from the KIP proposal email archive to your own email thread]<br/></em></p><p><strong>JIRA</strong>: <em><a class=\"external-link\" href=\"https://issues.apache.org/jira/browse/KAFKA-19161\" rel=\"nofollow\">KAFKA-19161</a></em></p><p>Please keep the discussion on the mailing list rather than commenting on the wiki (wiki discussions get unwieldy fast).</p><h1 id=\"KIP1165:ObjectConsolidationforDiskless-Summary\">Summary</h1> [trimmed by the recording]",
+       "representation": "view"
+      }
+     }
+    },
+    {
+     "id": "430409277",
+     "type": "page",
+     "status": "current",
+     "title": "KIP-1360: Cluster Synchronous Mirroring",
+     "version": {
+      "by": {
+       "type": "known",
+       "username": "omnia",
+       "userKey": "ae84fb5e74d9bf270175f4a45d3605be",
+       "profilePicture": {
+        "path": "/confluence/images/icons/profilepics/default.svg",
+        "width": 48,
+        "height": 48,
+        "isDefault": true
+       },
+       "displayName": "Omnia Ibrahim",
+       "_links": {
+        "self": "https://cwiki.apache.org/confluence/rest/api/user?key=ae84fb5e74d9bf270175f4a45d3605be"
+       },
+       "_expandable": {
+        "status": ""
+       }
+      },
+      "when": "2026-06-25T22:08:19.000Z",
+      "message": "",
+      "number": 33,
+      "minorEdit": false,
+      "hidden": false,
+      "_links": {
+       "self": "https://cwiki.apache.org/confluence/rest/experimental/content/430409277/version/33"
+      },
+      "_expandable": {
+       "content": "/rest/api/content/430409277"
+      }
+     },
+     "_links": {
+      "webui": "/spaces/KAFKA/pages/430409277/KIP-1360+Cluster+Synchronous+Mirroring",
+      "edit": "/pages/resumedraft.action?draftId=430409277&draftShareId=cc1cf197-281a-4f24-918f-c598279a1415",
+      "tinyui": "/x/PYanGQ",
+      "self": "https://cwiki.apache.org/confluence/rest/api/content/430409277"
+     },
+     "body": {
+      "view": {
+       "value": "<p><strong>Authors: </strong>Omnia Ibrahim, Gaurav Narula,<span style=\"text-decoration: none;color:var(--ds-text,#172b4d);\"> Luke Chen, Federico Valeri</span> </p><p><div class=\"toc-macro client-side-toc-macro conf-macro output-block\" data-headerelements=\"H1,H2,H3,H4,H5,H6,H7\" data-hasbody=\"false\" data-macro-name=\"toc\"></div></p><h1 id=\"KIP1360:ClusterSynchronousMirroring-Status\">Status</h1><p><strong>Current state</strong>: <em>DRAFT</em></p><p><strong>Discussion thread</strong>: <em><a class=\"external-link\" href=\"http://mail-archives.apache.org/mod_mbox/kafka-dev/201501.mbox/%3CCAOeJiJh6Vkkca85bWYgkeOZ8rC6%2BKDh7zzq8vMKECL_7PNExTA%40mail.gmail.com%3E\" rel=\"nofollow\">here</a> [#TODO]<br/></em></p><p><strong>JIRA</strong>: <span class=\"jira-issue conf-macro output-block\" data-jira-key=\"KAFKA-20715\" data-client-id=\"SINGLE_5aa69414-a9e9-3523-82ec-879b028fb15b_430409277_anonymous\" data-hasbody=\"false\" data-macro-name=\"jira\">\n                    <a href=\"https://issues.apache.org/jira/browse/KAFKA-20715\" class=\"jira-issue-key\"><span class=\"aui-icon aui-icon-wait issue-placeholder\"></span>KAFKA-20715</a>\n                            -\n            <span class=\"summary\">Getting issue details...</span>\n                                                <span class=\"aui-lozenge aui-lozenge-subtle aui-lozenge-default issue-placeholder\">STATUS</span>\n                </span><em><br/></em></p><p>Please keep the discussion on the mailing list rather than commenting on the wiki (wiki discussions get unwieldy fast).</p><h1 id=\"KIP1360:ClusterSynchronousMirroring-Motivation\">Motivation</h1> [trimmed by the recording]",
+       "representation": "view"
+      }
+     }
+    },
+    {
+     "id": "449282795",
+     "type": "page",
+     "status": "current",
+     "title": "KIP-1371: Explicit Wait Conditions for Consumer Request Managers",
+     "version": {
+      "by": {
+       "type": "known",
+       "username": "unknowntpo",
+       "userKey": "073590d29715c82201971c7108c90002",
+       "profilePicture": {
+        "path": "/confluence/images/icons/profilepics/default.svg",
+        "width": 48,
+        "height": 48,
+        "isDefault": true
+       },
+       "displayName": "Eric Chang",
+       "_links": {
+        "self": "https://cwiki.apache.org/confluence/rest/api/user?key=073590d29715c82201971c7108c90002"
+       },
+       "_expandable": {
+        "status": ""
+       }
+      },
+      "when": "2026-09-22T04:49:41.000Z",
+      "message": "Update KIP status and KAFKA-21031 repair",
+      "number": 22,
+      "minorEdit": false,
+      "hidden": false,
+      "_links": {
+       "self": "https://cwiki.apache.org/confluence/rest/experimental/content/449282795/version/22"
+      },
+      "_expandable": {
+       "content": "/rest/api/content/449282795"
+      }
+     },
+     "_links": {
+      "webui": "/spaces/KAFKA/pages/449282795/KIP-1371+Explicit+Wait+Conditions+for+Consumer+Request+Managers",
+      "edit": "/pages/resumedraft.action?draftId=449282795&draftShareId=4c35de40-48f9-47d9-8979-4dc49770c897",
+      "tinyui": "/x/64LHGg",
+      "self": "https://cwiki.apache.org/confluence/rest/api/content/449282795"
+     },
+     "body": {
+      "view": {
+       "value": "<h2 id=\"KIP1371:ExplicitWaitConditionsforConsumerRequestManagers-Status\">Status</h2><p>Current state: Under Discussion</p><p>Discussion thread: <a class=\"external-link\" href=\"https://lists.apache.org/thread/g239gn2xpz13m2hzl90sgw885js7hxop\" rel=\"nofollow\">[DISCUSS] KIP-1371: Explicit Wait Conditions for Consumer Request Managers</a></p><p>JIRA: <a class=\"external-link\" href=\"https://issues.apache.org/jira/browse/KAFKA-20995\" rel=\"nofollow\">KAFKA-20995</a></p><p>Release: TBD</p><h2 id=\"KIP1371:ExplicitWaitConditionsforConsumerRequestManagers-Summary\">Summary</h2> [trimmed by the recording]",
+       "representation": "view"
+      }
+     }
+    },
+    {
+     "id": "263430272",
+     "type": "page",
+     "status": "current",
+     "title": "KIP-986: Cross-Cluster Replication",
+     "version": {
+      "by": {
+       "type": "known",
+       "username": "gharris1727",
+       "userKey": "8aa980956d0371e0016d16ea68fb005f",
+       "profilePicture": {
+        "path": "/confluence/images/icons/profilepics/default.svg",
+        "width": 48,
+        "height": 48,
+        "isDefault": true
+       },
+       "displayName": "Greg Harris",
+       "_links": {
+        "self": "https://cwiki.apache.org/confluence/rest/api/user?key=8aa980956d0371e0016d16ea68fb005f"
+       },
+       "_expandable": {
+        "status": ""
+       }
+      },
+      "when": "2024-03-14T00:39:58.000Z",
+      "message": "User Interface & User Stories",
+      "number": 7,
+      "minorEdit": false,
+      "hidden": false,
+      "_links": {
+       "self": "https://cwiki.apache.org/confluence/rest/experimental/content/263430272/version/7"
+      },
+      "_expandable": {
+       "content": "/rest/api/content/263430272"
+      }
+     },
+     "_links": {
+      "webui": "/spaces/KAFKA/pages/263430272/KIP-986+Cross-Cluster+Replication",
+      "edit": "/pages/resumedraft.action?draftId=263430272&draftShareId=2abedadd-2020-45ab-9dc3-e0fa5f956b19",
+      "tinyui": "/x/gKCzDw",
+      "self": "https://cwiki.apache.org/confluence/rest/api/content/263430272"
+     },
+     "body": {
+      "view": {
+       "value": "<p><div class=\"toc-macro client-side-toc-macro conf-macro output-block\" data-headerelements=\"H1,H2,H3,H4,H5,H6,H7\" data-hasbody=\"false\" data-macro-name=\"toc\"></div></p><p><em>Note that this proposal is incomplete, and tries to explore the UX of the feature before establishing the technical requirements and limitations. As we discover what the technical limitations are, some of the UX may need to change, and some semantics of the feature may need to be softened.</em></p><p><em>To Co-Authors: None of the below contents is final or necessarily correct. Please feel free to edit this document directly and summarize your changes on the mailing list afterwards. </em></p><h1 id=\"KIP986:CrossClusterReplication-Status\">Status</h1><p><strong>Current state</strong>: Under Discussion</p><p><strong>Discussion thread</strong>: <em><a class=\"external-link\" href=\"https://lists.apache.org/thread/4563fqdcwlqwjqlm7mbj8wftx1rpo0yd\" rel=\"nofollow\">here</a><br/></em></p><p><strong>JIRA</strong>: <em><a class=\"external-link\" href=\"https://issues.apache.org/jira/browse/KAFKA-15528\" rel=\"nofollow\">here</a><br/></em></p><p>Please keep the discussion on the mailing list rather than commenting on the wiki (wiki discussions get unwieldy fast).</p><h1 id=\"KIP986:CrossClusterReplication-Motivation\">Motivation</h1> [trimmed by the recording]",
+       "representation": "view"
+      }
+     }
+    },
+    {
+     "id": "294816589",
+     "type": "page",
+     "status": "current",
+     "title": "KIP-1026: Handling producer snapshot when upgrading from < v2.8.0 for Tiered Storage",
+     "version": {
+      "by": {
+       "type": "known",
+       "username": "divijvaidya",
+       "userKey": "ae84fb5e7fe113be01800b4080c800b0",
+       "profilePicture": {
+        "path": "/confluence/images/icons/profilepics/default.svg",
+        "width": 48,
+        "height": 48,
+        "isDefault": true
+       },
+       "displayName": "Divij Vaidya",
+       "_links": {
+        "self": "https://cwiki.apache.org/confluence/rest/api/user?key=ae84fb5e7fe113be01800b4080c800b0"
+       },
+       "_expandable": {
+        "status": ""
+       }
+      },
+      "when": "2024-03-10T18:10:06.000Z",
+      "message": "Added Compatibility, Deprecation, and Migration Plan",
+      "number": 3,
+      "minorEdit": false,
+      "hidden": false,
+      "_links": {
+       "self": "https://cwiki.apache.org/confluence/rest/experimental/content/294816589/version/3"
+      },
+      "_expandable": {
+       "content": "/rest/api/content/294816589"
+      }
+     },
+     "_links": {
+      "webui": "/spaces/KAFKA/pages/294816589/KIP-1026+Handling+producer+snapshot+when+upgrading+from+v2.8.0+for+Tiered+Storage",
+      "edit": "/pages/resumedraft.action?draftId=294816589&draftShareId=832889f3-f8dd-441c-b25a-3b0a0a1c20b3",
+      "tinyui": "/x/TYuSEQ",
+      "self": "https://cwiki.apache.org/confluence/rest/api/content/294816589"
+     },
+     "body": {
+      "view": {
+       "value": "<p><div class=\"toc-macro client-side-toc-macro conf-macro output-block\" data-headerelements=\"H1,H2,H3,H4,H5,H6,H7\" data-hasbody=\"false\" data-macro-name=\"toc\"></div></p><h1 id=\"KIP1026:Handlingproducersnapshotwhenupgradingfrom&lt;v2.8.0forTieredStorage-Status\">Status</h1><p><strong>Current state</strong>: <em>Under Discussion</em></p><p><strong>Discussion thread</strong>: <em><a class=\"external-link\" href=\"http://mail-archives.apache.org/mod_mbox/kafka-dev/201501.mbox/%3CCAOeJiJh6Vkkca85bWYgkeOZ8rC6%2BKDh7zzq8vMKECL_7PNExTA%40mail.gmail.com%3E\" rel=\"nofollow\">here</a> [Change the link from the KIP proposal email archive to your own email thread]<br/></em></p><p><strong>Author</strong><em>: Arpit Goyal</em></p><p><strong>JIRA</strong>: <span class=\"jira-issue conf-macro output-block\" data-jira-key=\"KAFKA-16209\" data-client-id=\"SINGLE_5aa69414-a9e9-3523-82ec-879b028fb15b_294816589_anonymous\" data-hasbody=\"false\" data-macro-name=\"jira\">\n                    <a href=\"https://issues.apache.org/jira/browse/KAFKA-16209\" class=\"jira-issue-key\"><span class=\"aui-icon aui-icon-wait issue-placeholder\"></span>KAFKA-16209</a>\n                            -\n            <span class=\"summary\">Getting issue details...</span>\n                                                <span class=\"aui-lozenge aui-lozenge-subtle aui-lozenge-default issue-placeholder\">STATUS</span>\n                </span><em><br/></em></p><p>Please keep the discussion on the mailing list rather than commenting on the wiki (wiki discussions get unwieldy fast).</p><h1 id=\"KIP1026:Handlingproducersnapshotwhenupgradingfrom&lt;v2.8.0forTieredStorage-Motivation\">Motivation</h1> [trimmed by the recording]",
+       "representation": "view"
+      }
+     }
+    }
+   ],
+   "start": 0,
+   "limit": 50,
+   "size": 5,
+   "_links": {
+    "self": "https://cwiki.apache.org/confluence/rest/api/content/search?expand=body.view%2cversion&cql=space%3dKAFKA+and+type%3dpage+and+%28title~%22KIP-1165%22+or+title~%22KIP-1360%22+or+title~%22KIP-1371%22+or+title~%22KIP-986%22+or+title~%22KIP-1026%22%29",
+    "base": "https://cwiki.apache.org/confluence",
+    "context": "/confluence"
+   }
+  },
+  {
+   "results": [
+    {
+     "id": "406620973",
+     "type": "page",
+     "status": "current",
+     "title": "KIP-1279: Cluster Mirroring",
+     "version": {
+      "by": {
+       "type": "known",
+       "username": "fvaleri",
+       "userKey": "ae84fb5e7da6acf7017f74e432920596",
+       "profilePicture": {
+        "path": "/confluence/images/icons/profilepics/default.svg",
+        "width": 48,
+        "height": 48,
+        "isDefault": true
+       },
+       "displayName": "Federico Valeri",
+       "_links": {
+        "self": "https://cwiki.apache.org/confluence/rest/api/user?key=ae84fb5e7da6acf7017f74e432920596"
+       },
+       "_expandable": {
+        "status": ""
+       }
+      },
+      "when": "2026-10-20T18:54:28.000Z",
+      "message": "",
+      "number": 670,
+      "minorEdit": false,
+      "hidden": false,
+      "_links": {
+       "self": "https://cwiki.apache.org/confluence/rest/experimental/content/406620973/version/670"
+      },
+      "_expandable": {
+       "content": "/rest/api/content/406620973"
+      }
+     },
+     "_links": {
+      "webui": "/spaces/KAFKA/pages/406620973/KIP-1279+Cluster+Mirroring",
+      "edit": "/pages/resumedraft.action?draftId=406620973&draftShareId=f0d9ab24-358a-4ccf-bdff-322ca468cf33",
+      "tinyui": "/x/LYs8G",
+      "self": "https://cwiki.apache.org/confluence/rest/api/content/406620973"
+     },
+     "body": {
+      "view": {
+       "value": "<p><span><strong>Authors</strong>: Luke Chen, Federico Valeri, Omnia Ibrahim, Gaurav Narula</span></p><p><span>This design follows and simplifies the goals of <a href=\"https://cwiki.apache.org/confluence/display/KAFKA/KIP-986%3A+Cross-Cluster+Replication\" rel=\"nofollow\">KIP-986: Cross-Cluster Replication</a> by Greg Harris, whose high level proposal provided the foundational vision for this feature.</span></p><p><span>A special thanks to PoAn Yang, Kuan-Po Tseng, and Jiunn-Yang Huang for their design and code contributions, which helped <span class=\"rQesXe MPyX\">kickstart the project</span> at its inception.</span></p><p><div class=\"toc-macro client-side-toc-macro conf-macro output-block\" data-headerelements=\"H1,H2,H3,H4,H5,H6,H7\" data-hasbody=\"false\" data-macro-name=\"toc\"></div></p><h1 id=\"KIP1279:ClusterMirroring-Status\">Status</h1><p><strong>Current state</strong>: Accepted</p><p><strong>Discussion thread</strong>: <a class=\"external-link\" href=\"https://lists.apache.org/thread/vr3nj1smtjtl4qfn5opk7ozjc6jqjjsw\" rel=\"nofollow\">here</a></p><p><strong>Voting thread</strong>: <a class=\"external-link\" href=\"https://lists.apache.org/thread/cjo3555pzzpwtxl9tn3s3hls65y69yk6\" rel=\"nofollow\">here</a></p><p><strong>JIRA</strong>: <span class=\"jira-issue conf-macro output-block\" data-jira-key=\"KAFKA-20186\" data-client-id=\"SINGLE_5aa69414-a9e9-3523-82ec-879b028fb15b_406620973_anonymous\" data-hasbody=\"false\" data-macro-name=\"jira\">\n                    <a href=\"https://issues.apache.org/jira/browse/KAFKA-20186\" class=\"jira-issue-key\"><span class=\"aui-icon aui-icon-wait issue-placeholder\"></span>KAFKA-20186</a>\n                            -\n            <span class=\"summary\">Getting issue details...</span>\n                                                <span class=\"aui-lozenge aui-lozenge-subtle aui-lozenge-default issue-placeholder\">STATUS</span>\n                </span></p><p>Please keep the discussion on the mailing list rather than commenting on the wiki (wiki discussions get unwieldy fast).</p><h1 id=\"KIP1279:ClusterMirroring-Motivation\">Motivation</h1> [trimmed by the recording]",
+       "representation": "view"
+      }
+     }
+    },
+    {
+     "id": "340036225",
+     "type": "page",
+     "status": "current",
+     "title": "KIP-1128: Replace KTable.transformValues with KTable.processFixedKey and add new KStreams.processFixedKey",
+     "version": {
+      "by": {
+       "type": "known",
+       "username": "frankvicky",
+       "userKey": "073590d28f899a29018f96220f230000",
+       "profilePicture": {
+        "path": "/confluence/download/attachments/308152773/user-avatar",
+        "width": 48,
+        "height": 48,
+        "isDefault": false
+       },
+       "displayName": "TengYao Chi",
+       "_links": {
+        "self": "https://cwiki.apache.org/confluence/rest/api/user?key=073590d28f899a29018f96220f230000"
+       },
+       "_expandable": {
+        "status": ""
+       }
+      },
+      "when": "2026-05-27T15:05:13.000Z",
+      "message": "",
+      "number": 11,
+      "minorEdit": false,
+      "hidden": false,
+      "_links": {
+       "self": "https://cwiki.apache.org/confluence/rest/experimental/content/340036225/version/11"
+      },
+      "_expandable": {
+       "content": "/rest/api/content/340036225"
+      }
+     },
+     "_links": {
+      "webui": "/spaces/KAFKA/pages/340036225/KIP-1128+Replace+KTable.transformValues+with+KTable.processFixedKey+and+add+new+KStreams.processFixedKey",
+      "edit": "/pages/resumedraft.action?draftId=340036225&draftShareId=21de61b5-5980-4ab5-bbda-ac2986a106b9",
+      "tinyui": "/x/gYpEF",
+      "self": "https://cwiki.apache.org/confluence/rest/api/content/340036225"
+     },
+     "body": {
+      "view": {
+       "value": "<p><div class=\"toc-macro client-side-toc-macro conf-macro output-block\" data-headerelements=\"H1,H2,H3,H4,H5,H6,H7\" data-hasbody=\"false\" data-macro-name=\"toc\"></div></p><h1 id=\"KIP1128:ReplaceKTable.transformValueswithKTable.processFixedKeyandaddnewKStreams.processFixedKey-Status\">Status</h1><p><strong>Current state</strong>: <em>&quot;Draft&quot;</em></p><p><strong>Discussion thread</strong>: TBD</p><p><strong>JIRA:</strong> <span class=\"jira-issue conf-macro output-block\" data-jira-key=\"KAFKA-17178\" data-client-id=\"SINGLE_5aa69414-a9e9-3523-82ec-879b028fb15b_340036225_anonymous\" data-hasbody=\"false\" data-macro-name=\"jira\">\n                    <a href=\"https://issues.apache.org/jira/browse/KAFKA-17178\" class=\"jira-issue-key\"><span class=\"aui-icon aui-icon-wait issue-placeholder\"></span>KAFKA-17178</a>\n                            -\n            <span class=\"summary\">Getting issue details...</span>\n                                                <span class=\"aui-lozenge aui-lozenge-subtle aui-lozenge-default issue-placeholder\">STATUS</span>\n                </span>, <span class=\"jira-issue conf-macro output-block\" data-jira-key=\"KAFKA-17131\" data-client-id=\"SINGLE_5aa69414-a9e9-3523-82ec-879b028fb15b_340036225_anonymous\" data-hasbody=\"false\" data-macro-name=\"jira\">\n                    <a href=\"https://issues.apache.org/jira/browse/KAFKA-17131\" class=\"jira-issue-key\"><span class=\"aui-icon aui-icon-wait issue-placeholder\"></span>KAFKA-17131</a>\n                            -\n            <span class=\"summary\">Getting issue details...</span>\n                                                <span class=\"aui-lozenge aui-lozenge-subtle aui-lozenge-default issue-placeholder\">STATUS</span>\n                </span>, and <span class=\"jira-issue conf-macro output-block\" data-jira-key=\"KAFKA-19688\" data-client-id=\"SINGLE_5aa69414-a9e9-3523-82ec-879b028fb15b_340036225_anonymous\" data-hasbody=\"false\" data-macro-name=\"jira\">\n                    <a href=\"https://issues.apache.org/jira/browse/KAFKA-19688\" class=\"jira-issue-key\"><span class=\"aui-icon aui-icon-wait issue-placeholder\"></span>KAFKA-19688</a>\n                            -\n            <span class=\"summary\">Getting issue details...</span>\n                                                <span class=\"aui-lozenge aui-lozenge-subtle aui-lozenge-default issue-placeholder\">STATUS</span>\n                </span></p><p><strong>Released: </strong>targeting 4.4</p><p>Please keep the discussion on the mailing list rather than commenting on the wiki (wiki discussions get unwieldy fast).</p><h1 id=\"KIP1128:ReplaceKTable.transformValueswithKTable.processFixedKeyandaddnewKStreams.processFixedKey-Motivation\">Motivation</h1> [trimmed by the recording]",
+       "representation": "view"
+      }
+     }
+    },
+    {
+     "id": "357960226",
+     "type": "page",
+     "status": "current",
+     "title": "KIP-1183: Unified Shared Storage",
+     "version": {
+      "by": {
+       "type": "known",
+       "username": "yukon",
+       "userKey": "8aa9808758bb56080158f5eb1c270122",
+       "profilePicture": {
+        "path": "/confluence/download/attachments/67634618/user-avatar",
+        "width": 48,
+        "height": 48,
+        "isDefault": false
+       },
+       "displayName": "Xinyu Zhou",
+       "_links": {
+        "self": "https://cwiki.apache.org/confluence/rest/api/user?key=8aa9808758bb56080158f5eb1c270122"
+       },
+       "_expandable": {
+        "status": ""
+       }
+      },
+      "when": "2025-05-16T05:18:06.000Z",
+      "message": "",
+      "number": 10,
+      "minorEdit": false,
+      "hidden": false,
+      "_links": {
+       "self": "https://cwiki.apache.org/confluence/rest/experimental/content/357960226/version/10"
+      },
+      "_expandable": {
+       "content": "/rest/api/content/357960226"
+      }
+     },
+     "_links": {
+      "webui": "/spaces/KAFKA/pages/357960226/KIP-1183+Unified+Shared+Storage",
+      "edit": "/pages/resumedraft.action?draftId=357960226&draftShareId=baea7488-27df-4c16-bc8f-cc61a6074cf3",
+      "tinyui": "/x/IgpWFQ",
+      "self": "https://cwiki.apache.org/confluence/rest/api/content/357960226"
+     },
+     "body": {
+      "view": {
+       "value": "<p><div class=\"toc-macro client-side-toc-macro conf-macro output-block\" data-headerelements=\"H1,H2,H3,H4,H5,H6,H7\" data-hasbody=\"false\" data-macro-name=\"toc\"></div></p><h1 id=\"KIP1183:UnifiedSharedStorage-Status\">Status</h1><p><strong>Current state</strong>:<span> </span><em>&quot;Under Discussion&quot;</em></p><p><strong>Discussion thread</strong>: <a class=\"external-link\" href=\"https://lists.apache.org/thread/k9ydcdyxdyfgoy73cgsgs8w46yhpxrw2\" rel=\"nofollow\">https://lists.apache.org/thread/k9ydcdyxdyfgoy73cgsgs8w46yhpxrw2</a></p><p><strong>JIRA</strong>:<span> </span></p><p><span><strong>Authors</strong>: xinyu&lt;someone@<a class=\"external-link\" href=\"http://example.org\" rel=\"nofollow\">example.org</a>&gt;</span></p><p>Please keep the discussion on the mailing list rather than commenting on the wiki (wiki discussions get unwieldy fast).</p><h1 class=\"heading-1 ace-line old-record-id-T1EndNS1QoPTOMxC9SUcgVEWn1b\" id=\"KIP1183:UnifiedSharedStorage-Motivation\">Motivation</h1> [trimmed by the recording]",
+       "representation": "view"
+      }
+     }
+    },
+    {
+     "id": "406622741",
+     "type": "page",
+     "status": "current",
+     "title": "KIP-1300: Automated Contribution Quality and AI-Generated Pull Request Validation",
+     "version": {
+      "by": {
+       "type": "known",
+       "username": "vaquarkhan1",
+       "userKey": "073590d29b4ab60c019b8ec43a84000f",
+       "profilePicture": {
+        "path": "/confluence/download/attachments/406618635/user-avatar",
+        "width": 48,
+        "height": 48,
+        "isDefault": false
+       },
+       "displayName": "ViquarKhan",
+       "_links": {
+        "self": "https://cwiki.apache.org/confluence/rest/api/user?key=073590d29b4ab60c019b8ec43a84000f"
+       },
+       "_expandable": {
+        "status": ""
+       }
+      },
+      "when": "2026-03-14T03:07:00.000Z",
+      "message": "",
+      "number": 15,
+      "minorEdit": false,
+      "hidden": false,
+      "_links": {
+       "self": "https://cwiki.apache.org/confluence/rest/experimental/content/406622741/version/15"
+      },
+      "_expandable": {
+       "content": "/rest/api/content/406622741"
+      }
+     },
+     "_links": {
+      "webui": "/spaces/KAFKA/pages/406622741/KIP-1300+Automated+Contribution+Quality+and+AI-Generated+Pull+Request+Validation",
+      "edit": "/pages/resumedraft.action?draftId=406622741&draftShareId=3938d590-2d47-4ac1-acf7-352a339b35a0",
+      "tinyui": "/x/FZI8G",
+      "self": "https://cwiki.apache.org/confluence/rest/api/content/406622741"
+     },
+     "body": {
+      "view": {
+       "value": "<p><strong>Status:</strong> <span class=\"inline-comment-marker\" data-ref=\"f4d94919-6afb-4b5e-9785-1d8a5e05c01f\">Draft</span></p><p><strong>Author:</strong> Viquar Khan (someone@example.org)</p><p><strong>Discussion thread:</strong> TBD</p><p>Jira:</p><p><br/></p><h2 data-path-to-node=\"2\" id=\"KIP1300:AutomatedContributionQualityandAIGeneratedPullRequestValidation-Motivation\">Motivation</h2> [trimmed by the recording]",
+       "representation": "view"
+      }
+     }
+    },
+    {
+     "id": "406623554",
+     "type": "page",
+     "status": "current",
+     "title": "KIP-1300: Update KStream-KStream Join to Use Plain-Value-Header Window Stores",
+     "version": {
+      "by": {
+       "type": "known",
+       "username": "yangpoan",
+       "userKey": "073590d28fb4b5ef018fe81e7b440010",
+       "profilePicture": {
+        "path": "/confluence/images/icons/profilepics/default.svg",
+        "width": 48,
+        "height": 48,
+        "isDefault": true
+       },
+       "displayName": "PoAn Yang",
+       "_links": {
+        "self": "https://cwiki.apache.org/confluence/rest/api/user?key=073590d28fb4b5ef018fe81e7b440010"
+       },
+       "_expandable": {
+        "status": ""
+       }
+      },
+      "when": "2026-03-29T11:18:58.000Z",
+      "message": "",
+      "number": 1,
+      "minorEdit": false,
+      "hidden": false,
+      "_links": {
+       "self": "https://cwiki.apache.org/confluence/rest/experimental/content/406623554/version/1"
+      },
+      "_expandable": {
+       "content": "/rest/api/content/406623554"
+      }
+     },
+     "_links": {
+      "webui": "/spaces/KAFKA/pages/406623554/KIP-1300+Update+KStream-KStream+Join+to+Use+Plain-Value-Header+Window+Stores",
+      "edit": "/pages/resumedraft.action?draftId=406623554&draftShareId=11d3aaf9-f129-481b-ae8f-89c34ade9165",
+      "tinyui": "/x/QpU8G",
+      "self": "https://cwiki.apache.org/confluence/rest/api/content/406623554"
+     },
+     "body": {
+      "view": {
+       "value": "<p><div class=\"toc-macro client-side-toc-macro conf-macro output-block\" data-headerelements=\"H1,H2,H3,H4,H5,H6,H7\" data-hasbody=\"false\" data-macro-name=\"toc\"></div></p><h1 id=\"KIP1300:UpdateKStreamKStreamJointoUsePlainValueHeaderWindowStores-Status\">Status</h1><p><strong>Current state</strong>: <span class=\"inline-comment-marker\" data-ref=\"fb69a9e6-2a56-4610-972c-0b614b551526\">Draft</span></p><p><strong>Discussion thread</strong>: <span class=\"jira-issue conf-macro output-block\" data-jira-key=\"KAFKA-20334\" data-client-id=\"SINGLE_5aa69414-a9e9-3523-82ec-879b028fb15b_406623554_anonymous\" data-hasbody=\"false\" data-macro-name=\"jira\">\n                    <a href=\"https://issues.apache.org/jira/browse/KAFKA-20334\" class=\"jira-issue-key\"><span class=\"aui-icon aui-icon-wait issue-placeholder\"></span>KAFKA-20334</a>\n                            -\n            <span class=\"summary\">Getting issue details...</span>\n                                                <span class=\"aui-lozenge aui-lozenge-subtle aui-lozenge-default issue-placeholder\">STATUS</span>\n                </span><em><br/></em></p><p><strong>JIRA</strong>: <em><br/></em></p><p>Please keep the discussion on the mailing list rather than commenting on the wiki (wiki discussions get unwieldy fast).</p><h1 id=\"KIP1300:UpdateKStreamKStreamJointoUsePlainValueHeaderWindowStores-Motivation\">Motivation</h1> [trimmed by the recording]",
+       "representation": "view"
+      }
+     }
+    },
+    {
+     "id": "263424884",
+     "type": "page",
+     "status": "current",
+     "title": "KIP-952: Regenerate segment-aligned producer snapshots when upgrading to a Kafka version supporting Tiered Storage",
+     "version": {
+      "by": {
+       "type": "known",
+       "username": "christo_lolov",
+       "userKey": "ae84fb5e7aec553e017b4110255f00fd",
+       "profilePicture": {
+        "path": "/confluence/images/icons/profilepics/default.svg",
+        "width": 48,
+        "height": 48,
+        "isDefault": true
+       },
+       "displayName": "Christo Lolov",
+       "_links": {
+        "self": "https://cwiki.apache.org/confluence/rest/api/user?key=ae84fb5e7aec553e017b4110255f00fd"
+       },
+       "_expandable": {
+        "status": ""
+       }
+      },
+      "when": "2023-07-17T16:28:14.000Z",
+      "message": "",
+      "number": 25,
+      "minorEdit": false,
+      "hidden": false,
+      "_links": {
+       "self": "https://cwiki.apache.org/confluence/rest/experimental/content/263424884/version/25"
+      },
+      "_expandable": {
+       "content": "/rest/api/content/263424884"
+      }
+     },
+     "_links": {
+      "webui": "/spaces/KAFKA/pages/263424884/KIP-952+Regenerate+segment-aligned+producer+snapshots+when+upgrading+to+a+Kafka+version+supporting+Tiered+Storage",
+      "edit": "/pages/resumedraft.action?draftId=263424884&draftShareId=15387e7e-95cb-4b10-88c1-eed3c324b3e7",
+      "tinyui": "/x/dIuzDw",
+      "self": "https://cwiki.apache.org/confluence/rest/api/content/263424884"
+     },
+     "body": {
+      "view": {
+       "value": "<p><div class=\"toc-macro client-side-toc-macro conf-macro output-block\" data-headerelements=\"H1,H2,H3,H4,H5,H6,H7\" data-hasbody=\"false\" data-macro-name=\"toc\"></div></p><p><br/></p><p><strong>Authors:</strong> <a class=\"confluence-userlink user-mention\" data-username=\"mital.awachat\" href=\"/confluence/display/~mital.awachat\" data-linked-resource-id=\"263424885\" data-linked-resource-version=\"1\" data-linked-resource-type=\"userinfo\" data-base-url=\"https://cwiki.apache.org/confluence\">Mital Awachat</a> <a class=\"confluence-userlink user-mention\" data-username=\"christo_lolov\" href=\"/confluence/display/~christo_lolov\" data-linked-resource-id=\"186877583\" data-linked-resource-version=\"1\" data-linked-resource-type=\"userinfo\" data-base-url=\"https://cwiki.apache.org/confluence\">Christo Lolov</a> </p><h1 id=\"KIP952:RegeneratesegmentalignedproducersnapshotswhenupgradingtoaKafkaversionsupportingTieredStorage-Status\">Status</h1><p><strong>Current state</strong>: <em>&quot;Under Discussion&quot;</em></p><p><strong>Discussion thread</strong>: <a class=\"external-link\" href=\"https://lists.apache.org/thread/vnjn785srld1vq453cj8ztv3j9vntoo9\" rel=\"nofollow\">here</a><em><br/></em></p><p><strong>JIRA</strong>: <a class=\"external-link\" href=\"https://issues.apache.org/jira/browse/KAFKA-15195\" rel=\"nofollow\">KAFKA-15195</a><em><br/></em></p><p>Please keep the discussion on the mailing list rather than commenting on the wiki (wiki discussions get unwieldy fast).</p><h1 id=\"KIP952:RegeneratesegmentalignedproducersnapshotswhenupgradingtoaKafkaversionsupportingTieredStorage-Motivation\">Motivation</h1> [trimmed by the recording]",
+       "representation": "view"
+      }
+     }
+    }
+   ],
+   "start": 0,
+   "limit": 50,
+   "size": 6,
+   "_links": {
+    "self": "https://cwiki.apache.org/confluence/rest/api/content/search?expand=body.view%2cversion&cql=space%3dKAFKA+and+type%3dpage+and+%28title~%22KIP-1128%22+or+title~%22KIP-1279%22+or+title~%22KIP-952%22+or+title~%22KIP-1183%22+or+title~%22KIP-1300%22%29",
+    "base": "https://cwiki.apache.org/confluence",
+    "context": "/confluence"
+   }
+  },
+  {
+   "results": [
+    {
+     "id": "451980224",
+     "type": "page",
+     "status": "current",
+     "title": "KIP-1383: Standard record headers for content type",
+     "version": {
+      "by": {
+       "type": "known",
+       "username": "schofielaj",
+       "userKey": "8aa98087664609da0166ab98daa30198",
+       "profilePicture": {
+        "path": "/confluence/images/icons/profilepics/default.svg",
+        "width": 48,
+        "height": 48,
+        "isDefault": true
+       },
+       "displayName": "Andrew Schofield",
+       "_links": {
+        "self": "https://cwiki.apache.org/confluence/rest/api/user?key=8aa98087664609da0166ab98daa30198"
+       },
+       "_expandable": {
+        "status": ""
+       }
+      },
+      "when": "2026-10-21T08:07:27.000Z",
+      "message": "Added discussion thread link",
+      "number": 4,
+      "minorEdit": false,
+      "hidden": false,
+      "_links": {
+       "self": "https://cwiki.apache.org/confluence/rest/experimental/content/451980224/version/4"
+      },
+      "_expandable": {
+       "content": "/rest/api/content/451980224"
+      }
+     },
+     "_links": {
+      "webui": "/spaces/KAFKA/pages/451980224/KIP-1383+Standard+record+headers+for+content+type",
+      "edit": "/pages/resumedraft.action?draftId=451980224&draftShareId=f80719d1-0ece-4c12-8f87-dd3de20f57f0",
+      "tinyui": "/x/wKvwGg",
+      "self": "https://cwiki.apache.org/confluence/rest/api/content/451980224"
+     },
+     "body": {
+      "view": {
+       "value": "<p><div class=\"toc-macro client-side-toc-macro conf-macro output-block\" data-headerelements=\"H1,H2,H3,H4,H5,H6,H7\" data-hasbody=\"false\" data-macro-name=\"toc\"></div></p><h1 id=\"KIP1383:Standardrecordheadersforcontenttype-Status\">Status</h1><p><strong>Current state</strong>: <em>Under Discussion</em></p><p><strong>Discussion thread</strong>: <em><a class=\"external-link\" href=\"https://lists.apache.org/thread.html/2jjotqbcr9lg51390do3ygkhsocb0llt\" rel=\"nofollow\">here</a> <br/></em></p><p><strong>JIRA</strong>: <em><a class=\"external-link\" href=\"https://issues.apache.org/jira/browse/KAFKA-1\" rel=\"nofollow\">here</a> [Ticket will be opened once the KIP is approved]<br/></em></p><p>Please keep the discussion on the mailing list rather than commenting on the wiki (wiki discussions get unwieldy fast).</p><h1 id=\"KIP1383:Standardrecordheadersforcontenttype-Motivation\">Motivation</h1> [trimmed by the recording]",
+       "representation": "view"
+      }
+     }
+    },
+    {
+     "id": "446071011",
+     "type": "page",
+     "status": "current",
+     "title": "KIP-1370: Include Instance and Rack IDs in kafka-streams-groups.sh Member Output",
+     "version": {
+      "by": {
+       "type": "known",
+       "username": "chickenchickenlove",
+       "userKey": "073590d29a7abced019ab51adea6000d",
+       "profilePicture": {
+        "path": "/confluence/images/icons/profilepics/default.svg",
+        "width": 48,
+        "height": 48,
+        "isDefault": true
+       },
+       "displayName": "sanghyeok an",
+       "_links": {
+        "self": "https://cwiki.apache.org/confluence/rest/api/user?key=073590d29a7abced019ab51adea6000d"
+       },
+       "_expandable": {
+        "status": ""
+       }
+      },
+      "when": "2026-08-09T13:17:06.000Z",
+      "message": "",
+      "number": 10,
+      "minorEdit": false,
+      "hidden": false,
+      "_links": {
+       "self": "https://cwiki.apache.org/confluence/rest/experimental/content/446071011/version/10"
+      },
+      "_expandable": {
+       "content": "/rest/api/content/446071011"
+      }
+     },
+     "_links": {
+      "webui": "/spaces/KAFKA/pages/446071011/KIP-1370+Include+Instance+and+Rack+IDs+in+kafka-streams-groups.sh+Member+Output",
+      "edit": "/pages/resumedraft.action?draftId=446071011&draftShareId=819a5f92-8df5-447c-9029-4802543aa2e5",
+      "tinyui": "/x/44CWGg",
+      "self": "https://cwiki.apache.org/confluence/rest/api/content/446071011"
+     },
+     "body": {
+      "view": {
+       "value": "<p><div class=\"toc-macro client-side-toc-macro conf-macro output-block\" data-headerelements=\"H1,H2,H3,H4,H5,H6,H7\" data-hasbody=\"false\" data-macro-name=\"toc\"></div></p><p><br/></p><h1 id=\"KIP1370:IncludeInstanceandRackIDsinkafkastreamsgroups.shMemberOutput-Status\">Status</h1><p><strong>Current state</strong>: Under Discussion</p><p><strong>Discussion thread</strong>: <a class=\"external-link\" href=\"https://lists.apache.org/thread/1m9p7m2x1btb5dofcbjkc56hpcfvmwrm\" rel=\"nofollow\">here</a><em><br/></em></p><p><strong>JIRA</strong>: <span class=\"jira-issue conf-macro output-block\" data-jira-key=\"KAFKA-20888\" data-client-id=\"SINGLE_5aa69414-a9e9-3523-82ec-879b028fb15b_446071011_anonymous\" data-hasbody=\"false\" data-macro-name=\"jira\">\n                    <a href=\"https://issues.apache.org/jira/browse/KAFKA-20888\" class=\"jira-issue-key\"><span class=\"aui-icon aui-icon-wait issue-placeholder\"></span>KAFKA-20888</a>\n                            -\n            <span class=\"summary\">Getting issue details...</span>\n                                                <span class=\"aui-lozenge aui-lozenge-subtle aui-lozenge-default issue-placeholder\">STATUS</span>\n                </span>, <span class=\"jira-issue conf-macro output-block\" data-jira-key=\"KAFKA-20883\" data-client-id=\"SINGLE_5aa69414-a9e9-3523-82ec-879b028fb15b_446071011_anonymous\" data-hasbody=\"false\" data-macro-name=\"jira\">\n                    <a href=\"https://issues.apache.org/jira/browse/KAFKA-20883\" class=\"jira-issue-key\"><span class=\"aui-icon aui-icon-wait issue-placeholder\"></span>KAFKA-20883</a>\n                            -\n            <span class=\"summary\">Getting issue details...</span>\n                                                <span class=\"aui-lozenge aui-lozenge-subtle aui-lozenge-default issue-placeholder\">STATUS</span>\n                </span><em><br/></em></p><p><br/></p><h1 id=\"KIP1370:IncludeInstanceandRackIDsinkafkastreamsgroups.shMemberOutput-Motivation\">Motivation</h1> [trimmed by the recording]",
+       "representation": "view"
+      }
+     }
+    },
+    {
+     "id": "404160887",
+     "type": "page",
+     "status": "current",
+     "title": "KIP-1258: Add Support for OAuth Client Assertion to client_credentials Grant Type",
+     "version": {
+      "by": {
+       "type": "known",
+       "username": "prabhashkr",
+       "userKey": "073590d29b179121019b2bc8dba50009",
+       "profilePicture": {
+        "path": "/confluence/images/icons/profilepics/default.svg",
+        "width": 48,
+        "height": 48,
+        "isDefault": true
+       },
+       "displayName": "Prabhash Kumar",
+       "_links": {
+        "self": "https://cwiki.apache.org/confluence/rest/api/user?key=073590d29b179121019b2bc8dba50009"
+       },
+       "_expandable": {
+        "status": ""
+       }
+      },
+      "when": "2026-03-05T09:22:22.000Z",
+      "message": "",
+      "number": 16,
+      "minorEdit": false,
+      "hidden": false,
+      "_links": {
+       "self": "https://cwiki.apache.org/confluence/rest/experimental/content/404160887/version/16"
+      },
+      "_expandable": {
+       "content": "/rest/api/content/404160887"
+      }
+     },
+     "_links": {
+      "webui": "/spaces/KAFKA/pages/404160887/KIP-1258+Add+Support+for+OAuth+Client+Assertion+to+client_credentials+Grant+Type",
+      "edit": "/pages/resumedraft.action?draftId=404160887&draftShareId=b6606902-0c0f-4a73-940a-4b5e76a736f3",
+      "tinyui": "/x/dwEXG",
+      "self": "https://cwiki.apache.org/confluence/rest/api/content/404160887"
+     },
+     "body": {
+      "view": {
+       "value": "<p><div class=\"toc-macro client-side-toc-macro conf-macro output-block\" data-headerelements=\"H1,H2,H3,H4,H5,H6,H7\" data-hasbody=\"false\" data-macro-name=\"toc\"></div></p><h1 id=\"KIP1258:AddSupportforOAuthClientAssertiontoclient_credentialsGrantType-Status\">Status</h1><p><strong>Current state</strong>: Accepted</p><p><strong>Voting thread</strong>: <a class=\"external-link\" href=\"https://lists.apache.org/thread/53g4g2jqh7bs0g221l3obb3mjcon84q2\" rel=\"nofollow\">https://lists.apache.org/thread/53g4g2jqh7bs0g221l3obb3mjcon84q2</a></p><p><strong>Discussion thread</strong>: <a class=\"external-link\" href=\"https://lists.apache.org/thread/5gqlj8x3pxr816j1bcq39q9qbss2d0xk\" rel=\"nofollow\">https://lists.apache.org/thread/5gqlj8x3pxr816j1bcq39q9qbss2d0xk</a><em><br/></em></p><p><strong>JIRA</strong>: <a class=\"external-link\" href=\"https://issues.apache.org/jira/browse/KAFKA-18608\" rel=\"nofollow\">KAFKA-18608</a></p><p><strong>Co-Author</strong>: <a class=\"confluence-userlink user-mention\" data-username=\"ujjwalkalia\" href=\"/confluence/display/~ujjwalkalia\" data-linked-resource-id=\"406620904\" data-linked-resource-version=\"1\" data-linked-resource-type=\"userinfo\" data-base-url=\"https://cwiki.apache.org/confluence\">ujjwal kalia</a> (Ujjwal Kalia)</p><h1 id=\"KIP1258:AddSupportforOAuthClientAssertiontoclient_credentialsGrantType-Motivation\">Motivation</h1> [trimmed by the recording]",
+       "representation": "view"
+      }
+     }
+    },
+    {
+     "id": "263424654",
+     "type": "page",
+     "status": "current",
+     "title": "KIP-950:  Tiered Storage Disablement",
+     "version": {
+      "by": {
+       "type": "known",
+       "username": "showuon",
+       "userKey": "8aa98081705c54c3017130e7367a0540",
+       "profilePicture": {
+        "path": "/confluence/images/icons/profilepics/default.svg",
+        "width": 48,
+        "height": 48,
+        "isDefault": true
+       },
+       "displayName": "Luke Chen",
+       "_links": {
+        "self": "https://cwiki.apache.org/confluence/rest/api/user?key=8aa98081705c54c3017130e7367a0540"
+       },
+       "_expandable": {
+        "status": ""
+       }
+      },
+      "when": "2024-08-16T09:14:35.000Z",
+      "message": "",
+      "number": 46,
+      "minorEdit": false,
+      "hidden": false,
+      "_links": {
+       "self": "https://cwiki.apache.org/confluence/rest/experimental/content/263424654/version/46"
+      },
+      "_expandable": {
+       "content": "/rest/api/content/263424654"
+      }
+     },
+     "_links": {
+      "webui": "/spaces/KAFKA/pages/263424654/KIP-950+Tiered+Storage+Disablement",
+      "edit": "/pages/resumedraft.action?draftId=263424654&draftShareId=dc5733b7-3704-40a2-bd45-745e05531248",
+      "tinyui": "/x/joqzDw",
+      "self": "https://cwiki.apache.org/confluence/rest/api/content/263424654"
+     },
+     "body": {
+      "view": {
+       "value": "<p><div class=\"toc-macro client-side-toc-macro conf-macro output-block\" data-headerelements=\"H1,H2,H3,H4,H5,H6,H7\" data-hasbody=\"false\" data-macro-name=\"toc\"></div></p><p><em>This page is meant as a template for writing a <a href=\"/confluence/spaces/KAFKA/pages/50859233/Kafka+Improvement+Proposals\">KIP</a>. To create a KIP choose Tools-&gt;Copy on this page and modify with your content and replace the heading with the next KIP number and a description of your issue. Replace anything in italics with your own description.</em></p><p><span style=\"color:var(--ds-text,#172b4d);\"><strong>Authors</strong>: <a class=\"external-link\" href=\"https://github.com/mehbey\" rel=\"nofollow\">Mehari Beyene</a>, <span style=\"color:var(--ds-text-accent-lime-bolder,#37471f);\"><a class=\"external-link\" href=\"https://github.com/divijvaidya\" rel=\"nofollow\">Divij Vaidya</a></span></span></p><p><span style=\"color:var(--ds-text,#172b4d);\"><span style=\"color:var(--ds-text-accent-lime-bolder,#37471f);\"><strong>Collaborators</strong>: <a class=\"external-link\" href=\"https://github.com/karjag5\" rel=\"nofollow\">Karthik Rajagopalan</a>, Nagarjuna Koduru, Luke Chen, Kamal Chandraprakash<br/></span></span></p><h1 id=\"KIP950:TieredStorageDisablement-Status\">Status</h1><p><strong>Current state</strong>: <em>Accepted</em></p><p><strong>Discussion thread</strong>: <em><a class=\"external-link\" href=\"https://lists.apache.org/thread/n43xoz80ctd4n1gtqf7l0bo91lnoyl47\" rel=\"nofollow\">here</a><br/></em></p><p><strong>JIRA</strong>: <em><a class=\"external-link\" href=\"https://issues.apache.org/jira/browse/KAFKA-15132\" rel=\"nofollow\">KAFKA-15132</a><br/></em></p><p>Please keep the discussion on the mailing list rather than commenting on the wiki (wiki discussions get unwieldy fast).</p><h1 id=\"KIP950:TieredStorageDisablement-Motivation\">Motivation</h1> [trimmed by the recording]",
+       "representation": "view"
+      }
+     }
+    },
+    {
+     "id": "327978018",
+     "type": "page",
+     "status": "current",
+     "title": "KIP-1105: Make remote log manager thread-pool configs dynamic",
+     "version": {
+      "by": {
+       "type": "known",
+       "username": "ckamal",
+       "userKey": "8aa980875d3a4e78015e0891494002fc",
+       "profilePicture": {
+        "path": "/confluence/images/icons/profilepics/default.svg",
+        "width": 48,
+        "height": 48,
+        "isDefault": true
+       },
+       "displayName": "Kamal Chandraprakash",
+       "_links": {
+        "self": "https://cwiki.apache.org/confluence/rest/api/user?key=8aa980875d3a4e78015e0891494002fc"
+       },
+       "_expandable": {
+        "status": ""
+       }
+      },
+      "when": "2024-11-12T17:28:00.000Z",
+      "message": "",
+      "number": 11,
+      "minorEdit": false,
+      "hidden": false,
+      "_links": {
+       "self": "https://cwiki.apache.org/confluence/rest/experimental/content/327978018/version/11"
+      },
+      "_expandable": {
+       "content": "/rest/api/content/327978018"
+      }
+     },
+     "_links": {
+      "webui": "/spaces/KAFKA/pages/327978018/KIP-1105+Make+remote+log+manager+thread-pool+configs+dynamic",
+      "edit": "/pages/resumedraft.action?draftId=327978018&draftShareId=0054b7d5-9be6-40cb-ab6b-c6d91f505542",
+      "tinyui": "/x/IoyMEw",
+      "self": "https://cwiki.apache.org/confluence/rest/api/content/327978018"
+     },
+     "body": {
+      "view": {
+       "value": "<p><div class=\"toc-macro client-side-toc-macro conf-macro output-block\" data-headerelements=\"H1,H2,H3,H4,H5,H6,H7\" data-hasbody=\"false\" data-macro-name=\"toc\"></div></p><h1 id=\"KIP1105:Makeremotelogmanagerthreadpoolconfigsdynamic-Status\">Status</h1><p><strong>Current state</strong>: <em>[&quot;Accepted&quot;]</em></p><p><strong>Discussion thread</strong>: <em><a class=\"external-link\" href=\"https://lists.apache.org/thread/lpn7293lz2t1vqrhgon3nx8pxo5bq5dt\" rel=\"nofollow\">here</a><br/></em></p><p><strong>JIRA</strong>: <em><a class=\"external-link\" href=\"https://issues.apache.org/jira/browse/KAFKA-17928\" rel=\"nofollow\">KAFKA-17928</a> </em>and <a class=\"external-link\" href=\"https://issues.apache.org/jira/browse/KAFKA-17980\" rel=\"nofollow\">KAFKA-17980</a></p><h1 id=\"KIP1105:Makeremotelogmanagerthreadpoolconfigsdynamic-Motivation\">Motivation</h1> [trimmed by the recording]",
+       "representation": "view"
+      }
+     }
+    }
+   ],
+   "start": 0,
+   "limit": 50,
+   "size": 5,
+   "_links": {
+    "self": "https://cwiki.apache.org/confluence/rest/api/content/search?expand=body.view%2cversion&cql=space%3dKAFKA+and+type%3dpage+and+%28title~%22KIP-1258%22+or+title~%22KIP-950%22+or+title~%22KIP-1370%22+or+title~%22KIP-1383%22+or+title~%22KIP-1105%22%29",
+    "base": "https://cwiki.apache.org/confluence",
+    "context": "/confluence"
+   }
+  }
+ ]
+}

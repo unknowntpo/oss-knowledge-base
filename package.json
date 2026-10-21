@@ -45,7 +45,8 @@
     "docs:feature-map-site": "bun scripts/feature-map-site/build.ts",
     "verify:ui": "bun scripts/verify/ui.ts",
     "verify:health": "bun scripts/verify/health.ts",
-    "digest": "bun packages/reference-pipeline/scripts/digest.ts"
+    "digest": "bun packages/reference-pipeline/scripts/digest.ts",
+    "measure:kip-pages": "bun run --cwd apps/data-publisher-worker measure:kip-pages"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",

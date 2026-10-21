@@ -4,16 +4,13 @@
  * `declared` links. [pending] until the amendment's merge PR runs it. `recorded` rows come from
  * public reads of cwiki.apache.org (Confluence REST, anonymous) and Pony Mail on 2026-10-21;
  * `constructed` rows are made up to reach a boundary.
+ *
+ * The rows of the `kip-pages` job itself (W93, W97–W100, W105, W107, W108, W110) moved to
+ * `kip-pages.cases.ts` and the Worker's `kip-pages-worker.cases.ts` when that job was built
+ * (slice B); the rows left here are read by the profile at request time and by the identity-link
+ * job. W98's "table missing" and W102's response half stay for the profile.
  */
 export const testPlanRows = [
-  { id: "W93", case: "a plain list of nine", data: "recorded", input: "KIP-1165 view: \"Authors: Greg Harris, Ivan Yurchenko, …, Viktor Somogyi-Vass\"", expected: "listed; 9 names in page order" },
-  { id: "W93", case: "the line ends at its block", data: "recorded", input: "KIP-1279 view: \"Authors: Luke Chen, Federico Valeri, Omnia Ibrahim, Gaurav Narula\" then a paragraph \"This design follows …\"", expected: "listed; 4 names, no text of the next paragraph" },
-  { id: "W93", case: "user mentions", data: "recorded", input: "KIP-952: two ri:user mentions, rendered \"Mital Awachat\" \"Christo Lolov\" with no comma", expected: "listed; 2 names" },
-  { id: "W93", case: "an email in the line", data: "recorded", input: "KIP-1183: \"xinyu<xinyuzhou@ automq.com >\"; KIP-1300: \"Viquar Khan (Vaquar.khan@gmail.com)\"", expected: "listed; \"xinyu\" / \"Viquar Khan\"; no @ stored" },
-  { id: "W93", case: "a parenthesized co-author", data: "recorded", input: "KIP-1258: \"Author: <mention> (Ujjwal Kalia)\"", expected: "listed; the mention's name and \"Ujjwal Kalia\"" },
-  { id: "W93", case: "not a list", data: "recorded", input: "KIP-986: \"Co-Authors: None of the below contents is final or necessarily correct. …\"", expected: "unparsed; no author" },
-  { id: "W93", case: "no author line", data: "recorded", input: "KIP-1371 (template header only)", expected: "no-list" },
-  { id: "W93", case: "collaborators are not authors", data: "recorded", input: "KIP-950: \"Authors: Mehari Beyene, Divij Vaidya\" and \"Collaborators: Karthik Rajagopalan, …\"", expected: "listed; the 2 authors only" },
   { id: "W94", case: "author and starter", data: "recorded", input: "KIP-1165 list names Viktor Somogyi-Vass; he started the recorded [DISCUSS] thread", expected: "\"author (KIP page)\", \"also started the discussion\"" },
   { id: "W94", case: "starter only", data: "recorded", input: "KIP-1371: no line; started by Eric Chang", expected: "mail:eric chang: \"started the discussion\"" },
   { id: "W94", case: "a starter the list does not name", data: "recorded + constructed", input: "KIP-1272 list \"Henry Cai, Thomas Thornton, Greg Harris\"; starter \"Henry Haiying Cai\" inside a constructed coverage", expected: "mail:henry haiying cai: \"started the discussion\"; not an author" },
@@ -25,37 +22,18 @@ export const testPlanRows = [
   { id: "W95", case: "names never join identities", data: "constructed", input: "author \"A B\"; github:x and mail:a b unlinked", expected: "link table unchanged; no corroborated edge from the author line" },
   { id: "W96", case: "the section", data: "recorded + constructed", input: "PEOPLE_KIPS=true; mail:viktor somogyi-vass with KIP-1165", expected: "one line: KIP-1165, title, label, 9 names in page order, page and thread links" },
   { id: "W96", case: "a linked identity", data: "constructed", input: "github:x declared to mail:x, an author of KIP-n", expected: "github:x lists KIP-n with the link's basis" },
-  { id: "W97", case: "a 429", data: "constructed", input: "stub cwiki answers 429 on the first request", expected: "no table; last good kept; ok false, status failed; 1 request" },
-  { id: "W97", case: "over budget", data: "constructed", input: "a window needing 11 pages of 50", expected: "status over-budget after 10 requests; nothing written" },
-  { id: "W97", case: "positive control", data: "constructed", input: "stub answers 200 with 25 pages", expected: "table written; ok true" },
-  { id: "W98", case: "isolation", data: "constructed", input: "the job throws on its cron", expected: "publication, digest and identity links unchanged; nothing outside internal/kips/v1/" },
   { id: "W98", case: "table missing", data: "constructed", input: "authors.json absent / not JSON", expected: "200; starter lines; \"author lists not available\"" },
-  { id: "W99", case: "job off", data: "constructed", input: "KIP_PAGES unset", expected: "cron no-op, route 404, no cwiki request, no R2 call, no /health field" },
-  { id: "W100", case: "health shape", data: "constructed", input: "a finished run", expected: "kipPages {revision, lastRun {ok, status, at, durationMs, since, requests, jiraRequests, pagesRead, pagesChanged, listed, unparsed, issuesRead, unassigned, bytesWritten, r2}, lastGoodAt, coverageFrom}" },
   { id: "W102", case: "names only", data: "recorded", input: "the W93 pages (with usernames, user keys, emails in their sources)", expected: "no username, user key, email, avatar or body text in any stored object or response" },
   { id: "W103", case: "committers as declared links", data: "constructed", input: "capture of 3 pairs, one name twice", expected: "2 declared entries with the committers page URL, date, reviewer" },
   { id: "W103", case: "refresh removes a pair", data: "constructed", input: "new capture without one pair", expected: "diff lists it as removed; no entry; next run splits" },
   { id: "W103", case: "blind check", data: "constructed", input: "measure:identity-links --blind", expected: "committers-page entries not read" },
   { id: "W104", case: "evidence must be a URL", data: "constructed", input: "entry github:unknowntpo ↔ mail:eric chang with evidence \"TODO(owner): …\"", expected: "rejected; no link" },
   { id: "W104", case: "with a URL", data: "recorded + constructed", input: "the same entry with an https URL; github:unknowntpo ↔ JIRAUSER306218 corroborated (5 keys)", expected: "one person; GitHub page lists KIP-1371" },
-  { id: "W105", case: "a new version", data: "constructed", input: "KIP-n version 3 in the table, 4 in the answer", expected: "entry replaced" },
-  { id: "W105", case: "unchanged", data: "constructed", input: "same versions", expected: "authors.json not written; last-run.json written" },
-  { id: "W105", case: "the window", data: "constructed", input: "last good run 2026-10-21T03:43Z / no table", expected: "since 2026-10-20T03:43Z / 365 days back" },
-  { id: "W105", case: "a page without a KIP number", data: "recorded", input: "\"Kafka Improvement Proposals\" index page", expected: "skipped" },
   { id: "W94", case: "assignee below the author line", data: "recorded", input: "KIP-1165: author line names Ivan Yurchenko; KAFKA-19161 assignee Ivan Yurchenko", expected: "jira-account of Ivan Yurchenko: \"author (KIP page)\" via a link, \"also assigned KAFKA-19161\"; otherwise \"assigned the KIP's Jira issue (KAFKA-19161)\"" },
   { id: "W94", case: "assignee above the starter", data: "recorded", input: "KIP-1376: KAFKA-20728 assignee Arnab Nandy; starter Mickael Maison", expected: "Arnab Nandy's Jira account: \"assigned the KIP's Jira issue (KAFKA-20728)\"; mail:mickael maison: \"started the discussion\"" },
-  { id: "W107", case: "one issue", data: "recorded", input: "KIP-1371 header \"JIRA: KAFKA-20995\"", expected: "one [KAFKA-20995]" },
-  { id: "W107", case: "several issues", data: "recorded", input: "KIP-1370 header with KAFKA-20888 and KAFKA-20883", expected: "several, in page order" },
-  { id: "W107", case: "empty", data: "recorded", input: "KIP-1383 \"JIRA: here [Ticket will be opened once the KIP is approved]\"", expected: "empty" },
-  { id: "W107", case: "the template's link", data: "constructed", input: "\"JIRA: here [Change the link from KAFKA-1 to your own ticket]\" linking KAFKA-1", expected: "empty" },
-  { id: "W107", case: "a query macro", data: "constructed", input: "JIRA block holding a jqlQuery macro", expected: "query, no key" },
-  { id: "W108", case: "batching and unknown keys", data: "recorded + constructed", input: "160 keys incl. KAFKA-99999999", expected: "2 requests (100 + 60) with validateQuery=warn; unknown key dropped" },
-  { id: "W108", case: "Jira fails", data: "constructed", input: "stub Jira answers 503", expected: "no table; last good kept; ok false" },
-  { id: "W108", case: "Monday re-read", data: "constructed", input: "run on a Monday, table with 160 keys, no page changed", expected: "1 cwiki request, 2 Jira requests" },
   { id: "W109", case: "activity log is newer", data: "constructed", input: "job read A at 2026-10-20; activity-log entry with assignee B updated 2026-10-21", expected: "line for B only" },
   { id: "W109", case: "unassigned", data: "recorded", input: "KIP-1360 KAFKA-20715 assignee null", expected: "no assignee line" },
   { id: "W109", case: "two people on two issues", data: "recorded", input: "KIP-1105: two issues, Chu Cheng Li and Kamal Chandraprakash", expected: "each gets a line naming their own KAFKA-n" },
-  { id: "W110", case: "Jira fields kept", data: "recorded", input: "KAFKA-20995 with assignee and reporter user objects", expected: "assignee {key JIRAUSER306218, display Eric Chang} only; no reporter, name, timeZone, avatar" },
   { id: "W111", case: "through a corroborated link", data: "recorded", input: "github:unknowntpo ↔ JIRAUSER306218 (5 keys); KIP-1371 KAFKA-20995 assignee JIRAUSER306218", expected: "github:unknowntpo lists KIP-1371, basis corroborated" },
   { id: "W111", case: "no link", data: "recorded", input: "KIP-1360: no assignee; github:x unlinked", expected: "nothing listed on the GitHub page" },
   { id: "W111", case: "a committer holding the issue", data: "recorded", input: "KIP-1311 assignee Chia-Ping Tsai, starter Siddhartha Devineni", expected: "chia7712's Jira account: \"assigned the KIP's Jira issue\", never \"author\"" },
