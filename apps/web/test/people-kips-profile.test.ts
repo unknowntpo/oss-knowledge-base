@@ -14,11 +14,10 @@ describe("Spec 019 amendment (7), slice C: the KIPs section (page rows)", () => 
     expect(Object.keys(kipProfileChecks).sort()).toEqual([...new Set(testPlanRows.map((row) => `${row.id}|${row.case}`))].sort());
   });
 
-  test("W74: every Pages configuration leaves PEOPLE_KIPS unset (merged off; the Dev enable is its own PR)", async () => {
-    for (const name of ["wrangler.jsonc", "wrangler.development.jsonc", "wrangler.production.jsonc"]) {
-      const config = JSON.parse(await Bun.file(new URL(`../${name}`, import.meta.url)).text()) as { vars?: Record<string, string> };
-      expect("PEOPLE_KIPS" in (config.vars ?? {})).toBe(false);
-    }
+  test("W74: Dev Pages sets PEOPLE_KIPS=true (amendment (7) step 4); local and Prod leave it unset", async () => {
+    const vars = async (name: string) => (JSON.parse(await Bun.file(new URL(`../${name}`, import.meta.url)).text()) as { vars?: Record<string, string> }).vars ?? {};
+    expect((await vars("wrangler.development.jsonc")).PEOPLE_KIPS).toBe("true");
+    for (const name of ["wrangler.jsonc", "wrangler.production.jsonc"]) expect("PEOPLE_KIPS" in await vars(name)).toBe(false);
   });
 
   test.each(testPlanRows)("$id: $case ($data) — $input", async (row) => {

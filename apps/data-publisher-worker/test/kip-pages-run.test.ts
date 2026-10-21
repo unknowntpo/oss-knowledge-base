@@ -195,13 +195,15 @@ describe("Spec 019 amendment (7) slice B: the kip-pages job in the publisher Wor
     expect(["kipPages" in linksBody, "identityLinks" in linksBody]).toEqual([false, true]);
   });
 
-  test("W99: both Worker configurations leave KIP_PAGES, KIP_PAGES_CRON and the 03:43 cron entry unset", async () => {
-    for (const name of ["development", "production"]) {
-      const text = await Bun.file(new URL(`../wrangler.${name}.jsonc`, import.meta.url)).text();
-      const config = JSON.parse(text) as { vars?: Record<string, string>; triggers?: { crons?: string[] } };
-      expect("KIP_PAGES" in (config.vars ?? {})).toBe(false);
-      expect("KIP_PAGES_CRON" in (config.vars ?? {})).toBe(false);
-      expect(config.triggers?.crons ?? []).not.toContain(KIP_CRON);
-    }
+  test("W99: Dev sets KIP_PAGES=authors@1 and IDENTITY_LINKS=corroborated@1 with their cron entries (amendment (7) step 2); Prod sets none", async () => {
+    const read = async (name: string) => JSON.parse(await Bun.file(new URL(`../wrangler.${name}.jsonc`, import.meta.url)).text()) as { vars?: Record<string, string>; triggers?: { crons?: string[] } };
+    const dev = await read("development");
+    expect(dev.vars).toMatchObject({ KIP_PAGES: "authors@1", KIP_PAGES_CRON: KIP_CRON, IDENTITY_LINKS: "corroborated@1", IDENTITY_LINKS_CRON: "17 2 * * *" });
+    expect(dev.triggers?.crons).toContain(KIP_CRON);
+    expect(dev.triggers?.crons).toContain("17 2 * * *");
+    const prod = await read("production");
+    for (const name of ["KIP_PAGES", "KIP_PAGES_CRON", "IDENTITY_LINKS", "IDENTITY_LINKS_CRON"]) expect(name in (prod.vars ?? {})).toBe(false);
+    expect(prod.triggers?.crons ?? []).not.toContain(KIP_CRON);
+    expect(prod.triggers?.crons ?? []).not.toContain("17 2 * * *");
   });
 });

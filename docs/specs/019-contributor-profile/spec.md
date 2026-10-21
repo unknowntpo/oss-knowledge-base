@@ -1,6 +1,6 @@
 # Spec 019: Contributor profile
 
-Status: Partially implemented (accepted 2026-10-14, all nine owner decisions recorded; amended 2026-10-15): slice 1 is Spec 022; slices 2a, 2b, 3 and amendments (4) and (5) implemented (#74–#78, #81) and on Dev only (`PEOPLE_PROFILES=true`, `PEOPLE_ACTIVITY=log@1`), off on Prod; amendment (7) slice B (the `kip-pages` job, W93, W97–W100, W102, W105, W107, W108, W110) implemented and off everywhere (`KIP_PAGES` unset); amendment (7) slice C (the profile's KIPs section, W74, W75, W80, W83, W87, W94–W96, W109, W111) implemented and off everywhere (`PEOPLE_KIPS` unset); the rest of slices 4–7 not implemented
+Status: Partially implemented (accepted 2026-10-14, all nine owner decisions recorded; amended 2026-10-15): slice 1 is Spec 022; slices 2a, 2b, 3 and amendments (4) and (5) implemented (#74–#78, #81) and on Dev only (`PEOPLE_PROFILES=true`, `PEOPLE_ACTIVITY=log@1`), off on Prod; amendment (7) slices A–C (the identity-link job, the `kip-pages` job W93, W97–W100, W102, W105, W107, W108, W110, and the profile's KIPs section W74, W75, W80, W83, W87, W94–W96, W109, W111) implemented (#113–#117) and enabled on Dev by rollout steps 2 and 4 (`IDENTITY_LINKS=corroborated@1`, `KIP_PAGES=authors@1` with their crons, `PEOPLE_KIPS=true`; 2026-10-21), off on Prod (step 5, a separate owner approval); W90, W92, W106 are checked by the operator sequence after the Dev deploy; the rest of slices 4–7 not implemented
 Date: 2026-10-13 (decisions recorded 2026-10-14; amendment and decision 10 2026-10-15)
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 008 (content-addressed objects), Spec 009 (bounded memory), Spec 012 (dev@ and Jira), Spec 014 (digest profiles), Spec 015 (governance profile and ASF roster), Spec 016/017 (search, "exact matches first"), Spec 018 (daily publication)
@@ -1633,6 +1633,17 @@ sample is part of the gate and the page always shows the basis.
 | 4 | Dev Pages: `PEOPLE_KIPS=true` | The section, the author lists and the linked identities appear (W74, W92, W106) |
 | 5 | Prod | Separate owner approval, after amendment (6)'s profile tag |
 
+Dev enable (2026-10-21): steps 2 and 4 ship in one PR. Step 3's Dev dry run
+(W90) is still the first identity-link call after the deploy: until the first
+real run writes `links.json` the page reads no table and shows "Links not
+available" (W80), so no link is shown before the dry run is recorded. The
+operator sequence: the Dev deploy, `POST /kip-pages/run` (the 365-day first
+run), `POST /identity-links/run?dryRun=1`, then the real run, then W90, W92,
+W106; never between 21:50 and 23:05 UTC (the publication and the digest).
+W16's labelled sample (25 links to label) is still pending: the Dev enable
+rests on the offline reading (0 contradict) and the dry run, the page shows
+each link's basis and evidence, and Prod waits for the sample.
+
 ### Simplification review
 
 | Item | Kept? |
@@ -2341,7 +2352,7 @@ Each item: precondition → action → observable result → evidence. All are
 - W21: [measure] the 12-month backfill of slice 6 states its request count and stored size per source (GitHub, Jira, dev@'s 12 monthly archives) before it runs, measured, not estimated, and stays under each source's limit; it runs outside the publication.
 - W86: [measure] one identity-link run for Kafka with 12 full activity months reads at most 15 objects (Class B) and writes at most 2 (Class A), keeps one month parsed at a time, and reports peak heap and duration; DataFusion makes no call (command `measure:identity-links -- --budget`, against a constructed log of Dev's size; amendment (7)).
 - W87: given a cold isolate with `PEOPLE_KIPS=true`, one profile request reads at most 28 objects (W29's 26, `links.json` and `authors.json`), and a second within 10 minutes reads none → API test with a counting bucket.
-- W88: [measure] the first activity append after the change rewrites at most the months in the 35-day state once and then nothing for unchanged rows; a Jira page of 100 issues with `assignee` stays under the 4 MiB source limit; the bytes added per page are reported (command `measure:memory --activity 1` and a recorded Jira page).
+- W88: [measure] the first activity append after the change rewrites at most the months in the 35-day state once and then nothing for unchanged rows; a Jira page of 100 issues with `assignee` stays under the 4 MiB source limit; the bytes added per page are reported (command `measure:memory --activity 1` and a recorded Jira page). Recorded 2026-10-21: `measure:memory --events 8600 --activity 1` first append 6 months read, 6 written, then an unchanged rerun 0 written, 0 KB; the Jira page `project = KAFKA AND updated >= "-30d" ORDER BY updated DESC, key ASC`, 100 of 523 issues (88 assigned), `JIRA_FIELDS` with `assignee` 641,710 characters (15.3 % of the 4 MiB limit) against 591,050 without it: 50,660 added per page.
 - W89: [measure] before enabling, `measure:identity-links -- --from <date> --to <date>` (public upstream data only: GitHub search, ASF Jira REST, Pony Mail, the committers page) reports corroborated links, committers touched, `agree`, `contradict`, committer `unlabelled`, and links to label; the gate is `contradict` 0, committer `unlabelled` 0, and no link labelled "different" in W16's sample; recall is reported. Recorded 2026-10-21 for 2026-09-15 to 2026-10-21: 28 links, 3 committers, 3 agree, 0 contradict, 25 to label.
 - W101: [measure] one `kip-pages` run sends at most 10 cwiki requests and 3 Jira requests, sequential and at least 2 s apart, with the project's `User-Agent`; the first run on Kafka (365 days, about 225 pages) sends at most 5 and a normal day 1 to 2, and the run reads 1 R2 object and writes at most 2; the command `measure:kip-pages` reports requests, bytes, pages, `listed` / `no-list` / `unparsed` counts and duration from public cwiki data.
 - W112: [measure] `measure:kip-pages -- --agreement` reports, from public data, the `JIRA:` field classes over all KIP pages and, for pages with one issue, assignee unset, assignee = creator, assignee in the author line, assignee = starter (exact, other written form, other script, different), and the KIPs whose assignee has a corroborated GitHub link; the 2026-10-21 reading is 1,160 / 45 / 138 / 8 / 20, then 17 unset, 180 of 219, 12 of 12, 126 / 24 / 16 / 30 of 196, and 33 KIPs for 13 people.
