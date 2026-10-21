@@ -30,9 +30,20 @@ import {
   type ActivityThreadV1,
 } from "./activity";
 import { areaDistribution, areaTaxonomy, itemAreas, type PullAreasV1 } from "./areas";
+import { kipAuthorsKey } from "./kip-authors-table";
+import {
+  kipMonthFacts,
+  personKips,
+  profileIdentityLinksKey,
+  readableAuthors,
+  readableLinks,
+  type KipMonthFacts,
+  type PersonKipsV1,
+} from "./kip-profile";
 
 export * from "./activity";
 export * from "./areas";
+export * from "./kip-profile";
 
 export const PEOPLE_PROFILE_SCHEMA = "osskb.people-profile.v1";
 /** Decision 4 / W26: the newest 12 calendar months, the current one included. */
@@ -268,6 +279,12 @@ export interface PersonProfileV1 {
    * ids. Absent when no month of the view has metadata; a pull request missing here is not covered (W49).
    */
   readonly pullAreas?: Readonly<Record<string, PullAreasV1>>;
+  /**
+   * Amendment (7), `PEOPLE_KIPS`: the KIPs the identity, or an identity the link table joins to it,
+   * authored (KIP page), holds the Jira issue of, or started the discussion of. Absent while the
+   * flag is off (W74).
+   */
+  readonly kips?: PersonKipsV1;
   /** The 12-month view's totals, as `profileView(…, "12m")` computes them for the page. */
   readonly totals: ProfileTotals;
 }
@@ -388,6 +405,8 @@ interface IndexedActivityMonth {
   readonly index: ActivityMonthIndex;
   readonly threads: Readonly<Record<string, ActivityThreadV1>>;
   readonly people: Readonly<Record<string, string>>;
+  /** Amendment (7): what the KIPs section needs from this month, derived once per isolate (W87: no new read). */
+  readonly kip: KipMonthFacts;
 }
 
 /** An activity month parsed once per isolate into the per-identity index the summary stores (decision 10). */
@@ -395,10 +414,34 @@ function readActivityMonth(bucket: PeopleBucket, projectId: string, month: strin
   const key = peopleActivityMonthKey(projectId, month);
   return cached(bucket, key, nowMs, async () => {
     const object = await bucket.get(key);
-    if (object === null) return { index: { people: new Map() }, threads: {}, people: {} };
+    if (object === null) {
+      return { index: { people: new Map() }, threads: {}, people: {}, kip: kipMonthFacts({ schema: "osskb.people-activity.v1", projectId, month, people: {}, threads: {}, rows: [] }) };
+    }
     const parsed = parseActivityMonth(JSON.parse(await object.text()), projectId, month);
-    return { index: indexActivityMonth(parsed), threads: parsed.threads, people: parsed.people };
+    return { index: indexActivityMonth(parsed), threads: parsed.threads, people: parsed.people, kip: kipMonthFacts(parsed) };
   });
+}
+
+/**
+ * Amendment (7): a table the KIPs section reads, once per key per isolate and TTL (W87). A missing
+ * or unreadable object gives undefined and the page says so (W80, W98); a failed read is not kept.
+ */
+async function readKipTable<T>(bucket: PeopleBucket, key: string, nowMs: number, parse: (value: unknown) => T | undefined): Promise<T | undefined> {
+  try {
+    return await cached(bucket, key, nowMs, async () => {
+      const object = await bucket.get(key);
+      if (object === null) return undefined;
+      let value: unknown;
+      try {
+        value = JSON.parse(await object.text());
+      } catch {
+        return undefined;
+      }
+      return parse(value);
+    });
+  } catch {
+    return undefined;
+  }
 }
 
 /** The store's coverage clipped to the 12-month view, or undefined when the view holds none of it. */
@@ -426,6 +469,8 @@ export async function readPersonProfile(input: {
   readonly nowMs: number;
   /** Defaults to `PEOPLE_SUPPRESSED`; tests pass their own list (W12). */
   readonly suppressed?: Readonly<Record<string, readonly string[]>>;
+  /** `PEOPLE_KIPS` (amendment (7)): read the link and author tables and add `kips` (W74). */
+  readonly kips?: boolean;
 }): Promise<PeopleRead> {
   const project = peopleProject(input.projectKey);
   if (project === undefined) return { status: 400, body: { error: "Unknown project" } };
@@ -595,10 +640,53 @@ export async function readPersonProfile(input: {
     ...(withMetadata ? { pullAreas } : {}),
   };
   const totals = profileTotals(body.reviewsGiven, body.reviewsReceived);
+  const kips = input.kips === true
+    ? await readPersonKips(input.bucket, project.projectId, personKey, input.nowMs, activityIndexes, activityView?.coverage.from ?? null, isSuppressedId, suppressed.size > 0)
+    : undefined;
   return {
     status: 200,
-    body: { ...body, totals: activity === undefined ? totals : { ...totals, activity: activityTotals(activity.records, activity.threads, personKey) } },
+    body: {
+      ...body,
+      ...(kips === undefined ? {} : { kips }),
+      totals: activity === undefined ? totals : { ...totals, activity: activityTotals(activity.records, activity.threads, personKey) },
+    },
   };
+}
+
+/** Amendment (7): the KIPs section, from the two tables (2 reads, W87) and the activity months already read. */
+async function readPersonKips(
+  bucket: PeopleBucket,
+  projectId: string,
+  personKey: string,
+  nowMs: number,
+  months: readonly (IndexedActivityMonth | undefined)[],
+  coverageFrom: string | null,
+  isSuppressedId: (id: string) => Promise<boolean>,
+  anySuppressed: boolean,
+): Promise<PersonKipsV1> {
+  const [links, authors] = await Promise.all([
+    readKipTable(bucket, profileIdentityLinksKey(projectId), nowMs, (value) => readableLinks(value, projectId)),
+    readKipTable(bucket, kipAuthorsKey(projectId), nowMs, readableAuthors),
+  ]);
+  // P-e: an author name never links to a suppressed identity (the link job already drops their links).
+  const suppressed = new Set<string>();
+  if (anySuppressed) {
+    for (const page of authors?.pages ?? []) {
+      for (const author of page.authors) {
+        const id = activityPersonId("mail", author.name);
+        if (id !== undefined && await isSuppressedId(id)) suppressed.add(id);
+      }
+    }
+  }
+  return personKips({
+    projectId,
+    personKey,
+    links,
+    authors,
+    months: months.flatMap((month) => (month === undefined ? [] : [month.kip])),
+    coverageFrom,
+    suppressed,
+  });
 }
 
 /**

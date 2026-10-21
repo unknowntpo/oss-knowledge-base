@@ -2083,3 +2083,19 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
 .person-missing .person-coverage { margin: var(--space-6) 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-6); justify-content: center; }
 .person-missing .person-coverage li { font-size: var(--fs-xs); padding: var(--space-2) var(--space-8); border-radius: var(--radius-pill); background: var(--surface-selected); color: var(--accent); }
 .person-missing .person-coverage li.not-recorded { background: var(--surface-chip); color: var(--text-muted); }
+
+/* Spec 019 amendment (7): the KIPs section — a quiet list in the profile's tokens, no new colour. */
+.person-kips { list-style: none; margin: var(--space-8) 0 0; padding: 0; display: flex; flex-direction: column; }
+.person-kip { padding: var(--space-8) 0; border-bottom: 1px solid var(--border-subtle); font-size: var(--fs-sm); min-width: 0; }
+.person-kip:last-child { border-bottom: 0; }
+.person-kip p { margin: 0; overflow-wrap: anywhere; }
+.person-kip p + p { margin-top: var(--space-2); }
+.person-kip-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-4) var(--space-8); }
+.person-kip-id { font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 600; color: var(--accent); white-space: nowrap; }
+.person-kip-title { color: var(--text-primary); min-width: 0; }
+.person-kip-label { color: var(--text-body); }
+.person-kip-via, .person-kip-authors, .person-kip-issues, .person-kip-thread { color: var(--text-secondary); }
+.person-kip-key { color: var(--text-muted); }
+.person-kip-rule { color: var(--text-muted); }
+.person-kip a { color: var(--accent); }
+.person-kips-notes { margin: var(--space-10) 0 0; padding-left: var(--space-16); font-size: var(--fs-xs); color: var(--text-muted); display: flex; flex-direction: column; gap: var(--space-2); }
