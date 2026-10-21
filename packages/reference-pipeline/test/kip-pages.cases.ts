@@ -40,7 +40,7 @@ export const testPlanRows = [
   { id: "W97", case: "a 5xx, a timeout, unparsable JSON", data: "constructed", input: "stub cwiki answers 502 / throws a timeout / answers \"<html>\"", expected: "each: no table; last good kept; ok false, status failed; no retry" },
   { id: "W97", case: "over budget", data: "constructed", input: "a window needing 11 pages of 50", expected: "status over-budget after 10 requests; nothing written but last-run.json; next run starts from the same since" },
   { id: "W97", case: "positive control", data: "constructed", input: "stub answers 200 with 25 pages", expected: "table written; ok true" },
-  { id: "W101", case: "pacing", data: "constructed", input: "a run of 3 cwiki pages and 1 Jira request", expected: "sequential; a 2 s delay before every request after the first; 30 s timeout signal; the project's User-Agent" },
+  { id: "W101", case: "pacing", data: "constructed", input: "a run of 3 cwiki pages and 1 Jira request", expected: "sequential; a 2 s delay before every request after the first; 90 s timeout signal; the project's User-Agent" },
   { id: "W105", case: "a new version", data: "constructed", input: "KIP-n version 3 in the table, 4 in the answer", expected: "entry replaced" },
   { id: "W105", case: "unchanged", data: "constructed", input: "same versions", expected: "authors.json not written; last-run.json written; status unchanged" },
   { id: "W105", case: "the window", data: "constructed", input: "last good run 2026-10-21T03:43Z / no table", expected: "since 2026-10-20T03:43Z / 365 days back" },

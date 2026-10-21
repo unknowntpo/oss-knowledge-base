@@ -1786,8 +1786,8 @@ the identity-link job ("one job must not carry too many tasks").
 | | |
 | --- | --- |
 | Trigger | Its own cron entry `43 3 * * *` (03:43 UTC) in the Dev publisher Worker, dispatched by `KIP_PAGES_CRON`; and `POST /kip-pages/run[?dryRun=1]` (`Bearer MANUAL_TRIGGER_TOKEN`). Clear of Dev publication 22:07 (retries end about 00:00), digest 22:47, Prod 22:37 (retries end about 00:30), identity links 02:17, retention 10:17. Daily |
-| Upstream | (1) `GET https://cwiki.apache.org/confluence/rest/api/content/search` with CQL `space=KAFKA and type=page and title~"KIP" and lastmodified >= "<since>" order by lastmodified asc`, `expand=body.view,version`, `limit=50`. `since` = the last good run's start minus one day; first run: 365 days ago. Pages are keyed by page id; an entry is replaced when `version.number` changes; the KIP number comes from the title (`^KIP-(\d+)`), a page without one is skipped. (2) `GET https://issues.apache.org/jira/rest/api/2/search` with `jql=key in (<up to 100 keys>)`, `fields=assignee`, `validateQuery=warn` (an unknown key is dropped instead of failing the query: checked, a plain query answers 400), for the `JIRA:` keys of pages new or changed in this run, and on Mondays for every key in the table (W108) |
-| Budget | At most **10 cwiki requests and 3 Jira requests** per run, sequential, at least 2 s apart, 30 s timeout each, a `User-Agent` naming the project and its URL. Measured: first run 5 cwiki requests (225 pages) and 2 Jira requests (about 160 keys), a normal day 1 and 0–1, a Monday 1 and 2. On a Monday the re-read takes the changed pages' keys first, then the table's keys with the oldest reading, up to 300, so the re-read alone never exceeds 3 requests (slice B). R2: 2 Class B (previous table and `last-run.json`, which carries `lastGoodAt` for `since`; slice B) and at most 2 Class A per run |
+| Upstream | (1) `GET https://cwiki.apache.org/confluence/rest/api/content/search` with CQL `space=KAFKA and type=page and title~"KIP" and lastmodified >= "<since>" order by lastmodified asc`, `expand=body.view,version`, `limit=50`. `since` = the last good run's start minus one day; first run: 365 days ago. A failed first run writes no table, so the next day retries the same 365-day window; `/health` `kipPages.lastRun` shows `ok: false` with the error and `lastGoodAt: null` every day until one succeeds (W97, W100). Pages are keyed by page id; an entry is replaced when `version.number` changes; the KIP number comes from the title (`^KIP-(\d+)`), a page without one is skipped. (2) `GET https://issues.apache.org/jira/rest/api/2/search` with `jql=key in (<up to 100 keys>)`, `fields=assignee`, `validateQuery=warn` (an unknown key is dropped instead of failing the query: checked, a plain query answers 400), for the `JIRA:` keys of pages new or changed in this run, and on Mondays for every key in the table (W108) |
+| Budget | At most **10 cwiki requests and 3 Jira requests** per run, sequential, at least 2 s apart, 90 s timeout each (30 s until slice B: a 50-page search with `body.view` took 27–42 s on 2026-10-21, and the first-run measurement timed out at 30 s; decided by the orchestrator within the owner's request budget, keeping `limit=50` so the first run stays at about 5 requests), a `User-Agent` naming the project and its URL. Measured: first run 5 cwiki requests (225 pages) and 2 Jira requests (about 160 keys), a normal day 1 and 0–1, a Monday 1 and 2. On a Monday the re-read takes the changed pages' keys first, then the table's keys with the oldest reading, up to 300, so the re-read alone never exceeds 3 requests (slice B). R2: 2 Class B (previous table and `last-run.json`, which carries `lastGoodAt` for `since`; slice B) and at most 2 Class A per run |
 | Politeness | No retry within a run; a 429 or 5xx ends the run. Needing an 11th request ends it as `over-budget` (the next day starts from the same `since`). Anonymous only |
 | Output | `internal/kips/v1/<projectId>/authors.json` (`osskb.kip-authors.v1`): `generatedAt`, `coverageFrom`, `pages[]` `{kip, pageId, version, title, url, status (listed, no-list, unparsed), authors[] {name, nameKey}, jira (one, several, empty, query, none), issues[] {key, assignee {key, display} or null, readAt}}`. Sorted; written only when the bytes change; then `internal/kips/v1/last-run.json` |
 | Privacy | Names only from Confluence: no username, user key, email, avatar or body text is stored; parts holding `@` are dropped before storing (W102). From Jira only the assignee's `key` and `displayName`, as amendment (7) already keeps them; no reporter, `name`, `timeZone`, avatar or email (W110) |
@@ -1941,16 +1941,6 @@ The owner accepted every recommendation of this revision:
    `github:unknowntpo` through its assignee (W111).
 2. **Decision 8** (terms and privacy) before Prod, now also covering author
    names read from KIP pages and KIP issues' assignee keys.
-3. **The 30 s cwiki timeout, before step 2** (found by slice B's
-   `measure:kip-pages`, 2026-10-21). A search page of 50 with `body.view`
-   now takes 27–42 s (recordings: 39 s, 41 s, 42.5 s; the first-run
-   measurement: 27.3 s, then a timeout on the second request), against
-   2.9 s in the investigation. With 30 s the first run fails closed and,
-   since nothing is written, every later day repeats the 365-day window and
-   fails again; a normal day (1 request of up to 10 pages, 1.4 s measured)
-   passes. Options: a longer timeout (90 s), `limit=25` (first run 9 of the
-   10 requests), or a shorter first window. The merge PR keeps 30 s as
-   specified; the job is off.
 
 ## Test plan
 
@@ -2202,7 +2192,7 @@ recorded cwiki and Jira answers committed under
 | W97 | a 5xx, a timeout, unparsable JSON | constructed | stub cwiki answers 502 / throws a timeout / answers "<html>" | each: no table; last good kept; ok false, status failed; no retry |
 | W97 | over budget | constructed | a window needing 11 pages of 50 | status over-budget after 10 requests; nothing written but last-run.json; next run starts from the same since |
 | W97 | positive control | constructed | stub answers 200 with 25 pages | table written; ok true |
-| W101 | pacing | constructed | a run of 3 cwiki pages and 1 Jira request | sequential; a 2 s delay before every request after the first; 30 s timeout signal; the project's User-Agent |
+| W101 | pacing | constructed | a run of 3 cwiki pages and 1 Jira request | sequential; a 2 s delay before every request after the first; 90 s timeout signal; the project's User-Agent |
 | W105 | a new version | constructed | KIP-n version 3 in the table, 4 in the answer | entry replaced |
 | W105 | unchanged | constructed | same versions | authors.json not written; last-run.json written; status unchanged |
 | W105 | the window | constructed | last good run 2026-10-21T03:43Z / no table | since 2026-10-20T03:43Z / 365 days back |

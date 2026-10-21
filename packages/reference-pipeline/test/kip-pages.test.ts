@@ -395,14 +395,23 @@ const checks: Record<string, () => Promise<void> | void> = {
       searchAnswer([fakePage(2, 1, "<p/>")], "/rest/api/content/search?start=100"),
       searchAnswer([fakePage(3, 1, "<p/>")]),
     ], [jiraAnswer([{ key: "KAFKA-1100", assignee: null }])]);
-    await runKipPages(deps(bucket, source));
+    const timeouts: number[] = [];
+    const realTimeout = AbortSignal.timeout;
+    AbortSignal.timeout = (ms: number) => { timeouts.push(ms); return realTimeout.call(AbortSignal, ms); };
+    try {
+      await runKipPages(deps(bucket, source));
+    } finally {
+      AbortSignal.timeout = realTimeout;
+    }
+    // Positive control for the timeout value: every request, cwiki and Jira, carries 90 s.
+    expect(timeouts).toEqual([90_000, 90_000, 90_000, 90_000]);
     expect(source.events).toEqual(["fetch cwiki", "delay 2000", "fetch cwiki", "delay 2000", "fetch cwiki", "delay 2000", "fetch jira"]);
     expect(source.requests[1]!.url).toBe(`${BASE}/rest/api/content/search?start=50`);
     for (const request of source.requests) {
       expect(new Headers(request.init?.headers).get("user-agent")).toContain("https://github.com/unknowntpo/oss-knowledge-base");
       expect(request.init?.signal).toBeInstanceOf(AbortSignal);
     }
-    expect(KIP_PAGES_BUDGET).toEqual({ cwikiRequests: 10, jiraRequests: 3, jiraKeysPerRequest: 100, spacingMs: 2000, timeoutMs: 30_000 });
+    expect(KIP_PAGES_BUDGET).toEqual({ cwikiRequests: 10, jiraRequests: 3, jiraKeysPerRequest: 100, spacingMs: 2000, timeoutMs: 90_000 });
   },
   "W105 a new version": async () => {
     const bucket = new MemoryBucket(previous([tablePage(9, 3, [])]));
@@ -496,6 +505,18 @@ describe("Spec 019 amendment (7) slice B: the kip-pages job", () => {
     const result = await runKipPages(deps(bucket, upstream([searchAnswer([recorded(1165)])], [json(jiraFixture.response)]), WEDNESDAY, { dryRun: true }));
     expect(result.lastRun).toMatchObject({ ok: true, listed: 1, bytesWritten: 0, r2: { classA: 0 } });
     expect(bucket.puts()).toEqual([]);
+  });
+
+  test("W97: a failed first run is visible in the record every day and retries the same 365-day window", async () => {
+    const bucket = new MemoryBucket();
+    for (const day of [0, 1]) {
+      const source = upstream([new DOMException("The operation timed out.", "TimeoutError") as unknown as Error]);
+      const result = await runKipPages(deps(bucket, source, WEDNESDAY + day * 86_400_000));
+      expect(result).toMatchObject({ lastGoodAt: null, coverageFrom: null, lastRun: { ok: false, status: "failed", requests: 1 } });
+      expect(result.lastRun?.since).toBe(new Date(WEDNESDAY + day * 86_400_000 - 365 * 86_400_000).toISOString());
+      expect(bucket.health()).toEqual(result);
+      expect(bucket.table()).toBeUndefined();
+    }
   });
 
   test("W97: an unreadable previous table fails the run before any upstream request", async () => {

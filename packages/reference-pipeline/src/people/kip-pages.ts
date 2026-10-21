@@ -23,7 +23,7 @@ export const KIP_PAGES_BUDGET = {
   jiraRequests: 3,
   jiraKeysPerRequest: 100,
   spacingMs: 2000,
-  timeoutMs: 30_000,
+  timeoutMs: 90_000,
 } as const;
 
 const DAY_MS = 86_400_000;
