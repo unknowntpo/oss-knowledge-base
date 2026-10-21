@@ -5,7 +5,8 @@
   "pages_build_output_dir": "dist",
   "vars": {
     "PEOPLE_PROFILES": "true",
-    "SEARCH_SEMANTIC": "rrf-group@2"
+    "SEARCH_SEMANTIC": "rrf-group@2",
+    "PEOPLE_KIPS": "true"
   },
   "r2_buckets": [
     {
