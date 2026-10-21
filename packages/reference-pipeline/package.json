@@ -8,7 +8,8 @@
     "./digest": "./src/digest/index.ts",
     "./search-profiles": "./src/search/profiles.ts",
     "./people": "./src/people/index.ts",
-    "./people/search": "./src/people/search.ts"
+    "./people/search": "./src/people/search.ts",
+    "./kip-pages": "./src/people/kip-pages.ts"
   },
   "scripts": {
     "test": "bun test",
