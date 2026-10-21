@@ -14,7 +14,13 @@ repository on every push; Spec 020). What each environment runs is in
 | Environment | URL |
 | --- | --- |
 | Dev (deployed on every push to `main`) | https://oss-knowledge-base-dev.pages.dev |
-| Prod (deployed on a `v*` tag; last tag `v0.2.0`, 2026-08-31) | https://oss-knowledge-base.pages.dev |
+| Prod (deployed on a `v*` tag; last tag `v0.3.1`, 2026-10-19) | https://oss-knowledge-base.pages.dev |
+| Docs site, English and 繁體中文 (deployed on every push to `main`; Spec 025) | https://oss-knowledge-base-docs.pages.dev |
+
+All three are Cloudflare Pages projects. `<project>.pages.dev` is the free
+subdomain Cloudflare gives every Pages project, with HTTPS; no custom domain is
+bound. A custom domain can be added later under the project's *Custom
+domains* without breaking these URLs.
 
 ## Features
 
