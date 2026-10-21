@@ -6,7 +6,7 @@
  * states. It joins nothing (identity links stay with the identity-link job).
  *
  * Budget (W97, W101, W108): at most 10 cwiki and 3 Jira requests per run, sequential, 2 s apart,
- * 30 s timeout each, no retry. Any failed request or unparsable answer fails the run closed: no
+ * 90 s timeout each, no retry. Any failed request or unparsable answer fails the run closed: no
  * table is written and the last good one stays.
  */
 import { SOURCE_USER_AGENT } from "../kafka-connectors";
@@ -23,6 +23,7 @@ export const KIP_PAGES_BUDGET = {
   jiraRequests: 3,
   jiraKeysPerRequest: 100,
   spacingMs: 2000,
+  /** 90 s: a 50-page search with `body.view` took 27–42 s on 2026-10-21 (Spec 019 W101). */
   timeoutMs: 90_000,
 } as const;
 
