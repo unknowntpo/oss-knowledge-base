@@ -6,10 +6,11 @@
  * `internal/identity/v1/last-run.json`, the status `/health` reads. It calls no upstream API, reads
  * no publication state and never starts, waits for or is started by another job.
  *
- * Per project with a `corroboration` config: at most 1 state + 12 months + 1 roster + 1 previous
- * table = 15 Class B and 2 Class A (W86); months are read one at a time and reduced to the facts the
- * rule needs before the next is read (Spec 009). A failed run reads `last-run.json` once more, to
- * carry `lastGoodAt` (as does a run without input). Any failed or unparsable read fails the project closed: no table is written
+ * Per run: 1 previous run record (`last-run.json`, which carries `lastGoodAt` and the SHA-256 of each
+ * table it wrote), and per project with a `corroboration` config 1 state + 12 months + 1 roster, so
+ * at most 15 Class B and 2 Class A on every path (W86); months are read one at a time and reduced to
+ * the facts the rule needs before the next is read (Spec 009). The table itself is never read back:
+ * its new bytes are compared with the recorded digest. Any failed or unparsable read fails the project closed: no table is written
  * and the last good one stays (W76). Plain puts: equal inputs give equal bytes, so two concurrent
  * runs write the same objects (W82).
  */
@@ -25,7 +26,6 @@ import {
   KAFKA_COMMITTERS_CAPTURE,
   parseActivityMonth,
   parseActivityState,
-  parseIdentityLinks,
   peopleActivityMonthKey,
   peopleActivityStateKey,
   suppressedIdentities,
@@ -55,7 +55,7 @@ export interface IdentityLinksLastRun {
   readonly blind?: true;
   readonly inputs: { readonly months: readonly string[]; readonly activityUpdatedAt: string | null; readonly rosterAt: string | null; readonly committersAt: string | null };
   readonly links: { readonly roster: number; readonly declared: number; readonly corroborated: number };
-  readonly rejected: { readonly dominance: number; readonly minimum: number; readonly conflict: number; readonly contradiction: number; readonly removed: number };
+  readonly rejected: { readonly dominance: number; readonly competitor: number; readonly minimum: number; readonly conflict: number; readonly contradiction: number; readonly removed: number };
   readonly people: number;
   readonly kipStarters: number;
   readonly bytesWritten: number;
@@ -68,6 +68,8 @@ export interface IdentityLinksRecord {
   readonly revision: string;
   readonly lastRun: IdentityLinksLastRun;
   readonly lastGoodAt: string | null;
+  /** SHA-256 of the table last written per project, so an unchanged table is not rewritten (W78). */
+  readonly tables?: Readonly<Record<string, string>>;
   /** Dry runs only: the precision check against the committers page (W90). Never stored. */
   readonly precision?: PrecisionReport;
 }
@@ -127,6 +129,21 @@ function parseRoster(value: unknown): Roster {
   return roster as Roster;
 }
 
+function parseRecord(value: unknown): Partial<IdentityLinksRecord> {
+  const record = value as Partial<IdentityLinksRecord> | null;
+  if (record === null || typeof record !== "object" || (record.lastGoodAt !== null && record.lastGoodAt !== undefined && typeof record.lastGoodAt !== "string") ||
+      (record.tables !== undefined && (typeof record.tables !== "object" || record.tables === null ||
+        !Object.values(record.tables).every((digest) => typeof digest === "string")))) {
+    throw new Error("the previous run record is malformed");
+  }
+  return record;
+}
+
+async function sha256Hex(body: string): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(body)));
+  return [...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 export interface RunIdentityLinksInput {
   readonly flag: string | undefined;
   readonly bucket: IdentityLinksBucket;
@@ -148,7 +165,7 @@ export async function runIdentityLinks(input: RunIdentityLinksInput): Promise<Id
   const at = new Date(started).toISOString();
   const bucket = new CountingBucket(input.bucket);
   const links = { roster: 0, declared: 0, corroborated: 0 };
-  const rejected = { dominance: 0, minimum: 0, conflict: 0, contradiction: 0, removed: 0 };
+  const rejected = { dominance: 0, competitor: 0, minimum: 0, conflict: 0, contradiction: 0, removed: 0 };
   let people = 0;
   let kipStarters = 0;
   let bytesWritten = 0;
@@ -165,10 +182,15 @@ export async function runIdentityLinks(input: RunIdentityLinksInput): Promise<Id
   });
 
   let failure: string | undefined;
+  let previous: Partial<IdentityLinksRecord> | undefined;
+  const tables: Record<string, string> = {};
   try {
     if (input.flag?.trim() !== IDENTITY_LINKS_REVISION) {
       throw new Error(`IDENTITY_LINKS "${input.flag}" is not supported (${IDENTITY_LINKS_REVISION}, or unset)`);
     }
+    // The one read that carries `lastGoodAt` and the written tables' digests, also into a failed run.
+    previous = await readJson(bucket, IDENTITY_LINKS_LAST_RUN_KEY, parseRecord);
+    Object.assign(tables, previous?.tables ?? {});
     for (const profile of input.profiles) {
       const config = profile.corroboration;
       if (config === undefined) continue;
@@ -179,16 +201,6 @@ export async function runIdentityLinks(input: RunIdentityLinksInput): Promise<Id
         continue;
       }
       const tableKey = identityLinksKey(profile.projectId);
-      const previousBody = await bucket.get(tableKey).catch((error: unknown) => {
-        throw new Error(`reading ${tableKey} failed: ${errorText(error)}`);
-      });
-      if (previousBody !== undefined) {
-        try {
-          parseIdentityLinks(JSON.parse(previousBody), profile.projectId);
-        } catch (error) {
-          throw new Error(`${tableKey} does not parse: ${errorText(error)}`);
-        }
-      }
       const roster = profile.roster === null
         ? null
         : await readJson(bucket, rosterKey(profile.roster.adapter, profile.roster.project), parseRoster) ?? null;
@@ -229,11 +241,13 @@ export async function runIdentityLinks(input: RunIdentityLinksInput): Promise<Id
         continue;
       }
       const body = encodeIdentityLinks(result.table);
-      if (body === previousBody) {
+      const digest = await sha256Hex(body);
+      if (digest === tables[profile.projectId]) {
         statuses.push("unchanged");
         continue;
       }
       await bucket.put(tableKey, body);
+      tables[profile.projectId] = digest;
       bytesWritten += body.length;
       statuses.push("ok");
     }
@@ -250,18 +264,10 @@ export async function runIdentityLinks(input: RunIdentityLinksInput): Promise<Id
   }
   // A run that wrote or confirmed a table is good; a failed or input-less run carries the last good time.
   const good = status === "ok" || status === "unchanged";
-  let lastGoodAt: string | null = good ? at : null;
-  if (!good) {
-    try {
-      const previous = await bucket.get(IDENTITY_LINKS_LAST_RUN_KEY);
-      const value = previous === undefined ? undefined : JSON.parse(previous) as Partial<IdentityLinksRecord>;
-      lastGoodAt = typeof value?.lastGoodAt === "string" ? value.lastGoodAt : null;
-    } catch {
-      lastGoodAt = null;
-    }
-  }
-  // Last, after the table: a crash between the two puts leaves a table the next run finds unchanged (W79).
-  const record: IdentityLinksRecord = { revision: IDENTITY_LINKS_REVISION, lastRun: lastRun(status, failure), lastGoodAt };
+  const lastGoodAt = good ? at : typeof previous?.lastGoodAt === "string" ? previous.lastGoodAt : null;
+  // Last, after the table: a crash between the two puts leaves the old digest, so the next run
+  // rewrites the same table bytes and then the record (W79).
+  const record: IdentityLinksRecord = { revision: IDENTITY_LINKS_REVISION, lastRun: lastRun(status, failure), lastGoodAt, tables };
   const recordBody = JSON.stringify({ ...record, lastRun: { ...record.lastRun, r2: { classA: bucket.classA + 1, classB: bucket.classB } } });
   await bucket.put(IDENTITY_LINKS_LAST_RUN_KEY, recordBody);
   return JSON.parse(recordBody) as IdentityLinksRecord;

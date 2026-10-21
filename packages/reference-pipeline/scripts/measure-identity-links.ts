@@ -333,7 +333,7 @@ function print(result: Measurement): void {
     `${input.pairs} pairs (${input.pairsAtMinIssues} reach ${KAFKA_IDENTITY_PROFILE.corroboration!.minIssues} keys); ${input.jiraIssues} Jira issues, ` +
     `${input.devMessages} KIP dev@ messages, ${input.kipStarters} KIP starters`);
   console.log(`Links: ${counts.links.corroborated} corroborated, ${counts.links.declared} declared, ${counts.links.roster} roster; rejected ` +
-    `${counts.rejected.minimum} below minimum, ${counts.rejected.dominance} by dominance, ${counts.rejected.conflict} conflict, ` +
+    `${counts.rejected.minimum} below minimum, ${counts.rejected.dominance} by dominance, ${counts.rejected.competitor} by competitor, ${counts.rejected.conflict} conflict, ` +
     `${counts.rejected.contradiction} contradiction, ${counts.rejected.removed} removed`);
   console.log(`Precision: ${precision.corroboratedLinks} corroborated links; ${precision.committersTouched} committers touched; ${precision.agree} agree; ` +
     `${precision.contradict} contradict; ${precision.committerUnlabelled} committer unlabelled; ${precision.toLabel} links to label; ` +
