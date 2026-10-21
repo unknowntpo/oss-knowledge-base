@@ -122,11 +122,12 @@ function compute(months: readonly ActivityMonthV1[], options: {
   readonly roster?: Roster | null;
   readonly blind?: boolean;
   readonly suppressed?: ReadonlySet<string>;
+  readonly bots?: readonly string[];
 } = {}) {
   return computeIdentityLinks({
     projectId: KAFKA,
     config: { ...CONFIG, ...options.config },
-    facts: facts(months),
+    facts: facts(months, options.bots),
     roster: options.roster ?? null,
     identityLinks: options.identityLinks ?? [],
     blind: options.blind ?? false,
@@ -394,10 +395,19 @@ const cases: Record<string, (row: Row) => Promise<void> | void> = {
     expect(link.basis).toBe("corroborated");
     expect(link.evidence.map((item) => item.id)).toEqual(["KAFKA-21152", "KAFKA-21172", "KAFKA-21252", "KAFKA-21262", "KAFKA-21266", "KAFKA-21276"]);
   },
-  "W69|dominance with a competitor": () => {
-    const table = compute(RECORDED).table;
+  "W69|a competing pairing below the minimum": () => {
+    const { table, counts } = compute(RECORDED);
     expect(linked(table, "github:harmadasg", "jira-account:JIRAUSER306203")).toBe(true);
     expect(personOf(table, "github:m1a2st")).toBeUndefined();
+    // m1a2st's 2 keys fall to the minimum rule; nothing in the recorded window is a dominance rejection.
+    expect(counts.rejected.dominance).toBe(0);
+  },
+  "W69|a bot author pairs nothing": () => {
+    const month = pairing(pairing(new MonthBuilder("2026-10"), "ci-bot", ["Y", "Y Y"], [1, 2, 3]), "helper[bot]", ["Z", "Z Z"], [4, 5, 6]).build();
+    expect(compute([month], { bots: ["ci-bot"] }).table.people).toEqual([]);
+    // Positive control: off the bot list, ci-bot links; a `[bot]` login never does.
+    const control = compute([month]).table;
+    expect([linked(control, "github:ci-bot", "jira-account:Y"), personOf(control, "github:helper[bot]")]).toEqual([true, undefined]);
   },
   "W69|split pairings": () => {
     expect(personOf(compute(RECORDED).table, "github:m1a2st")).toBeUndefined();
@@ -459,7 +469,8 @@ const cases: Record<string, (row: Row) => Promise<void> | void> = {
       if (second) month.mail("T3", "[DISCUSS] KIP-3: three", "A B", "2026-10-03T00:00:00Z", true).issue("KAFKA-3", "KIP-3: three", ["K2", "A B"]);
       return month.build();
     };
-    expect(compute([build(true)]).table.people).toEqual([]);
+    const strict = compute([build(true)]);
+    expect([strict.table.people, strict.counts.rejected.competitor, strict.counts.rejected.dominance]).toEqual([[], 1, 0]);
     expect(linked(compute([build(false)]).table, "jira-account:K1", "mail:a b")).toBe(true);
   },
   "W71|transitive only through both edges": () => {
@@ -500,6 +511,13 @@ const cases: Record<string, (row: Row) => Promise<void> | void> = {
     expect(result.counts.rejected.removed).toBe(1);
     expect(linked(compute(RECORDED).table, "github:unknowntpo", "jira-account:JIRAUSER306218")).toBe(true);
   },
+  "W72|declared and corroborated on one pair": () => {
+    const entry = declared("github:unknowntpo", "jira-account:JIRAUSER306218");
+    const { table, counts } = compute(RECORDED, { identityLinks: [entry] });
+    const pair = personOf(table, "github:unknowntpo")!.links.filter((link) => [link.a, link.b].includes("jira-account:JIRAUSER306218"));
+    expect(pair.map((link) => link.basis)).toEqual(["declared"]);
+    expect([counts.links.declared, counts.links.corroborated]).toEqual([1, 27]);
+  },
   "W72|suppressed identity": async () => {
     const month = pairing(new MonthBuilder("2026-10"), "x", ["Y", "Y Y"], [1, 2, 3]).build();
     const digest = await suppressionDigest(KAFKA, "github:x");
@@ -534,12 +552,19 @@ const cases: Record<string, (row: Row) => Promise<void> | void> = {
     expect(bucket.puts.map((put) => put.key)).toEqual([IDENTITY_LINKS_LAST_RUN_KEY]);
     expect(bucket.objects.get(identityLinksKey(KAFKA))).toBe(good);
     expect(record.lastGoodAt).toBe(new Date(clock).toISOString());
-    // A previous table that does not parse fails closed too.
+    // The last read failing carries lastGoodAt from the record read first: no further read (≤ 15 Class B).
+    bucket.failGet = (key) => key.endsWith("/2026-10.json");
+    const last = await run(bucket);
+    expect([last.lastRun.status, last.lastGoodAt, last.lastRun.r2.classB]).toEqual(["failed", new Date(clock).toISOString(), 5]);
+    expect(bucket.operations.filter((operation) => operation === `get ${IDENTITY_LINKS_LAST_RUN_KEY}`).length).toBe(3);
+    // A previous run record that does not parse fails closed too.
     bucket.failGet = undefined;
-    bucket.objects.set(identityLinksKey(KAFKA), "not json");
-    const corrupt = await run(bucket);
-    expect([corrupt.lastRun.status, corrupt.lastRun.error?.includes(identityLinksKey(KAFKA))]).toEqual(["failed", true]);
-    expect(bucket.objects.get(identityLinksKey(KAFKA))).toBe("not json");
+    for (const malformed of ["not json", JSON.stringify({ lastGoodAt: null, tables: { [KAFKA]: 1 } })]) {
+      bucket.objects.set(IDENTITY_LINKS_LAST_RUN_KEY, malformed);
+      const corrupt = await run(bucket);
+      expect([corrupt.lastRun.status, corrupt.lastRun.error?.includes(IDENTITY_LINKS_LAST_RUN_KEY)]).toEqual(["failed", true]);
+    }
+    expect(bucket.objects.get(identityLinksKey(KAFKA))).toBe(good);
     // A month the state lists but R2 lacks fails closed as well (it could hide a competing pairing).
     const missing = seeded();
     missing.objects.delete(peopleActivityMonthKey(KAFKA, "2026-09"));
@@ -585,8 +610,11 @@ const cases: Record<string, (row: Row) => Promise<void> | void> = {
     expect(table).toBeDefined();
     expect(bucket.objects.has(IDENTITY_LINKS_LAST_RUN_KEY)).toBe(false);
     bucket.failPut = undefined;
+    bucket.puts.length = 0;
     const next = await run(bucket);
-    expect([next.lastRun.status, bucket.objects.get(identityLinksKey(KAFKA)) === table, bucket.objects.has(IDENTITY_LINKS_LAST_RUN_KEY)]).toEqual(["unchanged", true, true]);
+    expect([next.lastRun.status, bucket.objects.get(identityLinksKey(KAFKA)) === table, bucket.puts.map((put) => put.key)]).toEqual(["ok", true, [identityLinksKey(KAFKA), IDENTITY_LINKS_LAST_RUN_KEY]]);
+    // Converged: a third run finds the table unchanged.
+    expect((await run(bucket)).lastRun.status).toBe("unchanged");
   },
   "W81|isolation from the publication": async () => {
     const throwing = environment("corroborated@1", new MemoryBucket(), { failingBucket: true });
@@ -606,6 +634,18 @@ const cases: Record<string, (row: Row) => Promise<void> | void> = {
     expect(publication.publisher).toEqual(["POST https://pipeline.internal/run"]);
     expect(publication.r2Operations.filter((operation) => /internal\/(identity|people)\//u.test(operation))).toEqual([]);
     expect(cronTarget("17 2 * * *", "47 22 * * *", undefined, "17 2 * * *")).toBe("identity-links");
+  },
+  "W86|13 months in the state": async () => {
+    const months = Array.from({ length: 13 }, (_, index) => {
+      const month = new Date(Date.UTC(2025, 9 + index, 1)).toISOString().slice(0, 7);
+      return new MonthBuilder(month).mail(`T-${month}`, "Re: hello", "A B", `${month}-05T00:00:00Z`, false).build();
+    });
+    const bucket = seeded(months, { roster: false });
+    const record = await run(bucket);
+    const read = bucket.operations.filter((operation) => operation.startsWith("get internal/people/v1/apache-kafka/20"));
+    expect(read.length).toBe(12);
+    expect(read).not.toContain(`get ${peopleActivityMonthKey(KAFKA, "2025-10")}`);
+    expect([record.lastRun.inputs.months[0], record.lastRun.r2.classB]).toEqual(["2025-11", 15]);
   },
   "W82|two runs at once": async () => {
     const bucket = seeded();
@@ -634,6 +674,9 @@ const cases: Record<string, (row: Row) => Promise<void> | void> = {
     expect([off.publisher, off.r2Operations]).toEqual([[], []]);
     const route = await off.manual();
     expect(route.status).toBe(404);
+    // Off answers 404 before the token is checked.
+    const anonymous = await worker.fetch(new Request("https://data.example/identity-links/run", { method: "POST" }), off.env as never);
+    expect(anonymous.status).toBe(404);
     expect(off.r2Operations).toEqual([]);
     const health = await (await worker.fetch(new Request("https://data.example/health"), off.env as never)).json() as Record<string, unknown>;
     expect("identityLinks" in health).toBe(false);
@@ -646,14 +689,26 @@ const cases: Record<string, (row: Row) => Promise<void> | void> = {
     const wrong = environment("true", seeded());
     expect((await wrong.manual()).status).toBe(502);
   },
+  "W85|an unsupported flag value": async () => {
+    const bucket = seeded();
+    const good = await run(bucket);
+    const table = bucket.objects.get(identityLinksKey(KAFKA));
+    // A digest of a project no longer in the profiles is dropped on the next record.
+    bucket.objects.set(IDENTITY_LINKS_LAST_RUN_KEY, JSON.stringify({ ...good, tables: { ...good.tables, "apache-gone": "00" } }));
+    bucket.puts.length = 0;
+    const wrong = await run(bucket, { flag: "true" });
+    expect([wrong.lastRun.status, wrong.lastGoodAt, wrong.tables, wrong.lastRun.r2.classB]).toEqual(["failed", good.lastGoodAt, good.tables, 1]);
+    expect([bucket.puts.map((put) => put.key), bucket.objects.get(identityLinksKey(KAFKA)) === table]).toEqual([[IDENTITY_LINKS_LAST_RUN_KEY], true]);
+  },
   "W91|health shape": async () => {
     const env = environment("corroborated@1", seeded());
     const record = await (await env.manual()).json() as IdentityLinksRecord;
-    expect(Object.keys(record)).toEqual(["revision", "lastRun", "lastGoodAt"]);
+    expect(Object.keys(record)).toEqual(["revision", "lastRun", "lastGoodAt", "tables"]);
+    expect(Object.keys(record.tables!)).toEqual([KAFKA]);
     expect(Object.keys(record.lastRun)).toEqual(["ok", "status", "at", "durationMs", "inputs", "links", "rejected", "people", "kipStarters", "bytesWritten", "r2"]);
     expect(Object.keys(record.lastRun.inputs)).toEqual(["months", "activityUpdatedAt", "rosterAt", "committersAt"]);
     expect(record.lastRun.inputs.committersAt).toBe(KAFKA_COMMITTERS_CAPTURE.capturedAt);
-    expect(Object.keys(record.lastRun.rejected)).toEqual(["dominance", "minimum", "conflict", "contradiction", "removed"]);
+    expect(Object.keys(record.lastRun.rejected)).toEqual(["dominance", "competitor", "minimum", "conflict", "contradiction", "removed"]);
     expect(record.lastRun.r2).toEqual({ classA: 2, classB: 5 });
     const health = await (await worker.fetch(new Request("https://data.example/health"), env.env as never)).json() as { identityLinks: unknown };
     expect(health.identityLinks).toEqual(record);

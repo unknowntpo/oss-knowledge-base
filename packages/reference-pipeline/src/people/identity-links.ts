@@ -81,7 +81,8 @@ export interface IdentityLinksTableV1 {
 
 export interface IdentityLinkCounts {
   readonly links: { readonly roster: number; readonly declared: number; readonly corroborated: number };
-  readonly rejected: { readonly dominance: number; readonly minimum: number; readonly conflict: number; readonly contradiction: number; readonly removed: number };
+  /** `dominance`: edge A below `dominance` times a competing pairing; `competitor`: edge B with any competing pairing. */
+  readonly rejected: { readonly dominance: number; readonly competitor: number; readonly minimum: number; readonly conflict: number; readonly contradiction: number; readonly removed: number };
   readonly people: number;
   readonly kipStarters: number;
 }
@@ -279,7 +280,7 @@ function edgeA(facts: IdentityFacts, config: CorroborationConfig, rejected: { do
 }
 
 /** W70: edge B pairs and the pairs that qualify. */
-function edgeB(facts: IdentityFacts, config: CorroborationConfig, starters: readonly KipStarterV1[], rejected: { dominance: number; minimum: number }): Edge[] {
+function edgeB(facts: IdentityFacts, config: CorroborationConfig, starters: readonly KipStarterV1[], rejected: { competitor: number; minimum: number }): Edge[] {
   const { jira } = facts.snapshot();
   const issuesByKip = new Map<string, [string, JiraFact][]>();
   for (const [issue, fact] of jira) {
@@ -311,7 +312,7 @@ function edgeB(facts: IdentityFacts, config: CorroborationConfig, starters: read
       continue;
     }
     if (mailPairs.get(pair.mail)! > 1 || accountPairs.get(pair.account)! > 1) {
-      rejected.dominance += 1;
+      rejected.competitor += 1;
       continue;
     }
     edges.push({
@@ -345,7 +346,7 @@ function rosterEdges(roster: Roster | null, mail: ReadonlyMap<string, string>): 
 
 /** W69–W73: the table and its counts. */
 export function computeIdentityLinks(input: ComputeIdentityLinksInput): { readonly table: IdentityLinksTableV1; readonly counts: IdentityLinkCounts; readonly starters: readonly KipStarterV1[] } {
-  const rejected = { dominance: 0, minimum: 0, conflict: 0, contradiction: 0, removed: 0 };
+  const rejected = { dominance: 0, competitor: 0, minimum: 0, conflict: 0, contradiction: 0, removed: 0 };
   const suppressed = input.suppressed ?? new Set<string>();
   const declared = input.identityLinks.filter((entry) => validDeclaredLink(entry) && !(input.blind === true && isCommitterLink(entry)));
   const removals = new Set(declared.filter((entry) => entry.remove === true).map((entry) => pairKey(entry.a, entry.b)));
