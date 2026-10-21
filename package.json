@@ -32,6 +32,8 @@
     "eval:search-similarity": "bun run --cwd apps/web eval:search-similarity",
     "measure:search-query-budget": "bun run --cwd apps/data-publisher-worker measure:search-query-budget",
     "measure:daily-volume": "bun scripts/measure-daily-volume.ts",
+    "measure:identity-links": "bun packages/reference-pipeline/scripts/measure-identity-links.ts",
+    "refresh:committers": "bun packages/reference-pipeline/scripts/refresh-committers.ts",
     "search:publish": "bun run --cwd apps/web search:publish",
     "dev": "bun apps/web/scripts/dev.ts",
     "e2e:prepare": "bun apps/web/scripts/prepare-e2e-r2.ts",

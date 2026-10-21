@@ -553,7 +553,8 @@ export async function readPersonProfile(input: {
     }
     for (const author of Object.keys(names)) if (await isSuppressedId(author)) hiddenIds.add(author);
   }
-  const shownThreads = Object.fromEntries(Object.entries(threads).map(([key, thread]) => [key,
+  // Amendment (7), W68: a Jira thread's reporter and assignee accounts are internal; no response carries them.
+  const shownThreads = Object.fromEntries(Object.entries(threads).map(([key, { reporter: _reporter, assignee: _assignee, ...thread }]) => [key,
     thread.author !== null && (hiddenIds.has(thread.author) || (thread.author.startsWith("github:") && isBotLogin(thread.author.slice(7), project, learnedBots)))
       ? { ...thread, author: null }
       : thread]));

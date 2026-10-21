@@ -1150,3 +1150,19 @@ the two `viewer/` items below.
   drop the estimates. Replace the fixture with a recorded answer (CG19).
 - **Layer:** fixture test, then code.
 - **Source:** Spec 026, 2026-10-20.
+
+### G97. Identity links: a Jira issue reported by a bot or an unnamed reporter has no assignee in the log
+- **Where:** `packages/reference-pipeline/src/people/activity-log.ts` (Jira threads
+  reach a month only through a row), `IdentityFacts` in
+  `packages/reference-pipeline/src/people/identity-links.ts`.
+- **Why:** a Jira thread entry, which carries the issue's `assignee`, is
+  written only into the months of its rows. An issue whose reporter is a bot
+  (`isBotUser`: `/bot/i` on the name, which also matches real names such as
+  "Talbot") or has no usable name, and that nobody commented on in the month,
+  has no row, so edge A of `corroborated@1` cannot see its assignee. The
+  effect is recall only (fewer pairings), never a false link.
+- **Fix:** write the thread entry of every issue the state holds, rows or
+  not, and tighten `isBotUser` to the Jira bot accounts by key.
+- **Layer:** unit test on `activityMonthsFromEvents`, then code.
+- **Source:** Spec 019 amendment (7) slice A, 2026-10-21 (found while
+  building `measure:identity-links`).

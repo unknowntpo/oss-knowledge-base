@@ -1,8 +1,9 @@
 /**
- * Spec 019 amendment (7) test plan: KIPs a person started, and corroborated identity links.
- * [pending] until the amendment's merge PR runs it. `recorded` rows come from the Dev release
- * 2026-10-20T22:07:19Z and from public upstream reads of 2026-10-21 (GitHub search, ASF Jira REST,
- * Pony Mail); `constructed` rows are made up to reach a boundary.
+ * Spec 019 amendment (7) test plan, slice A: KIP discussion starters, the stored fields, and the
+ * identity-link job. `recorded` rows come from public upstream reads of 2026-10-21 (GitHub search,
+ * ASF Jira REST, Pony Mail), kept in `fixtures/identity-links/upstream-2026-09-15_2026-10-21.json`
+ * by `bun run measure:identity-links -- --record`; `constructed` rows are made up to reach a
+ * boundary. The profile page's rows are in `kip-profile.cases.ts` ([pending]).
  */
 export const testPlanRows = [
   { id: "W66", case: "a root message starts the KIP discussion", data: "recorded", input: "KAFKA-MAIL-3bc971ac: root \"[DISCUSS] KIP-1376: …\" by Mickael Maison 2026-10-06, 17 replies", expected: "KIP-1376 started by mail:mickael maison" },
@@ -16,7 +17,7 @@ export const testPlanRows = [
   { id: "W67", case: "Jira accounts on the thread entry", data: "recorded", input: "KAFKA-20995 reporter and assignee JIRAUSER306218 \"Eric Chang\"", expected: "reporter {key JIRAUSER306218, display Eric Chang}, assignee the same" },
   { id: "W68", case: "only key and display name are kept", data: "recorded", input: "Jira user object with key, name, displayName, timeZone, avatarUrls, active (and a constructed emailAddress)", expected: "event, activity log, link table and every API response hold no name, timeZone, avatar, active or email" },
   { id: "W68", case: "an unassigned issue", data: "recorded", input: "one of the 16 unassigned keys of the Example", expected: "assignee null; no pairing" },
-  { id: "W69", case: "five keys, no competitor", data: "recorded", input: "unknowntpo ↔ JIRAUSER306218 on KAFKA-21152, 21172, 21252, 21262, 21276", expected: "linked, corroborated, 5 keys as evidence" },
+  { id: "W69", case: "five keys, no competitor", data: "recorded", input: "unknowntpo ↔ JIRAUSER306218 on KAFKA-21152, 21172, 21252, 21262, 21276 (and KAFKA-21266, opened 2026-10-21)", expected: "linked, corroborated, 6 keys as evidence" },
   { id: "W69", case: "dominance with a competitor", data: "recorded", input: "harmadasg ↔ JIRAUSER306203 10 keys; m1a2st ↔ JIRAUSER306203 2 keys", expected: "harmadasg linked; m1a2st not" },
   { id: "W69", case: "split pairings", data: "recorded", input: "m1a2st ↔ JIRAUSER306203 2, JIRAUSER305187 2, JIRAUSER300229 1", expected: "no link for m1a2st" },
   { id: "W69", case: "a committer assigned to issues others fixed", data: "recorded", input: "dybyte, dino2895, jim0987795064 ↔ chia7712 1 key each", expected: "no link to chia7712" },
@@ -28,27 +29,26 @@ export const testPlanRows = [
   { id: "W70", case: "a KIP named only in the description", data: "recorded", input: "KAFKA-20728 (KIP-1376 in the description; reporter Netan Mangal, assignee Arnab Nandy)", expected: "not an issue for KIP-1376; no pairing" },
   { id: "W70", case: "two Jira accounts with the starter's name", data: "constructed", input: "two accounts \"A B\" each on a KIP started by mail:a b", expected: "no link (strict)" },
   { id: "W71", case: "transitive only through both edges", data: "constructed", input: "github:x ↔ jira-account:k (3 keys) and jira-account:k ↔ mail:x (2 KIPs)", expected: "one person: github, Jira and dev@" },
-  { id: "W71", case: "one edge short", data: "recorded", input: "github:unknowntpo ↔ JIRAUSER306218 (5 keys); mail:eric chang ↔ JIRAUSER306218 (1 KIP)", expected: "GitHub and Jira linked; mail:eric chang separate" },
+  { id: "W71", case: "one edge short", data: "recorded", input: "github:unknowntpo ↔ JIRAUSER306218 (6 keys); mail:eric chang ↔ JIRAUSER306218 (1 KIP)", expected: "GitHub and Jira linked; mail:eric chang separate" },
   { id: "W71", case: "two logins in one component", data: "constructed", input: "github:a and github:b both reach jira-account:k", expected: "no corroborated link of that component; conflict 1" },
   { id: "W72", case: "contradicts the roster", data: "constructed", input: "a corroborated chain joining two names of two ASF ids", expected: "link dropped; contradiction 1; roster links kept" },
   { id: "W72", case: "declared removal", data: "constructed", input: "identityLinks {a: github:unknowntpo, b: jira-account:JIRAUSER306218, remove: true}", expected: "pair not linked at the next run" },
   { id: "W72", case: "suppressed identity", data: "constructed", input: "github:x on the suppression list", expected: "no link touches github:x" },
   { id: "W73", case: "table format and order", data: "recorded", input: "the W69 recorded rows, twice, in different input order", expected: "byte-equal tables; each link has basis and evidence ids with URLs" },
-  { id: "W74", case: "own KIPs on a dev@ page", data: "recorded", input: "PEOPLE_KIPS=true; mail:arnab nandy", expected: "[data-section=kips] lists KIP-1381 and KIP-1382 with titles, 2026-10-16 and thread links" },
-  { id: "W74", case: "linked KIPs on a GitHub page", data: "constructed", input: "PEOPLE_KIPS=true; github:x corroborated to mail:x", expected: "KIPs of mail:x with basis corroborated and the evidence links" },
-  { id: "W74", case: "flag off", data: "constructed", input: "PEOPLE_KIPS unset", expected: "no kips section; links.json not read" },
-  { id: "W75", case: "the note", data: "constructed", input: "coverageFrom 2026-09-10, table generatedAt 2026-10-22T02:17Z", expected: "definition, \"KIPs started before 9/10 are not listed\", links computed 10/22" },
   { id: "W76", case: "a month read fails", data: "constructed", input: "bucket throws on 2026-09.json", expected: "no table written; last good kept; lastRun.ok false with the key" },
-  { id: "W77", case: "no activity log", data: "constructed", input: "state.json absent", expected: "status no-input; nothing written" },
+  { id: "W77", case: "no activity log", data: "constructed", input: "state.json absent", expected: "status no-input; no table written; last-run.json records it" },
   { id: "W77", case: "no roster", data: "constructed", input: "roster object absent", expected: "table written without roster links; inputs.rosterAt null" },
   { id: "W78", case: "unchanged inputs", data: "constructed", input: "second run on the same objects", expected: "links.json not written; last-run.json written" },
   { id: "W79", case: "crash between writes", data: "constructed", input: "throw after links.json put", expected: "next run writes last-run.json; table unchanged" },
-  { id: "W80", case: "link table missing or corrupt", data: "constructed", input: "links.json absent / not JSON", expected: "200; own KIPs listed; \"links not available\"" },
   { id: "W81", case: "isolation from the publication", data: "constructed", input: "the job throws on its cron", expected: "publication not started or changed; nothing written outside internal/identity/v1/" },
   { id: "W82", case: "two runs at once", data: "constructed", input: "cron and manual run on the same inputs", expected: "equal bytes; plain puts only" },
-  { id: "W83", case: "rows written before the flag", data: "constructed", input: "month with dev@ rows and no opens field", expected: "no starter from them; note states the start" },
   { id: "W84", case: "issue reassigned", data: "constructed", input: "KAFKA-n assignee A in 2026-09, B in 2026-10", expected: "paired with B only, counted once" },
   { id: "W85", case: "job off", data: "constructed", input: "IDENTITY_LINKS unset", expected: "cron no-op, route 404, no R2 call, no /health field" },
-  { id: "W87", case: "profile reads", data: "constructed", input: "cold, then within 10 min", expected: "at most 28 reads (links.json and authors.json), then 0" },
   { id: "W91", case: "health shape", data: "constructed", input: "a finished run", expected: "identityLinks {revision, lastRun {ok, status, at, durationMs, inputs (with committersAt), links, rejected, people, kipStarters, r2}, lastGoodAt}" },
+  { id: "W103", case: "committers capture as declared entries", data: "recorded", input: "the capture of https://kafka.apache.org/committers, 2026-10-21 (68 pairs)", expected: "68 declared entries github:<login> ↔ mail:<name key>, evidence the committers page" },
+  { id: "W103", case: "a name twice on the page", data: "constructed", input: "two cards named \"A B\" with two logins", expected: "no entry for either" },
+  { id: "W103", case: "refresh prints the diff", data: "constructed", input: "capture {x: X, y: Y}; page {x: X2, z: Z}", expected: "added z, removed y, changed x; y has no entry" },
+  { id: "W103", case: "blind leaves the committers out", data: "recorded", input: "--blind / ?dryRun=1&blind=1 on the recorded window", expected: "0 declared links; the same 28 corroborated links" },
+  { id: "W104", case: "evidence is not an https URL", data: "constructed", input: "the owner's TODO example entry", expected: "rejected; no link" },
+  { id: "W104", case: "the same entry with a URL", data: "recorded + constructed", input: "github:unknowntpo ↔ mail:eric chang with an https evidence URL, on the recorded window", expected: "github:unknowntpo, jira-account:JIRAUSER306218 and mail:eric chang are one person" },
 ];
