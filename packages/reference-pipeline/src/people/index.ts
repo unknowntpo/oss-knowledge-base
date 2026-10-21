@@ -679,7 +679,6 @@ async function readPersonKips(
     }
   }
   return personKips({
-    projectId,
     personKey,
     links,
     authors,

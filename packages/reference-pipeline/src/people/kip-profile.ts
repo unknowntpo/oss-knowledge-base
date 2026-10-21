@@ -153,7 +153,6 @@ export interface PersonKipsV1 {
 }
 
 export interface PersonKipsInput {
-  readonly projectId: string;
   /** The page's identity: `github:<login, lower case>`, `jira:<name>`, `mail:<name>`. */
   readonly personKey: string;
   readonly links: IdentityLinksTableV1 | undefined;
