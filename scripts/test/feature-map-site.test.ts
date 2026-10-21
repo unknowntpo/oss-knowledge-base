@@ -645,7 +645,7 @@ describe("feature-map site: Runs on only narrows", () => {
       expect(errors[0]).toStartWith(`Spec ${number}: Runs on "${value}"`);
       expect(errors[0]).toContain("contradicts the evidence");
     }
-    expect(claim("019", "Prod")[0]).toContain("Deployed configuration PEOPLE_ACTIVITY, PEOPLE_PROFILES unset or none on Prod");
+    expect(claim("019", "Prod")[0]).toContain("Deployed configuration PEOPLE_PROFILES unset or none on Prod");
     expect(claim("020", "Prod")[0]).toContain("publishes it to GitHub Pages, not the Prod deploy");
     // Narrowing is allowed: 001 (in the Prod tag) marked Dev.
     expect(claim("001", "Dev")).toEqual([]);
