@@ -290,6 +290,18 @@ export const kipProfileChecks: Record<string, () => Promise<void>> = {
     // Positive control: mail:x itself lists it without a link.
     expect(lineOf(await profile("mail:x", linkedScenario()), "KIP-9001")!.facts[0]!.via).toBeUndefined();
   },
+  "W74|a starter-only line's title": async () => {
+    const month = new Month("2026-10")
+      .mail("t9201", "[DISCUSS] KIP-9201: First title", "Title Person", "03", true)
+      .mail("t9202", "DISCUSS: KIP-9202 - Second title", "Title Person", "04", true)
+      .mail("t9203", "[discuss] KIP-9203：Third title", "Title Person", "05", true).build();
+    const body = await profile("mail:title person", { months: [month], authors: authorsTable([]) });
+    expect(body.kips!.lines.map((line) => [line.kip, line.pageUrl, line.title])).toEqual([
+      ["KIP-9203", undefined, "Third title"], ["KIP-9202", undefined, "Second title"], ["KIP-9201", undefined, "First title"],
+    ]);
+    // The discussion keeps the subject as written.
+    expect(lineOf(body, "KIP-9201")!.discussion!.title).toBe("[DISCUSS] KIP-9201: First title");
+  },
   "W74|flag off": async () => {
     const off = store();
     const result = await readPersonProfile({ bucket: off.bucket, projectKey: "kafka", personId: "mail:arnab nandy", nowMs: NOW });
@@ -316,9 +328,9 @@ export const kipProfileChecks: Record<string, () => Promise<void>> = {
     expect([body.kips!.startersFrom, body.kips!.links]).toEqual(["2026-09-10T00:00:00.000Z", { available: true, generatedAt: "2026-10-22T02:17:00.000Z" }]);
     const notes = text(section(await render(body)).split("data-kips-how")[1]!);
     expect(notes).toContain("“Started the discussion” is the sender of the first message of the KIP's earliest [DISCUSS] thread on dev@, not “authored”");
-    expect(notes).toContain("KIPs started before 9/10 are not listed");
-    expect(notes).toContain("the link table computed 10/22");
-    expect(text(section(await render(body, "zh-Hant")))).toContain("9/10 之前開始討論的 KIP 不會列出");
+    expect(notes).toContain("recorded since 2026-09-10; KIPs started before 2026-09-10 are not listed");
+    expect(notes).toContain("the link table computed 2026-10-22;");
+    expect(text(section(await render(body, "zh-Hant")))).toContain("2026-09-10 之前開始討論的 KIP 不會列出");
   },
   "W80|link table missing or corrupt": async () => {
     for (const value of [null, "{not json", JSON.stringify({ schema: "osskb.identity-links.v1", projectId: KAFKA, generatedAt: "x", people: [{ members: "nope" }] })]) {
