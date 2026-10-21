@@ -3,7 +3,7 @@
  * identity-link job. `recorded` rows come from public upstream reads of 2026-10-21 (GitHub search,
  * ASF Jira REST, Pony Mail), kept in `fixtures/identity-links/upstream-2026-09-15_2026-10-21.json`
  * by `bun run measure:identity-links -- --record`; `constructed` rows are made up to reach a
- * boundary. The profile page's rows are in `kip-profile.cases.ts` ([pending]).
+ * boundary. The profile page's rows are in `kip-profile.cases.ts`.
  */
 export const testPlanRows = [
   { id: "W66", case: "a root message starts the KIP discussion", data: "recorded", input: "KAFKA-MAIL-3bc971ac: root \"[DISCUSS] KIP-1376: …\" by Mickael Maison 2026-10-06, 17 replies", expected: "KIP-1376 started by mail:mickael maison" },

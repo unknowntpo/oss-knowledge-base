@@ -1166,3 +1166,18 @@ the two `viewer/` items below.
 - **Layer:** unit test on `activityMonthsFromEvents`, then code.
 - **Source:** Spec 019 amendment (7) slice A, 2026-10-21 (found while
   building `measure:identity-links`).
+
+### G98. Profile KIPs: the identities section does not list links yet; a Jira page is keyed by display name
+- **Where:** `apps/web/src/components/PersonProfile.vue` (`[data-section="identities"]`),
+  `packages/reference-pipeline/src/people/kip-profile.ts` (`LinkGraph`, `holdsAccount`).
+- **Why:** amendment (7)'s "The page" also says the identities section shows
+  each link with its basis and evidence; slice C shows the path only on the
+  KIP lines that use it, and the identities section still says other sources
+  are separate (true for every count). A `jira:<name>` page holds every
+  account whose display name gives that id (G76), so two Jira accounts with one
+  name share their assigned KIPs on that page, as they already share counts.
+- **Fix:** list the person's links (basis, evidence) in the identities section
+  when `PEOPLE_KIPS` is on; switch Jira pages to `jira-account:<key>` ids with
+  slice 4 (G76).
+- **Layer:** component test, then code.
+- **Source:** Spec 019 amendment (7) slice C, 2026-10-21.

@@ -11,12 +11,13 @@
  */
 import { SOURCE_USER_AGENT } from "../kafka-connectors";
 import { nameKey } from "../review-queue/roster";
+import { KIP_AUTHORS_SCHEMA, kipAuthorsKey, type KipAuthorStatus, type KipAuthorV1, type KipAuthorsTableV1, type KipIssueV1, type KipJiraField, type KipPageV1 } from "./kip-authors-table";
 
-export const KIP_AUTHORS_SCHEMA = "osskb.kip-authors.v1";
+export * from "./kip-authors-table";
+
 /** The one supported value of `KIP_PAGES`. */
 export const KIP_PAGES_REVISION = "authors@1";
 export const KIP_PAGES_LAST_RUN_KEY = "internal/kips/v1/last-run.json";
-export const kipAuthorsKey = (projectId: string) => `internal/kips/v1/${projectId}/authors.json`;
 
 export const KIP_PAGES_BUDGET = {
   cwikiRequests: 10,
@@ -42,35 +43,6 @@ export interface KipPagesProfile {
 }
 
 export const KAFKA_KIP_PAGES: KipPagesProfile = { projectId: "apache-kafka", space: "KAFKA", titlePrefix: "KIP-", jiraProject: "KAFKA" };
-
-export type KipAuthorStatus = "listed" | "no-list" | "unparsed";
-export type KipJiraField = "one" | "several" | "empty" | "query" | "none";
-
-export interface KipAuthorV1 { readonly name: string; readonly nameKey: string }
-export interface KipIssueV1 {
-  readonly key: string;
-  readonly assignee: { readonly key: string; readonly display: string } | null;
-  readonly readAt: string;
-}
-export interface KipPageV1 {
-  readonly kip: number;
-  readonly pageId: string;
-  readonly version: number;
-  readonly title: string;
-  readonly url: string;
-  readonly status: KipAuthorStatus;
-  readonly authors: readonly KipAuthorV1[];
-  readonly jira: KipJiraField;
-  readonly issues: readonly KipIssueV1[];
-}
-export interface KipAuthorsTableV1 {
-  readonly schema: typeof KIP_AUTHORS_SCHEMA;
-  /** The start of the run that last changed the table's content. */
-  readonly generatedAt: string;
-  /** Pages modified since this time are covered (the first run's `since`). */
-  readonly coverageFrom: string;
-  readonly pages: readonly KipPageV1[];
-}
 
 export type KipPagesRunStatus = "ok" | "unchanged" | "failed" | "over-budget";
 export interface KipPagesLastRunV1 {
