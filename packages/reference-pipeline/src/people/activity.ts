@@ -44,6 +44,18 @@ export interface ActivityRowV1 {
   readonly thread: string;
   /** A merged pull request's merge time (W3). */
   readonly merged?: string;
+  /**
+   * Amendment (7), W67: a dev@ message whose subject has no reply prefix (a thread root). Fixed once
+   * written, unlike the thread's `author`, which follows the oldest message in the sliding state.
+   * Absent on replies and on rows written before the flag existed (W83: those are no root).
+   */
+  readonly opens?: true;
+}
+
+/** Amendment (7), W67: a Jira account on a thread entry. Internal only: no API response carries it. */
+export interface ActivityAccountV1 {
+  readonly key: string;
+  readonly display: string;
 }
 
 export interface ActivityThreadV1 {
@@ -57,6 +69,12 @@ export interface ActivityThreadV1 {
   readonly labels: readonly string[];
   /** KIP numbers in the title or subject (`KIP-1368`), sorted. */
   readonly kips: readonly string[];
+  /**
+   * Amendment (7), W67: a Jira issue's reporter and assignee accounts (null when none), the
+   * identity-link job's input. Absent on other threads and on entries written before the change.
+   */
+  readonly reporter?: ActivityAccountV1 | null;
+  readonly assignee?: ActivityAccountV1 | null;
 }
 
 export interface ActivityMonthV1 {
@@ -111,6 +129,7 @@ export function encodeActivityMonth(month: ActivityMonthV1): string {
     rows: rows.map((row) => ({
       id: row.id, source: row.source, kind: row.kind, person: row.person, at: row.at, thread: row.thread,
       ...(row.merged === undefined ? {} : { merged: row.merged }),
+      ...(row.opens === true ? { opens: true } : {}),
     })),
   });
 }
@@ -143,7 +162,8 @@ export function parseActivityMonth(value: unknown, projectId: string, month: str
   }
   for (const row of object.rows) {
     if (typeof row?.id !== "string" || !SOURCES.includes(row.source) || !KINDS.includes(row.kind) || typeof row.person !== "string" ||
-        typeof row.at !== "string" || typeof row.thread !== "string" || !(row.thread in object.threads)) {
+        typeof row.at !== "string" || typeof row.thread !== "string" || !(row.thread in object.threads) ||
+        (row.opens !== undefined && row.opens !== true)) {
       throw new Error(`Activity month ${projectId} ${month} has a malformed row`);
     }
   }

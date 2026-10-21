@@ -12,3 +12,8 @@ export * from "./review-queue";
 export * from "./github-reviews";
 export * from "./people/activity";
 export * from "./people/activity-log";
+export * from "./people/committers";
+export * from "./people/identity-links";
+export * from "./people/identity-profile";
+export * from "./people/kafka-committers.capture";
+export * from "./people/kip-starters";

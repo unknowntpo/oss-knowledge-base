@@ -183,7 +183,8 @@ export class PonyMailConnector {
 }
 
 export const JIRA_SEARCH_URL = "https://issues.apache.org/jira/rest/api/2/search";
-const JIRA_FIELDS = "summary,description,status,updated,created,reporter,comment";
+/** Spec 019 amendment (7): `assignee` added; the event keeps only its key and display name (W68). */
+export const JIRA_FIELDS = "summary,description,status,updated,created,reporter,assignee,comment";
 
 export interface JiraConnectorOptions extends CommunityConnectorOptions {
   readonly pageSize?: number;

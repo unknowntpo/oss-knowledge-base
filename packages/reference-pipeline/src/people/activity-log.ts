@@ -106,6 +106,11 @@ export function activityMonthsFromEvents(events: readonly DomainEventV1[], from:
         setThread(event.projectId, thread, {
           source: "jira", kind: "issue", title: data.title, url: event.canonicalUrl,
           author: data.isBot ? null : activityPersonId("jira", data.author) ?? null, labels: [], kips: [...data.kips].sort(),
+          // Amendment (7), W67: only on events read since the connector requests `assignee`.
+          ...(data.assignee === undefined ? {} : {
+            reporter: data.reporterKey === undefined ? null : { key: data.reporterKey, display: data.author },
+            assignee: data.assignee === null ? null : { key: data.assignee.key, display: data.assignee.displayName },
+          }),
         }, data.author);
       } else if (!threads.get(event.projectId)?.has(thread)) {
         const root = byEntity.get(`${event.projectId}\u0000${data.parentEntityId}`);
@@ -138,7 +143,11 @@ export function activityMonthsFromEvents(events: readonly DomainEventV1[], from:
       drafts.push({
         projectId: event.projectId,
         display: data.author,
-        row: { id: event.entityId, source: "mail", kind: "message", person, thread, at: data.occurredAt },
+        row: {
+          id: event.entityId, source: "mail", kind: "message", person, thread, at: data.occurredAt,
+          // Amendment (7), W67: a subject without a reply prefix opens the thread.
+          ...(threadTitle(data.subject) === data.subject.replace(/\s+/gu, " ").trim() ? { opens: true as const } : {}),
+        },
       });
     }
   }
