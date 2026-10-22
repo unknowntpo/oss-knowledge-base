@@ -178,6 +178,20 @@ describe("Spec 025 docs site", () => {
     for (const id of PAGES) expect(files.get(`en/${id}.html`)!.match(/<h2 id=/gu)?.length ?? 0).toBeGreaterThan(1);
   });
 
+  test("DOC19: the search page shows the search pipeline flow in both locales, Dev-only and design-only steps tagged", () => {
+    const files = buildDocsSite(readRepository(root, "unknowntpo/oss-knowledge-base"));
+    const tags = { en: ["Dev only", "Design only"], "zh-Hant": ["僅 Dev", "僅設計"] } as const;
+    for (const locale of LOCALES) {
+      const html = files.get(`${locale}/search.html`)!;
+      expect(html).toContain('<figure class="flow" id="flow-search"');
+      const tagOf = (node: string) => new RegExp(`data-node="search-${node}">[\\s\\S]*?</a>`, "u").exec(html)?.[0].match(/class="tag tag-(\w+)">([^<]+)</u)?.slice(1);
+      // Prod and Dev: no tag. Dev only: the semantic branch, fusion and fallback. Design only: Clef.
+      for (const node of ["q-ident", "q-token", "lex-bm25", "rank-thread"]) expect(tagOf(node)).toBeUndefined();
+      for (const node of ["sem-gate", "sem-vec", "rank-fuse", "rank-fallback"]) expect(tagOf(node)).toEqual(["dev", tags[locale][0]]);
+      expect(tagOf("rerank-clef")).toEqual(["off", tags[locale][1]]);
+    }
+  });
+
   test.each(testPlanRows)("$id: $change → $stage reports \"$expect\"", (row) => {
     if (row.stage === "deploy") {
       const [event, ref, credentials, status] = row.change.split(" ");
