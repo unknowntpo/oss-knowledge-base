@@ -1,0 +1,21 @@
+{
+  "name": "@oss-knowledge-base/sre-agent",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json",
+    "playbooks": "bun scripts/playbooks.ts",
+    "check:playbooks": "bun scripts/playbooks.ts --check"
+  },
+  "dependencies": {
+    "ai": "7.0.133",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.0",
+    "typescript": "5.9.3"
+  }
+}

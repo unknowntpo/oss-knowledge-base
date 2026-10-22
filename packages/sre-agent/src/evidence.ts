@@ -1,0 +1,43 @@
+/** B32: the diagnosis output schema and the deterministic evidence check (step 6 of B26). */
+import { z } from "zod";
+import type { EvidenceItem } from "./bundle";
+
+export const diagnosisOutputSchema = z.object({
+  verdict: z.enum(["explained", "unexplained", "inconclusive"]),
+  cause: z.string().describe("A cause id from a firing rule's playbook, or \"unknown\""),
+  confidence: z.enum(["low", "medium", "high"]),
+  evidence: z.array(z.object({
+    id: z.string().describe("The id of a bundle item, E1…En"),
+    quote: z.string().describe("Text copied verbatim from that item"),
+  })),
+  runbook: z.string().nullable().describe("A runbook anchor the playbook lists, as <file>.md#<anchor>"),
+  ownerAction: z.string().nullable().describe("Text for the owner; no tool can perform it"),
+});
+
+export type DiagnosisOutput = z.infer<typeof diagnosisOutputSchema>;
+
+export interface EvidenceCheck {
+  readonly ok: boolean;
+  readonly failures: string[];
+}
+
+const collapse = (text: string) => text.replace(/\s+/gu, " ").trim();
+
+/**
+ * Each quote occurs verbatim (whitespace collapsed) in the item it cites; the cause is a playbook
+ * cause id or `unknown`; the runbook is an anchor the playbook lists. Code only, no model.
+ */
+export function checkEvidence(
+  output: DiagnosisOutput,
+  bundle: { readonly items: readonly EvidenceItem[]; readonly causes: ReadonlySet<string>; readonly runbooks: ReadonlySet<string> },
+): EvidenceCheck {
+  const failures: string[] = [];
+  for (const { id, quote } of output.evidence) {
+    const item = bundle.items.find((value) => value.id === id);
+    if (item === undefined) failures.push(`unknown-evidence-id:${id}`);
+    else if (collapse(quote) === "" || !collapse(item.text).includes(collapse(quote))) failures.push(`quote-not-in-item:${id}`);
+  }
+  if (!bundle.causes.has(output.cause)) failures.push(`cause-not-in-playbook:${output.cause}`);
+  if (output.runbook !== null && !bundle.runbooks.has(output.runbook)) failures.push(`runbook-not-in-playbook:${output.runbook}`);
+  return { ok: failures.length === 0, failures };
+}

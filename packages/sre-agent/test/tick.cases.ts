@@ -1,6 +1,8 @@
 /**
  * Spec 027 Amendment (2) L1 cases: the deterministic tick before and after the model (no model, no
- * network), [pending] until slice 1. Every boundary named in B25–B35 has a case on each side.
+ * network), run by tick.test.ts. Every boundary named in B25–B35 has a case on each side. The row
+ * that needs the Worker's scheduled handler (SRE47) is in worker.cases.ts, [pending] until the
+ * wiring slice.
  */
 export const testPlanRows = [
   { id: "SRE37", case: "flag", given: "SRE_AGENT unset, off, \"Live\" / dry / live", expected: "off, off, off with reason invalid-flag (0 reads, 0 writes) / steps 0-4 and 7, 0 model calls / all steps" },
@@ -25,7 +27,6 @@ export const testPlanRows = [
   { id: "SRE45", case: "output schema", given: "record with every field / missing evidence / confidence \"sure\"", expected: "accepted / rejected / rejected" },
   { id: "SRE46", case: "write scope", given: "keys internal/sre/v1/dev/runs/x.json / internal/sre/v1/prod/x / public/v2/current.json / identity-links last-run.json", expected: "written / refused before any R2 call (3 cases)" },
   { id: "SRE46", case: "forbidden requests", given: "any path of a tick, dry and live", expected: "no request to /run, /*/run, /cost-guard/*, no non-GET, no fetch to the other env's host" },
-  { id: "SRE47", case: "isolation", given: "sre-agent branch throws at each step 0-7 on a tick shared with the publication cron", expected: "publication still scheduled; sreAgent lastRun.status failed with sanitized reason" },
   { id: "SRE48", case: "playbook format", given: "docs/runbooks/sre/*.md missing a section / cause without anchor / anchor not in docs/runbooks", expected: "check fails naming the file" },
   { id: "SRE48", case: "playbook missing", given: "firing rule with no playbook file", expected: "diagnosed with playbookMissing true; only cause unknown passes" },
   { id: "SRE49", case: "scope v1", given: "firing job.duration / job.r2ClassA", expected: "notDiagnosed out-of-scope / diagnosed (type 3)" },

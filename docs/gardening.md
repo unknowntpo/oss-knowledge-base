@@ -1181,3 +1181,22 @@ the two `viewer/` items below.
   slice 4 (G76).
 - **Layer:** component test, then code.
 - **Source:** Spec 019 amendment (7) slice C, 2026-10-21.
+
+### G99. SRE agent core: AI SDK types need `skipLibCheck`; CI log tail and eval cause ids are open
+- **Where:** `packages/sre-agent/tsconfig.json` (`skipLibCheck: true`),
+  `packages/sre-agent/src/firings.ts` (`readCiRelease`),
+  `packages/sre-agent/test/eval.cases.ts` row 1 and
+  `docs/runbooks/sre/job.missed.md` (worked example).
+- **Why:** `ai` 7.0.133's declarations (`@ai-sdk/provider-utils` `Tool`) do
+  not compile under `exactOptionalPropertyTypes`, so the package skips
+  library checks (its own files are still checked strictly). `ci.release`
+  reads the failed job's name but not its last 60 log lines (B29): whether
+  the public API serves job logs without a token is unverified. Eval row 1
+  expects cause `alarm-stuck`; the playbook's worked example expects
+  `unknown` with `deploy-broke-job` as suspect.
+- **Fix:** drop `skipLibCheck` when an `ai` release type-checks under
+  `exactOptionalPropertyTypes`; verify the logs endpoint unauthenticated in
+  the wiring slice and fetch the tail or remove it from B29; make eval row 1
+  and the playbook agree in the L3 slice.
+- **Layer:** static check (typecheck), then test rows (wiring slice, L3).
+- **Source:** Spec 027 A2-9 slice 1, 2026-10-22.

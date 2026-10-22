@@ -1,6 +1,6 @@
 /**
  * Spec 027 Amendment (2) L2 cases: the AI SDK loop with `MockLanguageModelV4` from `ai/test` and
- * scripted responses (no network, $0), [pending] until slice 1.
+ * scripted responses (no network, $0), run by loop.test.ts.
  */
 export const testPlanRows = [
   { id: "SRE50", case: "happy path", script: "read_playbook, then a valid output quoting E1", expected: "verdict explained; steps 2, toolCalls 1; neurons from usage at the model's rates; trajectory holds both steps" },
