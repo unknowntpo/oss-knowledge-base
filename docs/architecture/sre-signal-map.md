@@ -6,7 +6,7 @@ Spec 027 與 028 還不在 `main`，下文以「§ 小節（行號）」引用 P
 
 ## 一句話
 
-每個排程工作（job）把自己的結果寫進 `/health`（今天已有），Spec 028 再讓每次執行多寫一筆 Workers Analytics Engine（WAE）資料點並在 Worker 內用固定門檻判斷，結果放在 `/health.signals`（提案中）。SRE agent 只在某條規則為 `firing`（或 cost guard `tripped`、CI 失敗）時才啟動，讀固定範圍的資料，寫一筆診斷到本機 `diagnoses.jsonl`；它不偵測、不寫入、不暫停任何東西。
+每個排程工作（job）把自己的結果寫進 `/health`（今天已有），Spec 028 再讓每次執行多寫一筆 Workers Analytics Engine（WAE）資料點並在 Worker 內用固定門檻判斷，結果放在 `/health.signals`（提案中）。SRE agent 只在某條規則為 `firing`（或 cost guard `tripped`、CI 失敗）時才啟動，讀固定範圍的證據，寫一筆診斷到自己的 R2 key、WAE 點與 `/health.sreAgent`；它不偵測、不寫其他 job 的資料、不暫停任何東西。依 owner 2026-10-22 的決定，agent 是 data Worker 上的 `sre-agent` cron job（提案，Spec 027 修正案待提出）。
 
 ## 狀態標記
 
@@ -72,78 +72,87 @@ Spec 028 Example（行 125）用 Dev 2026-10-20 的真實值走過一遍：全�
 
 ## C. SRE agent
 
-**目標（2026-10-22 owner 更新）**：要的是「自動化的診斷能力」，在既有的 agent runtime 上做，不從零自建 agent loop。候選 runtime 有 headless Claude Code（launchd 排程）、Claude Agent SDK、雲端排程 routine 或 pi 內建 agent，**尚未決定**（見 E 的「Agent runtime」）。Spec 027 原本「在 pi toolkit 上自建 loop、對照 CS329Z HW1」的寫法不再是目標；反映這個改變的 Spec 027 修正案**尚待提出**。下面的觸發、輸入、輸出、預算與邊界沿用 Amendment (1)，與 runtime 無關。
+**owner 決定（2026-10-22），Spec 027 修正案待提出，以下全部為提案**：目標是自動化的診斷能力，不從零自建 agent loop。agent 改在 Cloudflare 上跑，是 data Worker 上自己的一個 cron job（`sre-agent`），用 Anthropic TypeScript SDK 的 Tool Runner 執行工具迴圈（Claude Agent SDK 不能在 Workers 執行）。Spec 027 原本「MacBook、launchd、在 pi toolkit 上自建 loop、對照 CS329Z HW1」的寫法不再是目標。觸發只看 `firing`、指紋去重、每日上限、唯讀邊界沿用 Amendment (1)（行 86–199）；執行位置、資料讀取方式與輸出位置依新決定改寫。
 
-### 觸發與去重（027 A1，行 86–115）
+### 每次 tick 的步驟
 
-- 每次排程執行先 GET Dev 與 Prod `/health`（2 次，不呼叫模型），收集 **firing**：`signals.rules[]` 中 `status: "firing"` 的條目、`costGuard.status: "tripped"`、harness 的 `ci.release`。
-- `warn`、`unknown` 什麼都不啟動（Decision 11）。沒有 firing：記 `{verdict: "healthy", firings: 0, modelCalls: 0}` 就結束。
-- `/health` 沒有 `signals`（028 未啟用，今天 Dev 與 Prod 都是這樣）：記 `signals: "unavailable"`，不用自己的門檻補判斷。所以 **今天能觸發的只有 cost guard `tripped` 與 `ci.release`**。
-- 指紋 `<env>:<job>:<ruleId>:<since>`；已在 `diagnoses.jsonl` 的指紋不重診，除非條目的 `runId` 變了，且每個 UTC 日最多一次；規則回到 `ok` 再 `firing` 會有新的 `since`，即新指紋（行 104）。
-- 每個 UTC 日最多 3 筆診斷，其餘記 `notDiagnosed: "daily-cap"`（Decision 15）。
-
-### 每個 job 的輸入包（027 A2，行 116–158）
-
-harness 先組好輸入包，當作第一份「不可信的工具輸出」交給模型。每份都含觸發的規則條目與 `costGuard`（讓「因為 guard 暫停而錯過排程」被解釋，而不是重報）。
-
-| Job | `/health` 欄位 | 額外輸入 |
+| 步驟 | 做什麼 | 來源 |
 | --- | --- | --- |
-| `publication`（Dev 22:07、Prod 22:37） | `running`、`scheduled`、`followUp`、`phase`、`lastRun {ok, runId, completedAt, copied, reused, r2, pollTruncated}`、`sources` | Prod 部署可能過期時加 `get_ci_status` |
+| 0. 旗標與預算 | `SRE_AGENT` `off`／`dry`／`live`；每個 UTC 日最多 3 筆診斷 | owner 2026-10-22；027 Decision 15 |
+| 1. 收集 firing（不呼叫模型） | 本環境的 Spec 028 規則（經 binding 讀 DO 狀態與 WAE）、`costGuard.status: "tripped"`、`ci.release`（公開 GitHub API） | 027 A1 第 18 條（行 88），改為本環境 binding |
+| 2. 去重 | 指紋 `<env>:<job>:<ruleId>:<since>`；已診斷過的不重診，除非 `runId` 改變且每 UTC 日最多一次；回到 `ok` 再 `firing` 是新的 `since`，即新指紋 | 027 A1 第 19 條（行 104） |
+| 3. 沒有 firing | 記 `lastRun`，模型呼叫 0 次，結束 | 027 A1 |
+| 4. 證據包 | 每個新 firing：該 job／`runId` 的 WAE 資料點與基準（前幾次）、該 job 的 `last-run.json`、`/health` 對應區塊、依規則 id 選的 runbook 小節 | 027 A2（行 116） |
+| 5. Tool Runner 迴圈 | 只有唯讀工具；≤ 12 次呼叫；結構化輸出 | 027 A4 |
+| 6. 確定性檢查 | 模型引用的每一段證據必須真的出現在證據包裡，否則不採用 | owner 2026-10-22（新增） |
+| 7. 寫出 | 診斷寫到自己的 R2 key（`internal/sre/v1/…`）、自己的 WAE 資料點（`job` = `sre-agent`）、`/health.sreAgent` | owner 2026-10-22；取代 027 A3 的本機 `diagnoses.jsonl` |
+
+`warn`、`unknown` 什麼都不啟動（027 Decision 11）。`/health` 沒有 `signals`（今天 Dev、Prod 都是）時不用自己的門檻補判斷，所以在 Spec 028 啟用前 **只有 cost guard `tripped` 與 `ci.release` 能觸發**。
+
+### 每個 job 的證據包（027 A2，行 116–158）
+
+每份都含觸發的規則條目與 `costGuard`（讓「因為 guard 暫停而錯過排程」被解釋，而不是重報）。
+
+| Job | `/health` 區塊 | 額外輸入 |
+| --- | --- | --- |
+| `publication`（Dev 22:07、Prod 22:37） | `running`、`scheduled`、`followUp`、`phase`、`lastRun {ok, runId, completedAt, copied, reused, r2, pollTruncated}`、`sources` | Prod 部署可能過期時加 CI 狀態 |
 | `digest`（Dev 22:47） | `digest.lastRun {ok, runId, completedAt, durationMs, rejections}` | `sourceRunId` 指向的 publication 資料點 |
 | `review-queue`（無 cron） | `reviewQueue` | 無 |
 | `search-embedding` | `searchEmbedding {lastRun, lastError, today}` | 無 |
 | `identity-links`（Dev 02:17） | `identityLinks {lastRun, lastGoodAt}` | 無 |
 | `kip-pages`（Dev 03:43） | `kipPages {lastRun, lastGoodAt}` | 無 |
 | `retention`（規劃 10:17） | `retention {mode, status, reason, lastRun}` | 無 |
-| cost guard | `costGuard {mode, status, reason, checkedAt, metrics, breaker}`（CG27 後加 `budget`） | 觸發當天的 `Q-window` |
-| `ci.release` | 無 | `get_ci_status`（失敗 job 的最後 60 行） |
+| cost guard | `costGuard {mode, status, reason, checkedAt, metrics, breaker}`（CG27 後加 `budget`） | 觸發當天前後 12 h 其他 job 的資料點 |
+| `ci.release` | 無 | 失敗 job 的最後 60 行 |
 
 ### 唯讀工具
 
-| 工具 | 讀什麼 | 備註 |
+027 A2 的工具清單在新執行位置下的對應（工具名稱與介面待修正案定）：
+
+| 能力 | 讀什麼 | 備註 |
 | --- | --- | --- |
-| `get_health` | `GET <publisher>/health`（公開） | 原樣回傳，不加推導門檻（SRE34） |
-| `query_signals` | Analytics SQL HTTP API，三個固定模板：`Q-history`（某 job 8 天內 ≤ 20 筆）、`Q-run`（以 `runId` 查）、`Q-window`（觸發時間 ± 12 h 的所有 job） | 模型只選模板與參數，不寫 SQL；需要唯讀 token（Decision 12，scope 未驗證） |
-| `get_run_logs` | `logs.workersLogs` 以 `runId` 過濾，≤ 200 行 | 預設關閉（Decision 13）；需 028 OB21 證明 `runId` 欄位可讀，否則要 Write 權限 token |
-| `get_ci_status` | GitHub Actions runs（Actions: Read） | |
-| `search_runbook` | 本機 `docs/runbooks/*.md` | ≤ 5 段 |
-| `report` | 不讀任何東西 | 結束診斷，產出紀錄 |
+| `/health` 區塊 | 同一 Worker 內的 DO 狀態與 `last-run.json` | 原樣，不加推導門檻（SRE34） |
+| WAE 查詢 | Analytics SQL binding，固定模板（某 job 8 天內歷史、以 `runId` 查、觸發時間 ± 12 h 的所有 job） | 模型只選模板與參數，不寫 SQL；binding 不需 token |
+| CI 狀態 | 公開 GitHub API | 唯讀 |
+| runbook 小節 | 依規則 id 對應的 `docs/runbooks/` 小節 | 如何打包進 Worker 待修正案定 |
+| Workers Logs | v1 不讀 | Spec 028 D6 |
+| 結構化輸出 | 不讀任何東西 | 結束診斷 |
 
-### 輸出：診斷紀錄（027 A3，行 159–177）
+### 輸出：診斷紀錄
 
-每個 firing 一筆，由 harness 附加到 `~/.osskb-sre/diagnoses.jsonl`：
-`fingerprint`、`env`、`job`、`ruleId`、`since`、`runId`、`verdict`（`explained`／`unexplained`／`inconclusive`）、`cause`、`evidence [{callId, source: health|sql|logs|ci|runbook, quote}]`、`runbook | null`、`ownerAction | null`（給 owner 的文字，沒有工具能執行它）、`model`、`modelCalls`、`costUsd`、`at`。除了本機之外顯示在哪裡是 Decision 9（建議：v1 只放本機）。
+欄位沿用 027 A3（行 161）：`fingerprint`、`env`、`job`、`ruleId`、`since`、`runId`、`verdict`（`explained`／`unexplained`／`inconclusive`）、`cause`、`evidence [{source, quote}]`、`runbook | null`、`ownerAction | null`（給 owner 的文字，沒有工具能執行它）、`model`、`modelCalls`、`costUsd`、`at`。存放處改為 R2 `internal/sre/v1/…`、`sre-agent` 的 WAE 資料點與 `/health.sreAgent`。
 
-### 排程與預算（027 A4，行 178–199）
+### 排程與預算
 
-- 每天 00:30 與 11:00 UTC 兩次（Decision 10）：第一次在 publication、digest、cost guard 之後，第二次在 identity-links、kip-pages、retention 之後。
-- 健康的一次：2 次 `/health`、0 次模型、0 次 SQL。
-- 每筆診斷：≤ 12 次模型呼叫、≤ 60,000 tokens、≤ 3 次 SQL、≤ 1 次 log 查詢、≤ 3 次 GitHub 讀取。每天 ≤ 3 筆。
-- 最壞情況模型費用約 $0.90／月（027 以 `deepseek/deepseek-v4.1-flash` 估算；runtime 改變後模型與計價要重估），Cloudflare overage $0。
+- 排程時間待修正案定；027 Decision 10 原本建議 00:30 與 11:00 UTC，分別在晚間 job 與清晨 job 之後。
+- 健康的一次：0 次模型呼叫。
+- 每筆診斷：≤ 12 次模型呼叫；每天 ≤ 3 筆。
+- 模型費用由 owner 的 Anthropic credit 支付，不在 Cloudflare $5 Workers Paid + $5 overage 預算內；agent 自己的 Worker 執行、R2 寫入、WAE 寫入與 SQL 查詢則算在 Cloudflare 預算內（量待修正案估）。
 
-### 永遠不做（027 A3 22、Non-goals）
+### 永遠不做
 
-- 不寫 R2、不呼叫 `/run`、`/*/run`、`/cost-guard/*`，不跑 wrangler、不部署。
-- 不偵測、不重算 Spec 026／028 的門檻；不決定、啟動或解除暫停，不重設 breaker（由 cost guard 自己決定）。
-- 不直接讀 R2、不推播通知、不看 traces（需 028 D2 與另一份修正案）。
-- firing 本身由產品 UI 與 `/health` 呈現；診斷紀錄只負責解釋。
+- 不暫停或恢復任何東西，不重設 breaker（由 cost guard 自己決定）。
+- 不呼叫 `POST /run` 或任何 `/*/run`、`/cost-guard/*`。
+- 不寫其他 job 的 key；只寫 `internal/sre/v1/…`、自己的 WAE 點與 `/health.sreAgent`。
+- 不部署、不跑 wrangler；不偵測、不重算 Spec 026／028 門檻；v1 不讀 Workers Logs、不看 traces；不推播通知。
+- firing 本身由產品 UI 與 `/health` 呈現；診斷只負責解釋。
 
 ### 規則 → 診斷內容
 
 | 規則 | 診斷要說明什麼 | 證據（工具／欄位） | Runbook |
 | --- | --- | --- | --- |
-| cost guard `tripped` | 哪個指標、月累計多少、主要來自哪段事件；今天的 publication 是否守住 Class A 不變式；`monitor` 下沒有暫停任何東西。027 Example (1)（行 200）：Dev `r2ClassA` 2,064,777 > 800,000，主要是 10-02..13 conditional put 事件，今天 1,092 = 1,089 + 3；ownerAction「決定 Spec 026 Decision 1（11-01 前重設）」 | `costGuard.breaker`、`lastRun.r2`、`Q-window` | [R2 operations and cost](../runbooks/cloudflare-data-publisher.md#r2-operations-and-cost)、[Cost guard: Read `/health`](../runbooks/cloudflare-data-publisher.md#read-health)、[Reset the breaker](../runbooks/cloudflare-data-publisher.md#reset-the-breaker) |
+| cost guard `tripped` | 哪個指標、月累計多少、主要來自哪段事件；今天的 publication 是否守住 Class A 不變式；`monitor` 下沒有暫停任何東西。027 Example (1)（行 200）：Dev `r2ClassA` 2,064,777 > 800,000，主要是 10-02..13 conditional put 事件，今天 1,092 = 1,089 + 3；ownerAction「決定 Spec 026 Decision 1（11-01 前重設）」 | `costGuard.breaker`、`lastRun.r2`、WAE ± 12 h | [R2 operations and cost](../runbooks/cloudflare-data-publisher.md#r2-operations-and-cost)、[Cost guard: Read `/health`](../runbooks/cloudflare-data-publisher.md#read-health)、[Reset the breaker](../runbooks/cloudflare-data-publisher.md#reset-the-breaker) |
 | `job.missed`（publication）、`publication.freshness` | 是沒排上、還在跑、follow-up 等待中，還是被 cost guard 暫停；距今多久 | `running`、`scheduled`、`followUp`、`phase`、`lastRun.completedAt`、`costGuard.breaker` | [Health and manual run](../runbooks/cloudflare-data-publisher.md#health-and-manual-run)、[Follow-up runs](../runbooks/cloudflare-data-publisher.md#follow-up-runs-spec-018) |
 | `job.missed`（digest）、`digest.freshness` | digest 是否因 publication 未完成而延後（最多 4 × 15 min）或被 guard 暫停 | `digest.lastRun`、`digest.scheduled`、`costGuard` | [Reading `/health` `digest`](../runbooks/cloudflare-data-publisher.md#reading-health-digest) |
 | `job.missed`（identity-links、kip-pages、retention） | 排程是否存在、旗標是否開、上次狀態 | 各自的 `lastRun`、`lastGoodAt` | 無對應 runbook 小節（缺口，診斷應回報） |
 | `job.missed`（embedding） | `pending` 還有多少、是否撞到每日上限（00:05 UTC 才繼續）或 `lastError` | `searchEmbedding.lastRun`、`today`、`lastError` | [Search embeddings](../runbooks/cloudflare-data-publisher.md#search-embeddings-spec-016-slice-2b) |
-| `job.failures` | 兩次失敗的錯誤是否相同、同時段其他 job 是否也失敗（平台問題） | `lastRun.ok`／`error`、`Q-history`、`Q-window`、`get_run_logs`（若開） | 該 job 的小節；[Observability / logs](../runbooks/cloudflare-data-publisher.md#observability--logs) |
-| `source.success` | 哪個來源連兩天失敗、錯誤型態（GitHub 422、Jira、mail） | `sources[*]`、`Q-history` | [Health and manual run](../runbooks/cloudflare-data-publisher.md#health-and-manual-run) |
+| `job.failures` | 兩次失敗的錯誤是否相同、同時段其他 job 是否也失敗（平台問題） | `lastRun.ok`／`error`、WAE 歷史、WAE ± 12 h（v1 不讀 log） | 該 job 的小節；[Observability / logs](../runbooks/cloudflare-data-publisher.md#observability--logs) |
+| `source.success` | 哪個來源連兩天失敗、錯誤型態（GitHub 422、Jira、mail） | `sources[*]`、WAE 歷史 | [Health and manual run](../runbooks/cloudflare-data-publisher.md#health-and-manual-run) |
 | `publication.pollTruncated` | 每天都被截斷代表追不上進度，是否需要 catch-up | `lastRun.pollTruncated`、`followUp.catchUps` | [Follow-up runs](../runbooks/cloudflare-data-publisher.md#follow-up-runs-spec-018) |
-| `job.duration` | 變慢是因為資料量（counter 變大）還是外部延遲；是否接近牆鐘預算 | `durationMs`、c1–c6、`Q-history` | 該 job 的小節 |
-| `job.r2ClassA`、`r2.classAInvariant` | Class A 是否遠超新物件數（2026-10-07..13 事件型態：失敗的 conditional put）；是否每次執行都如此 | `lastRun.r2`、`copiedObjectCount`、`Q-history` | [R2 operations and cost](../runbooks/cloudflare-data-publisher.md#r2-operations-and-cost) |
-| `digest.rejections` | rejection 種類（`unparsable`、`empty`）是否集中在某個模型或語系 | `digest.lastRun.rejections`、`Q-history` | [Reading `/health` `digest`](../runbooks/cloudflare-data-publisher.md#reading-health-digest) |
-| `ci.release` | 哪個 job、哪一步失敗；Prod 是否因此沒部署（`v0.3.0` 事件） | `get_ci_status` 最後 60 行、Prod `/health` | [First Prod release](../runbooks/cloudflare-data-publisher.md#first-prod-release)、[Roll back](../runbooks/cloudflare-data-publisher.md#roll-back) |
+| `job.duration` | 變慢是因為資料量（counter 變大）還是外部延遲；是否接近牆鐘預算 | `durationMs`、c1–c6、WAE 歷史 | 該 job 的小節 |
+| `job.r2ClassA`、`r2.classAInvariant` | Class A 是否遠超新物件數（2026-10-07..13 事件型態：失敗的 conditional put）；是否每次執行都如此 | `lastRun.r2`、`copiedObjectCount`、WAE 歷史 | [R2 operations and cost](../runbooks/cloudflare-data-publisher.md#r2-operations-and-cost) |
+| `digest.rejections` | rejection 種類（`unparsable`、`empty`）是否集中在某個模型或語系 | `digest.lastRun.rejections`、WAE 歷史 | [Reading `/health` `digest`](../runbooks/cloudflare-data-publisher.md#reading-health-digest) |
+| `ci.release` | 哪個 job、哪一步失敗；Prod 是否因此沒部署（`v0.3.0` 事件） | CI 失敗 job 最後 60 行、Prod `/health` | [First Prod release](../runbooks/cloudflare-data-publisher.md#first-prod-release)、[Roll back](../runbooks/cloudflare-data-publisher.md#roll-back) |
 
 ## D. 資料流
 
@@ -177,12 +186,13 @@ flowchart LR
     ui["網站過期提示<br/>今天只看 publication<br/>其他 job 為 D10"]
     owner["owner"]
   end
-  subgraph agent["SRE agent（MacBook）027 提案"]
-    poll["00:30 / 11:00 UTC<br/>GET Dev + Prod /health"]
-    fire["firings + ci.release<br/>指紋、每日上限"]
-    bundle["輸入包<br/>Q-history / Q-run / Q-window<br/>logs by runId / runbooks"]
-    loop["模型迴圈<br/>runtime 待定"]
-    diag["diagnoses.jsonl"]
+  subgraph agent["SRE agent（Worker cron）提案，027 修正案待提出"]
+    gate["sre-agent cron tick<br/>SRE_AGENT off/dry/live<br/>每日 ≤ 3 筆"]
+    fire["收集 firing（不呼叫模型）<br/>指紋去重"]
+    bundle["證據包<br/>WAE by job/runId + 基準<br/>last-run.json / /health 區塊 / runbook"]
+    loop["Tool Runner 迴圈<br/>唯讀工具 ≤ 12 次<br/>結構化輸出"]
+    check["確定性檢查<br/>引用證據存在於證據包"]
+    diag["R2 internal/sre/v1/…<br/>WAE sre-agent 點<br/>/health.sreAgent"]
   end
   pub --> do
   cg --> do
@@ -203,17 +213,19 @@ flowchart LR
   do --> health
   health --> ui
   health --> owner
-  health --> poll
-  gha --> fire
-  poll --> fire
-  fire -->|"firing only"| bundle
-  wae -.->|"SQL HTTP API"| bundle
-  logs -.->|"runId"| bundle
+  gate --> fire
+  state -.->|"binding"| fire
+  guard -->|"tripped"| fire
+  gha -->|"公開 GitHub API"| fire
+  fire -->|"只在 firing"| bundle
+  wae -.->|"Analytics SQL binding"| bundle
+  do --> bundle
   bundle --> loop
-  loop --> diag
-  diag --> owner
+  loop --> check
+  check --> diag
+  diag -.-> health
   classDef proposed stroke-dasharray: 5 5
-  class wae,state,trend,ret,poll,fire,bundle,loop,diag proposed
+  class wae,state,trend,ret,gate,fire,bundle,loop,check,diag proposed
 ```
 
 ## E. 待決事項
@@ -232,13 +244,13 @@ Spec 028（PR #108，行 518–578）：
 - **D10 其他 job 的停滯是否顯示在網站**：建議 Dev 一週後，在現有過期提示加上「背景 job 停滯或失敗」。
 
 Spec 027（PR #106，行 638–670）：
-- **9 診斷顯示在哪**：建議 v1 只放本機 `diagnoses.jsonl`，兩週後再評估 GitHub issue。
-- **10 排程**：建議每天 00:30 與 11:00 UTC 兩次。
+- **9 診斷顯示在哪**：原建議只放本機 `diagnoses.jsonl`；owner 2026-10-22 已改為 R2 `internal/sre/v1/…` 與 `/health.sreAgent`，修正案應改寫或撤回此題。
+- **10 排程**：原建議每天 00:30 與 11:00 UTC 兩次；改成 Worker cron 後的時間待修正案定。
 - **11 觸發條件**：建議只有 `firing`。
-- **12 從 MacBook 讀 Analytics SQL**：建議用獨立唯讀 token，scope 在 Dev 驗證後再定（SRE36）。
-- **13 以 `runId` 讀 log**：建議 OB21 證明可讀才開 `get_run_logs`，否則維持關閉。
+- **12 從 MacBook 讀 Analytics SQL**：agent 改在 Worker 上後改用 Analytics SQL binding，不需 token；修正案應撤回此題。
+- **13 以 `runId` 讀 log**：owner 2026-10-22：v1 不讀 Workers Logs（028 D6）；OB21 之後再議。
 - **14 harness 的 CI 規則**：建議保留 `ci.release`。
-- **15 上限**：建議每天 ≤ 3 筆、每筆 ≤ 12 次模型呼叫、$0.20／天、OpenRouter 每月 $2 上限（runtime 改變後計價要重估）。
-- **Agent runtime（新增，2026-10-22）**：用哪個既有 runtime——launchd 排程的 headless Claude Code、Claude Agent SDK、雲端排程 routine，或 pi 內建 agent。建議先以 headless Claude Code 或 Agent SDK 在 MacBook 上跑 dry run，因為 027 的唯讀工具與 deny 規則可以直接對應到工具白名單與權限設定；正式決定隨 Spec 027 修正案提出。
+- **15 上限**：每天 ≤ 3 筆、每筆 ≤ 12 次呼叫（owner 2026-10-22 沿用）；原 $0.20／天與 OpenRouter $2／月改由 owner 的 Anthropic credit 支付，金額上限待修正案定。
+- **Agent runtime（2026-10-22 新增並已由 owner 決定）**：候選曾是 launchd 上的 headless Claude Code、Claude Agent SDK、雲端排程 routine、pi 內建 agent；owner 選擇 data Worker 上的 `sre-agent` cron，以 Anthropic TypeScript SDK Tool Runner 執行（Claude Agent SDK 不能在 Workers 執行）。待 Spec 027 修正案寫入；修正案仍需定：排程時間、模型、Worker 端的 Cloudflare 用量估算、runbook 如何打包進 Worker。
 
 另需對齊的不一致：Spec 027 A2 稱 `search-embedding`、Spec 028 稱 `embedding`；027 A2 列了 `review-queue`，028 沒有它的資料點。
