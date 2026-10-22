@@ -23,7 +23,13 @@
     "SEARCH_EMBEDDING": "bge-m3@1",
     "SEARCH_SHARD_ROOTS": "true",
     "GITHUB_REVIEWS": "metadata@2",
-    "PEOPLE_ACTIVITY": "log@1"
+    "PEOPLE_ACTIVITY": "log@1",
+    "COST_GUARD": "monitor",
+    "CF_ACCOUNT_ID": "2ef5fb1cf4a7bfd3de423dd10c2b2191",
+    "IDENTITY_LINKS": "corroborated@1",
+    "IDENTITY_LINKS_CRON": "17 2 * * *",
+    "KIP_PAGES": "authors@1",
+    "KIP_PAGES_CRON": "43 3 * * *"
   },
   "ai": {
     "binding": "AI"
@@ -35,7 +41,7 @@
     }
   ],
   "triggers": {
-    "crons": ["7 22 * * *", "47 22 * * *"]
+    "crons": ["7 22 * * *", "47 22 * * *", "17 2 * * *", "43 3 * * *"]
   },
   "r2_buckets": [
     {
@@ -60,6 +66,10 @@
       {
         "name": "SEARCH_QUERY_GATE",
         "class_name": "SearchQueryGate"
+      },
+      {
+        "name": "COST_GUARD_STATE",
+        "class_name": "CostGuard"
       }
     ]
   },
@@ -79,6 +89,10 @@
     {
       "tag": "v4",
       "new_sqlite_classes": ["SearchQueryGate"]
+    },
+    {
+      "tag": "v5",
+      "new_sqlite_classes": ["CostGuard"]
     }
   ]
 }

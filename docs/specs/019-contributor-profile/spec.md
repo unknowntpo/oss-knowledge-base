@@ -1,6 +1,6 @@
 # Spec 019: Contributor profile
 
-Status: Partially implemented (accepted 2026-10-14, all nine owner decisions recorded; amended 2026-10-15): slice 1 is Spec 022; slices 2a, 2b, 3 and amendments (4) and (5) implemented (#74–#78, #81) and on Dev only (`PEOPLE_PROFILES=true`, `PEOPLE_ACTIVITY=log@1`), off on Prod; slices 4–7 not implemented
+Status: Partially implemented (accepted 2026-10-14, all nine owner decisions recorded; amended 2026-10-15): slice 1 is Spec 022; slices 2a, 2b, 3 and amendments (4) and (5) implemented (#74–#78, #81) and on Dev only (`PEOPLE_PROFILES=true`, `PEOPLE_ACTIVITY=log@1`), off on Prod; amendment (7) slices A–C (the identity-link job, the `kip-pages` job W93, W97–W100, W102, W105, W107, W108, W110, and the profile's KIPs section W74, W75, W80, W83, W87, W94–W96, W109, W111) implemented (#113–#117) and enabled on Dev by rollout steps 2 and 4 (`IDENTITY_LINKS=corroborated@1`, `KIP_PAGES=authors@1` with their crons, `PEOPLE_KIPS=true`; 2026-10-21), off on Prod (step 5, a separate owner approval); W90, W92, W106 are checked by the operator sequence after the Dev deploy; the rest of slices 4–7 not implemented
 Date: 2026-10-13 (decisions recorded 2026-10-14; amendment and decision 10 2026-10-15)
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 008 (content-addressed objects), Spec 009 (bounded memory), Spec 012 (dev@ and Jira), Spec 014 (digest profiles), Spec 015 (governance profile and ASF roster), Spec 016/017 (search, "exact matches first"), Spec 018 (daily publication)
@@ -14,6 +14,9 @@ Builds on: Spec 004 (GitHub connector), Spec 008 (content-addressed objects), Sp
 > per-source coverage stated on the page; **2b** adds the activity log
 > ([amendment (2)](#amendment-2026-10-15-2-slice-2b-the-activity-log): what
 > is stored, identity, the real-data Example, budget and worst-case cost).
+> [Amendment (7)](#amendment-2026-10-21-7-kips-a-person-started-and-corroborated-links)
+> (slice A, the identity-link job and the stored fields, implemented with `IDENTITY_LINKS` unset everywhere; slice B, the `kip-pages` job, implemented with `KIP_PAGES` unset everywhere; the rest specified) lists the KIPs a person started and adds a
+> third link basis, `corroborated`, computed by its own job.
 > Items of later slices stay `[pending]`.
 
 ## Intent
@@ -39,7 +42,9 @@ Three likely uses. The owner decided which are in scope (decision 1,
 1. A number on the page has one stated definition and one stated period, and
    links to the records it counts.
 2. Two identities are shown as one person only when a declared source says
-   so. Two unlinked identities are better than one wrong merge.
+   so. Two unlinked identities are better than one wrong merge. *Amendment
+   (7), 2026-10-21: or when deterministic co-occurrence corroborates it
+   (basis `corroborated`), after a precision check, with the basis shown.*
 3. What the data cannot show is said on the page, not left blank.
 
 ### Non-goals
@@ -374,6 +379,10 @@ spec fills them rather than adding a parallel type.
      (`identityLinks`: two identity keys, the evidence URL, the date, who
      reviewed it). Evidence must be a public statement by the person or the
      project, for example the project's committers page.
+   - `corroborated` (amendment (7), 2026-10-21): repeated co-occurrence on
+     `KAFKA-n` (GitHub ↔ Jira) or `KIP-n` (Jira ↔ dev@), computed daily by
+     the identity-link job, enabled only after its precision check. See
+     [the rule](#the-corroborated-rule).
 3. **Everything else stays separate.** When two unlinked identities have the
    same normalized display name, each page says "An identity with the same
    name exists on <source>: possibly the same person" with a link. Counts are
@@ -1324,6 +1333,7 @@ slice is one PR with its own verifier pass.
 | 2b | Activity log written at publish time from the events the pipeline already has; the profile reads it beside the reviews; Jira and dev@ identities get pages; their author names link | A per-source profile is correct against the Example and grows by a day per day | W1–W4, W9, W17, W19, W22, W34 |
 | 3 | Person result in Search: exact login first, then login prefixes, at most three; `/api/people/:project?q=` reads the review store's cached months (2026-10-15 amendment) | A login leads to the page in one step, thread ranking unchanged, no metered call | W7, W40–W45 |
 | 4 | Stable keys (GitHub id, Jira account key), roster links, `identityLinks`, the labelled sample, "possibly the same person" | Zero wrong merges on the sample | W14–W16 |
+| 4a (amendment (7), 2026-10-21) | KIPs a person started (request time); Jira `assignee` and account keys; the identity-link job and its `corroborated` links; the precision check; the `kip-pages` job (KIP-page author lists); the committers page as `declared` links; the page section behind `PEOPLE_KIPS` | A person's KIPs (any author, or the starter) are listed with the basis of every line and link, and no corroborated link contradicts the truth set | W66–W112; W16 extended |
 | 5 | 12-month backfill of reviews: Spec 022's store, filled by its own PR (the start-date change proposed in Spec 022; about 509 requests, 20 runs, about 8 MB, measured from search totals) | Review activity reaches back 12 months | Spec 022's items |
 | 6 | 12-month backfill of the activity log: GitHub issues, pull requests and conversation comments; Jira; dev@. **Cost not measured.** dev@: 12 monthly archives (one Pony Mail request per month; message count and bytes unknown). Jira: unknown (issues updated in 12 months, pages of 100, comments inline). GitHub: listing 3,668 Kafka and 9,032 DataFusion items (GitHub search totals, 2026-10-14) plus one comment request per item with comments, unmeasured. **This is the next measurement**, before the slice is specified | A 12-month trajectory on day one for every source; request budget respected | W21 |
 | 7 (decision 10) | Per-project contributor list sortable by separate metric columns, from per-month summaries written at publish time | A list for everyone without parsing 12 months of rows per request | W30–W33 |
@@ -1346,6 +1356,602 @@ Changes of 2026-10-14, besides the order:
   its "pull requests commented" figures stay as measured; W1 keeps them. The
   review counts of the same people are added to the case file when slice 1
   has data.
+
+## Amendment 2026-10-21 (7): KIPs a person started, and corroborated links
+
+Owner's request (2026-10-21): a person's profile lists the KIPs they
+authored, and identities on different sources may be linked by repeated,
+deterministic co-occurrence, not only by the roster or a declared entry.
+Decisions of the owner, the same day (decision 11):
+
+1. "Authored" means **started the discussion**: the sender of the first
+   message of the earliest `[DISCUSS] KIP-n` thread on dev@, within the
+   recorded range. Confluence is not read. *Revised the same day by the
+   owner's multi-author requirement: a KIP can have several authors, and the
+   KIP page's own author list comes first. See
+   [KIP authors](#kip-authors-several-per-kip-revision-2026-10-21).*
+2. A third link basis, **`corroborated`**: repeated co-occurrence on shared
+   identifiers (`KAFKA-n`, `KIP-n`), deterministic, no model. Thresholds 3
+   and 2 are provisional until a precision check passes.
+3. "One job must not carry too many tasks": linking is **its own job**, with
+   its own trigger, inputs, output, budget, `/health` status and failure
+   isolation. It is not a step of the publication or of the activity append.
+4. Profiles read the job's link table behind a flag, Dev first; Prod is a
+   separate owner-approved step (after amendment (6)'s profile tag).
+5. Public pages only; every link shows its basis; a link can be removed and
+   the next run splits the profile.
+
+This amendment revises precision rule 2 of the Intent, decision 5, rule 2
+of [Identity resolution](#the-rule), and step 5 of the simplification
+review ("No job proposes links"). Rules 3 and 4 stand: no similarity, no
+fuzzy matching, no email, no login equal to an ASF id. It is specified
+only; nothing is implemented.
+
+### Example (real data, read 2026-10-21)
+
+Dev release `2026-10-20T22:07:19Z` (anonymous `/api/feed` and
+`/api/detail`; the activity log's Kafka coverage starts
+`2026-09-10T02:45:16Z`, `/health`), plus read-only public upstream calls:
+GitHub search, ASF Jira REST, Pony Mail `stats.lua`, and the Kafka
+committers page. No R2 object was read.
+
+**(a) Who started which KIP.** The release holds 21 dev@ threads whose title
+is a `DISCUSS` title naming one KIP. In 11 the oldest recorded message is a
+root (its subject has no `Re:`); in 10 every recorded message is a reply.
+
+| KIP | Starter in the data | Root | Note |
+| --- | --- | --- | --- |
+| KIP-1377 | Aditya Kousik | 2026-09-17 | |
+| KIP-1342 | Ming-Yen Chung | 2026-09-18 | |
+| KIP-1378 | Edoardo Comar | 2026-09-18 | title `DISCUSS: KIP-1378 …`, no brackets |
+| KIP-1371 | Eric Chang | 2026-09-22 | |
+| KIP-1379 | David Jacot | 2026-10-02 | |
+| KIP-1165 | Viktor Somogyi-Vass | 2026-10-05 | the only `[DISCUSS] KIP-1165` thread Pony Mail returns for 2024-01 to 2026-10; the KIP page lists nine authors, Viktor last; the page was created by Ivan Yurchenko (see [KIP authors](#kip-authors-several-per-kip-revision-2026-10-21)) |
+| KIP-1376 | Mickael Maison | 2026-10-06 | 18 messages |
+| KIP-1381, KIP-1382 | Arnab nandy | 2026-10-16 | two KIPs, one person |
+| KIP-1384 | PoAn Yang | 2026-10-20 | |
+| KIP-1383 | Andrew Schofield | 2026-10-20 | |
+| KIP-1368, 1262, 1374, 1325, 785, 1324, 1163, 1153, 1349, 1365 | none | | replies only. KIP-1163 was started 2025-04-23 by Ivan Yurchenko, before the coverage: nobody is credited, which is correct for "within the recorded range" |
+
+KIP-1153 was used twice in 2025 (Pony Mail: pritam kumar on 2025-04-04,
+Connect microsecond precision; 黃竣陽 on 2025-04-12, a Streams KIP). The
+earliest thread wins, so a renumbered KIP credits nobody for the reused
+number. Both are before the coverage anyway.
+
+**(b) GitHub ↔ Jira through `KAFKA-n`.** 270 apache/kafka pull requests
+created 2026-09-15 to 2026-10-21 name a `KAFKA-n` in their title (221
+distinct keys; 205 assigned in Jira). Pairing each pull request's author with
+the Jira assignee of the key gives 77 logins, 80 Jira accounts and 89 pairs.
+
+| Pair | Distinct `KAFKA-n` | Largest competing pairing | Strict (no competitor) | Dominance 3 |
+| --- | --- | --- | --- | --- |
+| `chickenchickenlove` ↔ JIRAUSER303328 "sanghyeok An" | 19 | 0 | link | link |
+| `harmadasg` ↔ JIRAUSER306203 "Gergely Harmadás" | 10 | 2 (`m1a2st` opened 2 pull requests on his issues) | no | link |
+| `unknowntpo` ↔ JIRAUSER306218 "Eric Chang" | 5 | 0 | link | link |
+| `dybyte` ↔ JIRAUSER312871 "Doyeon Kim" | 5 | 1 (one issue assigned to `chia7712`) | no | link |
+| `dajac` ↔ `dajac` "David Jacot" | 3 | 0 | link | link |
+| `brandboat` ↔ `brandboat` "Kuan Po Tseng" | 3 | 1 (`Alwaysgaurav1` on one of his issues) | no | link |
+| `m1a2st` ↔ JIRAUSER306203 / JIRAUSER305187 "Ken Huang" / JIRAUSER300229 "PoAn Yang" | 2 / 2 / 1 | — | no | no |
+| `dybyte`, `dino2895`, `jim0987795064` ↔ `chia7712` "Chia-Ping Tsai" | 1 each | — | no | no |
+| `see-quick` ↔ `mimaison` / JIRAUSER301401 "Maros Orsak" | 1 / 1 | — | no | no |
+
+28 pairs reach 3 keys. With no competitor at all, 21 qualify; the other 7
+(`harmadasg`, `dybyte`, `nileshkumar3`, `gitedmond`, `egyedt`, `dino2895`,
+`brandboat`) each lose to one or two pull requests someone else opened on
+their issues: exactly the committer-or-peer pattern the owner named. The
+known false-positive patterns stay unlinked under both rules: a committer
+assigned to issues others fixed (`chia7712`), and a contributor splitting
+work across three people's issues (`m1a2st`).
+
+**(c) Jira ↔ dev@ through `KIP-n`.** Of the 11 starters, three have a Jira
+issue whose **summary** names the KIP, with the starter's name as reporter
+or assignee: KIP-1371 (KAFKA-20995, reporter and assignee JIRAUSER306218
+"Eric Chang"), KIP-1378 (KAFKA-21127, `ecomar` "Edoardo Comar"), KIP-1379
+(KAFKA-21200, `dajac` "David Jacot"). All three issues are in the Dev
+release. Each is one KIP, so **none reaches 2** in today's coverage.
+KAFKA-20728 names KIP-1376 only in its description; its reporter (Netan
+Mangal) and assignee (Arnab Nandy) are not the starter (Mickael Maison).
+That is why the rule reads the summary only, although the log's Jira `kips`
+also come from the description.
+
+**What the rule would show today.** `mail:eric chang` lists KIP-1371 (no
+link needed). `github:unknowntpo` is linked to Jira "Eric Chang"
+(corroborated, 5 keys) but not to `mail:eric chang` (1 KIP < 2), so the
+GitHub page lists no KIP until a second KIP or a declared link. `dajac`
+qualifies on GitHub ↔ Jira; Jira lists a second KIP of his in the last 365
+days (KIP-1319), whose `[DISCUSS]` root is before the coverage. Transitive
+GitHub ↔ dev@ links today: 0.
+
+### Started a KIP discussion (the rule)
+
+1. A dev@ thread is a KIP discussion when its title (reply prefixes removed,
+   `threadTitle`) starts with `[DISCUSS]` or `DISCUSS:` (any case) and names
+   exactly one KIP (`extractKeys`). A title naming two KIPs credits nobody.
+2. Its **root** is the oldest recorded message of the thread whose subject
+   has no reply prefix. A thread with no root in the data has no starter.
+3. For KIP-n, the starter of the thread with the earliest root is "started
+   the discussion of KIP-n". Later threads with the same number credit
+   nobody.
+4. Only the activity log's coverage counts. A KIP whose discussion started
+   earlier is not listed for anyone, and the page says so.
+5. Computed at request time from the activity months the profile already
+   reads (a pure function, `kipStarters`), so the dev@ identity's own list
+   needs no link and no new read. The link job uses the same function.
+
+### What the stored data gains
+
+| Where | Change | Why |
+| --- | --- | --- |
+| Activity log, dev@ `message` rows | `opens: true` when the message's subject has no reply prefix; absent otherwise | Rule 2. The thread entry's `author` is the oldest message **in the state**, which slides; a row flag is fixed once written, because rows are keyed by record id and never removed |
+| Jira connector | `fields` adds `assignee`; the event keeps `reporter.key`, `assignee.key` and `assignee.displayName`, nothing else of either user object | Edge A needs the assignee's stable key; edge B the reporter's and assignee's |
+| Activity log, Jira thread entries | `reporter` and `assignee`: `{key, display}` or `null` | The link job's input. The newest month's entry of an issue wins (an issue is in the month of its last update, amendment (2)) |
+
+- Rows written before the change have no `opens` and count as "no root".
+  The first run after the change rebuilds the 35 days in the state, so
+  starters are known from 35 days before that run (W83).
+- **Privacy of the Jira account key.** ASF Jira's anonymous REST response
+  carries `key` (`dajac`, `JIRAUSER306218`), `name`, `displayName`,
+  `timeZone`, `avatarUrls` and `active`, and no email. Only `key` and
+  `displayName` are kept. `timeZone` would be a derived attribute (P-k);
+  `name` is not needed. The key is stored only in internal objects and
+  appears in no `/api/feed`, `/api/detail` or `/api/people` response; pages
+  show display names and link to the Jira issues. No email or address part
+  is stored or matched (P-c; rule 4 unchanged).
+- Jira person ids stay `jira:<name key>` until slice 4 switches them (G76);
+  the link table names Jira accounts as `jira-account:<key>` with the
+  display name beside it.
+
+### The `corroborated` rule
+
+Thresholds live in the community profile (`PeopleProfile.corroboration`,
+Kafka: `{issueKey: "KAFKA-", minIssues: 3, dominance: 3, minKips: 2}`;
+DataFusion: none, so the job skips it). The rule revision is
+`corroborated@1`; changing a number is a new revision and needs a new
+precision check.
+
+**Edge A, GitHub ↔ Jira, through `KAFKA-n`.**
+
+1. For every pull-request thread in the activity months, the `KAFKA-n` keys
+   in its title, read with the Kafka search profile's identifier pattern
+   (`compileIdentifierProfiles(searchIdentifierProfiles).identifiersOf`,
+   Spec 016), are paired with the thread author's login. Bot authors and
+   unassigned issues give nothing.
+2. Each key is paired with its Jira assignee's account key (newest entry).
+   A pair `(X, Y)` counts **distinct** keys, so a backport of the same key
+   counts once.
+3. Link `X ↔ Y` when `n(X, Y) ≥ 3` and `n(X, Y) ≥ 3 × n` of every other
+   pairing of `X` and of every other pairing of `Y` ("dominance 3").
+
+Why dominance and not "no conflict at all": the competing pairings in the
+Example are single pull requests someone opened on another person's issue
+(a committer finishing work, a peer taking over). "No competitor" drops 7
+of 28 pairs for that alone. Dominance 3 still refuses every split pattern of
+the Example (`m1a2st`: 2/2/1, `chia7712`: 1/1/1) and refuses a pair as soon
+as a competitor has a third of its evidence. The residual risk is a person
+who only ever opens pull requests on one other person's issues and has no
+Jira assignment of their own; no conflict test can see it, so the precision
+check measures it.
+
+**Edge B, Jira ↔ dev@, through `KIP-n`.**
+
+1. For every KIP-n with a starter (rule above), the Jira issues whose title
+   (`KAFKA-n: <summary>`) names KIP-n, read with `extractKeys` on the title,
+   not the stored `kips`.
+2. Pair the starter's dev@ identity with the issue's reporter and assignee
+   accounts whose display name has the same `nameKey` as the starter.
+3. Link when a pair holds on **≥ 2 distinct KIPs** and **no competitor**:
+   the dev@ identity pairs with no other Jira account, and the account with
+   no other dev@ identity. Strict here because the evidence already rests on
+   a name, which is user-editable and not unique.
+
+**Components.**
+
+- Edges join into components. GitHub ↔ dev@ exists only through a Jira
+  account whose two edges qualify on their own; there is no direct
+  GitHub ↔ dev@ edge.
+- A component holding two GitHub logins, two Jira accounts or two dev@
+  identities publishes none of its corroborated links (`conflict`).
+- With roster and declared links: a corroborated link that would put two ASF
+  ids, or two people the declared list keeps apart, into one component is
+  dropped (`contradiction`). Roster and declared links are never dropped
+  for a corroborated one.
+- **Removal.** An `identityLinks` entry `{a, b, remove: true, evidence,
+  date, reviewer}` suppresses that pair (declared removal); a suppressed
+  identity (P-e) gets no link at all. Both take effect at the next run,
+  which splits the profile; profiles are derived, never the source of truth.
+
+### The identity-link job
+
+| | |
+| --- | --- |
+| Trigger | Its own cron entry, `17 2 * * *` (02:17 UTC) in the Dev publisher Worker's configuration, dispatched by `IDENTITY_LINKS_CRON` as the digest is by `DIGEST_CRON`; and `POST /identity-links/run[?dryRun=1]` (`Bearer MANUAL_TRIGGER_TOKEN`). 02:17 is clear of the Dev publication (22:07; its retries end by about 00:00), the digest (22:47, deferred at most 4 × 15 min) and the Prod publication (22:37; retries end by about 00:30). Daily; not real time |
+| Inputs (the hand-off) | Objects other jobs already write: the activity log `internal/people/v1/<projectId>/state.json` and its month objects (publication's append, amendment (2)); the roster `internal/rosters/v1/asf/<projectId>.json` (Spec 015; may be absent: then no roster links and no roster contradiction check, stated in the output); the community profile's `identityLinks` and suppression list (code). It reads no publication state, no Durable Object, no upstream API |
+| Output | `internal/identity/v1/<projectId>/links.json` (`osskb.identity-links.v1`): `revision`, `generatedAt` (the newest input time: activity `updatedAt`, roster `fetchedAt`, committers capture date, so equal inputs give equal bytes), `inputs {coverageFrom, months[], activityUpdatedAt, rosterAt}`, `people[]` with `members[]` (`github:<login>`, `jira-account:<key>` + display, `mail:<name key>`) and `links[]` `{a, b, basis, evidence[]}`; evidence ids are `KAFKA-n` with the pull requests, or `KIP-n` with the Jira issue and the dev@ thread, each with its URL. Sorted, so equal inputs give equal bytes. Written only when the bytes change. Then `internal/identity/v1/last-run.json`, the status `/health` reads |
+| Budget | Per project with a `corroboration` config (Kafka): at most 1 previous run record (`last-run.json`, which carries `lastGoodAt` and a SHA-256 of each table it wrote) + 1 state + 12 months + 1 roster = 15 Class B and 2 Class A per run, on every path including a failed read (450 B and 62 A a month, against 10 M and 1 M free). Months are read one at a time and reduced to the facts the rule needs before the next is read (Spec 009) |
+| Status | `/health` `identityLinks` while `IDENTITY_LINKS` is set (W91) |
+| Isolation | Runs in its own invocation; never starts, waits for, or is started by the publication or the digest; writes only under `internal/identity/v1/`. Any failed or unparsable read of a project fails that project closed: no table is written and the last good one stays (a missing month could remove a competing pairing and so create a false link). The next day's run, or a manual run, retries. The job never reads `links.json` back: it compares the new table's digest with the one `last-run.json` holds, so a deleted or corrupted table is rewritten only when its inputs change (the activity log's daily append changes `generatedAt` and `inputs`, so in practice within a day). Profiles read the last good table; the profile reader (slice C) treats a missing or unparsable table as "no links" and shows no corroborated link rather than fail. The publication never reads it |
+| Off | `IDENTITY_LINKS` unset: the cron entry and the route do nothing, read nothing, and `/health` has no field |
+
+### Precision check before enabling
+
+The thresholds are provisional. Before profiles read corroborated links on
+any environment:
+
+1. **Truth set.** The Kafka committers page (68 committers, each with a name
+   and a GitHub login: a public statement by the project, the evidence
+   kind `declared` already accepts), captured as a committed fixture with
+   its date; plus the roster where the store has it.
+2. **Blind run.** The rule never reads the truth set. Since the owner's
+   resolution 3 writes the committers page's pairs into `identityLinks`,
+   the measure command and the dry run take `--blind`, which leaves those
+   `declared` entries out, so the contradiction filter cannot hide an error
+   the truth set would catch (W103).
+3. **Classify** every corroborated component that holds a committer's
+   GitHub login, or a Jira or dev@ display name equal (`nameKey`) to a
+   committer's name. `agree`: its GitHub login and its Jira or dev@ name
+   belong to the same committer. `contradict`: it joins a committer to
+   another committer's login or name. `unlabelled`: anything else. The
+   name comparison is an oracle for the check only, never a link basis.
+4. **Label the rest.** Every other corroborated link joins the labelled
+   sample of W16 (same / different / unknown, from public evidence, by the
+   owner).
+5. **Gate.** `contradict` = 0, committer `unlabelled` = 0, and no labelled
+   link "different". Recall (committers with evidence who are not linked)
+   is reported, not gated.
+6. **Measured twice.** Offline, from public upstream data only, by a
+   committed command (`bun run measure:identity-links -- --from <date>
+   --to <date>`; W89), and on Dev from the real inputs by
+   `POST /identity-links/run?dryRun=1` (W90). The enable PR records the
+   window, the counts, and the commit of the labelled sample.
+
+Today's offline reading (window above): 28 corroborated links, 3 touching
+committers (`bbejeck`, `frankvicky`, `dajac`), 3 agree, 0 contradict;
+25 links to label. Zero errors in 3 says little; zero in 28 bounds the error
+rate below about 11 % (95 %, rule of three), which is why the labelled
+sample is part of the gate and the page always shows the basis.
+
+### The page
+
+- A section `[data-section="kips"]` after `activity`: "Started the
+  discussion of" with KIP-n, the thread title, the root date and a link to
+  the dev@ thread. On a dev@ identity it lists its own KIPs. On an identity
+  linked to a dev@ identity it lists that identity's KIPs with the basis
+  ("roster", "declared", "corroborated") and "how linked": the evidence ids
+  as links.
+- The identities section shows each link with its basis and evidence.
+- "How this is computed" states the definition, the coverage start, that
+  earlier KIPs are not listed, and the link table's `generatedAt`.
+- No count of KIPs is compared with anyone; no rank (P-a).
+
+### Flags and order
+
+| Step | Change | Expected |
+| --- | --- | --- |
+| 1 | Merge PR: activity-log fields, Jira `assignee`, the identity-link job, the `kip-pages` job, `kipStarters`, the committers capture, the page section; `IDENTITY_LINKS`, `KIP_PAGES` and `PEOPLE_KIPS` unset everywhere | Nothing changes at runtime except the two stored fields (W67, W88) |
+| 2 | Dev: `IDENTITY_LINKS=corroborated@1` and `KIP_PAGES=authors@1` with their cron entries | `/health` `identityLinks.lastRun.ok` and `kipPages.lastRun.ok`; both tables exist; no page reads them |
+| 3 | Precision gate (offline and Dev dry run) | Recorded in the enable PR |
+| 4 | Dev Pages: `PEOPLE_KIPS=true` | The section, the author lists and the linked identities appear (W74, W92, W106) |
+| 5 | Prod | Separate owner approval, after amendment (6)'s profile tag |
+
+Dev enable (2026-10-21): steps 2 and 4 ship in one PR. Step 3's Dev dry run
+(W90) is still the first identity-link call after the deploy: until the first
+real run writes `links.json` the page reads no table and shows "Links not
+available" (W80), so no link is shown before the dry run is recorded. The
+operator sequence: the Dev deploy, `POST /kip-pages/run` (the 365-day first
+run), `POST /identity-links/run?dryRun=1`, then the real run, then W90, W92,
+W106; never between 21:50 and 23:05 UTC (the publication and the digest).
+W16's labelled sample (25 links to label) is still pending: the Dev enable
+rests on the offline reading (0 contradict) and the dry run, the page shows
+each link's basis and evidence, and Prod waits for the sample.
+
+### Simplification review
+
+| Item | Kept? |
+| --- | --- |
+| Confluence KIP pages as the author source | deleted by decision 11.1, then **kept** by the owner's multi-author requirement, as its own small job ([KIP authors](#kip-authors-several-per-kip-revision-2026-10-21)) |
+| A stored list of KIP starters | **deleted**: request time, from months already read |
+| A separate Worker for the job | **deleted**: its own cron entry and invocation give the isolation; a second Worker adds secrets and a deploy |
+| A Durable Object lock | **deleted**: the job is deterministic and writes plain puts; two concurrent runs write equal bytes |
+| A shadow mode | **deleted**: the Worker flag on with the Pages flag off is the shadow |
+| Jira `name`, `timeZone`, avatar | **deleted** (privacy; not needed) |
+| Rejected pairs stored in the table | **deleted**: counts in `/health` only |
+| Follow-up runs after a failure | **deleted**: the next day's run, or a manual run |
+| Jira descriptions as KIP evidence | **deleted** (KAFKA-20728) |
+| Similarity, email, model | still **deleted** (rule 4) |
+
+### Owner resolutions (2026-10-21)
+
+The five questions this amendment first left open, decided by the owner:
+
+1. **Dominance 3** for edge A: accepted.
+2. **Edge B stays at 2 KIPs.** `declared` links are open: the owner may
+   declare his own identities with a public evidence URL. Example entry
+   (a design, not yet in code; the URL is the owner's to supply):
+
+   ```ts
+   // identityLinks (Kafka PeopleProfile)
+   { a: "github:unknowntpo", b: "mail:eric chang", basis: "declared",
+     evidence: "TODO(owner): public URL where Eric Chang states the GitHub login unknowntpo",
+     date: "2026-10-21", reviewer: "unknowntpo" }
+   ```
+
+   An entry whose `evidence` is not an `https` URL is rejected by the
+   profile's validation, so the entry is added only with its URL (W104).
+   With it, `github:unknowntpo`, Jira JIRAUSER306218 (corroborated, 5 keys)
+   and `mail:eric chang` are one person, and the GitHub page lists KIP-1371.
+3. **The committers page is the truth set and `declared` evidence.** Its
+   68 name ↔ GitHub-login pairs are written into `identityLinks` as
+   `{a: "github:<login>", b: "mail:<name key>", basis: "declared",
+   evidence: "https://kafka.apache.org/community/committers/", date: <capture date>,
+   reviewer: <who reviewed the PR>}`; a name that appears twice on the page
+   gives no entry (the roster's uniqueness rule). They are kept in a
+   committed capture beside the Kafka profile, with its date.
+   - **Refresh**: a manual command, `bun run refresh:committers`, reads the
+     page once and rewrites the capture; it prints the pairs added, removed
+     and changed. The owner reviews that diff in a PR; the PR's reviewer and
+     date go into the changed entries. No cron reads the page.
+   - **Removal**: a pair no longer on the page is deleted from the capture
+     in that PR (not kept as `remove: true`, which is for a pair the page
+     still states but the owner knows to be wrong). The next identity-link
+     run splits the profile.
+   - **Staleness**: `/health` `identityLinks.lastRun.inputs.committersAt`
+     names the capture date; the identity-link job states it, nothing alerts.
+   - The precision check runs blind of these entries (step 2 above).
+4. **Naming the starter when the page lists other authors**: accepted, and
+   superseded by the multi-author design below: the page shows the KIP
+   page's author list first and "started the discussion" only as a fact
+   of its own.
+5. **Jira account keys on Prod** are folded into decision 8 (terms and
+   privacy check), still open. Names read from KIP pages join it.
+
+### KIP authors: several per KIP (revision, 2026-10-21)
+
+Owner's requirement (2026-10-21): a KIP can have several authors; a
+profile lists every KIP where the person is any author, not only the one
+who started the discussion. Investigated with public data only (Confluence
+REST API of `cwiki.apache.org` and Pony Mail, anonymous, read-only, about
+60 requests; no R2 read, no deploy).
+
+**What the KIP pages carry (read 2026-10-21).**
+
+| Question | Finding |
+| --- | --- |
+| How many KIP pages | 1,402 pages in space `KAFKA` with "KIP" in the title (CQL `space=KAFKA and type=page and title~"KIP"`). Exact titles are needed for `/content?title=`; `content/search` with CQL finds them by number |
+| Does the template name authors | No. Its header is `Current state`, `Discussion thread`, `JIRA` (and sometimes `Released`). 0 of 30 recent pages have an author field from the template |
+| Pages with an explicit author line | **31 of 1,402** (2.2 %) have an `Author:`, `Authors:` or `Co-Author:` line before the first heading (61 pages contain the word at all). 21 of the 31 name two or more authors. In the 30 newest pages (KIP-1355 to KIP-1385, created 2026-05-31 to 2026-10-20) **1** has one: KIP-1360, four authors |
+| The forms of the line | 21 plain name lists; 6 Confluence user mentions (`<ri:user ri:userkey=…>`, KIP-137, 236, 952, 1113, 1255, 1258), whose names appear only in the rendered view (`body.view`); 3 with an email address in the line (KIP-1115, 1183, 1300); 1 that is not a list (KIP-986, "None of the below contents is final…"). Other labels exist beside it: "Collaborators" (KIP-950), "Contributors" (KIP-578) |
+| KIP-1165 | `Authors: Greg Harris, Ivan Yurchenko, Jorge Quilcate, Giuseppe Lillo, Anatolii Popov, Juha Mynttinen, Josep Prat, Filip Yonov, Viktor Somogyi-Vass`. Page created by Ivan Yurchenko (2025-04-16); the recorded `[DISCUSS]` root (Viktor, 2026-10-05) opens "Updated the reopened KIP-1165". KIP-1150, 1163, 1164 and 1181 carry the same nine-name family |
+| KIP-1371 | No author line; created by Eric Chang, 22 versions, all by him |
+| Creator (`history.createdBy`) | Equals the recorded dev@ starter on 9 of the 10 KIPs that have both (KIP-1371, 1376–1379, 1381–1384); differs on KIP-1165. Elsewhere the creator is not an author: KIP-1026 was created by Divij Vaidya, `Author: Arpit Goyal` |
+| Editors (`history.contributors.publishers`) | 27 of the 30 newest pages have one editor, the creator. 3 have a second, a committer: Andrew Schofield on KIP-1381 and KIP-1382 (Arnab Nandy's), Matthias J. Sax on KIP-1357 (Gabriella Fu's). KIP-1360 lists four authors and has one editor; KIP-1165 lists nine and has four. **Editors are not authors**, and authors need not edit |
+| What a Confluence user exposes | `type`, `username`, `userKey`, `displayName`, `profilePicture`; no email and no ASF id field. `/rest/api/user` answers 403 anonymously. The username equals the GitHub login for some (`unknowntpo`, `chickenchickenlove`, `m1a2st`), the ASF id for some (`dajac`, `mjsax`, `schofielaj`), and neither for others (`mickael.maison`, ASF id `mimaison`). Equality is not a link basis (rule 4), so the username is neither used nor stored |
+| One person, several written names | "Henry Cai" on KIP-1272's page, "Henry Haiying Cai" on its dev@ root; "Viktor Somogyi" (Confluence display name) and "Viktor Somogyi-Vass" (author line, dev@); "Gergely Harmadas" (KIP-1134) and Jira "Gergely Harmadás"; "Viquar Khan" and "Vaquar Khan" on two pages by one creator. Exact `nameKey` leaves these unlinked (recall), never merges |
+| Co-author signals on dev@ | Of six multi-author `[DISCUSS]` roots read (KIP-1134, 1150, 1165, 1254, 1272, 1279), four say "we" or "our"; one signs with three names ("Henry Cai, Tom Thornton and Greg Harris" for KIP-1272, where the page says "Thomas Thornton"); none has a structured field. The activity log keeps no bodies. Not used |
+| Cost | One `content/search` request with `expand=body.view,version` returns up to 50 pages: pages modified in the last 30 days, 25 pages, 0.97 MB, 2.9 s; last 7 days 10 pages; last day 5; last 365 days 225 pages. Mean stored body 24 KB. No rate-limit headers are sent |
+
+**Conclusion.** An explicit author list is rare but present exactly where a
+KIP has several authors (21 of the 31). The template, the creator and the
+editors cannot replace it (KIP-1026, KIP-1165, KIP-1357). dev@ has no
+structured co-author signal. So the KIP page's line is the only author list,
+and the dev@ starter remains the fallback for the 98 % of pages without one.
+The simpler alternative (dev@ starter only) cannot meet the requirement:
+KIP-1165 would list one of nine authors.
+
+**Sources and precedence.** For a KIP and an identity, the page shows one
+line, with the first basis that holds:
+
+| Order | Basis | Label on the page | Source |
+| --- | --- | --- | --- |
+| 1 | The KIP page's author line names the person (resolved below) | "author (KIP page)" | Confluence, the `kip-pages` job |
+| 2 | The person is the assignee of a Jira issue the KIP page's `JIRA:` field names ([the KIP's Jira issue](#the-kips-jira-issue-owner-input-2026-10-21)) | "assigned the KIP's Jira issue (KAFKA-n)" | the KIP page's field and ASF Jira, the `kip-pages` job |
+| 3 | The person started the discussion ([the rule](#started-a-kip-discussion-the-rule)) | "started the discussion" | dev@, request time |
+
+A person who holds several shows the first label and the others as "also
+…" ("also assigned KAFKA-n", "also started the discussion"). A starter whom the page's list does not name (KIP-1272: "Henry
+Haiying Cai" against "Henry Cai") still gets line 2: both are facts with
+their sources. The page creator, the editors, "Collaborators" and
+"Contributors" are never authorship.
+
+**Reading the author line (W93).** In the rendered view of the page, the
+first block element (paragraph or table cell) of the page header
+whose text starts with `Author`, `Authors`, `Co-Author` or `Co-Authors` and
+a colon (any case) is the line. Its value is split at user mentions (each
+rendered mention is one name), commas, semicolons, `&` and the word `and`.
+Any part holding `@` or angle brackets is removed with its brackets
+(KIP-1183: `xinyu<xinyuzhou@ automq.com >` gives "xinyu"); parentheses are
+removed and their content becomes its own part. A part is a name when it has
+1 to 5 words of letters (any script), spaces, `.`, `-` and `'`. If any part
+is not a name, the page's status is `unparsed` and **no** author is taken
+from it, never a partial list. No line: status `no-list`.
+
+*Page header (slice B, 2026-10-21, from the recorded pages).* "Before the
+first heading" missed most lines: the template's header sits under a
+`Status` heading (KIP-1026's `Author:`, KIP-1183's and KIP-1258's lines and
+every `JIRA:` field are below it), and some pages put a title heading above
+`Status` (KIP-1381). The header is therefore everything before the first
+heading that follows the `Status` heading, or before the first heading when
+the page has no `Status` heading (KIP-1165, KIP-1279 put the line above
+`Status`). KIP-986's block reads "To Co-Authors: None of …": it does not
+start with the label, so the page is `no-list` (no author either way); the
+`unparsed` case is a constructed row.
+
+**From an author name to a profile (W95).** An author name is a credit, not
+an identity: it never creates a profile and never joins two identities. Its
+`nameKey` `k` links to a profile only through:
+
+1. a `declared` entry naming `mail:k` (the committers page's pairs and the
+   owner's own entries), then that person's other identities through the
+   link table;
+2. `mail:k` having written a message, within the activity log's coverage,
+   in a dev@ thread whose title names exactly that KIP (label "named on the
+   KIP page, wrote in its discussion"). Same KIP plus same exact name, the
+   evidence edge B already accepts; the risk is a namesake who discussed
+   that very KIP, and the page shows the basis.
+
+Anyone else is shown as a plain name in the KIP's author list. Author lines
+never feed the `corroborated` rule (edge B keeps the starter only).
+
+**The `kip-pages` job.** Its own job, not a step of the publication or of
+the identity-link job ("one job must not carry too many tasks").
+
+| | |
+| --- | --- |
+| Trigger | Its own cron entry `43 3 * * *` (03:43 UTC) in the Dev publisher Worker, dispatched by `KIP_PAGES_CRON`; and `POST /kip-pages/run[?dryRun=1]` (`Bearer MANUAL_TRIGGER_TOKEN`). Clear of Dev publication 22:07 (retries end about 00:00), digest 22:47, Prod 22:37 (retries end about 00:30), identity links 02:17, retention 10:17. Daily |
+| Upstream | (1) `GET https://cwiki.apache.org/confluence/rest/api/content/search` with CQL `space=KAFKA and type=page and title~"KIP" and lastmodified >= "<since>" order by lastmodified asc`, `expand=body.view,version`, `limit=50`. `since` = the last good run's start minus one day; first run: 365 days ago. A failed first run writes no table, so the next day retries the same 365-day window; `/health` `kipPages.lastRun` shows `ok: false` with the error and `lastGoodAt: null` every day until one succeeds (W97, W100). Pages are keyed by page id; an entry is replaced when `version.number` changes; the KIP number comes from the title (`^KIP-(\d+)`), a page without one is skipped. (2) `GET https://issues.apache.org/jira/rest/api/2/search` with `jql=key in (<up to 100 keys>)`, `fields=assignee`, `validateQuery=warn` (an unknown key is dropped instead of failing the query: checked, a plain query answers 400), for the `JIRA:` keys of pages new or changed in this run, and on Mondays for every key in the table (W108) |
+| Budget | At most **10 cwiki requests and 3 Jira requests** per run, sequential, at least 2 s apart, 90 s timeout each (30 s until slice B: a 50-page search with `body.view` took 27–42 s on 2026-10-21, and the first-run measurement timed out at 30 s; decided by the orchestrator within the owner's request budget, keeping `limit=50` so the first run stays at about 5 requests), a `User-Agent` naming the project and its URL. Measured: first run 5 cwiki requests (225 pages) and 2 Jira requests (about 160 keys), a normal day 1 and 0–1, a Monday 1 and 2. On a Monday the re-read takes the changed pages' keys first, then the table's keys with the oldest reading, up to 300, so the re-read alone never exceeds 3 requests (slice B). Wall clock: the worst case is 13 requests of 90 s and 12 pauses of 2 s, about 19.9 min, above the 15 min a scheduled handler may run; the cron path therefore stops before any request that could end after 14 min and records `failed` with the reason in `last-run.json` (`/health` shows it). The heavy first run (365 days, about 5 requests) goes through `POST /kip-pages/run`, which has no such limit; the cron then runs the daily window. R2: 2 Class B (previous table and `last-run.json`, which carries `lastGoodAt` for `since`; slice B) and at most 2 Class A per run |
+| Politeness | No retry within a run; a 429 or 5xx ends the run. Needing an 11th request ends it as `over-budget` (the next day starts from the same `since`). Anonymous only |
+| Output | `internal/kips/v1/<projectId>/authors.json` (`osskb.kip-authors.v1`): `generatedAt`, `coverageFrom`, `pages[]` `{kip, pageId, version, title, url, status (listed, no-list, unparsed), authors[] {name, nameKey}, jira (one, several, empty, query, none), issues[] {key, assignee {key, display} or null, readAt}}`. Sorted; written only when the bytes change; then `internal/kips/v1/last-run.json` |
+| Privacy | Names only from Confluence: no username, user key, email, avatar or body text is stored; parts holding `@` are dropped before storing (W102). From Jira only the assignee's `key` and `displayName`, as amendment (7) already keeps them; no reporter, `name`, `timeZone`, avatar or email (W110) |
+| Status | `/health` `kipPages` while `KIP_PAGES` is set (W100) |
+| Responsibility | One: the facts a KIP page states (its authors and the issues its `JIRA:` field names, with each issue's assignee). It joins nothing; identity links stay with the identity-link job, which still calls no upstream API |
+| Isolation | Its own invocation; never started by, waiting for or starting another job; writes only under `internal/kips/v1/`. Any failed request or unparsable response fails the run closed: no table is written, the last good one stays (W97, W98, W108). The publication and the identity-link job never call cwiki |
+| Off | `KIP_PAGES` unset: the cron entry and the route do nothing, read nothing, and `/health` has no field (W99) |
+| Projects | Kafka only (`PeopleProfile.kipPages: {space: "KAFKA", titlePrefix: "KIP-"}`); DataFusion has none |
+
+### The KIP's Jira issue (owner input, 2026-10-21)
+
+Owner's input: "A KIP links a Jira issue, and usually the author is its
+assignee." Measured from public data on 2026-10-21: all 1,402 KIP pages in
+29 cwiki search requests (`body.storage`, 2 s apart), 274 Jira issues in 3
+requests (`fields=assignee,reporter`), the `[DISCUSS]` roots of dev@ for two
+years from one Pony Mail request (298 roots), and the committers page. No R2
+read, no deploy.
+
+**The `JIRA:` field (all 1,371 pages titled with a KIP number).**
+
+| Field | Pages | Note |
+| --- | --- | --- |
+| One `KAFKA-n` | 1,160 (85 %) | KIP-1371 → KAFKA-20995, KIP-1360 → KAFKA-20715, KIP-1165 → KAFKA-19161, KIP-1026 → KAFKA-16209 |
+| Several | 45 | 36 with 2, 7 with 3, 1 with 4, 1 with 6. KIP-1370 → KAFKA-20888, KAFKA-20883 |
+| Empty, "TBD", "here" or the template's KAFKA-1 | 138 | KIP-1383, KIP-1367, KIP-1361, KIP-1359, KIP-1354 among the 30 newest |
+| A Jira query macro, no key | 8 | |
+| No `JIRA:` field | 20 | |
+
+Pages created in the last two years (281): 236 one issue, 8 several, 33
+empty, 4 without the field. The 30 newest: 24 one, 1 several, 5 empty.
+
+**Agreement (pages of the last two years with one issue: 236).**
+
+| Comparison | Result |
+| --- | --- |
+| Assignee set | 219; unassigned 17 (7 %) |
+| Assignee = page creator (exact `nameKey`) | 180 of 219 (82 %) |
+| Assignee among the author line's names (pages with a line and one issue) | 12 of 12 assigned; 1 more unassigned (KIP-1360) |
+| Reporter among the author line's names | 12 of 13 |
+| Assignee vs the dev@ starter (208 pages with a starter; 12 unassigned) | of 196: **126 exact** `nameKey`; 24 the same name in another written form ("TaiJuWu" / "TaiJu Wu", "fujian" / "jian fu", "Maros Orsak" / "Maroš Orsák"); 16 in another script ("sanghyeok An" / "안상혁"); **30 different names** |
+| The 30 different names | the starter is a committer in 10 (Mickael Maison started KIP-1376, assignee Arnab Nandy; Andrew Schofield KIP-1313, assignee Alan Lau; Lucas Brutschy KIP-1251, assignee Lucy Liu; Bill Bejeck KIP-1221); the assignee is a committer in 3 (KIP-1311 Chia-Ping Tsai, starter Siddhartha Devineni; KIP-1136 Andrew Schofield; KIP-1101 PoAn Yang, starter "Frank Yang"); the assignee created the page in 14 |
+| Reporter vs the starter | 97 of 208 exact |
+| Assignee is a committer (committers page names) | 45 of 219, mostly committers' own KIPs (`dajac` KIP-1379, KIP-1319) |
+| Several issues | of 8 pages with every issue read: 4 one assignee, 2 one assignee and an unassigned issue, 2 two people (KIP-1128: TengYao Chi twice and Matthias J. Sax; KIP-1105: Chu Cheng Li and Kamal Chandraprakash) |
+
+So the assignee agrees with the author line whenever both exist, with the
+page creator in 82 %, and with the starter wherever the starter is not a
+committer opening a discussion for someone else, or the same person under
+another name. It is wrong in a few cases where a committer holds the issue
+(at most 3 of 196).
+
+**What it adds: a real identity.** The assignee is a Jira account key, the
+identity edge A already links to GitHub. With the 28 corroborated GitHub ↔
+Jira links of the Example (pull requests of 2026-09-15 to 2026-10-21 only),
+**33 KIPs** of the last two years reach a GitHub profile through their
+assignee, for 13 people (`chickenchickenlove` 6, `brandboat` 5,
+`muralibasani`, `fvaleri`, `frankvicky` 3 each, `unknowntpo` 2 (KIP-1371,
+KIP-1320), `dajac` 2, …); 5 of them are among the 30 newest KIPs. Through
+the starter, a GitHub profile reaches **0** today (edge B fires for nobody).
+The window of 5 weeks of pull requests makes 33 a lower bound. A Jira
+identity's own page lists its assigned KIPs with no link at all.
+
+**The rule.**
+
+1. **Reading the field (W107).** In the page header (as for the author
+   line), the first block whose text starts with `JIRA` (any case); its
+   `KAFKA-n` keys (links, Jira macros or text) in order, without
+   duplicates, KAFKA-1 (the template's link) removed. A Jira query macro is
+   `query` with no key; no key is `empty`; no block is `none`.
+2. **The assignee (W108).** The `kip-pages` job reads each listed issue's
+   `assignee` (key and display name only). An unassigned issue gives no
+   line. Each issue counts on its own: a KIP with two issues assigned to two
+   people gives each of them line 2 with their own `KAFKA-n`.
+3. **Reassignment (W109).** The newest reading wins: the job re-reads an
+   issue when its page changes and every Monday; where the activity log has
+   a newer Jira entry for the same key (amendment (7)'s `assignee`), that
+   entry wins. Earlier assignees are not kept.
+4. **Precedence (W94).** Line 2, below the author line and above "started
+   the discussion": it is an identity, not a name, but it can be a
+   committer holding the issue for someone else (KIP-1311), so the label
+   states the fact ("assigned the KIP's Jira issue (KAFKA-n)") and never
+   says "author".
+5. **To a profile (W111).** `jira-account:<key>` is the identity; GitHub and
+   dev@ identities reach it through the link table (roster, declared,
+   corroborated). No name comparison is made; the display name is shown
+   only as text.
+6. **Not evidence for links.** The assignee of a KIP's issue does not feed
+   edge B or any other link rule in this revision (deferred by the owner, 2026-10-21).
+
+**Job boundaries.** The `kip-pages` job fetches the issues because the keys
+come from the page it reads; its responsibility stays "what a KIP page
+states", now including the assignee of each issue the page names. The
+identity-link job still reads only R2 objects, and the publication's Jira
+connector is unchanged. Total upstream per run: at most 13 requests (10
+cwiki, 3 Jira), 2 s apart.
+
+**Profile at request time.** With `PEOPLE_KIPS=true` the profile reads
+`authors.json` once (cached 10 minutes like the other objects; W87 becomes
+28 objects) and lists, in `[data-section="kips"]`, every KIP where the
+identity (or an identity linked to it) is an author, the assignee of a
+listed issue or the starter, newest first: KIP-n, title, the label, the
+issues with their assignees, the full author list (linked names and plain
+names, in the page's order), the page link and the dev@ thread link. A
+missing or unparsable `authors.json` leaves the starter lines and says
+"author lists not available" (W98). "How this is computed" names both
+sources, the `coverageFrom` of each, and that a page without an author line
+lists only who started the discussion.
+
+**Example (what it would show from today's data).** KIP-1165:
+`mail:viktor somogyi-vass` gets "author (KIP page)", "also started the
+discussion", and the nine names, each linked only if that name wrote in a
+KIP-1165 thread in the coverage or has a `declared` entry. KIP-1371:
+`mail:eric chang` gets "started the discussion" (no author line). KIP-1360:
+Omnia Ibrahim, Gaurav Narula, Luke Chen and Federico Valeri each get
+"author (KIP page)" when one of the two link rules holds for them.
+
+**Simplification review (this revision).**
+
+| Item | Kept? |
+| --- | --- |
+| Page creator or editors as authors | **deleted** (KIP-1026, KIP-1165, KIP-1357) |
+| Confluence usernames and user keys | **deleted** (rule 4; privacy) |
+| dev@ body text ("we", sign-offs) as co-author evidence | **deleted**: free text, not stored |
+| A per-KIP request | **deleted**: one search request carries up to 50 pages with bodies |
+| Reading all 1,402 pages | **deleted**: 365 days back, then incremental |
+| Author names feeding `corroborated` links | **deleted**: credits, not evidence for joining identities |
+| The job inside the identity-link job or the publication | **deleted**: its own job, own budget, own failure |
+| The issue's reporter as a source | **deleted**: 97 of 208 agree with the starter; reporters are often committers filing for others |
+| A separate job for the Jira read | **deleted**: the keys come from the page the `kip-pages` job reads; a second job would hand over a key list and add a trigger |
+| The assignee as link evidence | **deleted** for now (deferred by the owner, 2026-10-21) |
+
+### Owner decisions on the KIP-authors revision (2026-10-21)
+
+The owner accepted every recommendation of this revision:
+
+1. **Confluence is a source**, through the separate `kip-pages` job.
+2. **Author-name link rule 2 is accepted**: same KIP, exact `nameKey`, and
+   a message in that KIP's dev@ discussion within the coverage; the basis is
+   shown.
+3. **Upstream budget**: cron 03:43 UTC, at most 10 cwiki and 3 Jira
+   requests per run, at least 2 s apart.
+4. **The Jira assignee is its own line**, between the author line and the
+   discussion starter ("assigned the KIP's Jira issue (KAFKA-n)").
+5. **The `JIRA:` field's issue is not Jira ↔ dev@ link evidence** for now:
+   deferred; it would need its own precision check.
+
+### Open for the owner
+
+1. **The owner's own `declared` entry**: the public evidence URL (the TODO
+   in resolution 2). Low priority: KIP-1371 already reaches
+   `github:unknowntpo` through its assignee (W111).
+2. **Decision 8** (terms and privacy) before Prod, now also covering author
+   names read from KIP pages and KIP issues' assignee keys.
 
 ## Test plan
 
@@ -1467,6 +2073,180 @@ Amendment (5): the chart model's rows (`apps/web/test/profile-chart.cases.ts`, c
 | W11 | a Jira identity in a community without Jira (DataFusion) | recorded | jira:Chia-Ping Tsai @ datafusion | 404 | — | — | — | — | — |
 <!-- test-plan:end -->
 
+Amendment (7), slice A: KIP starters, the stored fields, the `corroborated`
+rule, the identity-link job and the committers capture, from public upstream
+reads of 2026-10-21 kept as a fixture by `measure:identity-links -- --record`
+(labelled `recorded`) and constructed boundaries.
+
+<!-- test-plan:start packages/reference-pipeline/test/identity-links.cases.ts -->
+| id | case | data | input | expected |
+| --- | --- | --- | --- | --- |
+| W66 | a root message starts the KIP discussion | recorded | KAFKA-MAIL-3bc971ac: root "[DISCUSS] KIP-1376: …" by Mickael Maison 2026-10-06, 17 replies | KIP-1376 started by mail:mickael maison |
+| W66 | replies only | recorded | KAFKA-MAIL-fd63cd54: 22 messages, all "Re: [DISCUSS] KIP-1368 …" | KIP-1368 has no starter |
+| W66 | title without brackets | recorded | "DISCUSS: KIP-1378: Allow Consumer Group Renaming …" by Edoardo Comar | KIP-1378 started by mail:edoardo comar |
+| W66 | one KIP number used by two threads | recorded + constructed | KIP-1153 roots: pritam kumar 2025-04-04, 黃竣陽 2025-04-12 (both inside a constructed coverage) | KIP-1153 started by mail:pritam kumar only |
+| W66 | a title naming two KIPs | constructed | root "[DISCUSS] KIP-1 and KIP-2" | no starter for either |
+| W66 | a [VOTE] root is not a discussion | constructed | root "[VOTE] KIP-1376" before the [DISCUSS] root | starter from the [DISCUSS] thread |
+| W67 | the root flag on dev@ rows | recorded | messages "[DISCUSS] KIP-1342: …" and "Re: [DISCUSS] KIP-1342: …" | opens: true on the first row only |
+| W67 | the flag survives the state sliding | constructed | month written with the root row; a later run's state holds only replies | the root row keeps opens: true |
+| W67 | Jira accounts on the thread entry | recorded | KAFKA-20995 reporter and assignee JIRAUSER306218 "Eric Chang" | reporter {key JIRAUSER306218, display Eric Chang}, assignee the same |
+| W68 | only key and display name are kept | recorded | Jira user object with key, name, displayName, timeZone, avatarUrls, active (and a constructed emailAddress) | event, activity log, link table and every API response hold no name, timeZone, avatar, active or email |
+| W68 | an unassigned issue | recorded | one of the 16 unassigned keys of the Example | assignee null; no pairing |
+| W69 | five keys, no competitor | recorded | unknowntpo ↔ JIRAUSER306218 on KAFKA-21152, 21172, 21252, 21262, 21276 (and KAFKA-21266, opened 2026-10-21) | linked, corroborated, 6 keys as evidence |
+| W69 | a competing pairing below the minimum | recorded | harmadasg ↔ JIRAUSER306203 10 keys; m1a2st ↔ JIRAUSER306203 2 keys | harmadasg linked (10 ≥ 3 × 2); m1a2st not, by the minimum (2 < 3), no dominance rejection |
+| W69 | split pairings | recorded | m1a2st ↔ JIRAUSER306203 2, JIRAUSER305187 2, JIRAUSER300229 1 | no link for m1a2st |
+| W69 | a committer assigned to issues others fixed | recorded | dybyte, dino2895, jim0987795064 ↔ chia7712 1 key each | no link to chia7712 |
+| W69 | a backport counts once | constructed | 3 pull requests naming one KAFKA-n | n = 1, no link |
+| W69 | dominance boundary | constructed | X ↔ Y 6 keys, X ↔ Z 2 keys / X ↔ Y 6, X ↔ Z 3 | linked / not linked |
+| W69 | a bot author pairs nothing | constructed | 3 pull requests each by ci-bot (the profile's bot list) and by helper[bot] on keys assigned to Y | no link; ci-bot links once it is off the bot list |
+| W69 | minimum boundary | constructed | X ↔ Y 2 keys, no competitor | not linked |
+| W70 | one KIP is not enough | recorded | KIP-1371 started by Eric Chang; KAFKA-20995 "KIP-1371: …" reporter Eric Chang | no Jira ↔ dev@ link |
+| W70 | two KIPs | recorded + constructed | KIP-1371 as recorded and a constructed second KIP with the same pairing | mail:eric chang ↔ jira-account:JIRAUSER306218 linked |
+| W70 | a KIP named only in the description | recorded | KAFKA-20728 (KIP-1376 in the description; reporter Netan Mangal, assignee Arnab Nandy) | not an issue for KIP-1376; no pairing |
+| W70 | two Jira accounts with the starter's name | constructed | two accounts "A B" each on a KIP started by mail:a b | no link (strict); counted as competitor, not dominance |
+| W71 | transitive only through both edges | constructed | github:x ↔ jira-account:k (3 keys) and jira-account:k ↔ mail:x (2 KIPs) | one person: github, Jira and dev@ |
+| W71 | one edge short | recorded | github:unknowntpo ↔ JIRAUSER306218 (6 keys); mail:eric chang ↔ JIRAUSER306218 (1 KIP) | GitHub and Jira linked; mail:eric chang separate |
+| W71 | two logins in one component | constructed | github:a and github:b both reach jira-account:k | no corroborated link of that component; conflict 1 |
+| W72 | contradicts the roster | constructed | a corroborated chain joining two names of two ASF ids | link dropped; contradiction 1; roster links kept |
+| W72 | declared removal | constructed | identityLinks {a: github:unknowntpo, b: jira-account:JIRAUSER306218, remove: true} | pair not linked at the next run |
+| W72 | declared and corroborated on one pair | recorded + constructed | declared github:unknowntpo ↔ jira-account:JIRAUSER306218 beside its 6 recorded keys | listed once, basis declared; 27 corroborated links |
+| W72 | suppressed identity | constructed | github:x on the suppression list | no link touches github:x |
+| W73 | table format and order | recorded | the W69 recorded rows, twice, in different input order | byte-equal tables; each link has basis and evidence ids with URLs |
+| W76 | a month read fails | constructed | bucket throws on 2026-09.json / on 2026-10.json, the last read | no table written; last good kept; lastRun.ok false with the key; lastGoodAt carried without another read |
+| W77 | no activity log | constructed | state.json absent | status no-input; no table written; last-run.json records it |
+| W77 | no roster | constructed | roster object absent | table written without roster links; inputs.rosterAt null |
+| W78 | unchanged inputs | constructed | second run on the same objects | links.json not written; last-run.json written |
+| W79 | crash between writes | constructed | throw after links.json put | next run rewrites the same table bytes, then last-run.json |
+| W81 | isolation from the publication | constructed | the job throws on its cron | publication not started or changed; nothing written outside internal/identity/v1/ |
+| W86 | 13 months in the state | constructed | state.json lists 2025-10 to 2026-10 | the 12 newest month objects read, 2025-10 not; 15 Class B |
+| W82 | two runs at once | constructed | cron and manual run on the same inputs | equal bytes; plain puts only |
+| W84 | issue reassigned | constructed | KAFKA-n assignee A in 2026-09, B in 2026-10 | paired with B only, counted once |
+| W85 | job off | constructed | IDENTITY_LINKS unset | cron no-op, route 404, no R2 call, no /health field |
+| W85 | an unsupported flag value | constructed | IDENTITY_LINKS "true" after a good run | 502; no table written; the failed record keeps lastGoodAt and tables; 1 Class B |
+| W91 | health shape | constructed | a finished run | identityLinks {revision, lastRun {ok, status, at, durationMs, inputs (with committersAt), links, rejected (with competitor), people, kipStarters, bytesWritten, r2}, lastGoodAt, tables} |
+| W103 | committers capture as declared entries | recorded | the capture of https://kafka.apache.org/community/committers/, 2026-10-21 (68 pairs) | 68 declared entries github:<login> ↔ mail:<name key>, evidence the committers page |
+| W103 | a name twice on the page | constructed | two cards named "A B" with two logins | no entry for either |
+| W103 | refresh prints the diff | constructed | capture {x: X, y: Y}; page {x: X2, z: Z} | added z, removed y, changed x; y has no entry |
+| W103 | blind leaves the committers out | recorded | --blind / ?dryRun=1&blind=1 on the recorded window | 0 declared links; the same 28 corroborated links |
+| W104 | evidence is not an https URL | constructed | the owner's TODO example entry | rejected; no link |
+| W104 | the same entry with a URL | recorded + constructed | github:unknowntpo ↔ mail:eric chang with an https evidence URL, on the recorded window | github:unknowntpo, jira-account:JIRAUSER306218 and mail:eric chang are one person |
+<!-- test-plan:end -->
+
+Amendment (7), the profile page (`PEOPLE_KIPS`): rows of the page slice (slice C), run by `apps/web/test/people-kips.test.ts`.
+
+<!-- test-plan:start packages/reference-pipeline/test/kip-profile.cases.ts -->
+| id | case | data | input | expected |
+| --- | --- | --- | --- | --- |
+| W74 | own KIPs on a dev@ page | recorded | PEOPLE_KIPS=true; mail:arnab nandy | [data-section=kips] lists KIP-1381 and KIP-1382 with titles, 2026-10-16 and thread links |
+| W74 | linked KIPs on a GitHub page | constructed | PEOPLE_KIPS=true; github:x corroborated to mail:x | KIPs of mail:x with basis corroborated and the evidence links |
+| W74 | a starter-only line's title | constructed | no KIP page; subjects "[DISCUSS] KIP-9201: First title", "DISCUSS: KIP-9202 - Second title", "[discuss] KIP-9203：Third title" | titles "First title", "Second title", "Third title" |
+| W74 | flag off | constructed | PEOPLE_KIPS unset | no kips section; links.json not read |
+| W75 | the note | constructed | coverageFrom 2026-09-10, table generatedAt 2026-10-22T02:17Z | definition, "KIPs started before 2026-09-10 are not listed", links computed 2026-10-22 |
+| W80 | link table missing or corrupt | constructed | links.json absent / not JSON | 200; own KIPs listed; "links not available" |
+| W83 | rows written before the flag | constructed | month with dev@ rows and no opens field | no starter from them; note states the start |
+| W87 | profile reads | constructed | cold, then within 10 min | at most 28 reads (links.json and authors.json), then 0 |
+<!-- test-plan:end -->
+
+Amendment (7), KIP authors revision: the KIP-page author line, the order of
+labels, how author names link, the `kip-pages` job, and the committers page
+as `declared` links. Rows from public cwiki and Pony Mail reads of
+2026-10-21 (labelled `recorded`) and constructed boundaries.
+
+<!-- test-plan:start packages/reference-pipeline/test/kip-authors.cases.ts -->
+| id | case | data | input | expected |
+| --- | --- | --- | --- | --- |
+| W94 | author and starter | recorded | KIP-1165 list names Viktor Somogyi-Vass; he started the recorded [DISCUSS] thread | "author (KIP page)", "also started the discussion" |
+| W94 | starter only | recorded | KIP-1371: no line; started by Eric Chang | mail:eric chang: "started the discussion" |
+| W94 | a starter the list does not name | recorded + constructed | KIP-1272 list "Henry Cai, Thomas Thornton, Greg Harris"; starter "Henry Haiying Cai" inside a constructed coverage | mail:henry haiying cai: "started the discussion"; not an author |
+| W94 | creator and editors give nothing | recorded | KIP-1357 editor Matthias J. Sax; KIP-1026 creator Divij Vaidya, author Arpit Goyal | no line for Matthias J. Sax or Divij Vaidya |
+| W95 | linked by writing in the discussion | constructed | KIP-1165 list; mail:greg harris wrote in a KIP-1165 thread in coverage | Greg Harris links to mail:greg harris ("named on the KIP page, wrote in its discussion") |
+| W95 | same name, other KIP only | constructed | mail:greg harris wrote only in a KIP-1150 thread | Greg Harris on KIP-1165 is a plain name |
+| W95 | linked by a declared entry | constructed | committers capture pair github:x ↔ mail:a b; author "A B" never on dev@ | A B links to the person of github:x |
+| W95 | a different written name | recorded | author "Henry Cai"; dev@ identity mail:henry haiying cai | plain name; no link |
+| W95 | names never join identities | constructed | author "A B"; github:x and mail:a b unlinked | link table unchanged; no corroborated edge from the author line |
+| W96 | the section | recorded + constructed | PEOPLE_KIPS=true; mail:viktor somogyi-vass with KIP-1165 | one line: KIP-1165, title, label, 9 names in page order, page and thread links |
+| W96 | a linked identity | constructed | github:x declared to mail:x, an author of KIP-n | github:x lists KIP-n with the link's basis |
+| W98 | table missing | constructed | authors.json absent / not JSON | 200; starter lines; "author lists not available" |
+| W102 | names only | recorded | the W93 pages (with usernames, user keys, emails in their sources) | no username, user key, email, avatar or body text in any stored object or response |
+| W103 | committers as declared links | constructed | capture of 3 pairs, one name twice | 2 declared entries with the committers page URL, date, reviewer |
+| W103 | refresh removes a pair | constructed | new capture without one pair | diff lists it as removed; no entry; next run splits |
+| W103 | blind check | constructed | measure:identity-links --blind | committers-page entries not read |
+| W104 | evidence must be a URL | constructed | entry github:unknowntpo ↔ mail:eric chang with evidence "TODO(owner): …" | rejected; no link |
+| W104 | with a URL | recorded + constructed | the same entry with an https URL; github:unknowntpo ↔ JIRAUSER306218 corroborated (5 keys) | one person; GitHub page lists KIP-1371 |
+| W94 | assignee below the author line | recorded | KIP-1165: author line names Ivan Yurchenko; KAFKA-19161 assignee Ivan Yurchenko | jira-account of Ivan Yurchenko: "author (KIP page)" via a link, "also assigned KAFKA-19161"; otherwise "assigned the KIP's Jira issue (KAFKA-19161)" |
+| W94 | assignee above the starter | recorded | KIP-1376: KAFKA-20728 assignee Arnab Nandy; starter Mickael Maison | Arnab Nandy's Jira account: "assigned the KIP's Jira issue (KAFKA-20728)"; mail:mickael maison: "started the discussion" |
+| W109 | activity log is newer | constructed | job read A at 2026-10-20; activity-log entry with assignee B updated 2026-10-21 | line for B only |
+| W109 | unassigned | recorded | KIP-1360 KAFKA-20715 assignee null | no assignee line |
+| W109 | two people on two issues | recorded | KIP-1105: two issues, Chu Cheng Li and Kamal Chandraprakash | each gets a line naming their own KAFKA-n |
+| W111 | through a corroborated link | recorded | github:unknowntpo ↔ JIRAUSER306218 (5 keys); KIP-1371 KAFKA-20995 assignee JIRAUSER306218 | github:unknowntpo lists KIP-1371, basis corroborated |
+| W111 | no link | recorded | KIP-1360: no assignee; github:x unlinked | nothing listed on the GitHub page |
+| W111 | a committer holding the issue | recorded | KIP-1311 assignee Chia-Ping Tsai, starter Siddhartha Devineni | chia7712's Jira account: "assigned the KIP's Jira issue", never "author" |
+<!-- test-plan:end -->
+
+Slice B, the `kip-pages` job (2026-10-21): the author line, the `JIRA:`
+field, the assignee read and the run's budget and failures, from the
+recorded cwiki and Jira answers committed under
+`packages/reference-pipeline/test/fixtures/kip-pages/`.
+
+<!-- test-plan:start packages/reference-pipeline/test/kip-pages.cases.ts -->
+| id | case | data | input | expected |
+| --- | --- | --- | --- | --- |
+| W93 | a plain list of nine | recorded | KIP-1165 view: "Authors: Greg Harris, Ivan Yurchenko, …, Viktor Somogyi-Vass" | listed; 9 names in page order |
+| W93 | a plain list across spans | recorded | KIP-1360 view: "Authors: Omnia Ibrahim, Gaurav Narula," then a span " Luke Chen, Federico Valeri" | listed; 4 names |
+| W93 | the line ends at its block | recorded | KIP-1279 view: "Authors: Luke Chen, Federico Valeri, Omnia Ibrahim, Gaurav Narula" then a paragraph "This design follows …" | listed; 4 names, no text of the next paragraph |
+| W93 | user mentions | recorded | KIP-952: two user mentions, rendered "Mital Awachat" "Christo Lolov" with no comma | listed; 2 names |
+| W93 | an email in the line | recorded | KIP-1183: "xinyu<address@domain>"; KIP-1300 (page 406622741): "Viquar Khan (address)", addresses replaced by someone@example.org in the fixture | listed; "xinyu" / "Viquar Khan"; no @ stored |
+| W93 | a parenthesized co-author | recorded | KIP-1258: "Co-Author: <mention ujjwal kalia> (Ujjwal Kalia)" | listed; the mention's name and "Ujjwal Kalia" |
+| W93 | a line under the Status heading | recorded | KIP-1026: "Author: Arpit Goyal" between the Status heading and the next heading | listed; "Arpit Goyal" (the header ends at the first heading after Status) |
+| W93 | a block that does not start with the label | recorded | KIP-986: "To Co-Authors: None of the below contents is final or necessarily correct. …" | no-list; no author |
+| W93 | not a list | constructed | "Authors: the Kafka streams team, see the discussion thread for the full list of people" | unparsed; no author, never a partial list |
+| W93 | no author line | recorded | KIP-1371 (template header only) | no-list |
+| W93 | collaborators are not authors | recorded | KIP-950: "Authors: Mehari Beyene, Divij Vaidya" and "Collaborators: Karthik Rajagopalan, …" | listed; the 2 authors only |
+| W93 | the word and, & and ; | constructed | "Authors: Henry Cai; Tom Thornton & Greg Harris and Anna Müller-O'Brien" | listed; 4 names |
+| W107 | one issue | recorded | KIP-1371 header "JIRA: KAFKA-20995" | one [KAFKA-20995] |
+| W107 | several issues | recorded | KIP-1370 header with KAFKA-20888 and KAFKA-20883 (Jira macros) | several, in page order |
+| W107 | several issues as links | recorded | KIP-1105 "JIRA: KAFKA-17928 and KAFKA-17980"; KIP-1128 three Jira macros | several [KAFKA-17928, KAFKA-17980]; [KAFKA-17178, KAFKA-17131, KAFKA-19688] |
+| W107 | empty | recorded | KIP-1383 "JIRA: here [Ticket will be opened once the KIP is approved]" linking KAFKA-1; KIP-1183 "JIRA:" | empty |
+| W107 | the template's link | constructed | "JIRA: here [Change the link from KAFKA-1 to your own ticket]" linking KAFKA-1 | empty |
+| W107 | a query macro | constructed | JIRA block holding a jqlQuery macro | query, no key |
+| W107 | no field | recorded | "Kafka Improvement Proposals" index page body | none |
+| W108 | batching and unknown keys | constructed | 160 keys incl. KAFKA-99999999 | 2 requests (100 + 60) with fields=assignee and validateQuery=warn; unknown key dropped |
+| W108 | recorded assignees | recorded | KIP-1165 KAFKA-19161; KIP-1360 KAFKA-20715; KIP-1105 KAFKA-17928, KAFKA-17980; unknown KAFKA-99999999 | Ivan Yurchenko (ivanyu); null; Chu Cheng Li and Kamal Chandraprakash; dropped |
+| W108 | Jira fails | constructed | stub Jira answers 503 | no table; last good kept; ok false, status failed |
+| W108 | Monday re-read | constructed | run on a Monday, table with 160 keys, no page changed | 1 cwiki request, 2 Jira requests; every issue's readAt is the run |
+| W108 | Monday cap | constructed | run on a Monday, table with 350 keys, one changed page | 3 Jira requests: the changed page's key, then the 299 oldest readings; never over budget from the re-read |
+| W108 | a re-read replaces the assignee | constructed | table: KAFKA-n assignee A; changed page re-reads KAFKA-n as B | assignee B only; A is not kept |
+| W108 | a key no longer answered | constructed | table: KAFKA-n assignee A; the page changes and still names KAFKA-n; Jira's answer leaves KAFKA-n out | KAFKA-n dropped from the page's issues, not kept from the previous table |
+| W110 | Jira fields kept | recorded | KAFKA-20995 with assignee and reporter user objects | assignee {key JIRAUSER306218, display Eric Chang} only; no reporter, name, timeZone, avatar |
+| W102 | names only | recorded | the recorded pages (usernames, user keys, avatars, emails in their sources) and Jira answer | no username, user key, email, avatar or body text in authors.json or last-run.json |
+| W97 | a 429 | constructed | stub cwiki answers 429 on the first request | no table; last good kept; ok false, status failed; 1 request |
+| W97 | a 5xx, a timeout, unparsable JSON | constructed | stub cwiki answers 502 / throws a timeout / answers "<html>" | each: no table; last good kept; ok false, status failed; no retry |
+| W97 | a failure status with a well-formed body | constructed | cwiki answers 429 with a valid search body; Jira answers 503 with a valid issues body | each: no table; last good kept; ok false, status failed (the status decides, not the body) |
+| W97 | the cron's wall-clock limit | constructed | a cron run with a 14-minute deadline and cwiki pages that take 85 s each | the 10th request is not sent; ok false, status failed, the error names the limit; last-run.json written |
+| W97 | over budget | constructed | a window needing 11 pages of 50 | status over-budget after 10 requests; nothing written but last-run.json; next run starts from the same since |
+| W97 | positive control | constructed | stub answers 200 with 25 pages | table written; ok true |
+| W101 | pacing | constructed | a run of 3 cwiki pages and 1 Jira request | sequential; a 2 s delay before every request after the first; 90 s timeout signal; the project's User-Agent |
+| W105 | a new version | constructed | KIP-n version 3 in the table, 4 in the answer | entry replaced |
+| W105 | unchanged | constructed | same versions | authors.json not written; last-run.json written; status unchanged |
+| W105 | the window | constructed | last good run 2026-10-21T03:43Z / no table | since 2026-10-20T03:43Z / 365 days back |
+| W105 | a page without a KIP number | recorded | "Kafka Improvement Proposals" index page | skipped |
+| W105 | byte-equal | recorded | the recorded 7-day window, answered in two orders | equal bytes, pages sorted by KIP then page id (two KIP-1300 pages) |
+<!-- test-plan:end -->
+
+Slice B in the publisher Worker: the job's cron entry, route and `/health`
+field.
+
+<!-- test-plan:start apps/data-publisher-worker/test/kip-pages-worker.cases.ts -->
+| id | case | data | input | expected |
+| --- | --- | --- | --- | --- |
+| W97 | the cron's deadline | constructed | the job's cron tick and POST /kip-pages/run, with a clock that reads 13 minutes later after the run starts | the tick passes a 14-minute deadline: no cwiki request, ok false, the error names the limit; the route passes none: one cwiki request, ok true |
+| W98 | isolation | constructed | the job's cron tick with cwiki throwing and the bucket failing its puts | publication, digest and every other job not started; no write outside internal/kips/v1/; the tick does not throw |
+| W98 | the publication tick | constructed | the publication's cron tick with KIP_PAGES set | the publication is scheduled; no cwiki or Jira request; nothing under internal/kips/v1/ |
+| W99 | job off | constructed | KIP_PAGES unset, KIP_PAGES_CRON set | cron no-op, route 404, no cwiki request, no R2 call, no /health field |
+| W99 | positive control | constructed | KIP_PAGES=authors@1 with the same cron | the cron runs the job: one cwiki request, internal/kips/v1/ written; the route answers 401 without the token and 200 with it |
+| W100 | health shape | constructed | a finished run, then no run yet, then an unreadable record | kipPages is the run record; {revision, lastRun: null, lastGoodAt: null, coverageFrom: null}; null |
+<!-- test-plan:end -->
+
 ## Acceptance
 
 Each item: precondition → action → observable result → evidence. All are
@@ -1505,6 +2285,27 @@ Each item: precondition → action → observable result → evidence. All are
 - W64: at 320 and 375 px the redesigned profile (GitHub with the activity log, and dev@ only) has no horizontal overflow, the chart fits its card, and the tiles are two columns (three for three tiles at 375 px) → E2E with screenshots.
 - W65: opening a profile and switching the period sends exactly one `/api/people/:project/:id` request and no other API request beyond what the page sent before → E2E counting requests.
 - W34: given an activity month, its stored summary holds, for every identity in the month, the counters `indexActivityMonth` computes for it (decision 10: one function for the reader and the summary) → test over every month of the recorded store.
+- W66: given dev@ rows of the activity log, a KIP's starter is the author of the root (subject without a reply prefix) of the earliest thread whose title starts with `[DISCUSS]` or `DISCUSS:` and names exactly that one KIP; a thread of replies only, a later thread with the same number, a title naming two KIPs and a `[VOTE]` thread credit nobody (amendment (7)) → case rows, recorded (KIP-1376, KIP-1368, KIP-1378, KIP-1153) and constructed.
+- W67: given the publication's activity append, a dev@ `message` row carries `opens: true` exactly when its subject has no reply prefix, and a root row keeps it when a later state holds only replies; a Jira thread entry carries `reporter` and `assignee` as `{key, display}` or `null`, from the newest month → unit tests on the row builder and the merge, with a positive control (a reply row has no flag).
+- W68: given a recorded ASF Jira user object (`key`, `name`, `displayName`, `timeZone`, `avatarUrls`, `active`, plus a constructed `emailAddress`), the connector requests `assignee` and keeps only `key` and `displayName`; no event, activity object, link table, `/api/feed`, `/api/detail` or `/api/people` response contains a `name`, time zone, avatar, `active`, an email address or a Jira account key → case rows and a response scan, both sides.
+- W69: given pull-request threads and Jira assignees, GitHub login X and Jira account Y are linked `corroborated` when they share at least 3 distinct `KAFKA-n` (read with the Kafka search profile's identifier pattern) and that count is at least 3 times every other pairing of X and of Y; bots and unassigned issues pair nothing → case rows, recorded (`unknowntpo`, `harmadasg`, `m1a2st`, `chia7712`) and constructed boundaries (2 keys; 6 vs 2; 6 vs 3; a backport).
+- W70: given KIP starters and Jira issues whose summary names the KIP, a dev@ identity and a Jira account whose display name has the same `nameKey` as the starter (reporter or assignee) are linked `corroborated` on at least 2 distinct KIPs, with no other account for that identity and no other identity for that account (otherwise counted as `competitor`); a KIP named only in the description pairs nothing → case rows (KIP-1371 alone: no link; KAFKA-20728; two accounts with one name).
+- W71: given qualifying edges, a GitHub login and a dev@ identity are one person only through a Jira account with both edges; a component with two identities of one source publishes none of its corroborated links and counts a `conflict` → case rows (`unknowntpo` / Eric Chang: GitHub and Jira linked, dev@ separate).
+- W72: given roster and declared links, a corroborated link that would join two ASF ids or two people the declared list keeps apart is dropped and counted as `contradiction`; a pair both declared and corroborated is listed once, with the declared basis; an `identityLinks` entry with `remove: true` suppresses its pair and a suppressed identity gets no link, both from the next run → case rows, with a positive control (the same inputs without the entry link the pair).
+- W73: given the same inputs in any order, the job writes byte-equal `osskb.identity-links.v1` tables in which every link has a basis and its evidence ids (`KAFKA-n` with pull requests; `KIP-n` with the Jira issue and the dev@ thread), each with its URL → unit test.
+- W74: given `PEOPLE_KIPS=true`, the profile of a dev@ identity lists the KIPs it started (title, root date, dev@ thread link) in `[data-section="kips"]` after `activity`, and the profile of an identity linked to it lists them with the basis and the evidence links; given the flag unset, there is no section and `links.json` is not read → API and component tests, both sides.
+- W75: given a profile with the section, "how this is computed" states "started the discussion" (not "authored"), the activity log's coverage start, that KIPs started earlier are not listed, and the link table's `generatedAt` → component test.
+- W93: given recorded KIP page views (KIP-1165, KIP-1360, KIP-1279: plain lists; KIP-952: two user mentions; KIP-1183 and KIP-1300: an email in the line; KIP-986: a block that does not start with the label; KIP-1026: a line below the `Status` heading; KIP-1371: no line; KIP-950: a "Collaborators" line), the parser takes the first `Author(s):` / `Co-Author(s):` block of the page header (before the first heading after `Status`, or before the first heading without one), splits it at mentions, commas, semicolons, `&` and `and`, drops parts holding `@` or angle brackets, and returns the names in page order with status `listed`; a part that is not a name makes the page `unparsed` with no author; no line is `no-list`; "Collaborators" and "Contributors" are never authors (amendment (7), KIP authors) → case rows.
+- W94: given a KIP and an identity, the line shows "author (KIP page)" when the page's list names the person (resolved by W95), else "assigned the KIP's Jira issue (KAFKA-n)" when the person's Jira account is the assignee of an issue the page's `JIRA:` field names, else "started the discussion" when the starter rule holds; the lower bases that also hold are shown as "also …"; a starter the list does not name keeps "started the discussion"; the page creator and editors give nothing → case rows (KIP-1165, KIP-1371, KIP-1272 recorded; constructed).
+- W95: given an author name with `nameKey` k, it links to a profile only through a `declared` entry naming `mail:k` or through `mail:k` having written, within the coverage, in a dev@ thread whose title names exactly that KIP; otherwise it is a plain name; an author name never creates an identity, never joins two identities, and never feeds a `corroborated` link; "Henry Cai" does not link to `mail:henry haiying cai` → case rows, with a positive control for each rule.
+- W96: given `PEOPLE_KIPS=true`, `[data-section="kips"]` lists every KIP where the identity, or an identity linked to it, is an author or the starter, newest first, each with KIP-n, title, label, the full author list in page order (linked names as profile links, others as escaped text), the KIP page link and the dev@ thread link; "how this is computed" names both sources and their coverage → component test and API test.
+- W102: given any `authors.json`, `/api/people` response or `/health` body, it holds no Confluence username, user key, email address, avatar or page body text, and no author part containing `@` → test over the recorded pages of W93 (slice B covers `authors.json` and `/health`; the profile slice extends it to `/api/people`, row "names only" in `kip-authors.cases.ts`).
+- W103: given the committers capture (68 pairs, its date), the Kafka profile's `identityLinks` holds one `declared` entry `github:<login>` ↔ `mail:<name key>` per pair with the committers page as evidence, none for a name that appears twice; `refresh:committers` on a changed capture prints added, removed and changed pairs, and a removed pair has no entry; `measure:identity-links --blind` and `?dryRun=1&blind=1` leave these entries out → unit test and command test on a constructed capture.
+- W104: given an `identityLinks` entry whose `evidence` is not an `https` URL (including the owner's TODO example), the profile validation rejects it and no link is made; with a URL, `github:unknowntpo`, `jira-account:JIRAUSER306218` and `mail:eric chang` are one person in the link table (the GitHub page that then lists KIP-1371 is the page slice, W111) → config test and case rows.
+- W107: given recorded KIP page bodies, the `JIRA:` field is read from the first block of the page header (as in W93) starting with `JIRA`: KIP-1371 gives `one` [KAFKA-20995], KIP-1370 `several` [KAFKA-20888, KAFKA-20883] in page order, KIP-1383 `empty`, a page linking only the template's KAFKA-1 `empty`, a Jira query macro `query`, a page without the block `none` (amendment (7), the KIP's Jira issue) → case rows.
+- W109: given an issue read by the job with assignee A and a newer activity-log Jira entry for the same key with assignee B, the KIP's line goes to B only; an issue re-read with a new assignee replaces the old one; earlier assignees are not kept; an unassigned issue gives no line → case rows.
+- W110: given a recorded Jira response with `assignee` and `reporter` objects (key, name, displayName, timeZone, avatarUrls, active), `authors.json` keeps only the assignee's `key` and `displayName` per issue, nothing of the reporter, and no response or `/health` body carries more → test over the recorded issues (slice B covers `authors.json` and `/health`; the profile slice adds its responses).
+- W111: given `PEOPLE_KIPS=true`, the profile of `jira-account:<key>` lists the KIPs whose listed issue it is assigned, and a GitHub or dev@ identity linked to that account (roster, declared or corroborated) lists them with the link's basis; with the recorded corroborated link `github:unknowntpo` ↔ JIRAUSER306218, `github:unknowntpo` lists KIP-1371 as "assigned the KIP's Jira issue (KAFKA-20995)"; with no link, the GitHub page lists nothing; no display name is compared → API test and case rows.
 
 ### Failure and retry
 
@@ -1523,6 +2324,21 @@ Each item: precondition → action → observable result → evidence. All are
 - W30: [pending] (slice 7) given month summaries for a project, the list answers one row per non-bot, non-suppressed identity with separate counts per column and no composite field; a source not recorded yet is "not recorded", not 0 → API test.
 - W31: [pending] (slice 7) the reader sorts by any one column, either direction, ties by name; the default order is by name → component test.
 - W32: [pending] (slice 7) the list is served on Dev only and with `X-Robots-Tag: noindex`, under the gate of W25 → configuration and API test.
+- W76: given a read of the previous run record, an activity month or the roster that fails or does not parse, the job writes no table for that project, keeps the last good one, and records `ok: false` with the object key; `lastGoodAt` is carried from the record read first, with no further read → test with a failing bucket.
+- W77: given no activity `state.json`, the run reports `no-input` (in its response and `last-run.json`) and writes no table; given no roster object, it writes a table without roster links and `inputs.rosterAt: null` → case rows.
+- W78: given unchanged inputs, a second run does not write `links.json` and writes `last-run.json` only (the digest of each project still in the profiles is kept, others are dropped) → counting bucket, with a positive control (one changed month rewrites the table).
+- W79: given a crash after the table is written and before `last-run.json`, the next run converges (the same table bytes rewritten, then the status; the run after reports `unchanged`); the table is always written before the status → test that throws between the two puts.
+- W80: given `links.json` missing or unparsable, `/api/people/:project/:id` answers 200 with the identity's own KIPs and says links are not available → API test.
+- W81: given the job throws on its cron, the publication is neither started nor changed, the publication's cron never runs the job, and the job writes nothing outside `internal/identity/v1/` → Worker test on `scheduled` with both cron strings and a recording bucket.
+- W82: given a cron run and a manual run on the same inputs at once, both write equal bytes with plain puts (no conditional put) → unit test.
+- W83: given dev@ rows written before `opens` existed, none is a root, and the note states from when starters are known → case rows.
+- W84: given a Jira issue whose assignee changed between two months, only the newest entry pairs, and the key counts once → case rows.
+- W85: given `IDENTITY_LINKS` unset, the cron entry and `POST /identity-links/run` do nothing (the route answers 404), make no R2 call, and `/health` has no `identityLinks`; any other value fails the run (502) after reading only `last-run.json`, writes no table, and the failed record keeps `lastGoodAt` and `tables` → Worker test.
+- W97: given a cwiki request that fails, times out, answers 429 or 5xx, or returns JSON that does not parse, or a run that would need an 11th request, or a cron run that would outlast 14 min, the `kip-pages` job writes no table, keeps the last good one, records `ok: false` with the status (`failed`, `over-budget`) and does not retry within the run; the next run starts from the last good run's `since` → unit test with a stub fetch, with a positive control.
+- W108: the `kip-pages` job reads the assignees of the `JIRA:` keys of pages new or changed in the run (and of every key in the table on Mondays) with `search?jql=key in (…)&fields=assignee&validateQuery=warn`, at most 100 keys and at most 3 requests per run; an unknown key is dropped, not an error; a failed Jira request fails the run closed like a cwiki failure; on a Monday the re-read is capped at 300 keys, the changed pages' keys first and then the oldest readings; a positive control writes the issues → unit test with a stub fetch.
+- W98: given the `kip-pages` job throws, the publication, the digest and the identity-link job are neither started nor changed and it writes nothing outside `internal/kips/v1/`; none of them calls cwiki; given `authors.json` missing or unparsable, `/api/people/:project/:id` answers 200 with the starter lines and says author lists are not available → Worker test and API test (slice B: the Worker half; the API half is the "table missing" row in `kip-authors.cases.ts`, run by the profile slice).
+- W99: given `KIP_PAGES` unset, the cron entry and `POST /kip-pages/run` do nothing (the route answers 404), make no request to cwiki and no R2 call, and `/health` has no `kipPages` → Worker test.
+- W105: given a previous table and a search answer, a page whose `version.number` changed replaces its entry, an unchanged page keeps it, a title without `KIP-<n>` is skipped, the request's `since` is the last good run's start minus one day (365 days back without a table), the output is sorted and byte-equal for equal inputs, and an unchanged table is not written (only `last-run.json`) → unit test with a counting bucket.
 
 ### Budget
 
@@ -1535,6 +2351,12 @@ Each item: precondition → action → observable result → evidence. All are
 - W20: [measure] review ingestion adds at most one GitHub request per pull request updated that day, and a day's batch stays inside the hourly request limit (slice 1; measured by Spec 022 RV21 and RV22 with `measure:github-reviews`).
 - W54: [measure] the area distributions of `m1a2st` and `chia7712` in amendment (4)'s Example, from public GitHub data (search `reviewed-by:` / `author:` updated since 2026-07-15, read 2026-10-15), reproduced by `areaDistribution` with the Kafka taxonomy.
 - W21: [measure] the 12-month backfill of slice 6 states its request count and stored size per source (GitHub, Jira, dev@'s 12 monthly archives) before it runs, measured, not estimated, and stays under each source's limit; it runs outside the publication.
+- W86: [measure] one identity-link run for Kafka with 12 full activity months reads at most 15 objects (Class B) and writes at most 2 (Class A), keeps one month parsed at a time, and reports peak heap and duration; DataFusion makes no call (command `measure:identity-links -- --budget`, against a constructed log of Dev's size; amendment (7)).
+- W87: given a cold isolate with `PEOPLE_KIPS=true`, one profile request reads at most 28 objects (W29's 26, `links.json` and `authors.json`), and a second within 10 minutes reads none → API test with a counting bucket.
+- W88: [measure] the first activity append after the change rewrites at most the months in the 35-day state once and then nothing for unchanged rows; a Jira page of 100 issues with `assignee` stays under the 4 MiB source limit; the bytes added per page are reported (command `measure:memory --activity 1` and a recorded Jira page). Recorded 2026-10-21: `measure:memory --events 8600 --activity 1` first append 6 months read, 6 written, then an unchanged rerun 0 written, 0 KB; the Jira page `project = KAFKA AND updated >= "-30d" ORDER BY updated DESC, key ASC`, 100 of 523 issues (88 assigned), `JIRA_FIELDS` with `assignee` 641,710 characters (15.3 % of the 4 MiB limit) against 591,050 without it: 50,660 added per page.
+- W89: [measure] before enabling, `measure:identity-links -- --from <date> --to <date>` (public upstream data only: GitHub search, ASF Jira REST, Pony Mail, the committers page) reports corroborated links, committers touched, `agree`, `contradict`, committer `unlabelled`, and links to label; the gate is `contradict` 0, committer `unlabelled` 0, and no link labelled "different" in W16's sample; recall is reported. Recorded 2026-10-21 for 2026-09-15 to 2026-10-21: 28 links, 3 committers, 3 agree, 0 contradict, 25 to label.
+- W101: [measure] one `kip-pages` run sends at most 10 cwiki requests and 3 Jira requests, sequential and at least 2 s apart, with the project's `User-Agent`; the first run on Kafka (365 days, about 225 pages) sends at most 5 and a normal day 1 to 2, and the run reads 1 R2 object and writes at most 2; the command `measure:kip-pages` reports requests, bytes, pages, `listed` / `no-list` / `unparsed` counts and duration from public cwiki data.
+- W112: [measure] `measure:kip-pages -- --agreement` reports, from public data, the `JIRA:` field classes over all KIP pages and, for pages with one issue, assignee unset, assignee = creator, assignee in the author line, assignee = starter (exact, other written form, other script, different), and the KIPs whose assignee has a corroborated GitHub link; the 2026-10-21 reading is 1,160 / 45 / 138 / 8 / 20, then 17 unset, 180 of 219, 12 of 12, 126 / 24 / 16 / 30 of 196, and 33 KIPs for 13 people.
 
 ### Observability
 
@@ -1544,6 +2366,11 @@ Each item: precondition → action → observable result → evidence. All are
 - W27: given a community with sources the profile does not read yet, the response lists each with status "not recorded" and the page shows "<sources>: not recorded yet" without a count; given the review store, the page shows "Reviews: <from> to <until>" with the dates of the response → case rows and component test, both sides.
 - W28: given the Dev configuration, a GitHub record's author in Detail links to `/#/<project>/people/github:<login>`; a bot author does not link; a Jira or dev@ author links to `jira:<name key>` or `mail:<name key>` only where `/api/people` lists that source in `recorded` (2b), and not before the log's first append (2a); given the Prod configuration, no author links → component test and E2E, both sides.
 - W29: given a cold isolate, one profile request reads at most 26 objects from R2 for its project (the two `state.json` objects, 12 review months none before Spec 022's `coverageFrom`, and 12 activity months none before the log's `coverageFrom`; a Jira or dev@ identity reads no review month); a second request within 10 minutes reads none; one after 10 minutes reads them again → API test with a counting bucket (amended 2026-10-15 for 2b: 13 before).
+- W90: [deploy] on Dev with `IDENTITY_LINKS=corroborated@1` and `PEOPLE_KIPS` unset, `POST /identity-links/run?dryRun=1` gives the W89 counts from the real inputs, with `contradict` 0, before the Pages flag is set; the enable PR records both readings, the window and the commit of the labelled sample.
+- W91: `/health` `identityLinks` is `{revision, lastRun {ok, status (ok, unchanged, no-input, failed), at, durationMs, inputs {months, activityUpdatedAt, rosterAt, committersAt}, links {roster, declared, corroborated}, rejected {dominance, competitor, minimum, conflict, contradiction, removed}, people, kipStarters, bytesWritten, r2 {classA, classB}, error?}, lastGoodAt, tables}` while `IDENTITY_LINKS` is set → unit test on the field.
+- W92: [deploy] on Dev after step 4 of amendment (7), `/health` `identityLinks.lastRun.ok` is true on two consecutive days, and the profile of `mail:arnab nandy` lists KIP-1381 and KIP-1382 (or, if they left the coverage, the note says so).
+- W100: `/health` `kipPages` is `{revision, lastRun {ok, status (ok, unchanged, failed, over-budget), at, durationMs, since, requests, jiraRequests, pagesRead, pagesChanged, listed, unparsed, issuesRead, unassigned, bytesWritten, r2 {classA, classB}, error?}, lastGoodAt, coverageFrom}` while `KIP_PAGES` is set → unit test on the field.
+- W106: [deploy] on Dev after step 4, `/health` `kipPages.lastRun.ok` is true on two consecutive days, and the profile of `mail:viktor somogyi-vass` lists KIP-1165 as "author (KIP page)" with "also started the discussion" and nine author names in page order (or, if KIP-1165 left the coverage, the note says so).
 
 ## Success criteria
 
@@ -1573,6 +2400,7 @@ record.
 | 8 | Terms and policy | **GitHub Terms of Service, the ASF privacy policy and the GDPR must be checked before anything goes beyond Dev** | Privacy section, P-g (Dev only); W25 | Skipping it risks having to take the feature down |
 | 9 | Removal | **By issue or email; removed at the next daily publication** | P-e; W12 | A self-service form needs authentication of the requester |
 | 10 | Contributor list (2026-10-15) | **Per-project list, sortable by separate metric columns** (reviews given, PRs authored/merged, comments, Jira, dev@, last active), no composite score, bots excluded, Dev only; built after the profile | Slice 7; W30–W33; revises decision 1 (U3 in this form) and P-a | A single activity score or rank (rejected again); no list at all (the owner wants it) |
+| 11 | KIP authorship and corroborated links (2026-10-21) | **"Authored" = started the earliest `[DISCUSS] KIP-n` thread on dev@, within the recorded range; a third link basis `corroborated` (GitHub ↔ Jira on ≥ 3 `KAFKA-n`, Jira ↔ dev@ on ≥ 2 `KIP-n`, provisional until a precision check); linking is its own job; profiles read its table behind a flag, Dev first. Revised the same day (owner): a KIP can have several authors; the KIP page's author line (read by its own `kip-pages` job) comes first, "started the discussion" second; the assignee of the issue the KIP page's `JIRA:` field names is line 2 ("assigned the KIP's Jira issue"), read by the same job; dominance 3 and edge B at 2 accepted; the committers page's 68 pairs become `declared` links** | Amendment (7); W66–W112; revises precision rule 2, decision 5, identity rule 2 | Page creator or editors as authors; Confluence usernames as identities; dev@ starter only (KIP-1165 would list one of nine authors); linking as a step of the publication or of the activity append; similarity or model-based matching |
 
 ## Could not be verified
 
@@ -1595,6 +2423,13 @@ record.
 - All terms of service and law (section Privacy).
 - The month estimates for when each limit breaks are linear extrapolations
   from one 35-day release.
+- Amendment (7): who wrote the 98 % of KIP pages without an author line
+  (the starter is assumed, labelled as such); whether ASF Jira account keys can change
+  (`key` is documented as stable for Jira Server; not checked for ASF's
+  instance); the precision of `corroborated` beyond the 3 committers and 28
+  links of the 2026-10-21 reading, until the 25 links are labelled; how many
+  Jira issues of the Example's keys are in the Dev activity log (all 221
+  were read from Jira directly).
 
 ## Appendix: records behind the Example
 

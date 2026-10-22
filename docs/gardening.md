@@ -146,8 +146,9 @@ the two `viewer/` items below.
 - **Why:** every run (one a day since Spec 018, plus follow-ups and manual
   runs) adds a release and new pool objects; nothing is
   deleted, so storage and list cost grow without bound.
-- **Fix:** own spec: keep the last N releases plus anything reachable from
-  them; mark-and-sweep with a dry-run report first.
+- **Fix:** [Spec 029](specs/029-r2-retention/spec.md) (draft, 2026-10-21)
+  covers the Feed and Search releases, their evidence and both detail pools;
+  the prefixes under **Also** and the digest's per-release objects stay here.
 - **Also:** Spec 015 adds `public/review-queue/v1/<projectId>/<sha256>.json`
   (one object per changed hourly run) and `internal/rosters/v1/`; keep the
   objects `current.json` points to and the last few.
@@ -1149,3 +1150,34 @@ the two `viewer/` items below.
   drop the estimates. Replace the fixture with a recorded answer (CG19).
 - **Layer:** fixture test, then code.
 - **Source:** Spec 026, 2026-10-20.
+
+### G97. Identity links: a Jira issue reported by a bot or an unnamed reporter has no assignee in the log
+- **Where:** `packages/reference-pipeline/src/people/activity-log.ts` (Jira threads
+  reach a month only through a row), `IdentityFacts` in
+  `packages/reference-pipeline/src/people/identity-links.ts`.
+- **Why:** a Jira thread entry, which carries the issue's `assignee`, is
+  written only into the months of its rows. An issue whose reporter is a bot
+  (`isBotUser`: `/bot/i` on the name, which also matches real names such as
+  "Talbot") or has no usable name, and that nobody commented on in the month,
+  has no row, so edge A of `corroborated@1` cannot see its assignee. The
+  effect is recall only (fewer pairings), never a false link.
+- **Fix:** write the thread entry of every issue the state holds, rows or
+  not, and tighten `isBotUser` to the Jira bot accounts by key.
+- **Layer:** unit test on `activityMonthsFromEvents`, then code.
+- **Source:** Spec 019 amendment (7) slice A, 2026-10-21 (found while
+  building `measure:identity-links`).
+
+### G98. Profile KIPs: the identities section does not list links yet; a Jira page is keyed by display name
+- **Where:** `apps/web/src/components/PersonProfile.vue` (`[data-section="identities"]`),
+  `packages/reference-pipeline/src/people/kip-profile.ts` (`LinkGraph`, `holdsAccount`).
+- **Why:** amendment (7)'s "The page" also says the identities section shows
+  each link with its basis and evidence; slice C shows the path only on the
+  KIP lines that use it, and the identities section still says other sources
+  are separate (true for every count). A `jira:<name>` page holds every
+  account whose display name gives that id (G76), so two Jira accounts with one
+  name share their assigned KIPs on that page, as they already share counts.
+- **Fix:** list the person's links (basis, evidence) in the identities section
+  when `PEOPLE_KIPS` is on; switch Jira pages to `jira-account:<key>` ids with
+  slice 4 (G76).
+- **Layer:** component test, then code.
+- **Source:** Spec 019 amendment (7) slice C, 2026-10-21.

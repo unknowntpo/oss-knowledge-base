@@ -31,6 +31,20 @@ export interface JiraEventDataV1 extends Readonly<Record<string, unknown>> {
   readonly status?: "open" | "resolved";
   readonly kips: readonly string[];
   readonly isBot: boolean;
+  /**
+   * Spec 019 amendment (7), W68: the issue's reporter and assignee accounts, on issue records only.
+   * Only the account `key` and the `displayName` are kept (the reporter's display name is `author`);
+   * never `name`, `timeZone`, avatars, `active` or an email. Absent on events written before the
+   * change; `assignee` is null when the issue is unassigned. Internal: no public response carries them.
+   */
+  readonly reporterKey?: string;
+  readonly assignee?: JiraAccountV1 | null;
+}
+
+/** A Jira account as amendment (7) keeps it: the stable key and the display name, nothing else. */
+export interface JiraAccountV1 {
+  readonly key: string;
+  readonly displayName: string;
 }
 
 export type MailDomainEventV1 = DomainEventV1 & { readonly data: MailEventDataV1 };
@@ -142,6 +156,12 @@ function displayName(user: unknown): string {
   return nonEmpty(user.name) ? user.name.trim() : "unknown";
 }
 
+/** W68: the account's key and display name only; undefined when the user object has no key. */
+export function jiraAccount(user: unknown): JiraAccountV1 | undefined {
+  if (!isRecord(user) || !nonEmpty(user.key)) return undefined;
+  return { key: user.key.trim(), displayName: displayName(user) };
+}
+
 function isBotUser(user: unknown): boolean {
   if (!isRecord(user)) return false;
   return /bot/iu.test(`${String(user.name ?? "")} ${String(user.displayName ?? "")}`);
@@ -171,6 +191,8 @@ export function jiraEventsFrom(issue: unknown, observedAt: string, connectorRevi
     status: jiraStatus(nativeStatus),
     kips: extractKeys(`${fields.summary} ${typeof fields.description === "string" ? fields.description : ""}`).kips,
     isBot: isBotUser(fields.reporter),
+    ...(jiraAccount(fields.reporter) === undefined ? {} : { reporterKey: jiraAccount(fields.reporter)!.key }),
+    ...("assignee" in fields ? { assignee: jiraAccount(fields.assignee) ?? null } : {}),
   };
   const events = [domainEvent(kafkaJiraSource, connectorRevision, observedAt, "artifact", entityId, updated, `${JIRA_BROWSE_URL}${key}`, issueData)];
   const comments = isRecord(fields.comment) && Array.isArray(fields.comment.comments) ? fields.comment.comments : [];
@@ -223,6 +245,11 @@ export function parseJiraEventDataV1(event: DomainEventV1): JiraDomainEventV1 {
   }
   if (!isStringArray(data.kips) || typeof data.isBot !== "boolean") throw new Error(`Jira event ${event.id} has invalid kips or isBot`);
   if (data.recordKind === "comment" && !nonEmpty(data.parentEntityId)) throw new Error(`Jira comment ${event.id} requires parentEntityId`);
+  if (data.reporterKey !== undefined && !nonEmpty(data.reporterKey)) throw new Error(`Jira event ${event.id} has an invalid reporterKey`);
+  if (data.assignee !== undefined && data.assignee !== null &&
+      !(isRecord(data.assignee) && nonEmpty(data.assignee.key) && nonEmpty(data.assignee.displayName))) {
+    throw new Error(`Jira event ${event.id} has an invalid assignee`);
+  }
   if (data.recordKind === "issue" && data.status !== "open" && data.status !== "resolved") {
     throw new Error(`Jira issue ${event.id} requires status`);
   }
