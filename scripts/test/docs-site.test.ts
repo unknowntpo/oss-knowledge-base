@@ -122,6 +122,21 @@ describe("Spec 025 docs site", () => {
     expect(files.get("en/index.html")).toContain("loc.href=loc.getAttribute('href').split('#')[0]+location.hash");
   });
 
+  test("DOC18: the language control marks the page's own locale as current and links only the other one", () => {
+    // Regression: the header showed only the other locale's name ("中文" on English pages),
+    // which readers took for the selected language while the content stayed English.
+    const files = buildDocsSite(fixture());
+    const label: Record<string, string> = { en: "EN", "zh-Hant": "中文" };
+    for (const locale of LOCALES) for (const id of PAGES) {
+      const other = LOCALES.find((l) => l !== locale)!;
+      const control = /<nav class="langs"[^>]*>([\s\S]*?)<\/nav>/u.exec(files.get(`${locale}/${id}.html`)!)?.[1] ?? "";
+      const current = [...control.matchAll(/<span class="lang-cur" aria-current="true" lang="([^"]+)">([^<]+)<\/span>/gu)];
+      expect(current.map((m) => [m[1], m[2]])).toEqual([[locale, label[locale]]]);
+      const links = [...control.matchAll(/<a [^>]*hreflang="([^"]+)"[^>]*>([^<]+)<\/a>/gu)];
+      expect(links.map((m) => [m[1], m[2]])).toEqual([[other, label[other]]]);
+    }
+  });
+
   test("DOC3: the fixture's two locales have the same sections, flows and sources (audit clean)", () => {
     const files = buildDocsSite(fixture());
     expect(auditSite(files)).toEqual([]);
