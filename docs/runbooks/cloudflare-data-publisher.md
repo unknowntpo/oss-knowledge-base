@@ -368,8 +368,9 @@ about 28 thousand and 6.0 million. Act when:
 ## Cost guard (Spec 026)
 
 Account-wide cost monitoring and a circuit breaker
-([spec](../specs/026-cost-guard/spec.md)). Off everywhere until the enable PRs
-(`COST_GUARD` unset, no `COST_GUARD_STATE` binding, no token). The check rides
+([spec](../specs/026-cost-guard/spec.md)). Dev: `monitor` since the Dev
+monitor enable PR (2026-10-21). Prod: off (`COST_GUARD` unset, no
+`COST_GUARD_STATE` binding, no token). The check rides
 the publisher tick once a day, reads R2 operations and storage for the whole
 account over the GraphQL Analytics API, and adds Vectorize and Workers AI
 estimates from this Worker's own ledgers. It writes one Durable Object key
@@ -409,6 +410,12 @@ R2 → Metrics month to date. `unclassifiedActions` lists action types the
 pricing page does not name (counted as Class A); report any. Save the raw
 GraphQL answer as the fixture (CG19). Stop and unset `COST_GUARD` if `ok` is
 false twice.
+
+If `lastError.message` reads `GraphQL answered 403` or a GraphQL error such
+as "not authorized", the token lacks **Account Analytics › Read** (for
+example it was made with Account Settings › Read). Edit the token's
+permissions in the dashboard, or create a new one and put it again with
+`wrangler secret put`; no deploy is needed. Then run the dry check again.
 
 ### Read `/health`
 

@@ -1,17 +1,20 @@
 # Spec 027: Read-only SRE triage agent
 
-Status: Draft (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; spec only, nothing implemented)
-Date: 2026-10-20
+Status: Draft (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; [Amendment (1)](#amendment-1-triggered-diagnosis-2026-10-22) 2026-10-22: the agent diagnoses only after a deterministic rule fires; spec only, nothing implemented)
+Date: 2026-10-20 (amended 2026-10-22)
 Traceability: enforced
-Builds on: Spec 008 (R2 operations), Spec 010, 011, 018, 021 (freshness and stalls), Spec 014 (digest), Spec 020 (feature map), Spec 026 (cost guard)
+Builds on: Spec 008 (R2 operations), Spec 010, 011, 018, 021 (freshness and stalls), Spec 014 (digest), Spec 019 amendment (7) (identity-links, kip-pages jobs), Spec 020 (feature map), Spec 026 and its dollar-budget amendment (cost guard), Spec 028 (observability signals, PR #108, not merged), Spec 029 (R2 retention)
 
 ## Intent
 
-Once a day the owner gets one GitHub issue in `unknowntpo/oss-knowledge-base`
-when Dev or Prod is unhealthy, and nothing when it is healthy. The issue
-names what is wrong, quotes the evidence (the `/health` fields, the failed CI
-run, the log lines), and links the runbook section to follow. The agent only
-reads; the owner acts.
+When a deterministic rule fires on Dev or Prod (a Spec 028 trend rule for a
+job, a Spec 026 cost-guard trip, or the harness's CI rule), the owner finds
+one diagnosis record for that firing: what is wrong, the evidence quoted
+from `/health`, the run's metrics and log lines (joined by its `runId`), and
+the runbook section to follow. When nothing fires, no model is called. The
+agent only reads; it never detects, never pauses or resumes anything (the
+cost guard does), and the owner acts. Amendment (1) below is the current
+design; where it differs from the original sections, it wins.
 
 Today every incident below was found by the owner looking at a page, a
 billing email or a red CI run, often a day or more late. The pieces to see
@@ -54,6 +57,169 @@ reading the served text. None needs a write.
 | Its token permission is **Workers Observability Write**, not a read scope (the endpoint can save queries) | same | documented; a read-only token for logs does not exist (Decision 6) |
 | Workers Logs retention: 7 days on Workers Paid; 20 million events a month included | [Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/), runbook "Observability / logs" | documented |
 | GitHub fine-grained token: Actions: Read (runs, jobs, logs), Issues: Read and write (create), Metadata: Read (implicit), one selected repository | [Permissions for fine-grained tokens](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens) | documented |
+
+## Amendment (1): triggered diagnosis (2026-10-22)
+
+What landed since the first draft, and what it changes here:
+
+| Landed | What it gives the agent |
+| --- | --- |
+| Spec 026 cost guard, Dev `COST_GUARD=monitor` (#109); dollar-budget amendment (#112, CG21–CG37 pending; Dev `enforce` from 2026-11-01 at the earliest) | A deterministic trip and pause: `/health` `costGuard {status, breaker}`. The guard alone decides pauses and resets; on 2026-10-21 Dev's breaker is open under `monitor` (Example (1)) |
+| Spec 029 R2 retention (#111, spec only) | Its own job and cron (`17 10 * * *`, planned), `/health` `retention {mode, status, reason, lastRun {runId, …, r2}}` |
+| Spec 019 amendment (7) live on Dev (#119) | Two more jobs: identity-links (`17 2 * * *`, `/health` `identityLinks`) and kip-pages (`43 3 * * *`, `/health` `kipPages`) |
+| Spec 028 (PR #108, being refreshed; this spec does not edit it) | Every job writes one common data point to Workers Analytics Engine (WAE): `job`, `runId`, `status`, `durationMs`, counters, R2 Class A/B; trend rules per job (missed schedule, consecutive failures, duration growth, Class A above baseline) evaluated by the Worker and shown in `/health.signals` |
+
+Owner principles this amendment applies (2026-10-22): read-only (no write
+to R2 or Cloudflare, no deploy); stalls are visible in the product UI and
+`/health`, so no push alerts are needed; one job, one responsibility; cost
+within $5 Workers Paid + $5 a month overage; traces only sampled and only
+with owner approval; one shared `runId` joins a run's metric point and log
+lines.
+
+Simplification (amendment): **deleted** the agent's own thresholds
+(`stalled`, `r2InvariantOk`; SRE11 withdrawn) and its daily "triage
+everything" prompt: rules detect, the model only explains a firing.
+**Deleted** model-written SQL: three fixed templates. **Deleted** a product
+surface for diagnoses: it would need a write to Cloudflare. Kept the
+harness CI rule (Decision 14), the one incident no Worker rule can see.
+
+### A1. Trigger: a deterministic rule, never the model
+
+18. A scheduled run first reads Dev and Prod `/health` (2 GETs, no model
+    call) and collects **firings**:
+    - each `/health.signals.rules[]` entry with `status: "firing"` (Spec 028;
+      the rule ids and thresholds are Spec 028's, the agent never
+      recomputes them);
+    - `costGuard.status` `tripped` (Spec 026; the breaker's `trippedAt` is
+      the firing's `since`);
+    - the harness's own CI rule `ci.release`: the newest `v*` tag's CI run,
+      or the newest `main` run, has conclusion `failure` (Decision 14;
+      deterministic code in the harness, not the model).
+
+    `warn` and `unknown` start nothing (Decision 11). No firing: the run
+    log gets `{verdict: "healthy", firings: 0, modelCalls: 0}` and the run
+    ends. A `/health` without `signals` (Spec 028 not enabled there) records
+    `signals: "unavailable"` for that environment and starts no diagnosis
+    from trend rules; the agent never falls back to its own thresholds.
+19. Each firing has a fingerprint `<env>:<job>:<ruleId>:<since>`. A
+    fingerprint already in `diagnoses.jsonl` is not diagnosed again unless
+    the rule entry's `runId` changed, and then at most once a UTC day. A
+    rule that returns to `ok` and fires again has a new `since`, so a new
+    fingerprint. At most 3 diagnoses a UTC day (Decision 15); the others are
+    listed in the run log as `notDiagnosed: "daily-cap"`.
+20. One diagnosis = one agent loop of Behaviors 4–13 with the firing as its
+    task. The harness first builds the **input bundle** of A2 for that job
+    and the firing's `runId`, and passes it as the first untrusted tool
+    output; the model may then call the read-only tools of A2 for more and
+    ends with `report`.
+
+### A2. Inputs per job
+
+The bundle always holds the firing rule entry and `costGuard` (so a missed
+schedule caused by a guard pause is explained, not re-reported). Per job:
+
+| Job (`job` in WAE) | `/health` fields | Rule kinds that can fire | Extra input |
+| --- | --- | --- | --- |
+| `publication` (Dev 22:07, Prod 22:37 UTC) | `running`, `scheduled`, `followUp`, `phase`, `lastRun {ok, runId, completedAt, copiedObjectCount, reusedObjectCount, r2, pollTruncated}`, `sources` | missed schedule, consecutive failures, duration growth, Class A above baseline | `get_ci_status` when Prod's deploy may be stale |
+| `digest` (Dev 22:47) | `digest.lastRun {ok, runId, completedAt, durationMs, rejections}` | missed schedule, consecutive failures, duration growth | the publication's `sourceRunId` point |
+| `review-queue` (no cron) | `reviewQueue` | consecutive failures | none |
+| `search-embedding` | `searchEmbedding {lastRun, lastError, today}` | consecutive failures, duration growth | none |
+| `identity-links` (Dev 02:17) | `identityLinks {lastRun {ok, status, at, durationMs, r2}, lastGoodAt}` | missed schedule, consecutive failures | none |
+| `kip-pages` (Dev 03:43) | `kipPages {lastRun {ok, status, at, durationMs, requests, jiraRequests, r2, error}, lastGoodAt}` | missed schedule, consecutive failures, duration growth | none |
+| `retention` (planned 10:17) | `retention {mode, status, reason, lastRun {runId, deleted, remaining, elapsedMs, r2, failureKind}}` | missed schedule, consecutive failures, Class A above baseline | none |
+| cost guard (on the publisher tick) | `costGuard {mode, status, reason, checkedAt, metrics, breaker}`, and `budget` once CG27 lands | `tripped` | `Q-window` of the trip day |
+| `ci.release` | none | harness CI rule | `get_ci_status` (failed job's last 60 lines) |
+
+Analytics SQL (fixed templates; the model picks a template and arguments,
+never writes SQL). The agent runs off-Cloudflare, so it calls the SQL API's
+HTTP endpoint with a read token (Decision 12), not the Workers binding.
+Column names are Spec 028's common point; the harness maps them to WAE
+positions from Spec 028's schema constant.
+
+| Template | Arguments | Query |
+| --- | --- | --- |
+| `Q-history` | `env`, `job` (enum of the table) | `SELECT timestamp, index1 AS runId, status, durationMs, classA, classB FROM events.analyticsEngine."osskb_signals_<env>" WHERE job = ? AND timestamp > NOW() - INTERVAL '8' DAY ORDER BY timestamp DESC LIMIT 20` |
+| `Q-run` | `env`, `runId` (`^[a-z]+-[0-9TZ-]+$`) | `SELECT * FROM … WHERE index1 = ? AND timestamp > NOW() - INTERVAL '8' DAY LIMIT 5` |
+| `Q-window` | `env`, `at` (the firing run's time) | `SELECT timestamp, job, index1 AS runId, status, durationMs, classA FROM … WHERE timestamp BETWEEN ? - INTERVAL '12' HOUR AND ? + INTERVAL '12' HOUR LIMIT 50` (did other jobs fail too?) |
+
+Workers Logs by `runId` (tool `get_run_logs`, off until Decision 13):
+`logs.workersLogs` through the same SQL API when Spec 028 OB21 shows the
+`runId` column is readable with the read token (`WHERE <runId column> = ?
+AND timestamp BETWEEN <since − 1 h> AND <now> LIMIT 200`); otherwise the
+telemetry query with `filters [{key: "runId", operation: "eq", value}]`,
+`dry: true`, which needs the Write-scoped token (Decision 6). Traces: none;
+a `get_trace` tool needs Spec 028 D2 (owner-approved sampling) and its own
+amendment.
+
+Tools after this amendment: `get_health`, `query_signals` (the three
+templates), `get_run_logs` (off by default), `get_ci_status`,
+`search_runbook`, `report`. `get_health` returns the `/health` JSON as
+served, with no derived thresholds (SRE11 withdrawn; replaced by SRE34).
+
+### A3. Output: the diagnosis record
+
+21. `report` produces one record per firing, appended by the harness to
+    `~/.osskb-sre/diagnoses.jsonl`:
+    `{fingerprint, env, job, ruleId, since, runId, verdict:
+    "explained"|"unexplained"|"inconclusive", cause, evidence: [{callId,
+    source: health|sql|logs|ci|runbook, quote}], runbook|null,
+    ownerAction|null, model, modelCalls, costUsd, at}`. `ownerAction` is
+    text for the owner (for example "reset the breaker on November 1, Spec
+    026 Decision 1"); no tool can perform it. `osskb-sre diagnoses [--last
+    N]` prints them, newest first. Where else it shows is Decision 9
+    (recommended: nowhere else in v1). Behavior 3's GitHub issues apply only
+    if Decision 9 picks them (SRE7–SRE10, SRE25 then stay; otherwise they
+    are withdrawn when slice 1 is planned).
+22. The diagnosis never changes the product: no write to R2, no request
+    to `/run`, `/*/run`, `/cost-guard/*`, no wrangler, no deploy (Behavior
+    11). The firing stays visible in the UI and `/health` by Spec 028 and
+    Specs 010/021; the record only explains it.
+
+### A4. Schedule and budget
+
+- Runs: twice a day at 00:30 and 11:00 UTC (Decision 10): the first after
+  the publication, digest and cost-guard check, the second after
+  identity-links, kip-pages and retention.
+- A healthy run: 2 `/health` reads (≤ 10 R2 Class B each, estimate, SRE35),
+  0 model calls, 0 SQL queries.
+- Per diagnosis: ≤ 12 model calls, ≤ 60,000 tokens, ≤ 3 SQL queries, ≤ 1
+  log query, ≤ 3 GitHub reads.
+- Per day: ≤ 3 diagnoses → ≤ 36 model calls, ≤ 9 SQL queries; typical 0.
+
+| Cost | Worst case | Typical | Bound |
+| --- | --- | --- | --- |
+| Model (OpenRouter, `deepseek/deepseek-v4.1-flash`) | $0.01 a diagnosis → $0.03 a day → $0.90 a month | $0 (no firing) | $0.20 a day ledger (SRE18), $2 a month OpenRouter key limit; a separate bill from Cloudflare |
+| Cloudflare R2 Class B (`/health`) | 4 reads × ≤ 10 = 40 a day → 1,200 a month | same | 10 million a month included: $0 |
+| Analytics SQL | 9 a day → 270 a month | 0 | WAE reads 1 million a month included; SQL API pricing not documented: $0 assumed, recorded by SRE35 |
+| Workers Logs queries | 3 a day | 0 | no per-query price documented |
+
+Total against the owner's $5 Workers Paid + $5 a month overage: $0 of
+overage; the agent's Class B reads count toward the cost guard like any
+other.
+
+### Example (1): Dev, 2026-10-22 (real `/health`, read 2026-10-22)
+
+```json
+{ "lastRun": { "ok": true, "runId": null, "completedAt": "2026-10-21T22:07:13.057Z",
+    "copiedObjectCount": 1089, "r2": { "classA": 1092, "classB": 8828 } },
+  "costGuard": { "mode": "monitor", "status": "tripped", "checkedAt": "2026-10-21T22:07:14.115Z",
+    "breaker": { "tripped": true, "metric": "r2ClassA", "value": 2064777, "threshold": 800000,
+      "reason": "r2ClassA at 206.47% of 1000000 (trips at 80%)", "trippedAt": "2026-10-21T22:07:14.115Z" } },
+  "identityLinks": { "lastRun": { "ok": true, "status": "ok", "durationMs": 3154 } },
+  "kipPages": { "lastRun": { "ok": true, "status": "ok", "durationMs": 25990 } },
+  "signals": null, "retention": null }
+```
+
+The 00:30 UTC run finds one firing, `dev:cost-guard:tripped:2026-10-21T22:07:14.115Z`
+(`signals` unavailable: Spec 028 not enabled). Expected record: verdict
+`explained`; cause "month-to-date R2 Class A 2,064,777 is mostly the
+2026-10-02..13 conditional-put incident; today's publication wrote 1,092 =
+1,089 + 3 (invariant holds)"; evidence quoting `costGuard.breaker` and
+`lastRun`; runbook `cloudflare-data-publisher.md#r2-operations-and-cost`;
+ownerAction "under `monitor` nothing is paused; decide Spec 026 open
+Decision 1 (reset on November 1 before Dev `enforce`)". The agent makes no
+request to `/cost-guard/reset`. The 11:00 run sees the same fingerprint and
+the same `runId` and diagnoses nothing.
 
 ## Example
 
@@ -303,6 +469,9 @@ port is where pi-durable (through `PiHarness`) earns its place.
 
 ## Budget
 
+Since Amendment (1) the limits below apply per diagnosis, not per run; a
+healthy run makes no model call. Daily and monthly totals: A4.
+
 | Limit | Value | Why |
 | --- | --- | --- |
 | Model calls per run | 12 (`max_turns`) | five tools, one call each per environment, plus the report |
@@ -321,17 +490,22 @@ Generated from `apps/sre-agent/test/scenarios.cases.ts` by
 then).
 
 <!-- test-plan:start apps/sre-agent/test/scenarios.cases.ts [pending] -->
-| id | scenario | recorded | rootCause | runbook | issue |
-| --- | --- | --- | --- | --- | --- |
-| SRE20 | r2-class-a-spike | Dev /health lastRun.r2.classA 8190, copiedObjectCount 35, reusedObjectCount 8150 (hourly run, 2026-10-13) | conditional puts sent for objects that already exist (Class A per reused object) | cloudflare-data-publisher.md#r2-operations-and-cost | yes |
-| SRE20 | dev-silent-stall | Dev /health lastRun.completedAt 2026-09-30T01:07Z, now 2026-10-02T02:00Z, running false, followUp null | stall: newest publication 49 h old, past the 27 h boundary (Specs 010, 011, 018) | cloudflare-data-publisher.md#health-and-manual-run | yes |
-| SRE20 | tag-ci-failure-b27 | gh run 39231615488 on v0.3.0: conclusion failure, job "Unit tests" failed, B27 stale-claim test; Prod lastRun older than the tag | non-hermetic test read the newest local v* tag, so the tag build failed and Prod deploy was skipped | none (reports a runbook gap) | yes |
-| SRE20 | digest-en-zh-cache-pollution | Dev /health digest.lastRun ok true; en digest object holds Han-script card sentences | the en sentence cache was seeded from zh-Hant objects with the same inputHash | cloudflare-data-publisher.md#reading-health-digest | yes |
-| SRE21 | healthy-day (control) | Dev /health 2026-10-20T09:33Z: lastRun ok, classA 794 = copiedObjectCount 791 + 3; Prod ok, classA 381 = 378 + 3; main CI success | none | none | no |
+| id | scenario | trigger | recorded | rootCause | runbook | diagnosis |
+| --- | --- | --- | --- | --- | --- | --- |
+| SRE20 | r2-class-a-spike | dev publication: Class A above baseline (Spec 028) | Dev /health lastRun.r2.classA 8190, copiedObjectCount 35, reusedObjectCount 8150 (hourly run, 2026-10-13) | conditional puts sent for objects that already exist (Class A per reused object) | cloudflare-data-publisher.md#r2-operations-and-cost | yes |
+| SRE20 | dev-silent-stall | dev publication: missed schedule (Spec 028) | Dev /health lastRun.completedAt 2026-09-30T01:07Z, now 2026-10-02T02:00Z, running false, followUp null | stall: newest publication 49 h old, past the 27 h boundary (Specs 010, 011, 018) | cloudflare-data-publisher.md#health-and-manual-run | yes |
+| SRE20 | tag-ci-failure-b27 | ci.release (harness rule) | gh run 39231615488 on v0.3.0: conclusion failure, job "Unit tests" failed, B27 stale-claim test; Prod lastRun older than the tag | non-hermetic test read the newest local v* tag, so the tag build failed and Prod deploy was skipped | none (reports a runbook gap) | yes |
+| SRE20 | dev-cost-guard-trip-2026-10-21 | dev costGuard tripped (Spec 026, monitor) | Dev /health 2026-10-22: costGuard.breaker r2ClassA 2064777 vs threshold 800000, trippedAt 2026-10-21T22:07:14.115Z; lastRun classA 1092 = copiedObjectCount 1089 + 3 | month-to-date Class A is the 2026-10-02..13 incident; today's run holds the invariant; nothing paused under monitor (ownerAction: Spec 026 open Decision 1, no reset by the agent) | cloudflare-data-publisher.md#r2-operations-and-cost | yes |
+| SRE21 | healthy-day (control) | none | Dev /health 2026-10-20T09:33Z: lastRun ok, classA 794 = copiedObjectCount 791 + 3; Prod ok, classA 381 = 378 + 3; main CI success | none | none | no |
+| SRE26 | digest-en-zh-cache-pollution (no rule fires) | none | Dev /health digest.lastRun ok true; en digest object holds Han-script card sentences | not diagnosed: no deterministic rule covers served text (a gap; a content rule is a follow-up spec) | cloudflare-data-publisher.md#reading-health-digest | no |
 <!-- test-plan:end -->
 
 Loop mechanics (SRE1–SRE19) are unit tests with the `faux` provider; each
 names its ID.
+
+Rows with trigger `none` (SRE21, SRE26) pass when the run makes no model
+call. Since Amendment (1) the criteria below apply to the diagnosis record
+(A3), with `explained` in place of `unhealthy`.
 
 Success criteria per scenario (SRE20): the verdict is `unhealthy`; one
 finding whose `title` or `evidence` names the root cause's key field (for
@@ -357,7 +531,6 @@ is `[pending]` until the slice that implements it removes its tag.
 - SRE8: [pending] given `--live`, approval mode and an approval of `y`, the client creates one issue in `unknowntpo/oss-knowledge-base` with label `sre-agent`, title prefix `[sre-agent] `, and `fingerprint: <fp>` in the body; given `n`, no answer in 10 minutes, or EOF, it creates nothing → harness test.
 - SRE9: [pending] given an open `sre-agent` issue with the same fingerprint, a live run adds one comment and opens no issue; a second run the same UTC day adds nothing → harness test.
 - SRE10: [pending] given 5 findings, a live run opens at most 3 issues and lists the rest in the run log → harness test.
-- SRE11: [pending] `get_health` on the Example's Dev response returns `ageHours`, `stalled: false`, `r2InvariantOk: true`; on `classA` 8,190 with `copiedObjectCount` 35 it returns `r2InvariantOk: false`; at 27 h 0 min it is not stalled and at 27 h 0 min 1 s it is → tool test with case rows.
 - SRE12: [pending] `get_ci_status` maps a recorded GitHub runs response (run 39231615488 shape) to `{conclusion: "failure", failedJobs: ["Unit tests"]}` and issues only GET requests → tool test.
 - SRE13: [pending] `search_runbook("Class A")` over the committed runbooks returns `cloudflare-data-publisher.md#r2-operations-and-cost` first; a path argument outside `docs/runbooks/` is denied → tool test.
 
@@ -381,6 +554,24 @@ is `[pending]` until the slice that implements it removes its tag.
 - SRE24: [deploy] after 7 consecutive days of launchd dry runs on the owner's MacBook, `osskb-sre runs --last 7` shows 7 lines with `stopReason`, `verdict` and `costUsd`, and the ledger total equals the sum of `costUsd`.
 - SRE25: [deploy] after the owner enables live mode, the first unhealthy day produces one issue with label `sre-agent` whose evidence matches `/health` at that time, and an unchanged problem the next day adds one comment, not a second issue.
 
+SRE11 (derived `stalled` and `r2InvariantOk` in `get_health`) is withdrawn
+by Amendment (1): thresholds are Spec 028's and Spec 026's, and SRE34
+replaces it. SRE7–SRE10 and SRE25 apply only if Decision 9 picks GitHub
+issues.
+
+### Amendment (1): trigger, inputs, output
+- SRE26: [pending] given Dev and Prod `/health` with every `signals.rules[]` entry `ok`, `warn` or `unknown`, `costGuard.status` not `tripped` and CI green, the run makes 2 `/health` GETs, 0 model calls and 0 SQL queries and logs `{verdict: "healthy", firings: 0, modelCalls: 0}`; given one entry `firing` (positive control) it starts exactly one diagnosis for that entry's `env`, `job`, `ruleId` and `runId` → trigger test.
+- SRE27: [pending] given `costGuard.status: "tripped"` (Example (1)) the run starts one diagnosis with fingerprint `dev:cost-guard:tripped:2026-10-21T22:07:14.115Z`; given the newest `v*` tag's CI run `failure` it starts one `ci.release` diagnosis; given `/health` without `signals` it records `signals: "unavailable"` and starts no trend-rule diagnosis → trigger test.
+- SRE28: [pending] given a fingerprint already in `diagnoses.jsonl` with the same `runId`, no diagnosis starts; with a new `runId` one starts at most once per UTC day; a rule that goes `ok` then `firing` again gets a new fingerprint → dedupe test.
+- SRE29: [pending] given 5 firings in one run, exactly 3 diagnoses run and the other 2 appear in the run log with `notDiagnosed: "daily-cap"`; a second run the same UTC day starts none → cap test.
+- SRE30: [pending] given a firing for job J, the bundle passed before the first model call holds exactly the `/health` fields of A2's row for J, the firing entry and `costGuard`, inside the untrusted delimiter; for each of the 9 rows of A2 → bundle test with case rows.
+- SRE31: [pending] `query_signals` sends only the three templates of A2, as one `SELECT` with bound parameters, a `timestamp` bound ≤ 8 days (or ± 12 h for `Q-window`) and `LIMIT` ≤ 50; a `job` outside A2's enum, a `runId` not matching `^[a-z]+-[0-9TZ-]+$`, or an `env` other than dev/prod is denied before any request; the tool schema has no SQL-text argument → query test.
+- SRE32: [pending] with `get_run_logs` off it is absent from the schemas sent to the model; with it on, the request filters on the firing's `runId`, spans `since − 1 h` to now, has `limit` ≤ 200 and (telemetry API) `dry: true` → logs test.
+- SRE33: [pending] given a digest `missed schedule` firing while `costGuard.breaker.tripped` is true, the recorded diagnosis has verdict `explained`, cites `costGuard.breaker` in `evidence`, and its `ownerAction` is text; across the run no request goes to `/cost-guard/*`, `/run` or any `/*/run` path and no tool can send one → boundary test.
+- SRE34: [pending] `get_health` returns the `/health` JSON as served (including `signals`, `costGuard`, `identityLinks`, `kipPages`, `retention` when present) with no derived threshold fields → tool test.
+- SRE35: [measure] over 7 days of dry runs on the owner's MacBook, healthy runs make 0 model calls; per diagnosis ≤ 12 model calls, ≤ 60,000 tokens, ≤ 3 SQL queries, ≤ 1 log query; per day ≤ 3 diagnoses and ≤ $0.20 ledger; R2 Class B per `/health` read recorded; measured by `bun run --cwd apps/sre-agent measure:run` and `osskb-sre runs --last 7`.
+- SRE36: [deploy] on Dev after Spec 028 is enabled, the first `firing` rule produces one record in `diagnoses.jsonl` whose `runId` equals the rule entry's `runId`, whose evidence holds the WAE row with `index1` = that `runId` (`Q-run`), and `osskb-sre diagnoses --last 1` prints it; the HTTP SQL API token scope used is recorded in the feature map.
+
 ## Non-goals (v1)
 
 - Any write to Cloudflare: no `POST /run`, `/digest/run`, `/review-queue/run`,
@@ -391,6 +582,10 @@ is `[pending]` until the slice that implements it removes its tag.
   detected from recorded text in the eval; a `get_digest_sample` tool is a
   follow-up if the eval shows the model cannot find it otherwise.
 - Push notifications (owner's rule).
+- Detecting anything with the model, or recomputing a Spec 026 or 028
+  threshold (Amendment (1)); deciding, starting or lifting a pause, or
+  resetting the cost-guard breaker (the guard decides).
+- Traces, until Spec 028 D2 approves sampling and an amendment adds a tool.
 - Durable Object hosting (designed for in Behavior 14–15, built later).
 - Workers AI and AI Gateway as model backends (later option).
 - An LLM judge for evals.
@@ -436,10 +631,50 @@ Recommendations first; each is reversible by a config change unless noted.
    (a workspace package, not deployed; Runs on: none), so its evals reuse the
    repository's sanitizer and runbooks.
 
+Amendment (1) decisions (open, 2026-10-22). Decision 2 is replaced by
+Decision 10; Decision 3 applies only if Decision 9 picks issues; Decision 6
+is refined by Decision 13.
+
+9. **Where the diagnosis shows.** (A) **Recommended:** local only,
+   `~/.osskb-sre/diagnoses.jsonl` and `osskb-sre diagnoses`; $0, no write
+   token anywhere; the firing itself is already visible in the UI and
+   `/health`. (B) a GitHub issue per new fingerprint (Behavior 3,
+   SRE7–SRE10): readable from a phone, $0, but needs an Issues write token
+   and GitHub may notify. (C) in the product (a `/health` or page field):
+   rejected, it needs a write to Cloudflare. Revisit B after two weeks of A.
+10. **Schedule.** **Recommended:** twice a day, 00:30 and 11:00 UTC (08:30
+    and 19:00 Asia/Taipei), so firings of the 02:17, 03:43 and 10:17 jobs
+    wait ≤ 8 h instead of ≤ 21 h; cost: 2 more `/health` reads a day (≤ 20
+    Class B), model calls only on a new firing. Alternative: once at 00:30
+    UTC.
+11. **What triggers.** **Recommended:** `firing` only ($0 on `warn`
+    days). Alternative: also a `warn` held on two consecutive runs (Spec
+    028 D5); more diagnoses, still under the daily cap.
+12. **Analytics SQL access from the MacBook.** The Workers binding needs no
+    token but runs only inside a Worker; the agent needs the SQL API's HTTP
+    endpoint and a token whose minimal read scope is **unverified** (likely
+    Account Analytics: Read). **Recommended:** a separate read-only token in
+    the Keychain once the scope is verified on Dev (SRE36); $0. Alternative:
+    `/health` only, no history (weaker diagnoses of trend rules).
+13. **Logs by `runId`.** **Recommended:** read `logs.workersLogs` through
+    the same SQL API and token if Spec 028 OB21 shows the `runId` column is
+    readable; otherwise keep `get_run_logs` off (the telemetry API needs the
+    Write-scoped token, Decision 6). $0 either way.
+14. **CI rule in the harness.** **Recommended:** keep `ci.release` (newest
+    `v*` tag or `main` run `failure`) as a deterministic harness rule; it
+    covers the `v0.3.0` incident that no Worker rule can see; $0, GitHub
+    Actions: Read only. Alternative: drop it (GitHub's UI already shows red).
+15. **Caps.** **Recommended:** ≤ 3 diagnoses a day, ≤ 12 model calls each,
+    $0.20 a day ledger, $2 a month OpenRouter key limit: worst case $0.90 a
+    month on OpenRouter (a separate bill), $0 of Cloudflare overage.
+    Alternative: 1 diagnosis a day (cheaper, a second firing waits a day).
+
 ## Rollout
 
 1. **Slice 1 (PR):** core loop, tools against recorded fixtures, `faux`
-   tests SRE1–SRE19; no network in tests; no schedule.
+   tests SRE1–SRE19 and the Amendment (1) items SRE26–SRE34; no network in
+   tests; no schedule. Until Spec 028 is enabled on Dev only the
+   `costGuard` and `ci.release` triggers can fire; SRE36 waits for it.
 2. **Slice 2 (PR):** scenario fixtures and SRE20–SRE22 with the chosen
    model; cost per run reported.
 3. **Local dry run (owner):** Keychain items, launchd plist, 7 days of dry

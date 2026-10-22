@@ -4,7 +4,7 @@
  * `X-Robots-Tag: noindex` (W24). A profile is cached 5 minutes by clients; the review store changes
  * once a day, and the reader keeps parsed months for 10 minutes per isolate (W29).
  */
-import { PEOPLE_PROJECTS, readPersonProfile, recordedSources, type PeopleBucket } from "@oss-knowledge-base/reference-pipeline/people";
+import { PEOPLE_PROJECTS, peopleKipsEnabled, readPersonProfile, recordedSources, type PeopleBucket } from "@oss-knowledge-base/reference-pipeline/people";
 
 import { jsonResponse } from "./r2-projection";
 
@@ -12,6 +12,11 @@ export interface PeopleEnv {
   readonly OSS_KB_BUCKET: R2Bucket;
   /** "true" serves profiles; anything else, or unset (Prod), answers 404 and no author links. */
   readonly PEOPLE_PROFILES?: string;
+  /**
+   * Spec 019 amendment (7): "true" adds the KIPs section, read from the identity-link and
+   * `kip-pages` tables (W74). Unset everywhere until its enable PR; unset reads neither table.
+   */
+  readonly PEOPLE_KIPS?: string;
 }
 
 export const PEOPLE_CACHE_CONTROL = "public, max-age=300, stale-while-revalidate=600";
@@ -55,6 +60,7 @@ export async function personProfileResponse(env: PeopleEnv, project: unknown, id
       projectKey: typeof projectKey === "string" ? projectKey : undefined,
       personId,
       nowMs,
+      kips: peopleKipsEnabled(env.PEOPLE_KIPS),
     });
     return peopleResponse(result.body, result.status);
   } catch (error) {

@@ -22,6 +22,7 @@ import { nominalStart, type ChartInput, type ChartSeries } from "../profile-char
 import GithubAvatar from "./GithubAvatar.vue";
 import PersonActivityChart from "./PersonActivityChart.vue";
 import PersonAreas from "./PersonAreas.vue";
+import PersonKips from "./PersonKips.vue";
 
 const props = withDefaults(defineProps<{
   readonly profile: PersonProfileV1;
@@ -224,6 +225,9 @@ function selectPeriod(next: ProfilePeriod) {
         </div>
       </dl>
     </section>
+
+    <!-- Amendment (7): after the activity tiles, only when the response carries it (PEOPLE_KIPS). -->
+    <PersonKips v-if="profile.kips" :kips="profile.kips" :project-key="profile.project.key" />
 
     <div class="person-lower">
       <section class="person-section" data-section="areas">

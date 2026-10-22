@@ -1,0 +1,430 @@
+{
+ "recorded": "2026-10-21, anonymous GET https://issues.apache.org/jira/rest/api/2/search, jql=key in (13 keys incl. KAFKA-99999999), fields=assignee,reporter, validateQuery=warn, maxResults=100",
+ "response": {
+  "expand": "schema,names",
+  "startAt": 0,
+  "maxResults": 100,
+  "total": 12,
+  "issues": [
+   {
+    "expand": "operations,versionedRepresentations,editmeta,changelog,renderedFields",
+    "id": "13663813",
+    "self": "https://issues.apache.org/jira/rest/api/2/issue/13663813",
+    "key": "KAFKA-20995",
+    "fields": {
+     "reporter": {
+      "self": "https://issues.apache.org/jira/rest/api/2/user?username=unknowntpo",
+      "name": "unknowntpo",
+      "key": "JIRAUSER306218",
+      "avatarUrls": {
+       "48x48": "https://issues.apache.org/jira/secure/useravatar?ownerId=JIRAUSER306218&avatarId=54970",
+       "24x24": "https://issues.apache.org/jira/secure/useravatar?size=small&ownerId=JIRAUSER306218&avatarId=54970",
+       "16x16": "https://issues.apache.org/jira/secure/useravatar?size=xsmall&ownerId=JIRAUSER306218&avatarId=54970",
+       "32x32": "https://issues.apache.org/jira/secure/useravatar?size=medium&ownerId=JIRAUSER306218&avatarId=54970"
+      },
+      "displayName": "Eric Chang",
+      "active": true,
+      "timeZone": "Asia/Taipei"
+     },
+     "assignee": {
+      "self": "https://issues.apache.org/jira/rest/api/2/user?username=unknowntpo",
+      "name": "unknowntpo",
+      "key": "JIRAUSER306218",
+      "avatarUrls": {
+       "48x48": "https://issues.apache.org/jira/secure/useravatar?ownerId=JIRAUSER306218&avatarId=54970",
+       "24x24": "https://issues.apache.org/jira/secure/useravatar?size=small&ownerId=JIRAUSER306218&avatarId=54970",
+       "16x16": "https://issues.apache.org/jira/secure/useravatar?size=xsmall&ownerId=JIRAUSER306218&avatarId=54970",
+       "32x32": "https://issues.apache.org/jira/secure/useravatar?size=medium&ownerId=JIRAUSER306218&avatarId=54970"
+      },
+      "displayName": "Eric Chang",
+      "active": true,
+      "timeZone": "Asia/Taipei"
+     }
+    }
+   },
+   {
+    "expand": "operations,versionedRepresentations,editmeta,changelog,renderedFields",
+    "id": "13660394",
+    "self": "https://issues.apache.org/jira/rest/api/2/issue/13660394",
+    "key": "KAFKA-20888",
+    "fields": {
+     "reporter": {
+      "self": "https://issues.apache.org/jira/rest/api/2/user?username=chickenchickenlove",
+      "name": "chickenchickenlove",
+      "key": "JIRAUSER303328",
+      "avatarUrls": {
+       "48x48": "https://issues.apache.org/jira/secure/useravatar?avatarId=10452",
+       "24x24": "https://issues.apache.org/jira/secure/useravatar?size=small&avatarId=10452",
+       "16x16": "https://issues.apache.org/jira/secure/useravatar?size=xsmall&avatarId=10452",
+       "32x32": "https://issues.apache.org/jira/secure/useravatar?size=medium&avatarId=10452"
+      },
+      "displayName": "sanghyeok An",
+      "active": true,
+      "timeZone": "Etc/UTC"
+     },
+     "assignee": {
+      "self": "https://issues.apache.org/jira/rest/api/2/user?username=chickenchickenlove",
+      "name": "chickenchickenlove",
+      "key": "JIRAUSER303328",
+      "avatarUrls": {
+       "48x48": "https://issues.apache.org/jira/secure/useravatar?avatarId=10452",
+       "24x24": "https://issues.apache.org/jira/secure/useravatar?size=small&avatarId=10452",
+       "16x16": "https://issues.apache.org/jira/secure/useravatar?size=xsmall&avatarId=10452",
+       "32x32": "https://issues.apache.org/jira/secure/useravatar?size=medium&avatarId=10452"
+      },
+      "displayName": "sanghyeok An",
+      "active": true,
+      "timeZone": "Etc/UTC"
+     }
+    }
+   },
+   {
+    "expand": "operations,versionedRepresentations,editmeta,changelog,renderedFields",
+    "id": "13660265",
+    "self": "https://issues.apache.org/jira/rest/api/2/issue/13660265",
+    "key": "KAFKA-20883",
+    "fields": {
+     "reporter": {
+      "self": "https://issues.apache.org/jira/rest/api/2/user?username=chickenchickenlove",
+      "name": "chickenchickenlove",
+      "key": "JIRAUSER303328",
+      "avatarUrls": {
+       "48x48": "https://issues.apache.org/jira/secure/useravatar?avatarId=10452",
+       "24x24": "https://issues.apache.org/jira/secure/useravatar?size=small&avatarId=10452",
+       "16x16": "https://issues.apache.org/jira/secure/useravatar?size=xsmall&avatarId=10452",
+       "32x32": "https://issues.apache.org/jira/secure/useravatar?size=medium&avatarId=10452"
+      },
+      "displayName": "sanghyeok An",
+      "active": true,
+      "timeZone": "Etc/UTC"
+     },
+     "assignee": {
+      "self": "https://issues.apache.org/jira/rest/api/2/user?username=chickenchickenlove",
+      "name": "chickenchickenlove",
+      "key": "JIRAUSER303328",
+      "avatarUrls": {
+       "48x48": "https://issues.apache.org/jira/secure/useravatar?avatarId=10452",
+       "24x24": "https://issues.apache.org/jira/secure/useravatar?size=small&avatarId=10452",
+       "16x16": "https://issues.apache.org/jira/secure/useravatar?size=xsmall&avatarId=10452",
+       "32x32": "https://issues.apache.org/jira/secure/useravatar?size=medium&avatarId=10452"
+      },
+      "displayName": "sanghyeok An",
+      "active": true,
+      "timeZone": "Etc/UTC"
+     }
+    }
+   },
+   {
+    "expand": "operations,versionedRepresentations,editmeta,changelog,renderedFields",
+    "id": "13655096",
+    "self": "https://issues.apache.org/jira/rest/api/2/issue/13655096",
+    "key": "KAFKA-20715",
+    "fields": {
+     "reporter": {
+      "self": "https://issues.apache.org/jira/rest/api/2/user?username=omnia_h_ibrahim",
+      "name": "omnia_h_ibrahim",
+      "key": "omnia_h_ibrahim",
+      "avatarUrls": {
+       "48x48": "https://issues.apache.org/jira/secure/useravatar?ownerId=omnia_h_ibrahim&avatarId=52281",
+       "24x24": "https://issues.apache.org/jira/secure/useravatar?size=small&ownerId=omnia_h_ibrahim&avatarId=52281",
+       "16x16": "https://issues.apache.org/jira/secure/useravatar?size=xsmall&ownerId=omnia_h_ibrahim&avatarId=52281",
+       "32x32": "https://issues.apache.org/jira/secure/useravatar?size=medium&ownerId=omnia_h_ibrahim&avatarId=52281"
+      },
+      "displayName": "Omnia Ibrahim",
+      "active": true,
+      "timeZone": "Etc/UTC"
+     },
+     "assignee": null
+    }
+   },
+   {
+    "expand": "operations,versionedRepresentations,editmeta,changelog,renderedFields",
+    "id": "13628406",
+    "self": "https://issues.apache.org/jira/rest/api/2/issue/13628406",
+    "key": "KAFKA-19688",
+    "fields": {
+     "reporter": {
+      "self": "https://issues.apache.org/jira/rest/api/2/user?username=mjsax",
+      "name": "mjsax",
+      "key": "mjsax",
+      "avatarUrls": {
+       "48x48": "https://issues.apache.org/jira/secure/useravatar?ownerId=mjsax&avatarId=29314",
+       "24x24": "https://issues.apache.org/jira/secure/useravatar?size=small&ownerId=mjsax&avatarId=29314",
+       "16x16": "https://issues.apache.org/jira/secure/useravatar?size=xsmall&ownerId=mjsax&avatarId=29314",
+       "32x32": "https://issues.apache.org/jira/secure/useravatar?size=medium&ownerId=mjsax&avatarId=29314"
+      },
+      "displayName": "Matthias J. Sax",
+      "active": true,
+      "timeZone": "America/Los_Angeles"
+     },
+     "assignee": {
+      "self": "https://issues.apache.org/jira/rest/api/2/user?username=frankvicky",
+      "name": "frankvicky",
+      "key": "JIRAUSER305181",
+      "avatarUrls": {
+       "48x48": "https://issues.apache.org/jira/secure/useravatar?ownerId=JIRAUSER305181&avatarId=53452",
+       "24x24": "https://issues.apache.org/jira/secure/useravatar?size=small&ownerId=JIRAUSER305181&avatarId=53452",
+       "16x16": "https://issues.apache.org/jira/secure/useravatar?size=xsmall&ownerId=JIRAUSER305181&avatarId=53452",
+       "32x32": "https://issues.apache.org/jira/secure/useravatar?size=medium&ownerId=JIRAUSER305181&avatarId=53452"
+      },
+      "displayName": "TengYao Chi",
+      "active": true,
+      "timeZone": "Europe/London"
+     }
+    }
+   },
+   {
+    "expand": "operations,versionedRepresentations,editmeta,changelog,renderedFields",
+    "id": "13615506",
+    "self": "https://issues.apache.org/jira/rest/api/2/issue/13615506",
+    "key": "KAFKA-19161",
+    "fields": {
+     "reporter": {
+      "self": "https://issues.apache.org/jira/rest/api/2/user?username=ivanyu",
+      "name": "ivanyu",
+      "key": "ivanyu",
+      "avatarUrls": {
+       "48x48": "https://issues.apache.org/jira/secure/useravatar?ownerId=ivanyu&avatarId=39771",
+       "24x24": "https://issues.apache.org/jira/secure/useravatar?size=small&ownerId=ivanyu&avatarId=39771",
+       "16x16": "https://issues.apache.org/jira/secure/useravatar?size=xsmall&ownerId=ivanyu&avatarId=39771",
+       "32x32": "https://issues.apache.org/jira/secure/useravatar?size=medium&ownerId=ivanyu&avatarId=39771"
+      },
+      "displayName": "Ivan Yurchenko",
+      "active": true,
+      "timeZone": "Europe/Helsinki"
+     },
+     "assignee": {
+      "self": "https://issues.apache.org/jira/rest/api/2/user?username=ivanyu",
+      "name": "ivanyu",
+      "key": "ivanyu",
+      "avatarUrls": {
+       "48x48": "https://issues.apache.org/jira/secure/useravatar?ownerId=ivanyu&avatarId=39771",
+       "24x24": "https://issues.apache.org/jira/secure/useravatar?size=small&ownerId=ivanyu&avatarId=39771",
+       "16x16": "https://issues.apache.org/jira/secure/useravatar?size=xsmall&ownerId=ivanyu&avatarId=39771",
+       "32x32": "https://issues.apache.org/jira/secure/useravatar?size=medium&ownerId=ivanyu&avatarId=39771"
+      },
+      "displayName": "Ivan Yurchenko",
+      "active": true,
+      "timeZone": "Europe/Helsinki"
+     }
+    }
+   },
+   {
+    "expand": "operations,versionedRepresentations,editmeta,changelog,renderedFields",
+    "id": "13605742",
+    "self": "https://issues.apache.org/jira/rest/api/2/issue/13605742",
+    "key": "KAFKA-18608",
+    "fields": {
+     "reporter": {
+      "self": "https://issues.apache.org/jira/rest/api/2/user?username=buznyusz",
+      "name": "buznyusz",
+      "key": "JIRAUSER308322",
+      "avatarUrls": {
+       "48x48": "https://issues.apache.org/jira/secure/useravatar?avatarId=10452",
+       "24x24": "https://issues.apache.org/jira/secure/useravatar?size=small&avatarId=10452",
+       "16x16": "https://issues.apache.org/jira/secure/useravatar?size=xsmall&avatarId=10452",
+       "32x32": "https://issues.apache.org/jira/secure/useravatar?size=medium&avatarId=10452"
+      },
+      "displayName": "Szalay Levente",
+      "active": true,
+      "timeZone": "Etc/UTC"
+     },
+     "assignee": {
+      "self": "https://issues.apache.org/jira/rest/api/2/user?username=prabhashkr",
+      "name": "prabhashkr",
+      "key": "JIRAUSER311864",
+      "avatarUrls": {
+       "48x48": "https://issues.apache.org/jira/secure/useravatar?ownerId=JIRAUSER311864&avatarId=54757",
+       "24x24": "https://issues.apache.org/jira/secure/useravatar?size=small&ownerId=JIRAUSER311864&avatarId=54757",
+       "16x16": "https://issues.apache.org/jira/secure/useravatar?size=xsmall&ownerId=JIRAUSER311864&avatarId=54757",
+       "32x32": "https://issues.apache.org/jira/secure/useravatar?size=medium&ownerId=JIRAUSER311864&avatarId=54757"
+      },
+      "displayName": "Prabhash Kumar",
+      "active": true,
+      "timeZone": "Etc/UTC"
+     }
+    }
+   },
+   {
+    "expand": "operations,versionedRepresentations,editmeta,changelog,renderedFields",
+    "id": "13598306",
+    "self": "https://issues.apache.org/jira/rest/api/2/issue/13598306",
+    "key": "KAFKA-17980",
+    "fields": {
+     "reporter": {
+      "self": "https://issues.apache.org/jira/rest/api/2/user?username=ckamal",
+      "name": "ckamal",
+      "key": "ckamal",
+      "avatarUrls": {
+       "48x48": "https://issues.apache.org/jira/secure/useravatar?avatarId=10452",
+       "24x24": "https://issues.apache.org/jira/secure/useravatar?size=small&avatarId=10452",
+       "16x16": "https://issues.apache.org/jira/secure/useravatar?size=xsmall&avatarId=10452",
+       "32x32": "https://issues.apache.org/jira/secure/useravatar?size=medium&avatarId=10452"
+      },
+      "displayName": "Kamal Chandraprakash",
+      "active": true,
+      "timeZone": "Asia/Kolkata"
+     },
+     "assignee": {
+      "self": "https://issues.apache.org/jira/rest/api/2/user?username=ckamal",
+      "name": "ckamal",
+      "key": "ckamal",
+      "avatarUrls": {
+       "48x48": "https://issues.apache.org/jira/secure/useravatar?avatarId=10452",
+       "24x24": "https://issues.apache.org/jira/secure/useravatar?size=small&avatarId=10452",
+       "16x16": "https://issues.apache.org/jira/secure/useravatar?size=xsmall&avatarId=10452",
+       "32x32": "https://issues.apache.org/jira/secure/useravatar?size=medium&avatarId=10452"
+      },
+      "displayName": "Kamal Chandraprakash",
+      "active": true,
+      "timeZone": "Asia/Kolkata"
+     }
+    }
+   },
+   {
+    "expand": "operations,versionedRepresentations,editmeta,changelog,renderedFields",
+    "id": "13597539",
+    "self": "https://issues.apache.org/jira/rest/api/2/issue/13597539",
+    "key": "KAFKA-17928",
+    "fields": {
+     "reporter": {
+      "self": "https://issues.apache.org/jira/rest/api/2/user?username=ckamal",
+      "name": "ckamal",
+      "key": "ckamal",
+      "avatarUrls": {
+       "48x48": "https://issues.apache.org/jira/secure/useravatar?avatarId=10452",
+       "24x24": "https://issues.apache.org/jira/secure/useravatar?size=small&avatarId=10452",
+       "16x16": "https://issues.apache.org/jira/secure/useravatar?size=xsmall&avatarId=10452",
+       "32x32": "https://issues.apache.org/jira/secure/useravatar?size=medium&avatarId=10452"
+      },
+      "displayName": "Kamal Chandraprakash",
+      "active": true,
+      "timeZone": "Asia/Kolkata"
+     },
+     "assignee": {
+      "self": "https://issues.apache.org/jira/rest/api/2/user?username=peterxcli",
+      "name": "peterxcli",
+      "key": "JIRAUSER306303",
+      "avatarUrls": {
+       "48x48": "https://issues.apache.org/jira/secure/useravatar?ownerId=JIRAUSER306303&avatarId=54264",
+       "24x24": "https://issues.apache.org/jira/secure/useravatar?size=small&ownerId=JIRAUSER306303&avatarId=54264",
+       "16x16": "https://issues.apache.org/jira/secure/useravatar?size=xsmall&ownerId=JIRAUSER306303&avatarId=54264",
+       "32x32": "https://issues.apache.org/jira/secure/useravatar?size=medium&ownerId=JIRAUSER306303&avatarId=54264"
+      },
+      "displayName": "Chu Cheng Li",
+      "active": true,
+      "timeZone": "Europe/London"
+     }
+    }
+   },
+   {
+    "expand": "operations,versionedRepresentations,editmeta,changelog,renderedFields",
+    "id": "13586474",
+    "self": "https://issues.apache.org/jira/rest/api/2/issue/13586474",
+    "key": "KAFKA-17178",
+    "fields": {
+     "reporter": {
+      "self": "https://issues.apache.org/jira/rest/api/2/user?username=mjsax",
+      "name": "mjsax",
+      "key": "mjsax",
+      "avatarUrls": {
+       "48x48": "https://issues.apache.org/jira/secure/useravatar?ownerId=mjsax&avatarId=29314",
+       "24x24": "https://issues.apache.org/jira/secure/useravatar?size=small&ownerId=mjsax&avatarId=29314",
+       "16x16": "https://issues.apache.org/jira/secure/useravatar?size=xsmall&ownerId=mjsax&avatarId=29314",
+       "32x32": "https://issues.apache.org/jira/secure/useravatar?size=medium&ownerId=mjsax&avatarId=29314"
+      },
+      "displayName": "Matthias J. Sax",
+      "active": true,
+      "timeZone": "America/Los_Angeles"
+     },
+     "assignee": {
+      "self": "https://issues.apache.org/jira/rest/api/2/user?username=frankvicky",
+      "name": "frankvicky",
+      "key": "JIRAUSER305181",
+      "avatarUrls": {
+       "48x48": "https://issues.apache.org/jira/secure/useravatar?ownerId=JIRAUSER305181&avatarId=53452",
+       "24x24": "https://issues.apache.org/jira/secure/useravatar?size=small&ownerId=JIRAUSER305181&avatarId=53452",
+       "16x16": "https://issues.apache.org/jira/secure/useravatar?size=xsmall&ownerId=JIRAUSER305181&avatarId=53452",
+       "32x32": "https://issues.apache.org/jira/secure/useravatar?size=medium&ownerId=JIRAUSER305181&avatarId=53452"
+      },
+      "displayName": "TengYao Chi",
+      "active": true,
+      "timeZone": "Europe/London"
+     }
+    }
+   },
+   {
+    "expand": "operations,versionedRepresentations,editmeta,changelog,renderedFields",
+    "id": "13585656",
+    "self": "https://issues.apache.org/jira/rest/api/2/issue/13585656",
+    "key": "KAFKA-17131",
+    "fields": {
+     "reporter": {
+      "self": "https://issues.apache.org/jira/rest/api/2/user?username=mjsax",
+      "name": "mjsax",
+      "key": "mjsax",
+      "avatarUrls": {
+       "48x48": "https://issues.apache.org/jira/secure/useravatar?ownerId=mjsax&avatarId=29314",
+       "24x24": "https://issues.apache.org/jira/secure/useravatar?size=small&ownerId=mjsax&avatarId=29314",
+       "16x16": "https://issues.apache.org/jira/secure/useravatar?size=xsmall&ownerId=mjsax&avatarId=29314",
+       "32x32": "https://issues.apache.org/jira/secure/useravatar?size=medium&ownerId=mjsax&avatarId=29314"
+      },
+      "displayName": "Matthias J. Sax",
+      "active": true,
+      "timeZone": "America/Los_Angeles"
+     },
+     "assignee": {
+      "self": "https://issues.apache.org/jira/rest/api/2/user?username=mjsax",
+      "name": "mjsax",
+      "key": "mjsax",
+      "avatarUrls": {
+       "48x48": "https://issues.apache.org/jira/secure/useravatar?ownerId=mjsax&avatarId=29314",
+       "24x24": "https://issues.apache.org/jira/secure/useravatar?size=small&ownerId=mjsax&avatarId=29314",
+       "16x16": "https://issues.apache.org/jira/secure/useravatar?size=xsmall&ownerId=mjsax&avatarId=29314",
+       "32x32": "https://issues.apache.org/jira/secure/useravatar?size=medium&ownerId=mjsax&avatarId=29314"
+      },
+      "displayName": "Matthias J. Sax",
+      "active": true,
+      "timeZone": "America/Los_Angeles"
+     }
+    }
+   },
+   {
+    "expand": "operations,versionedRepresentations,editmeta,changelog,renderedFields",
+    "id": "13566621",
+    "self": "https://issues.apache.org/jira/rest/api/2/issue/13566621",
+    "key": "KAFKA-16209",
+    "fields": {
+     "reporter": {
+      "self": "https://issues.apache.org/jira/rest/api/2/user?username=showuon",
+      "name": "showuon",
+      "key": "showuon",
+      "avatarUrls": {
+       "48x48": "https://issues.apache.org/jira/secure/useravatar?ownerId=showuon&avatarId=42594",
+       "24x24": "https://issues.apache.org/jira/secure/useravatar?size=small&ownerId=showuon&avatarId=42594",
+       "16x16": "https://issues.apache.org/jira/secure/useravatar?size=xsmall&ownerId=showuon&avatarId=42594",
+       "32x32": "https://issues.apache.org/jira/secure/useravatar?size=medium&ownerId=showuon&avatarId=42594"
+      },
+      "displayName": "Luke Chen",
+      "active": true,
+      "timeZone": "Etc/UTC"
+     },
+     "assignee": {
+      "self": "https://issues.apache.org/jira/rest/api/2/user?username=goyarpit",
+      "name": "goyarpit",
+      "key": "JIRAUSER301926",
+      "avatarUrls": {
+       "48x48": "https://issues.apache.org/jira/secure/useravatar?avatarId=10452",
+       "24x24": "https://issues.apache.org/jira/secure/useravatar?size=small&avatarId=10452",
+       "16x16": "https://issues.apache.org/jira/secure/useravatar?size=xsmall&avatarId=10452",
+       "32x32": "https://issues.apache.org/jira/secure/useravatar?size=medium&avatarId=10452"
+      },
+      "displayName": "Arpit Goyal",
+      "active": true,
+      "timeZone": "Etc/UTC"
+     }
+    }
+   }
+  ]
+ }
+}

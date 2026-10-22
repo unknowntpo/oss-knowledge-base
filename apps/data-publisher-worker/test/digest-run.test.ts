@@ -1471,10 +1471,11 @@ describe("Spec 014 slice 2 named tests", () => {
     for (const [config, publisherCron] of [[dev, "7 22 * * *"], [prod, "37 22 * * *"]] as const) {
       const crons = config.triggers?.crons ?? [];
       const digestCron = config.vars?.DIGEST_CRON;
-      // A cron entry without DIGEST_CRON would start an extra publication; DIGEST_CRON without its entry never fires.
-      for (const cron of crons) expect(cron === publisherCron || cron === digestCron).toBe(true);
-      if (digestCron !== undefined) expect(crons).toContain(digestCron);
-      expect(cronTarget(publisherCron, digestCron)).toBe("publisher");
+      const jobCrons = [config.vars?.IDENTITY_LINKS_CRON, config.vars?.KIP_PAGES_CRON];
+      // A cron entry without its job's variable would start an extra publication; a variable without its entry never fires.
+      for (const cron of crons) expect(cron === publisherCron || cron === digestCron || jobCrons.includes(cron)).toBe(true);
+      for (const cron of [digestCron, ...jobCrons]) if (cron !== undefined) expect(crons).toContain(cron);
+      expect(cronTarget(publisherCron, digestCron, undefined, ...jobCrons)).toBe("publisher");
     }
     expect(dev.ai?.binding).toBe("AI");
     expect(dev.vars).toMatchObject({ DIGEST_ENABLED: "true", DIGEST_MODEL: "workers-ai", DIGEST_GATEWAY_ID: "osskb-digest-dev" });
@@ -1486,7 +1487,7 @@ describe("Spec 014 slice 2 named tests", () => {
   test("D86: Dev has the publisher's cron and the digest's 47 22 * * *, kept apart from the other jobs; Prod has no digest cron", async () => {
     const dev = await deployConfig("development");
     const prod = await deployConfig("production");
-    expect(dev.triggers?.crons).toEqual(["7 22 * * *", "47 22 * * *"]);
+    expect(dev.triggers?.crons).toEqual(["7 22 * * *", "47 22 * * *", "17 2 * * *", "43 3 * * *"]);
     expect(dev.vars?.DIGEST_CRON).toBe("47 22 * * *");
     expect(prod.triggers?.crons).toEqual(["37 22 * * *"]);
     expect(prod.vars?.DIGEST_CRON).toBeUndefined();
