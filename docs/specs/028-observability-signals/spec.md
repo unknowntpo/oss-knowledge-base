@@ -1,6 +1,6 @@
 # Spec 028: Observability signals (metrics first)
 
-Status: Draft (owner intent 2026-10-21: metrics → structured logs → traces; D1 decided 2026-10-21: metrics in Workers Analytics Engine; refreshed 2026-10-22: every scheduled job is a signal source with one common schema (OB22–OB31); spec only, nothing implemented)
+Status: Draft (owner intent 2026-10-21: metrics → structured logs → traces; D1 decided 2026-10-21: metrics in Workers Analytics Engine; refreshed 2026-10-22: every scheduled job is a signal source with one common schema (OB22–OB31); D2–D10 decided by owner 2026-10-22 per the recorded recommendations; spec only, nothing implemented)
 Date: 2026-10-21 (refreshed 2026-10-22)
 Traceability: enforced
 Builds on: Spec 010, 011, 018, 021 (freshness and stalls), Spec 008 and 018 (R2 Class A invariant), Spec 014 (digest), Spec 016 (embedding job), Spec 019 amendment (7) (identity-links and kip-pages jobs), Spec 026 (cost guard and its 2026-10-21 dollar budget), Spec 029 (R2 retention job), Spec 027 (read-only SRE agent, PR #106, not merged)
@@ -204,8 +204,9 @@ path (webhook) under D5, or as an email backup the owner opts into.
      cost-guard job reports its own status.
    - A "did not run" rule in Analytics Engine: deleted; absence has no row
      to query, so `job.missed` is a state rule at read time.
-   - Push alerts, Monitors, Workers Issues automations, traces: owner
-     decisions (D2, D3, D5).
+   - Push alerts, Monitors, Workers Issues automations, traces: decided by
+     owner 2026-10-22 (D2, D3, D5): traces off until the Dev measurement,
+     Issues without automation, no Monitors.
 3. **Simplify.** `metricPoint(job, record)`, `trendRules(job, current,
    history)` and `stateRules(records, trends, now)` are pure functions; a
    job run only writes its point, runs ≤ 2 queries (the publication; 1 for
@@ -515,8 +516,9 @@ Decided (owner, 2026-10-21):
    binding; current-state rules stay on Durable Object state so `/health`
    still judges a stall without WAE.
 
-Still open (refreshed 2026-10-22; each with options, the recommendation and
-its cost; D2–D6 keep their numbers, D7–D10 are new):
+Decided by owner 2026-10-22 ("都照你建議": every recommendation below is
+adopted as written; options and costs kept for the record; D2–D6 keep their
+numbers, D7–D10 are new):
 
 2. **D2 Traces.** (a) off; (b) Dev only, `head_sampling_rate` 1 for 7 days
    after slice 2, to measure span size; (c) `persist: false` with an OTLP
@@ -525,16 +527,19 @@ its cost; D2–D6 keep their numbers, D7–D10 are new):
    slice 2.** Cost: (a) $0; (b) an estimated 0.3–0.6 GB a month, inside the
    50 GB shared logs-and-traces allowance from 2026-12-01, so $0 unless
    measured spans are much larger; (c) an external backend's price.
+   **Decided (owner, 2026-10-22):** (a) traces off now; (b) Dev only at `head_sampling_rate` 1 for 7 days after slice 2, to measure span size.
 3. **D3 Workers Issues.** (a) off; (b) Dev on after slice 2 (errors carry
    `runId`), no automation; (c) Dev and Prod. **Recommend (b).** Cost: $0
    (free, open beta); needs Wrangler ≥ 4.134.0, covered by slice 0. Any
    automation would be a push alert, so none.
+   **Decided (owner, 2026-10-22):** (b) Workers Issues on for Dev after slice 2, no automation.
 4. **D4 Thresholds.** (a) adopt the provisional values (digest freshness
    48 h, rejection spike ≥ 10 and > 3 × median, `job.missed` 24.5 h / 27 h,
    embedding 2 h / 3 h, `job.duration` 2 × median, `job.r2ClassA` 3 × /
    10 × median with floors 1,000 / 5,000) and confirm them after OB20;
    (b) tune each now from history. **Recommend (a).** Cost: possibly a few
    false `warn`s during the Dev week; no money. Changing one later is a PR.
+   **Decided (owner, 2026-10-22):** (a) the provisional thresholds, confirmed after OB20.
 5. **D5 Waking the agent, and Monitors.** (a) a Spec 027 amendment: the
    scheduled agent reads `/health` first and starts the model only when
    `signals.status` is `firing` (or `warn` twice); (b) Cloudflare Monitors
@@ -543,27 +548,32 @@ its cost; D2–D6 keep their numbers, D7–D10 are new):
    schedule, model tokens only on `firing`; (b) Monitors pricing is not
    documented, it is push-shaped, cannot see absence without a rewritten
    query, and the rules would be written twice; (c) $0.
+   **Decided (owner, 2026-10-22):** (a) a Spec 027 amendment: the agent reads `/health` first and starts the model only on `firing` (or `warn` twice), after OB20.
 6. **D6 Joining logs to a run.** (a) an operator query on the HTTP SQL API
    with a token the owner holds; (b) Worker code reads `logs.workersLogs`
    through the binding, if OB21 shows it can. **Recommend (a)**; no Worker
    code reads logs. Cost: (a) $0, manual; (b) query volume and pricing not
    documented.
+   **Decided (owner, 2026-10-22):** (a) logs joined to a run by a manual operator query on the HTTP SQL API; no Worker code reads logs.
 7. **D7 Wrangler upgrade as its own slice.** (a) slice 0: bump 4.125.0 →
    ≥ 4.145.0 alone (OB30); (b) bundle it into slice 1. **Recommend (a).**
    Cost: one more small PR and CI run; it keeps a toolchain regression
    (Miniflare, `wrangler pages dev`) apart from the signal code.
+   **Decided (owner, 2026-10-22):** (a) the Wrangler upgrade to ≥ 4.145.0 is its own slice 0 PR (OB30).
 8. **D8 R2 counting in the digest and the embedding job.** (a) slice 1 wraps
    their bucket in the same counting wrapper as identity-links, so
    `r2Counted` is 1 for six of seven jobs; (b) leave them uncounted
    (`r2Counted` 0, no `job.r2ClassA`). **Recommend (a).** Cost: a small code
    change, 0 extra R2 operations; (b) leaves two jobs blind to a Class A
    regression (the 2026-10-07 spike went unseen for 6 days).
+   **Decided (owner, 2026-10-22):** (a) slice 1 counts R2 in the digest and the embedding job too.
 9. **D9 Signals inside the cost guard.** (a) no new Spec 026 metric: ≤ 1,000
    points and ≤ 2,200 queries a month are ≤ 0.3 % of the included allowance
    and WAE is not billed yet; revisit when Cloudflare starts billing WAE or
    prices the SQL API; (b) add WAE writes and reads to the $5 budget now.
    **Recommend (a).** Cost: (a) $0; (b) a GraphQL dataset and code for a
    number that stays $0.
+   **Decided (owner, 2026-10-22):** (a) no new Spec 026 metric; revisit when Cloudflare bills WAE or prices the SQL API.
 10. **D10 Job stalls in the web UI.** Today the site shows only the
     publication's freshness (Spec 010, 011, 021); other jobs' stalls are in
     `/health` JSON only, short of the owner's rule that stalls are visible in
@@ -576,6 +586,7 @@ its cost; D2–D6 keep their numbers, D7–D10 are new):
     each reads the two `last-run.json` objects (identity-links, kip-pages),
     ≤ 17,000 Class B a month vs 10 million included, so $0; no Analytics
     Engine query (Behavior 18).
+    **Decided (owner, 2026-10-22):** (b) after OB20, the existing UI stall indicator also shows a stalled or failing background job.
 
 ## Rollout
 
