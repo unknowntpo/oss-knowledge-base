@@ -1,6 +1,6 @@
 # Spec 027: Read-only SRE triage agent
 
-Status: Draft (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; [Amendment (1)](#amendment-1-triggered-diagnosis-2026-10-22) 2026-10-22: the agent diagnoses only after a deterministic rule fires; [Amendment (2)](#amendment-2-a-worker-job-on-the-ai-sdk-2026-10-22) 2026-10-22: an `sre-agent` job on the data publisher Worker, AI SDK with Workers AI, invariant playbooks; spec only, nothing implemented)
+Status: Draft (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; [Amendment (1)](#amendment-1-triggered-diagnosis-2026-10-22) 2026-10-22: the agent diagnoses only after a deterministic rule fires; [Amendment (2)](#amendment-2-a-worker-job-on-the-ai-sdk-2026-10-22) 2026-10-22: an `sre-agent` job on the data publisher Worker, AI SDK with Workers AI, invariant playbooks; A2-1–A2-5 decided by owner 2026-10-22; [Dev fault-injection drill](#dev-fault-injection-drill-2026-10-22) added 2026-10-22; spec only, nothing implemented)
 Date: 2026-10-20 (amended 2026-10-22)
 Traceability: enforced
 Builds on: Spec 008 (R2 operations), Spec 010, 011, 018, 021 (freshness and stalls), Spec 014 (digest), Spec 019 amendment (7) (identity-links, kip-pages jobs), Spec 020 (feature map), Spec 026 and its dollar-budget amendment (cost guard), Spec 028 (observability signals, PR #108, not merged), Spec 029 (R2 retention)
@@ -582,25 +582,34 @@ no request to `/run`. A tick of the next day sees the same fingerprint and
 | 14 CI rule in the harness | Resolved: kept, per environment, public API (B27) |
 | 15 Caps | Resolved: ≤ 3 diagnoses, ≤ 12 steps, ≤ 1,500 neurons a day |
 
-Still open (owner):
+Decided by owner 2026-10-22 ("都照你建議": each recommendation below is
+adopted as written):
 
 - **A2-1 Model.** Chosen after the L3 eval (SRE59) from GLM-4.7-Flash,
   Llama 3.3 70B and Qwen3 30B. Recommendation before data: GLM-4.7-Flash
   (documented multi-turn tool calling, 131K context, a worst-case diagnosis
-  fits the cap; Llama's does not).
+  fits the cap; Llama's does not). **Decided (owner, 2026-10-22):** the
+  SRE59 scoreboard chooses the model; GLM-4.7-Flash is the prior until it
+  does.
 - **A2-2 Where the owner labels diagnoses.** Recommended: a small JSON file
   per label in the repository (`docs/specs/027-sre-agent/labels/`), read
   by the KPI command; no new write path on Cloudflare. Alternative: a
   labels object under the job's own prefix written by an authenticated
-  route (a new write surface).
+  route (a new write surface). **Decided (owner, 2026-10-22):** labels are
+  JSON files in `docs/specs/027-sre-agent/labels/`.
 - **A2-3 Schedule times.** Recommended: Dev `30 0 * * *` and `0 11 * * *`
   UTC (after the 22:07–22:49 jobs and after 02:17, 03:43, 10:17), as
   Amendment (1) Decision 10; Prod one tick at `0 1 * * *` when enabled.
+  **Decided (owner, 2026-10-22):** Dev `30 0 * * *` and `0 11 * * *` UTC;
+  Prod `0 1 * * *` when enabled.
 - **A2-4 Prod enablement.** Core: Prod has no `AI` binding today and
   needs Spec 028 slice 1 there. Recommended after two weeks of Dev `live`
-  with a fabrication rate of 0.
+  with a fabrication rate of 0. **Decided (owner, 2026-10-22):** Prod
+  enablement stays a separate owner decision, taken after two weeks of Dev
+  `live` with a fabrication rate of 0.
 - **A2-5 Soft-invariant patrol (v2).** Whether and when; its own
-  amendment with its own cap.
+  amendment with its own cap. **Decided (owner, 2026-10-22):** deferred to
+  v2, in its own amendment with its own cap; not in v1.
 
 ### A2-9. Rollout
 
@@ -608,7 +617,8 @@ Dependencies: live firings from Spec 028 rules need slice 0 (Wrangler ≥
 4.145.0, for the `ANALYTICS_SQL` binding) and slice 1 (WAE points and rules
 in `/health.signals`). Until then only `costGuard` and `ci.release` fire.
 L1, L2, L3 and `packages/sre-agent` do not wait: they run on fixtures.
-Spec 028 decisions D2–D10 stay open and are not decided here.
+Spec 028 decisions D2–D10 were decided by the owner on 2026-10-22 in Spec
+028 (PR #108); this spec does not restate them.
 
 1. **Slice 1 (PR):** `packages/sre-agent` core and L1/L2 tests
    (SRE37–SRE58, SRE60), flag `off` everywhere; measure bundle size with
@@ -618,10 +628,228 @@ Spec 028 decisions D2–D10 stay open and are not decided here.
 3. **Eval (owner, local):** SRE59 scoreboard; Decision A2-1.
 4. **Enable (PR):** Dev `SRE_AGENT=dry` for 7 days (SRE64), then Dev
    `live` (SRE65); Prod per Decision A2-4.
+5. **Drill (owner, Dev):** after Dev `live` and the `job.failures`
+   playbook, the `throw` drill (SRE76), then once the `skip` drill (SRE77);
+   the drill routes and faults ship in the wiring slice (SRE67–SRE75).
 
 Stop and roll back (set `SRE_AGENT=off`): any write outside the prefix, any
 non-GET request, a record quoting a secret, neurons above the cap, or any
 other job's `/health` changing with the flag.
+
+## Dev fault-injection drill (2026-10-22)
+
+Owner intent (2026-10-22): a deterministic experiment where the owner
+injects a known fault in Dev, sees the error in the Cloudflare dashboard,
+and checks that the agent diagnoses it correctly. The eval (SRE59, SRE60)
+replays fixed bundles; the drill is the live end-to-end counterpart: real
+job run, real data point, real Spec 028 rule, real tick, real model.
+
+### Prerequisites
+
+The drill runs only when all of these are live on Dev: Spec 028 slice 1 and
+its Dev enable (WAE points, `job.failures` and `job.missed` in
+`/health.signals`); this amendment's wiring slice and `SRE_AGENT=live`;
+the `job.failures` playbook (`docs/runbooks/sre/job.failures.md`, B35)
+listing cause `upstream-unavailable`, and the `job.missed` playbook (PR
+#123) whose cause 1 ("the cron did not fire, or the handler threw before
+recording a start") has the id `not-started`. Until a playbook lists the
+expected cause, B35 lets only `unknown` pass and the drill would grade a
+correct answer as wrong, so the arm route refuses that kind (B41).
+
+### Design
+
+37. **Target: the `kip-pages` job only.** It has a daily cron and an
+    authenticated manual route that runs while the caller waits
+    (`POST /kip-pages/run`, Spec 019 amendment (7)), it fails closed (a
+    failed run writes only its run record, no page), and it is not the
+    publication, so no drill touches the public release, the feed or
+    search. One target keeps one set of expected answers; other jobs are a
+    later change if a drill there would test something new.
+38. **Switch.** Wrangler var `SRE_DRILL`, `on` only in
+    `wrangler.development.jsonc`; unset everywhere else. Arming is
+    `POST /sre-agent/drill` with the existing `MANUAL_TRIGGER_TOKEN` and a
+    JSON body `{job: "kip-pages", kind: "throw"|"skip"}`. It answers 404
+    while `SRE_DRILL` is not `on` or `PUBLICATION_ENVIRONMENT` is not
+    `development` (an allowlist, so an unknown environment is refused too),
+    401 without the token, 400 for another job or kind, 409 while a drill is
+    armed or fired-but-ungraded, and 201 `{drillId, job, kind, runs,
+    armedAt, expiresAt}`. `drillId` is `<kind>-<armedAt as
+    YYYYMMDDTHHmmZ>`. It writes `internal/sre/v1/dev/drills/<drillId>.json`
+    (the drill record) and the pointer
+    `internal/sre/v1/dev/drills/armed/kip-pages.json`. `DELETE
+    /sre-agent/drill` (same guards) removes the pointer and marks the record
+    `cancelled`. Record states: `armed`, `fired`, `graded`, `expired`,
+    `cancelled`. A wrangler var
+    alone was rejected: it needs a deploy to arm and another to disarm, so
+    it cannot be one-shot.
+39. **One-shot, two guards.** The job reads the pointer at the start of a
+    run only when `SRE_DRILL` is `on` and the environment is
+    `development`; in any other environment it never reads it, so a pointer
+    copied into a Prod bucket does nothing (test-covered). A fault applies
+    to `runs` consecutive runs (`throw` 2, because `job.failures` fires
+    only on 2 consecutive failed runs; `skip` 1), then the job deletes the
+    pointer (deletes are free). A pointer older than 48 h (`expiresAt`) is
+    deleted unapplied and the record set `expired`. The owner arms; the
+    agent has no route to the switch (B34: no request to `/*/run`, and
+    `/sre-agent/drill` is outside the tool list).
+40. **Fault kinds kept.**
+
+    | Kind | What the faulted run does | v1 rule that fires | Time to firing |
+    | --- | --- | --- | --- |
+    | `throw` | The job's upstream transport answers HTTP 503 to the run's first request without sending it, so the job's own code fails the run as for a real outage: `status: "failed"`, `error: "<host> answered 503"`, no page written, its run record and WAE point as usual | `job.failures` (2 consecutive failed runs) | minutes: two manual runs |
+    | `skip` | The run returns before any upstream request, run record or WAE point, as if the cron had not fired | `job.missed` (> 27 h since the last run of any status) | ≈ 27 h after the last real run; no faster variant (below) |
+
+    The fault is injected at the transport, not by throwing an invented
+    error, so the record and the log are exactly what the job writes for a
+    real 503 and the agent's evidence is realistic. Dropped:
+    - `slow` (sleep → `job.duration`): v1 does not diagnose
+      `job.duration` (B28, SRE49 `out-of-scope`), so there is nothing to
+      grade; and a sleep long enough to fire (≥ 80 % of the 14-minute wall
+      budget) holds a manual request open for minutes.
+    - `r2-burst` (extra Class A → `job.r2ClassA`): firing needs ≥ 5,000
+      Class A in one run (Spec 028 D4 floor), which is real cost and real
+      writes, and no playbook cause describes an injected burst, so the
+      only honest expected answer is `unknown`; the 2026-10-13 replay in
+      the eval already covers type 3.
+    - an accelerated `skip`: making `job.missed` fire sooner means writing
+      an older `at` into the run record or changing the threshold, which
+      fakes a rule input. The skip drill takes about a day.
+41. **Expected diagnosis, per kind**, held in code
+    (`drillExpectations`), never in the bundle:
+
+    | Kind | Rule | `cause` | Required evidence (quoted, passing B32) | `runbook` |
+    | --- | --- | --- | --- | --- |
+    | `throw` | `job.failures` | `upstream-unavailable` | `kipPages.lastRun.error`; the `Q-window` result (other jobs ok) | the anchor the `job.failures` playbook lists for that cause |
+    | `skip` | `job.missed` | `not-started` | `kipPages.lastRun.at`; the `Q-history` result (no `kip-pages` point after it) | `cloudflare-data-publisher.md#health-and-manual-run` |
+
+    A check (SRE72) fails CI when an expected cause or anchor is not in the
+    rule's playbook; the arm route refuses a kind whose playbook does not
+    list its cause yet.
+42. **Grader.** At the end of a tick (after step 7 of B26), for a drill
+    record in state `fired`, the harness picks this tick's diagnosis for
+    `kip-pages` whose firing `since` is at or after `armedAt` and grades it
+    with the SRE60 graders: `cause` equal, each required evidence item
+    quoted and passing the evidence check, `runbook` equal, verdict
+    `explained`. It writes `result: "pass"` or `"fail"` with `reasons`
+    (`wrong-cause:<got>`, `missing-evidence:<item>`,
+    `runbook-mismatch:<got>`, `verdict:<verdict>`, `no-diagnosis`) to the
+    drill record and to `/health.sreAgent.lastDrill {drillId, kind, state,
+    result, reasons, runIds}`. A drill with no matching diagnosis 24 h
+    (`throw`) or 48 h (`skip`) after its last faulted run gets
+    `no-diagnosis`. A drill diagnosis counts against the daily caps (B31)
+    like any other; the grader makes no model call (no LLM judge).
+43. **Where it shows.** Every log line the drill code writes starts with
+    `drill:<drillId>` and carries the run's `runId`; the faulted run logs
+    one `console.error` (`throw`) or `console.warn` (`skip`). The WAE
+    point does **not** carry the drill id: a drill column would change
+    Spec 028's common schema, and the agent reads WAE through the B29
+    templates, so a marker there is one template edit away from leaking
+    the answer. The drill record lists the faulted `runIds`; the owner
+    filters WAE by `index1 = <runId>`.
+44. **The agent never learns it is a drill.** The faulted run's record,
+    WAE point and `/health.kipPages` are those of a real failure; the
+    bundle, prompt, tool results and trajectory of any tick contain neither
+    the string `drill` (any case) nor a `drillId` (SRE71);
+    `get_health_section` refuses `sreAgent` and every path under it, so
+    `lastDrill` is out of reach; the agent reads no Workers Logs in v1
+    (B34). If a later version reads logs, it must drop `drill:` lines
+    first. The grader and the owner know; the agent does not.
+45. **No effect outside the drill.** The faulted runs make 0 upstream
+    requests and write no page; the publication, digest, embedding and
+    cost guard are not touched; Prod has no route and ignores any pointer.
+    While `job.failures` fires, Spec 028 D10's UI stall indicator (when
+    built) shows `kip-pages` as failing on the Dev site: expected, and
+    cleared by the clean-up run.
+46. **Manual tick.** `POST /sre-agent/run` (token as other job routes;
+    404 while `SRE_AGENT` is `off`) runs one tick now with the same caps,
+    so a `throw` drill need not wait for 00:30 or 11:00 UTC. The agent
+    never calls it (B34).
+
+### Cost (per drill)
+
+| Item | `throw` | `skip` |
+| --- | --- | --- |
+| R2 Class A | arm 2 (record, pointer) + 2 faulted runs × 2 (run record, drill record) + tick 3 (`state.json`, run record, trajectory) + grade 1 = 10 | arm 2 + skipped run 1 (drill record; the run itself writes nothing) + tick 3 + grade 1 = 7 |
+| R2 Class B | ≤ 10 (pointer reads, `/health` polls) | ≤ 10 |
+| Neurons | one diagnosis: ≈ 160 typical, ≤ 685 worst (GLM-4.7-Flash, A2-6), inside the 1,500 daily cap and the 10,000 free a day | same |
+| Upstream requests | 0 | 0 |
+| WAE | 2 points (kip-pages) + 1 (sre-agent), ≤ 3 SQL queries | 1 + ≤ 3 queries |
+| Money | $0 inside included allowances; if every op were billed, 10 Class A ≈ $0.000045 and 685 neurons ≈ $0.0075 | less |
+
+The cost guard sees ≤ 10 extra Class A in a month against its 800,000
+threshold and 50,000 a day spike threshold (Spec 026), so a drill cannot
+trip it; Dev's breaker was already tripped on 2026-10-21 under `monitor`,
+which pauses nothing and is unrelated. A drill uses one of the three daily
+diagnoses.
+
+### Operator runbook (owner, Dev)
+
+Set `HOST=https://oss-knowledge-base-data-dev.unknowntpo.workers.dev` and
+`MANUAL_TRIGGER_TOKEN` as for a manual run
+([runbook](../../runbooks/cloudflare-data-publisher.md#publish-now-manual-run)).
+
+`throw` (about 10 minutes, hands on):
+
+1. Arm: `curl -sS -X POST -H "Authorization: Bearer $MANUAL_TRIGGER_TOKEN"
+   -H 'content-type: application/json' -d
+   '{"job":"kip-pages","kind":"throw"}' $HOST/sre-agent/drill` → 201 with
+   `drillId`.
+2. First faulted run: `curl -sS -X POST -H "Authorization: Bearer
+   $MANUAL_TRIGGER_TOKEN" $HOST/kip-pages/run` → 502 with `lastRun.status:
+   "failed"`, `error` "… answered 503", in seconds.
+3. See it in the dashboard: Workers & Pages → `oss-knowledge-base-data-dev`
+   → Observability (Events view), search `drill:<drillId>`: one error-level
+   line with the `runId`
+   ([Workers Logs: view logs from the dashboard](https://developers.cloudflare.com/workers/observability/logs/workers-logs/#view-logs-from-the-dashboard));
+   live instead: the Worker's Logs → Live
+   ([Real-time logs](https://developers.cloudflare.com/workers/observability/logs/real-time-logs/)),
+   or `bunx wrangler tail -c wrangler.development.jsonc`. The data point:
+   `SELECT * FROM events.analyticsEngine."osskb_signals_dev" WHERE index1 =
+   '<runId>'` on the Analytics SQL API with an Account Analytics: Read token
+   ([SQL API datasets](https://developers.cloudflare.com/analytics/sql-api/datasets/),
+   which also needs `accountTag = '<account id>'`). `/health.signals` shows
+   `job.failures` `warn` for `kip-pages`.
+4. Wait 5 minutes (time for run 1's point to be queryable; WAE query
+   latency is not documented, SRE76 records it), then repeat step 2.
+   `/health.signals` shows `job.failures` `firing` for `kip-pages`;
+   `/health.sreAgent.lastDrill.state` is `fired`. If it shows `warn`, the
+   history query did not see run 1 yet: wait, run the clean-up step, and
+   re-arm.
+5. Tick now: `curl -sS -X POST -H "Authorization: Bearer
+   $MANUAL_TRIGGER_TOKEN" $HOST/sre-agent/run` (or wait for 00:30 / 11:00
+   UTC). Within about a minute `/health.sreAgent.lastDrill` has `result`
+   and `reasons`; the record is at
+   `internal/sre/v1/dev/drills/<drillId>.json`, the diagnosis in that
+   tick's run record and trajectory.
+6. Clean up: one unarmed `POST $HOST/kip-pages/run` (a normal run, ≈ 13
+   upstream requests) so `job.failures` returns to `ok`. To abandon an
+   armed drill: `DELETE $HOST/sre-agent/drill` (token) removes the pointer
+   and marks the record `cancelled`; an unused pointer also expires after
+   48 h.
+
+`skip` (about a day, mostly waiting): arm with `"kind":"skip"` after the
+day's 03:43 UTC `kip-pages` run; the next cron run is skipped (a
+`console.warn` with `drill:<drillId>`); do not start `kip-pages` by hand
+until graded. `job.missed` fires 27 h after the last real run (06:43 UTC
+the next day); the 11:00 UTC tick (or a manual tick after 06:43) diagnoses
+it; the following 03:43 cron run restores the job. The result arrives
+27 h 1 min to 31 h 17 min after the last real run (a manual tick after
+06:43, or the 11:00 tick).
+
+### Simplification review (the drill)
+
+- **Question:** a fault per job, a drill UI, fault kinds for every rule:
+  deleted; one job and the two kinds whose rules v1 diagnoses and whose
+  correct answer a playbook defines. A drill flag per job: deleted, one
+  `SRE_DRILL` var.
+- **Delete:** a drill column in WAE (B43), an accelerated `skip`, `slow`,
+  `r2-burst`, an LLM judge, a separate drill report store (the record sits
+  in the job's own prefix).
+- **Simplify:** the fault is a transport wrapper and an early return; the
+  grader is the SRE60 grader on a live diagnosis.
+- **Shorten the cycle:** the manual tick (B46) turns a `throw` drill from
+  up to 11 h into minutes.
+- **Automate last:** the owner arms each drill by hand; no scheduled drills.
 
 ## Example
 
@@ -964,6 +1192,29 @@ B28, two controls with no model call):
 | SRE60 | 5 ok-but-wrong (v2) | digest-en-zh-cache-pollution | real | none | digest.lastRun ok true; en digest object holds Han-script sentences | none (no hard rule covers served text; a v2 soft invariant) | none | cloudflare-data-publisher.md#reading-health-digest |
 <!-- test-plan:end -->
 
+Dev fault-injection drill (`drill.cases.ts`; worker rows run in the wiring
+slice):
+
+<!-- test-plan:start packages/sre-agent/test/drill.cases.ts [pending] -->
+| id | case | given | expected |
+| --- | --- | --- | --- |
+| SRE67 | arm | SRE_DRILL on, development, token, {job: kip-pages, kind: throw} | 201 {drillId, runs 2, armedAt, expiresAt}; drill record and pointer written |
+| SRE67 | arm refused | no token / job digest / kind slow / already armed / SRE_DRILL unset / playbook lacks expected cause | 401 / 400 / 400 / 409 / 404 / 409 with reason |
+| SRE67 | cancel | DELETE /sre-agent/drill while armed | pointer removed; record cancelled; next run normal |
+| SRE68 | Prod guard | PUBLICATION_ENVIRONMENT production or staging, SRE_DRILL on; pointer present in bucket | arm and cancel 404; kip-pages run reads no pointer, runs normally |
+| SRE68 | config | wrangler.production.jsonc / wrangler.development.jsonc | no SRE_DRILL / SRE_DRILL on |
+| SRE69 | throw | throw armed; runs 1, 2, 3 | runs 1-2: 0 upstream requests, record and point equal to a real 503 run (except times, runId), one console.error drill:<id> with runId; run 3 normal; record fired with 2 runIds |
+| SRE70 | skip | skip armed; runs 1, 2 | run 1: 0 upstream requests, no run record, no WAE point, one console.warn drill:<id>; run 2 normal |
+| SRE71 | blind agent | tick diagnosing the throw firing / same firing without a drill | no 'drill' (any case) or drillId in bundle, prompt, tool results, trajectory; bundles equal except times and runIds |
+| SRE71 | health section refused | get_health_section sreAgent / sreAgent.lastDrill | refusal result; nothing read |
+| SRE72 | grade pass | throw: cause upstream-unavailable, quotes kipPages.lastRun.error and Q-window, playbook anchor, explained | pass, reasons [] |
+| SRE72 | grade fail | cause unknown / Q-window not quoted / other anchor / verdict unverified | fail: wrong-cause:unknown / missing-evidence:Q-window / runbook-mismatch:<got> / verdict:unverified |
+| SRE72 | no diagnosis | throw fired, no kip-pages diagnosis 24 h after the last faulted run (skip: 48 h) | fail: no-diagnosis |
+| SRE72 | drift | drillExpectations vs docs/runbooks/sre/job.failures.md and job.missed.md | every expected cause and anchor listed, else check fails naming it |
+| SRE73 | manual tick | POST /sre-agent/run with token / without / SRE_AGENT off | one tick under B31 caps / 401 / 404 |
+| SRE74 | expiry and errors | pointer past expiresAt / pointer read throws / drill record write fails on arm | deleted unapplied, record expired / job runs with no fault, one drill: log line / 503, no pointer |
+<!-- test-plan:end -->
+
 The four Evidence incidents cover types 1, 3, 4 and 5 (the digest, v2). No
 recorded incident of type 2 exists: the 2026-09-30 publication failures
 died with `exceededMemory` before any result was written (Spec 009), so a
@@ -1022,6 +1273,25 @@ by Amendment (1); SRE34 replaced it.
 - SRE65: [deploy] on Dev with `SRE_AGENT=live`, the first new firing produces one run record and one trajectory under the prefix whose `runId`s match, an `evidenceCheck` result, and `neurons` within 10 % of the Workers AI dashboard's neurons for that model and day.
 - SRE66: [measure] `bun run --cwd packages/sre-agent kpi -- --env dev` prints, from the run records and eval reports, correctness rate (labelled or eval cases only), fabrication rate, neurons per diagnosis and the median time from firing `since` to record `at`.
 
+### Dev fault-injection drill: Behavior
+- SRE67: [pending] with `SRE_DRILL=on` on `development`, `POST /sre-agent/drill` with the manual token and `{job: "kip-pages", kind: "throw"}` answers 201 `{drillId, job, kind, runs: 2, armedAt, expiresAt}` and writes the drill record and the pointer under `internal/sre/v1/dev/drills/`; it answers 401 without the token, 400 for another job or kind, 409 while a drill is armed or fired-but-ungraded, 404 with `SRE_DRILL` unset, and refuses a kind whose rule's playbook does not list the expected cause; `DELETE` removes the pointer and marks the record `cancelled` → worker test with the `drill.cases.ts` rows.
+- SRE68: [pending] with `PUBLICATION_ENVIRONMENT` `production` (or any value but `development`), the arm and cancel routes answer 404 even with `SRE_DRILL=on`, and a `kip-pages` run with a pointer present in the bucket reads no pointer and runs normally; `wrangler.production.jsonc` has no `SRE_DRILL`; the same run on `development` applies the fault (positive control) → worker and config tests with case rows.
+- SRE69: [pending] with a `throw` drill armed, the next two `kip-pages` runs send 0 upstream requests and each writes a run record and WAE point equal, except times and `runId`, to those of a run whose fake transport answers a real 503, and logs one `console.error` starting `drill:<drillId>` with the `runId`; the pointer is gone after the second run, the drill record is `fired` with both `runIds`, and a third run is normal → worker test with case rows.
+- SRE70: [pending] with a `skip` drill armed, the next `kip-pages` run sends 0 upstream requests, writes no run record and no WAE point, logs one `console.warn` starting `drill:<drillId>`, deletes the pointer, and the following run is normal → worker test with case rows.
+- SRE71: [pending] on a tick that diagnoses a drill firing, the bundle, prompt, every tool result and the trajectory contain neither `drill` (any case) nor the `drillId`; `get_health_section("sreAgent")` and any path under it return a refusal; the WAE point schema has no drill column; the same tick without a drill gives an identical bundle except times and `runId`s (control) → L1 test with case rows.
+- SRE72: [pending] the grader, given a fired drill and a diagnosis for `kip-pages` with `since` at or after `armedAt`, writes `pass` when cause, required evidence, runbook and verdict `explained` match B41, and `fail` with each reason (`wrong-cause:<got>`, `missing-evidence:<item>`, `runbook-mismatch:<got>`, `verdict:<verdict>`) when one is broken (negative controls), and `no-diagnosis` 24 h (`throw`) or 48 h (`skip`) after the last faulted run; the result is in the drill record and `/health.sreAgent.lastDrill`; every expected cause and anchor of `drillExpectations` exists in its rule's playbook (drift check) → L1 test with case rows.
+- SRE73: [pending] `POST /sre-agent/run` with the manual token runs one tick under the B31 caps and answers with its run record; 401 without the token; 404 while `SRE_AGENT` is `off` → worker test with case rows.
+
+### Dev fault-injection drill: Failure
+- SRE74: [pending] a pointer older than `expiresAt` (48 h) is deleted unapplied and the record set `expired`; an R2 error reading the pointer runs the job normally with no fault and logs one `drill:`-prefixed line; a drill record that cannot be written makes the arm route answer 503 and leaves no pointer → worker test with case rows.
+
+### Dev fault-injection drill: Budget
+- SRE75: [measure] a `throw` drill end to end makes ≤ 10 R2 Class A, ≤ 10 Class B, 0 upstream requests from the faulted runs, 1 diagnosis within the 1,500-neuron cap, no write outside `internal/sre/v1/dev/` and `kip-pages`' own run record, and leaves the publication's `/health` `lastRun` and the cost guard's breaker unchanged, measured by `bun test --cwd apps/data-publisher-worker -t SRE75`, which counts calls through fakes.
+
+### Dev fault-injection drill: Deploy
+- SRE76: [deploy] on Dev the owner runs the `throw` runbook: the Observability Events view of `oss-knowledge-base-data-dev` shows the `drill:<drillId>` error line, `/health.signals` shows `kip-pages` `job.failures` `firing` after the second run, and `/health.sreAgent.lastDrill` has a `result` within 30 minutes of arming; the record notes the observed delay before run 1's point was queryable.
+- SRE77: [deploy] on Dev the owner runs the `skip` runbook once: `job.missed` fires for `kip-pages` 27 h after its last real run, the next tick grades the drill, and the following cron run is normal.
+
 ### Withdrawn by Amendment (2)
 
 | IDs | Was | Replaced by |
@@ -1065,7 +1335,7 @@ stays and applies to `get_health_section`.
 
 ## Decisions needing the owner
 
-> **Amendment (2):** Decisions 1–15 below are resolved or withdrawn ([A2-8](#a2-8-earlier-decisions-after-amendment-2)); still open: A2-1 model after the eval, A2-2 where the owner labels diagnoses, A2-3 schedule times, A2-4 Prod enablement, A2-5 the v2 soft-invariant patrol.
+> **Amendment (2):** Decisions 1–15 below are resolved or withdrawn ([A2-8](#a2-8-earlier-decisions-after-amendment-2)); A2-1–A2-5 decided by owner 2026-10-22 per their recommendations: A2-1 model by the SRE59 scoreboard (prior GLM-4.7-Flash), A2-2 labels in `docs/specs/027-sre-agent/labels/`, A2-3 Dev 00:30 and 11:00 UTC, A2-4 Prod a separate owner decision after Dev `live`, A2-5 soft-invariant patrol deferred to v2.
 
 Recommendations first; each is reversible by a config change unless noted.
 
