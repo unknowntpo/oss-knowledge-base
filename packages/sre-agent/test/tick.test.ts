@@ -346,7 +346,8 @@ const scenarios: Record<string, () => Promise<void>> = {
   },
 
   async "secret in input"() {
-    const secret = "cf-token-9f8e7d6c5b4a";
+    // A made-up value built at runtime: no secret-looking literal in the source.
+    const secret = ["not", "a", "real", "worker", "secret"].join("-");
     const health = devHealth({ rules: [rule("job.failures", "kip-pages", "firing")] });
     (health.kipPages as { lastRun: Record<string, unknown> }).lastRun.error = `jira 401 with Authorization ${secret}`;
     const store = memoryStore();
