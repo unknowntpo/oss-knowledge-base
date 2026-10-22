@@ -31,8 +31,10 @@ const UI = {
   en: {
     site: "OSS Knowledge Base · Docs",
     nav: { index: "Home", overview: "System", search: "Search", digest: "Digest", process: "Process & cost" },
+    self: "EN",
     other: "中文",
     otherTitle: "閱讀繁體中文版",
+    language: "Language",
     toc: "On this page",
     theme: "Toggle light or dark theme",
     built: "Built from commit",
@@ -47,8 +49,10 @@ const UI = {
   "zh-Hant": {
     site: "OSS Knowledge Base · 文件",
     nav: { index: "首頁", overview: "系統", search: "搜尋", digest: "週報", process: "流程與成本" },
-    other: "English",
+    self: "中文",
+    other: "EN",
     otherTitle: "Read in English",
+    language: "語言",
     toc: "本頁內容",
     theme: "切換淺色或深色主題",
     built: "建置自 commit",
@@ -449,7 +453,7 @@ function pageHtml(input: DocsInput, tokens: { light: string; dark: string }, loc
 <header class="top"><div class="top-in">
 <a class="brand" href="index.html"><span class="mark" aria-hidden="true"></span>${ui.site}</a>
 <nav class="nav" aria-label="${ui.site}">${nav}</nav>
-<div class="tools"><a class="locale" href="../${other}/${pageFile(page)}" hreflang="${other}" lang="${other}" title="${ui.otherTitle}" data-locale="${other}">${ui.other}</a><button class="theme" type="button" onclick="__docsTheme()" aria-label="${ui.theme}" title="${ui.theme}"><span aria-hidden="true">◐</span></button></div>
+<div class="tools"><nav class="langs" aria-label="${ui.language}"><span class="lang-cur" aria-current="true" lang="${locale}">${ui.self}</span><a class="locale" href="../${other}/${pageFile(page)}" hreflang="${other}" lang="${other}" title="${ui.otherTitle}" data-locale="${other}">${ui.other}</a></nav><button class="theme" type="button" onclick="__docsTheme()" aria-label="${ui.theme}" title="${ui.theme}"><span aria-hidden="true">◐</span></button></div>
 </div></header>
 <div class="layout">
 ${toc}
@@ -520,7 +524,9 @@ pre code{background:none;border:0;padding:0}
 .nav a:hover,.tools a:hover,.tools button:hover{color:var(--text-inverse);background:var(--surface-inverse-raised)}
 .nav a[aria-current="page"]{color:var(--text-inverse);border-color:var(--border-inverse)}
 .tools{display:flex;gap:6px;align-items:center}
-.tools .locale{border-color:var(--border-inverse)}
+.langs{display:flex;border:1px solid var(--border-inverse);border-radius:var(--radius-md);overflow:hidden}
+.langs .lang-cur,.tools .langs a{font-size:var(--fs-sm);padding:4px 8px;border-radius:0}
+.langs .lang-cur{color:var(--text-inverse);background:var(--surface-inverse-raised);font-weight:600}
 a:focus-visible,button:focus-visible,.flow-node:focus-visible{outline:2px solid var(--focus-ring-inverse);outline-offset:1px}
 .layout{max-width:1360px;margin:0 auto;padding:28px 16px 48px;display:grid;grid-template-columns:180px minmax(0,1fr);gap:32px}
 .toc{position:sticky;top:76px;align-self:start;display:grid;gap:2px;font-size:var(--fs-sm)}

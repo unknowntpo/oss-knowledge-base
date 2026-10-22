@@ -153,8 +153,10 @@ estimated neurons) and are dated on the page.
    drawn between card headers. Below 760 px the columns stack and connectors are hidden. Every
    flow text exists in both locales; ids are unique; links name existing cards; `initial`
    names a step; every step names at least one existing repository source.
-7. Each page has a 中/EN link to the same page in the other locale (`hreflang`, `lang`); the
-   script stores the choice and carries the fragment. A theme button toggles light and dark
+7. Each page has a language control: the page's own locale (`EN` or `中文`) marked current
+   (`aria-current`), and a link to the same page in the other locale (`hreflang`, `lang`); the
+   script stores the choice and carries the fragment. Showing only the other locale's name read
+   as the selected language (2026-10-22: "中文" on English pages). A theme button toggles light and dark
    (stored; the OS preference otherwise, also without script).
 8. Styles: the product's `:root` and `:root[data-theme="dark"]` token blocks are copied from
    `apps/web/styles.css`, plus a small Japanese traditional palette (藤, 青磁, 勿忘草, 苔,
@@ -197,6 +199,8 @@ estimated neurons) and are dated on the page.
 - DOC10: `{{value:specs}}` is replaced by the derived count. Evidence: unit test.
 - DOC11: The same input gives byte-identical files. Evidence: unit test.
 - DOC14: The committed `docs/site` builds and audits clean in both locales. Evidence: unit test on the repository (failed before the content existed: 10 problems).
+
+- DOC18: Given any page, the language control marks that page's own locale as current and links only the other locale; it never shows only the other locale's name. Evidence: unit test (failed before the fix: the control had no current locale).
 
 ### Failure and retry
 - DOC12: The deploy decision deploys only on a push to `main` with an existing project; a missing project is a skip, a non-404 error or missing credentials a failure; pull requests and tags deploy nothing. Evidence: test-plan rows.
