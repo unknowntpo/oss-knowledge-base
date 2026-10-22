@@ -29,6 +29,7 @@ import {
   sreKey,
   type EvidenceItem,
   type Health,
+  type SqlArgs,
   type SreState,
   type TickDeps,
 } from "../src";
@@ -46,6 +47,7 @@ import {
   sqlFake,
   toolCall,
   type RecordingStore,
+  type Run,
 } from "./fixtures";
 
 const repo = join(import.meta.dir, "../../..");
@@ -254,6 +256,62 @@ const scenarios: Record<string, () => Promise<void>> = {
     expect(state(store).today.neurons).toBe(reserved);
   },
 
+  async "Prod newest tag"() {
+    const run = (id: number, tag: string, conclusion: string): Run => ({ id, head_branch: tag, conclusion, status: "completed", created_at: "2026-10-22T09:00:00Z", html_url: `https://github.com/unknowntpo/oss-knowledge-base/actions/runs/${id}` });
+    const github = githubFake({ tags: ["v0.10.0", "v0.2.9", "v0.9.0"], runs: [run(1010, "v0.10.0", "failure"), run(1009, "v0.9.0", "success")] });
+    const ci = await readCiRelease("prod", github.fetch);
+    expect(ci).toMatchObject({ status: "firing", run: { id: 1010, headBranch: "v0.10.0" } });
+    expect(github.requests.map((request) => new URL(request.url).searchParams.get("branch")).filter(Boolean)).toEqual(["v0.10.0"]);
+    for (const request of github.requests) expect(request.method).toBe("GET");
+    // Only a non-version tag: unknown, never that tag's run.
+    expect(await readCiRelease("prod", githubFake({ tags: ["vscode-test"], runs: [run(1020, "vscode-test", "failure")] }).fetch)).toEqual({ status: "unknown", reason: "no tag" });
+    // The newest tag has no run (total_count 0): unknown, never an older tag's run.
+    expect(await readCiRelease("prod", githubFake({ tags: ["v0.3.0", "v0.4.0"] }).fetch)).toEqual({ status: "unknown", reason: "no run" });
+  },
+
+  async "new UTC day"() {
+    const yesterday: SreState = { ...emptyState("2026-10-21"), today: { date: "2026-10-21", diagnoses: 3, neurons: 1500 } };
+    const store = memoryStore({ [STATE]: JSON.stringify(yesterday) });
+    const model = scripted(answer(VALID_OUTPUT));
+    const run = await runTick(deps({ store, model, health: devHealth({ rules: [missed()] }) }));
+    expect(run.runRecord!.diagnosed).toBe(1);
+    expect(model.doGenerateCalls).toHaveLength(1);
+    expect(state(store).today).toMatchObject({ date: "2026-10-22", diagnoses: 1 });
+    expect(state(store).today.neurons).toBeLessThan(100);
+  },
+
+  async "tool results"() {
+    const secret = ["not", "a", "real", "worker", "secret"].join("-");
+    const health = devHealth({ rules: [missed()] });
+    (health.kipPages as { lastRun: Record<string, unknown> }).lastRun.error = `jira 401 ${secret}, retried with ${secret}; header Bearer abc.def.ghi`;
+    health.bigField = "y".repeat(20 * 1024);
+    const querySignals = async (args: SqlArgs) => {
+      if (args.template === "Q-window") throw new Error(`query denied for ${secret}`);
+      return [{ template: args.template }];
+    };
+    const store = memoryStore();
+    const model = scripted(
+      toolCall("get_health_section", { path: "kipPages.lastRun" }, "c1"),
+      toolCall("query_signals", { template: "Q-window", at: "2026-10-21T04:07:00.000Z" }, "c2"),
+      toolCall("get_health_section", { path: "bigField" }, "c3"),
+      answer({ ...VALID_OUTPUT, cause: "unknown", runbook: null }),
+    );
+    await runTick(deps({ store, model, health, querySignals, secrets: [secret] }));
+    expect(model.doGenerateCalls).toHaveLength(4);
+    const trajectory = [...store.objects.entries()].find(([key]) => key.includes("/trajectories/"))![1];
+    const prompts = JSON.stringify(model.doGenerateCalls.map((call) => call.prompt));
+    for (const text of [trajectory, prompts]) {
+      expect(text).not.toContain(secret);
+      expect(text).not.toContain("abc.def.ghi");
+      expect(text).toContain("jira 401 [redacted], retried with [redacted]; header Bearer [redacted]");
+      expect(text).toContain("query denied for [redacted]");
+    }
+    const big = (JSON.parse(trajectory).steps[2].toolResults[0].output as string);
+    expect(big).toMatch(/\[truncated \d+ bytes\]/u);
+    expect(Buffer.byteLength(big)).toBeLessThan(16 * 1024 + 200);
+    expect(Buffer.byteLength(big)).toBeGreaterThan(16 * 1024 - 200);
+  },
+
   async "no new firing"() {
     const store = memoryStore();
     const model = scripted(answer(VALID_OUTPUT));
@@ -378,6 +436,7 @@ const scenarios: Record<string, () => Promise<void>> = {
     expect(checkEvidence({ ...base, evidence: [{ id: "E1", quote: "\"completedAt\": \"2026-10-02T02:42:00Z\"" }] }, bundle)).toEqual({ ok: false, failures: ["quote-not-in-item:E1"] });
     expect(checkEvidence({ ...base, evidence: [{ id: "E1", quote: "jira 503" }] }, bundle)).toEqual({ ok: false, failures: ["quote-not-in-item:E1"] });
     expect(checkEvidence({ ...base, evidence: [{ id: "E9", quote: "jira 503" }] }, bundle)).toEqual({ ok: false, failures: ["unknown-evidence-id:E9"] });
+    for (const quote of ["", "  \n "]) expect(checkEvidence({ ...base, evidence: [{ id: "E2", quote }] }, bundle)).toEqual({ ok: false, failures: ["quote-not-in-item:E2"] });
     // Positive control: the same quote cited from its own item passes.
     expect(checkEvidence({ ...base, evidence: [{ id: "E2", quote: "jira 503" }] }, bundle)).toEqual({ ok: true, failures: [] });
     // A failed check makes the tick's verdict unverified and lists the failure.
@@ -413,7 +472,7 @@ const scenarios: Record<string, () => Promise<void>> = {
     const store = scopedStore("dev", raw);
     await store.put("internal/sre/v1/dev/runs/x.json", "{}");
     expect(raw.calls).toEqual([{ op: "put", key: "internal/sre/v1/dev/runs/x.json" }]);
-    for (const key of ["internal/sre/v1/prod/x", "public/v2/current.json", "internal/identity/v1/last-run.json", "internal/sre/v1/dev/../../identity/v1/last-run.json"]) {
+    for (const key of ["internal/sre/v1/prod/x", "public/v2/current.json", "internal/identity/v1/last-run.json", "public/x/internal/sre/v1/dev/y", "internal/sre/v1/dev/../../identity/v1/last-run.json"]) {
       await expect(store.put(key, "{}")).rejects.toBeInstanceOf(WriteScopeError);
       await expect(store.get(key)).rejects.toBeInstanceOf(WriteScopeError);
     }

@@ -654,13 +654,20 @@ it differs from the text above:
   text to 200 characters and redacts every run of 32 token characters, which
   would cut each item and erase `runId`s such as
   `publication-2026-10-20T22-07-00-000Z` that quotes must match.
-- **`ci.release` (B27).** Reads the newest completed run (`status=completed`);
-  Prod lists the newest 30 push runs and takes the first on a `v*` tag. The
-  failed job's name comes from a second GET (`/runs/<id>/jobs`); the last 60
-  log lines are not fetched (whether the public API serves job logs without a
-  token is unverified) and stay an optional bundle input. `since` is the
-  run's `created_at` and `runId` its GitHub id; a cost-guard firing has
-  `runId` null, so one trip is diagnosed once.
+- **`ci.release` (B27).** Dev reads the newest completed push run on
+  `main`. Prod first finds the newest `v*` tag by version from
+  `git/matching-refs/tags/v` (the API lists refs alphabetically, so
+  `v0.10.0` sorts before `v0.9.0`), then the newest completed run with
+  `branch=<tag>`; a list of recent push runs would lose the tag's run after
+  about 30 pushes to `main` and leave Prod `unknown` until the next tag. No
+  version tag, or no run on the newest tag (`total_count` 0), is `unknown`.
+  Prod therefore makes up to 3 GETs (B27 says ≤ 2); matching-refs returns
+  at most 100 refs per page, enough until there are 100 `v` tags. The failed
+  job's name comes from `/actions/runs/<id>/jobs`; the last 60 log lines are
+  not fetched (whether the public API serves job logs without a token is
+  unverified) and stay an optional bundle input. `since` is the run's
+  `created_at` and `runId` its GitHub id; a cost-guard firing has `runId`
+  null, so one trip is diagnosed once.
 - **Playbook cause ids (B35).** `docs/runbooks/sre/job.missed.md` gains a
   `Cause id` column. Eval row 1 expects `alarm-stuck`, while the playbook's
   worked example expects `unknown` with cause 5 as suspect; the L3 slice
@@ -670,6 +677,10 @@ it differs from the text above:
   to settle with); an unlisted model is charged at the highest listed rates.
 - **Dry mode (B25).** `dry` records fingerprints and counts diagnoses like
   `live`, so a dry week exercises the same dedupe and caps.
+  Consequence (verifier F2): a firing first seen during `dry` keeps its
+  fingerprint when the flag turns `live`, so it is diagnosed live only when
+  its `runId` or `since` changes. The Dev `live` enable PR decides whether
+  to clear `state.json`'s `fingerprints` as an operator step (G99).
 - **`query_signals`.** Accepts `runId`s of hyphenated jobs (`kip-pages-…`),
   which A2's pattern `^[a-z]+-[0-9TZ-]+$` rejects.
 - **Pending.** SRE47 (isolation inside the shared scheduled handler) moved
@@ -1182,20 +1193,23 @@ L1, deterministic tick (`tick.cases.ts`):
 | SRE38 | signals absent | /health without signals, costGuard ok | signals unavailable, 0 firings from rules |
 | SRE39 | ci.release per env | Dev: newest main run failure; Prod: newest v* tag run failure / success | 1 ci.release firing in that env only / none |
 | SRE39 | GitHub unavailable | HTTP 403 rate limit, 500, or 20 s timeout | ci.release unknown, recorded, no firing; GET only, no Authorization header |
+| SRE39 | Prod newest tag | Prod: tags v0.10.0, v0.2.9, v0.9.0 as the refs API lists them (alphabetical), each tag's run found by branch however many pushes followed / only a non-version tag vscode-test / newest tag with 0 runs | the v0.10.0 run (branch=v0.10.0) / unknown, no tag / unknown, no run |
 | SRE40 | dedupe | fingerprint in state.json, same runId / new runId twice in one UTC day / rule ok then firing | no diagnosis / 1 diagnosis that day / new since, new fingerprint |
 | SRE41 | daily diagnosis cap | firings of 5 jobs in one tick; second tick same UTC day | 3 diagnosed, 2 notDiagnosed daily-cap; 0 diagnosed |
 | SRE41 | neuron cap boundary | today.neurons 1,000 and next reservation 500 / 501 | step runs / diagnosis stops inconclusive budget |
 | SRE41 | crash after reservation | state written with reservation, model call throws, process ends | next tick counts the reservation in today.neurons |
+| SRE41 | new UTC day | state.json of 2026-10-21 at the caps (3 diagnoses, 1,500 neurons); a tick on 2026-10-22 with a new firing | today resets to 2026-10-22; the firing is diagnosed |
 | SRE42 | no new firing | 0 firings / 1 new firing | run record healthy, modelCalls 0 / 1 diagnosis |
 | SRE42 | group by job | job.missed and publication.freshness firing for publication | 1 bundle, 1 diagnosis, 2 fingerprints recorded |
 | SRE43 | bundle per job | a firing for each job of A2 | exactly A2's /health fields, firing entries, costGuard, Q-run and Q-history (Q-window for cost guard, job.failures), playbook and its runbook sections, ids E1..En |
 | SRE43 | bundle size boundary | items totalling 24 KB / 24 KB + 1 byte | unchanged / head and tail kept with a truncation marker |
 | SRE43 | secret in input | a /health error text containing a Worker secret value | value redacted in bundle, prompt and trajectory |
+| SRE43 | tool results | tool results holding a Worker secret twice and a Bearer token; a tool error naming the secret; a 20 KB tool result | every occurrence redacted in prompt and trajectory, Bearer [redacted]; the 20 KB result capped at 16 KB with a truncation marker |
 | SRE44 | verbatim quote | quote equal to text of cited item (whitespace collapsed) | check passes, verdict kept |
-| SRE44 | fabricated or misplaced quote | quote absent from cited item / present only in another item / unknown id | verdict unverified, failure listed |
+| SRE44 | fabricated or misplaced quote | quote absent from cited item / present only in another item / unknown id / empty or blank quote | verdict unverified, failure listed |
 | SRE44 | cause and runbook | cause not in playbook / runbook anchor not in playbook / cause unknown | unverified / unverified / passes |
 | SRE45 | output schema | record with every field / missing evidence / confidence "sure" | accepted / rejected / rejected |
-| SRE46 | write scope | keys internal/sre/v1/dev/runs/x.json / internal/sre/v1/prod/x / public/v2/current.json / identity-links last-run.json | written / refused before any R2 call (3 cases) |
+| SRE46 | write scope | keys internal/sre/v1/dev/runs/x.json / internal/sre/v1/prod/x / public/v2/current.json / identity-links last-run.json / public/x/internal/sre/v1/dev/y / a .. segment | written / refused before any R2 call (5 cases) |
 | SRE46 | forbidden requests | any path of a tick, dry and live | no request to /run, /*/run, /cost-guard/*, no non-GET, no fetch to the other env's host |
 | SRE48 | playbook format | docs/runbooks/sre/*.md missing a section / cause without anchor / anchor not in docs/runbooks | check fails naming the file |
 | SRE48 | playbook missing | firing rule with no playbook file | diagnosed with playbookMissing true; only cause unknown passes |

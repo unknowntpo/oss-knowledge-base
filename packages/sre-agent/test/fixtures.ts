@@ -38,12 +38,19 @@ export interface RecordedRequest {
   readonly headers: Record<string, string>;
 }
 
-type Run = { id: number; head_branch: string; conclusion: string | null; status: string; created_at: string; html_url: string };
+export type Run = { id: number; head_branch: string; conclusion: string | null; status: string; created_at: string; html_url: string };
 
-/** The public GitHub Actions API for ci.yml runs, recording every request. */
+/**
+ * The public GitHub API for ci.yml runs and `v*` tag refs, recording every request. `runs` filters by
+ * `branch` like the real API, so a tag's run is found however many pushes followed it.
+ */
 export function githubFake(options: {
   main?: string;
   tag?: string;
+  /** Tag names the matching-refs API returns, in its (alphabetical) order. */
+  tags?: string[];
+  /** Extra runs, e.g. on other tags. */
+  runs?: Run[];
   fail?: 403 | 429 | 500 | "timeout";
   jobs?: { name: string; conclusion: string }[];
 } = {}) {
@@ -52,7 +59,9 @@ export function githubFake(options: {
   const runs: Run[] = [
     { id: 39231615500, head_branch: "main", conclusion: options.main ?? "success", status: "completed", created_at: "2026-10-21T10:00:00Z", html_url: "https://github.com/unknowntpo/oss-knowledge-base/actions/runs/39231615500" },
     { id: 39231615488, head_branch: "v0.3.0", conclusion: options.tag ?? "success", status: "completed", created_at: "2026-10-21T09:00:00Z", html_url: "https://github.com/unknowntpo/oss-knowledge-base/actions/runs/39231615488" },
+    ...(options.runs ?? []),
   ];
+  const tags = options.tags ?? ["v0.2.9", "v0.3.0"];
   const fetch = (async (input: string | URL | Request, init?: RequestInit) => {
     const request = new Request(input, init);
     const headers: Record<string, string> = {};
@@ -65,6 +74,7 @@ export function githubFake(options: {
     }
     if (options.fail !== undefined) return new Response("rate limited", { status: options.fail });
     const url = new URL(request.url);
+    if (url.pathname.endsWith("/git/matching-refs/tags/v")) return Response.json(tags.map((tag) => ({ ref: `refs/tags/${tag}` })));
     const jobs = /\/actions\/runs\/(\d+)\/jobs$/u.exec(url.pathname);
     if (jobs !== null) {
       return Response.json({ jobs: options.jobs ?? [{ name: "Unit tests", conclusion: "failure" }, { name: "Typecheck and build", conclusion: "success" }] });
@@ -72,7 +82,8 @@ export function githubFake(options: {
     const run = /\/actions\/runs\/(\d+)$/u.exec(url.pathname);
     if (run !== null) return Response.json(runs.find((value) => String(value.id) === run[1]) ?? {});
     const branch = url.searchParams.get("branch");
-    return Response.json({ workflow_runs: runs.filter((value) => branch === null || value.head_branch === branch) });
+    const matching = runs.filter((value) => branch === null || value.head_branch === branch);
+    return Response.json({ total_count: matching.length, workflow_runs: matching });
   }) as typeof globalThis.fetch;
   return { fetch, requests };
 }

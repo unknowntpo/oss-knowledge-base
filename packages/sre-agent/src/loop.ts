@@ -147,7 +147,7 @@ export function readOnlyTools(bundle: Bundle, deps: ToolDeps, timeoutMs: number)
       description: "One CI run of this repository (public GitHub API) by numeric run id.",
       inputSchema: z.object({ runId: z.string().regex(/^\d{1,20}$/u) }),
       execute: run<{ runId: string }>("get_ci_run", "ci", ({ runId }) => `run ${runId}`, async ({ runId }) => {
-        const body = await githubGet(deps.fetch, `/runs/${runId}`, timeoutMs) as Record<string, unknown>;
+        const body = await githubGet(deps.fetch, `/actions/runs/${runId}`, timeoutMs) as Record<string, unknown>;
         return json({ id: body.id, head_branch: body.head_branch, head_sha: body.head_sha, status: body.status, conclusion: body.conclusion, created_at: body.created_at, html_url: body.html_url });
       }),
     });

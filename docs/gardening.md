@@ -1193,10 +1193,14 @@ the two `viewer/` items below.
   reads the failed job's name but not its last 60 log lines (B29): whether
   the public API serves job logs without a token is unverified. Eval row 1
   expects cause `alarm-stuck`; the playbook's worked example expects
-  `unknown` with `deploy-broke-job` as suspect.
+  `unknown` with `deploy-broke-job` as suspect. Fingerprints recorded during
+  the Dev `dry` week carry into `live` (verifier F2), so a firing that began
+  in `dry` is not diagnosed live until it fires again with a new `runId` or
+  `since`.
 - **Fix:** drop `skipLibCheck` when an `ai` release type-checks under
   `exactOptionalPropertyTypes`; verify the logs endpoint unauthenticated in
   the wiring slice and fetch the tail or remove it from B29; make eval row 1
-  and the playbook agree in the L3 slice.
+  and the playbook agree in the L3 slice; the Dev `live` enable PR states
+  whether its operator sequence clears `state.json` `fingerprints`.
 - **Layer:** static check (typecheck), then test rows (wiring slice, L3).
 - **Source:** Spec 027 A2-9 slice 1, 2026-10-22.
