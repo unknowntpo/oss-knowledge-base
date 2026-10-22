@@ -64,7 +64,7 @@ zh-Hant/search.html 32664 bytes
 | --- | --- | --- | --- |
 | Home | `index.html` | `index.html` | what it is, live sites, status at a glance, links to the four topics |
 | System & data flow | `overview.html` | `overview.html` | clickable flow (4 columns, 10 cards, 31 steps), the four stages, Dev vs Prod, why |
-| Search | `search.html` | `search.html` | BM25 parameters, identifier normalisation, adjacency, shards and `terms.json`, Spec 017 evaluation, hybrid on Dev, query budget |
+| Search | `search.html` | `search.html` | clickable flow of one query (4 columns, 6 cards, 12 steps; added 2026-10-22), BM25 parameters, identifier normalisation, adjacency, shards and `terms.json`, Spec 017 evaluation, hybrid on Dev, query budget |
 | Weekly digest | `digest.html` | `digest.html` | clickable flow (3 columns, 7 cards, 14 steps), validation rules, quality gate, cost |
 | Process & cost | `process.html` | `process.html` | spec-driven workflow, traceability, CI/CD and releases, the R2 Class A incident, budgets, observability |
 
@@ -153,8 +153,10 @@ estimated neurons) and are dated on the page.
    drawn between card headers. Below 760 px the columns stack and connectors are hidden. Every
    flow text exists in both locales; ids are unique; links name existing cards; `initial`
    names a step; every step names at least one existing repository source.
-7. Each page has a 中/EN link to the same page in the other locale (`hreflang`, `lang`); the
-   script stores the choice and carries the fragment. A theme button toggles light and dark
+7. Each page has a language control: the page's own locale (`EN` or `中文`) marked current
+   (`aria-current`), and a link to the same page in the other locale (`hreflang`, `lang`); the
+   script stores the choice and carries the fragment. Showing only the other locale's name read
+   as the selected language (2026-10-22: "中文" on English pages). A theme button toggles light and dark
    (stored; the OS preference otherwise, also without script).
 8. Styles: the product's `:root` and `:root[data-theme="dark"]` token blocks are copied from
    `apps/web/styles.css`, plus a small Japanese traditional palette (藤, 青磁, 勿忘草, 苔,
@@ -194,9 +196,12 @@ estimated neurons) and are dated on the page.
 - DOC7: The output contains no email, token or key, and does not advertise Worker hosts, manual-trigger routes or Dev API links; the public Dev site URL is accepted. Evidence: test-plan rows.
 - DOC8: The product's light and dark tokens are inlined, with the dark block also under `prefers-color-scheme: dark`. Evidence: unit test.
 - DOC9: A flow renders cards, step links and one detail per step without script; invalid flows fail the build. Evidence: unit test and test-plan rows.
+- DOC19: Given the committed content, the search page in both locales shows the search pipeline flow (query normalisation, BM25 candidates, ranking, results, and the semantic branch), with Dev-only steps tagged Dev only, Clef reranking tagged design only, and the Prod path untagged. Evidence: unit test on the repository (failed before the flow existed).
 - DOC10: `{{value:specs}}` is replaced by the derived count. Evidence: unit test.
 - DOC11: The same input gives byte-identical files. Evidence: unit test.
 - DOC14: The committed `docs/site` builds and audits clean in both locales. Evidence: unit test on the repository (failed before the content existed: 10 problems).
+
+- DOC18: Given any page, the language control marks that page's own locale as current and links only the other locale; it never shows only the other locale's name. Evidence: unit test (failed before the fix: the control had no current locale).
 
 ### Failure and retry
 - DOC12: The deploy decision deploys only on a push to `main` with an existing project; a missing project is a skip, a non-404 error or missing credentials a failure; pull requests and tags deploy nothing. Evidence: test-plan rows.

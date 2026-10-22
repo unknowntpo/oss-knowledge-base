@@ -122,6 +122,21 @@ describe("Spec 025 docs site", () => {
     expect(files.get("en/index.html")).toContain("loc.href=loc.getAttribute('href').split('#')[0]+location.hash");
   });
 
+  test("DOC18: the language control marks the page's own locale as current and links only the other one", () => {
+    // Regression: the header showed only the other locale's name ("中文" on English pages),
+    // which readers took for the selected language while the content stayed English.
+    const files = buildDocsSite(fixture());
+    const label: Record<string, string> = { en: "EN", "zh-Hant": "中文" };
+    for (const locale of LOCALES) for (const id of PAGES) {
+      const other = LOCALES.find((l) => l !== locale)!;
+      const control = /<nav class="langs"[^>]*>([\s\S]*?)<\/nav>/u.exec(files.get(`${locale}/${id}.html`)!)?.[1] ?? "";
+      const current = [...control.matchAll(/<span class="lang-cur" aria-current="true" lang="([^"]+)">([^<]+)<\/span>/gu)];
+      expect(current.map((m) => [m[1], m[2]])).toEqual([[locale, label[locale]]]);
+      const links = [...control.matchAll(/<a [^>]*hreflang="([^"]+)"[^>]*>([^<]+)<\/a>/gu)];
+      expect(links.map((m) => [m[1], m[2]])).toEqual([[other, label[other]]]);
+    }
+  });
+
   test("DOC3: the fixture's two locales have the same sections, flows and sources (audit clean)", () => {
     const files = buildDocsSite(fixture());
     expect(auditSite(files)).toEqual([]);
@@ -176,6 +191,20 @@ describe("Spec 025 docs site", () => {
     for (const locale of LOCALES) for (const id of PAGES) expect(files.has(`${locale}/${id}.html`)).toBe(true);
     // Each content page has an interactive flow or sections in both locales, never an empty body.
     for (const id of PAGES) expect(files.get(`en/${id}.html`)!.match(/<h2 id=/gu)?.length ?? 0).toBeGreaterThan(1);
+  });
+
+  test("DOC19: the search page shows the search pipeline flow in both locales, Dev-only and design-only steps tagged", () => {
+    const files = buildDocsSite(readRepository(root, "unknowntpo/oss-knowledge-base"));
+    const tags = { en: ["Dev only", "Design only"], "zh-Hant": ["僅 Dev", "僅設計"] } as const;
+    for (const locale of LOCALES) {
+      const html = files.get(`${locale}/search.html`)!;
+      expect(html).toContain('<figure class="flow" id="flow-search"');
+      const tagOf = (node: string) => new RegExp(`data-node="search-${node}">[\\s\\S]*?</a>`, "u").exec(html)?.[0].match(/class="tag tag-(\w+)">([^<]+)</u)?.slice(1);
+      // Prod and Dev: no tag. Dev only: the semantic branch, fusion and fallback. Design only: Clef.
+      for (const node of ["q-ident", "q-token", "lex-bm25", "rank-thread"]) expect(tagOf(node)).toBeUndefined();
+      for (const node of ["sem-gate", "sem-vec", "rank-fuse", "rank-fallback"]) expect(tagOf(node)).toEqual(["dev", tags[locale][0]]);
+      expect(tagOf("rerank-clef")).toEqual(["off", tags[locale][1]]);
+    }
   });
 
   test.each(testPlanRows)("$id: $change → $stage reports \"$expect\"", (row) => {
