@@ -1,0 +1,155 @@
+{
+  "id": "search",
+  "label": { "en": "One query, from the search box to ranked threads", "zh-Hant": "一個查詢：從搜尋框到排序後的 thread" },
+  "initial": "q-ident",
+  "note": {
+    "en": "Untagged steps run on Prod and Dev. Prod is lexical only (`bm25-reference@3` since `v0.3.1`); steps tagged Dev only run on Dev; Clef reranking is a design note, not built, and Clef is not the search engine.",
+    "zh-Hant": "沒有標籤的步驟在 Prod 與 Dev 都會執行。Prod 只有關鍵字搜尋（`v0.3.1` 起為 `bm25-reference@3`）；標為「僅 Dev」的步驟只在 Dev 執行；Clef 重排序只是設計筆記，尚未實作，Clef 也不是搜尋引擎。"
+  },
+  "columns": [
+    {
+      "title": { "en": "1 · Query", "zh-Hant": "1 · 查詢" },
+      "cards": [
+        {
+          "id": "q", "title": { "en": "Query", "zh-Hant": "查詢" }, "count": "3",
+          "nodes": [
+            { "id": "q-box", "icon": "⌕", "kind": "web",
+              "title": { "en": "Search box", "zh-Hant": "搜尋框" },
+              "meta": { "en": "Pages Function", "zh-Hant": "Pages Function" },
+              "lead": { "en": "The query goes to a Pages Function that reads the published search release from R2. Lexical ranking and, on Dev, semantic retrieval start from the same normalised query; semantic retrieval runs alongside, not after.", "zh-Hant": "查詢送到一個 Pages Function，它從 R2 讀取已發布的搜尋 release。關鍵字排序與（Dev 上的）語意檢索都從同一個正規化後的查詢開始；語意檢索是同時進行，不是排在後面。" },
+              "facts": [
+                { "k": { "en": "Length", "zh-Hant": "長度" }, "v": { "en": "at most 500 characters for semantic retrieval", "zh-Hant": "語意檢索最多 500 個字元" } }
+              ],
+              "sources": ["apps/web/functions/api/search.ts", "apps/web/functions/_shared/search-projection.ts", "docs/specs/005-evidence-search/spec.md"] },
+            { "id": "q-ident", "icon": "#", "kind": "rule",
+              "title": { "en": "Identifier normalisation", "zh-Hant": "編號正規化" },
+              "meta": { "en": "KIP770 = KIP-770", "zh-Hant": "KIP770 = KIP-770" },
+              "lead": { "en": "A per-community profile rewrites identifiers before tokenizing, so `KIP770`, `kip770` and `KIP-770` are the same query, and a bare `770` matches every identifier with that number in the project (KIP, Jira issue, pull request). The rules live in the community profile, not in core search.", "zh-Hant": "各社群的設定檔在斷詞前改寫編號，所以 `KIP770`、`kip770`、`KIP-770` 是同一個查詢；單獨的 `770` 會命中該專案中所有這個號碼的編號（KIP、Jira issue、pull request）。這些規則放在社群設定檔，不在核心搜尋裡。" },
+              "facts": [
+                { "k": { "en": "Not accepted", "zh-Hant": "不接受" }, "v": { "en": "a space: `Kafka 4.2.0` is not read as `KAFKA-4`", "zh-Hant": "中間的空白：`Kafka 4.2.0` 不會被當成 `KAFKA-4`" } }
+              ],
+              "sources": ["packages/search/src/identifiers.ts", "packages/reference-pipeline/src/search/profiles.ts"] },
+            { "id": "q-token", "icon": "Aa", "kind": "rule",
+              "title": { "en": "Tokenizer", "zh-Hant": "斷詞" },
+              "meta": { "en": "camelCase split", "zh-Hant": "拆開 camelCase" },
+              "lead": { "en": "A word with a case boundary is kept and also split into lower-case parts: `HTTPServer` also matches `http` and `server`. The index and the query use the same tokenizer, so both sides agree.", "zh-Hant": "有大小寫邊界的字會保留原字，也拆成小寫分段：`HTTPServer` 也能用 `http` 和 `server` 找到。索引與查詢使用同一個斷詞器，兩邊結果一致。" },
+              "sources": ["packages/search/src/lexical-search.ts", "docs/specs/017-lexical-ranking/spec.md"] }
+          ]
+        }
+      ]
+    },
+    {
+      "title": { "en": "2 · Candidates", "zh-Hant": "2 · 候選" },
+      "cards": [
+        {
+          "id": "lex", "title": { "en": "Lexical · Prod and Dev", "zh-Hant": "關鍵字 · Prod 與 Dev" }, "count": "2",
+          "nodes": [
+            { "id": "lex-shards", "icon": "▤", "kind": "r2",
+              "title": { "en": "terms.json and shards", "zh-Hant": "terms.json 與分片" },
+              "meta": { "en": "≤ 1,000 chunks per shard", "zh-Hant": "每片 ≤ 1,000 段" },
+              "lead": { "en": "The publisher computes corpus statistics once and writes shards that never split a thread or mix projects. `terms.json` maps each term to its document frequency and the shards that hold it, so a query reads three small files plus only the shards its terms name, at most four at a time.", "zh-Hant": "發布器只計算一次語料統計，寫出的分片不會拆開 thread，也不會混合專案。`terms.json` 記錄每個詞的文件頻率與含有它的分片，所以一個查詢只讀三個小檔案，加上它的詞所指的分片，一次最多四個。" },
+              "facts": [
+                { "k": { "en": "Before", "zh-Hant": "改版前" }, "v": { "en": "every query read every shard: 695 ms of CPU", "zh-Hant": "每個查詢讀全部分片：695 ms CPU" } }
+              ],
+              "sources": ["docs/specs/013-search-streaming/spec.md", "docs/architecture/decisions/0007-publish-independent-versioned-search-releases.md"] },
+            { "id": "lex-bm25", "icon": "Σ", "kind": "rule",
+              "title": { "en": "BM25 candidate scoring", "zh-Hant": "BM25 候選計分" },
+              "meta": { "en": "k1 1.2 · b 0.75", "zh-Hant": "k1 1.2 · b 0.75" },
+              "lead": { "en": "Each chunk (at most 180 words, 30-word overlap) is scored with BM25: a term counts more when it is rare in the corpus and frequent in a short passage. Fields are weighted, and an exact identifier match is boosted so it always ranks first.", "zh-Hant": "每個段落（最多 180 個詞，重疊 30 個詞）用 BM25 計分：一個詞在語料中越少見、在短段落中出現越多，分數越高。各欄位有權重，編號精確命中另外加分，一定排第一。" },
+              "facts": [
+                { "k": { "en": "Field weights", "zh-Hant": "欄位權重" }, "v": { "en": "title 4, tags 2, body and author 1", "zh-Hant": "標題 4、標籤 2、內文與作者 1" } },
+                { "k": { "en": "Exact identifier", "zh-Hant": "編號精確命中" }, "v": { "en": "+1000", "zh-Hant": "+1000" } }
+              ],
+              "sources": ["packages/search/src/lexical-search.ts", "packages/search/src/chunking.ts"] }
+          ]
+        },
+        {
+          "id": "sem", "title": { "en": "Semantic · Dev only", "zh-Hant": "語意 · 僅 Dev" }, "count": "2",
+          "nodes": [
+            { "id": "sem-gate", "icon": "⛁", "kind": "rule",
+              "title": { "en": "Query budget gate", "zh-Hant": "查詢預算關卡" },
+              "meta": { "en": "per day and per hour", "zh-Hant": "每日與每小時" },
+              "tag": { "kind": "dev", "text": { "en": "Dev only", "zh-Hant": "僅 Dev" } },
+              "lead": { "en": "Every semantic query passes a Durable Object ledger, because a hard cap needs one strongly consistent counter. Identifier, number and symbol queries skip the embedding entirely; a refused query is answered lexically.", "zh-Hant": "每個語意查詢都要經過一個 Durable Object 帳本，因為硬上限需要單一、強一致的計數器。編號、數字與符號查詢完全不做向量化；被拒絕的查詢改用關鍵字回答。" },
+              "facts": [
+                { "k": { "en": "Per UTC day", "zh-Hant": "每個 UTC 日" }, "v": { "en": "1,000 neurons, 1,000 index queries", "zh-Hant": "1,000 neurons、1,000 次索引查詢" } },
+                { "k": { "en": "Per hour", "zh-Hant": "每小時" }, "v": { "en": "100 model calls", "zh-Hant": "100 次模型呼叫" } },
+                { "k": { "en": "Cache", "zh-Hant": "快取" }, "v": { "en": "results kept for one hour", "zh-Hant": "結果保留一小時" } }
+              ],
+              "sources": ["packages/semantic-vectorize/src/query-gate.ts", "apps/web/functions/_shared/semantic-gate.ts", "docs/specs/016-semantic-search/spec.md"] },
+            { "id": "sem-vec", "icon": "◇", "kind": "ai",
+              "title": { "en": "bge-m3 embedding + Vectorize", "zh-Hant": "bge-m3 向量 + Vectorize" },
+              "meta": { "en": "1,024 dims · cosine", "zh-Hant": "1,024 維 · cosine" },
+              "tag": { "kind": "dev", "text": { "en": "Dev only", "zh-Hant": "僅 Dev" } },
+              "lead": { "en": "The query is embedded with the multilingual `@cf/baai/bge-m3`, the same model used at publish time, and matched against the same chunks BM25 indexes in Cloudflare Vectorize (one namespace per project, behind a replaceable interface). It closes vocabulary gaps such as abbreviations and Chinese queries.", "zh-Hant": "查詢用多語模型 `@cf/baai/bge-m3` 向量化（與發布時同一個模型），在 Cloudflare Vectorize 中比對與 BM25 相同的段落（每個專案一個 namespace，放在可替換的介面後面）。它補足縮寫與中文查詢這類用詞落差。" },
+              "facts": [
+                { "k": { "en": "Timeout", "zh-Hant": "逾時" }, "v": { "en": "1,000 ms, then lexical only", "zh-Hant": "1,000 ms，之後只用關鍵字" } }
+              ],
+              "sources": ["packages/semantic-vectorize/src/retriever.ts", "packages/search/src/semantic.ts", "docs/specs/016-semantic-search/spec.md"] }
+          ]
+        }
+      ]
+    },
+    {
+      "title": { "en": "3 · Rank", "zh-Hant": "3 · 排序" },
+      "cards": [
+        {
+          "id": "rank", "title": { "en": "Rank and merge", "zh-Hant": "排序與合併" }, "count": "3",
+          "nodes": [
+            { "id": "rank-thread", "icon": "≡", "kind": "rule",
+              "title": { "en": "Thread score and phrase bonus", "zh-Hant": "thread 分數與片語加分" },
+              "meta": { "en": "bm25-reference@3", "zh-Hant": "bm25-reference@3" },
+              "lead": { "en": "Chunk scores become a thread score as a geometric sum, best chunk first, so a long thread can never score more than 4/3 of its best chunk. Two query words next to each other and in order add a bonus: by the title weight in the title, by the pair's mean IDF in the text.", "zh-Hant": "段落分數以等比級數合成 thread 分數（最佳段落在前），所以長 thread 永遠不超過最佳段落的 4/3。查詢中兩個詞在文中相鄰且順序相同時加分：在標題中乘上標題權重，在內文中以該詞對的平均 IDF 計算。" },
+              "facts": [
+                { "k": { "en": "Thread score", "zh-Hant": "thread 分數" }, "v": { "en": "Σ chunk score × 0.25^i", "zh-Hant": "Σ 段落分數 × 0.25^i" } },
+                { "k": { "en": "Evaluation", "zh-Hant": "評估" }, "v": { "en": "20 / 21 labelled queries pass (was 7 / 21)", "zh-Hant": "21 個標註查詢通過 20 個（原為 7 個）" } }
+              ],
+              "sources": ["docs/specs/017-lexical-ranking/spec.md", "packages/search/src/lexical-search.ts"] },
+            { "id": "rank-fuse", "icon": "⋈", "kind": "rule",
+              "title": { "en": "rrf-group@2 fusion", "zh-Hant": "rrf-group@2 融合" },
+              "meta": { "en": "RRF k = 60, by thread", "zh-Hant": "RRF k = 60，以 thread 為單位" },
+              "tag": { "kind": "dev", "text": { "en": "Dev only", "zh-Hant": "僅 Dev" } },
+              "lead": { "en": "Reciprocal rank fusion adds 1 / (k + rank) from the lexical and semantic lists. Revision 2 keeps exact matches first, then leading lexical threads whose passage holds every query word in their lexical places, then the rest by RRF, so weak semantic matches cannot push out correct lexical hits.", "zh-Hant": "倒數排名融合把關鍵字與語意兩份清單的 1 / (k + 名次) 相加。第 2 版先放精確命中，再把段落含有全部查詢詞、排在關鍵字前面的 thread 留在原名次，其餘依 RRF 排序，所以弱的語意結果不會擠掉正確的關鍵字結果。" },
+              "facts": [
+                { "k": { "en": "Replay", "zh-Hant": "重播" }, "v": { "en": "57 rows: lexical 34, rrf-group@2 39, none worse", "zh-Hant": "57 列：關鍵字 34、rrf-group@2 39，沒有變差" } }
+              ],
+              "sources": ["packages/search/src/fusion.ts", "docs/specs/016-semantic-search/spec.md"] },
+            { "id": "rank-fallback", "icon": "↩", "kind": "rule",
+              "title": { "en": "BM25 fallback", "zh-Hant": "退回 BM25" },
+              "meta": { "en": "HTTP 200, lexical result", "zh-Hant": "HTTP 200，關鍵字結果" },
+              "tag": { "kind": "dev", "text": { "en": "Dev only", "zh-Hant": "僅 Dev" } },
+              "lead": { "en": "Any semantic failure, timeout, budget refusal or release not yet covered by embeddings returns the lexical ranking with HTTP 200 and the reason in the response. Search never breaks because of the semantic part.", "zh-Hant": "語意部分的任何失敗、逾時、預算拒絕，或 release 尚未涵蓋向量，都回傳關鍵字排名與 HTTP 200，並在回應中附上原因。搜尋不會因為語意部分而中斷。" },
+              "sources": ["apps/web/functions/_shared/search-projection.ts", "docs/specs/016-semantic-search/spec.md"] }
+          ]
+        },
+        {
+          "id": "rerank", "title": { "en": "Reranking", "zh-Hant": "重排序" }, "count": "1",
+          "nodes": [
+            { "id": "rerank-clef", "icon": "?", "kind": "ai",
+              "title": { "en": "Clef reranking", "zh-Hant": "Clef 重排序" },
+              "meta": { "en": "not built", "zh-Hant": "尚未實作" },
+              "tag": { "kind": "off", "text": { "en": "Design only", "zh-Hant": "僅設計" } },
+              "lead": { "en": "A possible later stage, not part of any environment: a decision model would rescore only the top candidates, and only if measurements show correct threads in the top 20 but ranked too low. Clef is not the search engine; retrieval stays BM25 and, on Dev, semantic.", "zh-Hant": "日後可能加入的階段，目前任何環境都沒有：用 decision model 只重新計分前幾名候選，而且只有在量測顯示正確的 thread 進了前 20 名卻排得太後面時才加。Clef 不是搜尋引擎；檢索仍是 BM25 與（Dev 上的）語意檢索。" },
+              "sources": ["docs/architecture/search-algorithm.md"] }
+          ]
+        }
+      ]
+    },
+    {
+      "title": { "en": "4 · Results", "zh-Hant": "4 · 結果" },
+      "cards": [
+        {
+          "id": "out", "title": { "en": "Results", "zh-Hant": "結果" }, "count": "1",
+          "nodes": [
+            { "id": "out-threads", "icon": "☰", "kind": "web",
+              "title": { "en": "Ranked threads", "zh-Hant": "排序後的 thread" },
+              "meta": { "en": "with the matching passage", "zh-Hant": "附上命中的段落" },
+              "lead": { "en": "The response lists threads with the passage that matched and each rank signal (lexical, semantic, fused), so a result can be explained. On Prod the order is the lexical one.", "zh-Hant": "回應列出 thread、命中的段落與各項排名訊號（關鍵字、語意、融合），讓每個結果都能說明。在 Prod 上，順序就是關鍵字排序。" },
+              "sources": ["apps/web/functions/_shared/search-projection.ts", "apps/web/src/search-results.ts"] }
+          ]
+        }
+      ]
+    }
+  ],
+  "links": [["q", "lex"], ["q", "sem"], ["lex", "rank"], ["sem", "rank"], ["rank", "out"]]
+}

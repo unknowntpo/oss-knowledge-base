@@ -2,6 +2,12 @@
 
 搜尋以關鍵字為主：BM25 排序針對社群紀錄調整過，`KIP-770` 這類編號必須精確命中，多則訊息的長 thread 也不能蓋過主題集中的 thread。Dev 另外融合語意檢索，補足用詞不同的情況。下面每個數字都連到產生它的量測。
 
+## 一個查詢怎麼被回答 {#flow}
+
+{{flow:search}}
+
+點選步驟可看數字與來源；各階段在下面的段落說明。
+
 ## 兩個階段 {#shape}
 
 先用便宜的方式在全部語料中檢索；只有在相關結果仍排得太後面時，才考慮加上較昂貴的重排序。目前 Prod 只跑 BM25；Dev 加上語意檢索與排名融合；重排序尚未實作（[docs/architecture/search-algorithm.md](docs/architecture/search-algorithm.md)、[Spec 005](docs/specs/005-evidence-search/spec.md)）。

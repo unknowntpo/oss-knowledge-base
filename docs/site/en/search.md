@@ -2,6 +2,12 @@
 
 Search is lexical first: a BM25 ranker tuned for community records, where identifiers such as `KIP-770` must match exactly and multi-message threads must not drown out focused ones. On Dev a semantic retriever is fused in for vocabulary gaps. Every number below links to the measurement that produced it.
 
+## How a query is answered {#flow}
+
+{{flow:search}}
+
+Select a step for its numbers and sources. Each stage is explained in the sections below.
+
 ## Two stages {#shape}
 
 Cheap retrieval over the whole corpus comes first; a costlier reranking stage is planned only if relevant results still rank too low. Today Prod runs BM25 only; Dev adds semantic retrieval and rank fusion; no reranker is built ([docs/architecture/search-algorithm.md](docs/architecture/search-algorithm.md), [Spec 005](docs/specs/005-evidence-search/spec.md)).

@@ -48,6 +48,15 @@ each is reported afterwards in one line. A PR that changes only Markdown
 documentation (`docs/**`, `*.md`) needs green gates but no independent
 verifier.
 
+Low-risk, easily reverted PRs also merge without a human once gates are green
+and the verifier passed, even when they add small behavior or acceptance IDs to
+an existing spec (a UI fix, a diagram or copy on an existing page; #120, #121).
+All must hold: reverting the merge commit fully restores the previous state
+(an auto-deploy on merge redeploys it); no data format, contract, migration or
+persisted state change; no credential, permission or cost change; no new public
+URL, newly public data or external integration; no Prod release tag or manual
+Prod deploy; one small intent. If any fails, or when unsure, it is core.
+
 A public surface needs the human's explicit approval of that specific
 publication even after the PR passed verification, because a passing verdict
 says the change works, not that it should be public (#66; the agent harness
