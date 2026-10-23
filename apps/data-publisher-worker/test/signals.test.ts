@@ -311,7 +311,7 @@ class FakeSink {
 
 const row = (runId: string, overrides: Record<string, unknown> = {}) => ({
   runId, status: "ok", ok: 1, durationMs: 1_000, r2ClassA: 10, completedAtMs: NOW - H,
-  c1: 1, c2: 1, c3: 1, c4: 0, c5: 0, c6: 0, sampleInterval: 1, ...overrides,
+  c1: 1, c2: 1, c3: 1, c4: 0, c5: 0, c6: 0, weight: 1, ...overrides,
 });
 
 function recorder(sql: AnalyticsSql | undefined, sink: FakeSink | null = new FakeSink(), delays: number[] = []) {
@@ -337,6 +337,37 @@ describe("Spec 028 slice 1: the recorder", () => {
     expect(historyQuery("publication", current.runId, "production", NOW).query).toContain('"osskb_signals_prod"');
     // The point is written before the query, exactly once.
     expect(sink.points).toHaveLength(1);
+  });
+
+  test("OB4: the history SELECT names only columns the ANALYTICS_SQL binding exposes for a WAE dataset, and takes the row weight from COUNT(*)", () => {
+    // The Analytics SQL API dialect (not the WAE SQL API): WAE columns are timestamp, index1,
+    // blob1–20, double1–20; `_sample_interval` does not exist there (Dev 2026-10-23: "Schema error:
+    // No field named _sample_interval"), and sample weights are applied to COUNT/SUM/AVG instead.
+    // Exact MIN/MAX are rejected on adaptively sampled datasets.
+    const binding = new Set(["timestamp", "index1", ...Array.from({ length: 20 }, (_, i) => `blob${i + 1}`), ...Array.from({ length: 20 }, (_, i) => `double${i + 1}`)]);
+    const keywords = new Set(["SELECT", "AS", "FROM", "WHERE", "AND", "GROUP", "BY", "ORDER", "DESC", "LIMIT", "COUNT"]);
+    const { query } = historyQuery("digest", "digest-1", "development", NOW);
+    const body = query
+      .replace(/events\.analyticsEngine\."[^"]+"/u, "")
+      .replace(/\$\w+/gu, "")
+      .replace(/\bAS\s+\w+/gu, "AS");
+    const columns = (body.match(/[A-Za-z_][A-Za-z0-9_]*/gu) ?? []).filter((word) => !keywords.has(word.toUpperCase()));
+    expect(columns.filter((column) => !binding.has(column))).toEqual([]);
+    expect(query).not.toContain("_sample_interval");
+    expect(query).not.toMatch(/\b(MIN|MAX)\s*\(/iu);
+    expect(query).toContain("COUNT(*) AS weight");
+    // Every non-aggregated column is grouped, so one row per stored point and COUNT(*) is its weight.
+    const selected = query.slice("SELECT ".length, query.indexOf(" FROM ")).split(",").map((part) => part.trim().split(/\s+/u)[0]!).filter((part) => !part.startsWith("COUNT("));
+    const grouped = query.slice(query.indexOf("GROUP BY ") + "GROUP BY ".length, query.indexOf(" ORDER BY ")).split(",").map((part) => part.trim());
+    expect(new Set(grouped)).toEqual(new Set([...selected, "timestamp"]));
+  });
+
+  test("OB15: the weight column (not _sample_interval) is what the sampled check reads; a missing weight is sampled", async () => {
+    const weighted = await recorder(new FakeSql([() => ({ data: [row("a", { weight: 10 }), row("b"), row("c")] })])).finish(run("digest", { ok: false, status: "failed" }));
+    expect(ruleOf(weighted.rules, "job.failures", "digest")).toMatchObject({ status: "unknown", reason: "sampled" });
+    // A row without the weight column is treated as sampled, never as exact.
+    const missing = await recorder(new FakeSql([() => ({ data: [row("a", { weight: undefined }), row("b"), row("c")] })])).finish(run("digest", { ok: false, status: "failed" }));
+    expect(ruleOf(missing.rules, "job.failures", "digest")).toMatchObject({ status: "unknown", reason: "sampled" });
   });
 
   test("OB29: every job's run makes at most one SELECT, filtered by its own blob1", async () => {
@@ -373,8 +404,8 @@ describe("Spec 028 slice 1: the recorder", () => {
     expect(ruleOf(result.rules, "job.failures", "digest")!.status).toBe("warn");
   });
 
-  test("OB15: a history row with _sample_interval 10 makes the rules reading it unknown (sampled); two rows of one runId count once", async () => {
-    const sampled = await recorder(new FakeSql([() => ({ data: [row("a", { sampleInterval: 10 }), row("b"), row("c")] })])).finish(run("digest", { ok: false, status: "failed" }));
+  test("OB15: a history row with weight (weighted COUNT(*)) 10 makes the rules reading it unknown (sampled); two rows of one runId count once", async () => {
+    const sampled = await recorder(new FakeSql([() => ({ data: [row("a", { weight: 10 }), row("b"), row("c")] })])).finish(run("digest", { ok: false, status: "failed" }));
     const failures = ruleOf(sampled.rules, "job.failures", "digest")!;
     expect(failures).toMatchObject({ status: "unknown", reason: "sampled" });
     // Positive control: the same rows unsampled are judged.
