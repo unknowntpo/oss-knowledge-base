@@ -309,10 +309,15 @@ class FakeSink {
   writeDataPoint(point: unknown) { this.points.push(point); }
 }
 
-const row = (runId: string, overrides: Record<string, unknown> = {}) => ({
+/** One answer row as the binding returns it: keyed by the raw column names the query selects. */
+const COLUMN_OF: Record<string, string> = {
+  runId: "index1", status: "blob3", ok: "double1", durationMs: "double2", r2ClassA: "double3", completedAtMs: "double6",
+  c1: "double7", c2: "double8", c3: "double9", c4: "double10", c5: "double11", c6: "double12",
+};
+const row = (runId: string, overrides: Record<string, unknown> = {}) => Object.fromEntries(Object.entries({
   runId, status: "ok", ok: 1, durationMs: 1_000, r2ClassA: 10, completedAtMs: NOW - H,
   c1: 1, c2: 1, c3: 1, c4: 0, c5: 0, c6: 0, weight: 1, ...overrides,
-});
+}).map(([key, value]) => [COLUMN_OF[key] ?? key, value]));
 
 function recorder(sql: AnalyticsSql | undefined, sink: FakeSink | null = new FakeSink(), delays: number[] = []) {
   return new SignalRecorder({ environment: "development", ...(sink === null ? {} : { sink }), ...(sql === undefined ? {} : { sql }), now: () => NOW, delay: async (ms) => { delays.push(ms); } });
@@ -360,6 +365,21 @@ describe("Spec 028 slice 1: the recorder", () => {
     const selected = query.slice("SELECT ".length, query.indexOf(" FROM ")).split(",").map((part) => part.trim().split(/\s+/u)[0]!).filter((part) => !part.startsWith("COUNT("));
     const grouped = query.slice(query.indexOf("GROUP BY ") + "GROUP BY ".length, query.indexOf(" ORDER BY ")).split(",").map((part) => part.trim());
     expect(new Set(grouped)).toEqual(new Set([...selected, "timestamp"]));
+  });
+
+  test("OB4: no SELECT alias is referenced in WHERE/GROUP BY/ORDER BY/HAVING, and no column those clauses use is aliased", () => {
+    // Dev 2026-10-23 (publication-2026-10-23T02-52-13-074Z): "Input was invalid: column `writtenAt` not
+    // found in dataset `events.analyticsEngine`" for `SELECT … timestamp AS writtenAt … GROUP BY …
+    // timestamp ORDER BY timestamp`: the binding resolves a clause's column to its SELECT alias, then
+    // looks the alias up as a dataset column. So only aggregates carry an alias.
+    const { query } = historyQuery("digest", "digest-1", "development", NOW);
+    const selectList = query.slice("SELECT ".length, query.indexOf(" FROM "));
+    const rest = query.slice(query.indexOf(" WHERE ")).replace(/\$\w+/gu, "");
+    const items = selectList.split(",").map((part) => part.trim());
+    const aliased = items.map((item) => /^(.+?)\s+AS\s+(\w+)$/iu.exec(item)).filter((match) => match !== null);
+    const words = new Set(rest.match(/[A-Za-z_][A-Za-z0-9_]*/gu) ?? []);
+    expect(aliased.map((match) => match![2]!).filter((alias) => words.has(alias))).toEqual([]);
+    expect(aliased.map((match) => match![1]!).filter((expression) => !/^[A-Za-z]+\(/u.test(expression))).toEqual([]);
   });
 
   test("OB15: the weight column (not _sample_interval) is what the sampled check reads; a missing weight is sampled", async () => {
