@@ -432,6 +432,38 @@ stopped is therefore not projected for the rest of the month: on
 `overageUsd` and `projectedOverageUsd` are each metric's dollars over its
 allowance at list price; nothing trips on them yet.
 
+### The R2 Class A spike (CG23)
+
+The same request also counts this environment's own bucket over the last
+24 hours (Dev `oss-knowledge-base-dev`, Prod `oss-knowledge-base-prod`,
+picked by `PUBLICATION_ENVIRONMENT`). At 50,000 Class A or more it trips
+`r2ClassA`, whatever the dollars; another bucket, including the other
+environment's, never trips it. Normal: Dev about 134 a publication plus
+about 306 a retention dry run (10:17 UTC), Prod about 732 a run; the
+10-02..13 incident ran at about 8,150 an hour (196,000 a day), so it trips on
+the first daily check. 50,000 is provisional (CG37): record
+`r2ClassASpike.last24h` on a publication day on each environment before
+`enforce`, and expect at most 5,000.
+
+```sh
+curl -sS -X POST -H "authorization: Bearer $MANUAL_TRIGGER_TOKEN" "$DEV/cost-guard/check?dryRun=1" | jq '{status, r2ClassASpike, wouldTrip}'
+# for example: {"status":"…","r2ClassASpike":{"last24h":976,"threshold":50000,"bucket":"oss-knowledge-base-dev","status":"ok"},"wouldTrip":…}
+```
+
+`r2ClassASpike.status` is `unavailable` when the GraphQL read failed (it
+never trips then). A tripped spike opens the breaker with `metric:
+"r2ClassA"`, `value` the 24-hour count, `threshold` 50,000 and `bucket`;
+under `enforce` that pauses the publication and the review ingestion of
+that environment only. Under `monitor` (Dev today) it only records. The
+monthly Class A trip at 80 % of 1 million also still trips `r2ClassA` until
+the budget slice replaces it.
+
+If it trips: open R2 → the bucket → Metrics, find the operation that
+grows (for the 10-13 incident, failed conditional `PutObject`), and compare
+the last publication's `lastRun.r2.classA` with its bound (section "R2
+operations and cost"). Reset only after the writer is fixed; the next check
+reopens the breaker while the 24-hour count is still at 50,000 or more.
+
 Expect `ok: true` and R2 Class A/B within a few percent of the dashboard's
 R2 → Metrics month to date. `unclassifiedActions` lists action types the
 pricing page does not name (counted as Class A); report any. Save the raw
@@ -447,7 +479,7 @@ permissions in the dashboard, or create a new one and put it again with
 ### Read `/health`
 
 ```sh
-curl -sS "$DEV/health" | jq '.costGuard | {mode, status, reason, checkedAt, breaker, lastError, metrics: (.metrics | map_values("\(.percent)% \(.status)"))}'
+curl -sS "$DEV/health" | jq '.costGuard | {mode, status, reason, checkedAt, breaker, lastError, r2ClassASpike, metrics: (.metrics | map_values("\(.percent)% \(.status)"))}'
 ```
 
 | `status` | Meaning | Do |
@@ -455,7 +487,7 @@ curl -sS "$DEV/health" | jq '.costGuard | {mode, status, reason, checkedAt, brea
 | `pending` | configured, no check yet | wait for the next tick, or run the dry check |
 | `ok` | every metric under 60 % | nothing |
 | `warn` | a metric at 60 % or more (Vectorize stored dimensions only ever warns) | look at the metric |
-| `tripped` | the breaker is open (`breaker.reason`, `breaker.metrics`) | under `enforce`: digest, embeddings and semantic queries refuse; publication pauses only if `breaker.metrics` has `r2ClassA` |
+| `tripped` | the breaker is open (`breaker.reason`, `breaker.metrics`), or a dry run's spike trips | under `enforce`: digest, embeddings and semantic queries refuse; publication pauses only if `breaker.metrics` has `r2ClassA` |
 | `unconfigured` | `reason` names the missing token, account id or binding | fix the configuration |
 
 `scope: "account"` metrics (R2) cover both environments; `scope: "worker"`

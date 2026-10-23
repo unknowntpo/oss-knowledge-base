@@ -967,6 +967,7 @@ export class CostGuard implements DurableObject {
       flag: env.COST_GUARD,
       token: env.CF_ANALYTICS_TOKEN,
       accountId: env.CF_ACCOUNT_ID,
+      environment: env.PUBLICATION_ENVIRONMENT,
       fetch: (url, init) => fetch(url, init),
       now: () => new Date(),
       inApp: inAppSources(env, () => new Date()),
