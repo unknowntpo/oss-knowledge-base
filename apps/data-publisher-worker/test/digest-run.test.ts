@@ -1471,7 +1471,7 @@ describe("Spec 014 slice 2 named tests", () => {
     for (const [config, publisherCron] of [[dev, "7 22 * * *"], [prod, "37 22 * * *"]] as const) {
       const crons = config.triggers?.crons ?? [];
       const digestCron = config.vars?.DIGEST_CRON;
-      const jobCrons = [config.vars?.IDENTITY_LINKS_CRON, config.vars?.KIP_PAGES_CRON];
+      const jobCrons = [config.vars?.IDENTITY_LINKS_CRON, config.vars?.KIP_PAGES_CRON, config.vars?.RETENTION_CRON];
       // Spec 027 A2-3: `SRE_AGENT_CRON` holds the sre-agent job's expressions, `;`-separated.
       const sreCrons = (config.vars?.SRE_AGENT_CRON ?? "").split(";").map((cron) => cron.trim()).filter((cron) => cron !== "");
       // A cron entry without its job's variable would start an extra publication; a variable without its entry never fires.
@@ -1489,7 +1489,7 @@ describe("Spec 014 slice 2 named tests", () => {
   test("D86: Dev has the publisher's cron and the digest's 47 22 * * *, kept apart from the other jobs; Prod has no digest cron", async () => {
     const dev = await deployConfig("development");
     const prod = await deployConfig("production");
-    expect(dev.triggers?.crons).toEqual(["7 22 * * *", "47 22 * * *", "17 2 * * *", "43 3 * * *", "30 0 * * *", "0 11 * * *"]);
+    expect(dev.triggers?.crons).toEqual(["7 22 * * *", "47 22 * * *", "17 2 * * *", "43 3 * * *", "30 0 * * *", "0 11 * * *", "17 10 * * *"]);
     expect(dev.vars?.DIGEST_CRON).toBe("47 22 * * *");
     expect(prod.triggers?.crons).toEqual(["37 22 * * *"]);
     expect(prod.vars?.DIGEST_CRON).toBeUndefined();

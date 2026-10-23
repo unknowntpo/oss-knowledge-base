@@ -35,6 +35,9 @@ import { signalsFor } from "./signals/env";
 import { runLog, type AnalyticsSql, type RunContext, type SignalsSink } from "./signals/recorder";
 import { signalsHealth } from "./signals/rules";
 import { sreAgentCron, sreAgentHealth, sreAgentNeuronsToday, sreAgentTick } from "./sre-agent/run";
+import { requestRetention, RETENTION_PENDING_KEY, RETENTION_REPORT_KEY, retentionAlarm, retentionHealth } from "./retention/job";
+import { resolveRetentionMode } from "./retention/plan";
+import { runRetentionDryRun } from "./retention/run";
 
 interface Env {
   readonly PUBLICATION_ENVIRONMENT: "development" | "production";
@@ -140,6 +143,15 @@ interface Env {
   readonly SRE_AGENT_CRON?: string;
   /** Spec 027 B30: the Workers AI model id `live` uses through the `AI` binding. */
   readonly SRE_AGENT_MODEL?: string;
+  /**
+   * Spec 029 (dry-run slice): `dry-run` lists and reports what retention would delete, on its own
+   * cron tick and its own alarm invocation of `PipelineState`. Unset, blank or `off`: nothing runs,
+   * no R2 call, no `/health` field. Any other value (`enforce` included: this build cannot delete)
+   * is unconfigured. Never deletes.
+   */
+  readonly R2_RETENTION?: string;
+  /** Spec 029 Behavior 2: retention's own cron (Dev `17 10 * * *`). Its tick never publishes. */
+  readonly RETENTION_CRON?: string;
 }
 
 /** Spec 028 Behavior 2: the publication run whose release `release` is, read from the publisher's `/status`. */
@@ -185,6 +197,19 @@ export function searchEmbeddingTrigger(
     const response = await searchEmbeddingObject(env)!.fetch("https://search-embedding.internal/run", { method: "POST" });
     if (!response.ok && response.status !== 409) runLog(context, "error", sanitizeErrorMessage(`Scheduling the search embedding failed: ${response.status} ${await response.text()}`));
   };
+}
+
+/**
+ * Spec 029 Behavior 3: the release the embedding job pins (`lastRun.releaseId`); null when the job
+ * is not bound or has not run. An object that does not answer fails the retention run (fail closed).
+ */
+export async function embeddingReleaseId(env: Pick<Env, "SEARCH_EMBEDDING_RUN">): Promise<string | null> {
+  const embedding = searchEmbeddingObject(env);
+  if (embedding === undefined) return null;
+  const response = await embedding.fetch("https://search-embedding.internal/status");
+  if (!response.ok) throw new Error(`the embedding job's status answered ${response.status}`);
+  const releaseId = ((await response.json()) as { lastRun?: { releaseId?: unknown } | null }).lastRun?.releaseId;
+  return typeof releaseId === "string" ? releaseId : null;
 }
 
 function costGuardObject(env: Pick<Env, "COST_GUARD_STATE">): DurableObjectStub | undefined {
@@ -270,7 +295,9 @@ const matches = (cron: string, configured: string | undefined) => configured !==
  * Spec 014 Behavior 21 and Spec 015 Q57: a tick starts the digest or the review queue only when it
  * is that job's configured cron; any other tick publishes.
  */
-export function cronTarget(cron: string, digestCron: string | undefined, reviewQueueCron?: string, identityLinksCron?: string, kipPagesCron?: string, sreAgentCrons?: string): "digest" | "review-queue" | "identity-links" | "kip-pages" | "sre-agent" | "publisher" {
+export function cronTarget(cron: string, digestCron: string | undefined, reviewQueueCron?: string, identityLinksCron?: string, kipPagesCron?: string, sreAgentCrons?: string, retentionCron?: string): "digest" | "review-queue" | "identity-links" | "kip-pages" | "sre-agent" | "retention" | "publisher" {
+  // Spec 029 RT24: retention's tick never publishes, whatever `R2_RETENTION` is.
+  if (matches(cron, retentionCron)) return "retention";
   if (matches(cron, digestCron)) return "digest";
   if (matches(cron, reviewQueueCron)) return "review-queue";
   // Spec 019 amendment (7): the identity-link job's own tick never publishes (W81).
@@ -386,7 +413,16 @@ export function githubInitialLookbackDays(env: Pick<Env, "GITHUB_INITIAL_LOOKBAC
 
 export default {
   async scheduled(controller: ScheduledController, env: Env, context: ExecutionContext): Promise<void> {
-    const target = cronTarget(controller.cron, env.DIGEST_CRON, env.REVIEW_QUEUE_CRON, env.IDENTITY_LINKS_CRON, env.KIP_PAGES_CRON, env.SRE_AGENT_CRON);
+    const target = cronTarget(controller.cron, env.DIGEST_CRON, env.REVIEW_QUEUE_CRON, env.IDENTITY_LINKS_CRON, env.KIP_PAGES_CRON, env.SRE_AGENT_CRON, env.RETENTION_CRON);
+    if (target === "retention") {
+      // Spec 029 RT1, RT24: off or unconfigured, the tick does nothing; otherwise the object decides.
+      if (resolveRetentionMode(env.R2_RETENTION).mode !== "dry-run") return;
+      const stub = env.PIPELINE_STATE.get(env.PIPELINE_STATE.idFromName(STATE_OBJECT_NAME));
+      context.waitUntil(stub.fetch("https://pipeline.internal/retention", { method: "POST" }).then(async (response) => {
+        if (!response.ok) console.error({ message: sanitizeErrorMessage(`retention: the tick answered ${response.status}`), job: "retention" });
+      }));
+      return;
+    }
     if (target === "sre-agent") {
       // Spec 027 B23, SRE47: its own branch; every error ends as `lastRun.status: "failed"`, never a throw here.
       context.waitUntil(sreAgentTick(env, { now: new Date(controller.scheduledTime), readHealth: () => tickHealth(env) }).then(() => undefined, (error: unknown) => {
@@ -524,6 +560,12 @@ export default {
       const result = await kipPagesRun(env, url.searchParams.get("dryRun") === "1");
       return json(result, { status: result.lastRun?.ok === true ? 200 : 502 });
     }
+    if (request.method === "GET" && url.pathname === "/retention/report") {
+      // Spec 029 RT20: the dry run's full list, for the owner's review; bearer only, no route while off.
+      if (resolveRetentionMode(env.R2_RETENTION).mode === "off") return new Response("Not found", { status: 404 });
+      if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
+      return stub.fetch("https://pipeline.internal/retention/report");
+    }
     if (request.method === "POST" && url.pathname === "/run") {
       if (!authorized(request, env)) {
         return new Response("Unauthorized", { status: 401 });
@@ -576,10 +618,15 @@ async function servedHealth(env: Env): Promise<Response | Record<string, unknown
     ? await env.OSS_KB_BUCKET.get(IDENTITY_LINKS_LAST_RUN_KEY).then((object) => (object === null ? null : object.json())).catch(() => null)
     : undefined;
   const kipPages = await kipPagesHealth(env);
+  // Spec 029 Behavior 9: only while `R2_RETENTION` is set; null when the object does not answer.
+  const retention = resolveRetentionMode(env.R2_RETENTION).mode === "off"
+    ? undefined
+    : await stub.fetch("https://pipeline.internal/retention/status").then((response) => (response.ok ? response.json() : null)).catch(() => null);
   const body = {
     ...health,
     ...(identityLinks === undefined ? {} : { identityLinks }),
     ...(kipPages === undefined ? {} : { kipPages }),
+    ...(retention === undefined ? {} : { retention }),
   };
   // Spec 028 Behavior 18: judged from the records just read; no read, query or write of its own.
   const signals = signalsField(env, body);
@@ -658,12 +705,16 @@ export class PipelineState implements DurableObject {
         followUp: await this.ctx.storage.get<FollowUpMarker>(FOLLOW_UP_KEY),
       }));
     }
+    if (path.startsWith("/retention")) return this.retention(request.method, path);
     if (request.method !== "POST" || path !== "/run") return new Response("Not found", { status: 404 });
     // Spec 026 Behavior 9: an R2 Class A trip under `enforce` pauses the publication.
     if ((await costGuardDecisionFor(this.env)).pausePublication) return json(COST_GUARD_REFUSAL.body, { status: COST_GUARD_REFUSAL.status });
+    // Spec 029 Behavior 7 (RT15): a pending retention alarm does not block the trigger; the
+    // publication then wins that alarm and retention is recorded skipped.
+    const retentionOnly = resolveRetentionMode(this.env.R2_RETENTION).mode !== "off" && await this.ctx.storage.get(RETENTION_PENDING_KEY) !== undefined;
     // A stale alarm (its retries exhausted) and a follow-up waiting for later (Spec 018) are
     // overwritten below instead of blocking the trigger; the trigger starts a new follow-up count.
-    if (runStarting(this.running, await this.ctx.storage.getAlarm(), Date.now())) {
+    if (runStarting(this.running, retentionOnly ? null : await this.ctx.storage.getAlarm(), Date.now())) {
       return json({ ok: false, skipped: "already-running" }, { status: 409 });
     }
     const requestedAt = request.headers.get("x-scheduled-at") ?? new Date().toISOString();
@@ -676,7 +727,38 @@ export class PipelineState implements DurableObject {
     return json({ ok: true, scheduled: true }, { status: 202 });
   }
 
+  /** Spec 029: retention's routes. They read and write only `retention-*` keys. */
+  private async retention(method: string, path: string): Promise<Response> {
+    if (method === "GET" && path === "/retention/status") return json(await retentionHealth(this.ctx.storage, this.env.R2_RETENTION) ?? null);
+    if (method === "GET" && path === "/retention/report") {
+      const report = await this.ctx.storage.get(RETENTION_REPORT_KEY);
+      return report === undefined ? json({ ok: false, error: "no retention report yet" }, { status: 404 }) : json(report);
+    }
+    if (method === "POST" && path === "/retention") {
+      if (resolveRetentionMode(this.env.R2_RETENTION).mode !== "dry-run") return json({ ok: false, disabled: true }, { status: 403 });
+      const result = await requestRetention(this.ctx.storage, {
+        running: this.running,
+        paused: (await costGuardDecisionFor(this.env)).pausePublication,
+        now: Date.now(),
+      });
+      return json(result.body, { status: result.status });
+    }
+    return new Response("Not found", { status: 404 });
+  }
+
   async alarm(): Promise<void> {
+    // Spec 029 Behavior 2: retention's own alarm invocation; it never runs the publication's code.
+    if (await retentionAlarm(this.ctx.storage, {
+      flag: this.env.R2_RETENTION,
+      now: () => Date.now(),
+      paused: async () => (await costGuardDecisionFor(this.env)).pausePublication,
+      run: () => runRetentionDryRun({
+        bucket: this.env.OSS_KB_BUCKET,
+        now: () => Date.now(),
+        digestProjectIds: [KAFKA_DIGEST_PROFILE.projectId],
+        embeddingReleaseId: () => embeddingReleaseId(this.env),
+      }),
+    })) return;
     const signals = signalsFor(this.env);
     // Spec 028: a follow-up keeps the run's id; an alarm with no marker (the flag just turned on) starts one.
     const run = signals === undefined ? undefined

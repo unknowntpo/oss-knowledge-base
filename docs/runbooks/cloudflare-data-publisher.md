@@ -482,6 +482,61 @@ Unset `COST_GUARD` (a var change and deploy). Nothing is refused, no check
 runs, and `/health` loses `costGuard`; the stored breaker stays in the object
 and applies again only if `enforce` is set again.
 
+## R2 retention dry run (Spec 029)
+
+Retention is its own job: its own cron (`RETENTION_CRON`, Dev `17 10 * * *`),
+its own alarm invocation of `PipelineState`, its own `/health` field. This
+build only lists and reports; it has no code that deletes or writes R2.
+`enforce` is reported as `unconfigured`. Prod has no flag and no cron.
+
+| `R2_RETENTION` | Effect |
+| --- | --- |
+| unset, blank, `off` (Dev today) | the 10:17 tick does nothing; no `/health.retention`; `/retention/report` 404 |
+| `dry-run` | once a UTC day: lists, reads, stores `retention-last-run` and `retention-report` in the Durable Object |
+| anything else, `enforce` included | nothing runs; `/health.retention {status: "unconfigured", reason}` |
+
+Per run: at most 400 list calls (Class A), 600 get calls (Class B) and
+10 minutes, else `status: "overrun"`. Expected on Dev today: about 306
+Class A and 527 Class B; about 9,500 Class A a month if left on daily.
+
+### Enable `dry-run` on Dev (its own PR)
+
+1. Change `R2_RETENTION` to `"dry-run"` in `wrangler.development.jsonc`
+   only. Merge outside 21:50–23:05, 02:05–02:30 and 03:30–03:55 UTC; the
+   deploy job publishes it.
+2. Before 10:17 UTC: `/health.retention` is
+   `{mode: "dry-run", status: "pending", lastRun: null}`.
+3. After 10:17 UTC (the run takes under a minute; the 10-minute cap is the
+   stop):
+
+   ```bash
+   curl -s https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/health | jq .retention
+   curl -s -H "Authorization: Bearer $MANUAL_TRIGGER_TOKEN" \
+     https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/retention/report > retention-report.json
+   jq '{pointers, retained: (.retained | length), releases: (.candidates.releases | length), evidence: (.candidates.evidence | length), pool: .candidates.pool | {objects, bytes}, truncated}' retention-report.json
+   ```
+
+   Expect `status: "ok"`, `lastRun.deleted {objects: 0, bytes: 0}`,
+   `complete` all `true`, `reason: null`, `r2.classA` ≤ 400, `r2.classB`
+   ≤ 600; candidate releases only from 2026-09-02 up to about 30 days
+   before the run; `lastRun.pointers` equal to `/api/feed`'s release.
+4. **Stop** (set `R2_RETENTION` back to `off`) if a current release, the
+   digest's `sourceReleaseId` or the embedding job's `lastRun.releaseId`
+   is among `candidates.releases`; if `status` is `failed` or `overrun`
+   twice; or if that evening's publication or digest fails.
+5. The owner reviews `retention-report.json` before any `enforce` PR
+   (RT21). Do not commit the report; attach its summary to that PR.
+
+`skipped` reasons: `publication-pending` (a publication was running,
+requested or scheduled at 10:17; the next day's slot runs),
+`already-ran-today`, `paused` (cost guard). None changes the publication's
+`/health` fields or HTTP status.
+
+### Turn off
+
+Set `R2_RETENTION` to `off` (or remove it). The stored report stays in the
+Durable Object and is no longer served; nothing in R2 changed.
+
 ## Observability / logs
 
 Workers Logs is on for both data Workers (`observability.enabled: true`,

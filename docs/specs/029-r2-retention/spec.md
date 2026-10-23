@@ -1,7 +1,7 @@
 # Spec 029: R2 release retention (mark and sweep)
 
-Status: Draft (owner direction 2026-10-21: mark-and-sweep retention, dry run first, Dev before Prod; O1–O4 decided 2026-10-21; retention is its own job, not part of the publication; spec only, nothing implemented)
-Date: 2026-10-21
+Status: Partially implemented — dry-run slice (owner direction 2026-10-21: mark-and-sweep retention, dry run first, Dev before Prod; O1–O4 decided 2026-10-21; retention is its own job, not part of the publication; owner decision 2026-10-23: clean up the superseded Dev releases, dry run on Dev first, the owner reviews the list before any deletion). The dry run is implemented behind `R2_RETENTION`, `off` on Dev and unset on Prod; no code path can delete (see [Dry-run slice](#dry-run-slice-2026-10-23)). `enforce` (RT4, RT7, RT11–RT14) and the expired-link answer (RT8) are later slices.
+Date: 2026-10-21 (dry-run slice amended 2026-10-23)
 Traceability: enforced
 Builds on: ADR-0010 (rollback selects earlier pointers), ADR-0013 (content-addressed detail pools; "retention is deferred to its own spec"), Spec 006 (publication-set evidence), Spec 008 (R2 operations, pools), Spec 009 (bounded memory), Spec 013, Spec 014 (digest pins a release), Spec 016 (embedding job reads a release), Spec 018 (daily publication, follow-ups), Spec 026 (cost guard), Spec 028 (observability signals, PR #108, not merged)
 
@@ -111,6 +111,55 @@ hours after that day's publication; window W = 30 days, floor N = 2, grace
    ≈ 1.2 GB. Prod reaches the same ≈ 1.2 GB around 2026-11-18 and stays
    there.
 
+## Dry-run slice (2026-10-23)
+
+Amends this spec within the decided direction for the first implementing PR.
+No new R2 key, no R2 write, no delete, no Prod change.
+
+- **Mode.** `R2_RETENTION` resolves to `off`, `dry-run` or `unconfigured`.
+  This build has no delete path, so `enforce` is `unconfigured` with a
+  reason until the enforce slice. The dry run's bucket interface has only
+  `get` and `list` (`apps/data-publisher-worker/src/retention/run.ts`).
+- **Config.** Dev gets `R2_RETENTION: "off"`, `RETENTION_CRON: "17 10 * * *"`
+  and the cron entry. Prod's config is unchanged (no flag, no cron) until
+  the Prod dry-run PR (O2). 10:17 UTC plus the 10-minute budget stays
+  outside the Dev windows 21:50–23:05, 02:05–02:30 and 03:30–03:55 UTC.
+- **Where the owner reads the result.** `/health` `retention` carries the
+  counts (Behavior 9). The full list is `GET /retention/report` on the
+  publisher Worker, bearer `MANUAL_TRIGGER_TOKEN` (404 while off; not a
+  public surface). It is the last run's report, kept in the Durable Object
+  key `retention-report`, not in R2:
+  `{runId, at, pointers, retained: [{projection, id, reasons}],
+  candidates: {releases: [{projection, id, objects, bytes}] (oldest first),
+  evidence: [{key, bytes}], pool: {objects, bytes, oldestUploaded,
+  newestUploaded, sample (≤ 100 keys)}}, truncated}`. Each list holds at most
+  5,000 entries (`truncated` says when more exist). `reasons` are `pointer`,
+  `digest`, `embedding`, `window`, `floor`, `pinned` (shares a pin's time
+  token), `grace` or `unparsable`.
+- **`lastRun` shape (Behavior 9, amended).** Releases are counted per
+  projection: `retained {releases: {feed, search}, evidence, poolKeys}`,
+  `candidates {releases: {feed, search}, evidence, poolObjects, objects,
+  bytes}`. New: `pointers {feed, search}` (the releases the run read as
+  current) and `complete {releases, evidence, pool}` (a part not complete is
+  under-counted, never over-counted). In a dry run `deleted` is `{0, 0}` and
+  `remaining` equals `candidates.objects`. `status` is `pending` before the
+  first run.
+- **Fail closed.** A release id or set id without a time is never a
+  candidate. A release sharing a retained set's time token is retained even
+  when that evidence cannot be parsed. When the evidence listing or any
+  retained evidence read fails or runs out of budget, the run reports no
+  release, evidence or pool candidate (`complete.releases: false`). A pinned
+  release without readable evidence makes the mark incomplete, so no pool
+  object is counted (`reason: "evidence-missing"`, RT9).
+- **Per-run op budget (Behavior 12, amended).** Hard caps per run: 400 list
+  calls (Class A), 600 get calls (Class B), 10 minutes. The call that would
+  pass a cap is not made; the run ends `overrun`. Measured on an in-memory
+  Dev-shaped bucket (1,015 releases, 302,468 objects; `retention.test.ts`
+  "Budget"): 306 Class A and 527 Class B. One dry run a day on Dev is
+  31 × 306 ≈ 9,500 Class A a month (0.95 % of the included million) and
+  ≈ 16,300 Class B (0.16 %): $0 inside the allowance, about $0.05 if billed.
+  No delete, no put.
+
 ## Simplification review
 
 1. **Question every requirement.**
@@ -197,8 +246,8 @@ hours after that day's publication; window W = 30 days, floor N = 2, grace
    `unconfigured`: nothing runs, `/health` shows the mode and the reason.
    Same shape as `COST_GUARD` (Spec 026 Behavior 1).
 2. **Its own job.** Retention has its own cron slot (`RETENTION_CRON`,
-   `17 10 * * *` on Dev and Prod: about 12 h from the 22:07, 22:37 and
-   22:47 UTC ticks), its own Durable Object storage keys (`retention-*`),
+   `17 10 * * *` on Dev; Prod gets the same slot in its own dry-run PR (O2):
+   about 12 h from the 22:07, 22:37 and 22:47 UTC ticks), its own Durable Object storage keys (`retention-*`),
    its own budget (Behavior 12) and its own `/health` status (Behavior 9).
    The publication tick never triggers it and the publication's code path
    never calls it. The slot's tick sends `POST /retention` to
@@ -328,26 +377,29 @@ object at a time (≤ 1.8 MB each).
 ## Test plan
 
 Generated from `apps/data-publisher-worker/test/retention.cases.ts` by
-`bun run docs:test-plan` once slice 1 adds the case file; until then the
-rows below are the intended retained-set rules (releases written as their
-date, ids at 22:07Z; W = 30 days, floor N = 2, grace 48 h, run at
-2026-10-22T10:17Z, so the window starts at 2026-09-22T10:17Z).
+`bun run docs:test-plan` (releases written as their date, ids at 22:07Z;
+W = 30 days, floor N = 2, grace 48 h, run at 2026-10-22T10:17Z, so the
+window starts at 2026-09-22T10:17Z). Each RT2 row runs a whole dry run over
+an in-memory bucket and compares the report's retained and candidate
+releases of both projections.
 
+<!-- test-plan:start apps/data-publisher-worker/test/retention.cases.ts -->
 | id | case | input | retained | candidate |
 | --- | --- | --- | --- | --- |
 | RT2 | 31 verified daily releases | 09-21 … 10-21, pointers at 10-21 | 09-22 … 10-21 | 09-21 |
 | RT2 | pointer rolled back to an old release | 40 verified daily 09-12 … 10-21, Feed pointer at 09-15 | 09-22 … 10-21 + 09-15 | the other 9 |
-| RT2 | Feed and Search pointers on different releases | Feed 10-21, Search 10-20 | both kept | — |
-| RT2 | embedding job pinned to a release outside the window | `lastRun.releaseId` 09-01 | window + 09-01 | — |
-| RT2 | digest pointer outside the window | digest `sourceReleaseId` 09-02 | window + 09-02 | — |
+| RT2 | Feed and Search pointers on different releases | verified daily 10-19 … 10-21; Feed 10-21, Search 10-20 | 10-19 … 10-21, both kept | — |
+| RT2 | embedding job pinned to a release outside the window | verified 09-01 and 09-22 … 10-21; `lastRun.releaseId` 09-01 | window + 09-01 | — |
+| RT2 | digest pointer outside the window | verified 09-02 and 09-22 … 10-21; digest `sourceReleaseId` 09-02 | window + 09-02 | — |
 | RT2 | publishing stalled 45 days | verified daily 08-01 … 09-07, pointers at 09-07 | 09-06, 09-07 (floor) | 08-01 … 09-05 |
 | RT2 | hourly releases inside the window | verified hourly 09-22T11Z … 10-13 | all | — |
-| RT2 | release without evidence, 3 days old | crashed attempt 10-19 | — | 10-19 |
-| RT2 | release without evidence, 47 h old | crashed attempt 10-20T11:17Z | kept (grace) | — |
+| RT2 | release without evidence, 3 days old | crashed attempt 10-19; verified 10-20, 10-21 | 10-20, 10-21 | 10-19 |
+| RT2 | release without evidence, 47 h old | crashed attempt 10-20T11:17Z; verified 10-20, 10-21 | kept (grace) | — |
 | RT2 | floor = 1 | config | rejected: floor must be ≥ 2 | — |
 | RT3 | pool object unmarked, uploaded 49 h ago | — | — | candidate |
 | RT3 | pool object unmarked, uploaded 47 h ago | — | kept (grace) | — |
 | RT3 | pool object marked only by the oldest release in the window | uploaded 09-02 | kept | — |
+<!-- test-plan:end -->
 
 ## Acceptance
 
@@ -357,28 +409,28 @@ tag. IDs are stable: RT1–RT23 keep their numbers (RT2, RT6, RT12, RT15,
 RT17–RT20 reworded for the separate job and O1); RT24–RT28 are new.
 
 ### Behavior
-- RT1: [pending] given `R2_RETENTION` unset, blank, `off`, `dry-run`, `enforce` or `on`, resolving it gives off, off, off, dry-run, enforce, unconfigured; while off or unconfigured a retention tick makes no list or delete call and `/health` has no `retention` key (off) or shows the reason (unconfigured) → worker test.
-- RT2: [pending] given the test-plan rows, `retainedReleases` returns exactly the retained and candidate releases of each row (30-day window, floor of the 2 newest verified releases, pins, grace), and a floor below 2 is rejected → case rows.
-- RT3: [pending] given the Example's evidence (4,330 pool keys per projection) plus unmarked pool objects at 47 h and 49 h, the marked set holds every evidence pool key and the candidates are exactly the unmarked objects older than 48 h → case rows.
+- RT1: given `R2_RETENTION` unset, blank, `off`, `dry-run`, `enforce` or `on`, resolving it gives off, off, off, dry-run, unconfigured, unconfigured (dry-run slice: `enforce` is unconfigured until the enforce slice, which changes this row to enforce); while off or unconfigured a retention tick makes no Durable Object or R2 call and `/health` has no `retention` key (off) or shows the reason (unconfigured) → worker test.
+- RT2: given the test-plan rows, a dry run returns exactly the retained and candidate releases of each row (30-day window, floor of the 2 newest verified releases, pins, grace), a pinned release without evidence is still retained, and a floor below 2 is rejected → case rows.
+- RT3: given the Example's evidence (4,330 pool keys per projection) plus unmarked pool objects at 47 h and 49 h, the marked set holds every evidence pool key and the candidates are exactly the unmarked objects older than 48 h → case rows.
 - RT4: [pending] given an in-memory bucket with three releases (one retained), their evidence, two pools, `current.json` keys, a digest pointer and objects under `public/review-queue/` and `internal/`, an `enforce` run deletes exactly the non-retained release prefixes, their evidence and the unmarked old pool objects, and every key outside Behavior 5's prefixes is still present → sweep test.
-- RT5: [pending] given the same bucket in `dry-run`, the run reports the same candidate counts and bytes as `enforce` would and makes zero delete calls → sweep test.
-- RT6: [pending] given a successful or a failed publication alarm, the publication makes no retention R2 call and writes no `retention-*` key; given a retention tick, retention runs in its own alarm invocation; a second tick on the same UTC day, or a tick while the cost guard pauses the publication, makes no R2 call and records `skipped` → alarm test with a positive control.
+- RT5: given the same bucket in `dry-run`, the run reports exactly the candidate counts and bytes of the non-retained release prefixes, their evidence and the unmarked old pool objects, lists no other prefix, reports no key outside Behavior 5's prefixes, and makes zero delete and put calls → sweep test.
+- RT6: given a publication alarm, the publication makes no retention R2 call and writes no `retention-*` key; given a retention tick, retention runs in its own alarm invocation; a second tick on the same UTC day, or a tick while the cost guard pauses the publication, makes no R2 call and records `skipped` → alarm test with a positive control.
 - RT7: [pending] given 25,000 candidates, an `enforce` run deletes 20,000 in batches of ≤ 1,000 keys, oldest release first and Search `manifest.json`/Feed `feed/index.json` before the rest of a release, and reports `remaining: 5,000`; the next run deletes the rest → sweep test.
 - RT8: [pending] given a Search detail ref whose release manifest is absent, `GET /api/search-detail/:ref` answers 404 `{error: "Search release expired"}` with `cache-control: no-store`; a present release still answers 200 → Pages function test.
-- RT24: [pending] given the Dev crons (`7 22 * * *`, `47 22 * * *`, `RETENTION_CRON` `17 10 * * *`), `scheduled` routes the retention cron to `POST /retention` only, and the publication and digest crons never reach it → worker scheduled test.
-- RT25: [pending] given a publication running, a requested run, or a follow-up alarm scheduled for later, `POST /retention` records `skipped: "publication-pending"`, leaves the alarm time unchanged and makes no R2 call; given both `retention-pending` and `requested-at` when the alarm fires, the publication runs and retention is recorded skipped → alarm test with a positive control.
+- RT24: given the Dev crons (`7 22 * * *`, `47 22 * * *`, `RETENTION_CRON` `17 10 * * *`), `scheduled` routes the retention cron to `POST /retention` only, and the publication and digest crons never reach it; Dev's config has the cron and `R2_RETENTION: "off"`, Prod's has neither, and the slot plus its budget is outside the Dev windows → worker scheduled test.
+- RT25: given a publication running, a requested run, or a follow-up alarm scheduled for later, `POST /retention` records `skipped: "publication-pending"`, leaves the alarm time unchanged and makes no R2 call; given both `retention-pending` and `requested-at` when the alarm fires, the publication runs and retention is recorded skipped → alarm test with a positive control.
 
 ### Failure and retry
-- RT9: [pending] given a retained release whose evidence is missing or not `osskb.publication-set.v1`, the run sweeps no pool object (fail closed), still sweeps non-retained release prefixes, and records `reason: "evidence-missing"` → sweep test.
-- RT10: [pending] given an unreadable or invalid `current.json` (Feed or Search), the run deletes nothing and records `failureKind: "pointer-read"` → sweep test.
+- RT9: given a retained release whose evidence is missing or not `osskb.publication-set.v1`, the run sweeps (dry run: counts) no pool object and lists no pool (fail closed), still reports the non-retained release prefixes, and records `reason: "evidence-missing"` → sweep test.
+- RT10: given an unreadable or invalid `current.json` (Feed or Search), the run lists nothing, deletes nothing, reports no candidate and records `failureKind: "pointer-read"` → sweep test.
 - RT11: [pending] given a delete batch that contains a retained-release key or a marked pool key (injected by a faulty candidate function), the run aborts before that batch with `failureKind: "invariant"` and deletes nothing more → sweep test with a positive control.
 - RT12: [pending] given a delete call that throws after two batches, the run records `status: "failed"`, the error and the deleted count so far, the alarm handler does not rethrow, the publication's `status` and `lastRun` keys are byte-for-byte unchanged, and the next run finishes the rest without error → sweep and alarm test.
 - RT13: [pending] given a run that stops (isolate eviction simulated) between two deletes of one release, every retained release and marked pool object is intact, the runtime's retry of the alarm resumes retention (not a publication), and it removes the release's remaining objects → sweep and alarm test.
 - RT14: [pending] given a second run on unchanged data, it deletes nothing and reports `candidates.objects: 0` → sweep test.
-- RT15: [pending] given a `POST /run` received while retention runs, the request answers 202, no publication starts before the retention alarm returns, the publication then runs, and the marked set was computed from pointers read before any delete → alarm test.
-- RT16: [pending] given a list call that fails, the run deletes nothing for that prefix, records the error and leaves the other prefixes' results reported → sweep test.
-- RT26: [pending] given a fake clock that passes the 10-minute budget during the mark, the run starts no further R2 call, deletes no pool object, records `status: "overrun"` and `remaining`; passing it during the sweep stops before the next batch → sweep test.
-- RT27: [pending] given a retention run that fails, overruns or throws from inside the sweep, the next publication alarm runs and commits normally, and `/health` keeps the publication's `ok` and HTTP status → alarm and health test with a positive control.
+- RT15: given a `POST /run` received while retention is pending or runs, the request answers 202, no publication starts before the retention alarm returns, the publication then runs, and the run read its pointers before its first list (and before any delete) → alarm test.
+- RT16: given a list call that fails, the run deletes nothing for that prefix, records the error and leaves the other prefixes' results reported → sweep test.
+- RT26: given a fake clock that passes the 10-minute budget during the mark, the run starts no further R2 call, counts and deletes no pool object, records `status: "overrun"` and `remaining`; passing it during the pool listing (dry run) or the sweep (enforce) stops before the next list or batch; a list or get cap stops the run the same way → sweep test.
+- RT27: given a retention run that fails or throws from inside the run, the next publication alarm runs exactly as without retention (same `/health` publication fields), and `/health` keeps the publication's `ok` and HTTP status → alarm and health test with a positive control.
 
 ### Budget
 - RT17: [measure] the first Dev `dry-run` records `retention.lastRun.r2` with Class A ≤ 400 and Class B ≤ 600 (estimate ≈ 305 and ≈ 515) and `elapsedMs` under the 10-minute budget, and the publication's own `lastRun.r2` unchanged in kind (`curl` of Dev `/health`).
@@ -386,17 +438,20 @@ RT17–RT20 reworded for the separate job and O1); RT24–RT28 are new.
 - RT19: [measure] after 2026-11-13 and the Dev drain, `oss-knowledge-base-dev` stores ≤ 2 GB (expected ≈ 1.2 GB), measured with GraphQL `r2StorageAdaptiveGroups`.
 
 ### Observability
-- RT20: [pending] `/health` `retention` has Behavior 9's fields and statuses for a `dry-run` (deleted 0), an `enforce` run, a skip and a failure, with `runId` `retention-<UTC date>` → health test.
-- RT28: [pending] given each retention status (`ok`, `failed`, `overrun`, `skipped`), the publication's `status` field in `/health` is the same as with retention off → health test.
+- RT20: `/health` `retention` has Behavior 9's fields (as amended in [Dry-run slice](#dry-run-slice-2026-10-23)) and statuses for a `dry-run` (deleted 0), a skip and a failure, with `runId` `retention-<UTC date>`, and `GET /retention/report` serves the run's list only with the bearer token (the `enforce` run's fields are asserted by RT4 in the enforce slice) → health test.
+- RT28: given each retention status (`ok`, `failed`, `overrun`, `skipped`), the publication's `status` field in `/health` is the same as with retention off → health test.
 - RT21: [deploy] Dev `dry-run`: the PR that enables it records the first run's retained releases, candidate counts and bytes, compared with this spec's Example before `enforce` is proposed.
 - RT22: [deploy] Dev `enforce`: after each of the first three runs, `bun run verify:health --target dev` and `bun run verify:ui --target dev` pass, `/api/feed` and `/api/search` serve the current release, the digest and embedding job still read their pinned release, and that evening's publication succeeds.
 - RT23: [deploy] Prod: `dry-run`, then `enforce`, each in its own PR with the owner's explicit approval (O2), with the same checks as RT21 and RT22 on Prod.
 
 ## Rollout (operator sequence, for the implementing PRs)
 
-1. Merge the implementation with `R2_RETENTION` unset everywhere and
-   `RETENTION_CRON` added to both configs: the tick fires and does nothing.
-2. Dev `dry-run` PR: after the 10:17 UTC slot, `/health` shows
+1. Merge the dry-run implementation with `R2_RETENTION: "off"` and
+   `RETENTION_CRON` in the Dev config only (Prod unchanged): the Dev tick
+   fires and does nothing; `/health` has no `retention` key.
+2. Dev `dry-run` PR (one line: `R2_RETENTION: "dry-run"`): after the
+   10:17 UTC slot, read the list with `GET /retention/report` (bearer), and
+   `/health` shows
    `retention.status: "ok"`, `lastRun.mode: "dry-run"`, `deleted.objects:
    0`, candidate bytes near the Example's estimate, `retained.releases`
    including both current releases and every release of the last 30 days.
