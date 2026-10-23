@@ -72,7 +72,9 @@ export async function retentionAlarm(
       await storage.put(RETENTION_SKIP_KEY, { reason: "paused", at: at() } satisfies RetentionSkip);
       return true;
     }
-    // Written before the run, so a retried alarm and a second tick today do not list again.
+    // Written before the run, so a second tick the same UTC day skips (`requestRetention`). This
+    // branch does not read it: a runtime retry of this alarm (pending still set) re-runs the dry
+    // run, which stays within the per-run caps.
     await storage.put(RETENTION_DAY_KEY, day(input.now()));
     const { lastRun, report } = await input.run();
     await storage.put(RETENTION_LAST_RUN_KEY, lastRun);

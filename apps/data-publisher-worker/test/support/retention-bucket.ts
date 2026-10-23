@@ -38,9 +38,13 @@ export class RetentionMemoryBucket {
     return { keys: this.sorted, first: low };
   }
 
+  /** Throws from every get of a key starting with one of these values. */
+  readonly failGets: string[] = [];
+
   async get(key: string): Promise<{ text(): Promise<string> } | null> {
     this.calls.push({ op: "get", key });
     this.onCall("get");
+    if (this.failGets.some((prefix) => key.startsWith(prefix))) throw new Error(`get ${key} failed`);
     const object = this.objects.get(key);
     return object === undefined ? null : { text: async () => object.body };
   }

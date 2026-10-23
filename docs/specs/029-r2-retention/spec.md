@@ -246,8 +246,8 @@ No new R2 key, no R2 write, no delete, no Prod change.
    `unconfigured`: nothing runs, `/health` shows the mode and the reason.
    Same shape as `COST_GUARD` (Spec 026 Behavior 1).
 2. **Its own job.** Retention has its own cron slot (`RETENTION_CRON`,
-   `17 10 * * *` on Dev and Prod: about 12 h from the 22:07, 22:37 and
-   22:47 UTC ticks), its own Durable Object storage keys (`retention-*`),
+   `17 10 * * *` on Dev; Prod gets the same slot in its own dry-run PR (O2):
+   about 12 h from the 22:07, 22:37 and 22:47 UTC ticks), its own Durable Object storage keys (`retention-*`),
    its own budget (Behavior 12) and its own `/health` status (Behavior 9).
    The publication tick never triggers it and the publication's code path
    never calls it. The slot's tick sends `POST /retention` to

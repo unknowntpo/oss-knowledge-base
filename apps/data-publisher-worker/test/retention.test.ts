@@ -295,3 +295,110 @@ describe("Spec 029 plan helpers", () => {
     expect(idTime(releaseIdAt(day("08-01")))).toBe(day("08-01"));
   });
 });
+
+describe("Spec 029 dry run: verifier gaps (PR #134)", () => {
+  const releasesOf = (report: Awaited<ReturnType<typeof dryRun>>["report"]) =>
+    report!.candidates.releases.map((release) => `${release.projection}:${release.id}`);
+
+  test("RT9: a non-pinned window release whose evidence cannot be parsed is kept as window, and no pool object is counted", async () => {
+    const bucket = new RetentionMemoryBucket();
+    publish(bucket, day("08-01"));
+    const unreadable = publish(bucket, day("10-10"), { evidence: "invalid" });
+    publish(bucket, day("10-20"));
+    publish(bucket, day("10-21"));
+    point(bucket, day("10-21"));
+    const { lastRun, report } = await dryRun(bucket);
+    const reasons = (projection: string, id: string) => report!.retained.find((release) => release.projection === projection && release.id === id)?.reasons;
+    expect(reasons("feed", unreadable.feed)).toEqual(["window"]);
+    expect(reasons("search", unreadable.search)).toEqual(["window"]);
+    expect(releasesOf(report)).not.toContain(`feed:${unreadable.feed}`);
+    expect(releasesOf(report)).not.toContain(`search:${unreadable.search}`);
+    expect(lastRun.reason).toBe("evidence-missing");
+    expect(lastRun.candidates.poolObjects).toBe(0);
+    // Control: the old release is still a candidate.
+    expect(releasesOf(report)).toContain(`feed:${releaseIdAt(day("08-01"))}`);
+  });
+
+  test("RT9: evidence with valid projections but the wrong schema is evidence-missing", async () => {
+    const build = (schema: string) => {
+      const bucket = new RetentionMemoryBucket();
+      publish(bucket, day("08-01"));
+      publish(bucket, day("10-20"));
+      const live = publish(bucket, day("10-21"));
+      point(bucket, day("10-21"));
+      const key = `publication-sets/v1/github-${live.feed}.json`;
+      const body = JSON.parse(bucket.objects.get(key)!.body) as Record<string, unknown>;
+      bucket.set(key, JSON.stringify({ ...body, schema }), day("10-21"));
+      return bucket;
+    };
+    const wrong = await dryRun(build("osskb.publication-set.v0"));
+    expect(wrong.lastRun.reason).toBe("evidence-missing");
+    expect(wrong.lastRun.candidates.poolObjects).toBe(0);
+    // Control: the same body with the right schema is read.
+    const right = await dryRun(build("osskb.publication-set.v1"));
+    expect(right.lastRun.reason).toBeNull();
+    expect(right.lastRun.candidates.poolObjects).toBe(2);
+  });
+
+  test("RT26: the get cap allows exactly its number of gets and refuses the next one", async () => {
+    const build = () => {
+      const bucket = new RetentionMemoryBucket();
+      for (let at = day("10-15"); at <= day("10-21"); at += DAY) publish(bucket, at);
+      point(bucket, day("10-21"));
+      return bucket;
+    };
+    // 2 pointers + 1 digest pointer + 7 evidence objects.
+    const needed = 10;
+    const exact = build();
+    const ok = await dryRun(exact, { limits: { gets: needed } });
+    expect(ok.lastRun.status).toBe("ok");
+    expect(exact.gets).toBe(needed);
+    expect(ok.lastRun.r2.classB).toBe(needed);
+    const short = build();
+    const over = await dryRun(short, { limits: { gets: needed - 1 } });
+    expect(over.lastRun.status).toBe("overrun");
+    expect(short.gets).toBe(needed - 1);
+    expect(over.lastRun.r2.classB).toBe(needed - 1);
+    expect(over.lastRun.candidates.objects).toBe(0);
+  });
+
+  test("RT2: a publication set without a time token is never a candidate", async () => {
+    const bucket = new RetentionMemoryBucket();
+    publish(bucket, day("08-01"));
+    publish(bucket, day("10-20"));
+    publish(bucket, day("10-21"));
+    point(bucket, day("10-21"));
+    bucket.set("publication-sets/v1/legacy-set.json", 300, 0);
+    const { lastRun, report } = await dryRun(bucket);
+    const keys = report!.candidates.evidence.map((item) => item.key);
+    expect(keys).not.toContain("publication-sets/v1/legacy-set.json");
+    // Control: the old timed set is a candidate, and the untimed one counts as retained.
+    expect(keys).toEqual([`publication-sets/v1/github-${releaseIdAt(day("08-01"))}.json`]);
+    expect(lastRun.retained.evidence).toBe(3);
+  });
+
+  test("RT16: a failed evidence list, or a retained evidence read that throws, reports no release, evidence or pool candidate", async () => {
+    const build = () => {
+      const bucket = new RetentionMemoryBucket();
+      publish(bucket, day("08-01"));
+      publish(bucket, day("10-20"));
+      publish(bucket, day("10-21"));
+      point(bucket, day("10-21"));
+      return bucket;
+    };
+    const listFails = build();
+    listFails.failLists.push("publication-sets/v1/");
+    const readThrows = build();
+    readThrows.failGets.push(`publication-sets/v1/github-${releaseIdAt(day("10-20"))}`);
+    for (const bucket of [listFails, readThrows]) {
+      const { lastRun, report } = await dryRun(bucket);
+      expect(lastRun.status).toBe("failed");
+      expect(lastRun.complete.releases).toBe(false);
+      expect(lastRun.candidates).toEqual({ releases: { feed: 0, search: 0 }, evidence: 0, poolObjects: 0, objects: 0, bytes: 0 });
+      expect(report!.candidates.releases).toEqual([]);
+      expect(bucket.calls.some((call) => call.op === "list" && call.key.includes("/releases/"))).toBe(false);
+    }
+    // Control: the same bucket without the failure reports the old release.
+    expect((await dryRun(build())).lastRun.candidates.releases).toEqual({ feed: 1, search: 1 });
+  });
+});

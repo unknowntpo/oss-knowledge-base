@@ -6,7 +6,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
 import worker, { cronTarget, PipelineState } from "../src/index";
-import { RETENTION_DAY_KEY, RETENTION_LAST_RUN_KEY, RETENTION_PENDING_KEY, RETENTION_SKIP_KEY, retentionAlarm } from "../src/retention/job";
+import { RETENTION_DAY_KEY, RETENTION_LAST_RUN_KEY, RETENTION_PENDING_KEY, RETENTION_REPORT_KEY, RETENTION_SKIP_KEY, retentionAlarm } from "../src/retention/job";
 import { releaseIdAt } from "./retention.cases";
 import { point, publish, RetentionMemoryBucket } from "./support/retention-bucket";
 
@@ -310,6 +310,21 @@ describe("Spec 029 retention job (dry-run slice)", () => {
     expect(body.candidates.releases).toHaveLength(2);
     expect(body.candidates.releases.every((release) => release.id.includes(oldDate))).toBe(true);
     expect(env.storage.values.get(RETENTION_DAY_KEY)).toBe(new Date().toISOString().slice(0, 10));
+  });
+
+  test("RT20: with the flag turned off, a stored report is no longer served (404, even with the token) and /health has no retention", async () => {
+    const env = world({ flag: "dry-run" });
+    await env.tick(RETENTION_CRON);
+    await env.fire();
+    const authorized = { headers: { authorization: `Bearer ${TOKEN}` } };
+    // Control: the report exists and is served while the flag is set.
+    expect((await env.request("/retention/report", authorized)).status).toBe(200);
+    env.env.R2_RETENTION = "off";
+    expect(env.storage.values.has(RETENTION_REPORT_KEY)).toBe(true);
+    const calls = env.objectCalls.length;
+    expect((await env.request("/retention/report", authorized)).status).toBe(404);
+    expect(env.objectCalls.slice(calls).some((call) => call.includes("/retention"))).toBe(false);
+    expect("retention" in await env.health()).toBe(false);
   });
 
   test("RT28: for each retention status, the publication's /health fields and HTTP status equal those with retention off", async () => {
