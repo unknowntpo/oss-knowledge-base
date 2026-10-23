@@ -69,14 +69,13 @@ function keyRanges(prefix: string, bounds: readonly string[]): KeyRange[] {
   }));
 }
 
-/** Runs `tasks` in order, at most `concurrency` at once; none starts once `stopped()` is true. Returns how many never started. */
-async function runQueue(tasks: readonly (() => Promise<void>)[], concurrency: number, stopped: () => boolean): Promise<number> {
+/** Runs `tasks` in order, at most `concurrency` at once. */
+async function runQueue(tasks: readonly (() => Promise<void>)[], concurrency: number): Promise<void> {
   let next = 0;
   const worker = async () => {
-    while (next < tasks.length && !stopped()) await tasks[next++]!();
+    while (next < tasks.length) await tasks[next++]!();
   };
   await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, worker));
-  return tasks.length - next;
 }
 
 export type RetentionStatus = "ok" | "failed" | "overrun";
@@ -179,11 +178,12 @@ export async function runRetentionDryRun(deps: RetentionRunDeps): Promise<{ read
     return object === null ? null : object.text();
   };
   /**
-   * Lists one key range page by page; `visit` sees only the range's keys. Returns whether the range
-   * was listed to its end. The meter is checked before each request, so concurrent ranges never
-   * pass a cap (the check and the count are one synchronous step).
+   * Lists one key range page by page to its end; `visit` sees only the range's keys. The meter is
+   * checked before each request, so concurrent ranges never pass a cap (the check and the count are
+   * one synchronous step), and once a budget is spent every later range throws before its first
+   * request: the meter only counts up and the clock only moves forward.
    */
-  const listRange = async (range: KeyRange, visit: (objects: readonly RetentionListedObject[]) => void): Promise<boolean> => {
+  const listRange = async (range: KeyRange, visit: (objects: readonly RetentionListedObject[]) => void): Promise<void> => {
     let cursor: string | undefined;
     for (;;) {
       meter.check("list");
@@ -195,7 +195,7 @@ export async function runRetentionDryRun(deps: RetentionRunDeps): Promise<{ read
       const through = range.through;
       const inRange = through === undefined ? page.objects : page.objects.filter((object) => object.key <= through);
       visit(inRange);
-      if (inRange.length < page.objects.length || !page.truncated || page.cursor === undefined) return true;
+      if (inRange.length < page.objects.length || !page.truncated || page.cursor === undefined) return;
       cursor = page.cursor;
     }
   };
@@ -225,9 +225,10 @@ export async function runRetentionDryRun(deps: RetentionRunDeps): Promise<{ read
   const listedEvidence: ListedEvidence[] = [];
   let evidenceListed = false;
   try {
-    evidenceListed = await listRange({ prefix: EVIDENCE_PREFIX }, (objects) => {
+    await listRange({ prefix: EVIDENCE_PREFIX }, (objects) => {
       for (const object of objects) listedEvidence.push({ setId: object.key.slice(EVIDENCE_PREFIX.length).replace(/\.json$/u, ""), key: object.key, bytes: object.size });
     });
+    evidenceListed = true;
   } catch (cause) { fail("list", cause); }
 
   const marked = new Set<string>();
@@ -269,20 +270,15 @@ export async function runRetentionDryRun(deps: RetentionRunDeps): Promise<{ read
   const releasesKnown = evidenceListed && readsFinished;
   const pool = { objects: 0, bytes: 0, oldest: Number.POSITIVE_INFINITY, newest: Number.NEGATIVE_INFINITY, sample: [] as string[] };
   const parts = { releases: { listed: releasesKnown }, pool: { listed: markComplete } };
-  let stopped = false;
-  const tasks: { readonly part: keyof typeof parts; readonly run: () => Promise<void> }[] = [];
+  const tasks: (() => Promise<void>)[] = [];
   const queue = (part: keyof typeof parts, range: KeyRange, visit: (objects: readonly RetentionListedObject[]) => void) => {
-    tasks.push({
-      part,
-      run: async () => {
-        try {
-          if (!await listRange(range, visit)) parts[part].listed = false;
-        } catch (cause) {
-          parts[part].listed = false;
-          if (cause instanceof BudgetSpent) stopped = true;
-          fail("list", cause);
-        }
-      },
+    tasks.push(async () => {
+      try {
+        await listRange(range, visit);
+      } catch (cause) {
+        parts[part].listed = false;
+        fail("list", cause);
+      }
     });
   };
   // Release ids start with their time token, so bounds at every RELEASES_PER_RANGE-th evidence
@@ -318,9 +314,7 @@ export async function runRetentionDryRun(deps: RetentionRunDeps): Promise<{ read
       });
     }
   }
-  const unstarted = await runQueue(tasks.map((task) => task.run), concurrency, () => stopped);
-  // A range never started is not listed: its part is incomplete.
-  for (const task of tasks.slice(tasks.length - unstarted)) parts[task.part].listed = false;
+  await runQueue(tasks, concurrency);
   const releasesListed = parts.releases.listed;
   const poolListed = parts.pool.listed;
 
