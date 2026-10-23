@@ -29,12 +29,20 @@ export interface Bundle {
 
 type Fields = readonly (string | readonly [string, Fields])[];
 
+/**
+ * The jobs a firing can name: Spec 028's `SIGNAL_JOBS` ids (`embedding`, not the route name
+ * `search-embedding`), plus `review-queue` from Spec 027 A2. A Worker test checks every Spec 028 job
+ * is listed, so a renamed job cannot leave its firings without a bundle.
+ */
+export const SRE_JOBS = ["publication", "digest", "review-queue", "embedding", "identity-links", "kip-pages", "retention", "cost-guard"] as const;
+export type SreJob = (typeof SRE_JOBS)[number];
+
 /** Spec 027 A2: the `/health` fields each job's bundle holds, and nothing else. */
-export const JOB_HEALTH_FIELDS: Readonly<Record<string, Fields>> = {
+export const JOB_HEALTH_FIELDS: Readonly<Record<SreJob, Fields>> = {
   publication: ["running", "scheduled", "followUp", "phase", ["lastRun", ["ok", "runId", "completedAt", "copiedObjectCount", "reusedObjectCount", "r2", "pollTruncated"]], "sources"],
   digest: [["digest", [["lastRun", ["ok", "runId", "completedAt", "durationMs", "rejections"]]]]],
   "review-queue": ["reviewQueue"],
-  "search-embedding": [["searchEmbedding", ["lastRun", "lastError", "today"]]],
+  embedding: [["searchEmbedding", ["lastRun", "lastError", "today"]]],
   "identity-links": [["identityLinks", [["lastRun", ["ok", "status", "at", "durationMs", "r2"]], "lastGoodAt"]]],
   "kip-pages": [["kipPages", [["lastRun", ["ok", "status", "at", "durationMs", "requests", "jiraRequests", "r2", "error"]], "lastGoodAt"]]],
   retention: [["retention", ["mode", "status", "reason", ["lastRun", ["runId", "deleted", "remaining", "elapsedMs", "r2", "failureKind"]]]]],
@@ -128,7 +136,7 @@ export async function buildBundle(input: BundleInput): Promise<Bundle> {
     raw.push({ source: firing.job === CI_JOB ? "ci" : "health", label: `signals.rules[${firing.ruleId}]`, text: json(firing.entry) });
   }
   if (input.job !== CI_JOB || input.health.costGuard !== undefined) raw.push({ source: "health", label: "costGuard", text: json(input.health.costGuard) });
-  const fields = JOB_HEALTH_FIELDS[input.job];
+  const fields = (JOB_HEALTH_FIELDS as Readonly<Record<string, Fields>>)[input.job];
   const picked = fields === undefined ? undefined : pick(input.health, fields);
   if (picked !== undefined) raw.push({ source: "health", label: `${input.job} /health fields`, text: json(picked) });
   if (input.job === CI_JOB) {
