@@ -48,6 +48,8 @@ describe("feature map", () => {
         readonly vars?: Readonly<Record<string, string>>;
         readonly ai?: { readonly binding: string };
         readonly vectorize?: readonly { readonly binding: string; readonly index_name: string }[];
+        readonly analytics_engine_datasets?: readonly { readonly binding: string; readonly dataset: string }[];
+        readonly analytics?: { readonly binding: string };
         readonly r2_buckets?: readonly { readonly binding: string; readonly bucket_name: string }[];
         readonly durable_objects?: { readonly bindings: readonly { readonly name: string; readonly class_name: string }[] };
         readonly migrations?: readonly { readonly tag: string }[];
@@ -55,6 +57,8 @@ describe("feature map", () => {
       for (const name of Object.keys(config.vars ?? {})) names.add(name);
       if (config.ai !== undefined) names.add(config.ai.binding);
       for (const index of config.vectorize ?? []) names.add(index.binding).add(index.index_name);
+      for (const dataset of config.analytics_engine_datasets ?? []) names.add(dataset.binding).add(dataset.dataset);
+      if (config.analytics !== undefined) names.add(config.analytics.binding);
       for (const bucket of config.r2_buckets ?? []) names.add(bucket.binding).add(bucket.bucket_name);
       for (const binding of config.durable_objects?.bindings ?? []) names.add(binding.name).add(binding.class_name);
       for (const migration of config.migrations ?? []) names.add(migration.tag);
