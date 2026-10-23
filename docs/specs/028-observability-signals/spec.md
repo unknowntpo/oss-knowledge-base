@@ -399,6 +399,17 @@ Clarifications the implementation needed; none changes a threshold.
 - **Cost-guard `runId`.** The scheduled tick names it from its own
   `scheduledTime` and passes it to the object (`x-run-id`), so the tick's
   log line and the check carry the same id.
+- **`digest.freshness` after a failed digest.** The rule reads only
+  `digest.lastRun`, the digest's one stored record. When that last run
+  failed, the record holds no successful completion, so the rule is
+  `unknown`; it is not measured from the latest ok run (no such time is
+  stored). A failed run is caught by `job.failures` instead.
+- **Edge rows from verification.** The test plan also pins the
+  `job.r2ClassA` floors (1,000 and 5,000 against a median of 100), the
+  embedding `job.missed` warn edge (2 h), `source.success` taking the newest
+  run of a UTC day, and `pollTruncated` reaching `c4` through the record
+  mapping; a dry-run cost check writes no point (OB23 test in
+  `test/cost-guard.test.ts`).
 
 ### Correlation through one SQL interface
 
@@ -444,8 +455,10 @@ job without a wall budget, and moved the `r2Counted` 0 row to the cost guard
 | OB6 | source.success | jira failed on 10-19 only | warn |
 | OB6 | source.success | jira failed on 10-19 and 10-20 | firing |
 | OB6 | source.success | jira failed twice on 10-20 (one day) | warn |
+| OB6 | source.success | jira failed early 10-19, ok later 10-19, failed 10-20 | warn |
 | OB7 | publication.pollTruncated | true since 47 h 59 min | warn |
 | OB7 | publication.pollTruncated | true since 48 h 0 min 1 s | firing |
+| OB7 | publication.pollTruncated (from the run record) | lastRun pollTruncated true, previous not | warn |
 | OB8 | r2.classAInvariant | 824 / 821 (Example) | ok |
 | OB8 | r2.classAInvariant | 825 / 821 | firing |
 | OB8 | r2.classAInvariant | 8,190 / 35 (2026-10-13 shape) | firing |
@@ -459,6 +472,8 @@ job without a wall budget, and moved the `r2Counted` 0 row to the cost guard
 | OB24 | job.missed (kip-pages, daily) | last run 24 h 30 min ago | ok |
 | OB24 | job.missed (kip-pages, daily) | 24 h 30 min 1 s | warn |
 | OB24 | job.missed (kip-pages, daily) | 27 h 0 min 1 s | firing |
+| OB24 | job.missed (embedding) | pending 120, last run 2 h ago | ok |
+| OB24 | job.missed (embedding) | pending 120, last run 2 h 0 min 1 s ago | warn |
 | OB24 | job.missed (embedding) | pending 120, last run 3 h 0 min 1 s ago | firing |
 | OB24 | job.missed (embedding) | pending 0, last run 30 h ago | ok |
 | OB24 | job.missed (identity-links) | flag unset | no entry |
@@ -475,6 +490,10 @@ job without a wall budget, and moved the `r2Counted` 0 row to the cost guard
 | OB27 | job.r2ClassA | 3,000, median 1,000 | ok |
 | OB27 | job.r2ClassA | 3,001, median 1,000 | warn |
 | OB27 | job.r2ClassA | 900, median 100 | ok |
+| OB27 | job.r2ClassA | 1,000, median 100 | ok |
+| OB27 | job.r2ClassA | 1,001, median 100 | warn |
+| OB27 | job.r2ClassA | 5,000, median 100 | warn |
+| OB27 | job.r2ClassA | 5,001, median 100 | firing |
 | OB27 | job.r2ClassA (publication 2026-10-13 shape) | 8,190, median 800 | firing |
 | OB27 | job.r2ClassA (cost-guard, r2Counted 0) | any | no entry |
 <!-- test-plan:end -->

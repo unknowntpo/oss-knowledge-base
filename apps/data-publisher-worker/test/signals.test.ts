@@ -96,6 +96,18 @@ const builders: Record<string, () => { readonly rules: readonly RuleEntry[]; rea
     run("publication", { completedAtMs: Date.parse("2026-10-20T23:07:00Z"), counters: [1, 1, 0, 0, 0, 0] }),
     history(point(0, { completedAtMs: Date.parse("2026-10-20T22:07:00Z"), counters: [1, 1, 0, 0, 0, 0] }), point(0, { runId: "older", completedAtMs: Date.parse("2026-10-19T22:07:00Z") })),
     "source.success", "publication", "jira"),
+  // Per UTC day the newest run counts: 10-19 ended ok, so only one failed day (Verifier M37).
+  "source.success|jira failed early 10-19, ok later 10-19, failed 10-20": () => trend(
+    run("publication", { completedAtMs: Date.parse("2026-10-20T22:07:00Z"), counters: [1, 1, 0, 0, 0, 0] }),
+    history(
+      point(0, { runId: "late", completedAtMs: Date.parse("2026-10-19T23:30:00Z"), counters: [1, 1, 1, 0, 0, 0] }),
+      point(0, { runId: "early", completedAtMs: Date.parse("2026-10-19T01:00:00Z"), counters: [1, 1, 0, 0, 0, 0] }),
+    ),
+    "source.success", "publication", "jira"),
+  // Through the record-to-point mapping, so c4 is the record's `pollTruncated` (Verifier M43).
+  "publication.pollTruncated (from the run record)|lastRun pollTruncated true, previous not": () => trend(
+    publicationSignalRun({ ...EXAMPLE_LAST_RUN, pollTruncated: true } as unknown as Parameters<typeof publicationSignalRun>[0], { runId: runIdFor("publication", NOW - H), startedAtMs: NOW - H, finishedAtMs: NOW }),
+    history(point(1)), "publication.pollTruncated", "publication"),
   "publication.pollTruncated|true since 47 h 59 min": () => trend(
     run("publication", { counters: [1, 1, 1, 1, 0, 0] }),
     history(point(0, { runId: "a", completedAtMs: NOW - 24 * H, counters: [1, 1, 1, 1, 0, 0] }), point(0, { runId: "b", completedAtMs: NOW - (47 * H + 59 * M), counters: [1, 1, 1, 1, 0, 0] }), point(3)),
@@ -117,6 +129,8 @@ const builders: Record<string, () => { readonly rules: readonly RuleEntry[]; rea
   "job.missed (kip-pages, daily)|last run 24 h 30 min ago": () => state(kipPagesRanAgo(24 * H + 30 * M), "job.missed", "kip-pages"),
   "job.missed (kip-pages, daily)|24 h 30 min 1 s": () => state(kipPagesRanAgo(24 * H + 30 * M + S), "job.missed", "kip-pages"),
   "job.missed (kip-pages, daily)|27 h 0 min 1 s": () => state(kipPagesRanAgo(27 * H + S), "job.missed", "kip-pages"),
+  "job.missed (embedding)|pending 120, last run 2 h ago": () => state(healthWith({ searchEmbedding: { enabled: true, lastRun: { ok: true, pending: 120, completedAt: iso(NOW - 2 * H) } } }), "job.missed", "embedding"),
+  "job.missed (embedding)|pending 120, last run 2 h 0 min 1 s ago": () => state(healthWith({ searchEmbedding: { enabled: true, lastRun: { ok: true, pending: 120, completedAt: iso(NOW - 2 * H - S) } } }), "job.missed", "embedding"),
   "job.missed (embedding)|pending 120, last run 3 h 0 min 1 s ago": () => state(healthWith({ searchEmbedding: { enabled: true, lastRun: { ok: true, pending: 120, completedAt: iso(NOW - 3 * H - S) } } }), "job.missed", "embedding"),
   "job.missed (embedding)|pending 0, last run 30 h ago": () => state(healthWith({ searchEmbedding: { enabled: true, lastRun: { ok: true, pending: 0, completedAt: iso(NOW - 30 * H) } } }), "job.missed", "embedding"),
   "job.missed (identity-links)|flag unset": () => state(healthWith(), "job.missed", "identity-links"),
@@ -133,6 +147,10 @@ const builders: Record<string, () => { readonly rules: readonly RuleEntry[]; rea
   "job.r2ClassA|3,000, median 1,000": () => trend(run("kip-pages", { r2: { classA: 3_000, classB: 0 } }), medianHistory("r2ClassA", 1_000), "job.r2ClassA", "kip-pages"),
   "job.r2ClassA|3,001, median 1,000": () => trend(run("kip-pages", { r2: { classA: 3_001, classB: 0 } }), medianHistory("r2ClassA", 1_000), "job.r2ClassA", "kip-pages"),
   "job.r2ClassA|900, median 100": () => trend(run("kip-pages", { r2: { classA: 900, classB: 0 } }), medianHistory("r2ClassA", 100), "job.r2ClassA", "kip-pages"),
+  "job.r2ClassA|1,000, median 100": () => trend(run("kip-pages", { r2: { classA: 1_000, classB: 0 } }), medianHistory("r2ClassA", 100), "job.r2ClassA", "kip-pages"),
+  "job.r2ClassA|1,001, median 100": () => trend(run("kip-pages", { r2: { classA: 1_001, classB: 0 } }), medianHistory("r2ClassA", 100), "job.r2ClassA", "kip-pages"),
+  "job.r2ClassA|5,000, median 100": () => trend(run("kip-pages", { r2: { classA: 5_000, classB: 0 } }), medianHistory("r2ClassA", 100), "job.r2ClassA", "kip-pages"),
+  "job.r2ClassA|5,001, median 100": () => trend(run("kip-pages", { r2: { classA: 5_001, classB: 0 } }), medianHistory("r2ClassA", 100), "job.r2ClassA", "kip-pages"),
   "job.r2ClassA (publication 2026-10-13 shape)|8,190, median 800": () => trend(run("publication", { r2: { classA: 8_190, classB: 9_000 } }), medianHistory("r2ClassA", 800), "job.r2ClassA", "publication"),
   "job.r2ClassA (cost-guard, r2Counted 0)|any": () => trend(run("cost-guard", { r2: null }), medianHistory("r2ClassA", 0), "job.r2ClassA", "cost-guard"),
 };
