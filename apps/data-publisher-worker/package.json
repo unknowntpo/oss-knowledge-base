@@ -13,7 +13,8 @@
     "measure:github-reviews": "bun scripts/measure-github-reviews.ts",
     "measure:search-embedding": "bun scripts/measure-search-embedding.ts",
     "measure:search-query-budget": "bun scripts/measure-search-query-budget.ts",
-    "measure:kip-pages": "bun scripts/measure-kip-pages.ts"
+    "measure:kip-pages": "bun scripts/measure-kip-pages.ts",
+    "measure:identity-backfill": "bun scripts/measure-identity-backfill.ts"
   },
   "dependencies": {
     "@ai-sdk/provider": "4.0.25",

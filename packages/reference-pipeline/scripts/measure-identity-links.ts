@@ -17,6 +17,8 @@
  *
  * Budget (W86): `bun run measure:identity-links -- --budget` runs the worker job against an
  * in-memory bucket of Dev's size (apps/data-publisher-worker/scripts/measure-identity-links-budget.ts).
+ * `-- --backfill` (Spec 019 amendment (8), W129) runs it with 11 finished backfill months and
+ * `IDENTITY_LINKS_BACKFILL=read`.
  *
  * Kept per record: GitHub number, title, URL, author login, bot flag, creation and merge time; Jira
  * key, summary, update time and the reporter's and assignee's key and display name; dev@ mid, time,
@@ -357,12 +359,14 @@ const { values } = parseArgs({
     replay: { type: "string" },
     json: { type: "boolean", default: false },
     budget: { type: "boolean", default: false },
+    backfill: { type: "boolean", default: false },
   },
 });
 
-if (values.budget) {
+if (values.budget || values.backfill) {
+  // Spec 019 amendment (8), W129: `--backfill` measures the job reading 11 backfill months and the log's 2.
   const script = join(import.meta.dir, "../../../apps/data-publisher-worker/scripts/measure-identity-links-budget.ts");
-  const child = Bun.spawnSync(["bun", script], { stdout: "inherit", stderr: "inherit" });
+  const child = Bun.spawnSync(["bun", script, ...(values.backfill ? ["--backfill"] : [])], { stdout: "inherit", stderr: "inherit" });
   process.exit(child.exitCode ?? 1);
 }
 

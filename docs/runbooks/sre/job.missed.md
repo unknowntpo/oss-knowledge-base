@@ -14,7 +14,7 @@ Every enabled scheduled job completes a run within its expected interval.
 
 | Job | warn | firing | Source |
 | --- | --- | --- | --- |
-| `publication`, `digest`, `cost-guard` (by `checkedAt`), `identity-links`, `kip-pages`, `retention` (daily) | > 24.5 h since its last run of any status | > 27 h | Spec 028 Behavior 15 and D4; the 27 h boundary is Spec 018's (Spec 010 `STALE_AFTER_MS`), 24.5 h is Spec 021's `OVERDUE_AFTER_MS` |
+| `publication`, `digest`, `cost-guard` (by `checkedAt`), `identity-links`, `kip-pages`, `retention`, `identity-backfill` (daily; a `complete` record is not due) | > 24.5 h since its last run of any status | > 27 h | Spec 028 Behavior 15 and D4; the 27 h boundary is Spec 018's (Spec 010 `STALE_AFTER_MS`), 24.5 h is Spec 021's `OVERDUE_AFTER_MS` |
 | `embedding` (only while `pending` > 0) | > 2 h | > 3 h | Spec 028 Behavior 15 and D4 |
 
 A disabled job has no entry. An enabled job with no run yet is `unknown` for
@@ -36,7 +36,7 @@ The harness builds this bundle before the first model call. Quote only from it.
 | --- | --- |
 | The rule entry: `job`, `status`, `value` (age), `since`, `runId`, last `completedAt` | `/health.signals.rules[]` |
 | The job's last N data points: start (`runId`), `status`, `durationMs` | WAE `osskb_signals_<env>`, filtered by `blob1 = job`, 8 days |
-| The job's current state | DO state (`lastRun`, `running`, `scheduled`, `followUp`, `phase` for the publication; `digest`, `searchEmbedding`) or `last-run.json` (`identityLinks`, `kipPages`, `retention`) as `/health` serves it |
+| The job's current state | DO state (`lastRun`, `running`, `scheduled`, `followUp`, `phase` for the publication; `digest`, `searchEmbedding`) or `last-run.json` (`identityLinks`, `kipPages`, `retention`, `identityBackfill`) as `/health` serves it |
 | Cost guard | `/health` `costGuard {mode, status, breaker}`: a tripped breaker under `enforce` pauses the publication |
 | Deploys and CI around `since` | GitHub Actions runs on `main` and `v*` tags within ± 24 h of `since` (public API) |
 | Upstream health | `lastRun.sources[*] {ok, lastSuccessAt}` and the job's own `error`, if recorded |

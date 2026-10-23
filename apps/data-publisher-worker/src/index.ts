@@ -18,6 +18,7 @@ import { FOLLOW_UP_KEY, runPending, runStarting, scheduleFollowUp, type FollowUp
 import { healthBody } from "./health";
 import { identityLinksSet, R2IdentityLinksBucket, runIdentityLinks } from "./identity-links/run";
 import { KIP_PAGES_CRON_WALL_MS, kipPagesHealth, kipPagesRun, kipPagesSet } from "./kip-pages/run";
+import { identityBackfillHealth, identityBackfillRun, identityBackfillSet } from "./identity-backfill/run";
 import { appendActivityLog, peopleActivitySet, R2ActivityBucket } from "./people-activity/run";
 import { runDataPublication, type PipelinePhaseMarker, type PipelineRunStatus } from "./pipeline";
 import { SEARCH_QUERY_GATE_OBJECT_NAME, unboundQueryGateHealth, type EmbeddingAiBinding, type SemanticQueryGate, type VectorIndex } from "@oss-knowledge-base/semantic-vectorize";
@@ -124,6 +125,16 @@ interface Env {
   readonly KIP_PAGES?: string;
   /** Spec 019 amendment (7): the `kip-pages` job's cron expression (`43 3 * * *` once enabled). */
   readonly KIP_PAGES_CRON?: string;
+  /**
+   * Spec 019 amendment (8): `prs@1` runs the `identity-backfill` job (one month of pull-request keys
+   * and Jira assignees a run, `internal/identity/v1/<projectId>/backfill/`). Unset is off: the cron
+   * tick and the route do nothing (404), no request, no R2 call, no `/health` field (W125).
+   */
+  readonly IDENTITY_BACKFILL?: string;
+  /** Spec 019 amendment (8): the `identity-backfill` job's cron expression (`23 1 * * *` once enabled). */
+  readonly IDENTITY_BACKFILL_CRON?: string;
+  /** Spec 019 amendment (8): `read` makes the identity-link job read the backfill store (W116). Unset is off. */
+  readonly IDENTITY_LINKS_BACKFILL?: string;
   /**
    * Spec 028: `on` makes every job run write one data point (`SIGNALS`), judge its trends over
    * `ANALYTICS_SQL`, log `{message, runId, job}`, and adds `/health.signals`. Unset, blank or `off`:
@@ -295,7 +306,7 @@ const matches = (cron: string, configured: string | undefined) => configured !==
  * Spec 014 Behavior 21 and Spec 015 Q57: a tick starts the digest or the review queue only when it
  * is that job's configured cron; any other tick publishes.
  */
-export function cronTarget(cron: string, digestCron: string | undefined, reviewQueueCron?: string, identityLinksCron?: string, kipPagesCron?: string, sreAgentCrons?: string, retentionCron?: string): "digest" | "review-queue" | "identity-links" | "kip-pages" | "sre-agent" | "retention" | "publisher" {
+export function cronTarget(cron: string, digestCron: string | undefined, reviewQueueCron?: string, identityLinksCron?: string, kipPagesCron?: string, sreAgentCrons?: string, retentionCron?: string, identityBackfillCron?: string): "digest" | "review-queue" | "identity-links" | "kip-pages" | "identity-backfill" | "sre-agent" | "retention" | "publisher" {
   // Spec 029 RT24: retention's tick never publishes, whatever `R2_RETENTION` is.
   if (matches(cron, retentionCron)) return "retention";
   if (matches(cron, digestCron)) return "digest";
@@ -304,6 +315,8 @@ export function cronTarget(cron: string, digestCron: string | undefined, reviewQ
   if (matches(cron, identityLinksCron)) return "identity-links";
   // Spec 019 amendment (7): nor does the kip-pages job's (W98, W99).
   if (matches(cron, kipPagesCron)) return "kip-pages";
+  // Spec 019 amendment (8): nor does the identity-backfill job's (W124, W125).
+  if (matches(cron, identityBackfillCron)) return "identity-backfill";
   // Spec 027 B23: nor does the sre-agent job's, whatever its flag.
   if (sreAgentCron(cron, sreAgentCrons)) return "sre-agent";
   return "publisher";
@@ -413,7 +426,7 @@ export function githubInitialLookbackDays(env: Pick<Env, "GITHUB_INITIAL_LOOKBAC
 
 export default {
   async scheduled(controller: ScheduledController, env: Env, context: ExecutionContext): Promise<void> {
-    const target = cronTarget(controller.cron, env.DIGEST_CRON, env.REVIEW_QUEUE_CRON, env.IDENTITY_LINKS_CRON, env.KIP_PAGES_CRON, env.SRE_AGENT_CRON, env.RETENTION_CRON);
+    const target = cronTarget(controller.cron, env.DIGEST_CRON, env.REVIEW_QUEUE_CRON, env.IDENTITY_LINKS_CRON, env.KIP_PAGES_CRON, env.SRE_AGENT_CRON, env.RETENTION_CRON, env.IDENTITY_BACKFILL_CRON);
     if (target === "retention") {
       // Spec 029 RT1, RT24: off or unconfigured, the tick does nothing; otherwise the object decides.
       if (resolveRetentionMode(env.R2_RETENTION).mode !== "dry-run") return;
@@ -439,6 +452,11 @@ export default {
       // Spec 019 amendment (7), W98/W99: the kip-pages tick runs that job only, and nothing while `KIP_PAGES` is unset.
       // The scheduled handler has 15 minutes of wall time; the run stops before a request that could outlast 14 (W97).
       if (kipPagesSet(env)) context.waitUntil(kipPagesRun(env, false, Date.now() + KIP_PAGES_CRON_WALL_MS).then(() => undefined));
+      return;
+    }
+    if (target === "identity-backfill") {
+      // Spec 019 amendment (8), W124/W125: its tick runs that job only, and nothing while `IDENTITY_BACKFILL` is unset; the run never throws.
+      if (identityBackfillSet(env)) context.waitUntil(identityBackfillRun(env, { manual: false }).then(() => undefined));
       return;
     }
     if (target === "review-queue") {
@@ -549,7 +567,9 @@ export default {
       if (!identityLinksSet(env.IDENTITY_LINKS)) return new Response("Not found", { status: 404 });
       if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
       // Runs while the caller waits (seconds): no Durable Object holds this job.
-      const record = await identityLinksRun(env, { dryRun: url.searchParams.get("dryRun") === "1", blind: url.searchParams.get("blind") === "1" });
+      // W118: `backfill=1` reads the backfill store in a dry run even while `IDENTITY_LINKS_BACKFILL` is unset.
+      const dryRun = url.searchParams.get("dryRun") === "1";
+      const record = await identityLinksRun(env, { dryRun, blind: url.searchParams.get("blind") === "1", backfill: dryRun && url.searchParams.get("backfill") === "1" });
       return json(record, { status: record.lastRun.ok ? 200 : 502 });
     }
     if (request.method === "POST" && url.pathname === "/kip-pages/run") {
@@ -559,6 +579,16 @@ export default {
       // Runs while the caller waits (at most 13 upstream requests, 2 s apart): no Durable Object holds this job.
       const result = await kipPagesRun(env, url.searchParams.get("dryRun") === "1");
       return json(result, { status: result.lastRun?.ok === true ? 200 : 502 });
+    }
+    if (request.method === "POST" && url.pathname === "/identity-backfill/run") {
+      // W125: no route while the flag is unset.
+      if (!identityBackfillSet(env)) return new Response("Not found", { status: 404 });
+      if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
+      // W126: one month now, while the caller waits (at most 9 requests, 3 s apart); 409 within 60 min of the last run.
+      const result = await identityBackfillRun(env, { manual: true });
+      if (result.skipped === "too-soon" || result.skipped === "retry-after") return json({ ok: false, skipped: result.skipped }, { status: 409 });
+      if (result.record === null) return json({ ok: false, error: result.error ?? "no record" }, { status: 502 });
+      return json(result.record, { status: result.record.lastRun?.ok === true ? 200 : 502 });
     }
     if (request.method === "GET" && url.pathname === "/retention/report") {
       // Spec 029 RT20: the dry run's full list, for the owner's review; bearer only, no route while off.
@@ -618,6 +648,8 @@ async function servedHealth(env: Env): Promise<Response | Record<string, unknown
     ? await env.OSS_KB_BUCKET.get(IDENTITY_LINKS_LAST_RUN_KEY).then((object) => (object === null ? null : object.json())).catch(() => null)
     : undefined;
   const kipPages = await kipPagesHealth(env);
+  // Spec 019 amendment (8), W130: only while `IDENTITY_BACKFILL` is set (1 Class B).
+  const identityBackfill = await identityBackfillHealth(env);
   // Spec 029 Behavior 9: only while `R2_RETENTION` is set; null when the object does not answer.
   const retention = resolveRetentionMode(env.R2_RETENTION).mode === "off"
     ? undefined
@@ -626,6 +658,7 @@ async function servedHealth(env: Env): Promise<Response | Record<string, unknown
     ...health,
     ...(identityLinks === undefined ? {} : { identityLinks }),
     ...(kipPages === undefined ? {} : { kipPages }),
+    ...(identityBackfill === undefined ? {} : { identityBackfill }),
     ...(retention === undefined ? {} : { retention }),
   };
   // Spec 028 Behavior 18: judged from the records just read; no read, query or write of its own.
@@ -641,9 +674,10 @@ export async function tickHealth(env: Env): Promise<Record<string, unknown>> {
 }
 
 /** Spec 019 amendment (7): one identity-link run over the activity log, the roster and the profiles. */
-function identityLinksRun(env: Env, options: { readonly dryRun?: boolean; readonly blind?: boolean }) {
+function identityLinksRun(env: Env, options: { readonly dryRun?: boolean; readonly blind?: boolean; readonly backfill?: boolean }) {
   return runIdentityLinks({
     flag: env.IDENTITY_LINKS,
+    backfillFlag: options.backfill === true ? "read" : env.IDENTITY_LINKS_BACKFILL,
     bucket: new R2IdentityLinksBucket(env.OSS_KB_BUCKET),
     profiles: PEOPLE_IDENTITY_PROFILES,
     bots: (projectId) => PEOPLE_PROJECTS.find((project) => project.projectId === projectId)?.bots ?? [],

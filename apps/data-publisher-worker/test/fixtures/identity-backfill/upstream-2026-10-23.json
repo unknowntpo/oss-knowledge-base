@@ -1,0 +1,1989 @@
+{
+ "schema": "osskb.identity-backfill-upstream.v1",
+ "capturedAt": "2026-10-23",
+ "source": "Spec 019 amendment (8) Example (c): GitHub GraphQL search and ASF Jira REST, read-only, 2026-10-23; reduced to the fields the job reads",
+ "pulls": {
+  "m1a2st": [
+   {
+    "number": 23881,
+    "title": "MINOR: Bump docs version to 4.3.2",
+    "createdAt": "2026-10-20T12:36:07Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 23879,
+    "title": "KAFKA-19042 Rewrite TransactionsBounceTest from Scala to Java",
+    "createdAt": "2026-10-20T07:19:35Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 23852,
+    "title": "KAFKA-21293 SubscriptionState#unsubscribe should not reset the rebalance listener",
+    "createdAt": "2026-10-17T14:42:37Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 23767,
+    "title": "KAFKA-21174: Update lz4 to 1.11.4",
+    "createdAt": "2026-10-10T02:14:45Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 23748,
+    "title": "KAFKA-21157 Bump Jackson version to 2.22.3 ",
+    "createdAt": "2026-10-08T16:15:55Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 23665,
+    "title": "KAFKA-21160 improve RequestHeader parsing on the broker",
+    "createdAt": "2026-10-01T15:17:45Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 23479,
+    "title": "MINOR: Add 4.3.2 to upgrade.md",
+    "createdAt": "2026-09-16T14:33:45Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 23455,
+    "title": "KAFKA-21059 Consolidate maximumTimeToWait tests for Share and Consumer",
+    "createdAt": "2026-09-14T05:04:32Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 23433,
+    "title": "KAFKA-20843: Custom consumer group assignors may silently use duplica…",
+    "createdAt": "2026-09-11T14:23:07Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 23423,
+    "title": "KAFKA-20187: AsyncKafkaConsumer does not clear endOffsetRequested flag on failed LIST_OFFSETS calls",
+    "createdAt": "2026-09-10T13:03:18Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 23348,
+    "title": "KAFKA-21010 Another busy loop happens if the member is in JOINING state and bootstrap DNS resolution is not finished",
+    "createdAt": "2026-09-03T16:14:20Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 23347,
+    "title": "KAFKA-20815: Remove unnecessary jline deps and bump to latest 3.x",
+    "createdAt": "2026-09-03T12:30:03Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 23318,
+    "title": "KAFKA-18477 Remove usage of OffsetForLeaderEpochRequest in AbstractFetcherThread",
+    "createdAt": "2026-08-31T15:07:28Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 23301,
+    "title": "KAFKA-20036 Followup to preserve transaction metadata when a cleaned segment overflows",
+    "createdAt": "2026-08-29T04:36:22Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 23264,
+    "title": "MINOR: Stable flaky e2e test `share_consumer_dlq_tiered_storage_test` (WIP)",
+    "createdAt": "2026-08-25T07:30:04Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 23227,
+    "title": "KAFKA-20970 Another busy loop happens if auto.commit.interval.ms is less than bootstrap.resolve.timeout.ms",
+    "createdAt": "2026-08-21T13:56:57Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 23214,
+    "title": "KAFKA-20939 Mark \"bootstrap.resolve.timeout.ms\" as an experimental feature",
+    "createdAt": "2026-08-20T11:46:19Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 23197,
+    "title": "KAFKA-19042 Rewrite SaslMultiMechanismConsumerTest, SaslSslConsumerTest, SslConsumerTest to Java",
+    "createdAt": "2026-08-19T13:59:07Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 23141,
+    "title": "MINOR: Revert KAFKA-20036 on 4.4",
+    "createdAt": "2026-08-12T14:22:53Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 23133,
+    "title": "MINOR: Revert KAFKA-20385 and KAFKA-20684 on 4.4",
+    "createdAt": "2026-08-11T16:23:33Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 23094,
+    "title": "KAFKA-20898 PushTelemetry sets terminating flag on validation failure, permanently locking out client instance",
+    "createdAt": "2026-08-06T01:04:30Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 23059,
+    "title": "MINOR: Rewrite ReplicaFetchTest from scala to java",
+    "createdAt": "2026-08-03T04:41:47Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 23018,
+    "title": "KAFKA-13716: Add unit tests for DeleteRecordsCommand",
+    "createdAt": "2026-08-01T15:42:38Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 23014,
+    "title": "KAFKA-20854 A more obvious busy loop due to KIP-909",
+    "createdAt": "2026-08-01T05:57:00Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22924,
+    "title": "MINOR: Remove testImplementation storage:storage-api",
+    "createdAt": "2026-07-24T11:24:10Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22918,
+    "title": "KAFKA-19042 Rewrite SaslPlaintextConsumerTest from Scala to Java",
+    "createdAt": "2026-07-23T13:12:34Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22903,
+    "title": "MINOR: Cleanup build.gradle unused dependency",
+    "createdAt": "2026-07-22T01:55:14Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22871,
+    "title": "KAFKA-20553: Use ClusterInstance for streams ResetIntegrationTest",
+    "createdAt": "2026-07-19T09:25:48Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22811,
+    "title": "MINOR: Rewrite TransactionMetadataTest from Scala to Java",
+    "createdAt": "2026-07-11T00:52:25Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22784,
+    "title": "KAFKA-20539 Prevent Hot Data Loss on Partition Expansion for Latest Policy",
+    "createdAt": "2026-07-08T03:12:24Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22764,
+    "title": "MINOR: Move RequestChannelTest to server module",
+    "createdAt": "2026-07-06T14:29:54Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22733,
+    "title": "KAFKA-20759 testUnsubscribeDoesNotCommitOffsetsEvenWithAutoCommitEnabled hangs in closing",
+    "createdAt": "2026-07-02T11:48:36Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22699,
+    "title": "MINOR: Remove clients test-fixtures shadow JAR rewire hack",
+    "createdAt": "2026-06-29T12:23:51Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22638,
+    "title": "MINOR: Move DelayedProduceTest to server module",
+    "createdAt": "2026-06-22T15:26:10Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22563,
+    "title": "MINOR: Followup Add KIP-1284 into streams upgrade document",
+    "createdAt": "2026-06-13T04:23:58Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22520,
+    "title": "MINOR: Rewrite ClientOAuthIntegrationTest from Scala to Java",
+    "createdAt": "2026-06-09T13:20:30Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22429,
+    "title": "MINOR: Note that formatted storage directories are not forward-compatible",
+    "createdAt": "2026-05-31T05:10:38Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22362,
+    "title": "KAFKA-20605 upgrade gradle action to enable the CI",
+    "createdAt": "2026-05-24T13:50:47Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22354,
+    "title": "MINOR: Don't Merge this",
+    "createdAt": "2026-05-23T07:52:11Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22326,
+    "title": "KAFKA-967 Use key range in ProducerPerformance",
+    "createdAt": "2026-05-19T12:46:52Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22306,
+    "title": "KAFKA-17689 Migrate TieredStorageTestHarness to new test infra (AlterLogDirTest) ",
+    "createdAt": "2026-05-18T10:01:33Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22276,
+    "title": "KAFKA-20553 Eliminate the dependencies on sourceSets.test.output for server and storage module",
+    "createdAt": "2026-05-13T09:50:45Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22254,
+    "title": "KAFKA-20553 Eliminate the dependencies on sourceSets.test.output for group-coordinator and share-coordinator",
+    "createdAt": "2026-05-11T13:49:08Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22246,
+    "title": "KAFKA-20539 Prevent Hot Data Loss on Partition Expansion for Latest Policy (1/N)",
+    "createdAt": "2026-05-10T04:17:53Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22243,
+    "title": "MINOR: Use testFixturesImplementation instead of testFixturesApi",
+    "createdAt": "2026-05-09T06:11:11Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22229,
+    "title": "KAFKA-20553 Eliminate the dependencies on \"sourceSets.test.output\" (Server-common) ",
+    "createdAt": "2026-05-07T01:00:03Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22222,
+    "title": "HOTFIX: Fix SharePartition build error",
+    "createdAt": "2026-05-06T12:05:54Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22150,
+    "title": "KAFKA-19042 Rewrite TransactionsTest from Scala to Java",
+    "createdAt": "2026-04-26T09:19:48Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22134,
+    "title": "MINOR: Add shutdown broker and bootstrap controller for ConfigCommand",
+    "createdAt": "2026-04-23T16:02:10Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22133,
+    "title": "MINOR: `pr-format.py` should not tag reviewers, and merged PRs should be skipped.",
+    "createdAt": "2026-04-23T15:50:49Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22113,
+    "title": "KAFKA-20506 kafka-configs.sh can't delete the config from a offline broker when using bootstrap controller",
+    "createdAt": "2026-04-22T01:01:40Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22104,
+    "title": "KAFKA-20506 kafka-configs.sh can't delete the config from a offline broker when using bootstrap controller",
+    "createdAt": "2026-04-20T17:44:00Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22093,
+    "title": "KAFKA-20297 Move OperatingSystem, Java, Exit... into internal",
+    "createdAt": "2026-04-19T01:37:21Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22091,
+    "title": "MINOR: Cleanup TestUtils.scala",
+    "createdAt": "2026-04-18T12:56:49Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22081,
+    "title": "KAFKA-20297 Move ByteBufferUnmapper, BufferSupplier, ChunkedBytesStream into internal",
+    "createdAt": "2026-04-17T12:59:26Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22057,
+    "title": "MINOR: Use maybeSetDslStoreFormatHeaders helper in more streams test classes",
+    "createdAt": "2026-04-14T16:08:52Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22052,
+    "title": "KAFKA-20297: Move AbstractIterator, CircularIterator, CloseableIterator... into internal",
+    "createdAt": "2026-04-14T12:11:40Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 22028,
+    "title": "MINOR: Move KafkaMetricsGroupTest from Scala to Java",
+    "createdAt": "2026-04-11T16:42:11Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21952,
+    "title": "KAFKA-20035 Prevent data loss during partition expansion for dynamically added partitions (1/N) (WIP)",
+    "createdAt": "2026-04-03T10:36:27Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21912,
+    "title": "KAFKA-19752 Move parts of UnifiedLogTest to storage module",
+    "createdAt": "2026-03-31T12:42:15Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21890,
+    "title": "MINOR: Move TerseFailure to server-common",
+    "createdAt": "2026-03-29T14:21:28Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21867,
+    "title": "MINOR: Fix flaky test `CoordinatorBackgroundThreadPoolExecutorTest`",
+    "createdAt": "2026-03-25T12:26:32Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21807,
+    "title": "KAFKA-19752 Move parts of UnifiedLogTest to storage module",
+    "createdAt": "2026-03-18T13:09:57Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21763,
+    "title": "KAFKA-19752 Move parts of UnifiedLogTest to storage module",
+    "createdAt": "2026-03-15T08:42:08Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21717,
+    "title": "KAFKA-19697 NPE Cannot invoke org.apache.kafka.connect.runtime.ConnectMetrics$MetricGroup.close()",
+    "createdAt": "2026-03-12T00:50:35Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21699,
+    "title": "MINOR: Followup Deprecate group.coordinator.rebalance.protocols config",
+    "createdAt": "2026-03-10T14:02:29Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21690,
+    "title": "HOTFIX GroupMetadataManagerTest compile error",
+    "createdAt": "2026-03-09T15:57:31Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21686,
+    "title": "KAFKA-19752 Move parts of UnifiedLogTest to storage module",
+    "createdAt": "2026-03-09T12:11:04Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21647,
+    "title": "KAFKA-20035 Prevent data loss during partition expansion  for dynamically added partitions (WIP)",
+    "createdAt": "2026-03-05T16:11:22Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21579,
+    "title": "KAFKA-20167 Introduce CloseOptions.DEFAULT for Kafka Streams",
+    "createdAt": "2026-02-25T16:14:34Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21484,
+    "title": "KAFKA-20135 Add javadoc to org.apache.kafka.clients.admin module(1/N)",
+    "createdAt": "2026-02-16T13:07:37Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21379,
+    "title": "KAFKA-20036 Handle LogCleaner segment overflow caused by compression level changes",
+    "createdAt": "2026-01-31T07:13:33Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21284,
+    "title": "MINOR: Fix zk2kraft page broken link ",
+    "createdAt": "2026-01-11T03:22:32Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21283,
+    "title": "MINOR: Fix zk2kraft page broken link",
+    "createdAt": "2026-01-11T03:15:16Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21282,
+    "title": "MINOR: Fix zk2kraft page broken link",
+    "createdAt": "2026-01-11T03:04:15Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21270,
+    "title": "MINOR: Fix zk2kraft page broken link",
+    "createdAt": "2026-01-08T13:13:41Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21264,
+    "title": "KAFKA-20038 Upgrade Log4j to 2.25.3 to fix CVE-2025-68161 ",
+    "createdAt": "2026-01-07T14:17:37Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21250,
+    "title": "KAFKA-20038 Upgrade Log4j to 2.25.3 to fix CVE-2025-68161",
+    "createdAt": "2026-01-06T11:01:36Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21249,
+    "title": "KAFKA-20038 Upgrade Log4j to 2.25.3 to fix CVE-2025-68161",
+    "createdAt": "2026-01-06T10:51:39Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21241,
+    "title": "MINOR: Remove 4.2 from Streams E2E tests",
+    "createdAt": "2026-01-03T06:45:56Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21222,
+    "title": "KAFKA-20023 Fix kafka-reassign-partitions.sh to handle dead brokers",
+    "createdAt": "2025-12-30T05:02:42Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21209,
+    "title": "MINOR: Fix the  Client/Broker Forward Compatibility table in compatibility page ",
+    "createdAt": "2025-12-23T08:32:17Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21176,
+    "title": "KAFKA-19999 Transaction coordinator livelock caused by invalid producer epoch",
+    "createdAt": "2025-12-19T16:49:58Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21131,
+    "title": "KAFKA-19984 Throttle-related dynamic configurations should not have the `isReadOnly` flag",
+    "createdAt": "2025-12-11T15:25:54Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21027,
+    "title": "KAFKA-19940 Reduce the log4j2 cpu usage in PersisterStateManager",
+    "createdAt": "2025-12-01T13:15:06Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 21005,
+    "title": "KAFKA-19931 Align broker and controller behavior for the Admin.incrementalAlterConfigs API",
+    "createdAt": "2025-11-27T11:12:11Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 20989,
+    "title": "MINOR: Followup KIP-1161 upgrade and test",
+    "createdAt": "2025-11-25T12:37:01Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 20960,
+    "title": "KAFKA-19875 Duplicated topic config prevents broker start",
+    "createdAt": "2025-11-22T01:52:52Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 20899,
+    "title": "MINOR: Fix zombie process issue in ducker containers by using `--init`",
+    "createdAt": "2025-11-17T05:50:32Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 20886,
+    "title": "KAFKA-19876 Replace the base image since openjdk image is deprecated",
+    "createdAt": "2025-11-14T14:45:40Z",
+    "author": "m1a2st"
+   },
+   {
+    "number": 20844,
+    "title": "KAFKA-19875 Duplicated topic config prevents broker start",
+    "createdAt": "2025-11-07T00:41:51Z",
+    "author": "m1a2st"
+   }
+  ],
+  "chia7712": [
+   {
+    "number": 23249,
+    "title": "MINOR: update collaborator list",
+    "createdAt": "2026-08-23T16:20:30Z",
+    "author": "chia7712"
+   },
+   {
+    "number": 21933,
+    "title": "[TEST] check tags order",
+    "createdAt": "2026-04-02T00:41:56Z",
+    "author": "chia7712"
+   },
+   {
+    "number": 21296,
+    "title": "KAFKA-20063 Fix Docker build hang by reordering tar extraction before…",
+    "createdAt": "2026-01-12T16:10:31Z",
+    "author": "chia7712"
+   },
+   {
+    "number": 21288,
+    "title": "KAFKA-19012 Fix rare producer message corruption, don't reuse buffers…",
+    "createdAt": "2026-01-11T11:27:51Z",
+    "author": "chia7712"
+   },
+   {
+    "number": 21287,
+    "title": "KAFKA-19012 Fix rare producer message corruption, don't reuse buffers…",
+    "createdAt": "2026-01-11T11:27:12Z",
+    "author": "chia7712"
+   },
+   {
+    "number": 21286,
+    "title": "KAFKA-19012 Fix rare producer message corruption, don't reuse buffers…",
+    "createdAt": "2026-01-11T11:26:29Z",
+    "author": "chia7712"
+   },
+   {
+    "number": 21285,
+    "title": "KAFKA-19012 Fix rare producer message corruption, don't reuse buffers…",
+    "createdAt": "2026-01-11T11:25:36Z",
+    "author": "chia7712"
+   }
+  ],
+  "harmadasg": [
+   {
+    "number": 23907,
+    "title": "KAFKA-21329: Update outdated steps in SSL docs",
+    "createdAt": "2026-10-21T21:41:04Z",
+    "author": "harmadasg"
+   },
+   {
+    "number": 23862,
+    "title": "KAFKA-21305: Bump Jackson version to 2.22.4",
+    "createdAt": "2026-10-19T12:36:32Z",
+    "author": "harmadasg"
+   },
+   {
+    "number": 23854,
+    "title": "KAFKA-21285: Fix dynamic thread counts are lost on restart",
+    "createdAt": "2026-10-17T21:28:37Z",
+    "author": "harmadasg"
+   },
+   {
+    "number": 23808,
+    "title": "KAFKA-21274: Remove unused javax jaxb-api and activation dependencies",
+    "createdAt": "2026-10-13T20:34:05Z",
+    "author": "harmadasg"
+   },
+   {
+    "number": 23793,
+    "title": "MINOR: Remove unused jmhCoreBenchmarks and spotbugs library entries ",
+    "createdAt": "2026-10-12T20:13:57Z",
+    "author": "harmadasg"
+   },
+   {
+    "number": 23752,
+    "title": "KAFKA-21247: Refactor ClientOAuthIntegrationTest to use Keycloak in eligible test cases",
+    "createdAt": "2026-10-08T20:56:36Z",
+    "author": "harmadasg"
+   },
+   {
+    "number": 23741,
+    "title": "KAFKA-21237 - Remove accidental JUnit 4 usage",
+    "createdAt": "2026-10-07T08:24:56Z",
+    "author": "harmadasg"
+   },
+   {
+    "number": 23637,
+    "title": "KAFKA-21185: bump lz4 to 1.12.0",
+    "createdAt": "2026-09-30T07:01:42Z",
+    "author": "harmadasg"
+   },
+   {
+    "number": 23609,
+    "title": "KAFKA-21174: Update lz4 to 1.11.4",
+    "createdAt": "2026-09-28T14:58:05Z",
+    "author": "harmadasg"
+   },
+   {
+    "number": 23580,
+    "title": "KAFKA-21157: Bump Jackson version to 2.22.3",
+    "createdAt": "2026-09-24T14:30:58Z",
+    "author": "harmadasg"
+   },
+   {
+    "number": 23543,
+    "title": "KAFKA-21139: bump jetty to 12.0.39",
+    "createdAt": "2026-09-21T15:42:21Z",
+    "author": "harmadasg"
+   },
+   {
+    "number": 23506,
+    "title": "KAFKA-21123: bump zstd-jni",
+    "createdAt": "2026-09-17T19:48:26Z",
+    "author": "harmadasg"
+   },
+   {
+    "number": 23332,
+    "title": "KAFKA-21018 Fix broken documentation links in CooperativeStickyAssignor and upgrade.md",
+    "createdAt": "2026-09-02T10:03:21Z",
+    "author": "harmadasg"
+   },
+   {
+    "number": 23321,
+    "title": "KAFKA-21004: Bump jackson to 2.21.6",
+    "createdAt": "2026-08-31T16:21:35Z",
+    "author": "harmadasg"
+   },
+   {
+    "number": 23320,
+    "title": "MINOR: replace Collections.singleton() with Set.of()",
+    "createdAt": "2026-08-31T16:06:06Z",
+    "author": "harmadasg"
+   },
+   {
+    "number": 23319,
+    "title": "MINOR: add missing java.util.Collections import",
+    "createdAt": "2026-08-31T15:34:19Z",
+    "author": "harmadasg"
+   },
+   {
+    "number": 23291,
+    "title": "KAFKA-20993: Remove hamcrest from org.apache.kafka.streams.processor.internals.assignment",
+    "createdAt": "2026-08-28T00:22:23Z",
+    "author": "harmadasg"
+   },
+   {
+    "number": 23200,
+    "title": "KAFKA-20963: Remove hamcrest from org.apache.kafka.streams.processor",
+    "createdAt": "2026-08-19T16:12:18Z",
+    "author": "harmadasg"
+   },
+   {
+    "number": 23199,
+    "title": "KAFKA-20962: Remove hamcrest from org.apache.kafka.streams.kstream.internals.suppress package",
+    "createdAt": "2026-08-19T15:45:54Z",
+    "author": "harmadasg"
+   },
+   {
+    "number": 22906,
+    "title": "MINOR: bump jline to 3.30.16",
+    "createdAt": "2026-07-22T12:08:39Z",
+    "author": "harmadasg"
+   },
+   {
+    "number": 22898,
+    "title": "KAFKA-20815: Remove unnecessary jline deps and bump to latest 3.x",
+    "createdAt": "2026-07-21T16:13:18Z",
+    "author": "harmadasg"
+   },
+   {
+    "number": 22893,
+    "title": "KAFKA-20820: make symlinked log.dirs possible when on JDK17",
+    "createdAt": "2026-07-21T11:20:27Z",
+    "author": "harmadasg"
+   },
+   {
+    "number": 22513,
+    "title": "KAFKA-20676: do not fail startup when a non-supported user configured cipher is used",
+    "createdAt": "2026-06-08T23:16:39Z",
+    "author": "harmadasg"
+   },
+   {
+    "number": 21137,
+    "title": "KAFKA-19988: change example kafka-storage command in the migration section ",
+    "createdAt": "2025-12-12T16:28:26Z",
+    "author": "harmadasg"
+   }
+  ],
+  "unknowntpo": [
+   {
+    "number": 23895,
+    "title": "KAFKA-21266: Compute the effective min ISR from the target partition",
+    "createdAt": "2026-10-21T09:35:02Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 23894,
+    "title": "KAFKA-21262: Wait for the share group and check the record count in share benchmarks",
+    "createdAt": "2026-10-21T09:19:56Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 23858,
+    "title": "KAFKA-21252: Use partition 0's replication factor when adding partitions",
+    "createdAt": "2026-10-18T15:06:46Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 23815,
+    "title": "KAFKA-21276: Stop fetching standby changelogs while records beyond the limit offset are buffered",
+    "createdAt": "2026-10-14T08:32:29Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 23781,
+    "title": "KAFKA-21262: Do not cap total run time in ShareConsumerPerformance",
+    "createdAt": "2026-10-12T03:09:54Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 23615,
+    "title": "KAFKA-21172: Set changelog retention for all smoke-test clients in system tests",
+    "createdAt": "2026-09-29T02:26:11Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 23604,
+    "title": "MINOR: Close leaked RemoteLogManager instances in RemoteLogManagerTest",
+    "createdAt": "2026-09-28T12:36:52Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 23572,
+    "title": "KAFKA-21152: LogCompactionTester should read until the end offsets instead of stopping at an empty poll",
+    "createdAt": "2026-09-24T03:27:17Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 23421,
+    "title": "MINOR: Preserve changelogs during Streams application upgrade tests",
+    "createdAt": "2026-09-10T12:56:40Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 23420,
+    "title": "MINOR: Allow Connect exactly-once validation consumers time to start",
+    "createdAt": "2026-09-10T12:56:32Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 23357,
+    "title": "KAFKA-21031: Another busy loop happens while a heartbeat is in flight and the heartbeat timer is expired",
+    "createdAt": "2026-09-04T05:48:11Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 23049,
+    "title": "MINOR: Fix malformed Javadoc link tags in clients and streams",
+    "createdAt": "2026-08-03T00:20:50Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 22952,
+    "title": "KAFKA-20838: Set initial rebalance delay to zero in IQv2StoreIntegrationTest",
+    "createdAt": "2026-07-27T04:50:14Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 22827,
+    "title": "KAFKA-20802: Avoid NPE in thread leak reporting",
+    "createdAt": "2026-07-14T10:59:05Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 22814,
+    "title": "MINOR: Move ByteBufferInputStream and ByteBufferOutputStream to internal package",
+    "createdAt": "2026-07-11T12:01:23Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 22758,
+    "title": "KIP-1320 (PoC): deprecate Utils behind an internal implementation",
+    "createdAt": "2026-07-05T01:11:09Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 22409,
+    "title": "MINOR: Move BrokerReconfigurable to server module",
+    "createdAt": "2026-05-29T03:38:22Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 22371,
+    "title": "MINOR: Add `TieredStorageTestPlan` as the execution wrapper created by `TieredStorageTestBuilder.build()`",
+    "createdAt": "2026-05-26T09:19:01Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 22369,
+    "title": "KAFKA-17689 Migrate TieredStorageTestHarness to new test infra (ListOffsetsTest)",
+    "createdAt": "2026-05-26T01:59:47Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 22353,
+    "title": "KAFKA-18948 Move DynamicLogConfig to server module",
+    "createdAt": "2026-05-23T06:08:11Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 22274,
+    "title": "KAFKA-20553: Eliminate the dependencies on \"sourceSets.test.output\" (raft)",
+    "createdAt": "2026-05-13T04:25:46Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 21972,
+    "title": "KAFKA-20297: Move `org.apache.kafka.common.utils.Utils` to `org.apache.kafka.common.utils.internals.Utils`",
+    "createdAt": "2026-04-06T10:08:09Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 21818,
+    "title": "KAFKA-20297: Cleanup `org.apache.kafka.common.utils.CollectionUtils`",
+    "createdAt": "2026-03-19T10:12:58Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 21637,
+    "title": "MINOR: Add test to enforce LATEST_STABLE_METADATA_VERSION sync with LATEST_PRODUCTION",
+    "createdAt": "2026-03-05T04:59:55Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 21629,
+    "title": "MINOR: Upgrade LATEST_STABLE_METADATA_VERSION to match LATEST_PRODUCTION version",
+    "createdAt": "2026-03-04T14:25:53Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 21584,
+    "title": "KAFKA-20166: Ensure consumer with auto-commit enabled commits offsets before switching partitions",
+    "createdAt": "2026-02-25T23:46:50Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 21378,
+    "title": "MINOR: Correct exception naming and preserve original headers in DLQ",
+    "createdAt": "2026-01-31T03:06:09Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 21370,
+    "title": "MINOR: Correct exception naming and preserve original headers in DLQ",
+    "createdAt": "2026-01-29T13:49:22Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 21004,
+    "title": "MINOR: Clean up non-existing package in spotBogs and checkstyle import rules",
+    "createdAt": "2025-11-27T07:26:12Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 20935,
+    "title": "MINOR: Upgrade Gradle version from 9.1.0 to 9.2.1",
+    "createdAt": "2025-11-20T12:58:22Z",
+    "author": "unknowntpo"
+   },
+   {
+    "number": 20892,
+    "title": "MINOR: fix ssh problem in e2e",
+    "createdAt": "2025-11-15T11:42:25Z",
+    "author": "unknowntpo"
+   }
+  ],
+  "dybyte": [
+   {
+    "number": 23840,
+    "title": "KAFKA-21294: Add missing OAuth login configs to production SASL examples",
+    "createdAt": "2026-10-16T12:40:18Z",
+    "author": "dybyte"
+   },
+   {
+    "number": 23697,
+    "title": "KAFKA-13468: Take the log dir offline when opening a new log fails",
+    "createdAt": "2026-10-04T10:45:25Z",
+    "author": "dybyte"
+   },
+   {
+    "number": 23689,
+    "title": "KAFKA-21065: Streamline BytesApiMessageSerde and RemoteLogMetadataSerde",
+    "createdAt": "2026-10-03T18:09:37Z",
+    "author": "dybyte"
+   },
+   {
+    "number": 23569,
+    "title": "KAFKA-17249: Do not truncate the local log before the remote log aux state is fetched",
+    "createdAt": "2026-09-23T19:50:43Z",
+    "author": "dybyte"
+   },
+   {
+    "number": 23512,
+    "title": "KAFKA-17734: Reset group state before polling in maybeLeaveGroup",
+    "createdAt": "2026-09-18T16:07:33Z",
+    "author": "dybyte"
+   },
+   {
+    "number": 23502,
+    "title": "KAFKA-21116: Validate configuration value size using UTF-8 bytes",
+    "createdAt": "2026-09-17T15:37:27Z",
+    "author": "dybyte"
+   },
+   {
+    "number": 23404,
+    "title": "KAFKA-21049: Prevent async consumer busy loop with zero retry backoff",
+    "createdAt": "2026-09-08T07:47:29Z",
+    "author": "dybyte"
+   },
+   {
+    "number": 23396,
+    "title": "KAFKA-19327: Batch topic creation requests in MirrorSourceConnector",
+    "createdAt": "2026-09-07T14:43:48Z",
+    "author": "dybyte"
+   },
+   {
+    "number": 23382,
+    "title": "KAFKA-17719: Recover task configs lost after config topic compaction",
+    "createdAt": "2026-09-06T08:34:20Z",
+    "author": "dybyte"
+   },
+   {
+    "number": 23336,
+    "title": "KAFKA-20097: Return topic ID when a topic already exists",
+    "createdAt": "2026-09-02T11:56:48Z",
+    "author": "dybyte"
+   },
+   {
+    "number": 23326,
+    "title": "KAFKA-21003: Verify replica assignments in CreateTopicsRequestTest",
+    "createdAt": "2026-09-01T14:36:19Z",
+    "author": "dybyte"
+   }
+  ]
+ },
+ "jira": {
+  "KAFKA-967": {
+   "assignee": "JIRAUSER305187",
+   "display": "Ken Huang",
+   "status": "Resolved"
+  },
+  "KAFKA-13468": {
+   "assignee": "JIRAUSER312871",
+   "display": "Doyeon Kim",
+   "status": "Open"
+  },
+  "KAFKA-13716": {
+   "assignee": "rjoerger",
+   "display": "Richard Joerger",
+   "status": "Resolved"
+  },
+  "KAFKA-17249": {
+   "assignee": "JIRAUSER312871",
+   "display": "Doyeon Kim",
+   "status": "Open"
+  },
+  "KAFKA-17689": {
+   "assignee": "JIRAUSER305181",
+   "display": "TengYao Chi",
+   "status": "Resolved"
+  },
+  "KAFKA-17719": {
+   "assignee": "JIRAUSER312871",
+   "display": "Doyeon Kim",
+   "status": "Open"
+  },
+  "KAFKA-17734": {
+   "assignee": "JIRAUSER312871",
+   "display": "Doyeon Kim",
+   "status": "Open"
+  },
+  "KAFKA-18477": {
+   "assignee": "JIRAUSER305187",
+   "display": "Ken Huang",
+   "status": "Resolved"
+  },
+  "KAFKA-18948": {
+   "assignee": "JIRAUSER305181",
+   "display": "TengYao Chi",
+   "status": "Open"
+  },
+  "KAFKA-19012": {
+   "assignee": "dnadolny",
+   "display": "Donny Nadolny",
+   "status": "Resolved"
+  },
+  "KAFKA-19042": {
+   "assignee": "JIRAUSER300229",
+   "display": "PoAn Yang",
+   "status": "Open"
+  },
+  "KAFKA-19327": {
+   "assignee": "JIRAUSER312871",
+   "display": "Doyeon Kim",
+   "status": "Open"
+  },
+  "KAFKA-19697": {
+   "assignee": "JIRAUSER305427",
+   "display": "Fan Yang",
+   "status": "Resolved"
+  },
+  "KAFKA-19752": {
+   "assignee": "chia7712",
+   "display": "Chia-Ping Tsai",
+   "status": "Resolved"
+  },
+  "KAFKA-19875": {
+   "assignee": "JIRAUSER305187",
+   "display": "Ken Huang",
+   "status": "Resolved"
+  },
+  "KAFKA-19876": {
+   "assignee": "JIRAUSER287528",
+   "display": "Ming-Yen Chung",
+   "status": "Resolved"
+  },
+  "KAFKA-19931": {
+   "assignee": "JIRAUSER305187",
+   "display": "Ken Huang",
+   "status": "Open"
+  },
+  "KAFKA-19940": {
+   "assignee": "JIRAUSER305187",
+   "display": "Ken Huang",
+   "status": "Resolved"
+  },
+  "KAFKA-19984": {
+   "assignee": "JIRAUSER305187",
+   "display": "Ken Huang",
+   "status": "Resolved"
+  },
+  "KAFKA-19988": {
+   "assignee": "JIRAUSER306203",
+   "display": "Gergely Harmadás",
+   "status": "Resolved"
+  },
+  "KAFKA-19999": {
+   "assignee": "JIRAUSER305187",
+   "display": "Ken Huang",
+   "status": "Resolved"
+  },
+  "KAFKA-20023": {
+   "assignee": "JIRAUSER305187",
+   "display": "Ken Huang",
+   "status": "Resolved"
+  },
+  "KAFKA-20035": {
+   "assignee": "JIRAUSER305187",
+   "display": "Ken Huang",
+   "status": "Open"
+  },
+  "KAFKA-20036": {
+   "assignee": "JIRAUSER305187",
+   "display": "Ken Huang",
+   "status": "Reopened"
+  },
+  "KAFKA-20038": {
+   "assignee": "chia7712",
+   "display": "Chia-Ping Tsai",
+   "status": "Resolved"
+  },
+  "KAFKA-20063": {
+   "assignee": "chia7712",
+   "display": "Chia-Ping Tsai",
+   "status": "Resolved"
+  },
+  "KAFKA-20097": {
+   "assignee": null,
+   "display": null,
+   "status": "Open"
+  },
+  "KAFKA-20135": {
+   "assignee": "JIRAUSER305187",
+   "display": "Ken Huang",
+   "status": "Open"
+  },
+  "KAFKA-20166": {
+   "assignee": "JIRAUSER306218",
+   "display": "Eric Chang",
+   "status": "Open"
+  },
+  "KAFKA-20167": {
+   "assignee": "JIRAUSER305187",
+   "display": "Ken Huang",
+   "status": "Resolved"
+  },
+  "KAFKA-20187": {
+   "assignee": "JIRAUSER310184",
+   "display": "Evan Zhou",
+   "status": "Resolved"
+  },
+  "KAFKA-20297": {
+   "assignee": "chia7712",
+   "display": "Chia-Ping Tsai",
+   "status": "Open"
+  },
+  "KAFKA-20385": {
+   "assignee": "adikou",
+   "display": "Aditya Kousik",
+   "status": "Patch Available"
+  },
+  "KAFKA-20506": {
+   "assignee": "JIRAUSER305187",
+   "display": "Ken Huang",
+   "status": "Resolved"
+  },
+  "KAFKA-20539": {
+   "assignee": "JIRAUSER305187",
+   "display": "Ken Huang",
+   "status": "Open"
+  },
+  "KAFKA-20553": {
+   "assignee": "chia7712",
+   "display": "Chia-Ping Tsai",
+   "status": "Resolved"
+  },
+  "KAFKA-20605": {
+   "assignee": "chia7712",
+   "display": "Chia-Ping Tsai",
+   "status": "Resolved"
+  },
+  "KAFKA-20676": {
+   "assignee": "JIRAUSER306203",
+   "display": "Gergely Harmadás",
+   "status": "Patch Available"
+  },
+  "KAFKA-20684": {
+   "assignee": "adikou",
+   "display": "Aditya Kousik",
+   "status": "Patch Available"
+  },
+  "KAFKA-20759": {
+   "assignee": "JIRAUSER305187",
+   "display": "Ken Huang",
+   "status": "Resolved"
+  },
+  "KAFKA-20802": {
+   "assignee": "JIRAUSER306218",
+   "display": "Eric Chang",
+   "status": "Resolved"
+  },
+  "KAFKA-20815": {
+   "assignee": "JIRAUSER306203",
+   "display": "Gergely Harmadás",
+   "status": "Resolved"
+  },
+  "KAFKA-20820": {
+   "assignee": "JIRAUSER306203",
+   "display": "Gergely Harmadás",
+   "status": "Patch Available"
+  },
+  "KAFKA-20838": {
+   "assignee": "JIRAUSER306218",
+   "display": "Eric Chang",
+   "status": "Resolved"
+  },
+  "KAFKA-20843": {
+   "assignee": "JIRAUSER312617",
+   "display": "Ziyun Fu",
+   "status": "Resolved"
+  },
+  "KAFKA-20854": {
+   "assignee": "JIRAUSER305187",
+   "display": "Ken Huang",
+   "status": "Resolved"
+  },
+  "KAFKA-20898": {
+   "assignee": "JIRAUSER305187",
+   "display": "Ken Huang",
+   "status": "Resolved"
+  },
+  "KAFKA-20939": {
+   "assignee": "JIRAUSER305181",
+   "display": "TengYao Chi",
+   "status": "Resolved"
+  },
+  "KAFKA-20962": {
+   "assignee": "JIRAUSER306203",
+   "display": "Gergely Harmadás",
+   "status": "Resolved"
+  },
+  "KAFKA-20963": {
+   "assignee": "JIRAUSER306203",
+   "display": "Gergely Harmadás",
+   "status": "Resolved"
+  },
+  "KAFKA-20970": {
+   "assignee": "JIRAUSER305187",
+   "display": "Ken Huang",
+   "status": "Resolved"
+  },
+  "KAFKA-20993": {
+   "assignee": "JIRAUSER306203",
+   "display": "Gergely Harmadás",
+   "status": "Resolved"
+  },
+  "KAFKA-21003": {
+   "assignee": "JIRAUSER312871",
+   "display": "Doyeon Kim",
+   "status": "Resolved"
+  },
+  "KAFKA-21004": {
+   "assignee": "JIRAUSER306203",
+   "display": "Gergely Harmadás",
+   "status": "Resolved"
+  },
+  "KAFKA-21010": {
+   "assignee": "JIRAUSER305187",
+   "display": "Ken Huang",
+   "status": "Resolved"
+  },
+  "KAFKA-21018": {
+   "assignee": "JIRAUSER306203",
+   "display": "Gergely Harmadás",
+   "status": "Resolved"
+  },
+  "KAFKA-21031": {
+   "assignee": "JIRAUSER306218",
+   "display": "Eric Chang",
+   "status": "Open"
+  },
+  "KAFKA-21049": {
+   "assignee": "JIRAUSER312871",
+   "display": "Doyeon Kim",
+   "status": "Open"
+  },
+  "KAFKA-21059": {
+   "assignee": "JIRAUSER305187",
+   "display": "Ken Huang",
+   "status": "Resolved"
+  },
+  "KAFKA-21065": {
+   "assignee": "chia7712",
+   "display": "Chia-Ping Tsai",
+   "status": "Resolved"
+  },
+  "KAFKA-21116": {
+   "assignee": "JIRAUSER312871",
+   "display": "Doyeon Kim",
+   "status": "Resolved"
+  },
+  "KAFKA-21123": {
+   "assignee": "JIRAUSER306203",
+   "display": "Gergely Harmadás",
+   "status": "Resolved"
+  },
+  "KAFKA-21139": {
+   "assignee": "JIRAUSER306203",
+   "display": "Gergely Harmadás",
+   "status": "Resolved"
+  },
+  "KAFKA-21152": {
+   "assignee": "JIRAUSER306218",
+   "display": "Eric Chang",
+   "status": "Resolved"
+  },
+  "KAFKA-21157": {
+   "assignee": "JIRAUSER306203",
+   "display": "Gergely Harmadás",
+   "status": "Resolved"
+  },
+  "KAFKA-21160": {
+   "assignee": "JIRAUSER305187",
+   "display": "Ken Huang",
+   "status": "Open"
+  },
+  "KAFKA-21172": {
+   "assignee": "JIRAUSER306218",
+   "display": "Eric Chang",
+   "status": "Open"
+  },
+  "KAFKA-21174": {
+   "assignee": "JIRAUSER306203",
+   "display": "Gergely Harmadás",
+   "status": "Resolved"
+  },
+  "KAFKA-21185": {
+   "assignee": "JIRAUSER306203",
+   "display": "Gergely Harmadás",
+   "status": "Patch Available"
+  },
+  "KAFKA-21237": {
+   "assignee": "JIRAUSER306203",
+   "display": "Gergely Harmadás",
+   "status": "Resolved"
+  },
+  "KAFKA-21247": {
+   "assignee": "JIRAUSER306203",
+   "display": "Gergely Harmadás",
+   "status": "Open"
+  },
+  "KAFKA-21252": {
+   "assignee": "JIRAUSER306218",
+   "display": "Eric Chang",
+   "status": "Open"
+  },
+  "KAFKA-21262": {
+   "assignee": "JIRAUSER306218",
+   "display": "Eric Chang",
+   "status": "Open"
+  },
+  "KAFKA-21266": {
+   "assignee": "JIRAUSER306218",
+   "display": "Eric Chang",
+   "status": "Open"
+  },
+  "KAFKA-21274": {
+   "assignee": "JIRAUSER306203",
+   "display": "Gergely Harmadás",
+   "status": "Resolved"
+  },
+  "KAFKA-21276": {
+   "assignee": "JIRAUSER306218",
+   "display": "Eric Chang",
+   "status": "Open"
+  },
+  "KAFKA-21285": {
+   "assignee": "JIRAUSER306203",
+   "display": "Gergely Harmadás",
+   "status": "Patch Available"
+  },
+  "KAFKA-21293": {
+   "assignee": "JIRAUSER305187",
+   "display": "Ken Huang",
+   "status": "Resolved"
+  },
+  "KAFKA-21294": {
+   "assignee": "JIRAUSER312871",
+   "display": "Doyeon Kim",
+   "status": "Resolved"
+  },
+  "KAFKA-21305": {
+   "assignee": "JIRAUSER306203",
+   "display": "Gergely Harmadás",
+   "status": "Resolved"
+  },
+  "KAFKA-21329": {
+   "assignee": "JIRAUSER306203",
+   "display": "Gergely Harmadás",
+   "status": "Patch Available"
+  }
+ },
+ "accountIssues": {
+  "KAFKA-967": "JIRAUSER305187",
+  "KAFKA-13468": "JIRAUSER312871",
+  "KAFKA-16959": "JIRAUSER305187",
+  "KAFKA-17243": "JIRAUSER305187",
+  "KAFKA-17249": "JIRAUSER312871",
+  "KAFKA-17523": "JIRAUSER306203",
+  "KAFKA-17676": "JIRAUSER305187",
+  "KAFKA-17688": "JIRAUSER305187",
+  "KAFKA-17719": "JIRAUSER312871",
+  "KAFKA-17734": "JIRAUSER312871",
+  "KAFKA-17821": "JIRAUSER305187",
+  "KAFKA-18193": "JIRAUSER305187",
+  "KAFKA-18447": "JIRAUSER305187",
+  "KAFKA-18477": "JIRAUSER305187",
+  "KAFKA-18606": "JIRAUSER305187",
+  "KAFKA-18896": "JIRAUSER305187",
+  "KAFKA-19000": "JIRAUSER305187",
+  "KAFKA-19008": "JIRAUSER305187",
+  "KAFKA-19112": "JIRAUSER305187",
+  "KAFKA-19123": "JIRAUSER305187",
+  "KAFKA-19262": "JIRAUSER305187",
+  "KAFKA-19327": "JIRAUSER312871",
+  "KAFKA-19582": "JIRAUSER305187",
+  "KAFKA-19731": "JIRAUSER305187",
+  "KAFKA-19875": "JIRAUSER305187",
+  "KAFKA-19931": "JIRAUSER305187",
+  "KAFKA-19940": "JIRAUSER305187",
+  "KAFKA-19984": "JIRAUSER305187",
+  "KAFKA-19988": "JIRAUSER306203",
+  "KAFKA-19999": "JIRAUSER305187",
+  "KAFKA-20003": "JIRAUSER305187",
+  "KAFKA-20023": "JIRAUSER305187",
+  "KAFKA-20035": "JIRAUSER305187",
+  "KAFKA-20036": "JIRAUSER305187",
+  "KAFKA-20055": "JIRAUSER305187",
+  "KAFKA-20109": "JIRAUSER306203",
+  "KAFKA-20135": "JIRAUSER305187",
+  "KAFKA-20138": "JIRAUSER305187",
+  "KAFKA-20139": "JIRAUSER305187",
+  "KAFKA-20140": "JIRAUSER305187",
+  "KAFKA-20141": "JIRAUSER305187",
+  "KAFKA-20142": "JIRAUSER305187",
+  "KAFKA-20143": "JIRAUSER305187",
+  "KAFKA-20166": "JIRAUSER306218",
+  "KAFKA-20167": "JIRAUSER305187",
+  "KAFKA-20191": "JIRAUSER305187",
+  "KAFKA-20411": "JIRAUSER306218",
+  "KAFKA-20506": "JIRAUSER305187",
+  "KAFKA-20520": "JIRAUSER305187",
+  "KAFKA-20539": "JIRAUSER305187",
+  "KAFKA-20572": "JIRAUSER305187",
+  "KAFKA-20590": "JIRAUSER306218",
+  "KAFKA-20595": "JIRAUSER305187",
+  "KAFKA-20615": "JIRAUSER306218",
+  "KAFKA-20676": "JIRAUSER306203",
+  "KAFKA-20737": "JIRAUSER306218",
+  "KAFKA-20759": "JIRAUSER305187",
+  "KAFKA-20802": "JIRAUSER306218",
+  "KAFKA-20815": "JIRAUSER306203",
+  "KAFKA-20820": "JIRAUSER306203",
+  "KAFKA-20838": "JIRAUSER306218",
+  "KAFKA-20854": "JIRAUSER305187",
+  "KAFKA-20898": "JIRAUSER305187",
+  "KAFKA-20937": "JIRAUSER306203",
+  "KAFKA-20958": "JIRAUSER306218",
+  "KAFKA-20962": "JIRAUSER306203",
+  "KAFKA-20963": "JIRAUSER306203",
+  "KAFKA-20969": "JIRAUSER305187",
+  "KAFKA-20970": "JIRAUSER305187",
+  "KAFKA-20993": "JIRAUSER306203",
+  "KAFKA-20995": "JIRAUSER306218",
+  "KAFKA-20996": "JIRAUSER306203",
+  "KAFKA-21003": "JIRAUSER312871",
+  "KAFKA-21004": "JIRAUSER306203",
+  "KAFKA-21010": "JIRAUSER305187",
+  "KAFKA-21018": "JIRAUSER306203",
+  "KAFKA-21031": "JIRAUSER306218",
+  "KAFKA-21049": "JIRAUSER312871",
+  "KAFKA-21059": "JIRAUSER305187",
+  "KAFKA-21063": "JIRAUSER305187",
+  "KAFKA-21095": "JIRAUSER306203",
+  "KAFKA-21116": "JIRAUSER312871",
+  "KAFKA-21123": "JIRAUSER306203",
+  "KAFKA-21139": "JIRAUSER306203",
+  "KAFKA-21152": "JIRAUSER306218",
+  "KAFKA-21157": "JIRAUSER306203",
+  "KAFKA-21160": "JIRAUSER305187",
+  "KAFKA-21172": "JIRAUSER306218",
+  "KAFKA-21174": "JIRAUSER306203",
+  "KAFKA-21185": "JIRAUSER306203",
+  "KAFKA-21191": "JIRAUSER312871",
+  "KAFKA-21192": "JIRAUSER312871",
+  "KAFKA-21237": "JIRAUSER306203",
+  "KAFKA-21245": "JIRAUSER306218",
+  "KAFKA-21247": "JIRAUSER306203",
+  "KAFKA-21252": "JIRAUSER306218",
+  "KAFKA-21262": "JIRAUSER306218",
+  "KAFKA-21266": "JIRAUSER306218",
+  "KAFKA-21272": "JIRAUSER312871",
+  "KAFKA-21274": "JIRAUSER306203",
+  "KAFKA-21276": "JIRAUSER306218",
+  "KAFKA-21285": "JIRAUSER306203",
+  "KAFKA-21291": "JIRAUSER312871",
+  "KAFKA-21293": "JIRAUSER305187",
+  "KAFKA-21294": "JIRAUSER312871",
+  "KAFKA-21305": "JIRAUSER306203",
+  "KAFKA-21329": "JIRAUSER306203",
+  "KAFKA-21337": "JIRAUSER312871"
+ },
+ "accountDisplays": {
+  "JIRAUSER305187": "Ken Huang",
+  "JIRAUSER306203": "Gergely Harmadás",
+  "JIRAUSER306218": "Eric Chang",
+  "JIRAUSER312871": "Doyeon Kim"
+ },
+ "keyPulls": {
+  "KAFKA-967": [
+   [
+    "m1a2st",
+    22326
+   ]
+  ],
+  "KAFKA-13468": [
+   [
+    "dybyte",
+    23697
+   ]
+  ],
+  "KAFKA-16959": [],
+  "KAFKA-17243": [],
+  "KAFKA-17249": [
+   [
+    "dybyte",
+    23569
+   ]
+  ],
+  "KAFKA-17523": [],
+  "KAFKA-17676": [
+   [
+    "ayalamark-afk",
+    21368
+   ]
+  ],
+  "KAFKA-17688": [],
+  "KAFKA-17719": [
+   [
+    "dybyte",
+    23382
+   ]
+  ],
+  "KAFKA-17734": [
+   [
+    "dybyte",
+    23512
+   ]
+  ],
+  "KAFKA-17821": [],
+  "KAFKA-18193": [],
+  "KAFKA-18447": [],
+  "KAFKA-18477": [
+   [
+    "m1a2st",
+    23318
+   ]
+  ],
+  "KAFKA-18606": [],
+  "KAFKA-18896": [],
+  "KAFKA-19000": [],
+  "KAFKA-19008": [],
+  "KAFKA-19112": [],
+  "KAFKA-19123": [],
+  "KAFKA-19262": [],
+  "KAFKA-19327": [
+   [
+    "dybyte",
+    23396
+   ]
+  ],
+  "KAFKA-19582": [],
+  "KAFKA-19731": [],
+  "KAFKA-19875": [
+   [
+    "m1a2st",
+    20960
+   ],
+   [
+    "m1a2st",
+    20844
+   ]
+  ],
+  "KAFKA-19931": [
+   [
+    "m1a2st",
+    21005
+   ]
+  ],
+  "KAFKA-19940": [
+   [
+    "m1a2st",
+    21027
+   ]
+  ],
+  "KAFKA-19984": [
+   [
+    "m1a2st",
+    21131
+   ]
+  ],
+  "KAFKA-19988": [
+   [
+    "harmadasg",
+    21137
+   ]
+  ],
+  "KAFKA-19999": [
+   [
+    "m1a2st",
+    21176
+   ]
+  ],
+  "KAFKA-20003": [],
+  "KAFKA-20023": [
+   [
+    "m1a2st",
+    21222
+   ]
+  ],
+  "KAFKA-20035": [
+   [
+    "m1a2st",
+    21952
+   ],
+   [
+    "m1a2st",
+    21647
+   ]
+  ],
+  "KAFKA-20036": [
+   [
+    "m1a2st",
+    23301
+   ],
+   [
+    "m1a2st",
+    23141
+   ],
+   [
+    "m1a2st",
+    21379
+   ]
+  ],
+  "KAFKA-20055": [],
+  "KAFKA-20109": [],
+  "KAFKA-20135": [
+   [
+    "m1a2st",
+    21484
+   ]
+  ],
+  "KAFKA-20138": [],
+  "KAFKA-20139": [],
+  "KAFKA-20140": [],
+  "KAFKA-20141": [],
+  "KAFKA-20142": [],
+  "KAFKA-20143": [],
+  "KAFKA-20166": [
+   [
+    "unknowntpo",
+    21584
+   ]
+  ],
+  "KAFKA-20167": [
+   [
+    "m1a2st",
+    21579
+   ]
+  ],
+  "KAFKA-20191": [],
+  "KAFKA-20411": [],
+  "KAFKA-20506": [
+   [
+    "m1a2st",
+    22113
+   ],
+   [
+    "m1a2st",
+    22104
+   ]
+  ],
+  "KAFKA-20520": [],
+  "KAFKA-20539": [
+   [
+    "m1a2st",
+    22784
+   ],
+   [
+    "m1a2st",
+    22246
+   ]
+  ],
+  "KAFKA-20572": [
+   [
+    "hgeraldino",
+    22269
+   ]
+  ],
+  "KAFKA-20590": [],
+  "KAFKA-20595": [],
+  "KAFKA-20615": [],
+  "KAFKA-20676": [
+   [
+    "harmadasg",
+    22513
+   ]
+  ],
+  "KAFKA-20737": [],
+  "KAFKA-20759": [
+   [
+    "m1a2st",
+    22733
+   ]
+  ],
+  "KAFKA-20802": [
+   [
+    "unknowntpo",
+    22827
+   ]
+  ],
+  "KAFKA-20815": [
+   [
+    "m1a2st",
+    23347
+   ],
+   [
+    "harmadasg",
+    22898
+   ]
+  ],
+  "KAFKA-20820": [
+   [
+    "harmadasg",
+    22893
+   ]
+  ],
+  "KAFKA-20838": [
+   [
+    "unknowntpo",
+    22952
+   ]
+  ],
+  "KAFKA-20854": [
+   [
+    "m1a2st",
+    23014
+   ]
+  ],
+  "KAFKA-20898": [
+   [
+    "m1a2st",
+    23094
+   ]
+  ],
+  "KAFKA-20937": [],
+  "KAFKA-20958": [],
+  "KAFKA-20962": [
+   [
+    "harmadasg",
+    23199
+   ]
+  ],
+  "KAFKA-20963": [
+   [
+    "harmadasg",
+    23200
+   ]
+  ],
+  "KAFKA-20969": [],
+  "KAFKA-20970": [
+   [
+    "m1a2st",
+    23227
+   ]
+  ],
+  "KAFKA-20993": [
+   [
+    "harmadasg",
+    23291
+   ]
+  ],
+  "KAFKA-20995": [],
+  "KAFKA-20996": [],
+  "KAFKA-21003": [
+   [
+    "dybyte",
+    23326
+   ]
+  ],
+  "KAFKA-21004": [
+   [
+    "harmadasg",
+    23321
+   ]
+  ],
+  "KAFKA-21010": [
+   [
+    "m1a2st",
+    23348
+   ]
+  ],
+  "KAFKA-21018": [
+   [
+    "harmadasg",
+    23332
+   ]
+  ],
+  "KAFKA-21031": [
+   [
+    "unknowntpo",
+    23357
+   ]
+  ],
+  "KAFKA-21049": [
+   [
+    "dybyte",
+    23404
+   ]
+  ],
+  "KAFKA-21059": [
+   [
+    "m1a2st",
+    23455
+   ]
+  ],
+  "KAFKA-21063": [],
+  "KAFKA-21095": [],
+  "KAFKA-21116": [
+   [
+    "dybyte",
+    23502
+   ]
+  ],
+  "KAFKA-21123": [
+   [
+    "harmadasg",
+    23506
+   ]
+  ],
+  "KAFKA-21139": [
+   [
+    "harmadasg",
+    23543
+   ]
+  ],
+  "KAFKA-21152": [
+   [
+    "unknowntpo",
+    23572
+   ]
+  ],
+  "KAFKA-21157": [
+   [
+    "m1a2st",
+    23748
+   ],
+   [
+    "harmadasg",
+    23580
+   ]
+  ],
+  "KAFKA-21160": [
+   [
+    "m1a2st",
+    23665
+   ]
+  ],
+  "KAFKA-21172": [
+   [
+    "unknowntpo",
+    23615
+   ]
+  ],
+  "KAFKA-21174": [
+   [
+    "m1a2st",
+    23767
+   ],
+   [
+    "harmadasg",
+    23609
+   ]
+  ],
+  "KAFKA-21185": [
+   [
+    "harmadasg",
+    23637
+   ]
+  ],
+  "KAFKA-21191": [],
+  "KAFKA-21192": [],
+  "KAFKA-21237": [
+   [
+    "harmadasg",
+    23741
+   ]
+  ],
+  "KAFKA-21245": [],
+  "KAFKA-21247": [
+   [
+    "harmadasg",
+    23752
+   ]
+  ],
+  "KAFKA-21252": [
+   [
+    "unknowntpo",
+    23858
+   ]
+  ],
+  "KAFKA-21262": [
+   [
+    "unknowntpo",
+    23781
+   ],
+   [
+    "unknowntpo",
+    23894
+   ]
+  ],
+  "KAFKA-21266": [
+   [
+    "unknowntpo",
+    23895
+   ]
+  ],
+  "KAFKA-21272": [],
+  "KAFKA-21274": [
+   [
+    "harmadasg",
+    23808
+   ]
+  ],
+  "KAFKA-21276": [
+   [
+    "unknowntpo",
+    23815
+   ]
+  ],
+  "KAFKA-21285": [
+   [
+    "harmadasg",
+    23854
+   ]
+  ],
+  "KAFKA-21291": [],
+  "KAFKA-21293": [
+   [
+    "m1a2st",
+    23852
+   ]
+  ],
+  "KAFKA-21294": [
+   [
+    "dybyte",
+    23840
+   ]
+  ],
+  "KAFKA-21305": [
+   [
+    "harmadasg",
+    23862
+   ]
+  ],
+  "KAFKA-21329": [
+   [
+    "harmadasg",
+    23907
+   ]
+  ],
+  "KAFKA-21337": []
+ }
+}
