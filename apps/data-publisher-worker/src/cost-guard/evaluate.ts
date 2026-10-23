@@ -175,9 +175,11 @@ export function nextBreaker(previous: Breaker, metrics: Partial<Record<CostMetri
     return all.length === previous.metrics.length ? previous : { ...previous, metrics: all };
   }
   if (spiked) {
+    // Numbers and the profile's own bucket name only: no error text reaches this reason.
+    const spikeReason = `r2ClassA spike: ${spike.last24h} Class A in 24 h on ${spike.bucket} (trips at ${spike.threshold})`;
     return {
       tripped: true,
-      reason: `r2ClassA spike: ${spike.last24h} Class A in 24 h on ${spike.bucket} (trips at ${spike.threshold})`,
+      reason: spikeReason,
       metric: "r2ClassA",
       value: spike.last24h!,
       threshold: spike.threshold,

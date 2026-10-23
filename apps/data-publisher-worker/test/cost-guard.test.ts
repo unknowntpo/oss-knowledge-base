@@ -144,7 +144,7 @@ describe("Spec 026 cost guard", () => {
     expect(COST_GUARD_BUCKETS).toEqual({ development: DEV_BUCKET, production: PROD_BUCKET });
   });
 
-  test("CG25, CG36: the one request reads the last 24 hours of the guard's own bucket only; other buckets count in the account's dollars, not in its spike", async () => {
+  test("CG25: the one request reads the last 24 hours of the guard's own bucket only; CG36: other buckets count in the account's dollars, not in its spike", async () => {
     const { query, variables } = r2UsageRequest(ACCOUNT, TICK, PROD_BUCKET);
     expect(query).toContain("spike: r2OperationsAdaptiveGroups(limit: 10000, filter: { datetime_geq: $spikeStart, datetime_leq: $end, bucketName: $bucket })");
     // Month to date and the 7-day rate stay account-wide.
