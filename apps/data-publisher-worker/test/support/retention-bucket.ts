@@ -49,13 +49,37 @@ export class RetentionMemoryBucket {
     return object === undefined ? null : { text: async () => object.body };
   }
 
-  async list(options: { readonly prefix: string; readonly cursor?: string; readonly limit?: number }) {
+  /** When true, every list resolves on a later macrotask, so concurrent lists overlap. */
+  slowLists = false;
+  /** Lists started and not yet answered, and the most seen at once. */
+  inFlight = 0;
+  maxInFlight = 0;
+
+  async list(options: { readonly prefix: string; readonly cursor?: string; readonly startAfter?: string; readonly limit?: number }) {
     this.calls.push({ op: "list", key: options.prefix });
     this.onCall("list");
+    this.inFlight += 1;
+    this.maxInFlight = Math.max(this.maxInFlight, this.inFlight);
+    try {
+      if (this.slowLists) await new Promise((resolve) => setTimeout(resolve, 0));
+      return this.page(options);
+    } finally {
+      this.inFlight -= 1;
+    }
+  }
+
+  private page(options: { readonly prefix: string; readonly cursor?: string; readonly startAfter?: string; readonly limit?: number }) {
     const failure = this.failLists.findIndex((prefix) => options.prefix.startsWith(prefix));
     if (failure >= 0) throw new Error(`list ${this.failLists.splice(failure, 1)[0]} failed`);
     const { keys, first } = this.keysFrom(options.prefix);
-    const start = options.cursor === undefined ? first : Number(options.cursor);
+    // R2: `startAfter` is exclusive; a cursor continues where the previous page stopped.
+    let after = first;
+    if (options.startAfter !== undefined) {
+      let index = this.keysFrom(options.startAfter).first;
+      if (keys[index] === options.startAfter) index += 1;
+      after = Math.max(first, index);
+    }
+    const start = options.cursor === undefined ? after : Number(options.cursor);
     const limit = Math.min(options.limit ?? 1_000, 1_000);
     const page: string[] = [];
     let index = start;
@@ -110,6 +134,49 @@ export function publish(bucket: RetentionMemoryBucket, at: number, options: { re
     bucket.set(`publication-sets/v1/github-${feed}.json`, body, at);
   }
   return { feed, search };
+}
+
+const HOUR = 60 * 60_000;
+const DAY = 24 * HOUR;
+/** Spec 008 (PR #21) merged 2026-09-30T00:48Z: releases before it hold every detail under their own prefix. */
+export const SPEC_008_AT = Date.parse("2026-09-30T00:48:00Z");
+const FIRST_HOURLY = Date.parse("2026-09-02T00:07:00Z");
+/**
+ * Details per pre-Spec-008 release (one Feed and one Search detail per FeedEntry). Fitted to two
+ * measurements: N = 1,494 on 2026-09-30 (Spec 008 Evidence), and the first Dev dry run
+ * (2026-10-23), whose 398 release lists ended after 465 hourly Feed releases: 856 objects each on
+ * average, i.e. N = 519 + 34.8 a day.
+ */
+export const detailsAt = (at: number) => Math.round(519 + 34.8 * (at - FIRST_HOURLY) / DAY);
+/** A content-addressed pool name: 64 hex digits spread over every first digit, like a SHA-256. */
+export const hexName = (index: number) => (Math.imul(index + 1, 2_654_435_761) >>> 0).toString(16).padStart(8, "0") + index.toString(16).padStart(56, "0");
+
+/**
+ * The Dev bucket as the first dry run found it: hourly releases 2026-09-02 → 10-13 and daily ones
+ * to 10-21 (1,015 publications, every one with evidence: an upper bound on evidence reads), the
+ * pre-Spec-008 releases with N details per prefix, and `poolObjects` old content-addressed objects.
+ */
+export function devShapedBucket(poolObjects = 150_000): { readonly bucket: RetentionMemoryBucket; readonly releases: number; readonly objects: number } {
+  const bucket = new RetentionMemoryBucket();
+  const times: number[] = [];
+  for (let at = FIRST_HOURLY; at <= Date.parse("2026-10-13T22:07:00Z"); at += HOUR) times.push(at);
+  for (let at = Date.parse("2026-10-14T22:07:00Z"); at <= Date.parse("2026-10-21T22:07:00Z"); at += DAY) times.push(at);
+  for (const at of times) {
+    const { feed, search } = publish(bucket, at);
+    if (at >= SPEC_008_AT) {
+      // Today's Search release: manifest, terms and 11 shards.
+      for (let shard = 0; shard < 11; shard += 1) bucket.set(`public/search/v1/releases/${search}/shards/${shard}.json`, 1, at);
+      continue;
+    }
+    for (let index = 0; index < detailsAt(at); index += 1) {
+      bucket.set(`public/v2/releases/${feed}/details/${index}.json`, 1, at);
+      bucket.set(`public/search/v1/releases/${search}/details/${index}.json`, 1, at);
+    }
+  }
+  point(bucket, times.at(-1)!);
+  const old = Date.parse("2026-09-30T01:00:00Z");
+  for (let index = 0; index < poolObjects; index += 1) bucket.set(index % 2 === 0 ? feedPoolKey(hexName(index)) : searchPoolKey(hexName(index)), 1, old);
+  return { bucket, releases: times.length, objects: bucket.objects.size };
 }
 
 /** Points the Feed and Search `current.json` at the releases published at `feedAt` and `searchAt`. */

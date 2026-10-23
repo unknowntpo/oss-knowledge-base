@@ -495,9 +495,14 @@ build only lists and reports; it has no code that deletes or writes R2.
 | `dry-run` (Dev since 2026-10-23) | once a UTC day: lists, reads, stores `retention-last-run` and `retention-report` in the Durable Object |
 | anything else, `enforce` included | nothing runs; `/health.retention {status: "unconfigured", reason}` |
 
-Per run: at most 400 list calls (Class A), 600 get calls (Class B) and
-10 minutes, else `status: "overrun"`. Expected on Dev today: about 306
-Class A and 527 Class B; about 9,500 Class A a month if left on daily.
+Per run: at most 2,000 list calls (Class A), 600 get calls (Class B) and
+10 minutes, else `status: "overrun"`; up to 6 lists run at once. Expected
+on Dev today: about 1,550 Class A, about 300 Class B (falling as the hourly
+releases leave the window until 2026-11-13) and 6–9 minutes; at most
+62,000 Class A a month if left on daily (6.2 % of the included million).
+The first run (2026-10-23, 400-list cap, one list at a time) ended
+`overrun` at 400 lists: releases before Spec 008 hold about 856 objects per
+prefix, not 16 (Spec 029 Dry-run slice).
 
 ### Enable `dry-run` on Dev (its own PR)
 
@@ -506,7 +511,7 @@ Class A and 527 Class B; about 9,500 Class A a month if left on daily.
    deploy job publishes it.
 2. Before 10:17 UTC: `/health.retention` is
    `{mode: "dry-run", status: "pending", lastRun: null}`.
-3. After 10:17 UTC (the run takes under a minute; the 10-minute cap is the
+3. After 10:30 UTC (the run takes 6–9 minutes; the 10-minute cap is the
    stop):
 
    ```bash
@@ -517,13 +522,20 @@ Class A and 527 Class B; about 9,500 Class A a month if left on daily.
    ```
 
    Expect `status: "ok"`, `lastRun.deleted {objects: 0, bytes: 0}`,
-   `complete` all `true`, `reason: null`, `r2.classA` ≤ 400, `r2.classB`
-   ≤ 600; candidate releases only from 2026-09-02 up to about 30 days
-   before the run; `lastRun.pointers` equal to `/api/feed`'s release.
+   `complete` all `true`, `reason: null`, `r2.classA` ≤ 2,000 (about
+   1,550), `r2.classB` ≤ 600 (about 300), `elapsedMs` under 600,000;
+   candidate releases only from 2026-09-02 up to about 30 days before the
+   run; `lastRun.pointers` equal to `/api/feed`'s release.
 4. **Stop** (set `R2_RETENTION` back to `off`) if a current release, the
    digest's `sourceReleaseId` or the embedding job's `lastRun.releaseId`
    is among `candidates.releases`; if `status` is `failed` or `overrun`
-   twice; or if that evening's publication or digest fails.
+   twice; or if that evening's publication or digest fails. The count of
+   `overrun` runs starts again with the first run after the cap amendment
+   (2,000 lists, parallel listing): the 2026-10-23 `overrun` came from the
+   wrong 400-list estimate. An `overrun` at `classA` 2,000 means the bucket
+   is larger than the Spec 029 fixture; one at `elapsedMs` ≈ 600,000 with
+   `classA` below 2,000 means the calls are slower than measured. Either
+   way the run under-counts (never over-counts) and deletes nothing.
 5. The owner reviews `retention-report.json` before any `enforce` PR
    (RT21). Do not commit the report; attach its summary to that PR.
 
