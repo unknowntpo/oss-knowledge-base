@@ -8,6 +8,7 @@ import {
   retainedEvidence, SEARCH_POOL_PREFIX, SEARCH_RELEASES_PREFIX,
   type ListedEvidence, type Pins, type Projection, type ReadEvidence, type RetainReason,
 } from "./plan";
+import { errorText, sanitizeErrorMessage } from "../search-embedding/sanitize";
 
 /** Behavior 12 / Budget: list calls (Class A) a run may make; the Dev drain's worst run needs ≈ 305. */
 export const RETENTION_MAX_LISTS = 400;
@@ -101,7 +102,8 @@ class Meter {
   }
 }
 
-const message = (error: unknown) => (error instanceof Error ? error.message : String(error)).slice(0, 300);
+/** D95: run records carry sanitized error text only. */
+const message = (error: unknown) => sanitizeErrorMessage(errorText(error));
 
 /** `retention-<UTC date>` (Behavior 9). */
 export const retentionRunId = (now: number) => `retention-${new Date(now).toISOString().slice(0, 10)}`;

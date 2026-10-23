@@ -3,6 +3,7 @@
  * and read; nothing here touches R2. The dry-run slice has no delete path: `enforce` resolves to
  * `unconfigured` until the slice that adds deletion.
  */
+import { sanitizeErrorMessage } from "../search-embedding/sanitize";
 
 /** O1: every verified release of the last 30 days is kept. A change is a spec change. */
 export const RETENTION_WINDOW_MS = 30 * 24 * 60 * 60_000;
@@ -28,7 +29,7 @@ export function resolveRetentionMode(flag: string | undefined): { readonly mode:
   if (value === "" || value === "off") return { mode: "off", reason: null };
   if (value === "dry-run") return { mode: "dry-run", reason: null };
   if (value === "enforce") return { mode: "unconfigured", reason: "R2_RETENTION \"enforce\" is not available: this build has only the dry run (Spec 029)" };
-  return { mode: "unconfigured", reason: `R2_RETENTION "${value.slice(0, 40)}" is not off or dry-run` };
+  return { mode: "unconfigured", reason: sanitizeErrorMessage(`R2_RETENTION "${value.slice(0, 40)}" is not off or dry-run`) };
 }
 
 /** Behavior 3: a floor below 2 would let the live or the previous release become a candidate. */

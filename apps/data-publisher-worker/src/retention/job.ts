@@ -4,6 +4,7 @@
  * the publication's keys (`status`, `phase`, `requested-at`, `follow-up`) and never throws.
  */
 import { runPending } from "../run-schedule";
+import { errorText, sanitizeErrorMessage } from "../search-embedding/sanitize";
 import { resolveRetentionMode } from "./plan";
 import type { RetentionLastRun, RetentionReport } from "./run";
 
@@ -77,7 +78,7 @@ export async function retentionAlarm(
     await storage.put(RETENTION_LAST_RUN_KEY, lastRun);
     if (report !== null) await storage.put(RETENTION_REPORT_KEY, report);
   } catch (error) {
-    await storage.put(RETENTION_LAST_RUN_KEY, { runId: `retention-${day(input.now())}`, at: at(), mode: "dry-run", status: "failed", failureKind: "internal", error: (error instanceof Error ? error.message : String(error)).slice(0, 300) }).catch(() => undefined);
+    await storage.put(RETENTION_LAST_RUN_KEY, { runId: `retention-${day(input.now())}`, at: at(), mode: "dry-run", status: "failed", failureKind: "internal", error: sanitizeErrorMessage(errorText(error)) }).catch(() => undefined);
   } finally {
     await storage.delete(RETENTION_PENDING_KEY).catch(() => undefined);
   }
