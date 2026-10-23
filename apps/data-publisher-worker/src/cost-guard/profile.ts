@@ -23,18 +23,20 @@ export interface CostMetricProfile {
   /** `account`: every bucket of the account; `worker`: only what this Worker's own ledgers see. */
   readonly scope: "account" | "worker";
   readonly source: "graphql" | "in-app";
+  /** List price in US dollars of one unit over the allowance (Allowances on Workers Paid). */
+  readonly priceUsd: number;
 }
 
 /** https://developers.cloudflare.com/r2/pricing/, /vectorize/platform/pricing/, /workers-ai/platform/pricing/ */
 export const COST_METRICS: Readonly<Record<CostMetricKey, CostMetricProfile>> = {
-  r2ClassA: { allowance: 1_000_000, period: "month", kind: "counter", trips: true, scope: "account", source: "graphql" },
-  r2ClassB: { allowance: 10_000_000, period: "month", kind: "counter", trips: true, scope: "account", source: "graphql" },
+  r2ClassA: { allowance: 1_000_000, period: "month", kind: "counter", trips: true, scope: "account", source: "graphql", priceUsd: 4.5 / 1_000_000 },
+  r2ClassB: { allowance: 10_000_000, period: "month", kind: "counter", trips: true, scope: "account", source: "graphql", priceUsd: 0.36 / 1_000_000 },
   // 10 GB-month, read as 10 × 10⁹ bytes (the smaller reading of GB).
-  r2StorageBytes: { allowance: 10_000_000_000, period: "month", kind: "gauge", trips: true, scope: "account", source: "graphql" },
+  r2StorageBytes: { allowance: 10_000_000_000, period: "month", kind: "gauge", trips: true, scope: "account", source: "graphql", priceUsd: 0.015 / 1_000_000_000 },
   // Overage is $0.05 per 100 million dimensions: worth a warning, never a pause.
-  vectorizeStoredDimensions: { allowance: 10_000_000, period: "month", kind: "gauge", trips: false, scope: "worker", source: "in-app" },
-  vectorizeQueriedDimensions: { allowance: 50_000_000, period: "month", kind: "counter", trips: true, scope: "worker", source: "in-app" },
-  workersAiNeurons: { allowance: 10_000, period: "day", kind: "counter", trips: true, scope: "worker", source: "in-app" },
+  vectorizeStoredDimensions: { allowance: 10_000_000, period: "month", kind: "gauge", trips: false, scope: "worker", source: "in-app", priceUsd: 0.05 / 100_000_000 },
+  vectorizeQueriedDimensions: { allowance: 50_000_000, period: "month", kind: "counter", trips: true, scope: "worker", source: "in-app", priceUsd: 0.01 / 1_000_000 },
+  workersAiNeurons: { allowance: 10_000, period: "day", kind: "counter", trips: true, scope: "worker", source: "in-app", priceUsd: 0.011 / 1_000 },
 };
 
 export const COST_METRIC_KEYS = Object.keys(COST_METRICS) as readonly CostMetricKey[];
@@ -45,9 +47,15 @@ export const COST_GUARD_THRESHOLDS = {
   tripPercent: 80,
   /** A projection trips only when it is over this. */
   projectedTripPercent: 100,
-  /** No projection before this fraction of the period has passed. */
+  /** Neurons (a daily counter): today is not extrapolated before this fraction of the day has passed. */
   minElapsedForProjection: 0.25,
 } as const;
+
+/**
+ * CG35 (Decision 9): a month counter projects by its average over at most this many complete UTC
+ * days before today, so a burst that has stopped is not carried into the rest of the month.
+ */
+export const COST_GUARD_RATE_DAYS = 7;
 
 /** The one guard object. */
 export const COST_GUARD_OBJECT_NAME = "cost-guard-v1";

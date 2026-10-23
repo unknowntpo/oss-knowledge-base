@@ -8,8 +8,9 @@ import { KAFKA_DIGEST_PROFILE } from "@oss-knowledge-base/reference-pipeline";
 
 import r2Usage from "./fixtures/cost-guard/graphql-r2-usage.json";
 import { testPlanRows } from "./cost-guard.cases";
+import { testPlanRows as dollarRows } from "./cost-guard-dollars.cases";
 import worker, { costGuardDecisionFor, SearchQueryGate } from "../src/index";
-import { evaluateMetric, nextBreaker, type Breaker, type CostMetricKey, type MetricEvaluation } from "../src/cost-guard/evaluate";
+import { evaluateMetric, metricOverage, nextBreaker, type Breaker, type CostMetricKey, type MetricEvaluation } from "../src/cost-guard/evaluate";
 import { COST_GUARD_OBJECT_NAME, COST_METRICS } from "../src/cost-guard/profile";
 import { GRAPHQL_ENDPOINT, parseR2Usage, r2UsageRequest } from "../src/cost-guard/graphql";
 import { CostGuardRunner, costGuardDecision, resolveCostGuardMode, type CostGuardRunnerDeps } from "../src/cost-guard/guard";
@@ -63,10 +64,46 @@ describe("Spec 026 cost guard", () => {
   afterEach(() => { globalThis.fetch = realFetch; console.error = realError; console.log = realLog; });
 
   test.each([...testPlanRows])("$id: $case", (row) => {
-    const evaluation = evaluateMetric(row.metric, row.value, new Date(row.now));
+    const evaluation = evaluateMetric(row.metric, row.value, new Date(row.now), row.days === null ? null : { count: row.recent!, days: row.days });
     expect({ percent: evaluation.percent, projectedPercent: evaluation.projectedPercent, status: evaluation.status })
       .toEqual({ percent: row.percent, projectedPercent: row.projectedPercent, status: row.status });
     expect(evaluation.allowance).toBe(COST_METRICS[row.metric].allowance);
+    // A month counter reports the days its rate used; gauges, neurons and unread values report null.
+    expect(evaluation.rateDays).toBe(row.days);
+  });
+
+  test.each([...dollarRows])("$id: $case (dollars)", (row) => {
+    const recent = row.days === null ? null : { count: row.recent!, days: row.days };
+    expect(metricOverage(row.metric, row.value, recent, new Date(row.now)))
+      .toEqual({ overageUsd: row.overageUsd, projectedOverageUsd: row.projectedOverageUsd });
+    // evaluateMetric carries the same dollars into /health.
+    const evaluation = evaluateMetric(row.metric, row.value, new Date(row.now), recent);
+    expect({ overageUsd: evaluation.overageUsd, projectedOverageUsd: evaluation.projectedOverageUsd })
+      .toEqual({ overageUsd: row.overageUsd, projectedOverageUsd: row.projectedOverageUsd });
+  });
+
+  test("CG35: the one request also reads the account's operations over the 7 complete UTC days before today, also across a month boundary", async () => {
+    expect(r2UsageRequest(ACCOUNT, TICK).variables).toMatchObject({ recentStart: "2026-10-13T00:00:00.000Z", today: "2026-10-20T00:00:00.000Z" });
+    expect(r2UsageRequest(ACCOUNT, new Date("2026-11-01T00:30:00Z")).variables)
+      .toMatchObject({ start: "2026-11-01T00:00:00.000Z", recentStart: "2026-10-25T00:00:00.000Z", today: "2026-11-01T00:00:00.000Z" });
+    const { query } = r2UsageRequest(ACCOUNT, TICK);
+    expect(query).toContain("recent: r2OperationsAdaptiveGroups(limit: 10000, filter: { datetime_geq: $recentStart, datetime_lt: $today })");
+    // The 24-hour own-bucket selection (CG23, CG25, CG36) is not part of this slice.
+    expect(query).not.toContain("bucketName:");
+
+    // An answer without the 7-day selection throws rather than reading as zero.
+    const { recent: _recent, ...withoutRecent } = r2Usage.data.viewer.accounts[0]!;
+    expect(() => parseR2Usage({ data: { viewer: { accounts: [withoutRecent] } } })).toThrow("no R2 datasets");
+
+    // A real check projects R2 by the fixture's 7 days: Class A 15,007 + 2,803 / 7 × 11.0785 days = 19,443.
+    const { runner, network } = guard();
+    const result = await runner.check({ dryRun: true }) as { metrics: Record<CostMetricKey, MetricEvaluation> };
+    expect(network.calls).toHaveLength(1);
+    expect(result.metrics.r2ClassA).toMatchObject({ value: 15_007, percent: 1.5, projectedPercent: 1.94, rateDays: 7, overageUsd: 0, projectedOverageUsd: 0 });
+    expect(result.metrics.r2ClassB).toMatchObject({ value: 170_000, rateDays: 7, projectedPercent: 2.8 });
+    // Queried dimensions have no per-day history in this slice: they project as month to date.
+    expect(result.metrics.vectorizeQueriedDimensions).toMatchObject({ percent: 20.48, projectedPercent: 20.48, rateDays: 0 });
+    expect(result.metrics.r2StorageBytes).toMatchObject({ projectedPercent: null, rateDays: null });
   });
 
   test("CG1: COST_GUARD unset, blank or off is off; monitor and enforce are modes; anything else is invalid", () => {
@@ -114,7 +151,11 @@ describe("Spec 026 cost guard", () => {
   });
 
   test("CG3: the documented-shape fixture parses to Class A, Class B and storage; free operations are left out and unknown ones count as Class A", () => {
-    expect(parseR2Usage(r2Usage)).toEqual({ classA: 15_007, classB: 170_000, storageBytes: 1_501_200_000, unclassifiedActions: ["SomeNewAction"] });
+    expect(parseR2Usage(r2Usage)).toEqual({
+      classA: 15_007, classB: 170_000, storageBytes: 1_501_200_000,
+      recent: { classA: 2_803, classB: 70_000, days: 7 },
+      unclassifiedActions: ["AnotherNewAction", "SomeNewAction"],
+    });
     expect(() => parseR2Usage({ data: null, errors: [{ message: "not authorized for that account" }] })).toThrow("not authorized for that account");
     expect(() => parseR2Usage({ data: { viewer: { accounts: [] } } })).toThrow();
     expect(() => parseR2Usage("<html>")).toThrow();
@@ -131,7 +172,10 @@ describe("Spec 026 cost guard", () => {
     expect(new Headers(call!.init.headers).get("authorization")).toBe(`Bearer ${TOKEN}`);
     const body = JSON.parse(String(call!.init.body)) as { query: string; variables: Record<string, string> };
     expect(body).toEqual(r2UsageRequest(ACCOUNT, TICK));
-    expect(body.variables).toEqual({ accountTag: ACCOUNT, start: "2026-10-01T00:00:00.000Z", end: "2026-10-20T22:07:00.000Z", storageStart: "2026-10-18T22:07:00.000Z" });
+    expect(body.variables).toEqual({
+      accountTag: ACCOUNT, start: "2026-10-01T00:00:00.000Z", end: "2026-10-20T22:07:00.000Z", storageStart: "2026-10-18T22:07:00.000Z",
+      recentStart: "2026-10-13T00:00:00.000Z", today: "2026-10-20T00:00:00.000Z",
+    });
     expect(body.query).toContain("r2OperationsAdaptiveGroups");
     expect(body.query).toContain("r2StorageAdaptiveGroups");
     expect(body.query).toContain("accounts(filter: { accountTag: $accountTag })");
@@ -156,8 +200,8 @@ describe("Spec 026 cost guard", () => {
     expect(later).toEqual({ ...open, metrics: ["r2ClassA", "vectorizeQueriedDimensions", "workersAiNeurons"] } as Breaker);
     expect(nextBreaker(later, metricsAt({ r2ClassA: 1 }), new Date("2026-11-01T22:07:00.000Z"))).toEqual(later);
     // A projection trip names the allowance as its threshold.
-    const projected = nextBreaker(closed, { r2ClassA: evaluateMetric("r2ClassA", 300_000, new Date("2026-10-08T18:00:00Z")) }, at);
-    expect(projected).toMatchObject({ tripped: true, metric: "r2ClassA", value: 300_000, threshold: 1_000_000, reason: "r2ClassA projected at 120% of 1000000 by the end of its period" });
+    const projected = nextBreaker(closed, { r2ClassA: evaluateMetric("r2ClassA", 300_000, new Date("2026-10-08T00:00:00Z"), { count: 210_000, days: 7 }) }, at);
+    expect(projected).toMatchObject({ tripped: true, metric: "r2ClassA", value: 300_000, threshold: 1_000_000, reason: "r2ClassA projected at 102% of 1000000 by the end of its period" });
     // Stored dimensions never trip, and unavailable values never trip.
     expect(nextBreaker(closed, metricsAt({ vectorizeStoredDimensions: 150, r2ClassB: null }), at)).toEqual(closed);
   });
@@ -451,7 +495,7 @@ describe("Spec 026 cost guard", () => {
     const okHealth = await ok.runner.health();
     expect(okHealth).toMatchObject({ status: "ok", checkedAt: TICK.toISOString() });
     expect(Object.keys(okHealth.metrics).sort()).toEqual(["r2ClassA", "r2ClassB", "r2StorageBytes", "vectorizeQueriedDimensions", "vectorizeStoredDimensions", "workersAiNeurons"]);
-    expect(Object.keys(okHealth.metrics.r2ClassA!).sort()).toEqual(["allowance", "percent", "period", "projectedPercent", "scope", "source", "status", "value"]);
+    expect(Object.keys(okHealth.metrics.r2ClassA!).sort()).toEqual(["allowance", "overageUsd", "percent", "period", "projectedOverageUsd", "projectedPercent", "rateDays", "scope", "source", "status", "value"]);
 
     const warn = guard();
     await warn.runner.check({ dryRun: false });

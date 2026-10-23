@@ -1,10 +1,13 @@
 /**
  * Spec 026 Behavior 3: one Cloudflare GraphQL Analytics request for the account's R2 operations
- * (month to date) and R2 storage. Dataset and field names: R2 "Metrics and analytics",
+ * (month to date, and over the 7 complete UTC days before today for the CG35 rate) and R2 storage.
+ * `datetime_lt` is used as on the same page's bandwidth example. Dataset and field names: R2 "Metrics and analytics",
  * https://developers.cloudflare.com/r2/platform/metrics-analytics/ (read 2026-10-20). The token
  * travels only in the Authorization header and never into an error text.
  */
 import { sanitizeErrorMessage } from "@oss-knowledge-base/semantic-vectorize";
+
+import { COST_GUARD_RATE_DAYS } from "./profile";
 
 export const GRAPHQL_ENDPOINT = "https://api.cloudflare.com/client/v4/graphql";
 
@@ -25,10 +28,14 @@ export const R2_FREE_ACTIONS: ReadonlySet<string> = new Set(["DeleteObject", "De
 /** Storage rows are read over this window; the newest row per bucket is the level. */
 const STORAGE_WINDOW_MS = 2 * 86_400_000;
 
-const QUERY = `query CostGuardR2($accountTag: string!, $start: Time!, $end: Time!, $storageStart: Time!) {
+const QUERY = `query CostGuardR2($accountTag: string!, $start: Time!, $end: Time!, $storageStart: Time!, $recentStart: Time!, $today: Time!) {
   viewer {
     accounts(filter: { accountTag: $accountTag }) {
       operations: r2OperationsAdaptiveGroups(limit: 10000, filter: { datetime_geq: $start, datetime_leq: $end }) {
+        sum { requests }
+        dimensions { actionType }
+      }
+      recent: r2OperationsAdaptiveGroups(limit: 10000, filter: { datetime_geq: $recentStart, datetime_lt: $today }) {
         sum { requests }
         dimensions { actionType }
       }
@@ -40,9 +47,14 @@ const QUERY = `query CostGuardR2($accountTag: string!, $start: Time!, $end: Time
   }
 }`;
 
-/** From the first instant of the UTC month to `now`: never more than the 31 days a query may span. */
+/**
+ * Operations from the first instant of the UTC month to `now` (never more than the 31 days a query
+ * may span), and over the 7 complete UTC days before today for the rate (CG35; it may reach into the
+ * previous month and never includes today).
+ */
 export function r2UsageRequest(accountId: string, now: Date): { readonly query: string; readonly variables: Readonly<Record<string, string>> } {
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   return {
     query: QUERY,
     variables: {
@@ -50,6 +62,8 @@ export function r2UsageRequest(accountId: string, now: Date): { readonly query: 
       start: start.toISOString(),
       end: now.toISOString(),
       storageStart: new Date(now.getTime() - STORAGE_WINDOW_MS).toISOString(),
+      recentStart: new Date(today - COST_GUARD_RATE_DAYS * 86_400_000).toISOString(),
+      today: new Date(today).toISOString(),
     },
   };
 }
@@ -57,6 +71,8 @@ export function r2UsageRequest(accountId: string, now: Date): { readonly query: 
 export interface R2Usage {
   readonly classA: number;
   readonly classB: number;
+  /** The account's operations over the `days` complete UTC days before today (CG35). */
+  readonly recent: { readonly classA: number; readonly classB: number; readonly days: number };
   /** Newest `payloadSize + metadataSize` of each bucket, summed. */
   readonly storageBytes: number;
   /** Action types on no list of the pricing page; counted as Class A. */
@@ -81,21 +97,12 @@ export function parseR2Usage(body: unknown): R2Usage {
   const accounts = record(record(root.data)?.viewer)?.accounts;
   if (!Array.isArray(accounts) || accounts.length !== 1) throw new Error("GraphQL answer has no account");
   const account = record(accounts[0]);
-  if (account === undefined || !Array.isArray(account.operations) || !Array.isArray(account.storage)) throw new Error("GraphQL answer has no R2 datasets");
-  let classA = 0;
-  let classB = 0;
-  const unclassified = new Set<string>();
-  for (const row of account.operations) {
-    const action = record(record(row)?.dimensions)?.actionType;
-    const requests = count(record(record(row)?.sum)?.requests, "request count");
-    if (typeof action !== "string") throw new Error("GraphQL answer has an operation without an action type");
-    if (R2_FREE_ACTIONS.has(action)) continue;
-    if (R2_CLASS_B_ACTIONS.has(action)) classB += requests;
-    else {
-      if (!R2_CLASS_A_ACTIONS.has(action)) unclassified.add(action);
-      classA += requests;
-    }
+  if (account === undefined || !Array.isArray(account.operations) || !Array.isArray(account.recent) || !Array.isArray(account.storage)) {
+    throw new Error("GraphQL answer has no R2 datasets");
   }
+  const unclassified = new Set<string>();
+  const { classA, classB } = classify(account.operations, unclassified);
+  const recent = classify(account.recent, unclassified);
   const newest = new Map<string, { readonly at: string; readonly bytes: number }>();
   for (const row of account.storage) {
     const dimensions = record(record(row)?.dimensions);
@@ -108,7 +115,25 @@ export function parseR2Usage(body: unknown): R2Usage {
     if (seen === undefined || at > seen.at) newest.set(bucket, { at, bytes });
   }
   const storageBytes = [...newest.values()].reduce((sum, row) => sum + row.bytes, 0);
-  return { classA, classB, storageBytes, unclassifiedActions: [...unclassified].sort() };
+  return { classA, classB, storageBytes, recent: { ...recent, days: COST_GUARD_RATE_DAYS }, unclassifiedActions: [...unclassified].sort() };
+}
+
+/** Sums operation rows by pricing class; an action on no list counts as Class A and is noted. */
+function classify(rows: readonly unknown[], unclassified: Set<string>): { readonly classA: number; readonly classB: number } {
+  let classA = 0;
+  let classB = 0;
+  for (const row of rows) {
+    const action = record(record(row)?.dimensions)?.actionType;
+    const requests = count(record(record(row)?.sum)?.requests, "request count");
+    if (typeof action !== "string") throw new Error("GraphQL answer has an operation without an action type");
+    if (R2_FREE_ACTIONS.has(action)) continue;
+    if (R2_CLASS_B_ACTIONS.has(action)) classB += requests;
+    else {
+      if (!R2_CLASS_A_ACTIONS.has(action)) unclassified.add(action);
+      classA += requests;
+    }
+  }
+  return { classA, classB };
 }
 
 export type GraphqlFetch = (url: string, init: RequestInit) => Promise<Response>;

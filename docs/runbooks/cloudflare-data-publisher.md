@@ -419,8 +419,18 @@ breaker state is read only from `/health`; the web app shows nothing for it. Aft
 DEV=https://oss-knowledge-base-data-dev.unknowntpo.workers.dev
 # Evaluate now; writes nothing, opens nothing.
 curl -sS -X POST -H "authorization: Bearer $MANUAL_TRIGGER_TOKEN" "$DEV/cost-guard/check?dryRun=1" \
-  | jq '{ok, status, metrics: (.metrics | map_values({value, percent, projectedPercent, status})), unclassifiedActions, lastError}'
+  | jq '{ok, status, metrics: (.metrics | map_values({value, percent, projectedPercent, rateDays, overageUsd, projectedOverageUsd, status})), unclassifiedActions, lastError}'
 ```
+
+`projectedPercent` of R2 Class A and B and of queried dimensions is month to
+date plus the average of the 7 complete UTC days before today times the
+remaining days of the month (`rateDays` says how many days it used; 0 means
+no history, and the projection equals month to date). A burst that has
+stopped is therefore not projected for the rest of the month: on
+2026-10-21 Class A showed 211.52 %, where month to date ÷ days elapsed gave
+318 %. Neurons still project today's value over the elapsed day.
+`overageUsd` and `projectedOverageUsd` are each metric's dollars over its
+allowance at list price; nothing trips on them yet.
 
 Expect `ok: true` and R2 Class A/B within a few percent of the dashboard's
 R2 → Metrics month to date. `unclassifiedActions` lists action types the

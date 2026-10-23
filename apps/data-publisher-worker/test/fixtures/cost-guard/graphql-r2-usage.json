@@ -11,6 +11,12 @@
             { "sum": { "requests": 500 }, "dimensions": { "actionType": "DeleteObject" } },
             { "sum": { "requests": 7 }, "dimensions": { "actionType": "SomeNewAction" } }
           ],
+          "recent": [
+            { "sum": { "requests": 2800 }, "dimensions": { "actionType": "PutObject" } },
+            { "sum": { "requests": 70000 }, "dimensions": { "actionType": "GetObject" } },
+            { "sum": { "requests": 100 }, "dimensions": { "actionType": "DeleteObject" } },
+            { "sum": { "requests": 3 }, "dimensions": { "actionType": "AnotherNewAction" } }
+          ],
           "storage": [
             { "max": { "payloadSize": 1200000000, "metadataSize": 1000000 }, "dimensions": { "bucketName": "oss-knowledge-base-dev", "datetime": "2026-10-20T21:00:00Z" } },
             { "max": { "payloadSize": 1100000000, "metadataSize": 900000 }, "dimensions": { "bucketName": "oss-knowledge-base-dev", "datetime": "2026-10-19T21:00:00Z" } },
