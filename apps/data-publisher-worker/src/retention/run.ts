@@ -10,10 +10,23 @@ import {
 } from "./plan";
 import { errorText, sanitizeErrorMessage } from "../search-embedding/sanitize";
 
-/** Behavior 12 / Budget: list calls (Class A) a run may make; the Dev drain's worst run needs ≈ 305. */
-export const RETENTION_MAX_LISTS = 400;
-/** Behavior 12 / Budget: get calls (Class B) a run may make; the Dev drain's worst run needs ≈ 515. */
+/**
+ * Behavior 12 / Budget (owner decision 2026-10-23): list calls (Class A) a run may make. The Dev
+ * drain's worst run needs ≈ 1,600: releases written before Spec 008 hold every detail under the
+ * release prefix (≈ 520 → 1,500 objects a release), not 16.
+ */
+export const RETENTION_MAX_LISTS = 2_000;
+/** Behavior 12 / Budget: get calls (Class B) a run may make; Dev measured 297 (3 pointers + 294 evidence) on 2026-10-23. */
 export const RETENTION_MAX_GETS = 600;
+/**
+ * Lists in flight at once. A Worker has at most six connections waiting for response headers
+ * (Workers limits, "Simultaneous open connections"); more would only queue in the runtime.
+ */
+export const RETENTION_LIST_CONCURRENCY = 6;
+/** Release key ranges are bounded at every 64th evidence time token. */
+export const RELEASES_PER_RANGE = 64;
+/** Pool keys are SHA-256 hex: one key range per first hex digit. */
+const POOL_RANGE_BOUNDS = [..."123456789abcdef"];
 /** Behavior 12: wall-clock budget (the alarm limit is 15 minutes). */
 export const RETENTION_WALL_MS = 10 * 60_000;
 /** Report lists are capped so the stored report stays far below the 2 MB value limit. */
@@ -26,7 +39,7 @@ export interface RetentionListedObject { readonly key: string; readonly size: nu
 /** The R2 calls a dry run makes: `get` (Class B) and `list` (Class A). No delete, no put. */
 export interface RetentionBucket {
   get(key: string): Promise<{ text(): Promise<string> } | null>;
-  list(options: { readonly prefix: string; readonly cursor?: string; readonly limit?: number }): Promise<{
+  list(options: { readonly prefix: string; readonly cursor?: string; readonly startAfter?: string; readonly limit?: number }): Promise<{
     readonly objects: readonly RetentionListedObject[];
     readonly truncated: boolean;
     readonly cursor?: string;
@@ -40,7 +53,30 @@ export interface RetentionRunDeps {
   readonly digestProjectIds: readonly string[];
   /** The embedding job's `lastRun.releaseId`, or null (unbound, no run yet). */
   readonly embeddingReleaseId: () => Promise<string | null>;
-  readonly limits?: { readonly lists?: number; readonly gets?: number; readonly wallMs?: number };
+  readonly limits?: { readonly lists?: number; readonly gets?: number; readonly wallMs?: number; readonly concurrency?: number };
+}
+
+/** Keys of `prefix` in (`after`, `through`]; an absent bound is open. */
+interface KeyRange { readonly prefix: string; readonly after?: string; readonly through?: string }
+
+/** Splits `prefix` at the sorted `bounds` into disjoint ranges that together hold every key. */
+function keyRanges(prefix: string, bounds: readonly string[]): KeyRange[] {
+  const edges = [undefined, ...bounds, undefined];
+  return edges.slice(1).map((through, index) => ({
+    prefix,
+    ...(edges[index] === undefined ? {} : { after: edges[index] }),
+    ...(through === undefined ? {} : { through }),
+  }));
+}
+
+/** Runs `tasks` in order, at most `concurrency` at once; none starts once `stopped()` is true. Returns how many never started. */
+async function runQueue(tasks: readonly (() => Promise<void>)[], concurrency: number, stopped: () => boolean): Promise<number> {
+  let next = 0;
+  const worker = async () => {
+    while (next < tasks.length && !stopped()) await tasks[next++]!();
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, worker));
+  return tasks.length - next;
 }
 
 export type RetentionStatus = "ok" | "failed" | "overrun";
@@ -92,7 +128,7 @@ class PointerError extends Error {}
 class Meter {
   classA = 0;
   classB = 0;
-  constructor(private readonly started: number, private readonly now: () => number, private readonly limits: Required<NonNullable<RetentionRunDeps["limits"]>>) {}
+  constructor(private readonly started: number, private readonly now: () => number, private readonly limits: { readonly lists: number; readonly gets: number; readonly wallMs: number }) {}
   check(kind: "list" | "get"): void {
     if (this.now() - this.started >= this.limits.wallMs) throw new BudgetSpent("the 10-minute budget is spent");
     if (kind === "list" && this.classA >= this.limits.lists) throw new BudgetSpent(`the list budget (${this.limits.lists}) is spent`);
@@ -111,7 +147,12 @@ export const retentionRunId = (now: number) => `retention-${new Date(now).toISOS
 /** One dry run. Never throws: every error ends in the returned `lastRun`. */
 export async function runRetentionDryRun(deps: RetentionRunDeps): Promise<{ readonly lastRun: RetentionLastRun; readonly report: RetentionReport | null }> {
   const started = deps.now();
-  const meter = new Meter(started, deps.now, { lists: RETENTION_MAX_LISTS, gets: RETENTION_MAX_GETS, wallMs: RETENTION_WALL_MS, ...deps.limits });
+  const meter = new Meter(started, deps.now, {
+    lists: deps.limits?.lists ?? RETENTION_MAX_LISTS,
+    gets: deps.limits?.gets ?? RETENTION_MAX_GETS,
+    wallMs: deps.limits?.wallMs ?? RETENTION_WALL_MS,
+  });
+  const concurrency = deps.limits?.concurrency ?? RETENTION_LIST_CONCURRENCY;
   const base = {
     runId: retentionRunId(started),
     at: new Date(started).toISOString(),
@@ -137,14 +178,24 @@ export async function runRetentionDryRun(deps: RetentionRunDeps): Promise<{ read
     const object = await deps.bucket.get(key);
     return object === null ? null : object.text();
   };
-  /** Lists a prefix page by page; `visit` sees each page. Returns whether the listing finished. */
-  const listAll = async (prefix: string, visit: (objects: readonly RetentionListedObject[]) => void): Promise<boolean> => {
+  /**
+   * Lists one key range page by page; `visit` sees only the range's keys. Returns whether the range
+   * was listed to its end. The meter is checked before each request, so concurrent ranges never
+   * pass a cap (the check and the count are one synchronous step).
+   */
+  const listRange = async (range: KeyRange, visit: (objects: readonly RetentionListedObject[]) => void): Promise<boolean> => {
     let cursor: string | undefined;
     for (;;) {
       meter.check("list");
-      const page = await deps.bucket.list({ prefix, limit: LIST_LIMIT, ...(cursor === undefined ? {} : { cursor }) });
-      visit(page.objects);
-      if (!page.truncated || page.cursor === undefined) return true;
+      const page = await deps.bucket.list({
+        prefix: range.prefix,
+        limit: LIST_LIMIT,
+        ...(cursor !== undefined ? { cursor } : range.after === undefined ? {} : { startAfter: range.after }),
+      });
+      const through = range.through;
+      const inRange = through === undefined ? page.objects : page.objects.filter((object) => object.key <= through);
+      visit(inRange);
+      if (inRange.length < page.objects.length || !page.truncated || page.cursor === undefined) return true;
       cursor = page.cursor;
     }
   };
@@ -174,7 +225,7 @@ export async function runRetentionDryRun(deps: RetentionRunDeps): Promise<{ read
   const listedEvidence: ListedEvidence[] = [];
   let evidenceListed = false;
   try {
-    evidenceListed = await listAll(EVIDENCE_PREFIX, (objects) => {
+    evidenceListed = await listRange({ prefix: EVIDENCE_PREFIX }, (objects) => {
       for (const object of objects) listedEvidence.push({ setId: object.key.slice(EVIDENCE_PREFIX.length).replace(/\.json$/u, ""), key: object.key, bytes: object.size });
     });
   } catch (cause) { fail("list", cause); }
@@ -211,13 +262,36 @@ export async function runRetentionDryRun(deps: RetentionRunDeps): Promise<{ read
   if (evidenceMissing) markComplete = false;
 
   // 3. Release prefixes, only when every retained set is known (a window release must never be
-  // reported as a candidate because its evidence was not listed or read).
+  // reported as a candidate because its evidence was not listed or read), and 4. the pools, only
+  // after a complete mark (RT9: fail closed). Each prefix is split into disjoint key ranges; the
+  // ranges are listed in order, at most `concurrency` at a time (Behavior 12, amended 2026-10-23).
   const releaseSizes = new Map<string, { projection: Projection; id: string; objects: number; bytes: number }>();
   const releasesKnown = evidenceListed && readsFinished;
-  let releasesListed = releasesKnown;
-  for (const [projection, prefix] of releasesKnown ? [["feed", FEED_RELEASES_PREFIX], ["search", SEARCH_RELEASES_PREFIX]] as const : []) {
-    try {
-      const done = await listAll(prefix, (objects) => {
+  const pool = { objects: 0, bytes: 0, oldest: Number.POSITIVE_INFINITY, newest: Number.NEGATIVE_INFINITY, sample: [] as string[] };
+  const parts = { releases: { listed: releasesKnown }, pool: { listed: markComplete } };
+  let stopped = false;
+  const tasks: { readonly part: keyof typeof parts; readonly run: () => Promise<void> }[] = [];
+  const queue = (part: keyof typeof parts, range: KeyRange, visit: (objects: readonly RetentionListedObject[]) => void) => {
+    tasks.push({
+      part,
+      run: async () => {
+        try {
+          if (!await listRange(range, visit)) parts[part].listed = false;
+        } catch (cause) {
+          parts[part].listed = false;
+          if (cause instanceof BudgetSpent) stopped = true;
+          fail("list", cause);
+        }
+      },
+    });
+  };
+  // Release ids start with their time token, so bounds at every RELEASES_PER_RANGE-th evidence
+  // token give ranges of about that many releases. Any bounds would list every key once.
+  const tokens = [...new Set(listedEvidence.map((item) => idToken(item.setId)).filter((token) => token !== null))].sort();
+  const releaseBounds = tokens.filter((_, index) => index > 0 && index % RELEASES_PER_RANGE === 0);
+  for (const [projection, prefix, idPrefix] of releasesKnown ? [["feed", FEED_RELEASES_PREFIX, ""], ["search", SEARCH_RELEASES_PREFIX, "feed-"]] as const : []) {
+    for (const range of keyRanges(prefix, releaseBounds.map((token) => `${prefix}${idPrefix}${token}`))) {
+      queue("releases", range, (objects) => {
         for (const object of objects) {
           const id = object.key.slice(prefix.length).split("/")[0]!;
           const key = `${projection}:${id}`;
@@ -227,12 +301,29 @@ export async function runRetentionDryRun(deps: RetentionRunDeps): Promise<{ read
           releaseSizes.set(key, entry);
         }
       });
-      releasesListed &&= done;
-    } catch (cause) {
-      releasesListed = false;
-      fail("list", cause);
     }
   }
+  for (const prefix of markComplete ? [FEED_POOL_PREFIX, SEARCH_POOL_PREFIX] : []) {
+    for (const range of keyRanges(prefix, POOL_RANGE_BOUNDS.map((digit) => `${prefix}${digit}`))) {
+      queue("pool", range, (objects) => {
+        for (const object of objects) {
+          const uploaded = object.uploaded.getTime();
+          if (!poolCandidate(object.key, uploaded, marked, now)) continue;
+          pool.objects += 1;
+          pool.bytes += object.size;
+          pool.oldest = Math.min(pool.oldest, uploaded);
+          pool.newest = Math.max(pool.newest, uploaded);
+          if (pool.sample.length < REPORT_POOL_SAMPLE) pool.sample.push(object.key);
+        }
+      });
+    }
+  }
+  const unstarted = await runQueue(tasks.map((task) => task.run), concurrency, () => stopped);
+  // A range never started is not listed: its part is incomplete.
+  for (const task of tasks.slice(tasks.length - unstarted)) parts[task.part].listed = false;
+  const releasesListed = parts.releases.listed;
+  const poolListed = parts.pool.listed;
+
   const keptTokens = new Map(read.map((item) => [idToken(item.setId)!, item.reason] as const));
   const classified = classifyReleases([...releaseSizes.values()], pins, readSets, now, keptTokens);
   const candidateReleases = classified.candidates.map((release) => releaseSizes.get(`${release.projection}:${release.id}`)!);
@@ -241,32 +332,6 @@ export async function runRetentionDryRun(deps: RetentionRunDeps): Promise<{ read
   const candidateEvidence = releasesKnown
     ? listedEvidence.filter((item) => !kept.has(item.key) && !retainedTokens.has(idToken(item.setId)!))
     : [];
-
-  // 4. Pools: only after a complete mark (RT9: fail closed).
-  const pool = { objects: 0, bytes: 0, oldest: Number.POSITIVE_INFINITY, newest: Number.NEGATIVE_INFINITY, sample: [] as string[] };
-  let poolListed = false;
-  if (markComplete && (status as RetentionStatus) !== "overrun") {
-    for (const prefix of [FEED_POOL_PREFIX, SEARCH_POOL_PREFIX]) {
-      try {
-        const done = await listAll(prefix, (objects) => {
-          for (const object of objects) {
-            const uploaded = object.uploaded.getTime();
-            if (!poolCandidate(object.key, uploaded, marked, now)) continue;
-            pool.objects += 1;
-            pool.bytes += object.size;
-            pool.oldest = Math.min(pool.oldest, uploaded);
-            pool.newest = Math.max(pool.newest, uploaded);
-            if (pool.sample.length < REPORT_POOL_SAMPLE) pool.sample.push(object.key);
-          }
-        });
-        poolListed = prefix === FEED_POOL_PREFIX ? done : poolListed && done;
-      } catch (cause) {
-        poolListed = false;
-        fail("list", cause);
-        if (cause instanceof BudgetSpent) break;
-      }
-    }
-  }
 
   const releaseObjects = candidateReleases.reduce((sum, release) => sum + release.objects, 0);
   const releaseBytes = candidateReleases.reduce((sum, release) => sum + release.bytes, 0);

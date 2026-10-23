@@ -1,7 +1,7 @@
 # Spec 029: R2 release retention (mark and sweep)
 
-Status: Partially implemented — dry-run slice (owner direction 2026-10-21: mark-and-sweep retention, dry run first, Dev before Prod; O1–O4 decided 2026-10-21; retention is its own job, not part of the publication; owner decision 2026-10-23: clean up the superseded Dev releases, dry run on Dev first, the owner reviews the list before any deletion). The dry run is implemented behind `R2_RETENTION`, `off` on Dev and unset on Prod; no code path can delete (see [Dry-run slice](#dry-run-slice-2026-10-23)). `enforce` (RT4, RT7, RT11–RT14) and the expired-link answer (RT8) are later slices.
-Date: 2026-10-21 (dry-run slice amended 2026-10-23)
+Status: Partially implemented — dry-run slice (owner direction 2026-10-21: mark-and-sweep retention, dry run first, Dev before Prod; O1–O4 decided 2026-10-21; retention is its own job, not part of the publication; owner decision 2026-10-23: clean up the superseded Dev releases, dry run on Dev first, the owner reviews the list before any deletion). The dry run is implemented behind `R2_RETENTION`, `dry-run` on Dev (since #135) and unset on Prod; no code path can delete (see [Dry-run slice](#dry-run-slice-2026-10-23)). `enforce` (RT4, RT7, RT11–RT14) and the expired-link answer (RT8) are later slices.
+Date: 2026-10-21 (dry-run slice amended 2026-10-23; per-run list cap and parallel listing amended 2026-10-23 after the first Dev run)
 Traceability: enforced
 Builds on: ADR-0010 (rollback selects earlier pointers), ADR-0013 (content-addressed detail pools; "retention is deferred to its own spec"), Spec 006 (publication-set evidence), Spec 008 (R2 operations, pools), Spec 009 (bounded memory), Spec 013, Spec 014 (digest pins a release), Spec 016 (embedding job reads a release), Spec 018 (daily publication, follow-ups), Spec 026 (cost guard), Spec 028 (observability signals, PR #108, not merged)
 
@@ -56,6 +56,17 @@ publisher `/health`, one evidence object read with `wrangler r2 object get`):
   release on average; early hourly releases are smaller than today's
   34.5 MB). Most Dev objects are pool objects: about 16,000 of the 302,468
   are release-scoped (16 a release including evidence).
+  **Corrected 2026-10-23** by the first Dev dry run: releases written
+  before Spec 008 (PR #21, 2026-09-30T00:48Z, about 670 hourly releases)
+  hold one Feed and one Search detail per FeedEntry under their own prefix
+  (Spec 008 Evidence: "2N + 6 immutable objects", N = 1,494 on 09-30). The
+  run's 398 release lists ended after 465 Feed releases: 0.86 lists a
+  release, about 856 objects each with full pages of 1,000, so
+  N ≈ 519 + 34.8 a day since 09-02 and the release prefixes hold about
+  1.4 million objects, not 16,000. That exceeds the 302,468 above, so
+  either that count misses them or R2 returned pages below 1,000; in both
+  cases lists per release is the measured quantity. The enforce slice must revisit Example step 5 (8 runs
+  of 20,000 deletes) before it is proposed.
 - Cron slots already used: Dev publication 22:07 UTC, Dev digest 22:47 UTC
   (`wrangler.development.jsonc`), Prod publication 22:37 UTC
   (`wrangler.production.jsonc`). The publication `PipelineState` runs its
@@ -121,7 +132,7 @@ No new R2 key, no R2 write, no delete, no Prod change.
   reason until the enforce slice. The dry run's bucket interface has only
   `get` and `list` (`apps/data-publisher-worker/src/retention/run.ts`).
 - **Config.** Dev gets `R2_RETENTION: "off"`, `RETENTION_CRON: "17 10 * * *"`
-  and the cron entry. Prod's config is unchanged (no flag, no cron) until
+  and the cron entry (`dry-run` since #135, 2026-10-23). Prod's config is unchanged (no flag, no cron) until
   the Prod dry-run PR (O2). 10:17 UTC plus the 10-minute budget stays
   outside the Dev windows 21:50–23:05, 02:05–02:30 and 03:30–03:55 UTC.
 - **Where the owner reads the result.** `/health` `retention` carries the
@@ -151,14 +162,47 @@ No new R2 key, no R2 write, no delete, no Prod change.
   release, evidence or pool candidate (`complete.releases: false`). A pinned
   release without readable evidence makes the mark incomplete, so no pool
   object is counted (`reason: "evidence-missing"`, RT9).
-- **Per-run op budget (Behavior 12, amended).** Hard caps per run: 400 list
-  calls (Class A), 600 get calls (Class B), 10 minutes. The call that would
-  pass a cap is not made; the run ends `overrun`. Measured on an in-memory
-  Dev-shaped bucket (1,015 releases, 302,468 objects; `retention.test.ts`
-  "Budget"): 306 Class A and 527 Class B. One dry run a day on Dev is
-  31 × 306 ≈ 9,500 Class A a month (0.95 % of the included million) and
-  ≈ 16,300 Class B (0.16 %): $0 inside the allowance, about $0.05 if billed.
-  No delete, no put.
+- **Per-run op budget (Behavior 12, amended twice).** Hard caps per run:
+  2,000 list calls (Class A; owner decision 2026-10-23, was 400), 600 get
+  calls (Class B), 10 minutes. The call that would pass a cap is not made;
+  the run ends `overrun`. The meter is checked before each request, so the
+  caps stay exact with lists in flight together.
+- **First Dev run (2026-10-23 10:17 UTC, `overrun`).** Class A 400 (the
+  cap), Class B 297 (3 pointers + 294 retained evidence: every read
+  finished), 554,319 ms, `complete {releases: false, evidence: true, pool:
+  false}`, 465 Feed release candidates (2.38 GB) and no Search or pool
+  listed. The 400-list estimate was wrong because its in-memory bucket gave
+  every release 2 + 2 objects and put the rest in the pools; the
+  pre-Spec-008 releases hold about 856 objects per prefix (see Evidence,
+  corrected), so listing them takes about 0.86 lists a release and
+  projection. One list after another at the measured ≈ 0.8–1.4 s each, the
+  ≈ 1,550 lists the whole bucket needs would take 21–36 minutes.
+- **Parallel listing (amended 2026-10-23).** Each swept prefix is split into
+  disjoint key ranges that together hold every key: the release prefixes
+  at every 64th evidence time token (release ids start with it), the pools
+  at each first hex digit (`1` … `f`). A range is listed with `startAfter`
+  its lower bound and ends at the first key past its upper bound, so each
+  key is visited once; ranges cost at most one extra list each (65 in all).
+  At most 6 ranges are listed at once: a Worker has at most six
+  connections waiting for response headers (Workers limits), so more would
+  only queue. Release ranges are queued before pool ranges; the evidence
+  reads stay one at a time before any release list (Spec 009, RT16).
+- **Expected per Dev run** (in-memory Dev-shaped bucket fitted to the run
+  above: 1,015 publications, about 670 before Spec 008 with N details per
+  prefix, 150,000 old pool objects; `retention.test.ts` "Budget"):
+  1,542 Class A (2 evidence + 689 Feed + 689 Search + 162 pool) and at most
+  527 Class B (the fixture gives every hourly release evidence; Dev
+  measured 297, falling as the hourly sets leave the window until
+  2026-11-13). The 2,000 cap leaves about 30 % for a larger pool than
+  assumed. Time: with 400 · tA + 297 · tB = 554 s measured, the new run
+  takes 257 · tA + 297 · tB, between about 6 minutes (gets free) and
+  9.2 minutes (lists free); about 7.3 minutes if both cost the same
+  0.8 s. The 10-minute cap stays: the alarm limit is 15 minutes and the
+  cap bounds how long a manual publication waits (Behavior 12). The get cap
+  stays 600: every read finished at 297.
+- **Cost.** One dry run a day on Dev is 31 × 2,000 = 62,000 Class A a month
+  at most (6.2 % of the included million) and ≤ 18,600 Class B (0.19 %):
+  $0 inside the allowance, at most about $0.28 if billed. No delete, no put.
 
 ## Simplification review
 
@@ -360,7 +404,8 @@ invocation; a Durable Object alarm has 15 minutes of wall time.
 
 | Case | Class A (lists) | Class B (gets) | Subrequests | Month |
 | --- | --- | --- | --- | --- |
-| Dev drain, worst run: every prefix listed (302,468 objects / 1,000 per page); about 510 evidence reads while hourly releases are in the window | ≈ 305 | ≈ 515 (4 pointers + evidence) | ≈ 840 (+ 20 delete calls) | 31 × 305 ≈ 9,500 Class A (0.95 % of the included million); ≈ 16,000 Class B (0.16 %) |
+| Dev drain, worst run (amended 2026-10-23): every prefix listed, about 1.4 million release-scoped objects before Spec 008 plus the pools; 297 reads measured (≤ 527 in the fixture) | ≈ 1,550 (cap 2,000) | 297 measured (cap 600) | ≈ 1,850 (+ 20 delete calls) | ≤ 31 × 2,000 = 62,000 Class A (6.2 % of the included million); ≤ 18,600 Class B (0.19 %) |
+| Superseded first estimate (2026-10-21): 302,468 objects / 1,000 per page, 16 objects a release | ≈ 305 | ≈ 515 | — | the first Dev run spent 400 lists and had not finished the Feed releases |
 | Dev or Prod steady state (≈ 35 releases with follow-ups, evidence, two pools: ≤ about 40,000 objects) | ≈ 40 | ≤ 40 | ≈ 100 | ≈ 2,500 Class A for both buckets (0.25 %); $0 inside the allowance, about $0.01 if billed |
 
 Storage: each bucket settles near 1.2 GB (Example step 5), the account near
@@ -413,7 +458,7 @@ RT17–RT20 reworded for the separate job and O1); RT24–RT28 are new.
 - RT2: given the test-plan rows, a dry run returns exactly the retained and candidate releases of each row (30-day window, floor of the 2 newest verified releases, pins, grace), a pinned release without evidence is still retained, and a floor below 2 is rejected → case rows.
 - RT3: given the Example's evidence (4,330 pool keys per projection) plus unmarked pool objects at 47 h and 49 h, the marked set holds every evidence pool key and the candidates are exactly the unmarked objects older than 48 h → case rows.
 - RT4: [pending] given an in-memory bucket with three releases (one retained), their evidence, two pools, `current.json` keys, a digest pointer and objects under `public/review-queue/` and `internal/`, an `enforce` run deletes exactly the non-retained release prefixes, their evidence and the unmarked old pool objects, and every key outside Behavior 5's prefixes is still present → sweep test.
-- RT5: given the same bucket in `dry-run`, the run reports exactly the candidate counts and bytes of the non-retained release prefixes, their evidence and the unmarked old pool objects, lists no other prefix, reports no key outside Behavior 5's prefixes, and makes zero delete and put calls → sweep test.
+- RT5: given the same bucket in `dry-run`, the run reports exactly the candidate counts and bytes of the non-retained release prefixes, their evidence and the unmarked old pool objects, lists no other prefix, reports no key outside Behavior 5's prefixes, and makes zero delete and put calls; listed in key ranges at most 6 at a time, it reports exactly what one list at a time reports, each key once (keys on a range bound included) → sweep test.
 - RT6: given a publication alarm, the publication makes no retention R2 call and writes no `retention-*` key; given a retention tick, retention runs in its own alarm invocation; a second tick on the same UTC day, or a tick while the cost guard pauses the publication, makes no R2 call and records `skipped` → alarm test with a positive control.
 - RT7: [pending] given 25,000 candidates, an `enforce` run deletes 20,000 in batches of ≤ 1,000 keys, oldest release first and Search `manifest.json`/Feed `feed/index.json` before the rest of a release, and reports `remaining: 5,000`; the next run deletes the rest → sweep test.
 - RT8: [pending] given a Search detail ref whose release manifest is absent, `GET /api/search-detail/:ref` answers 404 `{error: "Search release expired"}` with `cache-control: no-store`; a present release still answers 200 → Pages function test.
@@ -429,11 +474,11 @@ RT17–RT20 reworded for the separate job and O1); RT24–RT28 are new.
 - RT14: [pending] given a second run on unchanged data, it deletes nothing and reports `candidates.objects: 0` → sweep test.
 - RT15: given a `POST /run` received while retention is pending or runs, the request answers 202, no publication starts before the retention alarm returns, the publication then runs, and the run read its pointers before its first list (and before any delete) → alarm test.
 - RT16: given a list call that fails, the run deletes nothing for that prefix, records the error and leaves the other prefixes' results reported → sweep test.
-- RT26: given a fake clock that passes the 10-minute budget during the mark, the run starts no further R2 call, counts and deletes no pool object, records `status: "overrun"` and `remaining`; passing it during the pool listing (dry run) or the sweep (enforce) stops before the next list or batch; a list or get cap stops the run the same way → sweep test.
+- RT26: given a fake clock that passes the 10-minute budget during the mark, the run starts no further R2 call, counts and deletes no pool object, records `status: "overrun"` and `remaining`; passing it during the pool listing (dry run) or the sweep (enforce) stops before the next list or batch; a list or get cap stops the run the same way, exactly at the cap while several lists are in flight (a cap of 7 allows the 7th) → sweep test.
 - RT27: given a retention run that fails or throws from inside the run, the next publication alarm runs exactly as without retention (same `/health` publication fields), and `/health` keeps the publication's `ok` and HTTP status → alarm and health test with a positive control.
 
 ### Budget
-- RT17: [measure] the first Dev `dry-run` records `retention.lastRun.r2` with Class A ≤ 400 and Class B ≤ 600 (estimate ≈ 305 and ≈ 515) and `elapsedMs` under the 10-minute budget, and the publication's own `lastRun.r2` unchanged in kind (`curl` of Dev `/health`).
+- RT17: [measure] the first Dev `dry-run` after the cap amendment records `retention.lastRun.r2` with Class A ≤ 2,000 and Class B ≤ 600 (estimate ≈ 1,550 and ≈ 297; the 2026-10-23 run under the 400 cap ended `overrun`) and `elapsedMs` under the 10-minute budget (estimate 6–9 minutes), and the publication's own `lastRun.r2` unchanged in kind (`curl` of Dev `/health`).
 - RT18: [measure] a Dev `enforce` run sends ≤ 1,000 subrequests and stays within the alarm's limits with 20,000 deletes (`/health` `retention.lastRun`, Workers logs).
 - RT19: [measure] after 2026-11-13 and the Dev drain, `oss-knowledge-base-dev` stores ≤ 2 GB (expected ≈ 1.2 GB), measured with GraphQL `r2StorageAdaptiveGroups`.
 

@@ -2,9 +2,9 @@
 import { describe, expect, test } from "bun:test";
 
 import { assertFloor, classifyReleases, idTime, resolveRetentionMode, retainedEvidence } from "../src/retention/plan";
-import { RETENTION_MAX_GETS, RETENTION_MAX_LISTS, runRetentionDryRun, type RetentionRunDeps } from "../src/retention/run";
+import { RETENTION_LIST_CONCURRENCY, RETENTION_MAX_GETS, RETENTION_MAX_LISTS, runRetentionDryRun, type RetentionRunDeps } from "../src/retention/run";
 import { poolFixtures, releaseFixtures, releaseIdAt, RUN_AT, testPlanRows, type RetentionCase } from "./retention.cases";
-import { feedPoolKey, point, publish, RetentionMemoryBucket, searchPoolKey } from "./support/retention-bucket";
+import { devShapedBucket, feedPoolKey, hexName, point, publish, RetentionMemoryBucket, searchPoolKey } from "./support/retention-bucket";
 
 const HOUR = 60 * 60_000;
 const DAY = 24 * HOUR;
@@ -206,18 +206,23 @@ describe("Spec 029 dry run", () => {
     expect(lastRun.candidates).toMatchObject({ poolObjects: 0, objects: 0 });
     expect(lastRun.complete).toEqual({ releases: false, evidence: true, pool: false });
 
-    // During the pool listing: a page limit of 1,000 means three Feed pool pages; the clock runs out after the first.
+    // During the pool listing: 2,500 hex-named Feed pool objects in 16 key ranges listed six at a
+    // time; the clock runs out at the first pool list, so no other list starts.
     const pools = new RetentionMemoryBucket();
+    pools.slowLists = true;
     publish(pools, day("10-20"));
     publish(pools, day("10-21"));
     point(pools, day("10-21"));
-    for (let index = 0; index < 2_500; index += 1) pools.set(feedPoolKey(`old-${String(index).padStart(5, "0")}`), 1, Date.parse("2026-09-01T00:00:00Z"));
+    for (let index = 0; index < 2_500; index += 1) pools.set(feedPoolKey(hexName(index)), 1, Date.parse("2026-09-01T00:00:00Z"));
     let poolClock = RUN_AT;
     pools.onCall = (op) => { if (op === "list" && pools.calls.at(-1)!.key === "public/v2/objects/details/") poolClock = RUN_AT + 10 * 60_000; };
     const stopped = await dryRun(pools, { now: () => poolClock });
     expect(stopped.lastRun.status).toBe("overrun");
     expect(pools.calls.filter((call) => call.key === "public/v2/objects/details/")).toHaveLength(1);
-    expect(stopped.lastRun.candidates.poolObjects).toBe(1_000);
+    // The one list was the first range: hex names up to "…/details/1", i.e. first digit 0.
+    const firstRange = [...Array(2_500).keys()].filter((index) => hexName(index).startsWith("0")).length;
+    expect(firstRange).toBeGreaterThan(0);
+    expect(stopped.lastRun.candidates.poolObjects).toBe(firstRange);
     expect(stopped.lastRun.complete.pool).toBe(false);
 
     // Control: with time left the same bucket lists all three pages.
@@ -226,38 +231,96 @@ describe("Spec 029 dry run", () => {
     expect(full.lastRun.candidates.poolObjects).toBe(2_500);
   });
 
-  test("Budget: a list cap stops the run as overrun before the cap is passed", async () => {
+  test("RT26: a list cap stops the run as overrun before the cap is passed, exactly, with lists in flight together", async () => {
     const bucket = new RetentionMemoryBucket();
     publish(bucket, day("10-20"));
     publish(bucket, day("10-21"));
     point(bucket, day("10-21"));
-    for (let index = 0; index < 5_000; index += 1) bucket.set(feedPoolKey(`old-${String(index).padStart(5, "0")}`), 1, 0);
+    for (let index = 0; index < 5_000; index += 1) bucket.set(feedPoolKey(hexName(index)), 1, 0);
+    // Lists overlap (six in flight), and the cap is still exact.
+    bucket.slowLists = true;
     const { lastRun } = await dryRun(bucket, { limits: { lists: 6 } });
     expect(lastRun.status).toBe("overrun");
     expect(lastRun.r2.classA).toBe(6);
     expect(bucket.lists).toBe(6);
+    expect(bucket.maxInFlight).toBeGreaterThan(1);
+    // Control: one more list is allowed with a cap of 7.
+    const more = new RetentionMemoryBucket();
+    for (const [key, object] of bucket.objects) more.set(key, object.body, object.uploaded);
+    more.slowLists = true;
+    const seven = await dryRun(more, { limits: { lists: 7 } });
+    expect(seven.lastRun.r2.classA).toBe(7);
+    expect(more.lists).toBe(7);
   });
 
-  test("Budget: a Dev-shaped bucket (about 1,000 hourly releases, 302,468 objects) needs at most 400 lists and 600 gets", async () => {
+  test("RT5: key ranges list every object exactly once, at most RETENTION_LIST_CONCURRENCY at a time, and report what one list at a time reports", async () => {
     const bucket = new RetentionMemoryBucket();
-    let releases = 0;
-    for (let at = Date.parse("2026-09-02T00:07:00Z"); at <= Date.parse("2026-10-13T22:07:00Z"); at += HOUR) { publish(bucket, at); releases += 1; }
-    for (let at = day("10-14"); at <= day("10-21"); at += DAY) { publish(bucket, at); releases += 1; }
+    bucket.slowLists = true;
+    // 200 daily releases: four release ranges per projection; every hex digit in the pools.
+    const times: number[] = [];
+    for (let at = day("10-21") - 199 * DAY; at <= day("10-21"); at += DAY) { publish(bucket, at); times.push(at); }
     point(bucket, day("10-21"));
-    // Fill the pools up to the measured object count with old, unmarked objects.
-    for (let index = 0; bucket.objects.size < 302_468; index += 1) {
-      bucket.set(index % 2 === 0 ? feedPoolKey(`fill-${index}`) : searchPoolKey(`fill-${index}`), 1, Date.parse("2026-09-01T00:00:00Z"));
-    }
-    const { lastRun } = await dryRun(bucket);
-    expect(releases).toBeGreaterThan(1_000);
+    for (let index = 0; index < 3_000; index += 1) bucket.set(index % 2 === 0 ? feedPoolKey(hexName(index)) : searchPoolKey(hexName(index)), 7, 0);
+    // Keys exactly on a range bound belong to the range they end.
+    bucket.set("public/v2/objects/details/8", 7, 0);
+    bucket.set(`public/v2/releases/${releaseIdAt(times[64]!)}`, 7, 0);
+    const { lastRun, report } = await dryRun(bucket);
     expect(lastRun.status).toBe("ok");
-    expect(lastRun.r2.classA).toBeLessThanOrEqual(RETENTION_MAX_LISTS);
-    expect(lastRun.r2.classB).toBeLessThanOrEqual(RETENTION_MAX_GETS);
-    // Every object is listed once: 302,468 / 1,000 per page, plus one partial page per prefix.
-    expect(lastRun.r2.classA).toBeGreaterThanOrEqual(Math.ceil(302_468 / 1_000));
+    expect(lastRun.complete).toEqual({ releases: true, evidence: true, pool: true });
+    expect(bucket.maxInFlight).toBe(RETENTION_LIST_CONCURRENCY);
+    // Independent count: releases before the 30-day window; 3,001 old fill objects.
+    const window = times.filter((at) => at > RUN_AT - 30 * DAY).length;
+    expect(lastRun.candidates.releases).toEqual({ feed: times.length - window, search: times.length - window });
+    // Each candidate release also leaves its own two unmarked pool objects.
+    expect(lastRun.candidates.poolObjects).toBe(3_001 + 2 * (times.length - window));
+    const listed = (projection: string) => report!.candidates.releases.filter((release) => release.projection === projection);
+    expect(listed("feed").reduce((sum, release) => sum + release.objects, 0)).toBe(2 * (times.length - window) + 1);
+    expect(new Set(listed("feed").map((release) => release.id)).size).toBe(listed("feed").length);
+    // Control: one list at a time gives the same report.
+    const serial = await dryRun(bucket, { limits: { concurrency: 1 } });
+    expect(serial.lastRun.candidates).toEqual(lastRun.candidates);
+  });
+});
+
+describe("Spec 029 budget on the measured Dev shape (first Dev dry run, 2026-10-23)", () => {
+  let built: ReturnType<typeof devShapedBucket> | undefined;
+  const dev = () => (built ??= devShapedBucket());
+
+  test("Budget: the fixture reproduces the first Dev run: 400 lists one at a time end in the Feed releases after about 465 of them", async () => {
+    const { bucket, releases } = dev();
+    expect(releases).toBe(1_015);
+    bucket.calls.length = 0;
+    const { lastRun } = await dryRun(bucket, { limits: { lists: 400, concurrency: 1 } });
+    expect(lastRun.status).toBe("overrun");
+    expect(lastRun.complete).toEqual({ releases: false, evidence: true, pool: false });
+    expect(lastRun.r2.classA).toBe(400);
+    // Measured: 465 candidate releases, all Feed; none of Search or the pools was reached.
+    expect(lastRun.candidates.releases.search).toBe(0);
+    expect(lastRun.candidates.releases.feed).toBeGreaterThanOrEqual(445);
+    expect(lastRun.candidates.releases.feed).toBeLessThanOrEqual(485);
+  }, 120_000);
+
+  test("Budget: with the 2,000-list cap and six lists in flight the Dev-shaped run finishes", async () => {
+    const { bucket, objects } = dev();
+    bucket.calls.length = 0;
+    const { lastRun } = await dryRun(bucket);
+    expect(objects).toBeGreaterThan(1_400_000);
+    expect(lastRun.status).toBe("ok");
+    expect(lastRun.complete).toEqual({ releases: true, evidence: true, pool: true });
     expect(lastRun.r2.classA).toBe(bucket.lists);
     expect(lastRun.r2.classB).toBe(bucket.gets);
-  });
+    // Every key listed once: at least one list per 1,000 keys, at most one extra per key range (65).
+    const keys = (prefix: string) => [...bucket.objects.keys()].filter((key) => key.startsWith(prefix)).length;
+    const floor = ["publication-sets/v1/", "public/v2/releases/", "public/search/v1/releases/", "public/v2/objects/details/", "public/search/v1/objects/details/"]
+      .reduce((sum, prefix) => sum + Math.ceil(keys(prefix) / 1_000), 0);
+    expect(lastRun.r2.classA).toBeGreaterThanOrEqual(floor);
+    expect(lastRun.r2.classA).toBeLessThanOrEqual(floor + 65);
+    expect(lastRun.r2.classA).toBeLessThanOrEqual(RETENTION_MAX_LISTS);
+    expect(lastRun.r2.classB).toBeLessThanOrEqual(RETENTION_MAX_GETS);
+    // Sequential time: one list after another at the measured ≈ 1.4 s is more than the 10 minutes;
+    // in parallel rounds of six it is about a sixth of that.
+    expect(lastRun.r2.classA * 1.4).toBeGreaterThan(600);
+  }, 120_000);
 });
 
 describe("Spec 029 plan helpers", () => {
