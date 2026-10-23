@@ -568,7 +568,7 @@ function readDir(dir: string): { path: string; text: string }[] {
 describe("Spec 027 Amendment (2) L1 tick", () => {
   test("every row has a scenario and every A2 job has a field list", () => {
     expect(testPlanRows.filter((row) => scenarios[row.case] === undefined).map((row) => row.case)).toEqual([]);
-    expect(Object.keys(JOB_HEALTH_FIELDS).sort()).toEqual(["cost-guard", "digest", "embedding", "identity-links", "kip-pages", "publication", "retention", "review-queue"]);
+    expect(Object.keys(JOB_HEALTH_FIELDS).sort()).toEqual(["cost-guard", "digest", "embedding", "identity-backfill", "identity-links", "kip-pages", "publication", "retention", "review-queue"]);
   });
 
   test.each(testPlanRows)("$id: $case", async (row) => {

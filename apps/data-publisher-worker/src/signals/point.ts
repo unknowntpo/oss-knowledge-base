@@ -175,3 +175,15 @@ export function kipPagesSignalRun(
     counters: [lastRun.pagesRead, lastRun.pagesChanged, lastRun.issuesRead, lastRun.requests, lastRun.bytesWritten],
   };
 }
+
+/** Spec 019 amendment (8): c1 pull requests read, c2 with a key, c3 keys, c4 GitHub and c5 Jira requests, c6 bytes written. */
+export function identityBackfillSignalRun(
+  lastRun: StartedRecord & { readonly prs: number; readonly keyedPrs: number; readonly keys: number; readonly requests: { readonly github: number; readonly jira: number }; readonly bytesWritten: number },
+  context: { readonly runId: string },
+): SignalRun {
+  return {
+    job: "identity-backfill", runId: context.runId, status: lastRun.status, ok: lastRun.ok, sourceRunId: "",
+    durationMs: num(lastRun.durationMs), completedAtMs: Date.parse(lastRun.at) + num(lastRun.durationMs), r2: r2Of("identity-backfill", lastRun.r2),
+    counters: [lastRun.prs, lastRun.keyedPrs, lastRun.keys, lastRun.requests.github, lastRun.requests.jira, lastRun.bytesWritten],
+  };
+}

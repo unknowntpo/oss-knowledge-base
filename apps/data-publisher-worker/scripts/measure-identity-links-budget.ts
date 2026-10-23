@@ -3,6 +3,13 @@
  *
  *   bun run measure:identity-links -- --budget
  *   bun apps/data-publisher-worker/scripts/measure-identity-links-budget.ts [--months 12] [--rows 4200] [--seed 7]
+ *   bun run measure:identity-links -- --backfill   (Spec 019 amendment (8), W129)
+ *
+ * `--backfill`: the log holds 2 months (2026-09 from coverage 2026-09-10, and 2026-10) and the
+ * backfill store 11 finished months (2025-11 … 2026-09, threads only, as the backfill job writes
+ * them) with its record; the job runs with `IDENTITY_LINKS_BACKFILL=read` at 2026-10-23 and must
+ * stay within 17 Class B and 2 Class A, read 13 month objects one at a time and report
+ * `inputs.backfill.months` 11.
  *
  * Builds, in an in-memory bucket, an activity log of Dev's size (a `state.json` listing 12 months
  * and 12 month objects of about 4k rows each: GitHub pull requests naming `KAFKA-n` and their
@@ -34,8 +41,11 @@ import { PEOPLE_PROJECTS, PEOPLE_SUPPRESSED, suppressionDigest } from "@oss-know
 
 import { runIdentityLinks, type IdentityLinksBucket, type IdentityLinksRecord } from "../src/identity-links/run";
 import { rosterKey } from "../src/review-queue/store";
+import { addMonths, IDENTITY_BACKFILL_LAST_RUN_KEY, identityBackfillMonthKey } from "@oss-knowledge-base/reference-pipeline/identity-backfill";
 
-const LIMIT_CLASS_B = 15;
+const { values: early } = parseArgs({ options: { backfill: { type: "boolean", default: false } }, strict: false });
+const BACKFILL = early.backfill === true;
+const LIMIT_CLASS_B = BACKFILL ? 17 : 15;
 const LIMIT_CLASS_A = 2;
 const KAFKA = "apache-kafka";
 
@@ -44,6 +54,7 @@ const { values } = parseArgs({
     months: { type: "string", default: "12" },
     rows: { type: "string", default: "4200" },
     seed: { type: "string", default: "7" },
+    backfill: { type: "boolean", default: false },
   },
 });
 
@@ -181,7 +192,7 @@ class MeasuredBucket implements IdentityLinksBucket {
   }
 }
 
-const monthCount = Number(values.months);
+const monthCount = BACKFILL ? 2 : Number(values.months);
 const rowsPerMonth = Number(values.rows);
 const seed = Number(values.seed);
 const bucket = new MeasuredBucket();
@@ -200,9 +211,26 @@ for (const [index, month] of months.entries()) {
   largest = Math.max(largest, body.length);
   bucket.objects.set(peopleActivityMonthKey(KAFKA, month), body);
 }
+const coverageFrom = BACKFILL ? "2026-09-10T02:45:16.000Z" : `${months[0]}-01T00:00:00.000Z`;
 const state = (updatedAt: string) => JSON.stringify({
-  schema: PEOPLE_ACTIVITY_STATE_SCHEMA, firstAppendAt: `${months[0]}-01T00:00:00.000Z`, coverageFrom: `${months[0]}-01T00:00:00.000Z`, updatedAt, months,
+  schema: PEOPLE_ACTIVITY_STATE_SCHEMA, firstAppendAt: coverageFrom, coverageFrom, updatedAt, months,
 });
+// Amendment (8): 11 backfill months before the log, threads only (pull requests with a key and Jira assignees).
+const backfillMonths = BACKFILL ? Array.from({ length: 11 }, (_, index) => addMonths("2025-11", index)) : [];
+for (const [index, month] of backfillMonths.entries()) {
+  const generated = generateMonth(month, 100 + index, rowsPerMonth, seed);
+  const threads = Object.fromEntries(Object.entries(generated.threads)
+    .filter(([, thread]) => (thread.kind === "pull-request" && /KAFKA-\d+/u.test(thread.title)) || thread.kind === "issue")
+    .map(([key, thread]) => [key, thread.kind === "issue" ? { ...thread, title: key, author: null, reporter: null } : thread]));
+  const body = encodeActivityMonth({ ...generated, people: {}, rows: [], threads });
+  largest = Math.max(largest, body.length);
+  bucket.objects.set(identityBackfillMonthKey(KAFKA, month), body);
+}
+if (BACKFILL) {
+  bucket.objects.set(IDENTITY_BACKFILL_LAST_RUN_KEY, JSON.stringify({ revision: "prs@1", lastRun: null, months: { done: backfillMonths, next: null, remaining: 0 }, from: "2025-11", until: "2026-09" }));
+}
+const FIXED_NOW = Date.parse("2026-10-23T02:17:00.000Z");
+const realStart = Date.now();
 const roster: Roster = {
   adapter: "asf", project: "kafka", fetchedAt: "2026-10-20T00:00:00.000Z",
   entries: Array.from({ length: 1_200 }, (_, index) => ({ id: `asf${index}`, name: index % 4 === 0 ? displayName(index) : `Roster Person ${index}`, roles: index < 60 ? ["pmc" as const] : ["committer" as const] })),
@@ -213,7 +241,9 @@ bucket.objects.set(peopleActivityStateKey("apache-datafusion"), state("2026-10-2
 
 const bots = (projectId: string) => PEOPLE_PROJECTS.find((project) => project.projectId === projectId)?.bots ?? [];
 const run = (profiles: readonly PeopleIdentityProfile[]) => runIdentityLinks({
-  flag: "corroborated@1", bucket, profiles, bots, suppressed: PEOPLE_SUPPRESSED, digest: suppressionDigest, now: () => Date.now(),
+  flag: "corroborated@1", bucket, profiles, bots, suppressed: PEOPLE_SUPPRESSED, digest: suppressionDigest,
+  now: () => (BACKFILL ? FIXED_NOW + (Date.now() - realStart) : Date.now()),
+  ...(BACKFILL ? { backfillFlag: "read" } : {}),
 });
 
 // The previous table: yesterday's run (not measured).
@@ -266,6 +296,11 @@ for (const result of results) {
     `${lastRun.kipStarters} KIP starters, rejected ${JSON.stringify(lastRun.rejected)}${lastRun.error === undefined ? "" : `, error ${lastRun.error}`}: ${within ? "PASS" : "FAIL"}`);
 }
 if (results[0]!.record.lastRun.status !== "ok" || results[1]!.record.lastRun.status !== "unchanged") failed = true;
+if (BACKFILL) {
+  const read = results[0]!.record.lastRun.inputs.backfill?.months.length ?? 0;
+  if (read !== 11) failed = true;
+  console.log(`backfill: ${read} finished months read (expected 11), ${backfillMonths.length + months.length} month objects in the window: ${read === 11 ? "PASS" : "FAIL"}`);
+}
 const projectKeys = datafusion.touched.filter((key) => key !== "internal/identity/v1/last-run.json");
 if (projectKeys.length > 0) failed = true;
 console.log(`${datafusion.name}: status ${datafusion.record.lastRun.status}, Class B ${datafusion.classB}, Class A ${datafusion.classA}, ` +

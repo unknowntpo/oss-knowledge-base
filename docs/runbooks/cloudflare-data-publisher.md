@@ -1034,6 +1034,106 @@ recorded yet" again and Jira and dev@ names stop linking. Deleting objects is
 the owner's step. Re-enabling after the state was deleted starts a new
 coverage 35 days before that run.
 
+## Identity backfill (Spec 019 amendment (8))
+
+`IDENTITY_BACKFILL=prs@1` runs the `identity-backfill` job on its own cron
+entry (`IDENTITY_BACKFILL_CRON`, `23 1 * * *`, 01:23 UTC) and on
+`POST /identity-backfill/run`. Each run reads **one calendar month**, newest
+first, from `min(month(coverageFrom), month(now) − 1)` back to
+`month(now) − 11`: the month's apache/kafka pull requests with a `KAFKA-n`
+title (GitHub GraphQL search, the publisher's `GITHUB_SOURCE_TOKEN`) and
+each key's Jira assignee (ASF Jira, anonymous). It writes
+`internal/identity/v1/apache-kafka/backfill/<YYYY-MM>.json` and then
+`internal/identity/v1/backfill-last-run.json`, nothing else. Merged off: the
+three variables are unset on Dev and Prod and no cron entry exists. Format
+and decisions: [Spec 019 amendment
+(8)](../specs/019-contributor-profile/spec.md#amendment-2026-10-23-8-the-identity-link-backfill).
+
+Per run, at most: 5 GitHub and 4 Jira requests, sequential, at least 3 s
+apart, 30 s timeout each, no retry (about 30 s in all; the run stops before
+a request that could end after 14 minutes); R2 2 Class B and 2 Class A (1
+Class A on a failure, 0 once `complete` has been recorded or before
+`retryAfter`). The whole backfill (11 months on 2026-10-23): about 35 GitHub
+and 25 Jira requests and 22 Class A over 11 days. Nothing reads the store but
+the identity-link job, and only with `IDENTITY_LINKS_BACKFILL=read`.
+
+Stop rules (the job applies them itself; no month is written):
+
+| Upstream answer | `lastRun.status` | What the next run does |
+| --- | --- | --- |
+| 429; 403 naming a rate limit; any `Retry-After`; GitHub `rateLimit.remaining` or `x-ratelimit-remaining` below 1,000 | `limited`, with `retryAfter` when known | sends nothing before `retryAfter` (cron and route alike), then retries the same month |
+| 5xx, timeout, network error, other non-2xx, unparsable body, GraphQL `errors` | `failed` | the next day's run retries the same month (one request a day while upstream keeps failing) |
+| `issueCount` above 1,000 or more than 5 pages; more than 400 keys | `over-budget` | tries the same month again; only a reviewed PR changes the caps |
+
+### Enable on Dev (its own PR, rollout step 2)
+
+Never between 21:50 and 23:05 UTC (publication, digest), 02:05–02:30
+(identity links) or 03:30–03:55 (KIP pages); 01:23 is clear of them, of the
+Prod publication's retries (until about 00:30), of the `sre-agent` ticks
+(00:30, 11:00) and of retention (10:17).
+
+1. Before merging, read Dev `/health`: no `identityBackfill` field;
+   `identityLinks.lastRun.ok` true; `lastRun.activity.coverageFrom` set for
+   Kafka. Stop if not.
+2. The PR sets `IDENTITY_BACKFILL=prs@1` and `IDENTITY_BACKFILL_CRON=23 1 * * *`
+   in `apps/data-publisher-worker/wrangler.development.jsonc` and adds
+   `"23 1 * * *"` to `triggers.crons`. Prod stays untouched. Merge; CI
+   deploys. `/health` `identityBackfill` is
+   `{revision: "prs@1", lastRun: null, months: {done: [], next: null, remaining: 0}, from: null, until: null}`.
+3. One manual run outside the windows above:
+   `curl -sS -X POST -H "Authorization: Bearer $MANUAL_TRIGGER_TOKEN" https://<dev data worker>/identity-backfill/run`.
+   Expected (200): `lastRun {ok: true, status: "ok", month: "2026-09"}`,
+   `months {done: ["2026-09"], next: "2026-08", remaining: 10}`,
+   `requests {github ≤ 5, jira ≤ 4}`, `r2 {classA: 2, classB: 2}`,
+   `bytesWritten` about 75,000 or less, `prs` about 328. A second call within
+   60 minutes answers 409 `too-soon` and sends nothing.
+4. Daily (step 3 of the spec, about 10 days): `months.remaining` falls by one
+   a day with `lastRun.ok` true, until `status: "complete"` with `done`
+   2025-11 … 2026-09 (fewer if the horizon moved). With
+   `OBSERVABILITY_SIGNALS=on` each run is one point `job: "identity-backfill"`;
+   `job.missed` stays ok after `complete`.
+5. Stop (unset `IDENTITY_BACKFILL` and investigate) when: `failed` or
+   `limited` two days in a row; any 429; `requests` above 5 or 4; `r2`
+   above 2/2; a month object above about 150 KB. Nothing reads the store yet,
+   so stopping changes no page.
+
+### Precision gate and the reader flag (steps 4 and 5)
+
+1. After `complete`: `POST /identity-links/run?dryRun=1&backfill=1&blind=1`
+   (bearer). It reads the store while `IDENTITY_LINKS_BACKFILL` is unset,
+   writes nothing, and answers `precision` and
+   `lastRun.inputs.backfill.months` (11). The gate: `precision.contradict` 0
+   and no labelled link "different" (amendment (7)'s gate); offline,
+   `bun run measure:identity-links -- --from 2026-06-10 --to 2026-09-09`.
+2. Only with the gate passed, a PR sets `IDENTITY_LINKS_BACKFILL=read` on
+   Dev. Then one `POST /identity-links/run` (never 21:50–23:05 UTC):
+   `identityLinks.lastRun.inputs.backfill.months` 11, `r2.classB` ≤ 17,
+   and `github:m1a2st`'s profile links `jira-account:JIRAUSER305187` "Ken
+   Huang" as corroborated with at least 3 keys (W131).
+3. When `complete` is reached, a later PR removes `IDENTITY_BACKFILL` and its
+   cron entry (step 6): `/health` loses `identityBackfill`; the store stays
+   and is still read.
+
+### Turn off or roll back
+
+- The links: unset `IDENTITY_LINKS_BACKFILL` and merge; the next identity-link
+  run (or a manual one) writes the table without the store (W127).
+- The job: unset `IDENTITY_BACKFILL` (and remove its cron entry) and merge:
+  no request, no R2 call, route 404, no `/health` field. The objects under
+  `internal/identity/v1/apache-kafka/backfill/` stay; deleting them is the
+  owner's step and needed only when slice 6 replaces the store.
+- A failed run never loses progress: the record keeps `months.done`; a run
+  that cannot read the record writes nothing (`/health` `identityBackfill:
+  null`). If the record must be rebuilt, restore it from the month objects'
+  names; never delete it while the job is on (the next run would start over
+  at 2026-09).
+
+Measure: `bun run measure:identity-backfill -- --stub` (no network; the
+largest month's size) and `-- --month <YYYY-MM>` (read-only upstream, one
+month, in-memory bucket; run it outside the windows above);
+`bun run measure:identity-links -- --backfill` (the reader's 17 Class B, 2
+Class A).
+
 ## GitHub review ingestion (Spec 022)
 
 On for Dev (`GITHUB_REVIEWS=metadata@1` since 2026-10-14, `metadata@2` since 2026-10-15, Spec 022

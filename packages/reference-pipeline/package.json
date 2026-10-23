@@ -9,7 +9,8 @@
     "./search-profiles": "./src/search/profiles.ts",
     "./people": "./src/people/index.ts",
     "./people/search": "./src/people/search.ts",
-    "./kip-pages": "./src/people/kip-pages.ts"
+    "./kip-pages": "./src/people/kip-pages.ts",
+    "./identity-backfill": "./src/people/identity-backfill.ts"
   },
   "scripts": {
     "test": "bun test",

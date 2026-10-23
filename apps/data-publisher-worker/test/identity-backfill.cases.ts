@@ -1,0 +1,52 @@
+/**
+ * Spec 019 amendment (8): the `identity-backfill` job (its month reader, range, upstream budget and
+ * stop rules, Worker wiring and `/health` field) and the identity-link job's reader behind
+ * `IDENTITY_LINKS_BACKFILL`. The single source for `identity-backfill.test.ts` and for the
+ * amendment (8) test-plan table in docs/specs/019-contributor-profile/spec.md (`bun run docs:test-plan`).
+ * `recorded` rows read `fixtures/identity-backfill/upstream-2026-10-23.json`: the Example's
+ * read-only GitHub GraphQL and ASF Jira answers of 2026-10-23, reduced to the fields the job reads.
+ * Every upstream call in the tests is a stub; nothing reaches GitHub or Jira.
+ */
+export const testPlanRows = [
+  { id: "W113", case: "keyed pull requests kept", data: "recorded", given: "m1a2st's 91 pull requests created 2025-11-01 … 2026-10-22, as search pages", expected: "58 threads with keys, 33 dropped; thread keys KAFKA-PR-<n>; author github:m1a2st; labels []" },
+  { id: "W113", case: "hyphenless key", data: "constructed", given: "title \"KAFKA1234 fix\"; title \"Kafka 4.2.0 release\"", expected: "the first kept with key KAFKA-1234; the second dropped" },
+  { id: "W113", case: "bot and deleted author", data: "constructed", given: "author __typename Bot \"dependabot\"; author null; a User \"M1A2ST\"", expected: "the first two threads author null; the third github:m1a2st" },
+  { id: "W113", case: "month boundary", data: "constructed", given: "created 2026-08-31T23:59:59Z and 2026-09-01T00:00:00Z, both answered for 2026-09", expected: "only the second in 2026-09; the search query names 2026-09-01T00:00:00+00:00..2026-09-30T23:59:59+00:00 sort:created-asc" },
+  { id: "W114", case: "assignee kept, nothing else", data: "recorded + constructed", given: "the Example's first 50 keys with their assignees and status; user objects carry a constructed name, timeZone, avatarUrls, emailAddress", expected: "per key {key, display} as recorded; the month holds no status, name, timeZone, avatar or email; reporter null; title the key alone" },
+  { id: "W114", case: "unassigned and missing key", data: "constructed", given: "one issue with assignee null; one key absent from the response", expected: "assignee null; no thread for the absent key" },
+  { id: "W114", case: "batching", data: "constructed", given: "a month whose pull requests name 222 distinct keys", expected: "3 Jira requests of 100, 100 and 22 keys, fields=assignee, validateQuery=warn, maxResults=100" },
+  { id: "W114", case: "moved issue", data: "constructed", given: "requested KAFKA-10; the response holds the issue as KAFKA-20", expected: "no thread for KAFKA-10 or KAFKA-20" },
+  { id: "W115", case: "newest first", data: "constructed", given: "now 2026-10-23, coverageFrom 2026-09-10, no record", expected: "fetches 2026-09; months {done [2026-09], next 2026-08, remaining 10}; from 2025-11, until 2026-09" },
+  { id: "W115", case: "resume", data: "constructed", given: "done [2026-08, 2026-09]", expected: "fetches 2026-07; never 2026-09 or 2026-08 again" },
+  { id: "W115", case: "horizon moved", data: "constructed", given: "now 2026-11-05, done 2025-12 … 2026-09", expected: "no upstream request; complete; 2025-11 not fetched" },
+  { id: "W115", case: "complete", data: "constructed", given: "every month done: a first run, then a second run", expected: "no upstream request in either; the first records complete (1 Class A), the second writes nothing (0 Class A)" },
+  { id: "W115", case: "month before record", data: "constructed", given: "a run that reads a month", expected: "puts the month object, then the record; 2 Class B and 2 Class A" },
+  { id: "W116", case: "reader off", data: "constructed", given: "store present, IDENTITY_LINKS_BACKFILL unset", expected: "table byte-identical to the run without the store; no read under the backfill prefix or of its record; no inputs.backfill" },
+  { id: "W116", case: "reader on (positive control)", data: "recorded", given: "m1a2st's pull requests before 2026-09-10 as backfill months 2025-11 … 2026-09, the rest as the log's 2026-09 and 2026-10", expected: "off: no link for m1a2st; read: m1a2st ↔ JIRAUSER305187 corroborated; inputs.backfill.months 2025-11 … 2026-09" },
+  { id: "W116", case: "same month in both stores", data: "constructed", given: "KAFKA-1 assignee A in backfill 2026-09, B in log 2026-09; KAFKA-2 assignee A in backfill 2026-08, B in log 2026-09", expected: "B for both (the log is read after the backfill; an older month never replaces a newer one)" },
+  { id: "W116", case: "window", data: "constructed", given: "log months 2026-09, 2026-10; backfill done 2025-10 … 2026-09", expected: "reads backfill 2025-11 … 2026-09 and log 2026-09, 2026-10 (12 calendar months, 13 objects) oldest first, backfill before log in 2026-09; 2025-10 not read; at most 17 Class B" },
+  { id: "W117", case: "twelve-month pairs", data: "recorded", given: "the Example's five people: their pull requests, the 81 keys' assignees, the 108 keys of the four paired accounts with the pull requests naming them", expected: "links m1a2st ↔ JIRAUSER305187 (22 keys), harmadasg ↔ JIRAUSER306203 (20), unknowntpo ↔ JIRAUSER306218 (10), dybyte ↔ JIRAUSER312871 (9); m1a2st ↔ Chia-Ping Tsai (5) and ↔ Gergely Harmadás (3) refused by dominance; chia7712 none" },
+  { id: "W118", case: "dry run with backfill", data: "constructed", given: "IDENTITY_LINKS_BACKFILL unset, POST /identity-links/run?dryRun=1&backfill=1&blind=1", expected: "reads the store; precision and inputs.backfill in the response; no R2 put; without backfill=1 no store read" },
+  { id: "W119", case: "profile unchanged", data: "constructed", given: "backfill months and record in R2", expected: "the profile of github:m1a2st byte-identical with and without them; the reader reads nothing under internal/identity/v1/*/backfill/" },
+  { id: "W120", case: "429", data: "constructed", given: "GitHub answers 429 on page 2", expected: "no further request; no month written; limited; record keeps done" },
+  { id: "W120", case: "rate-limit 403", data: "constructed", given: "GitHub 403 \"You have exceeded a secondary rate limit\"; GitHub 403 without a rate-limit word", expected: "limited; failed; each one request, no month" },
+  { id: "W120", case: "5xx, timeout, network, bad JSON, GraphQL errors", data: "constructed", given: "Jira 502; a 30 s timeout; a network error; GitHub <html>; GitHub errors [...]", expected: "each: failed, no further request, no retry, no month written" },
+  { id: "W120", case: "positive control", data: "constructed", given: "a month of 230 pull requests (3 pages), 150 keys, all 200", expected: "3 GitHub + 2 Jira requests, sequential, each ≥ 3 s after the previous, 30 s timeout, the publisher's User-Agent; month and record written, ok" },
+  { id: "W121", case: "headroom", data: "constructed", given: "rateLimit.remaining 900 on a 200; then x-ratelimit-remaining 999 on a 200", expected: "stop, limited, retryAfter = resetAt (or x-ratelimit-reset); no month" },
+  { id: "W121", case: "Retry-After", data: "constructed", given: "Jira 200 with Retry-After: 120; a cron run 60 s later; a run 121 s later", expected: "stop, limited, retryAfter +120 s; the run 60 s later sends nothing and writes nothing; the run after it reads the month" },
+  { id: "W122", case: "over budget", data: "constructed", given: "issueCount 640; issueCount 1,200; 480 counted but a 6th page announced; 401 keys", expected: "over-budget after 1, 1, 5 search requests and 0 Jira; after 2 search and 0 Jira; no month; the next run tries the same month" },
+  { id: "W123", case: "gap", data: "constructed", given: "flag read, done [2026-07], coverageFrom 2026-09-10", expected: "the identity-link project fails closed; the last good table kept" },
+  { id: "W123", case: "finished month missing", data: "constructed", given: "the record lists 2026-08, the object is absent; another run with the object unparsable", expected: "fails closed" },
+  { id: "W123", case: "unparsable record", data: "constructed", given: "flag read, backfill-last-run.json \"{not json\"", expected: "fails closed" },
+  { id: "W123", case: "no record", data: "constructed", given: "flag read, no record", expected: "links from the log only; inputs.backfill null" },
+  { id: "W123", case: "nothing finished yet", data: "constructed", given: "flag read, record with done []", expected: "links from the log only; inputs.backfill null; not a gap" },
+  { id: "W123", case: "hole inside done", data: "constructed", given: "done [2026-07, 2026-09]", expected: "fails closed" },
+  { id: "W124", case: "isolation", data: "constructed", given: "the job's tick with fetch throwing and the bucket failing its puts; then failing its reads too", expected: "no other job started; no write outside internal/identity/v1/apache-kafka/backfill/ and the record; the tick does not throw" },
+  { id: "W124", case: "the publication tick", data: "constructed", given: "the publication's and the identity-link job's ticks with IDENTITY_BACKFILL=prs@1", expected: "no GitHub search or Jira request for the backfill; nothing under the backfill prefix or its record" },
+  { id: "W125", case: "off", data: "constructed", given: "IDENTITY_BACKFILL unset or blank, its cron set", expected: "no request, no R2 call, route 404, no /health field" },
+  { id: "W125", case: "unsupported value", data: "constructed", given: "IDENTITY_BACKFILL=prs@2", expected: "the run records failed with the value, keeps done; no upstream request; no other job" },
+  { id: "W126", case: "too soon", data: "constructed", given: "the route without a token; then with it 30 min after the last run; then 61 min after", expected: "401; 409 {ok: false, skipped: \"too-soon\"} with no request; then the run" },
+  { id: "W127", case: "rollback", data: "constructed", given: "a run with the flag read, then one with it unset", expected: "the second table equals the table computed without the store" },
+  { id: "W130", case: "health field", data: "constructed", given: "a record after a limited run", expected: "identityBackfill with lastRun {status limited, retryAfter, requests, r2, month, prs, keyedPrs, keys, assigned, bytesWritten}, months, from, until; 1 Class B for the /health request; redacted error" },
+  { id: "W130", case: "flag unset", data: "constructed", given: "no flag; then the flag and no record yet; then an unreadable record", expected: "no identityBackfill and no R2 read; {revision, lastRun: null, months {done [], next null, remaining 0}, from null, until null}; null" },
+];

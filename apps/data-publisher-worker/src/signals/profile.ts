@@ -12,12 +12,12 @@ export function resolveSignalsMode(value: string | undefined): SignalsMode {
 }
 
 /** Every scheduled job that writes its own data point (Behavior 13; `blob1`). */
-export const SIGNAL_JOBS = ["publication", "digest", "embedding", "cost-guard", "retention", "identity-links", "kip-pages"] as const;
+export const SIGNAL_JOBS = ["publication", "digest", "embedding", "cost-guard", "retention", "identity-links", "kip-pages", "identity-backfill"] as const;
 export type SignalJob = (typeof SIGNAL_JOBS)[number];
 
 /** `r2Counted`: the job counts its own R2 operations (D8: the digest and the embedding job too). */
 export const R2_COUNTED: Readonly<Record<SignalJob, boolean>> = {
-  publication: true, digest: true, embedding: true, "cost-guard": false, retention: true, "identity-links": true, "kip-pages": true,
+  publication: true, digest: true, embedding: true, "cost-guard": false, retention: true, "identity-links": true, "kip-pages": true, "identity-backfill": true,
 };
 
 /** Behavior 16: the jobs that declare a wall budget; only they can make `job.duration` fire. */
@@ -25,6 +25,8 @@ export const WALL_BUDGET_MS: Readonly<Partial<Record<SignalJob, number>>> = {
   retention: 10 * 60_000,
   // `KIP_PAGES_CRON_WALL_MS` (kip-pages/run.ts, which imports this module's users); a test keeps them equal.
   "kip-pages": 14 * 60_000,
+  // `IDENTITY_BACKFILL_WALL_MS` (identity-backfill/run.ts); a test keeps them equal.
+  "identity-backfill": 14 * 60_000,
 };
 
 const HOUR = 3_600_000;

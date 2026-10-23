@@ -34,7 +34,7 @@ type Fields = readonly (string | readonly [string, Fields])[];
  * `search-embedding`), plus `review-queue` from Spec 027 A2. A Worker test checks every Spec 028 job
  * is listed, so a renamed job cannot leave its firings without a bundle.
  */
-export const SRE_JOBS = ["publication", "digest", "review-queue", "embedding", "identity-links", "kip-pages", "retention", "cost-guard"] as const;
+export const SRE_JOBS = ["publication", "digest", "review-queue", "embedding", "identity-links", "kip-pages", "identity-backfill", "retention", "cost-guard"] as const;
 export type SreJob = (typeof SRE_JOBS)[number];
 
 /** Spec 027 A2: the `/health` fields each job's bundle holds, and nothing else. */
@@ -45,6 +45,7 @@ export const JOB_HEALTH_FIELDS: Readonly<Record<SreJob, Fields>> = {
   embedding: [["searchEmbedding", ["lastRun", "lastError", "today"]]],
   "identity-links": [["identityLinks", [["lastRun", ["ok", "status", "at", "durationMs", "r2"]], "lastGoodAt"]]],
   "kip-pages": [["kipPages", [["lastRun", ["ok", "status", "at", "durationMs", "requests", "jiraRequests", "r2", "error"]], "lastGoodAt"]]],
+  "identity-backfill": [["identityBackfill", [["lastRun", ["ok", "status", "at", "durationMs", "month", "requests", "retryAfter", "r2", "error"]], "months"]]],
   retention: [["retention", ["mode", "status", "reason", ["lastRun", ["runId", "deleted", "remaining", "elapsedMs", "r2", "failureKind"]]]]],
   // costGuard is in every bundle already; `budget` arrives with Spec 026 CG27.
   [COST_GUARD_JOB]: ["budget"],

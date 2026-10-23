@@ -316,6 +316,7 @@ Numbered after the first draft's 12 behaviors; nothing above is renumbered.
     | `retention` | `deleted.objects` | `deleted.bytes` | `remaining` | `candidates.objects` | dry run | |
     | `identity-links` | `links.corroborated` | rejected (sum) | `people` | `bytesWritten` | | |
     | `kip-pages` | `pagesRead` | `pagesChanged` | `issuesRead` | `requests` | `bytesWritten` | |
+    | `identity-backfill` (Spec 019 amendment (8)) | `prs` | `keyedPrs` | `keys` | `requests.github` | `requests.jira` | `bytesWritten` |
 
     The cost-guard budget fields are 0 until Spec 026's amendment (CG21–CG37)
     lands; the retention point is written when Spec 029 lands (its Behavior

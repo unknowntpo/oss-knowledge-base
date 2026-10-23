@@ -47,7 +47,8 @@
     "verify:ui": "bun scripts/verify/ui.ts",
     "verify:health": "bun scripts/verify/health.ts",
     "digest": "bun packages/reference-pipeline/scripts/digest.ts",
-    "measure:kip-pages": "bun run --cwd apps/data-publisher-worker measure:kip-pages"
+    "measure:kip-pages": "bun run --cwd apps/data-publisher-worker measure:kip-pages",
+    "measure:identity-backfill": "bun run --cwd apps/data-publisher-worker measure:identity-backfill"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",

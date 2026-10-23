@@ -283,13 +283,16 @@ function stateRules(health: Record_, now: number): { readonly rules: RuleEntry[]
   }
 
   // Jobs whose record is `last-run.json`: present only while their flag is set; null before the first run or on a read error.
-  for (const [key, job] of [["identityLinks", "identity-links"], ["kipPages", "kip-pages"], ["retention", "retention"]] as const) {
+  for (const [key, job] of [["identityLinks", "identity-links"], ["kipPages", "kip-pages"], ["identityBackfill", "identity-backfill"], ["retention", "retention"]] as const) {
     if (!(key in health)) continue;
     const run = object(object(health[key])?.lastRun);
     const runId = text(run?.runId);
     const started = time(run?.at);
     const finished = started === undefined ? undefined : started + (typeof run?.durationMs === "number" ? run.durationMs : typeof run?.elapsedMs === "number" ? run.elapsedMs : 0);
-    rules.push(ageEntry("job.missed", job, finished, now, DAILY, runId, "no run yet"));
+    // Spec 019 amendment (8): a finished backfill records `complete` once and then writes nothing, so no run is due.
+    rules.push(job === "identity-backfill" && run?.status === "complete"
+      ? { id: "job.missed", job, source: "state", status: "ok", value: now - (finished ?? now), threshold: `none once complete; warn: > ${DAILY.warnMs} ms; firing: > ${DAILY.firingMs} ms`, since: null, runId }
+      : ageEntry("job.missed", job, finished, now, DAILY, runId, "no run yet"));
     jobs.push({ job, trends: run?.trends, runId });
   }
   return { rules, jobs };

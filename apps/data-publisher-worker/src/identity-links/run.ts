@@ -13,6 +13,12 @@
  * its new bytes are compared with the recorded digest. Any failed or unparsable read fails the project closed: no table is written
  * and the last good one stays (W76). Plain puts: equal inputs give equal bytes, so two concurrent
  * runs write the same objects (W82).
+ *
+ * Spec 019 amendment (8): with `IDENTITY_LINKS_BACKFILL=read` (or a `?dryRun=1&backfill=1` run) it
+ * also reads the backfill record and each finished backfill month inside its window — the newest 12
+ * calendar months ending at the newest log month — oldest to newest, the backfill's month before the
+ * log's for the same month (W116); at most 17 Class B and 2 Class A. A backfill that is not
+ * contiguous with the log fails the project closed (W123). Unset, it reads no backfill object.
  */
 import { errorText } from "@oss-knowledge-base/semantic-vectorize";
 import {
@@ -33,6 +39,15 @@ import {
   type PrecisionReport,
   type Roster,
 } from "@oss-knowledge-base/reference-pipeline";
+import {
+  addMonths,
+  backfillMonthsToRead,
+  backfillRange,
+  IDENTITY_BACKFILL_LAST_RUN_KEY,
+  IDENTITY_LINKS_BACKFILL_READ,
+  identityBackfillMonthKey,
+  parseIdentityBackfillRecord,
+} from "@oss-knowledge-base/reference-pipeline/identity-backfill";
 
 import { rosterKey } from "../review-queue/store";
 import { identityLinksSignalRun, runIdFor } from "../signals/point";
@@ -56,7 +71,11 @@ export interface IdentityLinksLastRun {
   readonly durationMs: number;
   readonly dryRun?: true;
   readonly blind?: true;
-  readonly inputs: { readonly months: readonly string[]; readonly activityUpdatedAt: string | null; readonly rosterAt: string | null; readonly committersAt: string | null };
+  readonly inputs: {
+    readonly months: readonly string[]; readonly activityUpdatedAt: string | null; readonly rosterAt: string | null; readonly committersAt: string | null;
+    /** Amendment (8): present only while the run reads the backfill store; null when it holds no finished month for the window. */
+    readonly backfill?: { readonly months: readonly string[]; readonly until: string } | null;
+  };
   readonly links: { readonly roster: number; readonly declared: number; readonly corroborated: number };
   readonly rejected: { readonly dominance: number; readonly competitor: number; readonly minimum: number; readonly conflict: number; readonly contradiction: number; readonly removed: number };
   readonly people: number;
@@ -152,6 +171,8 @@ async function sha256Hex(body: string): Promise<string> {
 
 export interface RunIdentityLinksInput {
   readonly flag: string | undefined;
+  /** Amendment (8): `IDENTITY_LINKS_BACKFILL`; `read` reads the backfill store, unset or blank reads none, anything else fails the run. */
+  readonly backfillFlag?: string | undefined;
   readonly bucket: IdentityLinksBucket;
   readonly profiles: readonly PeopleIdentityProfile[];
   /** Bot logins per project (the people profile's list), which pair nothing. */
@@ -202,6 +223,11 @@ export async function runIdentityLinks(input: RunIdentityLinksInput): Promise<Id
     if (input.flag?.trim() !== IDENTITY_LINKS_REVISION) {
       throw new Error(`IDENTITY_LINKS "${input.flag}" is not supported (${IDENTITY_LINKS_REVISION}, or unset)`);
     }
+    const backfillFlag = input.backfillFlag?.trim() ?? "";
+    if (backfillFlag !== "" && backfillFlag !== IDENTITY_LINKS_BACKFILL_READ) {
+      throw new Error(`IDENTITY_LINKS_BACKFILL "${input.backfillFlag}" is not supported (${IDENTITY_LINKS_BACKFILL_READ}, or unset)`);
+    }
+    const readBackfill = backfillFlag === IDENTITY_LINKS_BACKFILL_READ;
     for (const profile of input.profiles) {
       const config = profile.corroboration;
       if (config === undefined) continue;
@@ -215,16 +241,45 @@ export async function runIdentityLinks(input: RunIdentityLinksInput): Promise<Id
       const roster = profile.roster === null
         ? null
         : await readJson(bucket, rosterKey(profile.roster.adapter, profile.roster.project), parseRoster) ?? null;
-      const months = [...state.months].sort().slice(-HORIZON_MONTHS);
       const facts = new IdentityFacts(profile.projectId, config.issueKey, input.bots(profile.projectId));
-      for (const month of months) {
+      const readLog = async (month: string) => {
         const key = peopleActivityMonthKey(profile.projectId, month);
         const parsed = await readJson(bucket, key, (value) => parseActivityMonth(value, profile.projectId, month));
         // A month the state lists but R2 lacks could hide a competing pairing: fail closed.
         if (parsed === undefined) throw new Error(`${key} is listed in the state but missing`);
         facts.add(parsed);
+      };
+      let months: string[];
+      let backfill: { readonly months: readonly string[]; readonly until: string } | null | undefined;
+      if (!readBackfill) {
+        months = [...state.months].sort().slice(-HORIZON_MONTHS);
+        for (const month of months) await readLog(month);
+      } else {
+        // W116: 12 calendar months ending at the newest log month; the backfill fills those before the log.
+        const newest = [...state.months].sort().at(-1);
+        const window = newest === undefined ? [] : Array.from({ length: HORIZON_MONTHS }, (_, index) => addMonths(newest, index - (HORIZON_MONTHS - 1)));
+        months = [...state.months].sort().filter((month) => window.includes(month));
+        const record = await readJson(bucket, IDENTITY_BACKFILL_LAST_RUN_KEY, parseIdentityBackfillRecord);
+        const until = backfillRange(input.now(), state.coverageFrom).until;
+        // W123: an absent record or no finished month is "no backfill yet"; a gap or hole fails closed.
+        const finished = record === undefined ? [] : backfillMonthsToRead({ done: record.months.done, window, until });
+        backfill = finished.length === 0 ? null : { months: finished, until };
+        const logMonths = new Set(months);
+        for (const month of window) {
+          // The backfill's month before the log's: for a key in both, the log's (newer) assignee wins.
+          if (finished.includes(month)) {
+            const key = identityBackfillMonthKey(profile.projectId, month);
+            const parsed = await readJson(bucket, key, (value) => parseActivityMonth(value, profile.projectId, month));
+            if (parsed === undefined) throw new Error(`${key} is a finished backfill month but missing`);
+            facts.add(parsed);
+          }
+          if (logMonths.has(month)) await readLog(month);
+        }
       }
-      inputs = { months, activityUpdatedAt: state.updatedAt, rosterAt: roster?.fetchedAt ?? null, committersAt: profile.committersAt ?? null };
+      inputs = {
+        months, activityUpdatedAt: state.updatedAt, rosterAt: roster?.fetchedAt ?? null, committersAt: profile.committersAt ?? null,
+        ...(backfill === undefined ? {} : { backfill }),
+      };
       const suppressed = await suppressedIdentities({
         ids: [...facts.identities(), ...profile.identityLinks.flatMap((entry) => [entry.a, entry.b])],
         accountNames: facts.accountNames(),
