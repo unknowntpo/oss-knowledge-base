@@ -27,6 +27,7 @@ import { healthBody } from "../src/health";
 import { PUBLICATION_RUN_KEY, signalingPipelineState, sourceRunIdFrom } from "../src/signals/publication";
 import { SignalRecorder, type AnalyticsSql } from "../src/signals/recorder";
 import { signalsHealth } from "../src/signals/rules";
+import { resolveSignalsMode } from "../src/signals/profile";
 
 const TICK = "2026-10-20T22:07:00.000Z";
 const RUN_ID = "publication-2026-10-20T22-07-00-000Z";
@@ -177,6 +178,24 @@ describe("Spec 028 slice 1: the flag", () => {
     expect(await health({ OBSERVABILITY_SIGNALS: "off" })).not.toHaveProperty("signals");
     expect((await health({ OBSERVABILITY_SIGNALS: "yes" })).signals).toEqual({ status: "unconfigured", reason: 'OBSERVABILITY_SIGNALS "yes" is not off or on' });
     expect((await health(vars)).signals).toMatchObject({ status: expect.stringMatching(/^(ok|warn|firing)$/u), rules: expect.any(Array) });
+  });
+
+  test("OB1 (Dev enable): Dev sets the flag on and binds SIGNALS (osskb_signals_dev) and ANALYTICS_SQL; Prod leaves the flag unset and binds neither", async () => {
+    type Config = {
+      readonly vars?: Readonly<Record<string, string>>;
+      readonly analytics_engine_datasets?: readonly { readonly binding: string; readonly dataset: string }[];
+      readonly analytics?: { readonly binding: string };
+    };
+    const config = async (name: string) => JSON.parse(await Bun.file(new URL(`../${name}`, import.meta.url)).text()) as Config;
+    const dev = await config("wrangler.development.jsonc");
+    const prod = await config("wrangler.production.jsonc");
+    expect(resolveSignalsMode(dev.vars?.OBSERVABILITY_SIGNALS)).toBe("on");
+    expect(dev.analytics_engine_datasets).toEqual([{ binding: "SIGNALS", dataset: "osskb_signals_dev" }]);
+    expect(dev.analytics).toEqual({ binding: "ANALYTICS_SQL" });
+    expect(prod.vars?.OBSERVABILITY_SIGNALS).toBeUndefined();
+    expect(resolveSignalsMode(prod.vars?.OBSERVABILITY_SIGNALS)).toBe("off");
+    expect(prod).not.toHaveProperty("analytics_engine_datasets");
+    expect(prod).not.toHaveProperty("analytics");
   });
 });
 
