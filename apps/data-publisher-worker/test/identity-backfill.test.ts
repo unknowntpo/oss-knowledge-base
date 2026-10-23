@@ -503,6 +503,31 @@ const checks: Record<string, () => Promise<void> | void> = {
     await links(withStore, "read");
     expect(withStore.operations.filter((operation) => BACKFILL_KEYS(operation.slice(4))).length).toBeGreaterThan(0);
   },
+  "W116 reader flag not read": async () => {
+    const log = [logMonth("2026-09", [node(1, "KAFKA-1 a", "2026-09-20T00:00:00Z", "x")], new Map([["KAFKA-1", { key: "A", display: "A" }]])), logMonth("2026-10", [], new Map())];
+    const store = [backfillMonth(PROFILE, "2026-08", [node(2, "KAFKA-2 b", "2026-08-02T00:00:00Z", "x")], new Map([["KAFKA-2", { key: "A", display: "A" }]]))];
+    const without = linksBucket(log);
+    await links(without);
+    // Blank is unset (as for every flag of this Worker): the store is not read and the table is the same.
+    const blank = linksBucket(log, store, ["2026-08", "2026-09"]);
+    expect((await links(blank, "  ")).lastRun.ok).toBe(true);
+    expect(table(blank)).toBe(table(without)!);
+    expect(blank.operations.filter((operation) => BACKFILL_KEYS(operation.slice(4)))).toEqual([]);
+    for (const value of ["off", "on", "Read", "yes please"]) {
+      const bucket = linksBucket(log, store, ["2026-08", "2026-09"]);
+      bucket.objects.set(identityLinksKey(KAFKA), "last good table");
+      const record = await links(bucket, value);
+      expect(record.lastRun.ok).toBe(false);
+      expect(record.lastRun.error).toContain(`IDENTITY_LINKS_BACKFILL "${value}" is not supported`);
+      expect(table(bucket)).toBe("last good table");
+      expect(bucket.operations.filter((operation) => operation.startsWith("put ") && operation.slice(4) === identityLinksKey(KAFKA))).toEqual([]);
+      expect(bucket.operations.filter((operation) => BACKFILL_KEYS(operation.slice(4)))).toEqual([]);
+    }
+    // Positive control: "read" on the same layout reads the store.
+    const read = linksBucket(log, store, ["2026-08", "2026-09"]);
+    await links(read, "read");
+    expect(read.operations.filter((operation) => BACKFILL_KEYS(operation.slice(4))).length).toBeGreaterThan(0);
+  },
   "W116 reader on (positive control)": async () => {
     const split = (pull: { createdAt: string }) => pull.createdAt < COVERAGE;
     const before = recordedNodes((pull) => split(pull) && pull.createdAt >= "2025-11-01");
@@ -742,6 +767,8 @@ const checks: Record<string, () => Promise<void> | void> = {
     };
     expect((await attempt((upstream) => { upstream.issueCount = 640; }, septemberNodes(100))).sent.length).toBe(1);
     expect((await attempt((upstream) => { upstream.issueCount = 1_200; }, septemberNodes(100))).sent.length).toBe(1);
+    // GitHub's 1,000-result search cap needs no check of its own: 5 pages of 100 stay below it.
+    expect(IDENTITY_BACKFILL_BUDGET.pageSize * IDENTITY_BACKFILL_BUDGET.githubRequests).toBeLessThanOrEqual(1_000);
     const growing = await attempt((upstream) => { upstream.issueCount = 480; upstream.hasNextPage = () => true; }, septemberNodes(480));
     expect([growing.count("github"), growing.count("jira")]).toEqual([5, 0]);
     const keyed = await attempt(() => undefined, septemberNodes(401));

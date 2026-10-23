@@ -1063,7 +1063,7 @@ Stop rules (the job applies them itself; no month is written):
 | --- | --- | --- |
 | 429; 403 naming a rate limit; any `Retry-After`; GitHub `rateLimit.remaining` or `x-ratelimit-remaining` below 1,000 | `limited`, with `retryAfter` when known | sends nothing before `retryAfter` (cron and route alike), then retries the same month |
 | 5xx, timeout, network error, other non-2xx, unparsable body, GraphQL `errors` | `failed` | the next day's run retries the same month (one request a day while upstream keeps failing) |
-| `issueCount` above 1,000 or more than 5 pages; more than 400 keys | `over-budget` | tries the same month again; only a reviewed PR changes the caps |
+| `issueCount` above 500 (more than 5 pages; this also covers GitHub's 1,000-result cap); more than 400 keys | `over-budget` | tries the same month again; only a reviewed PR changes the caps |
 
 ### Enable on Dev (its own PR, rollout step 2)
 
@@ -1085,7 +1085,7 @@ Prod publication's retries (until about 00:30), of the `sre-agent` ticks
    Expected (200): `lastRun {ok: true, status: "ok", month: "2026-09"}`,
    `months {done: ["2026-09"], next: "2026-08", remaining: 10}`,
    `requests {github ≤ 5, jira ≤ 4}`, `r2 {classA: 2, classB: 2}`,
-   `bytesWritten` about 75,000 or less, `prs` about 328. A second call within
+   `bytesWritten` below about 95,000 (`measure:identity-backfill -- --stub`, 328 pull requests and 222 keys: 3 Jira requests, 93,580 bytes), `prs` about 328. A second call within
    60 minutes answers 409 `too-soon` and sends nothing.
 4. Daily (step 3 of the spec, about 10 days): `months.remaining` falls by one
    a day with `lastRun.ok` true, until `status: "complete"` with `done`

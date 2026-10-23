@@ -43,10 +43,12 @@ export const IDENTITY_BACKFILL_LAST_RUN_KEY = `${IDENTITY_PREFIX}backfill-last-r
 export const IDENTITY_BACKFILL_BUDGET = {
   githubRequests: 5,
   jiraRequests: 4,
+  /**
+   * GitHub search answers at most 1,000 results per query; `pageSize` × `githubRequests` (500) stays
+   * below it, so the more-than-5-pages rule also stops every month above that cap.
+   */
   pageSize: 100,
   jiraKeysPerRequest: 100,
-  /** GitHub search answers at most 1,000 results per query. */
-  searchCap: 1_000,
   spacingMs: 3_000,
   timeoutMs: 30_000,
   /** The token is shared with the publication and Spec 022: stop when less than this is left. */
@@ -500,7 +502,6 @@ export async function runIdentityBackfill(deps: IdentityBackfillDeps): Promise<I
         if (page.remaining !== null && page.remaining < budget.minRemaining) {
           throw new RunFailure(`GitHub rate limit remaining ${page.remaining} is below ${budget.minRemaining}`, "limited", page.resetAt ?? undefined);
         }
-        if (page.issueCount > budget.searchCap) throw new RunFailure(`${month} has ${page.issueCount} pull requests, above the search cap of ${budget.searchCap}`, "over-budget");
         if (Math.ceil(page.issueCount / budget.pageSize) > budget.githubRequests) {
           throw new RunFailure(`${month} has ${page.issueCount} pull requests: more than ${budget.githubRequests} search pages`, "over-budget");
         }

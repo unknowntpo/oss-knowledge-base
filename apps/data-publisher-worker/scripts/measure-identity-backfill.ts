@@ -56,8 +56,12 @@ bucket.objects.set(peopleActivityStateKey(KAFKA_IDENTITY_BACKFILL.projectId), JS
 bucket.classB = 0;
 
 function stubFetch(prs: number, keys: number) {
+  // About two thirds of the pull requests carry a key (the Example: 1,845 of 2,845), and at least
+  // `keys` of them, spread evenly; the keyed ones name `keys` distinct keys, so 222 keys mean 3 Jira requests.
+  const keyed = Math.min(prs, Math.max(keys, Math.round((prs * 2) / 3)));
+  const keyIndex = (index: number) => Math.floor(((index + 1) * keyed) / prs) > Math.floor((index * keyed) / prs) ? Math.floor((index * keyed) / prs) : null;
   const nodes = Array.from({ length: prs }, (_, index) => ({
-    number: 20_000 + index, title: index % 3 === 2 ? `MINOR: change ${index}` : `KAFKA-${19_000 + (index % keys)}: change ${index}`,
+    number: 20_000 + index, title: keyIndex(index) === null ? `MINOR: change ${index}` : `KAFKA-${19_000 + (keyIndex(index)! % keys)}: change ${index}`,
     createdAt: `${month}-${String(1 + (index % 28)).padStart(2, "0")}T12:00:00Z`, url: `https://github.com/apache/kafka/pull/${20_000 + index}`,
     author: { __typename: "User", login: `dev-${index % 90}` },
   }));

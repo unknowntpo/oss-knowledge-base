@@ -2153,7 +2153,8 @@ Stop rules, all of them "stop now, no retry in this run, write no month":
    or `resetAt`) is recorded; a cron run before `retryAfter` sends nothing
    and writes nothing.
 3. A month needing a 6th search page, a 5th Jira request, or an `issueCount`
-   above 1,000 (the search cap): status `over-budget`; the caps change only
+   above 1,000 (the search cap; such a month always needs a 6th page, so the
+   page rule is the one check): status `over-budget`; the caps change only
    by a reviewed PR.
 
 Retries are the next day's run. A failing run sends at most one request
@@ -2288,6 +2289,7 @@ test calls GitHub or Jira.
 | W115 | complete | constructed | every month done: a first run, then a second run | no upstream request in either; the first records complete (1 Class A), the second writes nothing (0 Class A) |
 | W115 | month before record | constructed | a run that reads a month | puts the month object, then the record; 2 Class B and 2 Class A |
 | W116 | reader off | constructed | store present, IDENTITY_LINKS_BACKFILL unset | table byte-identical to the run without the store; no read under the backfill prefix or of its record; no inputs.backfill |
+| W116 | reader flag not read | constructed | store present; IDENTITY_LINKS_BACKFILL blank, "off", "on", "Read", "yes please" | blank: as unset (table byte-identical to the run without the store); every other value: run failed naming the value, no table written, the last good table kept; none reads under the backfill prefix or its record |
 | W116 | reader on (positive control) | recorded | m1a2st's pull requests before 2026-09-10 as backfill months 2025-11 … 2026-09, the rest as the log's 2026-09 and 2026-10 | off: no link for m1a2st; read: m1a2st ↔ JIRAUSER305187 corroborated; inputs.backfill.months 2025-11 … 2026-09 |
 | W116 | same month in both stores | constructed | KAFKA-1 assignee A in backfill 2026-09, B in log 2026-09; KAFKA-2 assignee A in backfill 2026-08, B in log 2026-09 | B for both (the log is read after the backfill; an older month never replaces a newer one) |
 | W116 | window | constructed | log months 2026-09, 2026-10; backfill done 2025-10 … 2026-09 | reads backfill 2025-11 … 2026-09 and log 2026-09, 2026-10 (12 calendar months, 13 objects) oldest first, backfill before log in 2026-09; 2025-10 not read; at most 17 Class B |
@@ -2328,7 +2330,8 @@ them a new surface, key layout or budget:
    nothing (0 Class A). Spec 028's `job.missed` treats a `complete` record as
    not due, as it treats the embedding job with nothing pending.
 2. **Over budget is found early.** When the first search page's
-   `issueCount` needs more than 5 pages (or exceeds 1,000), the run stops
+   `issueCount` needs more than 5 pages (which every count above 1,000, the
+   search cap, does: one check covers both), the run stops
    after that one request; a month whose count grows during paging stops
    after the 5th. Keys needing more than 4 Jira requests stop before any
    Jira request. The record keeps `done`, so the next run tries the month
