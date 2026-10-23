@@ -42,20 +42,24 @@ export function runLog(context: RunContext | undefined, level: "log" | "error", 
 const DAY = 86_400_000;
 const LIMIT = 20;
 
-/** The stored columns the history reads; each is also a `GROUP BY` key. */
+/**
+ * The stored columns the history reads, selected and grouped by their raw names. They carry no alias:
+ * the binding resolves a clause's column to its SELECT alias and then fails to find the alias in the
+ * dataset (Dev 2026-10-23: "column `writtenAt` not found"). `historyPoints` maps them by name.
+ */
 const HISTORY_COLUMNS = "index1, blob3, double1, double2, double3, double6, double7, double8, double9, double10, double11, double12, timestamp";
 
 /**
  * Behavior 4: one parameterized `SELECT`, bounded by time and by `blob1`, the current run excluded.
  * Behavior 6: the Analytics SQL binding has no `_sample_interval` column (that is the separate WAE SQL
  * API); it applies sample weights to `COUNT`. Grouping by every stored column keeps one row per point
- * and makes `COUNT(*)` that point's weight: 1 when unsampled.
+ * and makes `COUNT(*)` that point's weight: 1 when unsampled. Only that aggregate has an alias, used
+ * nowhere but the SELECT list.
  */
 export function historyQuery(job: SignalJob, runId: string, environment: "development" | "production", now: number): { readonly query: string; readonly params: Record<string, string> } {
   return {
     query: [
-      "SELECT index1 AS runId, blob3 AS status, double1 AS ok, double2 AS durationMs, double3 AS r2ClassA, double6 AS completedAtMs,",
-      "double7 AS c1, double8 AS c2, double9 AS c3, double10 AS c4, double11 AS c5, double12 AS c6, timestamp AS writtenAt, COUNT(*) AS weight",
+      `SELECT ${HISTORY_COLUMNS}, COUNT(*) AS weight`,
       `FROM events.analyticsEngine."${signalsDataset(environment)}"`,
       "WHERE blob1 = $job AND index1 != $runId AND timestamp >= $start",
       `GROUP BY ${HISTORY_COLUMNS}`,
@@ -70,17 +74,18 @@ const number = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 };
 
-function historyPoints(data: readonly unknown[]): HistoryPoint[] {
+/** Maps the binding's raw-keyed rows (`index1`, `blob3`, `doubleN`, `weight`) to history points. */
+export function historyPoints(data: readonly unknown[]): HistoryPoint[] {
   return data.map((value) => {
     const row = (value ?? {}) as Record<string, unknown>;
     const point: HistoryPoint = {
-      runId: String(row.runId ?? ""),
-      status: String(row.status ?? ""),
-      ok: number(row.ok) === 1,
-      durationMs: number(row.durationMs),
-      r2ClassA: number(row.r2ClassA),
-      completedAtMs: number(row.completedAtMs),
-      counters: [row.c1, row.c2, row.c3, row.c4, row.c5, row.c6].map(number),
+      runId: String(row.index1 ?? ""),
+      status: String(row.blob3 ?? ""),
+      ok: number(row.double1) === 1,
+      durationMs: number(row.double2),
+      r2ClassA: number(row.double3),
+      completedAtMs: number(row.double6),
+      counters: [row.double7, row.double8, row.double9, row.double10, row.double11, row.double12].map(number),
       // The weighted COUNT(*) of the point's group; a row without it is treated as sampled.
       sampleInterval: row.weight === undefined ? Number.NaN : number(row.weight),
     };
