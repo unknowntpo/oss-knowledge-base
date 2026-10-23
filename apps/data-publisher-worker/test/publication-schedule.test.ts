@@ -59,7 +59,7 @@ function cadenceOf(cron: string): number {
 describe("Spec 018 daily publication schedule", () => {
   test("T1: Dev publishes once a day at 22:07 UTC and Prod at 22:37 UTC, each with one publisher cron", async () => {
     // Dev's other entries are the digest's (Spec 014 D86) and the Spec 019 amendment (7) jobs'; none is a publication.
-    const target = (cron: string) => cronTarget(cron, "47 22 * * *", undefined, "17 2 * * *", "43 3 * * *");
+    const target = (cron: string) => cronTarget(cron, "47 22 * * *", undefined, "17 2 * * *", "43 3 * * *", "30 0 * * *;0 11 * * *");
     expect((await crons("development")).filter((cron) => target(cron) === "publisher")).toEqual(["7 22 * * *"]);
     expect(await crons("production")).toEqual(["37 22 * * *"]);
   });

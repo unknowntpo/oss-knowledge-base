@@ -148,8 +148,9 @@ trips on its own. Storage alone would trip the budget at 10 + 4 / 0.015 ≈
      hundreds of GB for the error to matter.
    - Neuron history: a month-to-date neuron sum needs a ledger per day; the
      projection uses today's rate instead (Behavior 5a). This Worker's
-     neuron caps sum to 8,500 a day (digest 5,000, embedding 2,500, queries
-     1,000), under the 10,000 included, so its neurons never bill.
+     neuron caps sum to 10,000 a day (digest 5,000, embedding 2,500, queries
+     1,000, and since Spec 027 slice 2 the sre-agent 1,500), the 10,000
+     included, so its neurons never bill.
 3. **Simplify.** One pure function prices a metric, one sums and judges the
    budget, one judges the spike; the breaker and refusals are unchanged.
 4. **Shorten the cycle.** The prices and the budget boundaries are two
@@ -397,7 +398,9 @@ closed.
 4. In-app estimates: neurons today = digest `today.estimatedNeurons` +
    embedding `today.estimatedNeurons` + query gate `today.neurons` (each 0
    when its object is not bound; the metric is unavailable without the `AI`
-   binding). Vectorize (only with `SEARCH_VECTORS`): stored =
+   binding) + the Spec 027 `sre-agent` job's `today.neurons` from
+   `internal/sre/v1/<env>/state.json` (0 with no read while `SRE_AGENT` is
+   off, and for a ledger of another UTC day; Spec 027 B31, SRE62). Vectorize (only with `SEARCH_VECTORS`): stored =
    `vectorCount × dimensions`; queried = (month-to-date gate index queries +
    `vectorCount`) × `dimensions`.
 5. (amended: 5a) Per metric: `percent = value / allowance × 100`. A counter (R2

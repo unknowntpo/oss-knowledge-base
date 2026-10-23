@@ -343,7 +343,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       { job: "publication", ruleId: "job.missed", window: false },
       { job: "digest", ruleId: "job.missed", window: false },
       { job: "review-queue", ruleId: "job.failures", window: true },
-      { job: "search-embedding", ruleId: "job.failures", window: true },
+      { job: "embedding", ruleId: "job.failures", window: true },
       { job: "identity-links", ruleId: "job.missed", window: false },
       { job: "kip-pages", ruleId: "job.failures", window: true },
       { job: "retention", ruleId: "job.missed", window: false },
@@ -545,7 +545,7 @@ function expectedFields(job: string, health: Health): unknown {
     case "publication": return { running: health.running, scheduled: health.scheduled, followUp: health.followUp, phase: health.phase, lastRun: pick(lastRun, ["ok", "runId", "completedAt", "copiedObjectCount", "reusedObjectCount", "r2", "pollTruncated"]), sources: health.sources };
     case "digest": return { digest: { lastRun: pick((health.digest as { lastRun: unknown }).lastRun, ["ok", "runId", "completedAt", "durationMs", "rejections"]) } };
     case "review-queue": return { reviewQueue: health.reviewQueue };
-    case "search-embedding": return { searchEmbedding: pick(health.searchEmbedding, ["lastRun", "lastError", "today"]) };
+    case "embedding": return { searchEmbedding: pick(health.searchEmbedding, ["lastRun", "lastError", "today"]) };
     case "identity-links": return { identityLinks: { lastRun: pick((health.identityLinks as { lastRun: unknown }).lastRun, ["ok", "status", "at", "durationMs", "r2"]), lastGoodAt: (health.identityLinks as { lastGoodAt: unknown }).lastGoodAt } };
     case "kip-pages": return { kipPages: { lastRun: pick((health.kipPages as { lastRun: unknown }).lastRun, ["ok", "status", "at", "durationMs", "requests", "jiraRequests", "r2", "error"]), lastGoodAt: (health.kipPages as { lastGoodAt: unknown }).lastGoodAt } };
     case "retention": {
@@ -568,7 +568,7 @@ function readDir(dir: string): { path: string; text: string }[] {
 describe("Spec 027 Amendment (2) L1 tick", () => {
   test("every row has a scenario and every A2 job has a field list", () => {
     expect(testPlanRows.filter((row) => scenarios[row.case] === undefined).map((row) => row.case)).toEqual([]);
-    expect(Object.keys(JOB_HEALTH_FIELDS).sort()).toEqual(["cost-guard", "digest", "identity-links", "kip-pages", "publication", "retention", "review-queue", "search-embedding"]);
+    expect(Object.keys(JOB_HEALTH_FIELDS).sort()).toEqual(["cost-guard", "digest", "embedding", "identity-links", "kip-pages", "publication", "retention", "review-queue"]);
   });
 
   test.each(testPlanRows)("$id: $case", async (row) => {

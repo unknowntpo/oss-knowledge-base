@@ -35,7 +35,17 @@ export interface TickDeps {
   readonly library?: PlaybookLibrary;
   readonly toolTimeoutMs?: number;
   readonly ciTimeoutMs?: number;
+  /** Called as each step of B26 starts (0–7); a throw ends the tick like any other error (SRE47). */
+  readonly onStep?: (step: number) => void;
 }
+
+/** B33: the same `runId` in the WAE point, the run record, the trajectories and the log line. */
+export const sreRunId = (now: Date) => `sre-agent-${now.toISOString().replace(/[:.]/gu, "-")}`;
+
+/** `state.json`'s `lastRun` (B33), served by `/health.sreAgent`. */
+export type LastRun =
+  | { readonly runId: string; readonly at: string; readonly status: "ok"; readonly firings: number; readonly diagnosed: number; readonly notDiagnosed: number; readonly modelCalls: number; readonly neurons: number; readonly verdicts: string[]; readonly recordKey: string }
+  | { readonly runId: string; readonly at: string; readonly status: "failed"; readonly reason: string };
 
 export interface DiagnosisRecord {
   readonly fingerprints: string[];
@@ -97,7 +107,9 @@ function dryRun(bundle: Bundle): Diagnosis {
 }
 
 export async function runTick(deps: TickDeps): Promise<TickResult> {
+  const step = deps.onStep ?? (() => undefined);
   // Step 0: the flag first; `off` touches nothing.
+  step(0);
   const flag = parseFlag(deps.flag);
   if (flag.mode === "off") return flag;
   const mode = flag.mode;
@@ -105,7 +117,7 @@ export async function runTick(deps: TickDeps): Promise<TickResult> {
   const { env } = deps;
   const at = deps.now.toISOString();
   const date = utcDate(deps.now);
-  const runId = `sre-agent-${at.replace(/[:.]/gu, "-")}`;
+  const runId = sreRunId(deps.now);
   const store = scopedStore(env, deps.store);
   const stateKey = sreKey(env, "state.json");
   const state: SreState = loadState(await store.get(stateKey), date);
@@ -115,21 +127,27 @@ export async function runTick(deps: TickDeps): Promise<TickResult> {
   const library = deps.library ?? PLAYBOOK_LIBRARY;
 
   // Steps 1–2: firings of this environment, then dedupe and caps.
+  step(1);
   const health = await deps.readHealth();
   const ci = await readCiRelease(env, deps.fetch, deps.ciTimeoutMs === undefined ? {} : { timeoutMs: deps.ciTimeoutMs });
   const { firings, signals } = collectFirings(env, health, ci);
+  step(2);
   const plan = planDiagnoses(firings, state, date);
+  if (plan.groups.length === 0) step(3);
 
   // Steps 4–6 per job (step 3, no new firing, is the empty loop).
   const diagnoses: DiagnosisRecord[] = [];
   for (const group of plan.groups) {
+    step(4);
     const bundle = await buildBundle({ env, job: group.job, firings: group.firings, health, querySignals: deps.querySignals, ci, library, secrets });
     state.today.diagnoses += 1;
+    step(5);
     const diagnosis = mode === "dry" ? dryRun(bundle) : await diagnoseBundle({
       model: deps.model!, modelId: deps.modelId, bundle, ledger,
       tools: { env, health, querySignals: deps.querySignals, fetch: deps.fetch, library, secrets, ciRuns: group.job === CI_JOB },
       ...(deps.toolTimeoutMs === undefined ? {} : { toolTimeoutMs: deps.toolTimeoutMs }),
     });
+    step(6);
     const trajectoryKey = sreKey(env, `trajectories/${date}/${runId}-${group.job}.json`);
     await store.put(trajectoryKey, JSON.stringify({
       runId, job: group.job, bundle: bundle.items, ...diagnosis.trajectory,
@@ -140,6 +158,7 @@ export async function runTick(deps: TickDeps): Promise<TickResult> {
   }
 
   // Step 7: the run record, then state.json (B33).
+  step(7);
   const recordKey = sreKey(env, `runs/${date}/${runId}.json`);
   const runRecord: RunRecord = {
     runId, env, mode, at,
@@ -157,11 +176,27 @@ export async function runTick(deps: TickDeps): Promise<TickResult> {
   };
   await store.put(recordKey, JSON.stringify(runRecord));
   state.lastRun = {
-    runId, at, firings: runRecord.firings, diagnosed: runRecord.diagnosed, notDiagnosed: runRecord.notDiagnosed.length,
+    runId, at, status: "ok", firings: runRecord.firings, diagnosed: runRecord.diagnosed, notDiagnosed: runRecord.notDiagnosed.length,
     modelCalls: runRecord.modelCalls, neurons: runRecord.neurons, verdicts: diagnoses.map((value) => value.verdict), recordKey,
   };
   await persist(state);
   return { mode, runRecord };
+}
+
+/**
+ * B23: the Worker branch records a tick that threw as `lastRun.status: "failed"` with its sanitized
+ * reason, keeping the fingerprints and `today` already in `state.json`. A `state.json` that cannot be
+ * read or parsed is never replaced (that would reset the day's neuron reservations, B31): the error
+ * propagates, and `/health.sreAgent` reports the read error instead.
+ */
+export async function recordFailedTick(input: { readonly env: Env; readonly store: RawStore; readonly now: Date; readonly reason: string }): Promise<LastRun> {
+  const store = scopedStore(input.env, input.store);
+  const key = sreKey(input.env, "state.json");
+  const state = loadState(await store.get(key), utcDate(input.now));
+  const lastRun: LastRun = { runId: sreRunId(input.now), at: input.now.toISOString(), status: "failed", reason: input.reason };
+  state.lastRun = lastRun;
+  await store.put(key, JSON.stringify(state));
+  return lastRun;
 }
 
 function record(env: Env, firings: readonly Firing[], bundle: Bundle, diagnosis: Diagnosis, model: string, at: string, trajectoryKey: string): DiagnosisRecord {

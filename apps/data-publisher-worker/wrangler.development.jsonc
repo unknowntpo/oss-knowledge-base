@@ -30,7 +30,10 @@
     "IDENTITY_LINKS_CRON": "17 2 * * *",
     "KIP_PAGES": "authors@1",
     "KIP_PAGES_CRON": "43 3 * * *",
-    "OBSERVABILITY_SIGNALS": "on"
+    "OBSERVABILITY_SIGNALS": "on",
+    "SRE_AGENT": "off",
+    "SRE_AGENT_CRON": "30 0 * * *;0 11 * * *",
+    "SRE_AGENT_MODEL": "@cf/zai-org/glm-4.7-flash"
   },
   "ai": {
     "binding": "AI"
@@ -51,7 +54,7 @@
     }
   ],
   "triggers": {
-    "crons": ["7 22 * * *", "47 22 * * *", "17 2 * * *", "43 3 * * *"]
+    "crons": ["7 22 * * *", "47 22 * * *", "17 2 * * *", "43 3 * * *", "30 0 * * *", "0 11 * * *"]
   },
   "r2_buckets": [
     {

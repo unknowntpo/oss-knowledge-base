@@ -16,12 +16,16 @@
     "measure:kip-pages": "bun scripts/measure-kip-pages.ts"
   },
   "dependencies": {
+    "@ai-sdk/provider": "4.0.25",
     "@oss-knowledge-base/domain": "workspace:*",
     "@oss-knowledge-base/github-publisher": "workspace:*",
     "@oss-knowledge-base/reference-pipeline": "workspace:*",
     "@oss-knowledge-base/search": "workspace:*",
     "@oss-knowledge-base/semantic-vectorize": "workspace:*",
-    "@oss-knowledge-base/serving-contract": "workspace:*"
+    "@oss-knowledge-base/serving-contract": "workspace:*",
+    "@oss-knowledge-base/sre-agent": "workspace:*",
+    "agents": "0.27.0",
+    "ai": "7.0.133"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260820.1",

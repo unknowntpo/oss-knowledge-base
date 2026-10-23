@@ -17,7 +17,7 @@ import {
   type ToolSet,
 } from "ai";
 import { z } from "zod";
-import { redact, renderItem, type Bundle, type EvidenceItem } from "./bundle";
+import { redact, renderItem, SRE_JOBS, type Bundle, type EvidenceItem } from "./bundle";
 import { checkEvidence, diagnosisOutputSchema, type DiagnosisOutput, type EvidenceCheck } from "./evidence";
 import { githubGet } from "./firings";
 import type { PlaybookLibrary } from "./playbook";
@@ -82,12 +82,10 @@ export const SYSTEM_PROMPT = [
   "ownerAction is text for the owner. You cannot run, pause, reset, deploy or write anything.",
 ].join("\n");
 
-const JOBS = ["publication", "digest", "review-queue", "search-embedding", "identity-links", "kip-pages", "retention", "cost-guard"] as const;
-
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(`timeout after ${ms} ms`)), ms); });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+  return Promise.race([promise, timeout]).finally(() => { if (timer !== undefined) clearTimeout(timer); });
 }
 
 const json = (value: unknown) => JSON.stringify(value ?? null, null, 2);
@@ -117,7 +115,7 @@ export function readOnlyTools(bundle: Bundle, deps: ToolDeps, timeoutMs: number)
       description: "One of the fixed Analytics templates on this environment's dataset: Q-history (job), Q-run (runId), Q-window (at, ISO time).",
       inputSchema: z.object({
         template: z.enum(["Q-history", "Q-run", "Q-window"]),
-        job: z.enum(JOBS).optional(),
+        job: z.enum(SRE_JOBS).optional(),
         runId: z.string().regex(/^[a-z]+(?:[.-][a-z]+)*-[0-9TZ-]+$/u).optional(),
         at: z.string().datetime().optional(),
       }),

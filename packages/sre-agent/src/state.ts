@@ -3,6 +3,7 @@
  * ≤ 3 diagnoses, ≤ 12 steps each, ≤ 1,500 neurons a UTC day, reserved before each model call.
  */
 import { V1_RULES } from "./firings";
+import type { LastRun } from "./tick";
 import type { Firing } from "./types";
 
 export const MAX_DIAGNOSES_PER_DAY = 3;
@@ -14,7 +15,7 @@ export interface SreState {
   /** Fingerprint → the `runId` last diagnosed and its UTC day. */
   fingerprints: Record<string, { runId: string | null; diagnosedOn: string }>;
   today: { date: string; diagnoses: number; neurons: number };
-  lastRun?: unknown;
+  lastRun?: LastRun;
 }
 
 export function emptyState(date: string): SreState {

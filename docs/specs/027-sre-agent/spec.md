@@ -1,6 +1,6 @@
 # Spec 027: Read-only SRE triage agent
 
-Status: Draft (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; [Amendment (1)](#amendment-1-triggered-diagnosis-2026-10-22) 2026-10-22: the agent diagnoses only after a deterministic rule fires; [Amendment (2)](#amendment-2-a-worker-job-on-the-ai-sdk-2026-10-22) 2026-10-22: an `sre-agent` job on the data publisher Worker, AI SDK with Workers AI, invariant playbooks; A2-1–A2-5 decided by owner 2026-10-22; [Dev fault-injection drill](#dev-fault-injection-drill-2026-10-22) added 2026-10-22; A2-9 slice 1 (the `packages/sre-agent` library core, L1/L2 tests) implemented, not wired into the Worker, flag unset everywhere; see [Slice 1 notes](#slice-1-notes-2026-10-22))
+Status: Draft (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; [Amendment (1)](#amendment-1-triggered-diagnosis-2026-10-22) 2026-10-22: the agent diagnoses only after a deterministic rule fires; [Amendment (2)](#amendment-2-a-worker-job-on-the-ai-sdk-2026-10-22) 2026-10-22: an `sre-agent` job on the data publisher Worker, AI SDK with Workers AI, invariant playbooks; A2-1–A2-5 decided by owner 2026-10-22; [Dev fault-injection drill](#dev-fault-injection-drill-2026-10-22) added 2026-10-22; A2-9 slice 1 (the `packages/sre-agent` library core, L1/L2 tests) implemented; A2-9 slice 2 (the `sre-agent` cron job wired into the data publisher Worker, `/health.sreAgent`, the Spec 026 neuron term) implemented with `SRE_AGENT=off` on Dev and Prod, the drill routes not yet; see [Slice 1 notes](#slice-1-notes-2026-10-22) and [Slice 2 notes](#slice-2-notes-2026-10-23))
 Date: 2026-10-20 (amended 2026-10-22)
 Traceability: enforced
 Builds on: Spec 008 (R2 operations), Spec 010, 011, 018, 021 (freshness and stalls), Spec 014 (digest), Spec 019 amendment (7) (identity-links, kip-pages jobs), Spec 020 (feature map), Spec 026 and its dollar-budget amendment (cost guard), Spec 028 (observability signals, PR #108, not merged), Spec 029 (R2 retention)
@@ -125,7 +125,7 @@ schedule caused by a guard pause is explained, not re-reported). Per job:
 | `publication` (Dev 22:07, Prod 22:37 UTC) | `running`, `scheduled`, `followUp`, `phase`, `lastRun {ok, runId, completedAt, copiedObjectCount, reusedObjectCount, r2, pollTruncated}`, `sources` | missed schedule, consecutive failures, duration growth, Class A above baseline | `get_ci_status` when Prod's deploy may be stale |
 | `digest` (Dev 22:47) | `digest.lastRun {ok, runId, completedAt, durationMs, rejections}` | missed schedule, consecutive failures, duration growth | the publication's `sourceRunId` point |
 | `review-queue` (no cron) | `reviewQueue` | consecutive failures | none |
-| `search-embedding` | `searchEmbedding {lastRun, lastError, today}` | consecutive failures, duration growth | none |
+| `embedding` (Spec 028's job id; route `/search-embedding/run`) | `searchEmbedding {lastRun, lastError, today}` | consecutive failures, duration growth | none |
 | `identity-links` (Dev 02:17) | `identityLinks {lastRun {ok, status, at, durationMs, r2}, lastGoodAt}` | missed schedule, consecutive failures | none |
 | `kip-pages` (Dev 03:43) | `kipPages {lastRun {ok, status, at, durationMs, requests, jiraRequests, r2, error}, lastGoodAt}` | missed schedule, consecutive failures, duration growth | none |
 | `retention` (planned 10:17) | `retention {mode, status, reason, lastRun {runId, deleted, remaining, elapsedMs, r2, failureKind}}` | missed schedule, consecutive failures, Class A above baseline | none |
@@ -689,6 +689,61 @@ it differs from the text above:
   for the library; the wiring slice serves the one and adds no other
   request.
 
+### Slice 2 notes (2026-10-23)
+
+Slice 2 wires the core into the data publisher Worker
+(`apps/data-publisher-worker/src/sre-agent/run.ts`) with `SRE_AGENT=off` on
+Dev and Prod, so the merge changes nothing at runtime except
+`/health.sreAgent: {mode: "off"}` and two Dev cron ticks that return at once.
+Where it differs from the text above, or settles what it left open:
+
+- **Cron (A2-3).** `SRE_AGENT_CRON` holds the job's expressions separated by
+  `;` (Dev `30 0 * * *;0 11 * * *`, both also in `triggers.crons`), because
+  B23 names one variable and A2-3 two ticks that no single expression gives. A
+  tick equal to one of them is the job's whatever the flag, so it never falls
+  through to the publication. Prod has no `SRE_AGENT_CRON` and no trigger
+  (Decision A2-4); its `SRE_AGENT` is `off`.
+- **`/health.sreAgent` (B25, B33).** Always present: `{mode: "off"}` (plus
+  `reason: "invalid-flag"`) with no read while off; otherwise one `state.json`
+  read giving `{mode, status, reason, lastRun, today}`, where `status` is the
+  last tick's `ok` or `failed` (null before the first tick) and `reason` its
+  sanitized error. `lastRun` gains `status`; a failed tick's `lastRun` is
+  `{runId, at, status: "failed", reason}` and keeps `fingerprints` and `today`.
+  A `state.json` that cannot be read or parsed is never replaced, since that
+  would reset the day's neuron reservations (B31): the tick's log line and
+  WAE point carry the failure, and `/health.sreAgent` shows `status:
+  "unknown"` with the read error.
+- **`/health` for the tick (B24, SRE34).** The tick reads the body the route
+  serves (one function, `servedHealth`, redacted the same way) without
+  `sreAgent`, so `get_health_section` never sees the agent's own state (SRE71
+  later refuses that path explicitly).
+- **WAE point (B33).** Written only while `OBSERVABILITY_SIGNALS=on` and
+  `SIGNALS` is bound, in Spec 028's layout (`blobs [sre-agent, env, status,
+  ""]`, r2Counted 0, c1–c6 of B33). `sre-agent` is not a Spec 028
+  `SIGNAL_JOBS` entry, so no Spec 028 rule judges it.
+- **Job names (B29, B30).** The core's job list said `search-embedding`;
+  Spec 028 names the job `embedding`, so an embedding firing had no `/health`
+  fields in its bundle and `query_signals` rejected its job. The list is now
+  `SRE_JOBS` with `embedding`, and a Worker test checks it against
+  `SIGNAL_JOBS` (SRE43).
+- **Model (B30, SRE57).** `agents` 0.27.0 (published 2026-10-07; 0.28.0 of
+  2026-10-09 was under two weeks old on 2026-10-23), with `ai` 7.0.133 and
+  `@ai-sdk/provider` 4.0.25 as in slice 1. The one line is
+  `createAI({binding: env.AI}).languageModel(SRE_AGENT_MODEL)` (the same
+  call as `createAI(…)(id)`, typed for a configured string). `createAI`
+  always routes through an AI Gateway, id `default` unless one is given, and
+  Cloudflare creates `default` on first use: which gateway `live` uses is an
+  owner decision before Dev `live` (G100).
+- **Bundle size.** `wrangler deploy --dry-run --outdir` (Dev and Prod give
+  the same bundle): 539.25 KiB / gzip 132.83 KiB before, 1,944.07 KiB / gzip
+  383.30 KiB after. By source size, the growth is mostly `ai` (≈ 1.2 MB) and
+  `zod` (≈ 0.8 MB), which the core already needs; `agents/models/ai-sdk` adds
+  ≈ 0.2 MB. Within the Workers Paid 10 MB compressed limit; startup time is
+  not measured (`wrangler check startup` uploads the bundle to Cloudflare).
+- **Not in this slice.** The drill routes and faults (SRE67–SRE75), which
+  A2-9 placed in the wiring slice, and `POST /sre-agent/run` (SRE73) ship in
+  their own PR; their rows stay `[pending]` (G100).
+
 ## Dev fault-injection drill (2026-10-22)
 
 Owner intent (2026-10-22): a deterministic experiment where the owner
@@ -1178,7 +1233,7 @@ healthy run makes no model call. Daily and monthly totals: A4.
 
 Amendment (2) replaces the original plan. Generated from the case files by
 `bun run docs:test-plan`; slice 1 runs the `tick.cases.ts` and
-`loop.cases.ts` rows; `worker.cases.ts` waits for the wiring slice. L3
+`loop.cases.ts` rows; slice 2 (the wiring) runs `sre-agent-worker.cases.ts`. L3
 (SRE59) runs the `eval.cases.ts` rows against real models, locally.
 
 L1, deterministic tick (`tick.cases.ts`):
@@ -1216,13 +1271,21 @@ L1, deterministic tick (`tick.cases.ts`):
 | SRE49 | scope v1 | firing job.duration / job.r2ClassA | notDiagnosed out-of-scope / diagnosed (type 3) |
 <!-- test-plan:end -->
 
-L1 rows that need the Worker's scheduled handler (`worker.cases.ts`, the
-wiring slice):
+L1 rows that need the data publisher Worker (`sre-agent-worker.cases.ts`,
+the wiring slice, run by `apps/data-publisher-worker/test/sre-agent-worker.test.ts`):
 
-<!-- test-plan:start packages/sre-agent/test/worker.cases.ts [pending] -->
+<!-- test-plan:start apps/data-publisher-worker/test/sre-agent-worker.cases.ts -->
 | id | case | given | expected |
 | --- | --- | --- | --- |
+| SRE34 | health as served | the sre-agent tick's /health on a Worker with signals on and a firing rule | equal to GET /health without sreAgent, redacted as served; no derived field |
+| SRE37 | flag off in the Worker | SRE_AGENT unset / off / "Live"; the sre-agent cron tick, then GET /health | 0 R2 calls, 0 AI calls, no point, no log line; sreAgent {mode: off} / {mode: off} / {mode: off, reason: invalid-flag} |
+| SRE37 | deploy config | wrangler.development.jsonc / wrangler.production.jsonc | SRE_AGENT off, SRE_AGENT_CRON 30 0 * * *;0 11 * * * in vars and in triggers / SRE_AGENT off, no SRE_AGENT_CRON, no sre-agent trigger |
+| SRE43 | job names | Spec 028 SIGNAL_JOBS of the Worker | each one is in SRE_JOBS (query_signals' job enum) and JOB_HEALTH_FIELDS; embedding, not search-embedding |
 | SRE47 | isolation | sre-agent branch throws at each step 0-7 on a tick shared with the publication cron | publication still scheduled; sreAgent lastRun.status failed with sanitized reason |
+| SRE47 | own tick | an SRE_AGENT_CRON expression with the flag off, dry or live; /health unreadable; a state.json read that throws | cron target sre-agent, never the publisher; the handler resolves; lastRun failed / state.json not replaced, the reason in the log line and /health |
+| SRE57 | model from the binding | SRE_AGENT_MODEL @cf/zai-org/glm-4.7-flash and an AI binding / either missing with SRE_AGENT live | one binding.run with that model id / no model; the run fails with a reason, 0 AI calls |
+| SRE62 | neuron term | digest, embedding and query ledgers at 5,000, 2,500, 1,000; the agent at 1,500 / the agent off or of another day | neurons today 10,000 / 8,500 with no state.json read while off |
+| SRE63 | dry tick observability | a dry tick with a publication job.missed firing, signals on, SIGNALS bound | /health.sreAgent {mode, status, reason, lastRun {runId, at, firings, diagnosed, notDiagnosed, modelCalls, neurons, verdicts, recordKey}, today}; one point job sre-agent with c1-c6; one runId in point, run record, trajectory and log line |
 <!-- test-plan:end -->
 
 L2, AI SDK loop with `MockLanguageModelV4` (`loop.cases.ts`):
@@ -1295,7 +1358,7 @@ SRE11 (derived `stalled` and `r2InvariantOk` in `get_health`) was withdrawn
 by Amendment (1); SRE34 replaced it.
 
 ### Amendment (1): kept item
-- SRE34: [pending] `get_health` returns the `/health` JSON as served (including `signals`, `costGuard`, `identityLinks`, `kipPages`, `retention` when present) with no derived threshold fields → tool test.
+- SRE34: `get_health` returns the `/health` JSON as served (including `signals`, `costGuard`, `identityLinks`, `kipPages`, `retention` when present) with no derived threshold fields → tool test.
 
 ### Amendment (2): Behavior
 - SRE37: given `SRE_AGENT` unset, `off` or an invalid value, a tick makes 0 R2 reads, 0 writes and 0 model calls and `/health.sreAgent` is `{mode: "off"}` (with `reason: "invalid-flag"` for an invalid value); given `dry` it runs steps 0–4 and 7 with 0 model calls; given `live` (positive control) it calls the model for a new firing → L1 test with the `tick.cases.ts` rows.
@@ -1307,7 +1370,7 @@ by Amendment (1); SRE34 replaced it.
 - SRE48: every `docs/runbooks/sre/*.md` has the six B35 sections and an ordered cause list whose anchors exist in `docs/runbooks/`, and the generated playbook module matches the files; a firing rule without a playbook is diagnosed with `playbookMissing: true` and only `cause: "unknown"` passes → L1 test with case rows and a drift check in CI.
 - SRE49: firings of the type 1–4 rule ids of B28 are diagnosed; a firing of any other rule is recorded with `notDiagnosed: "out-of-scope"` → L1 test with case rows.
 - SRE50: given a mock model scripted to call `read_playbook` and then return a valid output quoting `E1`, the record has verdict `explained`, 2 steps, 1 tool call, neurons computed from the mock usage at the model's rates, and a trajectory with both steps → L2 test with the `loop.cases.ts` rows.
-- SRE57: [pending] the core in `packages/sre-agent/src` imports no provider package (`agents`, `workers-ai-provider`, `@ai-sdk/*` providers) and takes a `LanguageModel`; the Worker constructs the model in one line from the `AI` binding and `SRE_AGENT_MODEL` → L1 test over the package's imports.
+- SRE57: the core in `packages/sre-agent/src` imports no provider package (`agents`, `workers-ai-provider`, `@ai-sdk/*` providers) and takes a `LanguageModel`; the Worker constructs the model in one line from the `AI` binding and `SRE_AGENT_MODEL` → L1 test over the package's imports.
 - SRE58: given `SRE_AGENT=dry` and a new firing, the bundle and run record are written with verdict `dry-run` and the mock model receives 0 calls → L2 test with case rows.
 
 ### Amendment (2): Failure and retry
@@ -1315,7 +1378,7 @@ by Amendment (1); SRE34 replaced it.
 - SRE41: given firings of 5 jobs, 3 are diagnosed and 2 recorded `notDiagnosed: "daily-cap"`, and a second tick the same UTC day diagnoses none; with `today.neurons` 1,000 a 500-neuron reservation runs and a 501-neuron one stops the diagnosis `inconclusive`, `reason: "budget"`; a reservation written before a model call that crashes is still counted on the next tick → L1 test with case rows.
 - SRE44: the evidence check passes a quote that occurs verbatim (whitespace collapsed) in the cited item, and sets `unverified` with the failure listed for a quote absent from the cited item, present only in another item, an unknown evidence id, a cause not in the playbook, or a runbook anchor the playbook does not list; `cause: "unknown"` passes → L1 test with case rows.
 - SRE46: the R2 writer writes a key under `internal/sre/v1/<env>/` and refuses, before any R2 call, a key of the other environment, a `public/` key or another job's key; across dry and live ticks no request goes to `/run`, `/*/run` or `/cost-guard/*`, no request is non-GET, and nothing is fetched from the other environment's host → L1 test with case rows.
-- SRE47: [pending] given the `sre-agent` branch throwing at each of steps 0–7 on a tick, the publication cron in the same handler still schedules its run, and `/health.sreAgent.lastRun.status` is `failed` with a sanitized reason → L1 test with case rows.
+- SRE47: given the `sre-agent` branch throwing at each of steps 0–7 on a tick, the publication cron in the same handler still schedules its run, and `/health.sreAgent.lastRun.status` is `failed` with a sanitized reason → L1 test with case rows.
 - SRE51: given a scripted call to a tool outside B30's list, no tool executes and the diagnosis ends `inconclusive`, `reason: "unknown-tool"` → L2 test with case rows.
 - SRE52: given a script that calls a tool on every response, the loop makes exactly 12 model calls and ends `inconclusive`, `reason: "step-limit"` → L2 test with case rows.
 - SRE53: given a final response that is not JSON or misses `evidence`, the diagnosis ends `inconclusive`, `reason: "malformed"`, and the record is written → L2 test with case rows.
@@ -1329,10 +1392,10 @@ by Amendment (1); SRE34 replaced it.
 
 ### Amendment (2): Budget
 - SRE61: [measure] a healthy tick makes ≤ 1 R2 Class B, ≤ 2 Class A, 1 WAE point, ≤ 2 GitHub requests and 0 model calls; a diagnosis adds ≤ 12 model calls, ≤ 3 SQL queries and 1 Class A; a UTC day stays ≤ 3 diagnoses and ≤ 1,500 neurons, measured by `bun test --cwd packages/sre-agent -t SRE61`, which counts calls through fakes over the eval fixtures.
-- SRE62: [pending] Spec 026's neurons-today estimate includes `sreAgent.today.neurons`; with the digest, embedding and query-gate ledgers at their caps (5,000, 2,500, 1,000) and the agent at 1,500, the estimate is 10,000; with the agent absent it is 8,500 (positive control) → cost-guard test in the wiring slice.
+- SRE62: Spec 026's neurons-today estimate includes `sreAgent.today.neurons`; with the digest, embedding and query-gate ledgers at their caps (5,000, 2,500, 1,000) and the agent at 1,500, the estimate is 10,000; with the agent absent it is 8,500 (positive control) → cost-guard test in the wiring slice.
 
 ### Amendment (2): Observability
-- SRE63: [pending] after a tick, `/health.sreAgent` is `{mode, status, reason, lastRun {runId, at, firings, diagnosed, notDiagnosed, modelCalls, neurons, verdicts, recordKey}, today {date, diagnoses, neurons}}`, the WAE point (when bound) has `job: "sre-agent"` and c1–c6 of B33, and the same `runId` is in the point, run record, trajectory and log line → wiring test.
+- SRE63: after a tick, `/health.sreAgent` is `{mode, status, reason, lastRun {runId, at, firings, diagnosed, notDiagnosed, modelCalls, neurons, verdicts, recordKey}, today {date, diagnoses, neurons}}`, the WAE point (when bound) has `job: "sre-agent"` and c1–c6 of B33, and the same `runId` is in the point, run record, trajectory and log line → wiring test.
 - SRE64: [deploy] on Dev with `SRE_AGENT=dry` for 7 consecutive days, `/health.sreAgent` shows `mode: "dry"`, 7 run records exist under `internal/sre/v1/dev/runs/` with `modelCalls: 0`, R2 operations stay within SRE61, and the other jobs' `/health` sections match a flag-off day.
 - SRE65: [deploy] on Dev with `SRE_AGENT=live`, the first new firing produces one run record and one trajectory under the prefix whose `runId`s match, an `evidenceCheck` result, and `neurons` within 10 % of the Workers AI dashboard's neurons for that model and day.
 - SRE66: [measure] `bun run --cwd packages/sre-agent kpi -- --env dev` prints, from the run records and eval reports, correctness rate (labelled or eval cases only), fabrication rate, neurons per diagnosis and the median time from firing `since` to record `at`.
