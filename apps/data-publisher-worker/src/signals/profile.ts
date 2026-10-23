@@ -37,7 +37,15 @@ export const SIGNAL_THRESHOLDS = {
   digestFreshnessFiringMs: 48 * HOUR,
   embeddingWarnMs: 2 * HOUR,
   embeddingFiringMs: 3 * HOUR,
+  /** `r2.classAInvariant` (owner decision 2026-10-23, D11): the two pointers and the evidence object. */
   classAInvariantSlack: 3,
+  /** Unexplained Class A above which the invariant warns. */
+  classAInvariantWarnExcess: 3,
+  /** It fires above max(floor, share × `copiedObjectCount`). */
+  classAInvariantFiringFloor: 50,
+  classAInvariantFiringShare: 0.5,
+  /** At most this many conditional misses are subtracted (owner A1, 2026-10-23), so a recurrence of 2026-10-13 still fires. */
+  classAInvariantMissCap: 50,
   pollTruncatedFiringMs: 48 * HOUR,
   rejectionsFloor: 10,
   rejectionsFactor: 3,

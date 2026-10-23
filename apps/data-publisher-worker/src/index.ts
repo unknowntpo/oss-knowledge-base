@@ -710,7 +710,8 @@ export class PipelineState implements DurableObject {
           { key: "jira", connector: new JiraConnector({ fetch: sourceFetch }) },
         ],
         state: signals === undefined || run === undefined ? state : signalingPipelineState(state, { storage: this.ctx.storage, run, signals, now: () => Date.now() }),
-        destination: new R2PublicationDestination(this.env.OSS_KB_BUCKET),
+        // Spec 028 OB32: each retried R2 request is one log line with the run's `runId`.
+        destination: new R2PublicationDestination(this.env.OSS_KB_BUCKET, undefined, (line) => runLog(context, "log", line)),
         ...(this.env.SEARCH_LEXICAL_REVISION === undefined ? {} : { searchLexicalRevision: this.env.SEARCH_LEXICAL_REVISION }),
         ...(this.env.SEARCH_SHARD_ROOTS === undefined ? {} : { searchShardRoots: this.env.SEARCH_SHARD_ROOTS }),
         ...(onPublished === undefined ? {} : { onPublished }),

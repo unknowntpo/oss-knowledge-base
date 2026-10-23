@@ -23,7 +23,7 @@ export interface RuleEntry {
   readonly runId: string | null;
   /** The publication's source for `source.success`. */
   readonly subject?: string;
-  /** Why an entry is `unknown`. */
+  /** Why an entry is `unknown`, or what it assumed (`r2.classAInvariant` on a record without its counters). */
   readonly reason?: string;
 }
 
@@ -203,6 +203,34 @@ function ageEntry(id: string, job: SignalJob, at: number | undefined, now: numbe
 
 const DAILY = { warnMs: T.dailyWarnMs, firingMs: T.dailyFiringMs } as const;
 
+const INVARIANT_THRESHOLD = `excess = classA − (copiedObjectCount + ${T.classAInvariantSlack} + putRetries + min(conditionalMisses, ${T.classAInvariantMissCap})); `
+  + `warn: excess > ${T.classAInvariantWarnExcess}; firing: excess > max(${T.classAInvariantFiringFloor}, ${T.classAInvariantFiringShare} × copiedObjectCount)`;
+
+/**
+ * Behavior 5, `r2.classAInvariant` (D11): Class A beyond one put per new object, the two pointers
+ * and the evidence object, and beyond what the run's own put retries and (at most 50) conditional
+ * misses explain; the cap keeps a recurrence of 2026-10-13 (a miss on every existing key) firing.
+ * A record written before those counters existed counts them as 0, and the entry says so.
+ */
+function classAInvariant(lastRun: Record_ | undefined, runId: string | null): RuleEntry {
+  const base = { id: "r2.classAInvariant", job: "publication" as const, source: "state" as const, threshold: INVARIANT_THRESHOLD, runId };
+  const r2 = object(lastRun?.r2);
+  const classA = r2?.classA;
+  const copied = lastRun?.copiedObjectCount;
+  if (lastRun?.ok !== true || typeof classA !== "number" || typeof copied !== "number") {
+    return { ...base, status: "unknown", value: null, since: null, reason: "the last run has no R2 counts" };
+  }
+  const counted = typeof r2?.putRetries === "number" && typeof r2.conditionalMisses === "number";
+  const explained = counted ? (r2.putRetries as number) + Math.min(r2.conditionalMisses as number, T.classAInvariantMissCap) : 0;
+  const excess = classA - (copied + T.classAInvariantSlack + explained);
+  const status: RuleStatus = excess > Math.max(T.classAInvariantFiringFloor, T.classAInvariantFiringShare * copied) ? "firing"
+    : excess > T.classAInvariantWarnExcess ? "warn" : "ok";
+  return {
+    ...base, status, value: classA, since: status === "ok" ? null : text(lastRun.completedAt),
+    ...(counted ? {} : { reason: "putRetries and conditionalMisses missing from the record, counted as 0" }),
+  };
+}
+
 interface JobView {
   readonly job: SignalJob;
   /** The job's stored trend result, if a run evaluated one. */
@@ -220,15 +248,7 @@ function stateRules(health: Record_, now: number): { readonly rules: RuleEntry[]
   const sources = Object.values(object(lastRun?.sources) ?? {}).map((source) => time(object(source)?.lastSuccessAt)).filter((at): at is number => at !== undefined);
   const newestSuccess = sources.length > 0 ? Math.max(...sources) : lastRun?.ok === true ? time(lastRun.completedAt) : undefined;
   rules.push(ageEntry("publication.freshness", "publication", newestSuccess, now, DAILY, publicationRunId, "no successful run recorded"));
-  const r2 = object(lastRun?.r2);
-  const classA = r2?.classA;
-  const copied = lastRun?.copiedObjectCount;
-  const invariantThreshold = `firing: classA > copiedObjectCount + ${T.classAInvariantSlack}`;
-  rules.push(lastRun?.ok === true && typeof classA === "number" && typeof copied === "number"
-    ? classA > copied + T.classAInvariantSlack
-      ? { id: "r2.classAInvariant", job: "publication", source: "state", status: "firing", value: classA, threshold: invariantThreshold, since: text(lastRun.completedAt), runId: publicationRunId }
-      : { id: "r2.classAInvariant", job: "publication", source: "state", status: "ok", value: classA, threshold: invariantThreshold, since: null, runId: publicationRunId }
-    : { id: "r2.classAInvariant", job: "publication", source: "state", status: "unknown", value: null, threshold: invariantThreshold, since: null, runId: publicationRunId, reason: "the last run has no R2 counts" });
+  rules.push(classAInvariant(lastRun, publicationRunId));
   rules.push(ageEntry("job.missed", "publication", time(lastRun?.completedAt), now, DAILY, publicationRunId, "no run yet"));
   jobs.push({ job: "publication", trends: lastRun?.trends, runId: publicationRunId });
 

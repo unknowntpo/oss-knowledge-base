@@ -9,19 +9,26 @@ import type { PublicationDestination, R2OperationCounts } from "./pipeline";
 export class R2PublicationDestination implements PublicationDestination {
   private classA = 0;
   private classB = 0;
+  private putRetries = 0;
+  private conditionalMisses = 0;
 
+  /** `log` receives one line per retried request (Spec 028 OB32); the caller adds the run's `runId`. */
   constructor(
     private readonly bucket: R2Bucket,
     private readonly delay: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    private readonly log: (line: string) => void = () => {},
   ) {}
 
-  /** Requests sent so far, retries included. */
-  operationCounts(): R2OperationCounts {
-    return { classA: this.classA, classB: this.classB };
+  /**
+   * Requests sent so far, retries included. `putRetries` and `conditionalMisses` explain Class A
+   * beyond one put per new object (Spec 028 `r2.classAInvariant`).
+   */
+  operationCounts(): Required<R2OperationCounts> {
+    return { classA: this.classA, classB: this.classB, putRetries: this.putRetries, conditionalMisses: this.conditionalMisses };
   }
 
   async get(key: string): Promise<Uint8Array | undefined> {
-    return this.retry(async () => {
+    return this.retry("get", key, async () => {
       this.classB += 1;
       const object = await this.bucket.get(key);
       return object === null ? undefined : new Uint8Array(await object.arrayBuffer());
@@ -48,7 +55,9 @@ export class R2PublicationDestination implements PublicationDestination {
       onlyIf: new Headers({ "if-none-match": "*" }),
       httpMetadata: { cacheControl: "public, max-age=31536000, immutable" },
     });
-    return written === null ? "exists" : "created";
+    if (written !== null) return "created";
+    this.conditionalMisses += 1;
+    return "exists";
   }
 
   async putCurrent(key: string, body: Uint8Array): Promise<void> {
@@ -69,31 +78,36 @@ export class R2PublicationDestination implements PublicationDestination {
   }
 
   private async exists(key: string): Promise<boolean> {
-    return await this.retry(() => {
+    return await this.retry("head", key, () => {
       this.classB += 1;
       return this.bucket.head(key);
     }) !== null;
   }
 
   private put(key: string, body: Uint8Array, options: R2PutOptions): Promise<R2Object | null> {
-    return this.retry(() => {
+    return this.retry("put", key, () => {
       this.classA += 1;
       return this.bucket.put(key, body, options);
     });
   }
 
   /** R2 reports transient failures such as internal error 10001; every call here is idempotent. */
-  private async retry<T>(operation: () => Promise<T>): Promise<T> {
+  private async retry<T>(op: "get" | "head" | "put", key: string, operation: () => Promise<T>): Promise<T> {
     for (let attempt = 0; ; attempt += 1) {
       try {
         return await operation();
       } catch (error) {
-        if (attempt >= 2) throw error;
+        if (attempt >= MAX_RETRIES) throw error;
+        if (op === "put") this.putRetries += 1;
+        this.log(`r2 ${op} retry ${attempt + 1} of ${MAX_RETRIES} for ${key}: ${error instanceof Error ? error.message : String(error)}`);
         await this.delay(250 * (2 ** attempt));
       }
     }
   }
 }
+
+/** Attempts after the first; three attempts in all. */
+const MAX_RETRIES = 2;
 
 function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
   return left.byteLength === right.byteLength && left.every((byte, index) => byte === right[index]);

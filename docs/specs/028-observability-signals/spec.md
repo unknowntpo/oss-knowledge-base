@@ -130,7 +130,7 @@ end of each run):
 | Rule | Source | Value | Threshold | Status |
 | --- | --- | --- | --- | --- |
 | `publication.freshness` | state | 1 h 38 min since the newest `lastSuccessAt` | warn > 24.5 h, firing > 27 h | ok |
-| `r2.classAInvariant` | state | 824 ≤ 821 + 3 | firing when `classA > copiedObjectCount + 3` | ok |
+| `r2.classAInvariant` | state | excess 824 − (821 + 3) = 0 | excess = `classA − (copiedObjectCount + 3 + putRetries + min(conditionalMisses, 50))`; warn > 3, firing > max(50, 0.5 × `copiedObjectCount`) (D11) | ok |
 | `digest.freshness` | state | 56 min | firing > 48 h | ok |
 | `source.success` (github, mail, jira) | analytics | all `ok` | firing after 2 consecutive UTC days failed | ok |
 | `publication.pollTruncated` | analytics | false | firing when true for > 48 h | ok |
@@ -143,7 +143,11 @@ end of each run):
 Expected `/health.signals`: `{status: "ok", evaluatedAt:
 "2026-10-20T23:45:03Z", analyticsEvaluatedAt: "2026-10-20T22:49:09Z",
 rules: [one entry per rule and job, all "ok"]}`. The 2026-10-13 hourly runs (`classA` ≈ 8,190,
-`copiedObjectCount` ≈ 35) would make `r2.classAInvariant` `firing`.
+`copiedObjectCount` ≈ 35) would make `r2.classAInvariant` `firing`. The
+manual Dev run of 2026-10-23 (`classA` 323, `copiedObjectCount` 316, Class B
+exact) is 4 above `copiedObjectCount + 3`, explained by put retries or
+conditional misses that were not counted: `warn` without the counters, `ok`
+with them (D11).
 
 ## Solution space
 
@@ -261,7 +265,7 @@ path (webhook) under D5, or as an email backup the owner opts into.
    | Rule | Source | Input | warn | firing |
    | --- | --- | --- | --- | --- |
    | `publication.freshness` | state, at read time | now − newest `sources[*].lastSuccessAt` (a failed run carries it forward) | > 24.5 h (Spec 021 `OVERDUE_AFTER_MS`) | > 27 h (Spec 010 `STALE_AFTER_MS`) |
-   | `r2.classAInvariant` | state | `lastRun` | — | `classA > copiedObjectCount + 3` |
+   | `r2.classAInvariant` | state | `lastRun`: excess = `classA − (copiedObjectCount + 3 + putRetries + min(conditionalMisses, 50))`; a record without the two counters counts them as 0 and says so in `reason` (D11) | excess > 3 | excess > max(50, 0.5 × `copiedObjectCount`) |
    | `digest.freshness` (only when the digest is enabled) | state, at read time | now − `digest.lastRun.completedAt` of the newest ok run | — | > 48 h |
    | `source.success` (per source) | analytics | newest point per UTC day, plus the current run | current run failed | the newest runs on 2 consecutive UTC days failed |
    | `publication.pollTruncated` | analytics | streak of `pollTruncated = 1` ending at the current run | current run true | streak older than 48 h |
@@ -342,7 +346,7 @@ Numbered after the first draft's 12 behaviors; nothing above is renumbered.
     | `job.duration` | `durationMs` > 2 × median of the previous runs (≥ 3 needed) | `durationMs` ≥ 80 % of the job's own wall budget, where the job declares one (retention 10 min, kip-pages `KIP_PAGES_CRON_WALL_MS`) | all; firing only with a declared budget |
     | `job.r2ClassA` | `r2ClassA` > 3 × median of the previous runs and > 1,000 | `r2ClassA` > 10 × median and > 5,000 | jobs with `r2Counted` 1 |
 
-    The publication keeps its exact `r2.classAInvariant` (state); the
+    The publication keeps its `r2.classAInvariant` (state, D11); the
     account-wide 50,000-in-24 h Class A spike and the $5 budget stay with
     the cost guard (Spec 026), which `/health.signals` shows through the
     cost-guard job's own status, never recomputes. Retention gets no rule
@@ -449,7 +453,11 @@ Generated from `apps/data-publisher-worker/test/signals.cases.ts` by
 just under and just over each threshold). Slice 1 added rows for the
 2026-10-13 Class A shape, a disabled digest, an enabled job with no run, a
 job without a wall budget, and moved the `r2Counted` 0 row to the cost guard
-(D8: the digest counts R2 now).
+(D8: the digest counts R2 now). D11 (2026-10-23) replaced the `825 / 821`
+`firing` row with the excess boundaries (3, max(50, 0.5 × copied)), the
+2026-10-23 manual run with and without its counters, and a conditional-miss
+row, the miss cap boundary (50 vs 51, A1) and the 2026-10-13 recurrence
+with counters; the 2026-10-13 shape still fires.
 
 <!-- test-plan:start apps/data-publisher-worker/test/signals.cases.ts -->
 | id | rule | input | status |
@@ -466,8 +474,21 @@ job without a wall budget, and moved the `r2Counted` 0 row to the cost guard
 | OB7 | publication.pollTruncated | true since 48 h 0 min 1 s | firing |
 | OB7 | publication.pollTruncated (from the run record) | lastRun pollTruncated true, previous not | warn |
 | OB8 | r2.classAInvariant | 824 / 821 (Example) | ok |
-| OB8 | r2.classAInvariant | 825 / 821 | firing |
+| OB8 | r2.classAInvariant | 827 / 821 (excess 3) | ok |
+| OB8 | r2.classAInvariant | 828 / 821 (excess 4) | warn |
+| OB8 | r2.classAInvariant | 1,234 / 821 (excess 410, firing above 410.5) | warn |
+| OB8 | r2.classAInvariant | 1,235 / 821 (excess 411) | firing |
+| OB8 | r2.classAInvariant | 88 / 35 (excess 50, firing floor 50) | warn |
+| OB8 | r2.classAInvariant | 89 / 35 (excess 51) | firing |
+| OB8 | r2.classAInvariant | 323 / 316, putRetries 4 (2026-10-23 manual run) | ok |
+| OB8 | r2.classAInvariant | 400 / 316, putRetries 81 (retries are not capped) | ok |
+| OB8 | r2.classAInvariant | 323 / 316, conditionalMisses 4 | ok |
+| OB8 | r2.classAInvariant | 372 / 316, conditionalMisses 50 (cap, excess 3) | ok |
+| OB8 | r2.classAInvariant | 373 / 316, conditionalMisses 51 (1 above the cap, excess 4) | warn |
+| OB8 | r2.classAInvariant | 323 / 316, no counters (older record) | warn |
 | OB8 | r2.classAInvariant | 8,190 / 35 (2026-10-13 shape) | firing |
+| OB8 | r2.classAInvariant | 8,190 / 35, putRetries 0, conditionalMisses 0 | firing |
+| OB8 | r2.classAInvariant | 8,190 / 35, conditionalMisses 8,152 (2026-10-13 recurrence) | firing |
 | OB9 | digest.freshness | 48 h | ok |
 | OB9 | digest.freshness | 48 h 0 min 1 s | firing |
 | OB9 | digest.freshness | digest disabled | no entry |
@@ -518,7 +539,7 @@ tag.
 - OB5: `publication.freshness` gives the statuses of the test-plan rows from Durable Object state at read time → case rows.
 - OB6: `source.success` gives the statuses of the test-plan rows from history plus the current run (per UTC day, per source) → case rows.
 - OB7: `publication.pollTruncated` gives the statuses of the test-plan rows → case rows.
-- OB8: `r2.classAInvariant` gives the statuses of the test-plan rows from state; the 2026-10-13 shape (`classA` 8,190, `copiedObjectCount` 35) fires → case rows.
+- OB8: `r2.classAInvariant` gives the statuses of the test-plan rows from state (D11: excess = `classA − (copiedObjectCount + 3 + putRetries + min(conditionalMisses, 50))`, warn > 3, firing > max(50, 0.5 × `copiedObjectCount`)); the 2026-10-13 shape (`classA` 8,190, `copiedObjectCount` 35) fires; a record without `putRetries` and `conditionalMisses` counts them as 0 and its entry's `reason` says so → case rows and rule test.
 - OB9: `digest.freshness` gives the statuses of the test-plan rows and is absent while the digest is disabled → case rows.
 - OB10: `digest.rejections` gives the statuses of the test-plan rows → case rows.
 - OB11: `/health.signals` has `{status, evaluatedAt, analyticsEvaluatedAt, rules, lastError}` with one entry per rule of Behavior 5 and its `source`, `status` the worst entry (`unknown` as ok), for the Example (all ok) and for one firing rule; a `/health` read makes no SQL query → health test.
@@ -545,6 +566,7 @@ tag.
 - OB19: [deploy] on Dev with `OBSERVABILITY_SIGNALS=on` and Wrangler ≥ 4.145.0, after the first daily tick `/health.signals.status` is `ok`, `lastRun.runId` is set, a SQL query on `osskb_signals_dev` returns one row with `index1` = that `runId` and `_sample_interval` 1, a Workers Logs query on that `runId` returns the run's lines, and the event's platform invocation-id field name is recorded in the feature map.
 - OB20: [deploy] after 7 days on Dev, `/health.signals` matches the rules recomputed by hand from the 7 daily `/health` reads and the WAE rows, with no `firing` the owner does not confirm, and every row has `_sample_interval` 1.
 - OB31: [deploy] on Dev, after one daily cycle with `OBSERVABILITY_SIGNALS=on`, `osskb_signals_dev` holds one point per job run of that cycle (publication, digest, cost-guard, identity-links, kip-pages, and embedding while pending; retention once enabled), each with its own `runId` matching the job's `/health` record and `_sample_interval` 1, and `/health.signals` has a `job.missed` entry per enabled job.
+- OB32: given a put that fails once with a transient R2 error and then succeeds, and a conditional put whose precondition fails, the publication's R2 destination counts `putRetries` 1 and `conditionalMisses` 1 (each also in `classA`); `/health` `lastRun.r2` carries `{classA, classB, putRetries, conditionalMisses}` for that run only; each retried request (put, head or get) logs one line naming the operation, the key and the error, as `{message, runId, job}` while signals are on; a head retry is no put retry → destination and pipeline tests (D11).
 - OB21: [deploy] on Dev, the introspection endpoint on `logs.workersLogs` (with `include_custom_attributes=true`) shows the column holding `runId`; one SQL query (HTTP SQL API by the operator, and the binding if it accepts the dataset) returns a run's log lines and its WAE point by `runId`; the spec and feature map record whether the binding can read `logs.workersLogs`.
 
 ## Cost estimate per slice
@@ -662,6 +684,26 @@ numbers, D7–D10 are new):
     ≤ 17,000 Class B a month vs 10 million included, so $0; no Analytics
     Engine query (Behavior 18).
     **Decided (owner, 2026-10-22):** (b) after OB20, the existing UI stall indicator also shows a stalled or failing background job.
+
+11. **D11 `r2.classAInvariant` tolerates counted retries** (owner,
+    2026-10-23, "Option A"). The manual Dev run
+    `publication-2026-10-23T02-52-13-074Z` fired the rule at `classA` 323
+    against `copiedObjectCount` 316 + 3, with Class B exact (8,814 = 316 +
+    8,495 + 3): the 4 extra Class A requests were put retries (up to 3
+    attempts, each billed, none logged) or conditional puts that found the
+    key (counted as reused). Decided: the publication's R2 destination
+    counts `putRetries` and `conditionalMisses` into `lastRun.r2` and logs
+    each retry with the run's `runId` (OB32); the rule judges
+    excess = `classA − (copiedObjectCount + 3 + putRetries +
+    min(conditionalMisses, 50))`, `warn` above 3, `firing` above max(50,
+    0.5 × `copiedObjectCount`); a record without the counters counts them
+    as 0 and says so. **A1 (owner, 2026-10-23):** at most 50 conditional
+    misses are subtracted (`classAInvariantMissCap`, equal to the firing
+    floor); put retries stay fully subtracted. Without the cap a recurrence
+    of the 2026-10-13 cause (a conditional put on every existing key) would
+    be counted as `conditionalMisses` and hidden; with it the rule catches a
+    recurrence itself (8,190 / 35 with 8,152 misses: excess 8,102, `firing`),
+    besides `job.r2ClassA` and the cost guard.
 
 ## Rollout
 
