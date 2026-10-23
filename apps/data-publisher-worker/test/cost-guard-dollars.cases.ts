@@ -1,8 +1,7 @@
 /**
  * Spec 026 amendment 2026-10-21 (dollar budget), CG21 and CG35: each metric's use beyond its
  * included allowance in US dollars at list price, now and projected to the end of the UTC month.
- * Planned slice: no test runs these rows yet (the spec's marker is `[pending]`); the implementing
- * slice adds `test.each(testPlanRows)` and drops the tag.
+ * `metricOverage` runs these rows (test/cost-guard.test.ts).
  *
  * Dollars are floored to 0.0001 for display; sums and comparisons use exact values. `value` is
  * month to date (a gauge: its newest reading; neurons: today). A counter (R2 Class A and B,

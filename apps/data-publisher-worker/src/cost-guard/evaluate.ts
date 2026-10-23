@@ -1,8 +1,9 @@
 /**
- * Spec 026 Behavior 5–7: the threshold math and the breaker transition, pure so they are tested
- * row by row (test/cost-guard.cases.ts).
+ * Spec 026 Behavior 5–7: the threshold math, the dollars per metric (CG21, CG35) and the breaker
+ * transition, pure so they are tested row by row (test/cost-guard.cases.ts,
+ * test/cost-guard-dollars.cases.ts).
  */
-import { COST_GUARD_THRESHOLDS, COST_METRICS, COST_METRIC_KEYS, type CostMetricKey, type CostMetricProfile } from "./profile";
+import { COST_GUARD_RATE_DAYS, COST_GUARD_THRESHOLDS, COST_METRICS, COST_METRIC_KEYS, type CostMetricKey, type CostMetricProfile } from "./profile";
 
 export type { CostMetricKey } from "./profile";
 
@@ -13,8 +14,14 @@ export interface MetricEvaluation {
   readonly allowance: number;
   /** Floored to 0.01; null when the value could not be read. */
   readonly percent: number | null;
-  /** Floored to 0.01; null for gauges and before a quarter of the period. */
+  /** Floored to 0.01; null for gauges, and for neurons before a quarter of the day. */
   readonly projectedPercent: number | null;
+  /** Dollars over the allowance at list price, floored to 0.0001 (CG21); null when unread. */
+  readonly overageUsd: number | null;
+  /** Dollars over the allowance at the end of the UTC month (CG21, CG35); null when unread. */
+  readonly projectedOverageUsd: number | null;
+  /** Complete UTC days a month counter's rate used (0–7, CG35); null for gauges and neurons. */
+  readonly rateDays: number | null;
   readonly period: CostMetricProfile["period"];
   readonly scope: CostMetricProfile["scope"];
   readonly source: CostMetricProfile["source"];
@@ -49,14 +56,57 @@ export function periodElapsed(period: "month" | "day", now: Date): number {
   return (time - start) / (end - start);
 }
 
-interface Exact { readonly percent: number; readonly projected: number | null }
+/** A month counter's count over the `days` complete UTC days before today (CG35). */
+export interface RecentCount { readonly count: number; readonly days: number }
 
-function exact(profile: CostMetricProfile, value: number, now: Date): Exact {
-  const percent = (value / profile.allowance) * 100;
-  const elapsed = periodElapsed(profile.period, now);
-  const projected = profile.kind === "counter" && elapsed >= COST_GUARD_THRESHOLDS.minElapsedForProjection ? percent / elapsed : null;
-  return { percent, projected };
+const DAY_MS = 86_400_000;
+const monthEnd = (now: Date) => Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1);
+
+/** Days from `now` to the end of its UTC month. */
+export function remainingDaysOfMonth(now: Date): number {
+  return (monthEnd(now) - now.getTime()) / DAY_MS;
 }
+
+const daysOfMonth = (now: Date) => (monthEnd(now) - Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)) / DAY_MS;
+
+/**
+ * The value a metric is judged on at the end of its period (Behavior 5a):
+ * - a month counter: `value + count / days × remaining days` (CG35, Decision 9); with no complete
+ *   day of history, or none read, `value`;
+ * - neurons (a day counter): `value / elapsed day` from a quarter of the day, null before;
+ * - a gauge: null (a level, not projected).
+ */
+function projection(profile: CostMetricProfile, value: number, recent: RecentCount | null, now: Date): { readonly projected: number | null; readonly rateDays: number | null } {
+  if (profile.kind === "gauge") return { projected: null, rateDays: null };
+  if (profile.period === "day") {
+    const elapsed = periodElapsed("day", now);
+    return { projected: elapsed >= COST_GUARD_THRESHOLDS.minElapsedForProjection ? value / elapsed : null, rateDays: null };
+  }
+  const usable = recent !== null && Number.isInteger(recent.days) && recent.days > 0 && recent.days <= COST_GUARD_RATE_DAYS
+    && Number.isFinite(recent.count) && recent.count >= 0;
+  if (!usable) return { projected: value, rateDays: 0 };
+  return { projected: value + (recent.count / recent.days) * remainingDaysOfMonth(now), rateDays: recent.days };
+}
+
+/** Rounded to 1e-8 first, so a product such as 3.9e9 × $0.015/1e9 does not floor below its value. */
+const floor4 = (value: number) => Math.floor(Math.round(value * 1e8) / 1e4) / 1e4;
+const overageUsd = (profile: CostMetricProfile, value: number) => Math.max(0, value - profile.allowance) * profile.priceUsd;
+
+/**
+ * CG21: dollars over the allowance now and at the end of the UTC month, floored to 0.0001. A month
+ * counter prices its CG35 projection; a gauge prices itself; neurons price today's projected
+ * overage (today's value before a quarter of the day) times the days of the month. Null when the
+ * value could not be read.
+ */
+export function metricOverage(key: CostMetricKey, value: number | null, recent: RecentCount | null, now: Date): { readonly overageUsd: number | null; readonly projectedOverageUsd: number | null } {
+  if (value === null || !Number.isFinite(value)) return { overageUsd: null, projectedOverageUsd: null };
+  const profile = COST_METRICS[key];
+  const projected = projection(profile, value, recent, now).projected ?? value;
+  const projectedUsd = overageUsd(profile, projected) * (profile.period === "day" ? daysOfMonth(now) : 1);
+  return { overageUsd: floor4(overageUsd(profile, value)), projectedOverageUsd: floor4(projectedUsd) };
+}
+
+interface Exact { readonly percent: number; readonly projected: number | null }
 
 function tripsOn(profile: CostMetricProfile, { percent, projected }: Exact): "level" | "projection" | undefined {
   if (!profile.trips) return undefined;
@@ -65,15 +115,26 @@ function tripsOn(profile: CostMetricProfile, { percent, projected }: Exact): "le
   return undefined;
 }
 
-export function evaluateMetric(key: CostMetricKey, value: number | null, now: Date): MetricEvaluation {
+/** `recent` feeds a month counter's projection (CG35); other metrics ignore it. */
+export function evaluateMetric(key: CostMetricKey, value: number | null, now: Date, recent: RecentCount | null = null): MetricEvaluation {
   const profile = COST_METRICS[key];
   const base = { value, allowance: profile.allowance, period: profile.period, scope: profile.scope, source: profile.source };
-  if (value === null || !Number.isFinite(value)) return { ...base, value: null, percent: null, projectedPercent: null, status: "unavailable" };
-  const numbers = exact(profile, value, now);
+  if (value === null || !Number.isFinite(value)) {
+    return { ...base, value: null, percent: null, projectedPercent: null, overageUsd: null, projectedOverageUsd: null, rateDays: null, status: "unavailable" };
+  }
+  const { projected, rateDays } = projection(profile, value, recent, now);
+  const numbers: Exact = { percent: (value / profile.allowance) * 100, projected: projected === null ? null : (projected / profile.allowance) * 100 };
   const status: MetricStatus = tripsOn(profile, numbers) !== undefined ? "tripped"
     : numbers.percent >= COST_GUARD_THRESHOLDS.warnPercent ? "warn"
     : "ok";
-  return { ...base, percent: floor2(numbers.percent), projectedPercent: numbers.projected === null ? null : floor2(numbers.projected), status };
+  return {
+    ...base,
+    percent: floor2(numbers.percent),
+    projectedPercent: numbers.projected === null ? null : floor2(numbers.projected),
+    ...metricOverage(key, value, recent, now),
+    rateDays,
+    status,
+  };
 }
 
 /** The worst of the metrics; `unavailable` counts as ok (Behavior 13). */

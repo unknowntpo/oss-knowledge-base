@@ -125,8 +125,9 @@ export class CostGuardRunner {
     const neurons = await this.deps.inApp.neuronsToday().catch(() => null);
     const vectorize = await this.deps.inApp.vectorize(month).catch(() => null);
     const metrics: Record<CostMetricKey, MetricEvaluation> = {
-      r2ClassA: evaluateMetric("r2ClassA", r2?.classA ?? null, now),
-      r2ClassB: evaluateMetric("r2ClassB", r2?.classB ?? null, now),
+      // CG35: R2 counters project by the account's 7 complete days; queried dimensions have no per-day read yet (rateDays 0).
+      r2ClassA: evaluateMetric("r2ClassA", r2?.classA ?? null, now, r2 === null ? null : { count: r2.recent.classA, days: r2.recent.days }),
+      r2ClassB: evaluateMetric("r2ClassB", r2?.classB ?? null, now, r2 === null ? null : { count: r2.recent.classB, days: r2.recent.days }),
       r2StorageBytes: evaluateMetric("r2StorageBytes", r2?.storageBytes ?? null, now),
       vectorizeStoredDimensions: evaluateMetric("vectorizeStoredDimensions", vectorize?.storedDimensions ?? null, now),
       vectorizeQueriedDimensions: evaluateMetric("vectorizeQueriedDimensions", vectorize?.queriedDimensions ?? null, now),
