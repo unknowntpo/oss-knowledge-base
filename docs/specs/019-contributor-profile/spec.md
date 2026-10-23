@@ -2098,14 +2098,19 @@ store deleted.
 - **Range**: the identity-link job's window is the newest 12 calendar months
   (`HORIZON_MONTHS = 12` in `apps/data-publisher-worker/src/identity-links/run.ts`),
   the same horizon as the KIP pages' first run (365 days) and the review store
-  (from 2025-10-14). Months to fill: from the horizon start
-  (`month(now) − 11`) to the month of the log's `coverageFrom`, inclusive.
-  On 2026-10-23 that is 2025-11 to 2026-09: 11 months. The current month is
-  never backfilled; the log owns it.
+  (from 2025-10-14). Months to fill: from the newest,
+  `min(month(coverageFrom), month(now) − 1)`, back to the horizon start
+  (`month(now) − 11`), inclusive. On 2026-10-23 that is 2026-09 back to
+  2025-11: 11 months. The current month is never backfilled; the log owns
+  it.
 - **Overlap**: 2026-09 is in both stores. Edge A counts distinct keys per
   pair and keys threads by `KAFKA-PR-<n>`, so a pull request in both counts
-  once; for a Jira key in both, the log's entry wins (read after the
-  backfill's for the same month, newer month first otherwise).
+  once. For a Jira key, `IdentityFacts.add` keeps the last entry it reads
+  unless that entry's month is older (`jira.set`, last write wins), and the
+  identity-link job reads months oldest to newest
+  (`apps/data-publisher-worker/src/identity-links/run.ts`); so the reader
+  reads oldest → newest, the backfill's month before the log's for the same
+  month, and the newest assignee snapshot wins: the log's for a key in both.
 - **Newest first, one month per run.** Each run fills the newest missing
   month, so the filled range is always contiguous with the log: a partially
   finished backfill is a shorter window, never a window with a hole (the
@@ -2133,8 +2138,10 @@ Stop rules, all of them "stop now, no retry in this run, write no month":
    limit), any 5xx, a timeout, a network error, unparsable JSON or a GraphQL
    `errors` array: status `failed`, or `limited` for the rate-limit cases.
 2. `Retry-After` on any response, or GitHub `x-ratelimit-remaining` /
-   `rateLimit.remaining` below 1,000 even on a 200 (headroom kept for the
-   publication's 22:07 run): status `limited`, and `retryAfter` (the header,
+   `rateLimit.remaining` below 1,000 even on a 200 (the token is shared
+   with the publication and Spec 022; points reset hourly, so this only
+   stops a run that meets an already busy token): status `limited`, and
+   `retryAfter` (the header,
    or `resetAt`) is recorded; a cron run before `retryAfter` sends nothing
    and writes nothing.
 3. A month needing a 6th search page, a 5th Jira request, or an `issueCount`
@@ -2149,11 +2156,11 @@ one request a day; no pause state is kept (deleted in the review below).
 
 | | |
 | --- | --- |
-| Trigger | Its own cron entry `23 1 * * *` (01:23 UTC) in the Dev publisher Worker, dispatched by `IDENTITY_BACKFILL_CRON`; clear of the Dev windows 21:50–23:05 (publication, digest), 02:05–02:30 (identity links), 03:30–03:55 (KIP pages), the Prod publication's retries (until about 00:30) and the `sre-agent` tick (00:30). `POST /identity-backfill/run` (`Bearer MANUAL_TRIGGER_TOKEN`) runs one month now; it answers 409 `{skipped: "too-soon"}` within 60 min of the last run, so a person cannot speed it up by repeating the call |
+| Trigger | Its own cron entry `23 1 * * *` (01:23 UTC) in the Dev publisher Worker, dispatched by `IDENTITY_BACKFILL_CRON`; clear of the Dev windows 21:50–23:05 (publication, digest), 02:05–02:30 (identity links), 03:30–03:55 (KIP pages), the Prod publication's retries (until about 00:30) and the `sre-agent` tick (00:30). `POST /identity-backfill/run` (`Bearer MANUAL_TRIGGER_TOKEN`) runs one month now; it answers 409 `{skipped: "too-soon"}` within 60 min of the last run, so a person cannot speed it up by repeating the call. The guard is the route's only: a cron run after a manual run of the same day fetches the then-newest unfinished month, the same month again only if the manual run failed (benign: at most one more month's requests) |
 | Inputs | The log's `internal/people/v1/<projectId>/state.json` (`coverageFrom`); the job's own record; GitHub and ASF Jira as above. Kafka only (the community profile's `corroboration` config; DataFusion has none) |
 | Output | One month object, then `internal/identity/v1/backfill-last-run.json`: `revision`, `lastRun`, `months {done[], next, remaining}`, `from`, `until`. Nothing else is written |
 | R2 | Per run: 2 Class B (the record, the log's state) and at most 2 Class A (the month, the record); a failed run 1 Class A (the record); a run with nothing left (`complete`) or before `retryAfter` 0 Class A. Whole backfill: about 22 Class A and 22 Class B |
-| Status | `/health` `identityBackfill` (W130) while the flag is set; one Spec 028 data point `job: "identity-backfill"` per run while `OBSERVABILITY_SIGNALS=on` |
+| Status | `/health` `identityBackfill` (W130) while the flag is set, read from the record: 1 Class B per `/health` request (as `identityLinks` and `kipPages`); one Spec 028 data point `job: "identity-backfill"` per run while `OBSERVABILITY_SIGNALS=on` |
 | Isolation | Its own invocation; never starts, waits for or is started by another job; writes only `internal/identity/v1/kafka/backfill/` and its record; the identity-link job never calls it and reads its output only behind `IDENTITY_LINKS_BACKFILL` |
 | Off | `IDENTITY_BACKFILL` unset: the cron entry and route do nothing (404), no upstream request, no R2 call, no `/health` field. `prs@1`: on. Any other value: the run records a config failure, nothing else |
 
@@ -2167,18 +2174,23 @@ removed (rollout step 6).
 ### The identity-link job reads the store (behind a flag)
 
 - `IDENTITY_LINKS_BACKFILL=read`: the run also reads
-  `backfill-last-run.json` and each finished month inside its 12-month
-  window, one at a time, before the log's months, and computes links over
-  the union (newest 12 calendar months). Unset: it reads none of them and its
+  `backfill-last-run.json` and each finished month inside its window, one
+  at a time, oldest to newest, the backfill's month before the log's for the
+  same month, and computes links over the union. The window is the newest
+  12 **calendar months** ending at the newest log month: the union of both
+  stores covers 12 calendar months, which is up to 13 objects because the
+  month of `coverageFrom` is in both. Unset: it reads none of them and its
   table is byte-identical to today's (W116).
 - Budget: at most 17 Class B and 2 Class A a run (was 15 and 2): the
   backfill record, and at most 13 month objects instead of 12 because the
   month of `coverageFrom` is in both stores; about 0.8 MB more parsed, one
   month at a time (Spec 009).
 - Fail closed (as W76): an unparsable record, a finished month missing or
-  unparsable, or a gap between the newest finished month and the month of
-  `coverageFrom` fails the project: no table, the last good one stays. An
-  absent record means "no backfill yet": the window is the log's, stated in
+  unparsable, a hole inside the finished months, or a gap between the newest
+  finished month and the first month to fill
+  (`min(month(coverageFrom), month(now) − 1)`) fails the project: no table,
+  the last good one stays. An absent record, or one with `done: []`, means
+  "no backfill yet", not a gap: the window is the log's, stated in
   `lastRun.inputs.backfill` as `null`.
 - `POST /identity-links/run?dryRun=1&backfill=1` reads the store even while
   the flag is unset and writes nothing: the precision gate on real inputs.
@@ -2258,13 +2270,17 @@ responses of the Example.
 | W114 | assignee kept, nothing else | recorded | 50-key Jira response with `assignee` and `status` | per key `{key, display}`; no status, name, avatar, time zone |
 | W114 | unassigned and missing key | constructed | one issue with `assignee: null`; one key absent from the response | `assignee: null`; no thread for the absent key |
 | W114 | batching | constructed | 222 distinct keys | 3 requests of 100, 100, 22 keys |
+| W114 | moved issue | constructed | requested KAFKA-10, response holds the issue as KAFKA-20 | no thread for KAFKA-10 or KAFKA-20 |
 | W115 | newest first | constructed | now 2026-10-23, `coverageFrom` 2026-09-10, done [] | fetches 2026-09 |
 | W115 | resume | constructed | done [2026-09, 2026-08] | fetches 2026-07; never 2026-09 or 2026-08 again |
 | W115 | horizon moved | constructed | now 2026-11-05, done 2026-09 … 2025-12 | `complete`; 2025-11 not fetched |
 | W115 | complete | constructed | all months done | no upstream request; 0 Class A |
 | W116 | reader off | constructed | store present, `IDENTITY_LINKS_BACKFILL` unset | table byte-identical to the run without the store; no store read |
 | W116 | reader on (positive control) | recorded | the Example's sample as backfill months plus the log's 2 months | `m1a2st` ↔ JIRAUSER305187 linked |
+| W116 | same month in both stores | constructed | KAFKA-1 assignee A in backfill 2026-09, B in log 2026-09 | B (log read after backfill) |
+| W116 | window | constructed | log months 2026-09, 2026-10; backfill 2025-10 … 2026-09 | reads backfill 2025-11 … 2026-09 and log 2026-09, 2026-10 (12 calendar months, 13 objects); 2025-10 not read |
 | W117 | twelve-month pairs | recorded | the Example's five people | links: `m1a2st` 22, `harmadasg` 20, `unknowntpo` 10, `dybyte` 9; `m1a2st` ↔ Chia-Ping Tsai (5) and ↔ Gergely Harmadás (3) rejected by dominance; `chia7712` none |
+| W118 | dry run with backfill | constructed | flag unset, `?dryRun=1&backfill=1&blind=1` | reads the store; precision counts in the response; no R2 put |
 | W119 | profile unchanged | constructed | store present | `/api/people/kafka/github:m1a2st` byte-identical with and without it |
 | W120 | 429 | constructed | GitHub answers 429 on page 2 | 1 more request not sent; no month written; status `limited` |
 | W120 | 5xx, timeout, bad JSON, GraphQL errors | constructed | Jira 502; a 30 s timeout; `<html>`; `errors: [...]` | each: no month written, `failed`, no retry |
@@ -2275,9 +2291,15 @@ responses of the Example.
 | W123 | gap | constructed | done [2026-07], `coverageFrom` 2026-09-10 | identity-link project fails closed; last good table kept |
 | W123 | finished month missing | constructed | record lists 2026-08, object absent | fails closed |
 | W123 | no record | constructed | flag `read`, no record | links from the log only; `inputs.backfill: null` |
+| W123 | nothing finished yet | constructed | flag `read`, record with `done: []` | links from the log only; `inputs.backfill: null`; not a gap |
+| W123 | hole inside done | constructed | done [2026-09, 2026-07] | fails closed |
+| W124 | isolation | constructed | the job's tick with fetch throwing and the bucket failing its puts | no other job started or changed; no write outside its prefix and record; the tick does not throw |
+| W124 | the publication tick | constructed | publication tick with `IDENTITY_BACKFILL=prs@1` | no GitHub search or Jira request for the backfill; nothing under `internal/identity/v1/kafka/backfill/` |
 | W125 | off | constructed | `IDENTITY_BACKFILL` unset, cron set | no request, no R2 call, route 404, no `/health` field |
 | W126 | too soon | constructed | manual run 30 min after the last | 409 `too-soon`, no request |
 | W127 | rollback | constructed | flag `read` then unset | second table equals the table without the store |
+| W130 | health field | constructed | a record after a `limited` run | `identityBackfill` with `status: "limited"`, `retryAfter`, `requests`, `r2`, `months`; 1 Class B for the `/health` request |
+| W130 | flag unset | constructed | no flag | no `identityBackfill`; no R2 read |
 
 ### Owner decisions (amendment 8, 2026-10-23)
 
@@ -2653,9 +2675,9 @@ Each item: precondition → action → observable result → evidence. All are
 - W110: given a recorded Jira response with `assignee` and `reporter` objects (key, name, displayName, timeZone, avatarUrls, active), `authors.json` keeps only the assignee's `key` and `displayName` per issue, nothing of the reporter, and no response or `/health` body carries more → test over the recorded issues (slice B covers `authors.json` and `/health`; the profile slice adds its responses).
 - W111: given `PEOPLE_KIPS=true`, the profile of `jira-account:<key>` lists the KIPs whose listed issue it is assigned, and a GitHub or dev@ identity linked to that account (roster, declared or corroborated) lists them with the link's basis; with the recorded corroborated link `github:unknowntpo` ↔ JIRAUSER306218, `github:unknowntpo` lists KIP-1371 as "assigned the KIP's Jira issue (KAFKA-20995)"; with no link, the GitHub page lists nothing; no display name is compared → API test and case rows.
 - W113: [pending] given recorded GraphQL search pages for month M, the `identity-backfill` job lists every apache/kafka pull request created in M (sorted by creation), keeps those whose title holds a key by the Kafka search profile's pattern, and stores each as thread `KAFKA-PR-<n>` with title, URL, `author` `github:<login>` (`null` for a Bot or deleted account), `labels: []` and the title's KIPs, in the month of its creation time; pull requests without a key are not stored (amendment (8)) → case rows.
-- W114: [pending] given the month's distinct keys, the job sends `key in (<≤ 100 keys>)&fields=assignee&validateQuery=warn&maxResults=100` batches and stores per key a Jira thread with title `KAFKA-<n>`, `reporter: null` and `assignee` `{key, display}` or `null`, and nothing else of the user object; a key the response lacks gets no thread → case rows.
-- W115: [pending] given `now`, the log's `coverageFrom` and the record's finished months, a run fetches the newest unfinished month from the month of `coverageFrom` back to the horizon start (`month(now) − 11`), one month per run, writes the month object and then the record; a finished month or a month before the horizon is never fetched; with nothing left the run is `complete`, sends no upstream request and writes nothing → case rows and run test with a stubbed clock.
-- W116: [pending] given `IDENTITY_LINKS_BACKFILL=read`, the identity-link run reads the backfill record and each finished month inside its 12-month window, one at a time, backfill before log for the same month, and computes links over the union; unset, it reads no backfill object and its table is byte-identical to the run without the store → run test, positive control `m1a2st` ↔ `JIRAUSER305187`.
+- W114: [pending] given the month's distinct keys, the job sends `key in (<≤ 100 keys>)&fields=assignee&validateQuery=warn&maxResults=100` batches and stores per key a Jira thread with title `KAFKA-<n>`, `reporter: null` and `assignee` `{key, display}` or `null`, and nothing else of the user object; a key the response lacks gets no thread, and an issue returned under another key (moved; Jira answers with its new key) is dropped, not stored under either key → case rows.
+- W115: [pending] given `now`, the log's `coverageFrom` and the record's finished months, a run fetches the newest unfinished month from `min(month(coverageFrom), month(now) − 1)` back to the horizon start (`month(now) − 11`), one month per run, writes the month object and then the record; a finished month or a month before the horizon is never fetched; with nothing left the run is `complete`, sends no upstream request and writes nothing → case rows and run test with a stubbed clock.
+- W116: [pending] given `IDENTITY_LINKS_BACKFILL=read`, the identity-link run reads the backfill record and each finished month inside its window (the newest 12 calendar months ending at the newest log month), one at a time, oldest to newest, backfill before log for the same month, so the newest Jira assignee snapshot wins, and computes links over the union; unset, it reads no backfill object and its table is byte-identical to the run without the store → run test, positive control `m1a2st` ↔ `JIRAUSER305187`.
 - W117: [pending] given the recorded 2026-10-23 sample (five logins, their 81 keys' assignees, and the 108 keys of the four paired accounts with the pull requests naming them), the rule links `m1a2st` ↔ JIRAUSER305187 (22), `harmadasg` ↔ JIRAUSER306203 (20), `unknowntpo` ↔ JIRAUSER306218 (10), `dybyte` ↔ JIRAUSER312871 (9) and refuses `m1a2st` ↔ Chia-Ping Tsai (5) and ↔ Gergely Harmadás (3) by dominance; `chia7712` gets no corroborated link → case rows.
 - W118: [pending] given `POST /identity-links/run?dryRun=1&backfill=1[&blind=1]` with `IDENTITY_LINKS_BACKFILL` unset, the run reads the store, reports the precision counts and writes nothing → Worker test.
 - W119: [pending] given backfill objects in R2, `/api/people/:project/:id` responses and the Pages reader's R2 reads are identical to those without them; no Pages Function reads `internal/identity/v1/*/backfill/` → API test with a counting bucket.
@@ -2695,7 +2717,7 @@ Each item: precondition → action → observable result → evidence. All are
 - W120: [pending] given a GitHub or Jira response that is a 429, a 403 naming a rate limit, a 5xx, a timeout (30 s), a network error, unparsable JSON or a GraphQL `errors` array, the `identity-backfill` run sends no further request, writes no month, records `failed` (`limited` for rate limits) and does not retry within the run → unit test with a stub fetch, positive control all 200.
 - W121: [pending] given a `Retry-After` header or a GitHub remaining budget below 1,000 (`x-ratelimit-remaining` or `rateLimit.remaining`), the run stops as `limited` with `retryAfter`; a cron run before `retryAfter` sends nothing and writes nothing → unit test.
 - W122: [pending] given a month that needs a 6th search page, a 5th Jira request, or an `issueCount` above 1,000, the run stops as `over-budget` after at most 5 search and 4 Jira requests and writes only the record; the next run tries the same month → unit test.
-- W123: [pending] given `IDENTITY_LINKS_BACKFILL=read` and an unparsable backfill record, a finished month missing or unparsable, or a gap between the newest finished month and the month of `coverageFrom`, the identity-link run fails the project closed (no table, last good kept); given no record, it uses the log only and records `inputs.backfill: null` → run test.
+- W123: [pending] given `IDENTITY_LINKS_BACKFILL=read` and an unparsable backfill record, a finished month missing or unparsable, a hole inside the finished months, or a gap between the newest finished month and `min(month(coverageFrom), month(now) − 1)`, the identity-link run fails the project closed (no table, last good kept); given no record or `done: []`, it uses the log only and records `inputs.backfill: null` → run test.
 - W124: [pending] given the `identity-backfill` job throws or its bucket fails, the publication, the digest, the identity-link and `kip-pages` jobs are neither started nor changed, it writes nothing outside `internal/identity/v1/<projectId>/backfill/` and `internal/identity/v1/backfill-last-run.json`, and the tick does not throw; no other job's tick calls GitHub search or Jira for it → Worker test.
 - W125: [pending] given `IDENTITY_BACKFILL` unset, its cron entry and `POST /identity-backfill/run` do nothing (the route answers 404), make no upstream request and no R2 call, and `/health` has no `identityBackfill`; any value but `prs@1` records a config failure and touches no other job → Worker test.
 - W126: [pending] given the route without the token it answers 401; within 60 minutes of the last run it answers 409 `{ok: false, skipped: "too-soon"}` and sends no request → Worker test.
@@ -2734,7 +2756,7 @@ Each item: precondition → action → observable result → evidence. All are
 - W92: [deploy] on Dev after step 4 of amendment (7), `/health` `identityLinks.lastRun.ok` is true on two consecutive days, and the profile of `mail:arnab nandy` lists KIP-1381 and KIP-1382 (or, if they left the coverage, the note says so).
 - W100: `/health` `kipPages` is `{revision, lastRun {ok, status (ok, unchanged, failed, over-budget), at, durationMs, since, requests, jiraRequests, pagesRead, pagesChanged, listed, unparsed, issuesRead, unassigned, bytesWritten, r2 {classA, classB}, error?}, lastGoodAt, coverageFrom}` while `KIP_PAGES` is set → unit test on the field.
 - W106: [deploy] on Dev after step 4, `/health` `kipPages.lastRun.ok` is true on two consecutive days, and the profile of `mail:viktor somogyi-vass` lists KIP-1165 as "author (KIP page)" with "also started the discussion" and nine author names in page order (or, if KIP-1165 left the coverage, the note says so).
-- W130: [pending] `/health` `identityBackfill` is `{revision, lastRun {ok, status (ok, complete, failed, limited, over-budget), at, durationMs, month, prs, keyedPrs, keys, assigned, requests {github, jira}, retryAfter?, bytesWritten, r2 {classA, classB}, error?}, months {done, next, remaining}, from, until}` while `IDENTITY_BACKFILL` is set; error text is redacted as other jobs' → unit test on the field.
+- W130: [pending] `/health` `identityBackfill` is `{revision, lastRun {ok, status (ok, complete, failed, limited, over-budget), at, durationMs, month, prs, keyedPrs, keys, assigned, requests {github, jira}, retryAfter?, bytesWritten, r2 {classA, classB}, error?}, months {done, next, remaining}, from, until}` while `IDENTITY_BACKFILL` is set, read from `backfill-last-run.json` at 1 Class B per `/health` request; error text is redacted as other jobs' → unit test on the field.
 - W131: [deploy] on Dev, after rollout step 2 of amendment (8), `identityBackfill.months.remaining` falls by one a day with `lastRun.ok` true and no `limited` status, until `complete`; after step 5, `identityLinks.lastRun.inputs.backfill.months` holds the finished months and the profile of `github:m1a2st` shows `jira-account:JIRAUSER305187` "Ken Huang" as corroborated with at least 3 keys as evidence.
 
 ## Success criteria
