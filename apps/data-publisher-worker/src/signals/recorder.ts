@@ -42,14 +42,23 @@ export function runLog(context: RunContext | undefined, level: "log" | "error", 
 const DAY = 86_400_000;
 const LIMIT = 20;
 
-/** Behavior 4: one parameterized `SELECT`, bounded by time and by `blob1`, the current run excluded. */
+/** The stored columns the history reads; each is also a `GROUP BY` key. */
+const HISTORY_COLUMNS = "index1, blob3, double1, double2, double3, double6, double7, double8, double9, double10, double11, double12, timestamp";
+
+/**
+ * Behavior 4: one parameterized `SELECT`, bounded by time and by `blob1`, the current run excluded.
+ * Behavior 6: the Analytics SQL binding has no `_sample_interval` column (that is the separate WAE SQL
+ * API); it applies sample weights to `COUNT`. Grouping by every stored column keeps one row per point
+ * and makes `COUNT(*)` that point's weight: 1 when unsampled.
+ */
 export function historyQuery(job: SignalJob, runId: string, environment: "development" | "production", now: number): { readonly query: string; readonly params: Record<string, string> } {
   return {
     query: [
       "SELECT index1 AS runId, blob3 AS status, double1 AS ok, double2 AS durationMs, double3 AS r2ClassA, double6 AS completedAtMs,",
-      "double7 AS c1, double8 AS c2, double9 AS c3, double10 AS c4, double11 AS c5, double12 AS c6, _sample_interval AS sampleInterval",
+      "double7 AS c1, double8 AS c2, double9 AS c3, double10 AS c4, double11 AS c5, double12 AS c6, timestamp AS writtenAt, COUNT(*) AS weight",
       `FROM events.analyticsEngine."${signalsDataset(environment)}"`,
       "WHERE blob1 = $job AND index1 != $runId AND timestamp >= $start",
+      `GROUP BY ${HISTORY_COLUMNS}`,
       `ORDER BY timestamp DESC LIMIT ${LIMIT}`,
     ].join(" "),
     params: { job, runId, start: new Date(now - SIGNAL_THRESHOLDS.historyDays * DAY).toISOString() },
@@ -72,8 +81,8 @@ function historyPoints(data: readonly unknown[]): HistoryPoint[] {
       r2ClassA: number(row.r2ClassA),
       completedAtMs: number(row.completedAtMs),
       counters: [row.c1, row.c2, row.c3, row.c4, row.c5, row.c6].map(number),
-      // A row without the column is treated as sampled: an exact rule must not run on it.
-      sampleInterval: row.sampleInterval === undefined ? Number.NaN : number(row.sampleInterval),
+      // The weighted COUNT(*) of the point's group; a row without it is treated as sampled.
+      sampleInterval: row.weight === undefined ? Number.NaN : number(row.weight),
     };
     if (point.runId === "" || Number.isNaN(point.completedAtMs)) throw new Error("a history row has no runId or completedAtMs");
     return point;
