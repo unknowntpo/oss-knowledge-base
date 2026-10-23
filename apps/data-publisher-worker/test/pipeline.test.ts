@@ -283,6 +283,23 @@ describe("Spec 008 R2 operations of a publication (2026-10 Class A incident)", (
     expect(bucket.classA).toBe(status.copiedObjectCount + POINTER_AND_EVIDENCE_WRITES);
   });
 
+  test("OB32: lastRun.r2 carries the run's put retries and conditional misses beside Class A and Class B", async () => {
+    const bucket = new CountingR2Bucket();
+    const events = fixture.events as DomainEventV1[];
+    bucket.failures.push({ op: "put", message: "put: internal error (10001)" });
+
+    const { status } = await publishToBucket(bucket, events, fixture.config.materializedAt);
+
+    if (!status.ok) throw new Error(status.error);
+    // The retried put is one more Class A request, and the run says why.
+    expect(status.r2).toEqual({ classA: status.copiedObjectCount + POINTER_AND_EVIDENCE_WRITES + 1, classB: bucket.classB, putRetries: 1, conditionalMisses: 0 });
+    // Positive control: a run with no failure reports both counters as 0, and only its own requests.
+    bucket.reset();
+    const { status: second } = await publishToBucket(bucket, events, laterHour(fixture.config.materializedAt));
+    if (!second.ok) throw new Error(second.error);
+    expect(second.r2).toEqual({ classA: second.copiedObjectCount + POINTER_AND_EVIDENCE_WRITES, classB: bucket.classB, putRetries: 0, conditionalMisses: 0 });
+  });
+
   test("C8: an existing release key with different bytes still fails the run as a destination conflict and keeps the pointers", async () => {
     const bucket = new CountingR2Bucket();
     const events = fixture.events as DomainEventV1[];
@@ -320,7 +337,7 @@ describe("Spec 008 R2 operations of a publication (2026-10 Class A incident)", (
     const events = fixture.events as DomainEventV1[];
     const { status, state } = await publishToBucket(bucket, events, fixture.config.materializedAt);
 
-    expect(status.r2).toEqual({ classA: bucket.classA, classB: bucket.classB });
+    expect(status.r2).toEqual({ classA: bucket.classA, classB: bucket.classB, putRetries: 0, conditionalMisses: 0 });
     expect(status.r2!.classA).toBeGreaterThan(0);
     const health = healthBody({ environment: "development", running: false, scheduled: false, phase: undefined, status: state.statuses.at(-1) });
     expect(health.lastRun?.r2).toEqual(status.r2!);
@@ -329,7 +346,7 @@ describe("Spec 008 R2 operations of a publication (2026-10 Class A incident)", (
     bucket.failures.push(...[1, 2, 3].map(() => ({ op: "put" as const, message: "put: internal error (10001)" })));
     const failed = await publishToBucket(bucket, events, laterHour(fixture.config.materializedAt));
     expect(failed.status.ok).toBe(false);
-    expect(failed.status.r2).toEqual({ classA: bucket.classA, classB: bucket.classB });
+    expect(failed.status.r2).toEqual({ classA: bucket.classA, classB: bucket.classB, putRetries: 2, conditionalMisses: 0 });
     expect(failed.status.r2!.classA).toBeGreaterThanOrEqual(3);
   });
 
@@ -345,7 +362,7 @@ describe("Spec 008 R2 operations of a publication (2026-10 Class A incident)", (
 
     const second = await run(laterHour(fixture.config.materializedAt));
 
-    expect(second.r2).toEqual({ classA: bucket.classA, classB: bucket.classB });
+    expect(second.r2).toEqual({ classA: bucket.classA, classB: bucket.classB, putRetries: 0, conditionalMisses: 0 });
   });
 
   test("C9: a destination that does not count requests leaves the status without r2", async () => {

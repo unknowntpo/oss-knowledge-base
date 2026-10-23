@@ -136,7 +136,8 @@ peaked at 62.1 MB at "write feed" against the 128 MB limit (2026-10-19).
 
 Stop and roll back when: `lastRun.ok: false` after the retries
 (`followUp: null`), a source `ok: false` two days in a row, `classA` far
-above `copiedObjectCount + 3`, or `/api/feed` or `/api/search` answers 503.
+above `copiedObjectCount + 3 + putRetries + conditionalMisses`
+(`r2.classAInvariant` `firing`), or `/api/feed` or `/api/search` answers 503.
 
 ### Roll back
 
@@ -329,10 +330,24 @@ R2 bills requests by class, for the whole account (both buckets):
 A conditional put whose precondition fails (`if-none-match: *` on an existing
 key) is still a Class A operation. Deletes are free.
 
-`/health` `lastRun.r2 { classA, classB }` is what the last run's publication
-sent, retries included (Spec 008 C9). Expected for a steady daily run:
-`classA` = `copiedObjectCount + 3` (two pointers, one evidence object) and
-`classB` = `copiedObjectCount + reusedObjectCount + 3`.
+`/health` `lastRun.r2 { classA, classB, putRetries, conditionalMisses }` is
+what the last run's publication sent, retries included (Spec 008 C9).
+`putRetries` counts put attempts after the first (R2 errors such as 10001,
+up to 3 attempts, each billed); `conditionalMisses` counts conditional puts
+that found the key already written (counted as reused). Both are already in
+`classA`; records before Spec 028 D11 (2026-10-23) lack them. Expected for a
+steady daily run: `classA` = `copiedObjectCount + 3 + putRetries +
+conditionalMisses` (two pointers, one evidence object) and `classB` =
+`copiedObjectCount + reusedObjectCount + 3` (plus head and get retries).
+Each retry is one log line, `r2 <op> retry <n> of 2 for <key>: <error>`,
+carrying the run's `runId` while `OBSERVABILITY_SIGNALS` is on.
+
+`r2.classAInvariant` (Spec 028 D11) judges excess = `classA − (copiedObjectCount
++ 3 + putRetries + conditionalMisses)`: `warn` above 3, `firing` above
+max(50, 0.5 × `copiedObjectCount`). A `warn` on a record without the two
+counters is the 2026-10-23 shape (a few uncounted retries); a recurrence of
+the 2026-10-13 cause shows as a large `conditionalMisses`, which this rule
+subtracts, so read `job.r2ClassA` and the cost guard for it.
 
 ```sh
 curl -sS https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/health | jq '.lastRun | {ok, completedAt, copiedObjectCount, reusedObjectCount, r2}'
@@ -356,7 +371,8 @@ estimated 1.2 thousand Class A from an hourly run's 40 new objects, but a
 daily run writes a day's new objects: gardening G68). Hourly, until Spec 018:
 about 28 thousand and 6.0 million. Act when:
 
-- `lastRun.r2.classA` is far above `copiedObjectCount + 3`: something writes
+- `lastRun.r2.classA` is far above `copiedObjectCount + 3`, or
+  `conditionalMisses` is more than a handful: something writes
   what already exists (the incident of 2026-10-13, Spec 008 "R2 operations":
   8,150 failed conditional puts an hour, $4.50 in six days).
 - `lastRun.r2.classB` passes about 13,700 a run in one environment, or the
@@ -444,7 +460,8 @@ curl -sS -X POST -H "authorization: Bearer $MANUAL_TRIGGER_TOKEN" "$DEV/cost-gua
 ```
 
 Before resetting, find and fix the cause (for R2 Class A: compare
-`lastRun.r2.classA` with `copiedObjectCount + 3`, section above). If the
+`lastRun.r2.classA` with `copiedObjectCount + 3 + putRetries +
+conditionalMisses`, section above). If the
 metric is still over its threshold, the next check opens the breaker again;
 to keep working until the month renews, set `COST_GUARD=monitor` instead.
 

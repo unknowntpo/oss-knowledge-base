@@ -59,7 +59,7 @@ Spec 027 與 028 還不在 `main`，下文以「§ 小節（行號）」引用 P
 | `job.failures` | 全部 | 本次與前幾次的 `ok`；`unchanged`、`no-input` 算成功 | 本次失敗 | 連續兩次失敗 | Worker，該 job 執行結束時（analytics） | **028 提案**（Behavior 16，行 328） |
 | `job.duration` | 全部 | `durationMs` 與前 7 次中位數（至少 3 次） | > 2 × 中位數 | ≥ 自己宣告的牆鐘預算 80 %（只有 retention 10 min、kip-pages `KIP_PAGES_CRON_WALL_MS`） | Worker，執行結束時 | **028 提案** |
 | `job.r2ClassA` | `r2Counted` = 1 的 job（publication、identity-links、kip-pages、retention） | `r2ClassA` 與前 7 次中位數 | > 3 × 中位數且 > 1,000 | > 10 × 中位數且 > 5,000 | Worker，執行結束時 | **028 提案** |
-| `r2.classAInvariant` | publication | `lastRun.r2.classA` 與 `copiedObjectCount` | — | `classA > copiedObjectCount + 3` | Worker，state | **028 提案**；同一個比較今天在 runbook 與 027 原始 `get_health`（已撤回）裡，靠人看 |
+| `r2.classAInvariant` | publication | `lastRun.r2.classA`、`putRetries`、`conditionalMisses` 與 `copiedObjectCount`；excess = `classA − (copiedObjectCount + 3 + putRetries + conditionalMisses)`（D11，2026-10-23；舊紀錄缺計數視為 0，`reason` 註明） | excess > 3 | excess > max(50, 0.5 × `copiedObjectCount`) | Worker，state | **028 提案**；同一個比較今天在 runbook 與 027 原始 `get_health`（已撤回）裡，靠人看 |
 | `publication.freshness` | publication | now − 最新的 `sources[*].lastSuccessAt` | > 24.5 h（Spec 021） | > 27 h（Spec 010） | Worker，state | **028 提案**；網站的過期提示（Spec 010／011／021）**今天已有**，但只看 publication |
 | `source.success` | publication（github、mail、jira 各一條） | 每個 UTC 日最新一筆 | 本次失敗 | 連續兩個 UTC 日失敗 | Worker，analytics | **028 提案**（Behavior 5，行 252） |
 | `publication.pollTruncated` | publication | `pollTruncated` 連續為真的時間 | 本次為真 | 持續 > 48 h | Worker，analytics | **028 提案** |
@@ -170,7 +170,7 @@ Spec 028 Example（行 125）用 Dev 2026-10-20 的真實值走過一遍：全�
 | --- | --- | --- | --- | --- |
 | [`job.missed`](../runbooks/sre/job.missed.md) | hard | 每個已啟用的 job 在預期間隔內完成一次（日排程 24.5 h warn／27 h firing；embedding 2 h／3 h） | `job.missed`、`publication.freshness`、`digest.freshness`、`publication.pollTruncated` | v1 |
 | `job-not-failing-repeatedly` | hard | 沒有 job 或來源連續兩次（兩個 UTC 日）失敗 | `job.failures`、`source.success` | v1 |
-| `r2-class-a-bounded` | hard | 每次 publication 的 Class A ≤ 新物件 + 3；各 job Class A 不遠超基準；月累計未觸發 cost guard | `r2.classAInvariant`、`job.r2ClassA`、cost guard `tripped` | v1 |
+| `r2-class-a-bounded` | hard | 每次 publication 的 Class A ≤ 新物件 + 3 + 已計數的重試與 conditional miss（D11）；各 job Class A 不遠超基準；月累計未觸發 cost guard | `r2.classAInvariant`、`job.r2ClassA`、cost guard `tripped` | v1 |
 | `release-ci-green` | hard | 最新 `v*` tag 與 `main` 的 CI 成功，Prod 跑的是最新 tag | `ci.release` | v1 |
 | `digest-locale-matches` | soft | 每個語系的 digest 只有該語系文字 | 無（agent 判斷） | v2 |
 | `identity-links-stable` | soft | identity links 數量不會無故大幅下降 | 無 | v2 |
