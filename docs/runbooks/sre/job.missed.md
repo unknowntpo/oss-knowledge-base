@@ -49,16 +49,18 @@ Workers Logs are not in the v1 bundle (Spec 028 D6).
 
 ## Causes, in order
 
-Check them in this order; stop at the first one the evidence supports.
+Check them in this order; stop at the first one the evidence supports. A
+diagnosis names the cause by its id (`cause` in the record); `unknown` needs
+no runbook.
 
-| # | Cause | Distinguishing evidence | Runbook |
-| --- | --- | --- | --- |
-| 1 | The cron did not fire, or the scheduled handler threw before recording a start | No data point and no state change after the last good run; `running: false`, `scheduled: false`, `followUp: null`; the cron entry or the job's flag missing from the deployed configuration | [Health and manual run](../cloudflare-data-publisher.md#health-and-manual-run) |
-| 2 | The run started but never completed: the Durable Object alarm is stuck, or a follow-up was lost | `running: true` or `phase` set with an old `startedAt`; or `scheduled: true` with a `followUp.at` in the past; a start without a matching finish in the data points | [Follow-up runs](../cloudflare-data-publisher.md#follow-up-runs-spec-018) |
-| 3 | The cost guard paused the job (`enforce` mode) | `costGuard.mode: "enforce"`, `breaker.tripped: true`, `breaker.trippedAt` at or before `since`. Under `monitor` nothing is paused, so this cause does not apply | [Cost guard: read `/health`](../cloudflare-data-publisher.md#read-health), [Reset the breaker](../cloudflare-data-publisher.md#reset-the-breaker) |
-| 4 | Upstream failure (GitHub or Jira rate limit or outage) made every run fail early | Runs exist but each ended `ok: false` with short `durationMs`; `sources.<key>.ok: false` and an old `lastSuccessAt`. This normally fires `job.failures` too | [Follow-up runs](../cloudflare-data-publisher.md#follow-up-runs-spec-018), [Failure and rollback](../cloudflare-data-publisher.md#failure-and-rollback) |
-| 5 | A deploy broke the job | A deploy (CI `deploy-development` or `deploy-production`) between the last good run and `since`, and no good run after it | [Roll back](../cloudflare-data-publisher.md#roll-back) |
-| 6 | Unknown | None of the above is supported by the bundle | Say so and list the missing evidence |
+| # | Cause id | Cause | Distinguishing evidence | Runbook |
+| --- | --- | --- | --- | --- |
+| 1 | `cron-not-fired` | The cron did not fire, or the scheduled handler threw before recording a start | No data point and no state change after the last good run; `running: false`, `scheduled: false`, `followUp: null`; the cron entry or the job's flag missing from the deployed configuration | [Health and manual run](../cloudflare-data-publisher.md#health-and-manual-run) |
+| 2 | `alarm-stuck` | The run started but never completed: the Durable Object alarm is stuck, or a follow-up was lost | `running: true` or `phase` set with an old `startedAt`; or `scheduled: true` with a `followUp.at` in the past; a start without a matching finish in the data points | [Follow-up runs](../cloudflare-data-publisher.md#follow-up-runs-spec-018) |
+| 3 | `cost-guard-paused` | The cost guard paused the job (`enforce` mode) | `costGuard.mode: "enforce"`, `breaker.tripped: true`, `breaker.trippedAt` at or before `since`. Under `monitor` nothing is paused, so this cause does not apply | [Cost guard: read `/health`](../cloudflare-data-publisher.md#read-health), [Reset the breaker](../cloudflare-data-publisher.md#reset-the-breaker) |
+| 4 | `upstream-failure` | Upstream failure (GitHub or Jira rate limit or outage) made every run fail early | Runs exist but each ended `ok: false` with short `durationMs`; `sources.<key>.ok: false` and an old `lastSuccessAt`. This normally fires `job.failures` too | [Follow-up runs](../cloudflare-data-publisher.md#follow-up-runs-spec-018), [Failure and rollback](../cloudflare-data-publisher.md#failure-and-rollback) |
+| 5 | `deploy-broke-job` | A deploy broke the job | A deploy (CI `deploy-development` or `deploy-production`) between the last good run and `since`, and no good run after it | [Roll back](../cloudflare-data-publisher.md#roll-back) |
+| 6 | `unknown` | Unknown | None of the above is supported by the bundle | Say so and list the missing evidence |
 
 ## Judgment guidance
 
