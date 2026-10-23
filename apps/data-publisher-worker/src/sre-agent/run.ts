@@ -126,9 +126,10 @@ export async function sreAgentTick(env: SreAgentEnv, deps: SreAgentTickDeps): Pr
   const started = Date.now();
   const store = r2Store(env.OSS_KB_BUCKET);
   const sre = sreEnv(env.PUBLICATION_ENVIRONMENT);
-  const model = flag.mode === "live" ? sreAgentModel(env) : undefined;
   let result: SreAgentTickResult;
   try {
+    // Inside the try: a binding that fails as the model is built is a failed tick too (SRE47).
+    const model = flag.mode === "live" ? sreAgentModel(env) : undefined;
     const tick = await runTick({
       env: sre,
       flag: env.SRE_AGENT,

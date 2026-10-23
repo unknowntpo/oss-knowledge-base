@@ -248,6 +248,16 @@ const scenarios: Record<string, () => Promise<void>> = {
     expect((await health(unreadable.env)).sreAgent).toMatchObject({ mode: "dry", status: "unknown", reason: expect.stringContaining("R2 get failed") });
   },
 
+  async "model construction throws"() {
+    const { env, ai, bucket } = workerEnv({ SRE_AGENT: "live", OBSERVABILITY_SIGNALS: "on" });
+    // The binding fails as the model is built (createAI reads it there), before any tick step.
+    Object.defineProperty(env, "AI", { get() { throw new Error(`AI binding unavailable for ${SECRET}`); }, enumerable: true });
+    await scheduled(env, "30 0 * * *");
+    expect(ai.calls).toHaveLength(0);
+    expect(bucket.json(STATE_KEY).lastRun).toEqual({ runId: RUN_ID, at: NOW, status: "failed", reason: "AI binding unavailable for [redacted]" });
+    expect((await health(env)).sreAgent).toMatchObject({ mode: "live", status: "failed" });
+  },
+
   async "model from the binding"() {
     const ai = new FakeAi();
     const model = sreAgentModel({ AI: ai, SRE_AGENT_MODEL: MODEL });
