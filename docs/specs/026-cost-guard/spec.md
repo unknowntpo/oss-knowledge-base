@@ -1,6 +1,6 @@
 # Spec 026: Account-wide cost guard and circuit breaker
 
-Status: Partially implemented: CG1–CG20 implemented (#105, 2026-10-20; owner decisions 2026-10-20; no web change); rollout step 1 (Dev monitor: `COST_GUARD=monitor`, `COST_GUARD_STATE`, migration `v5`, `CF_ACCOUNT_ID`) in the Dev monitor enable PR, 2026-10-21; CG19 waits for the first successful check; `COST_GUARD` unset on Prod; amended 2026-10-21 (owner decisions: a $5-a-month dollar budget; its open decisions resolved the same day: 7-day projection, own-bucket spike, UTC month, provisional spike threshold, warn on projection), CG21–CG37 not implemented
+Status: Partially implemented: CG1–CG20 implemented (#105, 2026-10-20; owner decisions 2026-10-20; no web change); rollout step 1 (Dev monitor: `COST_GUARD=monitor`, `COST_GUARD_STATE`, migration `v5`, `CF_ACCOUNT_ID`) in the Dev monitor enable PR, 2026-10-21; CG19 waits for the first successful check; `COST_GUARD` unset on Prod; amended 2026-10-21 (owner decisions: a $5-a-month dollar budget; its open decisions resolved the same day: 7-day projection, own-bucket spike, UTC month, provisional spike threshold, warn on projection); CG21 and CG35 implemented (owner decision 2026-10-23: the per-metric projection uses the 7-day rate now, before the budget; dollars per metric in `/health`; no spike), CG22–CG34, CG36, CG37 not implemented
 Date: 2026-10-20
 Traceability: enforced
 Builds on: Spec 008 (R2 operations), Spec 010, 021 (a paused publication shows as a stall), Spec 014 (digest neuron ledger), Spec 016 (embedding ledger, query gate), Spec 018 (daily publication)
@@ -165,8 +165,10 @@ These replace Behavior 5, 6 and 13, the trip condition of Behavior 7 and the
 publication trigger of Behavior 9.
 
 - 3a. The one GraphQL request adds two aliased `r2OperationsAdaptiveGroups`
-  selections: the account's operations by `date` over the 7 complete UTC
-  days before today (for the rate, Behavior 5a), and the last 24 hours with
+  selections: the account's operations by `actionType` over the 7 complete
+  UTC days before today (`datetime_geq` 00:00 UTC seven days before today,
+  `datetime_lt` 00:00 UTC today; summed, not split by day; for the rate,
+  Behavior 5a; implemented by CG35), and the last 24 hours with
   `bucketName` the guard's own bucket: `oss-knowledge-base-dev` when
   `PUBLICATION_ENVIRONMENT` is `development`, `oss-knowledge-base-prod` when
   it is `production` (the `OSS_KB_BUCKET` binding's `bucket_name` in each
@@ -392,7 +394,9 @@ closed.
    the publication, also when the publication is paused) and on
    `POST /cost-guard/check` (bearer `MANUAL_TRIGGER_TOKEN`). One GraphQL
    request reads R2 operations from the first instant of the UTC month to
-   now (31 days at most by construction) and R2 storage over the last two
+   now (31 days at most by construction), the same operations over the 7
+   complete UTC days before today (an aliased selection for the rate of
+   Behavior 5; CG35), and R2 storage over the last two
    days (newest row per bucket, `payloadSize + metadataSize`, summed). The
    token is sent only in the `Authorization` header.
 4. In-app estimates: neurons today = digest `today.estimatedNeurons` +
@@ -403,11 +407,19 @@ closed.
    off, and for a ledger of another UTC day; Spec 027 B31, SRE62). Vectorize (only with `SEARCH_VECTORS`): stored =
    `vectorCount × dimensions`; queried = (month-to-date gate index queries +
    `vectorCount`) × `dimensions`.
-5. (amended: 5a) Per metric: `percent = value / allowance × 100`. A counter (R2
-   operations, queried dimensions, neurons) also has `projectedPercent =
-   percent / elapsed`, where `elapsed` is the fraction of its period (UTC
-   month or UTC day) that has passed, but only once `elapsed ≥ 0.25`;
-   before that, and for gauges (storage, stored dimensions), it is null.
+5. (amended: 5a) Per metric: `percent = value / allowance × 100`. A month
+   counter (R2 operations, queried dimensions) has `projectedPercent` = its
+   projected month-end value of Behavior 5a (`value + rate ×
+   remainingDays`, the rate over the 7 complete UTC days before today;
+   owner decision 2026-10-23, CG35) over the allowance, from the 1st of the
+   month; `rateDays` says how many days the rate used (R2: 7; queried
+   dimensions: 0 until the gate's per-day read lands, gardening G101, so
+   they project as month to date). Neurons have `projectedPercent =
+   percent / elapsed`, where `elapsed` is the fraction of the UTC day that
+   has passed, but only once `elapsed ≥ 0.25`; before that, and for gauges
+   (storage, stored dimensions), it is null. Each metric also carries
+   `overageUsd` and `projectedOverageUsd` (Behavior 5a, CG21); they inform
+   and trip nothing until the budget (CG22) lands.
    Displayed percents are floored to 0.01; comparisons use the exact values.
 6. (amended: 6a, 6b) Status per metric: `tripped` when `percent ≥ 80` or `projectedPercent >
    100`; else `warn` when `percent ≥ 60`; else `ok`; `unavailable` when the
@@ -457,7 +469,8 @@ closed.
     `unconfigured` if a requirement is missing, else `pending` before the
     first check, else the worst metric status (`warn` or `ok`; `unavailable`
     counts as ok). `metrics[key]` is `{value, allowance, percent,
-    projectedPercent, period, scope, source, status}`.
+    projectedPercent, overageUsd, projectedOverageUsd, rateDays, period,
+    scope, source, status}`.
 14. No log line, `/health` field, stored state or response contains the
     token. Every error text passes the existing sanitizer.
 
@@ -467,41 +480,44 @@ Generated from `apps/data-publisher-worker/test/cost-guard.cases.ts` by
 `bun run docs:test-plan`; the unit tests run exactly these rows.
 
 <!-- test-plan:start apps/data-publisher-worker/test/cost-guard.cases.ts -->
-| id | case | metric | value | now | percent | projectedPercent | status |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| CG2 | R2 Class A just under warn, month end | r2ClassA | 599999 | 2026-10-31T22:07:00Z | 59.99 | 60.15 | ok |
-| CG2 | R2 Class A at 60 %: warn | r2ClassA | 600000 | 2026-10-31T22:07:00Z | 60 | 60.15 | warn |
-| CG2 | R2 Class A just under 80 % | r2ClassA | 799999 | 2026-10-31T22:07:00Z | 79.99 | 80.2 | warn |
-| CG2 | R2 Class A at 80 %: trip | r2ClassA | 800000 | 2026-10-31T22:07:00Z | 80 | 80.2 | tripped |
-| CG2 | one second before a quarter of the month: no projection | r2ClassA | 300000 | 2026-10-08T17:59:59Z | 30 | — | ok |
-| CG2 | a quarter of the month: projected 120 % trips | r2ClassA | 300000 | 2026-10-08T18:00:00Z | 30 | 120 | tripped |
-| CG2 | projected exactly 100 %: not over | r2ClassA | 250000 | 2026-10-08T18:00:00Z | 25 | 100 | ok |
-| CG2 | projected just over 100 % (shown floored) | r2ClassA | 250001 | 2026-10-08T18:00:00Z | 25 | 100 | tripped |
-| CG2 | February has 28 days | r2ClassA | 400000 | 2026-02-15T00:00:00Z | 40 | 80 | ok |
-| CG2 | R2 Class B at 60 % | r2ClassB | 6000000 | 2026-10-31T22:07:00Z | 60 | 60.15 | warn |
-| CG2 | R2 storage just under 80 %: a gauge has no projection | r2StorageBytes | 7999999999 | 2026-10-20T22:07:00Z | 79.99 | — | warn |
-| CG2 | R2 storage at 8 GB: trip | r2StorageBytes | 8000000000 | 2026-10-20T22:07:00Z | 80 | — | tripped |
-| CG2 | Vectorize stored dimensions today (Example): warn, never trips | vectorizeStoredDimensions | 9998336 | 2026-10-20T22:07:00Z | 99.98 | — | warn |
-| CG2 | Vectorize stored dimensions under 60 % | vectorizeStoredDimensions | 5999999 | 2026-10-20T22:07:00Z | 59.99 | — | ok |
-| CG2 | Vectorize queried dimensions (Example) | vectorizeQueriedDimensions | 10244096 | 2026-10-20T22:07:00Z | 20.48 | 31.88 | ok |
-| CG2 | neurons today just under warn at the Dev tick | workersAiNeurons | 5999 | 2026-10-20T22:07:00Z | 59.99 | 65.09 | ok |
-| CG2 | neurons today at 60 % | workersAiNeurons | 6000 | 2026-10-20T22:07:00Z | 60 | 65.1 | warn |
-| CG2 | neurons today just under 80 % | workersAiNeurons | 7999 | 2026-10-20T22:07:00Z | 79.99 | 86.8 | warn |
-| CG2 | neurons today at 80 %: trip | workersAiNeurons | 8000 | 2026-10-20T22:07:00Z | 80 | 86.81 | tripped |
-| CG2 | neurons one second before a quarter of the day: no projection | workersAiNeurons | 5000 | 2026-10-20T05:59:59Z | 50 | — | ok |
-| CG2 | neurons at a quarter of the day: projected 200 % trips | workersAiNeurons | 5000 | 2026-10-20T06:00:00Z | 50 | 200 | tripped |
-| CG2 | a value that could not be read | r2ClassA | — | 2026-10-20T22:07:00Z | — | — | unavailable |
+| id | case | metric | value | recent | days | now | percent | projectedPercent | status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| CG2 | R2 Class A just under warn, month end | r2ClassA | 599999 | 140000 | 7 | 2026-10-31T22:07:00Z | 59.99 | 60.15 | ok |
+| CG2 | R2 Class A at 60 %: warn | r2ClassA | 600000 | 140000 | 7 | 2026-10-31T22:07:00Z | 60 | 60.15 | warn |
+| CG2 | R2 Class A just under 80 % | r2ClassA | 799999 | 140000 | 7 | 2026-10-31T22:07:00Z | 79.99 | 80.15 | warn |
+| CG2 | R2 Class A at 80 %: trip | r2ClassA | 800000 | 140000 | 7 | 2026-10-31T22:07:00Z | 80 | 80.15 | tripped |
+| CG35 | real October (Example): the 7-day rate projects 211 %, not month to date's 318 % | r2ClassA | 2062716 | 33676 | 7 | 2026-10-21T02:04:00Z | 206.27 | 211.52 | tripped |
+| CG35 | a past burst of 700,000 with a quiet week: warns, no longer projected over | r2ClassA | 700000 | 33676 | 7 | 2026-10-21T22:07:00Z | 70 | 74.84 | warn |
+| CG35 | projected exactly 100 %: not over | r2ClassA | 280000 | 210000 | 7 | 2026-10-08T00:00:00Z | 28 | 100 | ok |
+| CG35 | projected just over 100 % (shown floored) | r2ClassA | 280001 | 210000 | 7 | 2026-10-08T00:00:00Z | 28 | 100 | tripped |
+| CG35 | November 1 00:30: October's last 7 days project from the 1st | r2ClassA | 100 | 1400000 | 7 | 2026-11-01T00:30:00Z | 0.01 | 599.59 | tripped |
+| CG35 | February has 28 days: 14 remain | r2ClassA | 400000 | 280000 | 7 | 2026-02-15T00:00:00Z | 40 | 96 | ok |
+| CG2 | R2 Class B at 60 % | r2ClassB | 6000000 | 1400000 | 7 | 2026-10-31T22:07:00Z | 60 | 60.15 | warn |
+| CG2 | R2 storage just under 80 %: a gauge has no projection | r2StorageBytes | 7999999999 | — | — | 2026-10-20T22:07:00Z | 79.99 | — | warn |
+| CG2 | R2 storage at 8 GB: trip | r2StorageBytes | 8000000000 | — | — | 2026-10-20T22:07:00Z | 80 | — | tripped |
+| CG2 | Vectorize stored dimensions today (Example): warn, never trips | vectorizeStoredDimensions | 9998336 | — | — | 2026-10-20T22:07:00Z | 99.98 | — | warn |
+| CG2 | Vectorize stored dimensions under 60 % | vectorizeStoredDimensions | 5999999 | — | — | 2026-10-20T22:07:00Z | 59.99 | — | ok |
+| CG35 | queried dimensions (Example), no complete day of history: projects as month to date | vectorizeQueriedDimensions | 10244096 | 0 | 0 | 2026-10-20T22:07:00Z | 20.48 | 20.48 | ok |
+| CG35 | queried dimensions with 3 complete days: the rate uses 3 | vectorizeQueriedDimensions | 15000000 | 3000000 | 3 | 2026-10-21T22:07:00Z | 30 | 50.15 | ok |
+| CG2 | neurons today just under warn at the Dev tick | workersAiNeurons | 5999 | — | — | 2026-10-20T22:07:00Z | 59.99 | 65.09 | ok |
+| CG2 | neurons today at 60 % | workersAiNeurons | 6000 | — | — | 2026-10-20T22:07:00Z | 60 | 65.1 | warn |
+| CG2 | neurons today just under 80 % | workersAiNeurons | 7999 | — | — | 2026-10-20T22:07:00Z | 79.99 | 86.8 | warn |
+| CG2 | neurons today at 80 %: trip | workersAiNeurons | 8000 | — | — | 2026-10-20T22:07:00Z | 80 | 86.81 | tripped |
+| CG2 | neurons one second before a quarter of the day: no projection | workersAiNeurons | 5000 | — | — | 2026-10-20T05:59:59Z | 50 | — | ok |
+| CG2 | neurons at a quarter of the day: projected 200 % trips | workersAiNeurons | 5000 | — | — | 2026-10-20T06:00:00Z | 50 | 200 | tripped |
+| CG2 | a value that could not be read | r2ClassA | — | — | — | 2026-10-20T22:07:00Z | — | — | unavailable |
 <!-- test-plan:end -->
 
-### Amendment 2026-10-21 (pending)
+### Amendment 2026-10-21
 
 Dollars per metric now and projected (CG21; the 7-day projection of counters, CG35), generated from
 `apps/data-publisher-worker/test/cost-guard-dollars.cases.ts`:
 
-<!-- test-plan:start apps/data-publisher-worker/test/cost-guard-dollars.cases.ts [pending] -->
+<!-- test-plan:start apps/data-publisher-worker/test/cost-guard-dollars.cases.ts -->
 | id | case | metric | value | recent | days | now | overageUsd | projectedOverageUsd |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | CG21 | R2 storage 13.9 GB (Example): a gauge projects as itself | r2StorageBytes | 13900000000 | — | — | 2026-10-21T02:04:00Z | 0.0585 | 0.0585 |
+| CG21 | R2 storage 15.7 GB: $0.0855, which a plain floor of the float product (0.08549999…) shows as $0.0854 | r2StorageBytes | 15700000000 | — | — | 2026-10-21T22:07:00Z | 0.0855 | 0.0855 |
 | CG21 | R2 storage at exactly 10 GB | r2StorageBytes | 10000000000 | — | — | 2026-10-21T22:07:00Z | 0 | 0 |
 | CG21 | Vectorize stored dimensions (Example): $0.0000888, shown floored | vectorizeStoredDimensions | 10177536 | — | — | 2026-10-21T02:04:00Z | 0 | 0 |
 | CG21 | Vectorize stored dimensions 200 million over | vectorizeStoredDimensions | 210000000 | — | — | 2026-10-21T22:07:00Z | 0.1 | 0.1 |
@@ -522,7 +538,7 @@ Dollars per metric now and projected (CG21; the 7-day projection of counters, CG
 | CG35 | queried dimensions (Example): no per-day history yet | vectorizeQueriedDimensions | 10433536 | 0 | 0 | 2026-10-21T02:04:00Z | 0 | 0 |
 <!-- test-plan:end -->
 
-The budget, its warn on projection and the Class A spike (CG22, CG34, CG23), generated from
+Pending: the budget, its warn on projection and the Class A spike (CG22, CG34, CG23), generated from
 `apps/data-publisher-worker/test/cost-guard-budget.cases.ts`:
 
 <!-- test-plan:start apps/data-publisher-worker/test/cost-guard-budget.cases.ts [pending] -->
@@ -547,9 +563,10 @@ The budget, its warn on projection and the Class A spike (CG22, CG34, CG23), gen
 | CG23 | the bucket read failed: no spike trip on missing data | 0 | 0 | — | 0 | 0 | ok | — |
 <!-- test-plan:end -->
 
-The implementing slice replaces the CG2 rows for storage and stored
-dimensions, which then no longer trip or warn, and the quarter-of-the-month
-projection rows, which the 7-day rate (CG35) replaces.
+The CG35 slice (2026-10-23) replaced the quarter-of-the-month projection
+rows of the first table with 7-day-rate rows. The budget slice replaces
+the CG2 rows for storage and stored dimensions, which then no longer trip
+or warn.
 
 ## Acceptance
 
@@ -557,7 +574,7 @@ Each item: precondition → action → observable result → evidence.
 
 ### Behavior
 - CG1: given `COST_GUARD` unset, blank, `off`, `monitor`, `enforce` or `on`, resolving it gives off, off, off, monitor, enforce, invalid; while off a publisher tick makes only the publication call, `/health` has no `costGuard` key, and `POST /cost-guard/check` and `/cost-guard/reset` answer 403 → worker test.
-- CG2: given the threshold rows, `evaluateMetric` gives the percent, projected percent and status of each row (60 % warn, 80 % trip, projection over 100 % only from a quarter of the period, gauges never projected, stored dimensions never trip) → case rows.
+- CG2: given the threshold rows, `evaluateMetric` gives the percent, projected percent and status of each row (60 % warn, 80 % trip, projection over 100 % trips, a month counter projected by its 7-day rate (CG35), neurons only from a quarter of the day, gauges never projected, stored dimensions never trip) → case rows.
 - CG3: given the recorded-shape GraphQL fixture, parsing gives Class A, Class B (free operations excluded, unknown action types counted as Class A and listed) and storage as the newest row per bucket summed → fixture test.
 - CG4: the request is one POST to `https://api.cloudflare.com/client/v4/graphql` with `Authorization: Bearer <token>`, the account tag, the month start and now; no test calls the network → fixture test.
 - CG5: given a closed breaker and a check with a tripped metric, the breaker opens with `reason, metric, value, threshold, trippedAt, metrics`; a later check adds newly tripped metrics and keeps the rest; a check with no tripped metric leaves it open → breaker test.
@@ -588,7 +605,7 @@ removed the web part on 2026-10-20 (Simplification review, Delete).
 ### Amendment 2026-10-21: dollar budget
 
 #### Behavior
-- CG21: [pending] given the CG21 rows, `metricOverage` gives each metric's overage now and projected month-end overage in dollars (gauges as themselves, neurons by today's rate times the days of the month, an unread value as null) → case rows.
+- CG21: given the CG21 rows, `metricOverage` gives each metric's overage now and projected month-end overage in dollars (gauges as themselves, neurons by today's rate times the days of the month, an unread value as null), and `/health` `costGuard.metrics[key]` carries them as `overageUsd` and `projectedOverageUsd` → case rows (the CG11 health test checks the keys).
 - CG22: [pending] given the CG22 rows, `evaluateBudget` gives percent and projected percent of $5 and the status (60 % warn, 80 % trip, projected over 100 % trips; the real October trips on money spent) → case rows.
 - CG23: [pending] given the CG23 rows, a 24-hour Class A count of 50,000 or more on the guard's own bucket trips `r2ClassA` whatever the dollars, and a missing count trips nothing → case rows.
 - CG24: [pending] given the Example's inputs (13.9 GB stored, 10,177,536 stored dimensions, Class A 2,062,716 month to date and 33,676 over 10-14..20, 976 in 24 h on the Dev bucket, at 2026-10-21T02:04Z), a dry run reports `budget` $4.8408 now and $5.0770 projected, status `tripped` (`budget`), each metric `ok`, the spike `ok`, and the breaker untouched; with Class A 1,230,000 instead it reports $1.3117 projected and `ok`; storage alone at 13.9 GB or stored dimensions at 102 % never trips → check test.
@@ -597,7 +614,7 @@ removed the web part on 2026-10-20 (Simplification review, Delete).
 - CG27: [pending] `/health` `costGuard` has the shape of Behavior 13a for `pending`, `ok`, `warn`, `tripped` and `unconfigured`, with no per-metric `percent` or `warn` → health test.
 
 - CG34: [pending] given the CG34 rows, a projected month-end overage at 60 % of the budget or more makes the budget `warn` (in `/health` only) while the money spent is under 60 %, and never trips below a projection of 100 % (Decision 13) → case rows.
-- CG35: [pending] given the CG35 rows, a counter projects month to date plus its average over the 7 complete UTC days before today times the remaining days, across a month boundary and from the 1st; with fewer than 7 complete days it uses the days it has, and with none it projects as month to date (Decision 9) → case rows.
+- CG35: given the CG35 rows, a counter projects month to date plus its average over the 7 complete UTC days before today times the remaining days, across a month boundary and from the 1st; with fewer than 7 complete days it uses the days it has, and with none it projects as month to date (Decision 9). The per-metric `projectedPercent` and the dollars use the same projection (real October: 211.52 %, not month to date's 318 %), and the one GraphQL request reads the account's R2 operations over those 7 days (`datetime_geq` the 7th day before today, `datetime_lt` today) → case rows and fixture test.
 - CG36: [pending] given a GraphQL fixture where `oss-knowledge-base-prod` wrote 195,600 Class A in the last 24 hours and `oss-knowledge-base-dev` 976, the Dev guard (`PUBLICATION_ENVIRONMENT=development`) requests only its own bucket, its spike stays `ok` and its publication runs, while the same fixture trips the Prod guard's spike; both count the 196,576 in the account's dollars (Decision 10) → fixture and route tests.
 #### Failure and retry
 - CG28: [pending] given a GraphQL failure, the R2 metrics and the spike are `unavailable`, the budget sums the in-app metrics only, lists the R2 keys in `missing`, and nothing trips on missing data → check test.

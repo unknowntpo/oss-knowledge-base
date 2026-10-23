@@ -1235,3 +1235,20 @@ the two `viewer/` items below.
   smaller package or `workers-ai-provider` is retired.
 - **Layer:** config and code (gateway), test rows (drill).
 - **Source:** Spec 027 A2-9 slice 2, 2026-10-23.
+
+### G101. Cost guard: queried dimensions project as month to date; no per-day read of the gate's ledgers
+- **Where:** `inAppSources` in `apps/data-publisher-worker/src/index.ts`
+  (`vectorize(month)`), `CostGuardRunner.check` in
+  `apps/data-publisher-worker/src/cost-guard/guard.ts`.
+- **Why:** the CG35 slice projects R2 Class A and B from the account's 7
+  complete UTC days, but the guard reads only the query gate's month total,
+  so `vectorizeQueriedDimensions` has `rateDays: 0` and projects as month to
+  date. The gate already keeps one `spend:YYYY-MM-DD` ledger a day and never
+  deletes them (Spec 026 amendment Behavior 5a assumed it keeps one count a
+  month). The gate's 1,000 index queries a day cap the error at about 31
+  million dimensions a month.
+- **Fix:** let the gate's month route also return the index queries of the
+  7 complete days before today, and pass them as `recent` with the number of
+  ledgers found; amend Behavior 5a's ledger sentence.
+- **Layer:** code, then a check test row.
+- **Source:** Spec 026 CG35 slice, 2026-10-23.
