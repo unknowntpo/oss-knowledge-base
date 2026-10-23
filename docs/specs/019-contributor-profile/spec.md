@@ -1,6 +1,6 @@
 # Spec 019: Contributor profile
 
-Status: Partially implemented (accepted 2026-10-14, all nine owner decisions recorded; amended 2026-10-15): slice 1 is Spec 022; slices 2a, 2b, 3 and amendments (4) and (5) implemented (#74–#78, #81) and on Dev only (`PEOPLE_PROFILES=true`, `PEOPLE_ACTIVITY=log@1`), off on Prod; amendment (7) slices A–C (the identity-link job, the `kip-pages` job W93, W97–W100, W102, W105, W107, W108, W110, and the profile's KIPs section W74, W75, W80, W83, W87, W94–W96, W109, W111) implemented (#113–#117) and enabled on Dev by rollout steps 2 and 4 (`IDENTITY_LINKS=corroborated@1`, `KIP_PAGES=authors@1` with their crons, `PEOPLE_KIPS=true`; 2026-10-21), off on Prod (step 5, a separate owner approval); W90, W92, W106 are checked by the operator sequence after the Dev deploy; the rest of slices 4–7 not implemented; amendment (8) (2026-10-23, the identity-link backfill, W113–W131) specified only
+Status: Partially implemented (accepted 2026-10-14, all nine owner decisions recorded; amended 2026-10-15): slice 1 is Spec 022; slices 2a, 2b, 3 and amendments (4) and (5) implemented (#74–#78, #81) and on Dev only (`PEOPLE_PROFILES=true`, `PEOPLE_ACTIVITY=log@1`), off on Prod; amendment (7) slices A–C (the identity-link job, the `kip-pages` job W93, W97–W100, W102, W105, W107, W108, W110, and the profile's KIPs section W74, W75, W80, W83, W87, W94–W96, W109, W111) implemented (#113–#117) and enabled on Dev by rollout steps 2 and 4 (`IDENTITY_LINKS=corroborated@1`, `KIP_PAGES=authors@1` with their crons, `PEOPLE_KIPS=true`; 2026-10-21), off on Prod (step 5, a separate owner approval); W90, W92, W106 are checked by the operator sequence after the Dev deploy; the rest of slices 4–7 not implemented; amendment (8) (2026-10-23, the identity-link backfill, W113–W131; all five owner decisions recorded 2026-10-23) specified only
 Date: 2026-10-13 (decisions recorded 2026-10-14; amendment and decision 10 2026-10-15)
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 008 (content-addressed objects), Spec 009 (bounded memory), Spec 012 (dev@ and Jira), Spec 014 (digest profiles), Spec 015 (governance profile and ASF roster), Spec 016/017 (search, "exact matches first"), Spec 018 (daily publication)
@@ -2085,10 +2085,10 @@ is internal only, no email, no `name`, no avatar, no time zone.
 | Option | Profile activity counts | Coverage statement | Writes to another job's objects | Verdict |
 | --- | --- | --- | --- | --- |
 | A. Into the activity month files `internal/people/v1/<project>/<YYYY-MM>.json` | **Change**: `/api/people/...` reads these months and their `.summary.json`; "pull requests opened" would gain only the KAFKA-titled pull requests of months where comments, Jira and dev@ are absent | `state.json` `coverageFrom` (2026-09-10) would be false for GitHub and true for the rest; the page would need per-source, per-kind coverage | Yes: the publication rewrites the current month and `state.json` daily; two writers of one object | Rejected |
-| **B. Own internal store, read only by the identity-link job** | Unchanged (W119) | Unchanged | No | **Recommended** |
+| **B. Own internal store, read only by the identity-link job** | Unchanged (W119) | Unchanged | No | **Decided** (owner, 2026-10-23) |
 
-This is a real product choice only if the owner wants older pull requests
-on the profile itself. That is slice 6 (the full activity backfill: GitHub
+Decided by the owner on 2026-10-23 (decision 1 below). Older pull requests
+on the profile itself remain a separate choice: That is slice 6 (the full activity backfill: GitHub
 issues, pull requests and comments, Jira, dev@), still unmeasured, and would
 make this store redundant; then `IDENTITY_LINKS_BACKFILL` is unset and the
 store deleted.
@@ -2196,7 +2196,8 @@ Amendment (7)'s gate (truth set, blind run, classify, label, `contradict` =
    (3 months before the coverage, about 10 search pages and 7 Jira
    requests at ≥ 3 s), not the full 12 months: a second 12-month crawl
    would double the upstream load the owner asked to keep small, and the
-   Dev dry run already covers the full window (owner decision 3 below).
+   Dev dry run already covers the full window (owner decision 3,
+   2026-10-23).
 3. Every new corroborated link joins W16's labelled sample. Thresholds stay
    3 and dominance 3 (`corroborated@1`) unless the gate fails; changing them
    is a new revision with its own check.
@@ -2278,18 +2279,25 @@ responses of the Example.
 | W126 | too soon | constructed | manual run 30 min after the last | 409 `too-soon`, no request |
 | W127 | rollback | constructed | flag `read` then unset | second table equals the table without the store |
 
-### Owner decisions (amendment 8)
+### Owner decisions (amendment 8, 2026-10-23)
 
-1. **Store**: a separate internal store, not the activity months.
-   Recommended (B above); older profile history stays slice 6.
-2. **Pace**: one month per daily run, about 11 days (recommended), or two
-   months per run, about 6 days at 10 GitHub and 8 Jira requests a run.
-3. **Precision gate**: the Dev dry run over the full window plus a 3-month
-   offline reading (recommended), or a full 12-month offline crawl (about 60
-   more upstream requests).
-4. **Thresholds**: keep 3 and dominance 3 (recommended: the sample holds
-   with a wide margin); revisit only if the gate fails.
-5. **Prod**: a separate approval after Dev step 5, with amendment (7) step 5.
+The owner accepted every recommendation on 2026-10-23; nothing of this
+amendment is open.
+
+1. **Store**: a separate internal store
+   (`internal/identity/v1/<projectId>/backfill/`), not the activity month
+   files; older profile history stays slice 6. Rejected: rows in the
+   activity months (changes profile counts and `coverageFrom`, two writers).
+2. **Pace**: one month per daily run, about 11 days. Rejected: two months
+   per run (about 6 days at 10 GitHub and 8 Jira requests a run).
+3. **Precision gate**: the Dev dry run
+   (`?dryRun=1&backfill=1&blind=1`) over the full 12 months, plus the
+   3-month offline reading. Rejected: a full 12-month offline crawl (about
+   60 more upstream requests).
+4. **Thresholds**: 3 and dominance 3 stay (`corroborated@1`); revisited
+   only if the gate fails.
+5. **Prod**: a separate owner approval after Dev step 5, with amendment
+   (7) step 5.
 
 ## Test plan
 
