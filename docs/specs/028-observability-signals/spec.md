@@ -1,6 +1,6 @@
 # Spec 028: Observability signals (metrics first)
 
-Status: Draft (owner intent 2026-10-21: metrics → structured logs → traces; D1 decided 2026-10-21: metrics in Workers Analytics Engine; refreshed 2026-10-22: every scheduled job is a signal source with one common schema (OB22–OB31); D2–D10 decided by owner 2026-10-22 per the recorded recommendations; slice 0 (Wrangler 4.148.0, OB30) implemented 2026-10-22; slice 1 (signal code behind `OBSERVABILITY_SIGNALS`, off everywhere, no binding) implemented 2026-10-23; Dev enable (flag `on`, `SIGNALS` → `osskb_signals_dev`, `ANALYTICS_SQL`; Dev config only) 2026-10-23, OB19, OB21, OB31 pending its first daily cycle; Prod and slices 2–3 not started)
+Status: Partially implemented (owner intent 2026-10-21: metrics → structured logs → traces; D1 decided 2026-10-21: metrics in Workers Analytics Engine; refreshed 2026-10-22: every scheduled job is a signal source with one common schema (OB22–OB31); D2–D10 decided by owner 2026-10-22 per the recorded recommendations; slice 0 (Wrangler 4.148.0, OB30) implemented 2026-10-22; slice 1 (signal code behind `OBSERVABILITY_SIGNALS`, off everywhere, no binding) implemented 2026-10-23; Dev enable (flag `on`, `SIGNALS` → `osskb_signals_dev`, `ANALYTICS_SQL`; Dev config only) 2026-10-23; history query fixed for the binding's schema 2026-10-23 (no `_sample_interval`, weighted `COUNT(*)`); OB19–OB21, OB31 pending on Dev; Prod and slices 2–3 not started)
 Date: 2026-10-21 (refreshed 2026-10-22)
 Traceability: enforced
 Builds on: Spec 010, 011, 018, 021 (freshness and stalls), Spec 008 and 018 (R2 Class A invariant), Spec 014 (digest), Spec 016 (embedding job), Spec 019 amendment (7) (identity-links and kip-pages jobs), Spec 026 (cost guard and its 2026-10-21 dollar budget), Spec 029 (R2 retention job), Spec 027 (read-only SRE agent, PR #106, not merged)
@@ -79,6 +79,7 @@ their own R2 operations.
 | WAE limits: 20 blobs, 20 doubles, 1 index (≤ 96 bytes) per point; 16 KB of blobs; 250 points per invocation; **3-month retention**; adaptive sampling at write and read (`_sample_interval`) | [Limits](https://developers.cloudflare.com/analytics/analytics-engine/limits/), [Sampling](https://developers.cloudflare.com/analytics/analytics-engine/sampling/) | documented |
 | WAE write: binding `analytics_engine_datasets: [{binding, dataset}]`; `writeDataPoint({blobs, doubles, indexes})` returns immediately (written in the background); exactly one index | [Get started](https://developers.cloudflare.com/analytics/analytics-engine/get-started/) | documented |
 | Analytics SQL Workers binding: `"analytics": {"binding": "ANALYTICS_SQL"}`, Wrangler ≥ 4.145.0; `env.ANALYTICS_SQL.query({query, params})` → `{data, rows, statistics {elapsed_ms, rows_read, bytes_read}}`; one `SELECT`; time filters in SQL; no `FORMAT`, no `accountTag` predicate (the binding scopes the account); **no API token**; no automatic retry, a thrown error has `retryable`; WAE tables as `events.analyticsEngine."<dataset>"`; Log Explorer-backed datasets not supported | [Workers binding](https://developers.cloudflare.com/analytics/sql-api/workers-binding/) | documented; beta status, limits and pricing not stated on the page |
+| Analytics SQL dialect (the binding's), unlike the WAE SQL API: a WAE dataset has `timestamp`, `index1`, `blobN`, `doubleN` but **no `_sample_interval` column** (Dev 2026-10-23: "Schema error: No field named _sample_interval"); "The SQL API applies sample weights to supported aggregates" (`COUNT`, `SUM`, `AVG`, …); a row-level `SELECT` returns only retained rows; exact `MIN`/`MAX` are rejected on adaptively sampled datasets | [Datasets](https://developers.cloudflare.com/analytics/sql-api/datasets/), [Functions: adaptive sampling](https://developers.cloudflare.com/analytics/sql-api/sql-reference/functions/), [WAE SQL API](https://developers.cloudflare.com/analytics/analytics-engine/sql-api/) (where `_sample_interval` does exist) | documented (read 2026-10-23); the missing column observed on Dev |
 | SQL API: beta since 2026-10-02, one endpoint for event, state, log (Workers Logs) and WAE datasets, Workers binding without a token, available on all plans, "powers Monitors"; no pricing stated | [Changelog 2026-10-02](https://developers.cloudflare.com/changelog/post/2026-10-02-sql-api-beta/), [SQL API](https://developers.cloudflare.com/analytics/sql-api/) | documented; limits not documented |
 | Dataset names: Workers Logs `logs.workersLogs` (example columns `timestamp`, `scriptName`, `logType`); WAE `events.analyticsEngine."<dataset>"` (`timestamp`, `index1`, `blob1`, `double1`); full columns and custom attributes (7 days) only through the introspection endpoint | [Datasets](https://developers.cloudflare.com/analytics/sql-api/datasets/) | documented; whether the binding can read `logs.workersLogs` (Log Explorer-backed or not) and the column holding a logged `runId` are **unverified** (OB21) |
 | Monitors: a SQL API query on a schedule (1 min for most datasets) returning one numeric `value`; threshold (`<`…`!=` over a window), anomaly (z-score vs a baseline ≤ 24 h, ≥ 30 min history) or SLO; "a query that returns no rows produces no signal"; delivery by email (≤ 20), webhook, PagerDuty (Business+); repeat interval 1 min–168 h; custom SQL must include an account or zone filter; no documented state or history page | [Monitors](https://developers.cloudflare.com/notifications/monitors/) | documented; pricing and beta status not stated |
@@ -246,7 +247,10 @@ path (webhook) under D5, or as an email backup the owner opts into.
    `env.ANALYTICS_SQL.query` with ≤ 3 parameterized `SELECT`s on
    `events.analyticsEngine."osskb_signals_<env>"`, each bounded by
    `timestamp` (≤ 8 days back) and by `blob1 = job`, excluding `index1 = runId` (the point just
-   written may not be readable yet), and combines the history with the
+   written may not be readable yet), and groups by every stored column it
+   reads plus `timestamp`, so each row is one stored point and `COUNT(*) AS
+   weight` is that point's sample weight (the binding has no
+   `_sample_interval`; it weights `COUNT`). It combines the history with the
    current status in memory. The result `{evaluatedAt, rules}` is stored in
    the status write the run already makes (no extra Durable Object write).
    `/health` never queries WAE.
@@ -266,7 +270,7 @@ path (webhook) under D5, or as an email backup the owner opts into.
    threshold, since, runId}`; `since` is when the condition first held,
    `runId` the newest run that shows it. Missing data is `unknown`, never
    `firing`.
-6. A history row with `_sample_interval ≠ 1` makes the rules that read it
+6. A history row with `weight ≠ 1` (or without `weight`) makes the rules that read it
    `unknown` with reason `sampled`: at about one point a day per environment
    sampling is not expected (an inference, checked by OB19), and an exact
    rule must not run on a sample.
@@ -508,7 +512,7 @@ tag.
 - OB1: given `OBSERVABILITY_SIGNALS` unset, blank, `off`, `on` or `yes`, resolving it gives off, off, off, on, invalid; while off a run writes no point, makes no query, `/health` has no `signals` key and log lines keep today's shape → worker test.
 - OB2: a publication started at 2026-10-20T22:07:00.000Z gets `runId` `publication-2026-10-20T22-07-00-000Z`; its follow-up invocation and an alarm retry keep it; `/health` `lastRun.runId` equals it; a digest run over that release records it as `sourceRunId` → pipeline test.
 - OB3: given the Example's `lastRun`, `metricPoint` returns exactly the Example's indexes, blobs and doubles, and a run with a follow-up invocation calls `writeDataPoint` once → point test.
-- OB4: at the end of a run, the fake `ANALYTICS_SQL` receives ≤ 3 `SELECT`s on `events.analyticsEngine."osskb_signals_dev"`, each with a `timestamp` bound ≤ 8 days, the run's `runId` excluded as a parameter, no `accountTag` predicate and no `FORMAT`; the trend result is stored in the run's existing status write (Durable Object write count unchanged) → trend test.
+- OB4: at the end of a run, the fake `ANALYTICS_SQL` receives ≤ 3 `SELECT`s on `events.analyticsEngine."osskb_signals_dev"`, each with a `timestamp` bound ≤ 8 days, the run's `runId` excluded as a parameter, no `accountTag` predicate and no `FORMAT`, naming only columns the binding exposes for a WAE dataset (`timestamp`, `index1`, `blob1`–`blob20`, `double1`–`double20`; no `_sample_interval`, no exact `MIN`/`MAX`) and grouping by every selected column so `COUNT(*) AS weight` is one point's weight; the trend result is stored in the run's existing status write (Durable Object write count unchanged) → trend test.
 - OB5: `publication.freshness` gives the statuses of the test-plan rows from Durable Object state at read time → case rows.
 - OB6: `source.success` gives the statuses of the test-plan rows from history plus the current run (per UTC day, per source) → case rows.
 - OB7: `publication.pollTruncated` gives the statuses of the test-plan rows → case rows.
@@ -528,7 +532,7 @@ tag.
 - OB30: the slice 0 PR changes only the Wrangler versions (`apps/data-publisher-worker`, `apps/web`, `bun.lock`) to ≥ 4.145.0, and CI (`bun run test:ci`) passes on it; `wrangler deploy --dry-run -c wrangler.development.jsonc` with an `analytics` binding added in a scratch copy is accepted → CI run and the dry-run output in the PR; `scripts/test/wrangler-version.test.ts` keeps both packages and the lock at ≥ 4.145.0 (slice 0: 4.148.0).
 - OB13: given no history (first deploy) every analytics rule is `unknown` and `signals.status` is `ok`; given no run for 30 h, `publication.freshness` is `firing` at read time without any run or query → evaluation test.
 - OB14: given `writeDataPoint` throwing, or the `SIGNALS` or `ANALYTICS_SQL` binding missing, the publication completes and reports ok, the state rules are evaluated, the analytics rules are `unknown` with a reason, and the error is logged with its `runId` → pipeline test.
-- OB15: given the SQL query throwing with `retryable: true` it is retried once after a bounded backoff, with `retryable: false` not at all, and on failure the analytics rules are `unknown` and `lastError` is set; given a history row with `_sample_interval` 10 the rules reading it are `unknown` (`sampled`); given two points with the same `index1` (a retried run) they count once → trend test.
+- OB15: given the SQL query throwing with `retryable: true` it is retried once after a bounded backoff, with `retryable: false` not at all, and on failure the analytics rules are `unknown` and `lastError` is set; given a history row with `weight` 10, or without `weight`, the rules reading it are `unknown` (`sampled`); given two points with the same `index1` (a retried run) they count once → trend test.
 - OB16: given a token value in an error text, no data point, query parameter, `/health` body or log object contains it → sanitizer test.
 
 ### Budget
@@ -557,8 +561,9 @@ Allowances are those of Verified sources; both environments are on one account.
 
 - **Adaptive sampling.** WAE samples heavy traffic per index; at about one
   point per run per index nothing should be sampled. That is an inference;
-  Behavior 6 makes a sampled row `unknown`, and OB19 and OB20 check
-  `_sample_interval` on Dev.
+  Behavior 6 makes a sampled row `unknown` (the binding exposes the weight
+  only through weighted aggregates, so the query reads `COUNT(*)` per point),
+  and OB19 and OB20 check `_sample_interval` on Dev through the WAE SQL API.
 - **Retention.** WAE keeps 3 months; the rules look back ≤ 8 days. Longer
   trends need an export, out of scope.
 - **Beta.** The SQL API (and so the binding) is beta since 2026-10-02; WAE
