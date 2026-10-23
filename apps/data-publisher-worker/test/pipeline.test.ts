@@ -99,7 +99,8 @@ describe("Cloudflare data publication", () => {
     expect(development.r2_buckets[0]?.bucket_name).toBe("oss-knowledge-base-dev");
     // The publisher's cron, then the digest's (`DIGEST_CRON`, Spec 014 D86), the identity-link job's
     // and the kip-pages job's (Spec 019 amendment (7) step 2), then the sre-agent job's two (Spec 027 A2-3).
-    expect(development.triggers.crons).toEqual(["7 22 * * *", "47 22 * * *", "17 2 * * *", "43 3 * * *", "30 0 * * *", "0 11 * * *"]);
+    // Then retention's own slot (Spec 029 RT24, flag off).
+    expect(development.triggers.crons).toEqual(["7 22 * * *", "47 22 * * *", "17 2 * * *", "43 3 * * *", "30 0 * * *", "0 11 * * *", "17 10 * * *"]);
     expect(production.name).toBe("oss-knowledge-base-data-prod");
     expect(production.vars.PUBLICATION_ENVIRONMENT).toBe("production");
     expect(production.r2_buckets[0]?.bucket_name).toBe("oss-knowledge-base-prod");
