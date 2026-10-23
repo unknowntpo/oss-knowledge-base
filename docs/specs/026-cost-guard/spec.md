@@ -165,8 +165,10 @@ These replace Behavior 5, 6 and 13, the trip condition of Behavior 7 and the
 publication trigger of Behavior 9.
 
 - 3a. The one GraphQL request adds two aliased `r2OperationsAdaptiveGroups`
-  selections: the account's operations by `date` over the 7 complete UTC
-  days before today (for the rate, Behavior 5a), and the last 24 hours with
+  selections: the account's operations by `actionType` over the 7 complete
+  UTC days before today (`datetime_geq` 00:00 UTC seven days before today,
+  `datetime_lt` 00:00 UTC today; summed, not split by day; for the rate,
+  Behavior 5a; implemented by CG35), and the last 24 hours with
   `bucketName` the guard's own bucket: `oss-knowledge-base-dev` when
   `PUBLICATION_ENVIRONMENT` is `development`, `oss-knowledge-base-prod` when
   it is `production` (the `OSS_KB_BUCKET` binding's `bucket_name` in each
@@ -515,6 +517,7 @@ Dollars per metric now and projected (CG21; the 7-day projection of counters, CG
 | id | case | metric | value | recent | days | now | overageUsd | projectedOverageUsd |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | CG21 | R2 storage 13.9 GB (Example): a gauge projects as itself | r2StorageBytes | 13900000000 | — | — | 2026-10-21T02:04:00Z | 0.0585 | 0.0585 |
+| CG21 | R2 storage 15.7 GB: $0.0855, which a plain floor of the float product (0.08549999…) shows as $0.0854 | r2StorageBytes | 15700000000 | — | — | 2026-10-21T22:07:00Z | 0.0855 | 0.0855 |
 | CG21 | R2 storage at exactly 10 GB | r2StorageBytes | 10000000000 | — | — | 2026-10-21T22:07:00Z | 0 | 0 |
 | CG21 | Vectorize stored dimensions (Example): $0.0000888, shown floored | vectorizeStoredDimensions | 10177536 | — | — | 2026-10-21T02:04:00Z | 0 | 0 |
 | CG21 | Vectorize stored dimensions 200 million over | vectorizeStoredDimensions | 210000000 | — | — | 2026-10-21T22:07:00Z | 0.1 | 0.1 |

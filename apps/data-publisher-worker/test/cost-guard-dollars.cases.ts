@@ -15,6 +15,7 @@
  */
 export const testPlanRows = [
   { id: "CG21", case: "R2 storage 13.9 GB (Example): a gauge projects as itself", metric: "r2StorageBytes", value: 13_900_000_000, recent: null, days: null, now: "2026-10-21T02:04:00Z", overageUsd: 0.0585, projectedOverageUsd: 0.0585 },
+  { id: "CG21", case: "R2 storage 15.7 GB: $0.0855, which a plain floor of the float product (0.08549999…) shows as $0.0854", metric: "r2StorageBytes", value: 15_700_000_000, recent: null, days: null, now: "2026-10-21T22:07:00Z", overageUsd: 0.0855, projectedOverageUsd: 0.0855 },
   { id: "CG21", case: "R2 storage at exactly 10 GB", metric: "r2StorageBytes", value: 10_000_000_000, recent: null, days: null, now: "2026-10-21T22:07:00Z", overageUsd: 0, projectedOverageUsd: 0 },
   { id: "CG21", case: "Vectorize stored dimensions (Example): $0.0000888, shown floored", metric: "vectorizeStoredDimensions", value: 10_177_536, recent: null, days: null, now: "2026-10-21T02:04:00Z", overageUsd: 0, projectedOverageUsd: 0 },
   { id: "CG21", case: "Vectorize stored dimensions 200 million over", metric: "vectorizeStoredDimensions", value: 210_000_000, recent: null, days: null, now: "2026-10-21T22:07:00Z", overageUsd: 0.1, projectedOverageUsd: 0.1 },

@@ -3,7 +3,7 @@
  * transition, pure so they are tested row by row (test/cost-guard.cases.ts,
  * test/cost-guard-dollars.cases.ts).
  */
-import { COST_GUARD_RATE_DAYS, COST_GUARD_THRESHOLDS, COST_METRICS, COST_METRIC_KEYS, type CostMetricKey, type CostMetricProfile } from "./profile";
+import { COST_GUARD_THRESHOLDS, COST_METRICS, COST_METRIC_KEYS, type CostMetricKey, type CostMetricProfile } from "./profile";
 
 export type { CostMetricKey } from "./profile";
 
@@ -82,9 +82,9 @@ function projection(profile: CostMetricProfile, value: number, recent: RecentCou
     const elapsed = periodElapsed("day", now);
     return { projected: elapsed >= COST_GUARD_THRESHOLDS.minElapsedForProjection ? value / elapsed : null, rateDays: null };
   }
-  const usable = recent !== null && Number.isInteger(recent.days) && recent.days > 0 && recent.days <= COST_GUARD_RATE_DAYS
-    && Number.isFinite(recent.count) && recent.count >= 0;
-  if (!usable) return { projected: value, rateDays: 0 };
+  // The only source, parseR2Usage, rejects negative counts and sets days to 7 (COST_GUARD_RATE_DAYS),
+  // so only "no history" needs handling here.
+  if (recent === null || recent.days === 0) return { projected: value, rateDays: 0 };
   return { projected: value + (recent.count / recent.days) * remainingDaysOfMonth(now), rateDays: recent.days };
 }
 
