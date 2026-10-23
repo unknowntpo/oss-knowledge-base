@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { R2PublicationDestination } from "../src/r2-destination";
+import { runLog } from "../src/signals/recorder";
 import { CountingR2Bucket } from "./support/counting-r2-bucket";
 
 describe("R2 publication destination", () => {
@@ -43,7 +44,7 @@ describe("R2 publication destination", () => {
     expect(await destination.putVerifiedImmutableIfAbsent(object, body)).toBe("exists");
 
     expect(bucket.calls.map((call) => call.op)).toEqual(["head"]);
-    expect(destination.operationCounts()).toEqual({ classA: 0, classB: 1 });
+    expect(destination.operationCounts()).toMatchObject({ classA: 0, classB: 1 });
   });
 
   test("C8: an absent immutable object is written once, with if-none-match and its sha256", async () => {
@@ -60,7 +61,7 @@ describe("R2 publication destination", () => {
     expect(new Headers(options.onlyIf as HeadersInit).get("if-none-match")).toBe("*");
     expect(options.httpMetadata).toEqual({ cacheControl: "public, max-age=31536000, immutable" });
     expect(bucket.objects.get(object.key)).toEqual(body);
-    expect(destination.operationCounts()).toEqual({ classA: 1, classB: 1 });
+    expect(destination.operationCounts()).toMatchObject({ classA: 1, classB: 1 });
   });
 
   test("C8: bytes that differ from the declared sha256 are rejected by the store and never written", async () => {
@@ -85,8 +86,8 @@ describe("R2 publication destination", () => {
     const destination = new R2PublicationDestination(bucket.asBucket(), async () => undefined);
 
     expect(await destination.putVerifiedImmutableIfAbsent(object, body)).toBe("exists");
-    // The put whose precondition failed is still billed as a Class A operation.
-    expect(destination.operationCounts()).toEqual({ classA: 1, classB: 1 });
+    // The put whose precondition failed is still billed as a Class A operation, and counted as a miss.
+    expect(destination.operationCounts()).toEqual({ classA: 1, classB: 1, putRetries: 0, conditionalMisses: 1 });
   });
 
   test("C8: a transient head failure is retried, and each attempt is counted", async () => {
@@ -101,7 +102,8 @@ describe("R2 publication destination", () => {
     expect(await destination.putVerifiedImmutableIfAbsent(object, body)).toBe("exists");
     expect(bucket.count("head")).toBe(2);
     expect(delays).toEqual([250]);
-    expect(destination.operationCounts()).toEqual({ classA: 0, classB: 2 });
+    // A head retry is Class B: it is counted there, never as a put retry.
+    expect(destination.operationCounts()).toEqual({ classA: 0, classB: 2, putRetries: 0, conditionalMisses: 0 });
 
     bucket.failures.push(...[1, 2, 3].map(() => ({ op: "head" as const, message: "head: internal error (10001)" })));
     await expect(destination.putVerifiedImmutableIfAbsent(object, body)).rejects.toThrow("10001");
@@ -114,17 +116,66 @@ describe("R2 publication destination", () => {
     const body = new Uint8Array([1]);
 
     await destination.putCurrent("public/v2/current.json", body);
-    expect(destination.operationCounts()).toEqual({ classA: 1, classB: 0 });
+    expect(destination.operationCounts()).toMatchObject({ classA: 1, classB: 0 });
     await destination.putEvidence("publication-sets/v1/a.json", body);
-    expect(destination.operationCounts()).toEqual({ classA: 2, classB: 1 });
+    expect(destination.operationCounts()).toMatchObject({ classA: 2, classB: 1 });
     await destination.putEvidence("publication-sets/v1/a.json", body);
-    expect(destination.operationCounts()).toEqual({ classA: 2, classB: 2 });
+    expect(destination.operationCounts()).toMatchObject({ classA: 2, classB: 2 });
     await destination.get("public/v2/current.json");
     await destination.putImmutableIfAbsent("public/v2/current.json", body);
-    expect(destination.operationCounts()).toEqual({ classA: 2, classB: 4 });
-    expect({ classA: bucket.classA, classB: bucket.classB }).toEqual(destination.operationCounts());
+    expect(destination.operationCounts()).toMatchObject({ classA: 2, classB: 4 });
+    expect(destination.operationCounts()).toMatchObject({ classA: bucket.classA, classB: bucket.classB });
+  });
+
+  test("OB32: each put attempt after the first is a put retry, counted in Class A and logged once with its key", async () => {
+    const bucket = new CountingR2Bucket();
+    bucket.failures.push(...[1, 2].map(() => ({ op: "put" as const, message: "put: internal error (10001)" })));
+    const lines: string[] = [];
+    const destination = new R2PublicationDestination(bucket.asBucket(), async () => undefined, (line) => { lines.push(line); });
+
+    await destination.putCurrent("public/v2/current.json", new Uint8Array([1]));
+
+    expect(bucket.count("put")).toBe(3);
+    expect(destination.operationCounts()).toEqual({ classA: 3, classB: 0, putRetries: 2, conditionalMisses: 0 });
+    expect(lines).toEqual([
+      "r2 put retry 1 of 2 for public/v2/current.json: put: internal error (10001)",
+      "r2 put retry 2 of 2 for public/v2/current.json: put: internal error (10001)",
+    ]);
+    // Positive control: a put that succeeds at once is no retry and logs nothing.
+    await destination.putCurrent("public/v2/current.json", new Uint8Array([2]));
+    expect(destination.operationCounts()).toEqual({ classA: 4, classB: 0, putRetries: 2, conditionalMisses: 0 });
+    expect(lines).toHaveLength(2);
+  });
+
+  test("OB32: a head or get retry is logged but is no put retry", async () => {
+    const bucket = new CountingR2Bucket();
+    bucket.failures.push({ op: "head", message: "head: internal error (10001)" });
+    const lines: string[] = [];
+    const destination = new R2PublicationDestination(bucket.asBucket(), async () => undefined, (line) => { lines.push(line); });
+
+    await destination.putImmutableIfAbsent("public/v2/x.json", new Uint8Array([1]));
+
+    expect(destination.operationCounts()).toEqual({ classA: 1, classB: 2, putRetries: 0, conditionalMisses: 0 });
+    expect(lines).toEqual(["r2 head retry 1 of 2 for public/v2/x.json: head: internal error (10001)"]);
+  });
+
+  test("OB32: a retry line goes through runLog with the run's runId and job", async () => {
+    const realLog = console.log;
+    const logged: unknown[] = [];
+    console.log = (value: unknown) => { logged.push(value); };
+    try {
+      const bucket = new CountingR2Bucket();
+      bucket.failures.push({ op: "put", message: "put: internal error (10001)" });
+      const context = { runId: "publication-2026-10-23T02-52-13-074Z", job: "publication" as const };
+      const destination = new R2PublicationDestination(bucket.asBucket(), async () => undefined, (line) => runLog(context, "log", line));
+      await destination.putCurrent("public/v2/current.json", new Uint8Array([1]));
+      expect(logged).toEqual([{ message: "r2 put retry 1 of 2 for public/v2/current.json: put: internal error (10001)", runId: context.runId, job: "publication" }]);
+    } finally {
+      console.log = realLog;
+    }
   });
 });
+
 
 async function poolObject(body: Uint8Array) {
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", body.slice().buffer as ArrayBuffer));

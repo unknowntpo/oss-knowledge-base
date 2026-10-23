@@ -79,6 +79,10 @@ const succeededAgo = (age: number) => {
 const medianHistory = (field: "durationMs" | "r2ClassA", median: number, count = 7) =>
   history(...Array.from({ length: count }, (_, index) => point(index + 1, { [field]: median })));
 
+/** The publication's last run with `classA` and `copiedObjectCount`, and the retry counters when given. */
+const invariant = (classA: number, copied: number, counters: { readonly putRetries: number; readonly conditionalMisses: number } | Record<string, never> = {}) =>
+  state(healthWith({ lastRun: { ...EXAMPLE_LAST_RUN, copiedObjectCount: copied, r2: { classA, classB: 9_000, ...counters } } }), "r2.classAInvariant");
+
 /** Builds each test-plan row into the entries it is judged on; the key is `rule|input`. */
 const builders: Record<string, () => { readonly rules: readonly RuleEntry[]; readonly find: (rules: readonly RuleEntry[]) => RuleEntry | undefined }> = {
   "publication.freshness|24 h 30 min": () => state(succeededAgo(24 * H + 30 * M), "publication.freshness"),
@@ -117,8 +121,21 @@ const builders: Record<string, () => { readonly rules: readonly RuleEntry[]; rea
     history(point(0, { runId: "a", completedAtMs: NOW - 24 * H, counters: [1, 1, 1, 1, 0, 0] }), point(0, { runId: "b", completedAtMs: NOW - (48 * H + S), counters: [1, 1, 1, 1, 0, 0] }), point(3)),
     "publication.pollTruncated", "publication"),
   "r2.classAInvariant|824 / 821 (Example)": () => state(healthWith(), "r2.classAInvariant"),
-  "r2.classAInvariant|825 / 821": () => state(healthWith({ lastRun: { ...EXAMPLE_LAST_RUN, r2: { classA: 825, classB: 8678 } } }), "r2.classAInvariant"),
-  "r2.classAInvariant|8,190 / 35 (2026-10-13 shape)": () => state(healthWith({ lastRun: { ...EXAMPLE_LAST_RUN, copiedObjectCount: 35, r2: { classA: 8_190, classB: 9_000 } } }), "r2.classAInvariant"),
+  "r2.classAInvariant|827 / 821 (excess 3)": () => invariant(827, 821, { putRetries: 0, conditionalMisses: 0 }),
+  "r2.classAInvariant|828 / 821 (excess 4)": () => invariant(828, 821, { putRetries: 0, conditionalMisses: 0 }),
+  "r2.classAInvariant|1,234 / 821 (excess 410, firing above 410.5)": () => invariant(1_234, 821, { putRetries: 0, conditionalMisses: 0 }),
+  "r2.classAInvariant|1,235 / 821 (excess 411)": () => invariant(1_235, 821, { putRetries: 0, conditionalMisses: 0 }),
+  "r2.classAInvariant|88 / 35 (excess 50, firing floor 50)": () => invariant(88, 35, { putRetries: 0, conditionalMisses: 0 }),
+  "r2.classAInvariant|89 / 35 (excess 51)": () => invariant(89, 35, { putRetries: 0, conditionalMisses: 0 }),
+  "r2.classAInvariant|323 / 316, putRetries 4 (2026-10-23 manual run)": () => invariant(323, 316, { putRetries: 4, conditionalMisses: 0 }),
+  "r2.classAInvariant|400 / 316, putRetries 81 (retries are not capped)": () => invariant(400, 316, { putRetries: 81, conditionalMisses: 0 }),
+  "r2.classAInvariant|323 / 316, conditionalMisses 4": () => invariant(323, 316, { putRetries: 0, conditionalMisses: 4 }),
+  "r2.classAInvariant|372 / 316, conditionalMisses 50 (cap, excess 3)": () => invariant(372, 316, { putRetries: 0, conditionalMisses: 50 }),
+  "r2.classAInvariant|373 / 316, conditionalMisses 51 (1 above the cap, excess 4)": () => invariant(373, 316, { putRetries: 0, conditionalMisses: 51 }),
+  "r2.classAInvariant|8,190 / 35, conditionalMisses 8,152 (2026-10-13 recurrence)": () => invariant(8_190, 35, { putRetries: 0, conditionalMisses: 8_152 }),
+  "r2.classAInvariant|323 / 316, no counters (older record)": () => invariant(323, 316),
+  "r2.classAInvariant|8,190 / 35 (2026-10-13 shape)": () => invariant(8_190, 35),
+  "r2.classAInvariant|8,190 / 35, putRetries 0, conditionalMisses 0": () => invariant(8_190, 35, { putRetries: 0, conditionalMisses: 0 }),
   "digest.freshness|48 h": () => state(healthWith({ digest: { enabled: true, lastRun: { ok: true, completedAt: iso(NOW - 48 * H) } } }), "digest.freshness"),
   "digest.freshness|48 h 0 min 1 s": () => state(healthWith({ digest: { enabled: true, lastRun: { ok: true, completedAt: iso(NOW - 48 * H - S) } } }), "digest.freshness"),
   "digest.freshness|digest disabled": () => state(healthWith({ digest: { enabled: false, lastRun: { ok: true, completedAt: iso(NOW - 100 * H) } } }), "digest.freshness"),
@@ -186,6 +203,18 @@ describe("Spec 028 slice 1: rule thresholds (test plan)", () => {
     } else {
       expect(entry?.status).toBe(row.status);
     }
+  });
+
+  test("OB8: a record without putRetries and conditionalMisses counts them as 0 and says so; a record with them gives no reason", () => {
+    const find = (built: ReturnType<typeof invariant>) => built.find(built.rules)!;
+    const older = find(invariant(323, 316));
+    expect(older).toMatchObject({ status: "warn", value: 323, since: EXAMPLE_LAST_RUN.completedAt });
+    expect(older.reason).toContain("putRetries and conditionalMisses missing from the record, counted as 0");
+    expect(older.threshold).toBe("excess = classA − (copiedObjectCount + 3 + putRetries + min(conditionalMisses, 50)); warn: excess > 3; firing: excess > max(50, 0.5 × copiedObjectCount)");
+    // Positive control: the same run with its counters is ok, carries no reason and no since.
+    const counted = find(invariant(323, 316, { putRetries: 4, conditionalMisses: 0 }));
+    expect(counted).toMatchObject({ status: "ok", value: 323, since: null });
+    expect(counted.reason).toBeUndefined();
   });
 
   test("OB26: the kip-pages wall budget is the cron path's own limit", () => {

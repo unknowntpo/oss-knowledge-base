@@ -55,6 +55,10 @@ export interface PublicationDestination extends PublicationObjectStore {
 export interface R2OperationCounts {
   readonly classA: number;
   readonly classB: number;
+  /** Put attempts after the first (each also in `classA`); only the publication's destination counts them. */
+  readonly putRetries?: number;
+  /** Conditional puts whose precondition failed (each also in `classA`); only the publication's destination counts them. */
+  readonly conditionalMisses?: number;
 }
 
 export interface PollingConnector {
@@ -229,7 +233,14 @@ export async function runDataPublication(input: {
     const now = input.destination.operationCounts?.();
     return r2Before === undefined || now === undefined
       ? {}
-      : { r2: { classA: now.classA - r2Before.classA, classB: now.classB - r2Before.classB } };
+      : {
+          r2: {
+            classA: now.classA - r2Before.classA,
+            classB: now.classB - r2Before.classB,
+            ...(now.putRetries === undefined ? {} : { putRetries: now.putRetries - (r2Before.putRetries ?? 0) }),
+            ...(now.conditionalMisses === undefined ? {} : { conditionalMisses: now.conditionalMisses - (r2Before.conditionalMisses ?? 0) }),
+          },
+        };
   };
   let previousStatus: PipelineRunStatus | undefined;
   let previousCheckpoint: GitHubCheckpointV1 | undefined;
