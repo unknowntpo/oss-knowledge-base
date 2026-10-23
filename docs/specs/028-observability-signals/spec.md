@@ -1,6 +1,6 @@
 # Spec 028: Observability signals (metrics first)
 
-Status: Draft (owner intent 2026-10-21: metrics → structured logs → traces; D1 decided 2026-10-21: metrics in Workers Analytics Engine; refreshed 2026-10-22: every scheduled job is a signal source with one common schema (OB22–OB31); D2–D10 decided by owner 2026-10-22 per the recorded recommendations; slice 0 (Wrangler 4.148.0, OB30) implemented 2026-10-22; signal code not implemented)
+Status: Draft (owner intent 2026-10-21: metrics → structured logs → traces; D1 decided 2026-10-21: metrics in Workers Analytics Engine; refreshed 2026-10-22: every scheduled job is a signal source with one common schema (OB22–OB31); D2–D10 decided by owner 2026-10-22 per the recorded recommendations; slice 0 (Wrangler 4.148.0, OB30) implemented 2026-10-22; slice 1 (signal code behind `OBSERVABILITY_SIGNALS`, off everywhere, no binding) implemented 2026-10-23; Dev enable, Prod and slices 2–3 not started)
 Date: 2026-10-21 (refreshed 2026-10-22)
 Traceability: enforced
 Builds on: Spec 010, 011, 018, 021 (freshness and stalls), Spec 008 and 018 (R2 Class A invariant), Spec 014 (digest), Spec 016 (embedding job), Spec 019 amendment (7) (identity-links and kip-pages jobs), Spec 026 (cost guard and its 2026-10-21 dollar budget), Spec 029 (R2 retention job), Spec 027 (read-only SRE agent, PR #106, not merged)
@@ -117,7 +117,7 @@ doubles: [1, 19086, 824, 8678, 1, 1792534039086,                     // ok, dura
 
 The digest run of the same evening writes its own point under its own
 `runId` (`digest-2026-10-20T22-47-00-000Z`, `sourceRunId` the publication's),
-`r2Counted` 0 (the digest does not count R2 operations yet, D8) and c1..c2 =
+`r2Counted` 1 (slice 1 counts the digest's R2 requests, D8) and c1..c2 =
 `candidates` 449, `rejections` 5. The cost guard, which runs on the
 publication's tick, writes a third point (`cost-guard-…`), never fields of
 the publication's.
@@ -359,6 +359,58 @@ Numbered after the first draft's 12 behaviors; nothing above is renumbered.
     ≥ 4.145.0 (the `analytics` binding) with no other change, and
     `bun run test:ci` stays green; slice 1 starts only after it merges.
 
+### Slice 1 as implemented (2026-10-23)
+
+Clarifications the implementation needed; none changes a threshold.
+
+- **Publication duration.** The publication's `completedAt` is its
+  materialization time (the cron's scheduled time on a tick), so its point
+  takes `durationMs` and `completedAtMs` from the clock: the run's finish
+  minus the trigger time stored with its `runId`. The Example's values are
+  unchanged (`completedAt` 22:07:19.086 there is the finish).
+- **One query per run, the publication too.** `source.success` and
+  `publication.pollTruncated` read the same `job.*` history rows (newest
+  point per UTC day), so every job run makes at most one `SELECT` (one more
+  only on a `retryable` error); Behavior 17's limit of 2 holds.
+- **A failed write is not judged.** When `writeDataPoint` throws, no query
+  is made and the run's analytics rules are `unknown` with the write error
+  (OB14); the job's own result is unchanged.
+- **Rule entries** carry `job` on every entry (Spec 027 reads it), `subject`
+  for `source.success` (the source), and `reason` when `unknown`. `since` is
+  the start of the condition: the first failure of a failing streak, the
+  first truncated run of a truncation streak (+ 48 h when firing), and the
+  newest success + the threshold for an age rule.
+- **Where results are stored.** Each job's own record carries `runId` and
+  `trends {evaluatedAt, rules, lastError}`: `lastRun` (publication),
+  `digest.lastRun`, `searchEmbedding.lastRun`, `costGuard` (its one storage
+  key), and `lastRun` inside `last-run.json` for identity-links and
+  kip-pages; the digest and embedding records also carry `sourceRunId` and
+  `r2`. `/health.signals` lists those rules after the state rules; an
+  enabled job with no stored result shows its analytics rules as `unknown`
+  (`no evaluated run yet`).
+- **Baselines.** `job.r2ClassA`, like `job.duration` and `digest.rejections`,
+  needs 3 previous runs; with fewer it is `unknown`.
+- **No run yet.** `/health` cannot see when the flag's deploy happened, so an
+  enabled job with no run stays `unknown` (never `firing`); a stall of a job
+  that ran once is caught by its `job.missed` age.
+- **Not a run.** A cost-guard check that stops as `unconfigured` stores
+  nothing today, so it writes no point; dry runs write none; a refused
+  digest or embedding alarm logs with a `runId` but writes no point.
+- **Cost-guard `runId`.** The scheduled tick names it from its own
+  `scheduledTime` and passes it to the object (`x-run-id`), so the tick's
+  log line and the check carry the same id.
+- **`digest.freshness` after a failed digest.** The rule reads only
+  `digest.lastRun`, the digest's one stored record. When that last run
+  failed, the record holds no successful completion, so the rule is
+  `unknown`; it is not measured from the latest ok run (no such time is
+  stored). A failed run is caught by `job.failures` instead.
+- **Edge rows from verification.** The test plan also pins the
+  `job.r2ClassA` floors (1,000 and 5,000 against a median of 100), the
+  embedding `job.missed` warn edge (2 h), `source.success` taking the newest
+  run of a UTC day, and `pollTruncated` reaching `c4` through the record
+  mapping; a dry-run cost check writes no point (OB23 test in
+  `test/cost-guard.test.ts`).
+
 ### Correlation through one SQL interface
 
 10. The join key is `runId`: WAE `index1`, the log field `runId`, and (slice
@@ -387,48 +439,64 @@ Numbered after the first draft's 12 behaviors; nothing above is renumbered.
 ## Test plan
 
 Generated from `apps/data-publisher-worker/test/signals.cases.ts` by
-`bun run docs:test-plan` once slice 1 adds the case file; until then the
-rows below are the intended thresholds (boundary at, just under and just
-over each).
+`bun run docs:test-plan`; `signals.test.ts` runs every row (boundary at,
+just under and just over each threshold). Slice 1 added rows for the
+2026-10-13 Class A shape, a disabled digest, an enabled job with no run, a
+job without a wall budget, and moved the `r2Counted` 0 row to the cost guard
+(D8: the digest counts R2 now).
 
+<!-- test-plan:start apps/data-publisher-worker/test/signals.cases.ts -->
 | id | rule | input | status |
 | --- | --- | --- | --- |
-| OB5 | `publication.freshness` | 24 h 30 min | ok |
-| OB5 | `publication.freshness` | 24 h 30 min 1 s | warn |
-| OB5 | `publication.freshness` | 27 h | warn |
-| OB5 | `publication.freshness` | 27 h 0 min 1 s | firing |
-| OB6 | `source.success` | jira failed on 10-19 only | warn |
-| OB6 | `source.success` | jira failed on 10-19 and 10-20 | firing |
-| OB6 | `source.success` | jira failed twice on 10-20 (one day) | warn |
-| OB7 | `publication.pollTruncated` | true since 47 h 59 min | warn |
-| OB7 | `publication.pollTruncated` | true since 48 h 0 min 1 s | firing |
-| OB8 | `r2.classAInvariant` | 824 / 821 (Example) | ok |
-| OB8 | `r2.classAInvariant` | 825 / 821 | firing |
-| OB9 | `digest.freshness` | 48 h | ok |
-| OB9 | `digest.freshness` | 48 h 0 min 1 s | firing |
-| OB10 | `digest.rejections` | 9, median 2 | ok |
-| OB10 | `digest.rejections` | 10, median 3 | firing |
-| OB10 | `digest.rejections` | 10, median 4 | ok |
-| OB10 | `digest.rejections` | 40, 2 previous points | unknown |
-| OB24 | `job.missed` (`kip-pages`, daily) | last run 24 h 30 min ago | ok |
-| OB24 | `job.missed` (`kip-pages`, daily) | 24 h 30 min 1 s | warn |
-| OB24 | `job.missed` (`kip-pages`, daily) | 27 h 0 min 1 s | firing |
-| OB24 | `job.missed` (`embedding`) | `pending` 120, last run 3 h 0 min 1 s ago | firing |
-| OB24 | `job.missed` (`embedding`) | `pending` 0, last run 30 h ago | ok |
-| OB24 | `job.missed` (`identity-links`) | flag unset | no entry |
-| OB25 | `job.failures` | current failed, previous ok | warn |
-| OB25 | `job.failures` | current and previous failed | firing |
-| OB25 | `job.failures` | current failed, no previous point | warn |
-| OB25 | `job.failures` (`identity-links`) | current `no-input` (ok) | ok |
-| OB26 | `job.duration` | 2 × median exactly | ok |
-| OB26 | `job.duration` | 2 × median + 1 ms | warn |
-| OB26 | `job.duration` | 2 previous points only | unknown |
-| OB26 | `job.duration` (`retention`) | 8 min (80 % of 10 min) | firing |
-| OB27 | `job.r2ClassA` | 3,000, median 1,000 | ok |
-| OB27 | `job.r2ClassA` | 3,001, median 1,000 | warn |
-| OB27 | `job.r2ClassA` | 900, median 100 | ok (≤ 1,000) |
-| OB27 | `job.r2ClassA` (publication 2026-10-13 shape) | 8,190, median 800 | firing |
-| OB27 | `job.r2ClassA` (`digest`, `r2Counted` 0) | any | no entry |
+| OB5 | publication.freshness | 24 h 30 min | ok |
+| OB5 | publication.freshness | 24 h 30 min 1 s | warn |
+| OB5 | publication.freshness | 27 h | warn |
+| OB5 | publication.freshness | 27 h 0 min 1 s | firing |
+| OB6 | source.success | jira failed on 10-19 only | warn |
+| OB6 | source.success | jira failed on 10-19 and 10-20 | firing |
+| OB6 | source.success | jira failed twice on 10-20 (one day) | warn |
+| OB6 | source.success | jira failed early 10-19, ok later 10-19, failed 10-20 | warn |
+| OB7 | publication.pollTruncated | true since 47 h 59 min | warn |
+| OB7 | publication.pollTruncated | true since 48 h 0 min 1 s | firing |
+| OB7 | publication.pollTruncated (from the run record) | lastRun pollTruncated true, previous not | warn |
+| OB8 | r2.classAInvariant | 824 / 821 (Example) | ok |
+| OB8 | r2.classAInvariant | 825 / 821 | firing |
+| OB8 | r2.classAInvariant | 8,190 / 35 (2026-10-13 shape) | firing |
+| OB9 | digest.freshness | 48 h | ok |
+| OB9 | digest.freshness | 48 h 0 min 1 s | firing |
+| OB9 | digest.freshness | digest disabled | no entry |
+| OB10 | digest.rejections | 9, median 2 | ok |
+| OB10 | digest.rejections | 10, median 3 | firing |
+| OB10 | digest.rejections | 10, median 4 | ok |
+| OB10 | digest.rejections | 40, 2 previous points | unknown |
+| OB24 | job.missed (kip-pages, daily) | last run 24 h 30 min ago | ok |
+| OB24 | job.missed (kip-pages, daily) | 24 h 30 min 1 s | warn |
+| OB24 | job.missed (kip-pages, daily) | 27 h 0 min 1 s | firing |
+| OB24 | job.missed (embedding) | pending 120, last run 2 h ago | ok |
+| OB24 | job.missed (embedding) | pending 120, last run 2 h 0 min 1 s ago | warn |
+| OB24 | job.missed (embedding) | pending 120, last run 3 h 0 min 1 s ago | firing |
+| OB24 | job.missed (embedding) | pending 0, last run 30 h ago | ok |
+| OB24 | job.missed (identity-links) | flag unset | no entry |
+| OB24 | job.missed (identity-links) | flag set, no run yet | unknown |
+| OB25 | job.failures | current failed, previous ok | warn |
+| OB25 | job.failures | current and previous failed | firing |
+| OB25 | job.failures | current failed, no previous point | warn |
+| OB25 | job.failures (identity-links) | current no-input (ok) | ok |
+| OB26 | job.duration | 2 × median exactly | ok |
+| OB26 | job.duration | 2 × median + 1 ms | warn |
+| OB26 | job.duration | 2 previous points only | unknown |
+| OB26 | job.duration (retention) | 8 min (80 % of 10 min) | firing |
+| OB26 | job.duration (digest, no wall budget) | 60 × median | warn |
+| OB27 | job.r2ClassA | 3,000, median 1,000 | ok |
+| OB27 | job.r2ClassA | 3,001, median 1,000 | warn |
+| OB27 | job.r2ClassA | 900, median 100 | ok |
+| OB27 | job.r2ClassA | 1,000, median 100 | ok |
+| OB27 | job.r2ClassA | 1,001, median 100 | warn |
+| OB27 | job.r2ClassA | 5,000, median 100 | warn |
+| OB27 | job.r2ClassA | 5,001, median 100 | firing |
+| OB27 | job.r2ClassA (publication 2026-10-13 shape) | 8,190, median 800 | firing |
+| OB27 | job.r2ClassA (cost-guard, r2Counted 0) | any | no entry |
+<!-- test-plan:end -->
 
 ## Acceptance
 
@@ -437,35 +505,35 @@ untagged item is `[pending]` until the slice that implements it removes its
 tag.
 
 ### Behavior
-- OB1: [pending] given `OBSERVABILITY_SIGNALS` unset, blank, `off`, `on` or `yes`, resolving it gives off, off, off, on, invalid; while off a run writes no point, makes no query, `/health` has no `signals` key and log lines keep today's shape → worker test.
-- OB2: [pending] a publication started at 2026-10-20T22:07:00.000Z gets `runId` `publication-2026-10-20T22-07-00-000Z`; its follow-up invocation and an alarm retry keep it; `/health` `lastRun.runId` equals it; a digest run over that release records it as `sourceRunId` → pipeline test.
-- OB3: [pending] given the Example's `lastRun`, `metricPoint` returns exactly the Example's indexes, blobs and doubles, and a run with a follow-up invocation calls `writeDataPoint` once → point test.
-- OB4: [pending] at the end of a run, the fake `ANALYTICS_SQL` receives ≤ 3 `SELECT`s on `events.analyticsEngine."osskb_signals_dev"`, each with a `timestamp` bound ≤ 8 days, the run's `runId` excluded as a parameter, no `accountTag` predicate and no `FORMAT`; the trend result is stored in the run's existing status write (Durable Object write count unchanged) → trend test.
-- OB5: [pending] `publication.freshness` gives the statuses of the test-plan rows from Durable Object state at read time → case rows.
-- OB6: [pending] `source.success` gives the statuses of the test-plan rows from history plus the current run (per UTC day, per source) → case rows.
-- OB7: [pending] `publication.pollTruncated` gives the statuses of the test-plan rows → case rows.
-- OB8: [pending] `r2.classAInvariant` gives the statuses of the test-plan rows from state; the 2026-10-13 shape (`classA` 8,190, `copiedObjectCount` 35) fires → case rows.
-- OB9: [pending] `digest.freshness` gives the statuses of the test-plan rows and is absent while the digest is disabled → case rows.
-- OB10: [pending] `digest.rejections` gives the statuses of the test-plan rows → case rows.
-- OB11: [pending] `/health.signals` has `{status, evaluatedAt, analyticsEvaluatedAt, rules, lastError}` with one entry per rule of Behavior 5 and its `source`, `status` the worst entry (`unknown` as ok), for the Example (all ok) and for one firing rule; a `/health` read makes no SQL query → health test.
-- OB12: [pending] every log call in the run path receives an object with `message`, `runId` and `job`, and `message` equals today's text for the same event → log test.
-- OB22: [pending] given one recorded run of each of the seven jobs (publication, digest, embedding, cost-guard, retention, identity-links, kip-pages), `metricPoint` returns `indexes [runId]`, `blobs [job, env, status, sourceRunId]` and the 12 doubles of Behavior 13 with that job's c1–c6 and `r2Counted` (1 for publication, retention, identity-links, kip-pages; 0 otherwise), and the Example's publication point exactly → point test.
-- OB23: [pending] a publication tick with `COST_GUARD=monitor` writes two points, `publication-…` and `cost-guard-…`, each once and with its own `runId`; a digest and an embedding run each write one point whose `sourceRunId` is the publication's `runId`; given `writeDataPoint` throwing for one job, that job's result, its `/health` record and every other job's point are unchanged and the error is logged with its `runId` → worker test with a positive control.
-- OB24: [pending] `job.missed` gives the statuses of the test-plan rows from the records `/health` already reads, per job and schedule, with no entry for a disabled job → case rows.
-- OB25: [pending] `job.failures` gives the statuses of the test-plan rows; a status counted as ok by the job (`unchanged`, `no-input`) is not a failure → case rows.
-- OB26: [pending] `job.duration` gives the statuses of the test-plan rows and fires only for a job that declares a wall budget → case rows.
-- OB27: [pending] `job.r2ClassA` gives the statuses of the test-plan rows and has no entry for a job with `r2Counted` 0 → case rows.
-- OB28: [pending] with all seven jobs enabled, one `/health` read makes 0 SQL queries and 0 `writeDataPoint` calls, the same Durable Object and R2 reads as with `OBSERVABILITY_SIGNALS` off (counted on fakes), and returns the same HTTP status and per-job `status`/`ok` whether a signal rule is `ok` or `firing` → health test with a positive control.
-- OB29: [pending] at the end of a job run, the fake `ANALYTICS_SQL` receives ≤ 1 `SELECT` (≤ 2 for the publication), each filtered by `blob1` = that job, and the trend result lands in the job's existing status write (Durable Object write count, or R2 `put` count for identity-links, kip-pages and retention, unchanged) → trend test.
+- OB1: given `OBSERVABILITY_SIGNALS` unset, blank, `off`, `on` or `yes`, resolving it gives off, off, off, on, invalid; while off a run writes no point, makes no query, `/health` has no `signals` key and log lines keep today's shape → worker test.
+- OB2: a publication started at 2026-10-20T22:07:00.000Z gets `runId` `publication-2026-10-20T22-07-00-000Z`; its follow-up invocation and an alarm retry keep it; `/health` `lastRun.runId` equals it; a digest run over that release records it as `sourceRunId` → pipeline test.
+- OB3: given the Example's `lastRun`, `metricPoint` returns exactly the Example's indexes, blobs and doubles, and a run with a follow-up invocation calls `writeDataPoint` once → point test.
+- OB4: at the end of a run, the fake `ANALYTICS_SQL` receives ≤ 3 `SELECT`s on `events.analyticsEngine."osskb_signals_dev"`, each with a `timestamp` bound ≤ 8 days, the run's `runId` excluded as a parameter, no `accountTag` predicate and no `FORMAT`; the trend result is stored in the run's existing status write (Durable Object write count unchanged) → trend test.
+- OB5: `publication.freshness` gives the statuses of the test-plan rows from Durable Object state at read time → case rows.
+- OB6: `source.success` gives the statuses of the test-plan rows from history plus the current run (per UTC day, per source) → case rows.
+- OB7: `publication.pollTruncated` gives the statuses of the test-plan rows → case rows.
+- OB8: `r2.classAInvariant` gives the statuses of the test-plan rows from state; the 2026-10-13 shape (`classA` 8,190, `copiedObjectCount` 35) fires → case rows.
+- OB9: `digest.freshness` gives the statuses of the test-plan rows and is absent while the digest is disabled → case rows.
+- OB10: `digest.rejections` gives the statuses of the test-plan rows → case rows.
+- OB11: `/health.signals` has `{status, evaluatedAt, analyticsEvaluatedAt, rules, lastError}` with one entry per rule of Behavior 5 and its `source`, `status` the worst entry (`unknown` as ok), for the Example (all ok) and for one firing rule; a `/health` read makes no SQL query → health test.
+- OB12: every log call in the run path receives an object with `message`, `runId` and `job`, and `message` equals today's text for the same event → log test.
+- OB22: given one recorded run of each of the seven jobs (publication, digest, embedding, cost-guard, retention, identity-links, kip-pages), `metricPoint` returns `indexes [runId]`, `blobs [job, env, status, sourceRunId]` and the 12 doubles of Behavior 13 with that job's c1–c6 and `r2Counted` (1 for every job but the cost guard, D8: the digest and the embedding job count their R2 requests through the bucket they read with), and the Example's publication point exactly → point test.
+- OB23: a publication tick with `COST_GUARD=monitor` writes two points, `publication-…` and `cost-guard-…`, each once and with its own `runId`; a digest and an embedding run each write one point whose `sourceRunId` is the publication's `runId`; given `writeDataPoint` throwing for one job, that job's result, its `/health` record and every other job's point are unchanged and the error is logged with its `runId` → worker test with a positive control.
+- OB24: `job.missed` gives the statuses of the test-plan rows from the records `/health` already reads, per job and schedule, with no entry for a disabled job → case rows.
+- OB25: `job.failures` gives the statuses of the test-plan rows; a status counted as ok by the job (`unchanged`, `no-input`) is not a failure → case rows.
+- OB26: `job.duration` gives the statuses of the test-plan rows and fires only for a job that declares a wall budget → case rows.
+- OB27: `job.r2ClassA` gives the statuses of the test-plan rows and has no entry for a job with `r2Counted` 0 (the cost guard) → case rows.
+- OB28: with all seven jobs enabled, one `/health` read makes 0 SQL queries and 0 `writeDataPoint` calls, the same Durable Object and R2 reads as with `OBSERVABILITY_SIGNALS` off (counted on fakes), and returns the same HTTP status and per-job `status`/`ok` whether a signal rule is `ok` or `firing` → health test with a positive control.
+- OB29: at the end of a job run, the fake `ANALYTICS_SQL` receives ≤ 1 `SELECT` (≤ 2 for the publication), each filtered by `blob1` = that job, and the trend result lands in the job's existing status write (Durable Object write count, or R2 `put` count for identity-links, kip-pages and retention, unchanged) → trend test.
 - OB30: the slice 0 PR changes only the Wrangler versions (`apps/data-publisher-worker`, `apps/web`, `bun.lock`) to ≥ 4.145.0, and CI (`bun run test:ci`) passes on it; `wrangler deploy --dry-run -c wrangler.development.jsonc` with an `analytics` binding added in a scratch copy is accepted → CI run and the dry-run output in the PR; `scripts/test/wrangler-version.test.ts` keeps both packages and the lock at ≥ 4.145.0 (slice 0: 4.148.0).
-- OB13: [pending] given no history (first deploy) every analytics rule is `unknown` and `signals.status` is `ok`; given no run for 30 h, `publication.freshness` is `firing` at read time without any run or query → evaluation test.
-- OB14: [pending] given `writeDataPoint` throwing, or the `SIGNALS` or `ANALYTICS_SQL` binding missing, the publication completes and reports ok, the state rules are evaluated, the analytics rules are `unknown` with a reason, and the error is logged with its `runId` → pipeline test.
-- OB15: [pending] given the SQL query throwing with `retryable: true` it is retried once after a bounded backoff, with `retryable: false` not at all, and on failure the analytics rules are `unknown` and `lastError` is set; given a history row with `_sample_interval` 10 the rules reading it are `unknown` (`sampled`); given two points with the same `index1` (a retried run) they count once → trend test.
-- OB16: [pending] given a token value in an error text, no data point, query parameter, `/health` body or log object contains it → sanitizer test.
+- OB13: given no history (first deploy) every analytics rule is `unknown` and `signals.status` is `ok`; given no run for 30 h, `publication.freshness` is `firing` at read time without any run or query → evaluation test.
+- OB14: given `writeDataPoint` throwing, or the `SIGNALS` or `ANALYTICS_SQL` binding missing, the publication completes and reports ok, the state rules are evaluated, the analytics rules are `unknown` with a reason, and the error is logged with its `runId` → pipeline test.
+- OB15: given the SQL query throwing with `retryable: true` it is retried once after a bounded backoff, with `retryable: false` not at all, and on failure the analytics rules are `unknown` and `lastError` is set; given a history row with `_sample_interval` 10 the rules reading it are `unknown` (`sampled`); given two points with the same `index1` (a retried run) they count once → trend test.
+- OB16: given a token value in an error text, no data point, query parameter, `/health` body or log object contains it → sanitizer test.
 
 ### Budget
 - OB17: [measure] slice 1 adds per run 1 `writeDataPoint`, ≤ 3 SQL queries (1 retry each at most), 0 extra Durable Object writes and 0 R2, Workers AI or external HTTP requests; `/health` makes 0 queries and its evaluation stays under 5 ms CPU; measured by `bun test test/signals.test.ts -t OB17` (in `apps/data-publisher-worker`), which counts binding calls and times the evaluation.
-- OB18: [measure] slice 1 adds ≤ 100 bytes per log line and ≤ 20 lines per run (≤ 2 KB a run, ≤ 0.2 MB a month for both environments), measured by `bun test test/signals.test.ts -t OB18` over a recorded run's log calls.
+- OB18: [measure] slice 1 adds ≤ 100 bytes per log line and ≤ 20 lines per run (≤ 2 KB a run, ≤ 0.2 MB a month for both environments), measured by `bun test test/signals-worker.test.ts -t OB18` (in `apps/data-publisher-worker`) over a recorded run's log calls.
 
 ### Observability
 - OB19: [deploy] on Dev with `OBSERVABILITY_SIGNALS=on` and Wrangler ≥ 4.145.0, after the first daily tick `/health.signals.status` is `ok`, `lastRun.runId` is set, a SQL query on `osskb_signals_dev` returns one row with `index1` = that `runId` and `_sample_interval` 1, a Workers Logs query on that `runId` returns the run's lines, and the event's platform invocation-id field name is recorded in the feature map.

@@ -262,6 +262,13 @@ export interface KipPagesRunDeps {
    * limit). A request that could end after it is not sent; the run fails closed and says so.
    */
   readonly deadline?: number;
+  /**
+   * Called once with a real run's record before it is written, and its answer written instead (the
+   * publisher Worker adds its Spec 028 `runId` and trend result). A throw keeps the record as it was.
+   */
+  readonly finish?: (health: KipPagesHealthV1) => Promise<KipPagesHealthV1>;
+  /** Where the run's error line goes; `console.error` when absent. */
+  readonly log?: (message: string) => void;
 }
 
 class RunFailure extends Error {
@@ -519,11 +526,12 @@ export async function runKipPages(deps: KipPagesRunDeps): Promise<KipPagesHealth
     coverageFrom,
   });
   if (dryRun) return record(r2.classA);
-  const health = record(r2.classA + 1);
+  const recorded = record(r2.classA + 1);
+  const health = deps.finish === undefined ? recorded : await deps.finish(recorded).catch(() => recorded);
   try {
     await deps.bucket.put(KIP_PAGES_LAST_RUN_KEY, `${JSON.stringify(health)}\n`);
   } catch (cause) {
-    console.error(`kip-pages: the run record was not written: ${errorText(cause)}`);
+    (deps.log ?? console.error)(`kip-pages: the run record was not written: ${errorText(cause)}`);
   }
   return health;
 }

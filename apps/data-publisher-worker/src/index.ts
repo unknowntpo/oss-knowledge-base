@@ -28,6 +28,12 @@ import { redactRecord } from "./redact";
 import { COST_GUARD_OBJECT_NAME, COST_GUARD_RETRY_AFTER_MS } from "./cost-guard/profile";
 import { CostGuardRunner, costGuardMissing, resolveCostGuardMode, unboundCostGuardHealth, type CostGuardInApp } from "./cost-guard/guard";
 import { COST_GUARD_REFUSAL } from "./digest/runner";
+import { resolveSignalsMode } from "./signals/profile";
+import { runIdFor } from "./signals/point";
+import { PUBLICATION_RUN_KEY, publicationRunMarker, signalingPipelineState, sourceRunIdFrom, type PublicationRunMarker } from "./signals/publication";
+import { signalsFor } from "./signals/env";
+import { runLog, type AnalyticsSql, type RunContext, type SignalsSink } from "./signals/recorder";
+import { signalsHealth } from "./signals/rules";
 
 interface Env {
   readonly PUBLICATION_ENVIRONMENT: "development" | "production";
@@ -114,6 +120,32 @@ interface Env {
   readonly KIP_PAGES?: string;
   /** Spec 019 amendment (7): the `kip-pages` job's cron expression (`43 3 * * *` once enabled). */
   readonly KIP_PAGES_CRON?: string;
+  /**
+   * Spec 028: `on` makes every job run write one data point (`SIGNALS`), judge its trends over
+   * `ANALYTICS_SQL`, log `{message, runId, job}`, and adds `/health.signals`. Unset, blank or `off`:
+   * nothing is written, queried or added. Any other value: `/health.signals` is unconfigured.
+   */
+  readonly OBSERVABILITY_SIGNALS?: string;
+  /** Spec 028: the Workers Analytics Engine dataset (`osskb_signals_<env>`). Not bound in slice 1. */
+  readonly SIGNALS?: SignalsSink;
+  /** Spec 028: the Analytics SQL binding (`"analytics": {"binding": "ANALYTICS_SQL"}`). Not bound in slice 1. */
+  readonly ANALYTICS_SQL?: AnalyticsSql;
+}
+
+/** Spec 028 Behavior 2: the publication run whose release `release` is, read from the publisher's `/status`. */
+function publicationRunIdFor(env: Pick<Env, "PIPELINE_STATE">) {
+  return async (release: string): Promise<string> => {
+    const publisher = env.PIPELINE_STATE.get(env.PIPELINE_STATE.idFromName(STATE_OBJECT_NAME));
+    return sourceRunIdFrom(await publisher.fetch("https://pipeline.internal/status").then((response) => response.json()), release);
+  };
+}
+
+/** Spec 028 Behaviors 1 and 7: `/health.signals` from the body already built; undefined while off. */
+function signalsField(env: Pick<Env, "OBSERVABILITY_SIGNALS">, body: Record<string, unknown>): unknown {
+  const mode = resolveSignalsMode(env.OBSERVABILITY_SIGNALS);
+  if (mode === "off") return undefined;
+  if (mode === "invalid") return { status: "unconfigured", reason: sanitizeErrorMessage(`OBSERVABILITY_SIGNALS "${env.OBSERVABILITY_SIGNALS?.trim() ?? ""}" is not off or on`) };
+  return signalsHealth(body, Date.now());
 }
 
 const sourceFetch = (url: string, init: { readonly headers: Readonly<Record<string, string>> }) =>
@@ -135,12 +167,13 @@ function searchEmbeddingObject(env: Pick<Env, "SEARCH_EMBEDDING_RUN">): DurableO
  */
 export function searchEmbeddingTrigger(
   env: Pick<Env, "SEARCH_EMBEDDING" | "SEARCH_EMBEDDING_RUN">,
+  context?: RunContext,
 ): ((status: PipelineRunStatus) => Promise<void>) | undefined {
   if ((env.SEARCH_EMBEDDING?.trim() ?? "") === "" || env.SEARCH_EMBEDDING_RUN === undefined) return undefined;
   return async (status) => {
     if (!status.ok) return;
     const response = await searchEmbeddingObject(env)!.fetch("https://search-embedding.internal/run", { method: "POST" });
-    if (!response.ok && response.status !== 409) console.error(sanitizeErrorMessage(`Scheduling the search embedding failed: ${response.status} ${await response.text()}`));
+    if (!response.ok && response.status !== 409) runLog(context, "error", sanitizeErrorMessage(`Scheduling the search embedding failed: ${response.status} ${await response.text()}`));
   };
 }
 
@@ -154,7 +187,7 @@ const NO_REFUSAL = { refuse: false, pausePublication: false } as const;
  * Spec 026 Behavior 9–10: what a guarded feature must do now. Only under `enforce` with the object
  * bound is the object asked; when it cannot answer, nothing is refused (fail open).
  */
-export async function costGuardDecisionFor(env: Pick<Env, "COST_GUARD" | "COST_GUARD_STATE">): Promise<{ readonly refuse: boolean; readonly pausePublication: boolean }> {
+export async function costGuardDecisionFor(env: Pick<Env, "COST_GUARD" | "COST_GUARD_STATE">, context?: RunContext): Promise<{ readonly refuse: boolean; readonly pausePublication: boolean }> {
   if (resolveCostGuardMode(env.COST_GUARD) !== "enforce") return NO_REFUSAL;
   const object = costGuardObject(env);
   if (object === undefined) return NO_REFUSAL;
@@ -164,7 +197,7 @@ export async function costGuardDecisionFor(env: Pick<Env, "COST_GUARD" | "COST_G
     const body = await response.json() as { refuse?: unknown; pausePublication?: unknown };
     return { refuse: body.refuse === true, pausePublication: body.pausePublication === true };
   } catch (error) {
-    console.error(`cost guard: no decision, proceeding: ${errorText(error)}`);
+    runLog(context, "error", `cost guard: no decision, proceeding: ${errorText(error)}`);
     return NO_REFUSAL;
   }
 }
@@ -381,8 +414,10 @@ export default {
     // Spec 026 Behavior 3: the daily cost check rides the publication tick, also while publication is paused.
     const guard = resolveCostGuardMode(env.COST_GUARD) === "off" ? undefined : costGuardObject(env);
     if (guard !== undefined) {
-      context.waitUntil(guard.fetch("https://cost-guard.internal/check", { method: "POST" }).then(async (response) => {
-        if (!response.ok) console.error(sanitizeErrorMessage(`The cost check failed: ${response.status}`));
+      // Spec 028: the check is its own run, keyed by this tick (never the publication's runId).
+      const run: RunContext | undefined = signalsFor(env) === undefined ? undefined : { runId: runIdFor("cost-guard", controller.scheduledTime), job: "cost-guard" };
+      context.waitUntil(guard.fetch("https://cost-guard.internal/check", { method: "POST", ...(run === undefined ? {} : { headers: { [RUN_ID_HEADER]: run.runId } }) }).then(async (response) => {
+        if (!response.ok) runLog(run, "error", sanitizeErrorMessage(`The cost check failed: ${response.status}`));
       }));
     }
   },
@@ -424,11 +459,14 @@ export default {
         ? await env.OSS_KB_BUCKET.get(IDENTITY_LINKS_LAST_RUN_KEY).then((object) => (object === null ? null : object.json())).catch(() => null)
         : undefined;
       const kipPages = await kipPagesHealth(env);
-      return json({
+      const body = {
         ...health,
         ...(identityLinks === undefined ? {} : { identityLinks }),
         ...(kipPages === undefined ? {} : { kipPages }),
-      });
+      };
+      // Spec 028 Behavior 18: judged from the records just read; no read, query or write of its own.
+      const signals = signalsField(env, body);
+      return json(signals === undefined ? body : { ...body, signals });
     }
     if (request.method === "POST" && url.pathname === "/search-embedding/run") {
       if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
@@ -526,8 +564,18 @@ function identityLinksRun(env: Env, options: { readonly dryRun?: boolean; readon
     now: () => Date.now(),
     dryRun: options.dryRun === true,
     blind: options.blind === true,
+    ...(signalsFor(env) === undefined ? {} : { signals: signalsFor(env)! }),
   });
 }
+
+/** Spec 028: the digest's and the embedding job's end-of-run hooks; none while the flag is off. */
+function signalHooks(env: Env) {
+  const recorder = signalsFor(env);
+  return recorder === undefined ? {} : { signals: { recorder, sourceRunId: publicationRunIdFor(env) } };
+}
+
+/** Spec 028: carries the scheduled tick's cost-guard `runId` into the object, so both log the same id. */
+const RUN_ID_HEADER = "x-run-id";
 
 /** Spec 019 slice 2b: the publication's `activityLog` option; none while `PEOPLE_ACTIVITY` is unset or blank. */
 export function activityLogOption(env: Pick<Env, "PEOPLE_ACTIVITY" | "OSS_KB_BUCKET">): { readonly activityLog?: ReturnType<typeof activityLogFor> } {
@@ -577,7 +625,10 @@ export class PipelineState implements DurableObject {
     if (runStarting(this.running, await this.ctx.storage.getAlarm(), Date.now())) {
       return json({ ok: false, skipped: "already-running" }, { status: 409 });
     }
-    await this.ctx.storage.put("requested-at", request.headers.get("x-scheduled-at") ?? new Date().toISOString());
+    const requestedAt = request.headers.get("x-scheduled-at") ?? new Date().toISOString();
+    // Spec 028 Behavior 2: the run's id is set here, in the same put, and kept by its follow-ups.
+    if (signalsFor(this.env) === undefined) await this.ctx.storage.put("requested-at", requestedAt);
+    else await this.ctx.storage.put({ "requested-at": requestedAt, [PUBLICATION_RUN_KEY]: publicationRunMarker(requestedAt) });
     await this.ctx.storage.delete("run-lease"); // written by the pre-alarm implementation
     await this.ctx.storage.delete(FOLLOW_UP_KEY);
     await this.ctx.storage.setAlarm(Date.now());
@@ -585,9 +636,14 @@ export class PipelineState implements DurableObject {
   }
 
   async alarm(): Promise<void> {
+    const signals = signalsFor(this.env);
+    // Spec 028: a follow-up keeps the run's id; an alarm with no marker (the flag just turned on) starts one.
+    const run = signals === undefined ? undefined
+      : await this.ctx.storage.get<PublicationRunMarker>(PUBLICATION_RUN_KEY) ?? publicationRunMarker(await this.ctx.storage.get<string>("requested-at") ?? new Date().toISOString());
+    const context: RunContext | undefined = run === undefined ? undefined : { runId: run.runId, job: "publication" };
     // Spec 026: a follow-up alarm while publication is paused runs nothing and schedules nothing.
-    if ((await costGuardDecisionFor(this.env)).pausePublication) {
-      console.log("publication: paused by the cost guard");
+    if ((await costGuardDecisionFor(this.env, context)).pausePublication) {
+      runLog(context, "log", "publication: paused by the cost guard");
       return;
     }
     this.running = true;
@@ -597,7 +653,8 @@ export class PipelineState implements DurableObject {
       const requestedAt = await this.ctx.storage.get<string>("requested-at");
       await this.ctx.storage.delete("requested-at");
       const materializedAt = requestedAt ?? new Date().toISOString();
-      const onPublished = searchEmbeddingTrigger(this.env);
+      const onPublished = searchEmbeddingTrigger(this.env, context);
+      const state = new DurableObjectPipelineState(this.ctx.storage);
       const status = await runDataPublication({
         environment: this.env.PUBLICATION_ENVIRONMENT,
         materializedAt,
@@ -611,17 +668,18 @@ export class PipelineState implements DurableObject {
           { key: "mail", connector: new PonyMailConnector({ fetch: sourceFetch }) },
           { key: "jira", connector: new JiraConnector({ fetch: sourceFetch }) },
         ],
-        state: new DurableObjectPipelineState(this.ctx.storage),
+        state: signals === undefined || run === undefined ? state : signalingPipelineState(state, { storage: this.ctx.storage, run, signals, now: () => Date.now() }),
         destination: new R2PublicationDestination(this.env.OSS_KB_BUCKET),
         ...(this.env.SEARCH_LEXICAL_REVISION === undefined ? {} : { searchLexicalRevision: this.env.SEARCH_LEXICAL_REVISION }),
         ...(this.env.SEARCH_SHARD_ROOTS === undefined ? {} : { searchShardRoots: this.env.SEARCH_SHARD_ROOTS }),
         ...(onPublished === undefined ? {} : { onPublished }),
         ...activityLogOption(this.env),
+        ...(context === undefined ? {} : { log: (level: "log" | "error", message: string) => runLog(context, level, message) }),
       });
       // Spec 018: the Cron fires once a day, so a truncated or failed run schedules its own
       // follow-up. A failure here must not throw: the runtime would run the publication again.
       await scheduleFollowUp(this.ctx.storage, status, Date.now())
-        .catch((error: unknown) => console.error(`Scheduling the follow-up run failed: ${errorText(error)}`));
+        .catch((error: unknown) => runLog(context, "error", `Scheduling the follow-up run failed: ${errorText(error)}`));
     } finally {
       this.running = false;
     }
@@ -656,6 +714,7 @@ export class DigestRun implements DurableObject {
         return publisherBusy(await publisher.fetch("https://pipeline.internal/status").then((response) => response.json()));
       },
       costGuardRefuses: costGuardRefuses(env),
+      ...signalHooks(env),
     });
   }
 
@@ -702,6 +761,7 @@ export class SearchEmbeddingRun implements DurableObject {
       now: () => new Date(),
       delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       costGuardRefuses: costGuardRefuses(env),
+      ...signalHooks(env),
     });
   }
 
@@ -786,6 +846,7 @@ export class CostGuard implements DurableObject {
       fetch: (url, init) => fetch(url, init),
       now: () => new Date(),
       inApp: inAppSources(env, () => new Date()),
+      ...(signalsFor(env) === undefined ? {} : { signals: signalsFor(env)! }),
     });
   }
 
@@ -793,7 +854,10 @@ export class CostGuard implements DurableObject {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/status") return json(await this.runner.health());
     if (request.method === "GET" && url.pathname === "/decision") return json(await this.runner.decision());
-    if (request.method === "POST" && url.pathname === "/check") return json(await this.runner.check({ dryRun: url.searchParams.get("dryRun") === "1" }));
+    if (request.method === "POST" && url.pathname === "/check") {
+      const runId = request.headers.get(RUN_ID_HEADER);
+      return json(await this.runner.check({ dryRun: url.searchParams.get("dryRun") === "1", ...(runId === null ? {} : { runId }) }));
+    }
     if (request.method === "POST" && url.pathname === "/reset") return json(await this.runner.reset());
     return new Response("Not found", { status: 404 });
   }

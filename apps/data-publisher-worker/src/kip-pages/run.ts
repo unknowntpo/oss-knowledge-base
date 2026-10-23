@@ -5,6 +5,9 @@
  * `KIP_PAGES` unset or blank: nothing runs, nothing is read, `/health` has no field (W99).
  */
 import { KAFKA_KIP_PAGES, KIP_PAGES_LAST_RUN_KEY, runKipPages, type KipPagesBucket, type KipPagesHealthV1 } from "@oss-knowledge-base/reference-pipeline/kip-pages";
+import { signalsFor, type SignalsEnv } from "../signals/env";
+import { kipPagesSignalRun, runIdFor } from "../signals/point";
+import { runLog, type RunContext } from "../signals/recorder";
 
 const metadata = { httpMetadata: { contentType: "application/json", cacheControl: "no-store" } };
 
@@ -21,7 +24,7 @@ export class R2KipPagesBucket implements KipPagesBucket {
   }
 }
 
-export interface KipPagesEnv {
+export interface KipPagesEnv extends Partial<SignalsEnv> {
   readonly KIP_PAGES?: string;
   readonly OSS_KB_BUCKET: R2Bucket;
 }
@@ -39,6 +42,8 @@ export function kipPagesSet(env: Pick<KipPagesEnv, "KIP_PAGES">): boolean {
 export const KIP_PAGES_CRON_WALL_MS = 14 * 60_000;
 
 export function kipPagesRun(env: KipPagesEnv, dryRun: boolean, deadline?: number): Promise<KipPagesHealthV1> {
+  const signals = env.PUBLICATION_ENVIRONMENT === undefined ? undefined : signalsFor(env as SignalsEnv);
+  let context: RunContext | undefined;
   return runKipPages({
     flag: env.KIP_PAGES ?? "",
     profile: KAFKA_KIP_PAGES,
@@ -48,6 +53,16 @@ export function kipPagesRun(env: KipPagesEnv, dryRun: boolean, deadline?: number
     delay: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
     dryRun,
     ...(deadline === undefined ? {} : { deadline }),
+    // Spec 028: the run's point and trend result, in the `last-run.json` put the run already makes.
+    ...(signals === undefined ? {} : {
+      finish: async (health: KipPagesHealthV1) => {
+        if (health.lastRun === null) return health;
+        const runId = runIdFor("kip-pages", health.lastRun.at);
+        context = { runId, job: "kip-pages" };
+        return { ...health, lastRun: { ...health.lastRun, runId, trends: await signals.finish(kipPagesSignalRun(health.lastRun, { runId })) } as KipPagesHealthV1["lastRun"] };
+      },
+      log: (message: string) => runLog(context, "error", message),
+    }),
   });
 }
 

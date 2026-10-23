@@ -7,6 +7,9 @@ import { errorText, sanitizeErrorMessage } from "@oss-knowledge-base/semantic-ve
 
 import { evaluateMetric, nextBreaker, worstStatus, type Breaker, type CostMetricKey, type MetricEvaluation } from "./evaluate";
 import { fetchR2Usage, type GraphqlFetch } from "./graphql";
+import { costGuardSignalRun, runIdFor } from "../signals/point";
+import { runLog, type JobSignals, type RunContext } from "../signals/recorder";
+import type { TrendResult } from "../signals/rules";
 
 export type CostGuardMode = "off" | "monitor" | "enforce" | "invalid";
 export type CostGuardStatus = "ok" | "warn" | "tripped" | "unconfigured" | "pending";
@@ -50,6 +53,8 @@ export interface CostGuardRunnerDeps {
   readonly fetch: GraphqlFetch;
   readonly now: () => Date;
   readonly inApp: CostGuardInApp;
+  /** Spec 028: present only while `OBSERVABILITY_SIGNALS=on`; a real check then writes its point and stores the trend result. */
+  readonly signals?: JobSignals;
 }
 
 export interface CostGuardError { readonly message: string; readonly at: string }
@@ -60,6 +65,9 @@ interface StoredState {
   readonly breaker: Breaker;
   readonly lastResetAt: string | null;
   readonly lastError: CostGuardError | null;
+  /** Spec 028: the last real check's run and trend result, while signals are on. */
+  readonly runId?: string;
+  readonly trends?: TrendResult;
 }
 
 export interface CostGuardHealth {
@@ -71,6 +79,9 @@ export interface CostGuardHealth {
   readonly breaker: Breaker;
   readonly lastResetAt: string | null;
   readonly lastError: CostGuardError | null;
+  /** Spec 028: present only after a check made while signals are on. */
+  readonly runId?: string;
+  readonly trends?: TrendResult;
 }
 
 const STATE = "state";
@@ -97,16 +108,18 @@ export class CostGuardRunner {
   }
 
   /** Behavior 3, 11, 12: evaluate now; a real check stores the result and may open the breaker. */
-  async check(options: { readonly dryRun: boolean }): Promise<unknown> {
+  async check(options: { readonly dryRun: boolean; readonly runId?: string }): Promise<unknown> {
     const reason = this.missing();
     if (reason !== undefined) return { ok: false, status: "unconfigured", reason };
     const now = this.deps.now();
+    // Spec 028: the scheduled tick names the run (so its own log line carries the same id); a manual check names its own.
+    const context: RunContext | undefined = this.deps.signals === undefined || options.dryRun ? undefined : { runId: options.runId ?? runIdFor("cost-guard", now.getTime()), job: "cost-guard" };
     const month = now.toISOString().slice(0, 7);
     let lastError = null as CostGuardError | null;
     const r2 = await fetchR2Usage({ fetch: this.deps.fetch, token: this.deps.token!.trim(), accountId: this.deps.accountId!.trim(), now })
       .catch((error: unknown) => {
         lastError = { message: errorText(error), at: now.toISOString() };
-        console.error(`cost guard: the GraphQL read failed: ${lastError.message}`);
+        runLog(context, "error", `cost guard: the GraphQL read failed: ${lastError.message}`);
         return null;
       });
     const neurons = await this.deps.inApp.neuronsToday().catch(() => null);
@@ -135,7 +148,13 @@ export class CostGuardRunner {
       ...(options.dryRun ? { wouldTrip: !previous.breaker.tripped && breaker.tripped } : {}),
     };
     if (!options.dryRun) {
-      await this.deps.storage.put(STATE, { ...previous, checkedAt: now.toISOString(), metrics, breaker, lastError } satisfies StoredState);
+      const signals = context === undefined ? {} : {
+        runId: context.runId,
+        trends: await this.deps.signals!.finish(costGuardSignalRun({ ok: result.ok, status, breaker }, { runId: context.runId, startedAtMs: now.getTime(), finishedAtMs: this.deps.now().getTime() })),
+      };
+      // A check made with signals off drops an earlier run's id and result rather than serve them stale.
+      const { runId: _runId, trends: _trends, ...kept } = previous;
+      await this.deps.storage.put(STATE, { ...kept, checkedAt: now.toISOString(), metrics, breaker, lastError, ...signals } satisfies StoredState);
     }
     return result;
   }
@@ -163,6 +182,10 @@ export class CostGuardRunner {
       : reason !== null ? "unconfigured"
       : state.checkedAt === null ? "pending"
       : worstStatus(state.metrics);
-    return { mode: this.mode, status, reason, checkedAt: state.checkedAt, metrics: state.metrics, breaker: state.breaker, lastResetAt: state.lastResetAt, lastError: state.lastError };
+    return {
+      mode: this.mode, status, reason, checkedAt: state.checkedAt, metrics: state.metrics, breaker: state.breaker, lastResetAt: state.lastResetAt, lastError: state.lastError,
+      ...(state.runId === undefined ? {} : { runId: state.runId }),
+      ...(state.trends === undefined ? {} : { trends: state.trends }),
+    };
   }
 }

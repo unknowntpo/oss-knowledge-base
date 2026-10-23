@@ -18,12 +18,23 @@ export interface DigestBucket {
   putIfAbsent(key: string, body: string): Promise<boolean>;
   /** Writes the mutable pointer. */
   putPointer(key: string, body: string): Promise<void>;
+  /** Spec 028 D8: R2 requests sent so far by billing class; absent when the store does not count. */
+  operationCounts?(): { readonly classA: number; readonly classB: number };
 }
 
+/** Counts every R2 request it sends (Spec 008 C9: `put` and each `list` page Class A, `get` Class B). */
 export class R2DigestBucket implements DigestBucket {
+  private classA = 0;
+  private classB = 0;
+
   constructor(private readonly bucket: R2Bucket) {}
 
+  operationCounts(): { readonly classA: number; readonly classB: number } {
+    return { classA: this.classA, classB: this.classB };
+  }
+
   async getJson(key: string): Promise<unknown> {
+    this.classB += 1;
     const object = await this.bucket.get(key);
     return object === null ? undefined : object.json();
   }
@@ -32,6 +43,7 @@ export class R2DigestBucket implements DigestBucket {
     const keys: string[] = [];
     let cursor: string | undefined;
     do {
+      this.classA += 1;
       const page = await this.bucket.list({ prefix, ...(cursor === undefined ? {} : { cursor }) });
       keys.push(...page.objects.map((object) => object.key));
       cursor = page.truncated ? page.cursor : undefined;
@@ -40,6 +52,7 @@ export class R2DigestBucket implements DigestBucket {
   }
 
   async putIfAbsent(key: string, body: string): Promise<boolean> {
+    this.classA += 1;
     const written = await this.bucket.put(key, body, {
       onlyIf: new Headers({ "if-none-match": "*" }),
       httpMetadata: { contentType: "application/json", cacheControl: "public, max-age=31536000, immutable" },
@@ -48,6 +61,7 @@ export class R2DigestBucket implements DigestBucket {
   }
 
   async putPointer(key: string, body: string): Promise<void> {
+    this.classA += 1;
     await this.bucket.put(key, body, {
       httpMetadata: { contentType: "application/json", cacheControl: "public, max-age=30, must-revalidate" },
     });

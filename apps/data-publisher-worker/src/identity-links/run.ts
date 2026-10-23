@@ -35,6 +35,9 @@ import {
 } from "@oss-knowledge-base/reference-pipeline";
 
 import { rosterKey } from "../review-queue/store";
+import { identityLinksSignalRun, runIdFor } from "../signals/point";
+import type { JobSignals } from "../signals/recorder";
+import type { TrendResult } from "../signals/rules";
 
 /** Decision 4: the newest 12 calendar months. */
 const HORIZON_MONTHS = 12;
@@ -61,6 +64,9 @@ export interface IdentityLinksLastRun {
   readonly bytesWritten: number;
   readonly r2: { readonly classA: number; readonly classB: number };
   readonly error?: string;
+  /** Spec 028: present only while `OBSERVABILITY_SIGNALS=on`. */
+  readonly runId?: string;
+  readonly trends?: TrendResult;
 }
 
 /** `last-run.json` and `/health` `identityLinks` (W91). */
@@ -157,6 +163,8 @@ export interface RunIdentityLinksInput {
   readonly dryRun?: boolean;
   /** W103: leave the committers page's `declared` entries out (precision check). */
   readonly blind?: boolean;
+  /** Spec 028: present only while `OBSERVABILITY_SIGNALS=on`; a real run writes its point and stores the trend result in `last-run.json`. */
+  readonly signals?: JobSignals;
 }
 
 /** One run over every project with a `corroboration` config (Kafka; DataFusion makes no call). */
@@ -271,7 +279,13 @@ export async function runIdentityLinks(input: RunIdentityLinksInput): Promise<Id
   // Last, after the table: a crash between the two puts leaves the old digest, so the next run
   // rewrites the same table bytes and then the record (W79).
   const record: IdentityLinksRecord = { revision: IDENTITY_LINKS_REVISION, lastRun: lastRun(status, failure), lastGoodAt, tables };
-  const recordBody = JSON.stringify({ ...record, lastRun: { ...record.lastRun, r2: { classA: bucket.classA + 1, classB: bucket.classB } } });
+  let finalRun: IdentityLinksLastRun = { ...record.lastRun, r2: { classA: bucket.classA + 1, classB: bucket.classB } };
+  if (input.signals !== undefined) {
+    // Spec 028 Behavior 17: the trend result rides the one record put the run already makes.
+    const runId = runIdFor("identity-links", started);
+    finalRun = { ...finalRun, runId, trends: await input.signals.finish(identityLinksSignalRun(finalRun, { runId })) };
+  }
+  const recordBody = JSON.stringify({ ...record, lastRun: finalRun });
   await bucket.put(IDENTITY_LINKS_LAST_RUN_KEY, recordBody);
   return JSON.parse(recordBody) as IdentityLinksRecord;
 }

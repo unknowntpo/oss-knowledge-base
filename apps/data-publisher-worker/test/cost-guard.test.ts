@@ -566,3 +566,16 @@ describe("Spec 026 cost guard", () => {
     expect([network.calls.length, neurons, vectors, storage.writes]).toEqual([1, 1, 1, 1]);
   });
 });
+
+describe("Spec 028: the cost check as a signal source", () => {
+  test("OB23: a dry-run check with signals on writes no point and stores no runId; a real check writes one (positive control)", async () => {
+    const finished: string[] = [];
+    const signals = { finish: async (run: { readonly runId: string }) => { finished.push(run.runId); return { evaluatedAt: TICK.toISOString(), rules: [], lastError: null }; } };
+    const { runner } = guard({ signals });
+    await runner.check({ dryRun: true, runId: "cost-guard-dry" });
+    expect(finished).toEqual([]);
+    expect((await runner.health() as { runId?: string }).runId).toBeUndefined();
+    await runner.check({ dryRun: false, runId: "cost-guard-2026-10-20T22-07-00-000Z" });
+    expect(finished).toEqual(["cost-guard-2026-10-20T22-07-00-000Z"]);
+  });
+});

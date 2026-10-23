@@ -18,6 +18,7 @@ import { sanitizeErrorMessage } from "@oss-knowledge-base/semantic-vectorize";
 import { sha256Digest } from "@oss-knowledge-base/serving-contract";
 import { ModelCalls, type Calibration, type DigestModel, type ModelErrorShape } from "./model";
 import { DigestSourceError, readPinnedRelease, type DigestBucket } from "./store";
+import type { TrendResult } from "../signals/rules";
 
 export const DIGEST_ROOT = "public/digest/v1/";
 export const CLASSIFY_BATCH = 20;
@@ -89,6 +90,11 @@ export interface DigestRunResult {
   readonly rawSamples?: readonly RawSample[];
   /** Dry runs return both objects instead of writing them (D60). */
   readonly objects?: { readonly en: DigestV1; readonly "zh-Hant": DigestV1 };
+  /** Spec 028: present only while `OBSERVABILITY_SIGNALS=on`. */
+  readonly runId?: string;
+  readonly sourceRunId?: string;
+  readonly r2?: { readonly classA: number; readonly classB: number };
+  readonly trends?: TrendResult;
 }
 
 type Revisions = DigestV1["revisions"];
