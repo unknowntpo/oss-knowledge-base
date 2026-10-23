@@ -21,7 +21,7 @@ import {
 import { resolveSignalsMode, SIGNAL_THRESHOLDS, WALL_BUDGET_MS } from "../src/signals/profile";
 import { KIP_PAGES_CRON_WALL_MS } from "../src/kip-pages/run";
 import { signalsHealth, trendRules, type History, type HistoryPoint, type RuleEntry } from "../src/signals/rules";
-import { historyQuery, SignalRecorder, type AnalyticsSql } from "../src/signals/recorder";
+import { historyPoints, historyQuery, SignalRecorder, type AnalyticsSql } from "../src/signals/recorder";
 
 const H = 3_600_000;
 const M = 60_000;
@@ -380,6 +380,24 @@ describe("Spec 028 slice 1: the recorder", () => {
     const words = new Set(rest.match(/[A-Za-z_][A-Za-z0-9_]*/gu) ?? []);
     expect(aliased.map((match) => match![2]!).filter((alias) => words.has(alias))).toEqual([]);
     expect(aliased.map((match) => match![1]!).filter((expression) => !/^[A-Za-z]+\(/u.test(expression))).toEqual([]);
+  });
+
+  test("OB4/OB15: a raw-keyed row with a distinct value in every column maps to the full history point, and a rule's since comes from double6", async () => {
+    const completedAt = NOW - 26 * H;
+    const raw = {
+      index1: "digest-2026-10-22T03-00-00-000Z", blob3: "failed", double1: 0, double2: 4_321, double3: 17,
+      double4: 991, double5: 992, double6: completedAt, double7: 7, double8: 8, double9: 9, double10: 10, double11: 11, double12: 12,
+      timestamp: iso(completedAt + 5), weight: 1,
+    };
+    expect(historyPoints([raw])).toEqual([{
+      runId: "digest-2026-10-22T03-00-00-000Z", status: "failed", ok: false, durationMs: 4_321, r2ClassA: 17,
+      completedAtMs: completedAt, counters: [7, 8, 9, 10, 11, 12], sampleInterval: 1,
+    }]);
+    // ok maps from double1 alone.
+    expect(historyPoints([{ ...raw, double1: 1 }])[0]!.ok).toBe(true);
+    // Two failed runs in a row: job.failures fires since the earlier one's completedAtMs (double6).
+    const result = await recorder(new FakeSql([() => ({ data: [raw] })])).finish(run("digest", { ok: false, status: "failed" }));
+    expect(ruleOf(result.rules, "job.failures", "digest")).toMatchObject({ status: "firing", value: 2, since: iso(completedAt) });
   });
 
   test("OB15: the weight column (not _sample_interval) is what the sampled check reads; a missing weight is sampled", async () => {

@@ -74,7 +74,8 @@ const number = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 };
 
-function historyPoints(data: readonly unknown[]): HistoryPoint[] {
+/** Maps the binding's raw-keyed rows (`index1`, `blob3`, `doubleN`, `weight`) to history points. */
+export function historyPoints(data: readonly unknown[]): HistoryPoint[] {
   return data.map((value) => {
     const row = (value ?? {}) as Record<string, unknown>;
     const point: HistoryPoint = {
