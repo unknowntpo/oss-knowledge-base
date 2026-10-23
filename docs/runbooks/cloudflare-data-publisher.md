@@ -1045,7 +1045,7 @@ title (GitHub GraphQL search, the publisher's `GITHUB_SOURCE_TOKEN`) and
 each key's Jira assignee (ASF Jira, anonymous). It writes
 `internal/identity/v1/apache-kafka/backfill/<YYYY-MM>.json` and then
 `internal/identity/v1/backfill-last-run.json`, nothing else. Merged off: the
-three variables are unset on Dev and Prod and no cron entry exists. Format
+three variables were unset on Dev and Prod; since the Dev enable PR (2026-10-23) Dev sets `IDENTITY_BACKFILL=prs@1` and `IDENTITY_BACKFILL_CRON` with its cron entry; Prod and `IDENTITY_LINKS_BACKFILL` stay unset. Format
 and decisions: [Spec 019 amendment
 (8)](../specs/019-contributor-profile/spec.md#amendment-2026-10-23-8-the-identity-link-backfill).
 

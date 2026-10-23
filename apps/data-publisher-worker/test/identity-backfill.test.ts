@@ -966,12 +966,15 @@ describe("Spec 019 amendment (8): the identity-backfill job and the identity-lin
     await check();
   });
 
-  test("W125: merged off: no IDENTITY_BACKFILL, IDENTITY_BACKFILL_CRON or IDENTITY_LINKS_BACKFILL and no 23 1 * * * entry on Dev or Prod", async () => {
+  test("W125: Dev runs the backfill (Dev enable PR, step 2); the reader flag stays unset; Prod has none of the three variables and no 23 1 * * * entry", async () => {
     const read = async (name: string) => JSON.parse(await Bun.file(new URL(`../wrangler.${name}.jsonc`, import.meta.url)).text()) as { vars?: Record<string, string>; triggers?: { crons?: string[] } };
-    for (const name of ["development", "production"]) {
-      const config = await read(name);
-      for (const variable of ["IDENTITY_BACKFILL", "IDENTITY_BACKFILL_CRON", "IDENTITY_LINKS_BACKFILL"]) expect(variable in (config.vars ?? {})).toBe(false);
-      expect(config.triggers?.crons ?? []).not.toContain(BACKFILL_CRON);
-    }
+    const dev = await read("development");
+    expect(dev.vars?.IDENTITY_BACKFILL).toBe("prs@1");
+    expect(dev.vars?.IDENTITY_BACKFILL_CRON).toBe(BACKFILL_CRON);
+    expect(dev.triggers?.crons ?? []).toContain(BACKFILL_CRON);
+    expect("IDENTITY_LINKS_BACKFILL" in (dev.vars ?? {})).toBe(false);
+    const prod = await read("production");
+    for (const variable of ["IDENTITY_BACKFILL", "IDENTITY_BACKFILL_CRON", "IDENTITY_LINKS_BACKFILL"]) expect(variable in (prod.vars ?? {})).toBe(false);
+    expect(prod.triggers?.crons ?? []).not.toContain(BACKFILL_CRON);
   });
 });
