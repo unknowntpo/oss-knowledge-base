@@ -9,9 +9,10 @@ import { KAFKA_DIGEST_PROFILE } from "@oss-knowledge-base/reference-pipeline";
 import r2Usage from "./fixtures/cost-guard/graphql-r2-usage.json";
 import { testPlanRows } from "./cost-guard.cases";
 import { testPlanRows as dollarRows } from "./cost-guard-dollars.cases";
+import { testPlanRows as spikeRows } from "./cost-guard-spike.cases";
 import worker, { costGuardDecisionFor, SearchQueryGate } from "../src/index";
-import { evaluateMetric, metricOverage, nextBreaker, type Breaker, type CostMetricKey, type MetricEvaluation } from "../src/cost-guard/evaluate";
-import { COST_GUARD_OBJECT_NAME, COST_METRICS } from "../src/cost-guard/profile";
+import { evaluateMetric, evaluateSpike, metricOverage, nextBreaker, type Breaker, type CostMetricKey, type MetricEvaluation } from "../src/cost-guard/evaluate";
+import { COST_GUARD_BUCKETS, COST_GUARD_OBJECT_NAME, COST_GUARD_SPIKE_CLASS_A, COST_METRICS } from "../src/cost-guard/profile";
 import { GRAPHQL_ENDPOINT, parseR2Usage, r2UsageRequest } from "../src/cost-guard/graphql";
 import { CostGuardRunner, costGuardDecision, resolveCostGuardMode, type CostGuardRunnerDeps } from "../src/cost-guard/guard";
 import { DigestRunner } from "../src/digest/runner";
@@ -22,6 +23,8 @@ import { DAY_1, FIVE, MemoryBucket, MemoryStorage, publishRelease } from "./supp
 const TOKEN = "cf-analytics-token-under-test-0123456789abcdefABCDEF";
 const ACCOUNT = "0123456789abcdef0123456789abcdef";
 const TICK = new Date("2026-10-20T22:07:00.000Z");
+const DEV_BUCKET = "oss-knowledge-base-dev";
+const PROD_BUCKET = "oss-knowledge-base-prod";
 
 class MapStorage {
   readonly values = new Map<string, unknown>();
@@ -45,10 +48,31 @@ function guard(overrides: Partial<CostGuardRunnerDeps> = {}, answer: () => Respo
     vectorize: async (_month: string): Promise<{ storedDimensions: number; queriedDimensions: number } | null> => ({ storedDimensions: 9_998_336, queriedDimensions: 10_244_096 }),
   };
   const runner = new CostGuardRunner({
-    storage, flag: "monitor", token: TOKEN, accountId: ACCOUNT, fetch: network.fetch, now: () => clock.now, inApp,
+    storage, flag: "monitor", token: TOKEN, accountId: ACCOUNT, environment: "development", fetch: network.fetch, now: () => clock.now, inApp,
     ...overrides,
   });
   return { storage, network, clock, runner };
+}
+
+/**
+ * An account answer as GraphQL filters it (CG25, CG36): month to date is every bucket's Class A
+ * summed; the spike selection holds only the requested bucket's last 24 hours. `buckets` records
+ * which bucket each request asked for.
+ */
+function accountAnswer(lastDay: Record<string, number>) {
+  const buckets: string[] = [];
+  const fetch = async (_url: string, init: RequestInit) => {
+    const { variables } = JSON.parse(String(init.body)) as { variables: Record<string, string> };
+    buckets.push(variables.bucket!);
+    const total = Object.values(lastDay).reduce((sum, value) => sum + value, 0);
+    return Response.json({ data: { viewer: { accounts: [{
+      operations: [{ sum: { requests: total }, dimensions: { actionType: "PutObject" } }],
+      recent: [{ sum: { requests: 33_676 }, dimensions: { actionType: "PutObject" } }],
+      spike: [{ sum: { requests: lastDay[variables.bucket!] ?? 0 }, dimensions: { actionType: "PutObject" } }],
+      storage: [],
+    }] } } });
+  };
+  return { buckets, fetch };
 }
 
 /** Every metric at `value`% of its allowance (or unavailable when null). */
@@ -82,14 +106,133 @@ describe("Spec 026 cost guard", () => {
       .toEqual({ overageUsd: row.overageUsd, projectedOverageUsd: row.projectedOverageUsd });
   });
 
+  test.each([...spikeRows])("$id: $case (spike)", (row) => {
+    const spike = evaluateSpike(row.classA24h, DEV_BUCKET);
+    expect(spike).toEqual({ last24h: row.classA24h, threshold: 50_000, bucket: DEV_BUCKET, status: row.status });
+    // Whatever the dollars: every other metric, R2 Class A month to date included, is far under its threshold.
+    const breaker = nextBreaker({ tripped: false }, metricsAt({ r2ClassA: 0, r2ClassB: 1, workersAiNeurons: 1 }), TICK, spike);
+    expect(breaker.tripped ? breaker.metrics.join(", ") : null).toBe(row.trips);
+    if (breaker.tripped) {
+      expect(breaker).toEqual({
+        tripped: true, reason: `r2ClassA spike: ${row.classA24h} Class A in 24 h on ${DEV_BUCKET} (trips at 50000)`,
+        metric: "r2ClassA", value: row.classA24h!, threshold: 50_000, bucket: DEV_BUCKET, trippedAt: TICK.toISOString(), metrics: ["r2ClassA"],
+      });
+    }
+  });
+
+  test("CG23: the spike opens a closed breaker ahead of another trip, is added to an open one, and the threshold is 50,000", () => {
+    expect(COST_GUARD_SPIKE_CLASS_A).toBe(50_000);
+    const spike = evaluateSpike(195_600, PROD_BUCKET);
+    // With neurons also tripped, the breaker names the spike (the trip that pauses the publication) and lists both.
+    const both = nextBreaker({ tripped: false }, metricsAt({ r2ClassA: 1, workersAiNeurons: 95 }), TICK, spike);
+    expect(both).toMatchObject({ tripped: true, metric: "r2ClassA", value: 195_600, threshold: 50_000, bucket: PROD_BUCKET, metrics: ["r2ClassA", "workersAiNeurons"] });
+    // An open breaker gains r2ClassA from a later spike and keeps the rest.
+    const neurons = nextBreaker({ tripped: false }, metricsAt({ workersAiNeurons: 95 }), TICK, evaluateSpike(976, PROD_BUCKET));
+    expect(neurons).toMatchObject({ tripped: true, metric: "workersAiNeurons", metrics: ["workersAiNeurons"] });
+    expect(nextBreaker(neurons, metricsAt({ workersAiNeurons: 1 }), TICK, spike)).toEqual({ ...neurons, metrics: ["r2ClassA", "workersAiNeurons"] } as Breaker);
+    // Positive control: without the spike argument the same calm metrics leave it closed.
+    expect(nextBreaker({ tripped: false }, metricsAt({ r2ClassA: 1 }), TICK)).toEqual({ tripped: false });
+  });
+
+  test("CG23: the guard's bucket follows PUBLICATION_ENVIRONMENT and matches each wrangler file's OSS_KB_BUCKET", async () => {
+    for (const environment of ["development", "production"] as const) {
+      const text = await Bun.file(new URL(`../wrangler.${environment}.jsonc`, import.meta.url)).text();
+      const config = JSON.parse(text.replace(/^\s*\/\/.*$/gmu, "")) as { vars: Record<string, string>; r2_buckets: { binding: string; bucket_name: string }[] };
+      expect(config.vars.PUBLICATION_ENVIRONMENT).toBe(environment);
+      expect<string>(COST_GUARD_BUCKETS[environment]).toBe(config.r2_buckets.find((bucket) => bucket.binding === "OSS_KB_BUCKET")!.bucket_name);
+    }
+    expect(COST_GUARD_BUCKETS).toEqual({ development: DEV_BUCKET, production: PROD_BUCKET });
+  });
+
+  test("CG25: the one request reads the last 24 hours of the guard's own bucket only; CG36: other buckets count in the account's dollars, not in its spike", async () => {
+    const { query, variables } = r2UsageRequest(ACCOUNT, TICK, PROD_BUCKET);
+    expect(query).toContain("spike: r2OperationsAdaptiveGroups(limit: 10000, filter: { datetime_geq: $spikeStart, datetime_leq: $end, bucketName: $bucket })");
+    // Month to date and the 7-day rate stay account-wide.
+    expect(query.match(/bucketName: \$bucket/gu)).toHaveLength(1);
+    expect(query.match(/r2OperationsAdaptiveGroups/gu)).toHaveLength(3);
+    expect(variables).toMatchObject({ bucket: PROD_BUCKET, spikeStart: "2026-10-19T22:07:00.000Z", end: TICK.toISOString() });
+
+    // The account: Prod wrote 195,600 Class A in the last 24 hours, Dev 976, and (CG25) a third bucket 100,000.
+    const check = async (environment: "development" | "production", lastDay: Record<string, number>) => {
+      const answer = accountAnswer(lastDay);
+      const { runner } = guard({ environment, flag: "enforce", fetch: answer.fetch });
+      const result = await runner.check({ dryRun: false }) as { metrics: Record<CostMetricKey, MetricEvaluation>; r2ClassASpike: unknown; breaker: Breaker };
+      return { result, buckets: answer.buckets, decision: await runner.decision(), health: await runner.health() };
+    };
+    const incident = { [DEV_BUCKET]: 976, [PROD_BUCKET]: 195_600 };
+    const dev = await check("development", incident);
+    expect(dev.buckets).toEqual([DEV_BUCKET]);
+    expect(dev.result.metrics.r2ClassA.value).toBe(196_576);
+    expect(dev.result.r2ClassASpike).toEqual({ last24h: 976, threshold: 50_000, bucket: DEV_BUCKET, status: "ok" });
+    expect(dev.result.breaker).toEqual({ tripped: false });
+    expect(dev.decision).toEqual({ refuse: false, pausePublication: false });
+    const prod = await check("production", incident);
+    expect(prod.buckets).toEqual([PROD_BUCKET]);
+    expect(prod.result.metrics.r2ClassA.value).toBe(196_576);
+    expect(prod.result.r2ClassASpike).toEqual({ last24h: 195_600, threshold: 50_000, bucket: PROD_BUCKET, status: "tripped" });
+    expect(prod.result.breaker).toMatchObject({ tripped: true, metric: "r2ClassA", value: 195_600, threshold: 50_000, bucket: PROD_BUCKET, metrics: ["r2ClassA"] });
+    expect(prod.decision).toEqual({ refuse: true, pausePublication: true });
+    expect(prod.health).toMatchObject({ status: "tripped", r2ClassASpike: { last24h: 195_600, status: "tripped" } });
+
+    const third = await check("development", { ...incident, "another-project-bucket": 100_000 });
+    expect(third.result.metrics.r2ClassA.value).toBe(296_576);
+    expect(third.result.r2ClassASpike).toMatchObject({ last24h: 976, status: "ok" });
+    expect(third.result.breaker).toEqual({ tripped: false });
+  });
+
+  test("CG36: through the Worker's objects, the same account answer leaves the Dev publication running and pauses Prod's", async () => {
+    const { CostGuard, PipelineState } = await import("../src/index");
+    const publish = async (environment: "development" | "production") => {
+      const answer = accountAnswer({ [DEV_BUCKET]: 976, [PROD_BUCKET]: 195_600 });
+      globalThis.fetch = answer.fetch as unknown as typeof fetch;
+      const guardObject = new CostGuard({ storage: new MapStorage() } as never, { PUBLICATION_ENVIRONMENT: environment, COST_GUARD: "enforce", CF_ANALYTICS_TOKEN: TOKEN, CF_ACCOUNT_ID: ACCOUNT } as never);
+      expect((await guardObject.fetch(new Request("https://cost-guard.internal/check", { method: "POST" }))).status).toBe(200);
+      const values = new Map<string, unknown>();
+      let alarm: number | null = null;
+      const storage = {
+        get: async (key: string) => values.get(key), put: async (key: string, value: unknown) => { values.set(key, value); },
+        delete: async (key: string) => values.delete(key), getAlarm: async () => alarm, setAlarm: async (time: number) => { alarm = time; },
+      };
+      // A Durable Object stub's fetch takes a URL string, as costGuardDecisionFor calls it.
+      const stub = { fetch: (input: string | Request, init?: RequestInit) => guardObject.fetch(new Request(input, init)) };
+      const env = { PUBLICATION_ENVIRONMENT: environment, COST_GUARD: "enforce", COST_GUARD_STATE: { idFromName: (n: string) => n, get: () => stub } };
+      const response = await new PipelineState({ storage } as never, env as never).fetch(new Request("https://pipeline.internal/run", { method: "POST" }));
+      return { status: response.status, buckets: answer.buckets };
+    };
+    expect(await publish("development")).toEqual({ status: 202, buckets: [DEV_BUCKET] });
+    expect(await publish("production")).toEqual({ status: 503, buckets: [PROD_BUCKET] });
+  });
+
+  test("CG30: at 00:30 UTC on November 1 the dollars cover 30 minutes of November, the rate October 25–31, the spike the last 24 hours", () => {
+    expect(r2UsageRequest(ACCOUNT, new Date("2026-11-01T00:30:00Z"), DEV_BUCKET).variables).toEqual({
+      accountTag: ACCOUNT, start: "2026-11-01T00:00:00.000Z", end: "2026-11-01T00:30:00.000Z", storageStart: "2026-10-30T00:30:00.000Z",
+      recentStart: "2026-10-25T00:00:00.000Z", today: "2026-11-01T00:00:00.000Z", spikeStart: "2026-10-31T00:30:00.000Z", bucket: DEV_BUCKET,
+    });
+  });
+
+  test("CG31: an unknown action type on the guard's bucket counts as Class A in the dollars and the spike and is listed", () => {
+    const account = r2Usage.data.viewer.accounts[0]!;
+    const unknown = { sum: { requests: 7 }, dimensions: { actionType: "BrandNewAction" } };
+    const body = { data: { viewer: { accounts: [{
+      ...account,
+      operations: [...account.operations, unknown],
+      spike: [{ sum: { requests: 49_993 }, dimensions: { actionType: "PutObject" } }, unknown],
+    }] } } };
+    const usage = parseR2Usage(body);
+    expect(usage.classA).toBe(15_014);
+    expect(usage.spike.classA).toBe(50_000);
+    expect(usage.unclassifiedActions).toEqual(["AnotherNewAction", "BrandNewAction", "SomeNewAction"]);
+    // The 7 unknown operations are what reach the threshold.
+    expect(evaluateSpike(usage.spike.classA, DEV_BUCKET).status).toBe("tripped");
+    expect(evaluateSpike(usage.spike.classA - 7, DEV_BUCKET).status).toBe("ok");
+  });
+
   test("CG35: the one request also reads the account's operations over the 7 complete UTC days before today, also across a month boundary", async () => {
-    expect(r2UsageRequest(ACCOUNT, TICK).variables).toMatchObject({ recentStart: "2026-10-13T00:00:00.000Z", today: "2026-10-20T00:00:00.000Z" });
-    expect(r2UsageRequest(ACCOUNT, new Date("2026-11-01T00:30:00Z")).variables)
+    expect(r2UsageRequest(ACCOUNT, TICK, DEV_BUCKET).variables).toMatchObject({ recentStart: "2026-10-13T00:00:00.000Z", today: "2026-10-20T00:00:00.000Z" });
+    expect(r2UsageRequest(ACCOUNT, new Date("2026-11-01T00:30:00Z"), DEV_BUCKET).variables)
       .toMatchObject({ start: "2026-11-01T00:00:00.000Z", recentStart: "2026-10-25T00:00:00.000Z", today: "2026-11-01T00:00:00.000Z" });
-    const { query } = r2UsageRequest(ACCOUNT, TICK);
+    const { query } = r2UsageRequest(ACCOUNT, TICK, DEV_BUCKET);
     expect(query).toContain("recent: r2OperationsAdaptiveGroups(limit: 10000, filter: { datetime_geq: $recentStart, datetime_lt: $today })");
-    // The 24-hour own-bucket selection (CG23, CG25, CG36) is not part of this slice.
-    expect(query).not.toContain("bucketName:");
 
     // An answer without the 7-day selection throws rather than reading as zero.
     const { recent: _recent, ...withoutRecent } = r2Usage.data.viewer.accounts[0]!;
@@ -154,6 +297,7 @@ describe("Spec 026 cost guard", () => {
     expect(parseR2Usage(r2Usage)).toEqual({
       classA: 15_007, classB: 170_000, storageBytes: 1_501_200_000,
       recent: { classA: 2_803, classB: 70_000, days: 7 },
+      spike: { classA: 976 },
       unclassifiedActions: ["AnotherNewAction", "SomeNewAction"],
     });
     expect(() => parseR2Usage({ data: null, errors: [{ message: "not authorized for that account" }] })).toThrow("not authorized for that account");
@@ -171,10 +315,11 @@ describe("Spec 026 cost guard", () => {
     expect(call!.init.method).toBe("POST");
     expect(new Headers(call!.init.headers).get("authorization")).toBe(`Bearer ${TOKEN}`);
     const body = JSON.parse(String(call!.init.body)) as { query: string; variables: Record<string, string> };
-    expect(body).toEqual(r2UsageRequest(ACCOUNT, TICK));
+    expect(body).toEqual(r2UsageRequest(ACCOUNT, TICK, DEV_BUCKET));
     expect(body.variables).toEqual({
       accountTag: ACCOUNT, start: "2026-10-01T00:00:00.000Z", end: "2026-10-20T22:07:00.000Z", storageStart: "2026-10-18T22:07:00.000Z",
       recentStart: "2026-10-13T00:00:00.000Z", today: "2026-10-20T00:00:00.000Z",
+      spikeStart: "2026-10-19T22:07:00.000Z", bucket: DEV_BUCKET,
     });
     expect(body.query).toContain("r2OperationsAdaptiveGroups");
     expect(body.query).toContain("r2StorageAdaptiveGroups");
@@ -484,11 +629,11 @@ describe("Spec 026 cost guard", () => {
   });
 
   test("CG11: /health costGuard has the same keys for pending, ok, warn, tripped and unconfigured", async () => {
-    const keys = ["breaker", "checkedAt", "lastError", "lastResetAt", "metrics", "mode", "reason", "status"];
+    const keys = ["breaker", "checkedAt", "lastError", "lastResetAt", "metrics", "mode", "r2ClassASpike", "reason", "status"];
     const pending = guard();
     const before = await pending.runner.health();
     expect(Object.keys(before).sort()).toEqual(keys);
-    expect(before).toMatchObject({ mode: "monitor", status: "pending", reason: null, checkedAt: null, metrics: {}, breaker: { tripped: false }, lastResetAt: null, lastError: null });
+    expect(before).toMatchObject({ mode: "monitor", status: "pending", reason: null, checkedAt: null, metrics: {}, r2ClassASpike: null, breaker: { tripped: false }, lastResetAt: null, lastError: null });
 
     const ok = guard({ inApp: { neuronsToday: async () => 10, vectorize: async () => ({ storedDimensions: 1_000, queriedDimensions: 2_000 }) } });
     await ok.runner.check({ dryRun: false });
@@ -496,6 +641,7 @@ describe("Spec 026 cost guard", () => {
     expect(okHealth).toMatchObject({ status: "ok", checkedAt: TICK.toISOString() });
     expect(Object.keys(okHealth.metrics).sort()).toEqual(["r2ClassA", "r2ClassB", "r2StorageBytes", "vectorizeQueriedDimensions", "vectorizeStoredDimensions", "workersAiNeurons"]);
     expect(Object.keys(okHealth.metrics.r2ClassA!).sort()).toEqual(["allowance", "overageUsd", "percent", "period", "projectedOverageUsd", "projectedPercent", "rateDays", "scope", "source", "status", "value"]);
+    expect(okHealth.r2ClassASpike).toEqual({ last24h: 976, threshold: 50_000, bucket: DEV_BUCKET, status: "ok" });
 
     const warn = guard();
     await warn.runner.check({ dryRun: false });
