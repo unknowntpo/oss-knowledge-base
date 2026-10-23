@@ -261,6 +261,32 @@ describe("Spec 029 dry run", () => {
 });
 
 describe("Spec 029 plan helpers", () => {
+  test("RT2: a pinned release without evidence (pointer, digest, embedding) is still retained, and the pool is not counted", async () => {
+    const bucket = new RetentionMemoryBucket();
+    // A crash between the pointer switch and the evidence write: the live release has no evidence.
+    publish(bucket, day("08-01"), { evidence: false });
+    publish(bucket, day("08-02"), { evidence: false });
+    publish(bucket, day("08-03"), { evidence: false });
+    publish(bucket, day("08-04"));
+    publish(bucket, day("10-20"));
+    publish(bucket, day("10-21"));
+    point(bucket, day("08-01"));
+    bucket.set("public/digest/v1/apache-kafka/current.json", JSON.stringify({ schema: "osskb.digest-pointer.v1", sourceReleaseId: releaseIdAt(day("08-02")) }));
+    const { lastRun, report } = await dryRun(bucket, { embeddingReleaseId: async () => `feed-${releaseIdAt(day("08-03"))}` });
+    const retained = report!.retained.map((release) => `${release.projection}:${release.id}:${release.reasons.join("+")}`);
+    expect(retained).toContain(`feed:${releaseIdAt(day("08-01"))}:pointer`);
+    expect(retained).toContain(`search:feed-${releaseIdAt(day("08-01"))}:pointer`);
+    expect(retained).toContain(`feed:${releaseIdAt(day("08-02"))}:digest`);
+    expect(retained).toContain(`search:feed-${releaseIdAt(day("08-03"))}:embedding`);
+    // Only the unpinned halves of 08-02 and 08-03, and 08-04, are candidates.
+    expect(report!.candidates.releases.map((release) => `${release.projection}:${release.id}`).sort()).toEqual([
+      `feed:${releaseIdAt(day("08-03"))}`, `feed:${releaseIdAt(day("08-04"))}`,
+      `search:feed-${releaseIdAt(day("08-02"))}`, `search:feed-${releaseIdAt(day("08-04"))}`,
+    ].sort());
+    expect(lastRun.reason).toBe("evidence-missing");
+    expect(lastRun.candidates.poolObjects).toBe(0);
+  });
+
   test("RT2: a release id without a time is never a candidate", () => {
     const pins = { feed: releaseIdAt(day("10-21")), search: `feed-${releaseIdAt(day("10-21"))}`, digest: [], embedding: null };
     const { candidates, retained } = classifyReleases([{ projection: "feed", id: "legacy-release" }, { projection: "feed", id: releaseIdAt(day("08-01")) }], pins, [], RUN_AT);
