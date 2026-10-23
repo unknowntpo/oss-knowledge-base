@@ -144,8 +144,8 @@ describe("Spec 029 retention job (dry-run slice)", () => {
     const prod = JSON.parse(await Bun.file(new URL("../wrangler.production.jsonc", import.meta.url)).text()) as { vars: Record<string, string>; triggers: { crons: string[] } };
     expect(dev.vars.RETENTION_CRON).toBe(RETENTION_CRON);
     expect(dev.triggers.crons).toContain(RETENTION_CRON);
-    // Merged off on both environments; Prod has neither the cron nor the flag.
-    expect(dev.vars.R2_RETENTION).toBe("off");
+    // Dev runs the dry run (Dev enable PR, 2026-10-23); Prod has neither the cron nor the flag.
+    expect(dev.vars.R2_RETENTION).toBe("dry-run");
     expect(prod.vars.R2_RETENTION).toBeUndefined();
     expect(prod.vars.RETENTION_CRON).toBeUndefined();
     expect(prod.triggers.crons).not.toContain(RETENTION_CRON);
