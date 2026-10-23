@@ -491,8 +491,8 @@ build only lists and reports; it has no code that deletes or writes R2.
 
 | `R2_RETENTION` | Effect |
 | --- | --- |
-| unset, blank, `off` (Dev today) | the 10:17 tick does nothing; no `/health.retention`; `/retention/report` 404 |
-| `dry-run` | once a UTC day: lists, reads, stores `retention-last-run` and `retention-report` in the Durable Object |
+| unset, blank, `off` (Prod) | the 10:17 tick does nothing; no `/health.retention`; `/retention/report` 404 |
+| `dry-run` (Dev since 2026-10-23) | once a UTC day: lists, reads, stores `retention-last-run` and `retention-report` in the Durable Object |
 | anything else, `enforce` included | nothing runs; `/health.retention {status: "unconfigured", reason}` |
 
 Per run: at most 400 list calls (Class A), 600 get calls (Class B) and
