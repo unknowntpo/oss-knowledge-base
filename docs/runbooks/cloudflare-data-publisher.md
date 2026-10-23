@@ -337,7 +337,8 @@ up to 3 attempts, each billed); `conditionalMisses` counts conditional puts
 that found the key already written (counted as reused). Both are already in
 `classA`; records before Spec 028 D11 (2026-10-23) lack them. Expected for a
 steady daily run: `classA` = `copiedObjectCount + 3 + putRetries +
-conditionalMisses` (two pointers, one evidence object) and `classB` =
+conditionalMisses` (two pointers, one evidence object; `r2.classAInvariant`
+subtracts at most 50 `conditionalMisses`, see below) and `classB` =
 `copiedObjectCount + reusedObjectCount + 3` (plus head and get retries).
 Each retry is one log line, `r2 <op> retry <n> of 2 for <key>: <error>`,
 carrying the run's `runId` while `OBSERVABILITY_SIGNALS` is on.

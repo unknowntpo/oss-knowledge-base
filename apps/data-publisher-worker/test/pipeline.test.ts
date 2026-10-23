@@ -357,7 +357,22 @@ describe("Spec 008 R2 operations of a publication (2026-10 Class A incident)", (
     const run = (materializedAt: string) => runDataPublication({
       environment: "development", materializedAt, connector: connectorSuccess(events), state: new MemoryState(), destination,
     });
-    await run(fixture.config.materializedAt);
+    // Run 1 has one put retry and one conditional miss (another writer creates a detail object
+    // between its head and its put); run 2 has neither, so its counters must not carry run 1's.
+    bucket.failures.push({ op: "put", message: "put: internal error (10001)" });
+    const head = bucket.head.bind(bucket);
+    let raced = false;
+    bucket.head = async (key) => {
+      const result = await head(key);
+      if (!raced && result === null && key.includes("/objects/details/")) {
+        raced = true;
+        bucket.objects.set(key, new Uint8Array([0]));
+      }
+      return result;
+    };
+    const first = await run(fixture.config.materializedAt);
+    expect(first.r2).toMatchObject({ putRetries: 1, conditionalMisses: 1 });
+    bucket.head = head;
     bucket.reset();
 
     const second = await run(laterHour(fixture.config.materializedAt));

@@ -481,6 +481,7 @@ with counters; the 2026-10-13 shape still fires.
 | OB8 | r2.classAInvariant | 88 / 35 (excess 50, firing floor 50) | warn |
 | OB8 | r2.classAInvariant | 89 / 35 (excess 51) | firing |
 | OB8 | r2.classAInvariant | 323 / 316, putRetries 4 (2026-10-23 manual run) | ok |
+| OB8 | r2.classAInvariant | 400 / 316, putRetries 81 (retries are not capped) | ok |
 | OB8 | r2.classAInvariant | 323 / 316, conditionalMisses 4 | ok |
 | OB8 | r2.classAInvariant | 372 / 316, conditionalMisses 50 (cap, excess 3) | ok |
 | OB8 | r2.classAInvariant | 373 / 316, conditionalMisses 51 (1 above the cap, excess 4) | warn |

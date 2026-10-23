@@ -128,6 +128,7 @@ const builders: Record<string, () => { readonly rules: readonly RuleEntry[]; rea
   "r2.classAInvariant|88 / 35 (excess 50, firing floor 50)": () => invariant(88, 35, { putRetries: 0, conditionalMisses: 0 }),
   "r2.classAInvariant|89 / 35 (excess 51)": () => invariant(89, 35, { putRetries: 0, conditionalMisses: 0 }),
   "r2.classAInvariant|323 / 316, putRetries 4 (2026-10-23 manual run)": () => invariant(323, 316, { putRetries: 4, conditionalMisses: 0 }),
+  "r2.classAInvariant|400 / 316, putRetries 81 (retries are not capped)": () => invariant(400, 316, { putRetries: 81, conditionalMisses: 0 }),
   "r2.classAInvariant|323 / 316, conditionalMisses 4": () => invariant(323, 316, { putRetries: 0, conditionalMisses: 4 }),
   "r2.classAInvariant|372 / 316, conditionalMisses 50 (cap, excess 3)": () => invariant(372, 316, { putRetries: 0, conditionalMisses: 50 }),
   "r2.classAInvariant|373 / 316, conditionalMisses 51 (1 above the cap, excess 4)": () => invariant(373, 316, { putRetries: 0, conditionalMisses: 51 }),

@@ -24,6 +24,7 @@ export const testPlanRows = [
   { id: "OB8", rule: "r2.classAInvariant", input: "88 / 35 (excess 50, firing floor 50)", status: "warn" },
   { id: "OB8", rule: "r2.classAInvariant", input: "89 / 35 (excess 51)", status: "firing" },
   { id: "OB8", rule: "r2.classAInvariant", input: "323 / 316, putRetries 4 (2026-10-23 manual run)", status: "ok" },
+  { id: "OB8", rule: "r2.classAInvariant", input: "400 / 316, putRetries 81 (retries are not capped)", status: "ok" },
   { id: "OB8", rule: "r2.classAInvariant", input: "323 / 316, conditionalMisses 4", status: "ok" },
   { id: "OB8", rule: "r2.classAInvariant", input: "372 / 316, conditionalMisses 50 (cap, excess 3)", status: "ok" },
   { id: "OB8", rule: "r2.classAInvariant", input: "373 / 316, conditionalMisses 51 (1 above the cap, excess 4)", status: "warn" },
