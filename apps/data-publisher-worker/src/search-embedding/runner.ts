@@ -25,6 +25,10 @@ import {
 } from "./run";
 import { errorText, sanitizeErrorMessage } from "./sanitize";
 import { EmbeddingState, type AcceptedMutation, type EmbeddingStorage, type LastEmbeddingError } from "./state";
+import { embeddingSignalRun, runIdFor } from "../signals/point";
+import { runLog, type JobSignals, type RunContext } from "../signals/recorder";
+
+type R2Counts = { readonly classA: number; readonly classB: number };
 
 export interface SearchEmbeddingRunnerDeps {
   readonly storage: EmbeddingStorage;
@@ -42,6 +46,11 @@ export interface SearchEmbeddingRunnerDeps {
   readonly limits?: Partial<EmbeddingLimits>;
   /** Spec 026 Behavior 9: true while the cost guard enforces an open breaker; absent is never. */
   readonly costGuardRefuses?: () => Promise<boolean>;
+  /**
+   * Spec 028: present only while `OBSERVABILITY_SIGNALS=on`. A run started by the alarm writes its
+   * point and stores the trend result, its `runId`, `sourceRunId` and R2 counts in `lastRun`.
+   */
+  readonly signals?: { readonly recorder: JobSignals; readonly sourceRunId: (release: string) => Promise<string> };
 }
 
 export type SearchEmbeddingConfig =
@@ -189,36 +198,51 @@ export class SearchEmbeddingRunner {
 
   /** Never throws: a thrown alarm is retried by the runtime, and each retry could spend again. */
   async alarm(): Promise<void> {
+    // Spec 028: each alarm that runs is its own run (a continuation too).
+    const context: RunContext | undefined = this.deps.signals === undefined ? undefined : { runId: runIdFor("embedding", this.deps.now().getTime()), job: "embedding" };
+    const r2Before = this.deps.bucket.operationCounts?.();
     try {
       const config = searchEmbeddingConfig(this.deps);
       if (config.state === "off") return;
       if (config.state === "error") {
-        await this.recordConfigError(config, false);
+        await this.recordConfigError(config, false, context, r2Before);
         return;
       }
       // Spec 026: a refused alarm (a continuation too) embeds nothing and is not re-armed.
       if (await this.deps.costGuardRefuses?.()) {
-        console.log("search embedding: refused by the cost guard");
+        runLog(context, "log", "search embedding: refused by the cost guard");
         return;
       }
-      const result = await this.execute(config, false);
+      const result = await this.execute(config, false, context, r2Before);
       // Behavior 46: work that is left does not wait for the next day's publication.
       const again = embeddingContinuation(result, this.deps.now());
       if (again !== undefined) await this.deps.storage.setAlarm(again);
     } catch (error) {
       const text = errorText(error);
-      console.error(`search embedding run failed: ${text}`);
-      await this.deps.storage.put("lastRun", failedEmbeddingRun("internal", text, this.deps.now(), false)).catch(() => undefined);
+      runLog(context, "error", `search embedding run failed: ${text}`);
+      const failed = failedEmbeddingRun("internal", text, this.deps.now(), false);
+      await this.withSignals(failed, context, r2Before).then((recorded) => this.deps.storage.put("lastRun", recorded)).catch(() => undefined);
     }
   }
 
-  private async recordConfigError(config: Extract<SearchEmbeddingConfig, { state: "error" }>, dryRun: boolean): Promise<EmbeddingRunResult> {
+  private async recordConfigError(config: Extract<SearchEmbeddingConfig, { state: "error" }>, dryRun: boolean, context?: RunContext, r2Before?: R2Counts): Promise<EmbeddingRunResult> {
     const result = failedEmbeddingRun("config", config.error, this.deps.now(), dryRun, config.profile);
-    if (!dryRun) await this.deps.storage.put("lastRun", result);
+    if (!dryRun) await this.deps.storage.put("lastRun", await this.withSignals(result, context, r2Before));
     return result;
   }
 
-  private async execute(config: Extract<SearchEmbeddingConfig, { state: "on" }>, dryRun: boolean): Promise<EmbeddingRunResult> {
+  /** Spec 028 Behaviors 2, 3, 14: the point and the trend result, in the `lastRun` write the run already makes (D8: with its R2 counts). */
+  private async withSignals(result: EmbeddingRunResult, context: RunContext | undefined, r2Before: R2Counts | undefined): Promise<EmbeddingRunResult> {
+    const signals = this.deps.signals;
+    if (context === undefined || signals === undefined) return result;
+    const after = this.deps.bucket.operationCounts?.();
+    const r2 = r2Before === undefined || after === undefined ? undefined : { classA: after.classA - r2Before.classA, classB: after.classB - r2Before.classB };
+    const sourceRunId = result.releaseId === null ? "" : await signals.sourceRunId(result.releaseId).catch(() => "");
+    const withCounts = { ...result, runId: context.runId, sourceRunId, ...(r2 === undefined ? {} : { r2 }) };
+    return { ...withCounts, trends: await signals.recorder.finish(embeddingSignalRun(withCounts, { runId: context.runId, sourceRunId })) };
+  }
+
+  private async execute(config: Extract<SearchEmbeddingConfig, { state: "on" }>, dryRun: boolean, context?: RunContext, r2Before?: R2Counts): Promise<EmbeddingRunResult> {
     this.running = true;
     try {
       // A dry run writes nothing: no marker, no ledger, no vector state, no stored result.
@@ -235,7 +259,7 @@ export class SearchEmbeddingRunner {
         ...(this.deps.limits === undefined ? {} : { limits: this.deps.limits }),
       });
       if (!dryRun) {
-        await this.deps.storage.put("lastRun", result);
+        await this.deps.storage.put("lastRun", await this.withSignals(result, context, r2Before));
         await this.deps.storage.delete(RUN_MARKER);
       }
       return result;

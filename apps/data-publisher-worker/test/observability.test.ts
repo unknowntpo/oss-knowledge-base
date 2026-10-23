@@ -6,9 +6,15 @@ import { describe, expect, test } from "bun:test";
 
 const read = async (path: string) => Bun.file(new URL(`../${path}`, import.meta.url)).text();
 
+/**
+ * A log call: `console.*`, or Spec 028's `runLog(context, level, message)` and a run's
+ * `log(level, message)`, which reach the console with the same text.
+ */
+const LOG_CALL = /console\.(log|error|warn|info|debug)\(|\brunLog\(|\blog\("(log|error)",/u;
+
 /** A console call that interpolates an error's raw text instead of `errorText`/`sanitizeErrorMessage`. */
 function rawErrorLog(line: string): boolean {
-  return /console\.(log|error|warn|info|debug)\(/u.test(line) &&
+  return LOG_CALL.test(line) &&
     /\b(error|err|e)\.message\b|String\((error|err|e)\)|\$\{error\}|\$\{err\}/u.test(line) &&
     !/errorText\(|sanitizeErrorMessage\(/u.test(line);
 }
@@ -25,13 +31,16 @@ describe("Workers Logs", () => {
     // Positive control: the line this rule replaced is flagged; its sanitized form is not.
     expect(rawErrorLog("console.error(`Scheduling failed: ${error instanceof Error ? error.message : String(error)}`)")).toBe(true);
     expect(rawErrorLog("console.error(`Scheduling failed: ${errorText(error)}`)")).toBe(false);
+    // Spec 028: the run loggers are log calls too.
+    expect(rawErrorLog("runLog(context, \"error\", `failed: ${error}`)")).toBe(true);
+    expect(rawErrorLog("log(\"error\", `failed: ${String(error)}`)")).toBe(true);
     const offending: string[] = [];
     let calls = 0;
     for (const root of ["src", "../../packages/semantic-vectorize/src"]) {
       for await (const path of new Bun.Glob("**/*.ts").scan({ cwd: new URL(`../${root}`, import.meta.url).pathname })) {
         const lines = (await read(`${root}/${path}`)).split("\n");
         lines.forEach((line, index) => {
-          if (/console\.(log|error|warn|info|debug)\(/u.test(line)) calls += 1;
+          if (LOG_CALL.test(line)) calls += 1;
           if (rawErrorLog(line)) offending.push(`${root}/${path}:${index + 1}`);
         });
       }

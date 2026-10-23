@@ -520,6 +520,18 @@ the two `viewer/` items below.
 - **Layer:** test.
 - **Source:** Prod release preparation, 2026-10-19.
 
+### G100. Bun's `toMatchObject` writes asymmetric matchers into the received object
+- **Where:** any test that asserts `toMatchObject({ field: expect.any(…) })` on an object it reads
+  again later (found in `apps/data-publisher-worker/test/signals-worker.test.ts`, Spec 028 slice 1).
+- **Why:** on Bun 1.3.13, after `expect(o).toMatchObject({ a: expect.any(String) })`, `o.a` is the
+  matcher object (`JSON.stringify(o)` gives `{"a":{}}`). A stored value asserted that way and then
+  read again (a fake storage's `get`, a captured log) fails later with an unrelated error, or worse,
+  a second assertion compares against the matcher.
+- **Fix:** assert on a copy (`structuredClone`, the fakes' `peek`) or field by field; drop this item
+  when a Bun upgrade no longer mutates (the three lines above reproduce it).
+- **Layer:** test (fakes return copies).
+- **Source:** Spec 028 slice 1 implementation, 2026-10-23.
+
 ## CI evidence
 
 ### G30. The evidence redaction gate does not decode every encoding

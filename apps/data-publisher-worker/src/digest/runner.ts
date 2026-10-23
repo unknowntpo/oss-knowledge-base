@@ -8,6 +8,8 @@ import { runPending } from "../run-schedule";
 import type { DigestModel } from "./model";
 import { runDigest, type DigestRunResult } from "./run";
 import type { DigestBucket } from "./store";
+import { digestSignalRun, runIdFor } from "../signals/point";
+import { runLog, type JobSignals, type RunContext } from "../signals/recorder";
 
 export const DEFER_MS = 15 * 60_000;
 export const MAX_DEFERRALS = 4;
@@ -45,6 +47,11 @@ export interface DigestRunnerDeps {
   readonly publisherBusy: () => Promise<boolean>;
   /** Spec 026 Behavior 9: true while the cost guard enforces an open breaker; absent is never. */
   readonly costGuardRefuses?: () => Promise<boolean>;
+  /**
+   * Spec 028: present only while `OBSERVABILITY_SIGNALS=on`. A run started by the alarm writes its
+   * point and stores the trend result, its `runId`, `sourceRunId` and R2 counts in `lastRun`.
+   */
+  readonly signals?: { readonly recorder: JobSignals; readonly sourceRunId: (release: string) => Promise<string> };
 }
 
 /** Spec 026 Behavior 9: the answer of a request the cost guard refused. */
@@ -102,9 +109,10 @@ export class DigestRunner {
   /** The alarm: defer while the publisher is busy, at most four times, then run (D59, D87). */
   async alarm(): Promise<void> {
     if (!this.deps.enabled) return;
+    const context: RunContext | undefined = this.deps.signals === undefined ? undefined : { runId: runIdFor("digest", this.deps.now().getTime()), job: "digest" };
     // Spec 026: a refused alarm runs nothing and is not re-armed; the next cron or request starts again.
     if (await this.deps.costGuardRefuses?.()) {
-      console.log("digest: refused by the cost guard");
+      runLog(context, "log", "digest: refused by the cost guard");
       return;
     }
     const deferrals = (await this.deps.storage.get<number>("deferrals")) ?? 0;
@@ -114,11 +122,12 @@ export class DigestRunner {
       return;
     }
     await this.deps.storage.delete("deferrals");
-    await this.execute(false, deferrals);
+    await this.execute(false, deferrals, context);
   }
 
-  private async execute(dryRun: boolean, deferred: number): Promise<DigestRunResult> {
+  private async execute(dryRun: boolean, deferred: number, context?: RunContext): Promise<DigestRunResult> {
     this.running = true;
+    const r2Before = this.deps.bucket.operationCounts?.();
     try {
       const date = this.today();
       const spentToday = (await this.deps.storage.get<number>(`spend:${date}`)) ?? 0;
@@ -138,13 +147,24 @@ export class DigestRunner {
       await this.deps.storage.put(`spend:${date}`, result.spentToday);
       // Dry-run objects and raw samples go only to the authenticated caller; the stored lastRun is
       // served by the public /health (D81).
-      const recorded: DigestRunResult = { ...result };
+      let recorded: DigestRunResult = { ...result };
       delete (recorded as { objects?: unknown }).objects;
       delete (recorded as { rawSamples?: unknown }).rawSamples;
+      if (context !== undefined && this.deps.signals !== undefined) recorded = await this.withSignals(recorded, context, r2Before);
       await this.deps.storage.put("lastRun", recorded);
       return result;
     } finally {
       this.running = false;
     }
+  }
+
+  /** Spec 028 Behaviors 2, 3, 14: the point and the trend result, in the `lastRun` write the run already makes (D8: with its R2 counts). */
+  private async withSignals(recorded: DigestRunResult, context: RunContext, r2Before: { readonly classA: number; readonly classB: number } | undefined): Promise<DigestRunResult> {
+    const signals = this.deps.signals!;
+    const after = this.deps.bucket.operationCounts?.();
+    const r2 = r2Before === undefined || after === undefined ? undefined : { classA: after.classA - r2Before.classA, classB: after.classB - r2Before.classB };
+    const sourceRunId = recorded.sourceReleaseId === null ? "" : await signals.sourceRunId(recorded.sourceReleaseId).catch(() => "");
+    const withCounts = { ...recorded, runId: context.runId, sourceRunId, ...(r2 === undefined ? {} : { r2 }) };
+    return { ...withCounts, trends: await signals.recorder.finish(digestSignalRun(withCounts, { runId: context.runId, sourceRunId })) };
   }
 }

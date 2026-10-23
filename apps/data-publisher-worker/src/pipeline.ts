@@ -29,6 +29,7 @@ import {
 } from "@oss-knowledge-base/serving-contract";
 
 import type { ActivityLogStatus } from "./people-activity/run";
+import type { TrendResult } from "./signals/rules";
 import { errorText, sanitizeErrorMessage } from "./search-embedding/sanitize";
 
 export interface PipelineStateRepository {
@@ -102,6 +103,9 @@ export type PipelineRunStatus =
       readonly sources?: Readonly<Record<string, SourceRunStatus>>;
       /** Spec 019 W22: the activity log's append; present only while `PEOPLE_ACTIVITY` is set. Its R2 requests are its own. */
       readonly activity?: ActivityLogStatus;
+      /** Spec 028: present only while `OBSERVABILITY_SIGNALS=on`. */
+      readonly runId?: string;
+      readonly trends?: TrendResult;
     }
   | {
       readonly ok: false;
@@ -112,6 +116,9 @@ export type PipelineRunStatus =
       readonly retryAfterSeconds: number;
       readonly r2?: R2OperationCounts;
       readonly sources?: Readonly<Record<string, SourceRunStatus>>;
+      /** Spec 028: present only while `OBSERVABILITY_SIGNALS=on`. */
+      readonly runId?: string;
+      readonly trends?: TrendResult;
     };
 
 /** The Search release a run published: what it was tokenized with and what its lexical objects weigh (Spec 016). */
@@ -200,12 +207,15 @@ export async function runDataPublication(input: {
    * publication (W9).
    */
   readonly activityLog?: (events: readonly DomainEventV1[], materializedAt: string) => Promise<ActivityLogStatus>;
+  /** Spec 028 Behavior 8: where the run's log lines go; `console` with today's text when absent. */
+  readonly log?: RunLogger;
 }): Promise<PipelineRunStatus> {
+  const log = input.log ?? consoleLogger;
   const startedAt = Date.now();
   const counts: Record<string, number> = {};
   const phase = async (name: PipelinePhase, update: Readonly<Record<string, number>> = {}) => {
     Object.assign(counts, update);
-    console.log(`publication ${name} at ${Date.now() - startedAt}ms ${JSON.stringify(counts)}`);
+    log("log", `publication ${name} at ${Date.now() - startedAt}ms ${JSON.stringify(counts)}`);
     await input.state.recordPhase({
       phase: name,
       startedAt: new Date().toISOString(),
@@ -281,7 +291,7 @@ export async function runDataPublication(input: {
         durationMs: Date.now() - activityStarted,
         r2: { classA: 0, classB: 0 },
       }));
-      if (!activity.ok) console.error(`activity log append failed: ${activity.error}`);
+      if (!activity.ok) log("error", `activity log append failed: ${activity.error}`);
     }
     await phase("committing-state");
     const compacted = compactState(next.readEvents(), input.materializedAt);
@@ -305,7 +315,7 @@ export async function runDataPublication(input: {
       ...withSources(sourceStatuses(polls, previousStatus, previousCheckpoint, input.materializedAt, conflicts, publishedBySource)),
       ...(activity === undefined ? {} : { activity }),
     });
-    await notifyPublished(input.onPublished, status, input.onPublishedTimeoutMs ?? ON_PUBLISHED_TIMEOUT_MS);
+    await notifyPublished(input.onPublished, status, input.onPublishedTimeoutMs ?? ON_PUBLISHED_TIMEOUT_MS, log);
     return status;
   } catch (error) {
     return await record(input.state, {
@@ -328,7 +338,11 @@ export async function runDataPublication(input: {
 /** How long a publication waits for its `onPublished` hook before moving on. */
 export const ON_PUBLISHED_TIMEOUT_MS = 10_000;
 
-async function notifyPublished(hook: ((status: PipelineRunStatus) => Promise<void>) | undefined, status: PipelineRunStatus, timeoutMs: number): Promise<void> {
+/** A run's log call: `level` and today's message text (Spec 028 Behavior 8 decides the shape). */
+export type RunLogger = (level: "log" | "error", message: string) => void;
+const consoleLogger: RunLogger = (level, message) => console[level](message);
+
+async function notifyPublished(hook: ((status: PipelineRunStatus) => Promise<void>) | undefined, status: PipelineRunStatus, timeoutMs: number, log: RunLogger): Promise<void> {
   if (hook === undefined) return;
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
@@ -339,7 +353,7 @@ async function notifyPublished(hook: ((status: PipelineRunStatus) => Promise<voi
       }),
     ]);
   } catch (error) {
-    console.error(`after-publication hook failed: ${errorText(error)}`);
+    log("error", `after-publication hook failed: ${errorText(error)}`);
   } finally {
     if (timer !== undefined) clearTimeout(timer);
   }

@@ -27,6 +27,7 @@ import { errorShape, modelErrorKind, RETRY_DELAY_MS, type ModelErrorShape } from
 import { toModelCallError } from "../digest/workers-ai";
 import { errorText, sanitizeErrorMessage } from "./sanitize";
 import type { EmbeddingState, LastEmbeddingError } from "./state";
+import type { TrendResult } from "../signals/rules";
 
 export interface EmbeddingLimits {
   readonly maxChunksPerRun: number;
@@ -165,6 +166,11 @@ export interface EmbeddingRunResult {
   readonly index: { readonly vectorCount: number; readonly mutationsProcessed: boolean | null } | null;
   readonly lastMutationId: string | null;
   readonly estimate: EmbeddingEstimate;
+  /** Spec 028: present only while `OBSERVABILITY_SIGNALS=on`. */
+  readonly runId?: string;
+  readonly sourceRunId?: string;
+  readonly r2?: { readonly classA: number; readonly classB: number };
+  readonly trends?: TrendResult;
 }
 
 /** Spec 016 Behavior 46: how long after a run that left work the object runs again by itself. */
@@ -190,6 +196,8 @@ export function embeddingContinuation(result: EmbeddingRunResult, now: Date): nu
 
 export interface ReleaseReader {
   getJson(key: string): Promise<unknown>;
+  /** Spec 028 D8: R2 requests sent so far by billing class; absent when the reader does not count. */
+  operationCounts?(): { readonly classA: number; readonly classB: number };
 }
 
 export interface EmbeddingRunInput {
