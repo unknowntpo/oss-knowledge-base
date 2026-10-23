@@ -15,7 +15,8 @@
   "vars": {
     "PUBLICATION_ENVIRONMENT": "production",
     "SEARCH_LEXICAL_REVISION": "bm25-reference@3",
-    "GITHUB_INITIAL_LOOKBACK_DAYS": "30"
+    "GITHUB_INITIAL_LOOKBACK_DAYS": "30",
+    "SRE_AGENT": "off"
   },
   "triggers": {
     "crons": ["37 22 * * *"]

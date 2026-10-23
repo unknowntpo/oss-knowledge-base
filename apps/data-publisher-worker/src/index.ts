@@ -34,6 +34,7 @@ import { PUBLICATION_RUN_KEY, publicationRunMarker, signalingPipelineState, sour
 import { signalsFor } from "./signals/env";
 import { runLog, type AnalyticsSql, type RunContext, type SignalsSink } from "./signals/recorder";
 import { signalsHealth } from "./signals/rules";
+import { sreAgentCron, sreAgentHealth, sreAgentNeuronsToday, sreAgentTick } from "./sre-agent/run";
 
 interface Env {
   readonly PUBLICATION_ENVIRONMENT: "development" | "production";
@@ -130,6 +131,15 @@ interface Env {
   readonly SIGNALS?: SignalsSink;
   /** Spec 028: the Analytics SQL binding (`"analytics": {"binding": "ANALYTICS_SQL"}`). Not bound in slice 1. */
   readonly ANALYTICS_SQL?: AnalyticsSql;
+  /**
+   * Spec 027 Amendment (2): the `sre-agent` job. `off` (also unset or any other value) does nothing on
+   * its tick and `/health.sreAgent` is `{mode: "off"}`; `dry` diagnoses nothing with a model; `live` does.
+   */
+  readonly SRE_AGENT?: string;
+  /** Spec 027 A2-3: the job's cron expressions, `;`-separated (Dev `30 0 * * *;0 11 * * *`). Its ticks never publish. */
+  readonly SRE_AGENT_CRON?: string;
+  /** Spec 027 B30: the Workers AI model id `live` uses through the `AI` binding. */
+  readonly SRE_AGENT_MODEL?: string;
 }
 
 /** Spec 028 Behavior 2: the publication run whose release `release` is, read from the publisher's `/status`. */
@@ -216,7 +226,7 @@ async function statusOf(namespace: DurableObjectNamespace | undefined, objectNam
  * ledgers' (an object that is not bound adds 0, a ledger of another day adds 0); Vectorize uses the
  * index and the gate's month. A ledger that does not answer makes the metric unavailable.
  */
-export function inAppSources(env: Pick<Env, "AI" | "DIGEST_RUN" | "SEARCH_EMBEDDING_RUN" | "SEARCH_QUERY_GATE" | "SEARCH_VECTORS">, now: () => Date): CostGuardInApp {
+export function inAppSources(env: Pick<Env, "AI" | "DIGEST_RUN" | "SEARCH_EMBEDDING_RUN" | "SEARCH_QUERY_GATE" | "SEARCH_VECTORS" | "SRE_AGENT" | "OSS_KB_BUCKET" | "PUBLICATION_ENVIRONMENT">, now: () => Date): CostGuardInApp {
   return {
     async neuronsToday() {
       if (env.AI === undefined) return null;
@@ -225,12 +235,14 @@ export function inAppSources(env: Pick<Env, "AI" | "DIGEST_RUN" | "SEARCH_EMBEDD
         const ledger = (body as { today?: Record<string, unknown> } | undefined)?.today;
         return ledger?.date === date && typeof ledger[field] === "number" ? ledger[field] as number : 0;
       };
-      const [digest, embedding, gate] = await Promise.all([
+      const [digest, embedding, gate, sreAgent] = await Promise.all([
         statusOf(env.DIGEST_RUN, DIGEST_OBJECT_NAME, "https://digest.internal/status"),
         statusOf(env.SEARCH_EMBEDDING_RUN, SEARCH_EMBEDDING_OBJECT_NAME, "https://search-embedding.internal/status"),
         statusOf(env.SEARCH_QUERY_GATE, SEARCH_QUERY_GATE_OBJECT_NAME, "https://search-query.internal/status"),
+        // Spec 027 B31 (SRE62): the agent's `today.neurons`; 0 with no read while `SRE_AGENT` is off.
+        sreAgentNeuronsToday(env, now()),
       ]);
-      return today(digest, "estimatedNeurons") + today(embedding, "estimatedNeurons") + today(gate, "neurons");
+      return today(digest, "estimatedNeurons") + today(embedding, "estimatedNeurons") + today(gate, "neurons") + sreAgent;
     },
     async vectorize(month) {
       if (env.SEARCH_VECTORS === undefined) return null;
@@ -258,13 +270,15 @@ const matches = (cron: string, configured: string | undefined) => configured !==
  * Spec 014 Behavior 21 and Spec 015 Q57: a tick starts the digest or the review queue only when it
  * is that job's configured cron; any other tick publishes.
  */
-export function cronTarget(cron: string, digestCron: string | undefined, reviewQueueCron?: string, identityLinksCron?: string, kipPagesCron?: string): "digest" | "review-queue" | "identity-links" | "kip-pages" | "publisher" {
+export function cronTarget(cron: string, digestCron: string | undefined, reviewQueueCron?: string, identityLinksCron?: string, kipPagesCron?: string, sreAgentCrons?: string): "digest" | "review-queue" | "identity-links" | "kip-pages" | "sre-agent" | "publisher" {
   if (matches(cron, digestCron)) return "digest";
   if (matches(cron, reviewQueueCron)) return "review-queue";
   // Spec 019 amendment (7): the identity-link job's own tick never publishes (W81).
   if (matches(cron, identityLinksCron)) return "identity-links";
   // Spec 019 amendment (7): nor does the kip-pages job's (W98, W99).
   if (matches(cron, kipPagesCron)) return "kip-pages";
+  // Spec 027 B23: nor does the sre-agent job's, whatever its flag.
+  if (sreAgentCron(cron, sreAgentCrons)) return "sre-agent";
   return "publisher";
 }
 
@@ -372,7 +386,14 @@ export function githubInitialLookbackDays(env: Pick<Env, "GITHUB_INITIAL_LOOKBAC
 
 export default {
   async scheduled(controller: ScheduledController, env: Env, context: ExecutionContext): Promise<void> {
-    const target = cronTarget(controller.cron, env.DIGEST_CRON, env.REVIEW_QUEUE_CRON, env.IDENTITY_LINKS_CRON, env.KIP_PAGES_CRON);
+    const target = cronTarget(controller.cron, env.DIGEST_CRON, env.REVIEW_QUEUE_CRON, env.IDENTITY_LINKS_CRON, env.KIP_PAGES_CRON, env.SRE_AGENT_CRON);
+    if (target === "sre-agent") {
+      // Spec 027 B23, SRE47: its own branch; every error ends as `lastRun.status: "failed"`, never a throw here.
+      context.waitUntil(sreAgentTick(env, { now: new Date(controller.scheduledTime), readHealth: () => tickHealth(env) }).then(() => undefined, (error: unknown) => {
+        console.error({ message: sanitizeErrorMessage(`sre-agent: ${errorText(error)}`), job: "sre-agent" });
+      }));
+      return;
+    }
     if (target === "identity-links") {
       // W85: with the flag unset the tick does nothing; W81: it never starts the publication.
       if (identityLinksSet(env.IDENTITY_LINKS)) context.waitUntil(identityLinksRun(env, {}).then(() => undefined));
@@ -427,46 +448,10 @@ export default {
     const url = new URL(request.url);
     const digest = env.DIGEST_RUN.get(env.DIGEST_RUN.idFromName(DIGEST_OBJECT_NAME));
     if (request.method === "GET" && url.pathname === "/health") {
-      const publisher = await stub.fetch("https://pipeline.internal/status");
-      if (!publisher.ok) return publisher;
-      const digestHealth = await digest.fetch("https://digest.internal/status")
-        .then((response) => (response.ok ? response.json() : null))
-        .catch(() => null);
-      const reviewQueue = await env.OSS_KB_BUCKET.get(reviewQueueLastRunKey(KAFKA_REVIEW_PROFILE.projectId))
-        .then((object) => (object === null ? null : object.json()))
-        .catch(() => null);
-      const embedding = searchEmbeddingObject(env);
-      const searchEmbedding = embedding === undefined
-        ? unboundSearchEmbeddingHealth(env.SEARCH_EMBEDDING, new Date())
-        : await embedding.fetch("https://search-embedding.internal/status")
-          .then((response) => (response.ok ? response.json() : null))
-          .catch(() => null);
-      const searchQuery = env.SEARCH_QUERY_GATE === undefined
-        ? unboundQueryGateHealth(new Date())
-        : await env.SEARCH_QUERY_GATE.get(env.SEARCH_QUERY_GATE.idFromName(SEARCH_QUERY_GATE_OBJECT_NAME)).fetch("https://search-query.internal/status")
-          .then((response) => (response.ok ? response.json() : null))
-          .catch(() => null);
-      const reviewRecord = (key: string) => (githubReviewsSet(env)
-        ? env.OSS_KB_BUCKET.get(key).then((object) => (object === null ? null : object.json())).catch(() => null)
-        : undefined);
-      const githubReviews = await reviewRecord(GITHUB_REVIEWS_LAST_RUN_KEY);
-      const githubReviewsBackfill = await reviewRecord(GITHUB_REVIEWS_BACKFILL_LAST_RUN_KEY);
-      const githubReviewsRefresh = githubReviewsAreas(env) ? await reviewRecord(GITHUB_REVIEWS_REFRESH_LAST_RUN_KEY) : undefined;
-      const costGuard = await costGuardHealth(env);
-      const health = mergeHealth(await publisher.json(), digestHealth, reviewQueue, searchEmbedding, searchQuery, githubReviews, githubReviewsBackfill, githubReviewsRefresh, costGuard) as Record<string, unknown>;
-      // Spec 019 amendment (7): each job's record only while its flag is set (W91 identityLinks, null before its first run; W100 kipPages).
-      const identityLinks = identityLinksSet(env.IDENTITY_LINKS)
-        ? await env.OSS_KB_BUCKET.get(IDENTITY_LINKS_LAST_RUN_KEY).then((object) => (object === null ? null : object.json())).catch(() => null)
-        : undefined;
-      const kipPages = await kipPagesHealth(env);
-      const body = {
-        ...health,
-        ...(identityLinks === undefined ? {} : { identityLinks }),
-        ...(kipPages === undefined ? {} : { kipPages }),
-      };
-      // Spec 028 Behavior 18: judged from the records just read; no read, query or write of its own.
-      const signals = signalsField(env, body);
-      return json(signals === undefined ? body : { ...body, signals });
+      const health = await servedHealth(env);
+      if (health instanceof Response) return health;
+      // Spec 027 B25, B33: the sre-agent job's own field, after every other job's (no read while off).
+      return json({ ...health, sreAgent: await sreAgentHealth(env, new Date()) });
     }
     if (request.method === "POST" && url.pathname === "/search-embedding/run") {
       if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
@@ -551,6 +536,62 @@ export default {
     return new Response("Not found", { status: 404 });
   },
 } satisfies ExportedHandler<Env>;
+
+/**
+ * `/health` as served, without `sreAgent`: every job's fields and Spec 028's `signals`. The publisher's
+ * own answer when it is not ok. The sre-agent tick reads the same body (Spec 027 B24, SRE34).
+ */
+async function servedHealth(env: Env): Promise<Response | Record<string, unknown>> {
+  const stub = env.PIPELINE_STATE.get(env.PIPELINE_STATE.idFromName(STATE_OBJECT_NAME));
+  const digest = env.DIGEST_RUN.get(env.DIGEST_RUN.idFromName(DIGEST_OBJECT_NAME));
+  const publisher = await stub.fetch("https://pipeline.internal/status");
+  if (!publisher.ok) return publisher;
+  const digestHealth = await digest.fetch("https://digest.internal/status")
+    .then((response) => (response.ok ? response.json() : null))
+    .catch(() => null);
+  const reviewQueue = await env.OSS_KB_BUCKET.get(reviewQueueLastRunKey(KAFKA_REVIEW_PROFILE.projectId))
+    .then((object) => (object === null ? null : object.json()))
+    .catch(() => null);
+  const embedding = searchEmbeddingObject(env);
+  const searchEmbedding = embedding === undefined
+    ? unboundSearchEmbeddingHealth(env.SEARCH_EMBEDDING, new Date())
+    : await embedding.fetch("https://search-embedding.internal/status")
+      .then((response) => (response.ok ? response.json() : null))
+      .catch(() => null);
+  const searchQuery = env.SEARCH_QUERY_GATE === undefined
+    ? unboundQueryGateHealth(new Date())
+    : await env.SEARCH_QUERY_GATE.get(env.SEARCH_QUERY_GATE.idFromName(SEARCH_QUERY_GATE_OBJECT_NAME)).fetch("https://search-query.internal/status")
+      .then((response) => (response.ok ? response.json() : null))
+      .catch(() => null);
+  const reviewRecord = (key: string) => (githubReviewsSet(env)
+    ? env.OSS_KB_BUCKET.get(key).then((object) => (object === null ? null : object.json())).catch(() => null)
+    : undefined);
+  const githubReviews = await reviewRecord(GITHUB_REVIEWS_LAST_RUN_KEY);
+  const githubReviewsBackfill = await reviewRecord(GITHUB_REVIEWS_BACKFILL_LAST_RUN_KEY);
+  const githubReviewsRefresh = githubReviewsAreas(env) ? await reviewRecord(GITHUB_REVIEWS_REFRESH_LAST_RUN_KEY) : undefined;
+  const costGuard = await costGuardHealth(env);
+  const health = mergeHealth(await publisher.json(), digestHealth, reviewQueue, searchEmbedding, searchQuery, githubReviews, githubReviewsBackfill, githubReviewsRefresh, costGuard) as Record<string, unknown>;
+  // Spec 019 amendment (7): each job's record only while its flag is set (W91 identityLinks, null before its first run; W100 kipPages).
+  const identityLinks = identityLinksSet(env.IDENTITY_LINKS)
+    ? await env.OSS_KB_BUCKET.get(IDENTITY_LINKS_LAST_RUN_KEY).then((object) => (object === null ? null : object.json())).catch(() => null)
+    : undefined;
+  const kipPages = await kipPagesHealth(env);
+  const body = {
+    ...health,
+    ...(identityLinks === undefined ? {} : { identityLinks }),
+    ...(kipPages === undefined ? {} : { kipPages }),
+  };
+  // Spec 028 Behavior 18: judged from the records just read; no read, query or write of its own.
+  const signals = signalsField(env, body);
+  return signals === undefined ? body : { ...body, signals };
+}
+
+/** Spec 027 B24, SRE34: the sre-agent tick's `/health`, redacted as the route serves it. */
+export async function tickHealth(env: Env): Promise<Record<string, unknown>> {
+  const health = await servedHealth(env);
+  if (health instanceof Response) throw new Error(`/health answered ${health.status}`);
+  return redactRecord(health) as Record<string, unknown>;
+}
 
 /** Spec 019 amendment (7): one identity-link run over the activity log, the roster and the profiles. */
 function identityLinksRun(env: Env, options: { readonly dryRun?: boolean; readonly blind?: boolean }) {

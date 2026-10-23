@@ -1216,3 +1216,22 @@ the two `viewer/` items below.
   whether its operator sequence clears `state.json` `fingerprints`.
 - **Layer:** static check (typecheck), then test rows (wiring slice, L3).
 - **Source:** Spec 027 A2-9 slice 1, 2026-10-22.
+
+### G100. SRE agent wiring: the AI Gateway for `live`, the drill routes, and `agents`' install footprint are open
+- **Where:** `apps/data-publisher-worker/src/sre-agent/run.ts` (`sreAgentModel`),
+  `apps/data-publisher-worker/package.json` (`agents` 0.27.0),
+  `packages/sre-agent/test/drill.cases.ts` (SRE67–SRE75, `[pending]`).
+- **Why:** `createAI` routes every call through an AI Gateway, id `default`
+  unless one is set, and Cloudflare creates `default` on first use; the digest
+  and search use named gateways (`osskb-digest-dev`, `osskb-search-dev`).
+  The drill routes and faults, and `POST /sre-agent/run`, which A2-9 placed in
+  the wiring slice, are not built. `agents` 0.27.0 installs about 110 packages
+  (Babel, esbuild, the MCP SDK, Express) for the one `agents/models/ai-sdk`
+  import; the Worker bundle includes only that module. The CI log-tail check
+  of G99 was not done in this slice.
+- **Fix:** decide the gateway before Dev `live` (pass a named one, for example
+  `osskb-sre-dev`, through `createAI`'s gateway setting, or accept `default`);
+  build the drill in its own PR; revisit `agents` when `createAI` ships in a
+  smaller package or `workers-ai-provider` is retired.
+- **Layer:** config and code (gateway), test rows (drill).
+- **Source:** Spec 027 A2-9 slice 2, 2026-10-23.
