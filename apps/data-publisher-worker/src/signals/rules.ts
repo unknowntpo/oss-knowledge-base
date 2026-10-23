@@ -203,12 +203,13 @@ function ageEntry(id: string, job: SignalJob, at: number | undefined, now: numbe
 
 const DAILY = { warnMs: T.dailyWarnMs, firingMs: T.dailyFiringMs } as const;
 
-const INVARIANT_THRESHOLD = `excess = classA − (copiedObjectCount + ${T.classAInvariantSlack} + putRetries + conditionalMisses); `
+const INVARIANT_THRESHOLD = `excess = classA − (copiedObjectCount + ${T.classAInvariantSlack} + putRetries + min(conditionalMisses, ${T.classAInvariantMissCap})); `
   + `warn: excess > ${T.classAInvariantWarnExcess}; firing: excess > max(${T.classAInvariantFiringFloor}, ${T.classAInvariantFiringShare} × copiedObjectCount)`;
 
 /**
  * Behavior 5, `r2.classAInvariant` (D11): Class A beyond one put per new object, the two pointers
- * and the evidence object, and beyond what the run's own put retries and conditional misses explain.
+ * and the evidence object, and beyond what the run's own put retries and (at most 50) conditional
+ * misses explain; the cap keeps a recurrence of 2026-10-13 (a miss on every existing key) firing.
  * A record written before those counters existed counts them as 0, and the entry says so.
  */
 function classAInvariant(lastRun: Record_ | undefined, runId: string | null): RuleEntry {
@@ -220,7 +221,7 @@ function classAInvariant(lastRun: Record_ | undefined, runId: string | null): Ru
     return { ...base, status: "unknown", value: null, since: null, reason: "the last run has no R2 counts" };
   }
   const counted = typeof r2?.putRetries === "number" && typeof r2.conditionalMisses === "number";
-  const explained = counted ? (r2.putRetries as number) + (r2.conditionalMisses as number) : 0;
+  const explained = counted ? (r2.putRetries as number) + Math.min(r2.conditionalMisses as number, T.classAInvariantMissCap) : 0;
   const excess = classA - (copied + T.classAInvariantSlack + explained);
   const status: RuleStatus = excess > Math.max(T.classAInvariantFiringFloor, T.classAInvariantFiringShare * copied) ? "firing"
     : excess > T.classAInvariantWarnExcess ? "warn" : "ok";

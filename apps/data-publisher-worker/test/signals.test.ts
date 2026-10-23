@@ -129,6 +129,9 @@ const builders: Record<string, () => { readonly rules: readonly RuleEntry[]; rea
   "r2.classAInvariant|89 / 35 (excess 51)": () => invariant(89, 35, { putRetries: 0, conditionalMisses: 0 }),
   "r2.classAInvariant|323 / 316, putRetries 4 (2026-10-23 manual run)": () => invariant(323, 316, { putRetries: 4, conditionalMisses: 0 }),
   "r2.classAInvariant|323 / 316, conditionalMisses 4": () => invariant(323, 316, { putRetries: 0, conditionalMisses: 4 }),
+  "r2.classAInvariant|372 / 316, conditionalMisses 50 (cap, excess 3)": () => invariant(372, 316, { putRetries: 0, conditionalMisses: 50 }),
+  "r2.classAInvariant|373 / 316, conditionalMisses 51 (1 above the cap, excess 4)": () => invariant(373, 316, { putRetries: 0, conditionalMisses: 51 }),
+  "r2.classAInvariant|8,190 / 35, conditionalMisses 8,152 (2026-10-13 recurrence)": () => invariant(8_190, 35, { putRetries: 0, conditionalMisses: 8_152 }),
   "r2.classAInvariant|323 / 316, no counters (older record)": () => invariant(323, 316),
   "r2.classAInvariant|8,190 / 35 (2026-10-13 shape)": () => invariant(8_190, 35),
   "r2.classAInvariant|8,190 / 35, putRetries 0, conditionalMisses 0": () => invariant(8_190, 35, { putRetries: 0, conditionalMisses: 0 }),
@@ -206,7 +209,7 @@ describe("Spec 028 slice 1: rule thresholds (test plan)", () => {
     const older = find(invariant(323, 316));
     expect(older).toMatchObject({ status: "warn", value: 323, since: EXAMPLE_LAST_RUN.completedAt });
     expect(older.reason).toContain("putRetries and conditionalMisses missing from the record, counted as 0");
-    expect(older.threshold).toBe("excess = classA − (copiedObjectCount + 3 + putRetries + conditionalMisses); warn: excess > 3; firing: excess > max(50, 0.5 × copiedObjectCount)");
+    expect(older.threshold).toBe("excess = classA − (copiedObjectCount + 3 + putRetries + min(conditionalMisses, 50)); warn: excess > 3; firing: excess > max(50, 0.5 × copiedObjectCount)");
     // Positive control: the same run with its counters is ok, carries no reason and no since.
     const counted = find(invariant(323, 316, { putRetries: 4, conditionalMisses: 0 }));
     expect(counted).toMatchObject({ status: "ok", value: 323, since: null });

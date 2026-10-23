@@ -44,6 +44,8 @@ export const SIGNAL_THRESHOLDS = {
   /** It fires above max(floor, share × `copiedObjectCount`). */
   classAInvariantFiringFloor: 50,
   classAInvariantFiringShare: 0.5,
+  /** At most this many conditional misses are subtracted (owner A1, 2026-10-23), so a recurrence of 2026-10-13 still fires. */
+  classAInvariantMissCap: 50,
   pollTruncatedFiringMs: 48 * HOUR,
   rejectionsFloor: 10,
   rejectionsFactor: 3,

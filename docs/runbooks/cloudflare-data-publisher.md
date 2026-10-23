@@ -136,7 +136,7 @@ peaked at 62.1 MB at "write feed" against the 128 MB limit (2026-10-19).
 
 Stop and roll back when: `lastRun.ok: false` after the retries
 (`followUp: null`), a source `ok: false` two days in a row, `classA` far
-above `copiedObjectCount + 3 + putRetries + conditionalMisses`
+above `copiedObjectCount + 3 + putRetries + min(conditionalMisses, 50)`
 (`r2.classAInvariant` `firing`), or `/api/feed` or `/api/search` answers 503.
 
 ### Roll back
@@ -342,12 +342,12 @@ conditionalMisses` (two pointers, one evidence object) and `classB` =
 Each retry is one log line, `r2 <op> retry <n> of 2 for <key>: <error>`,
 carrying the run's `runId` while `OBSERVABILITY_SIGNALS` is on.
 
-`r2.classAInvariant` (Spec 028 D11) judges excess = `classA − (copiedObjectCount
-+ 3 + putRetries + conditionalMisses)`: `warn` above 3, `firing` above
-max(50, 0.5 × `copiedObjectCount`). A `warn` on a record without the two
-counters is the 2026-10-23 shape (a few uncounted retries); a recurrence of
-the 2026-10-13 cause shows as a large `conditionalMisses`, which this rule
-subtracts, so read `job.r2ClassA` and the cost guard for it.
+`r2.classAInvariant` (Spec 028 D11, A1) judges excess = `classA −
+(copiedObjectCount + 3 + putRetries + min(conditionalMisses, 50))`: `warn`
+above 3, `firing` above max(50, 0.5 × `copiedObjectCount`). A `warn` on a
+record without the two counters is the 2026-10-23 shape (a few uncounted
+retries). At most 50 conditional misses are subtracted, so a recurrence of
+the 2026-10-13 cause (a large `conditionalMisses`) still fires this rule.
 
 ```sh
 curl -sS https://oss-knowledge-base-data-dev.unknowntpo.workers.dev/health | jq '.lastRun | {ok, completedAt, copiedObjectCount, reusedObjectCount, r2}'
