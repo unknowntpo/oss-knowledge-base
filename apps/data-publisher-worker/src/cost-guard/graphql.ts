@@ -1,6 +1,7 @@
 /**
  * Spec 026 Behavior 3: one Cloudflare GraphQL Analytics request for the account's R2 operations
- * (month to date, and over the 7 complete UTC days before today for the CG35 rate) and R2 storage.
+ * (month to date, and over the 7 complete UTC days before today for the CG35 rate), the guard's own
+ * bucket's operations over the last 24 hours (Behavior 3a, the CG23 spike) and R2 storage.
  * `datetime_lt` is used as on the same page's bandwidth example. Dataset and field names: R2 "Metrics and analytics",
  * https://developers.cloudflare.com/r2/platform/metrics-analytics/ (read 2026-10-20). The token
  * travels only in the Authorization header and never into an error text.
@@ -28,7 +29,10 @@ export const R2_FREE_ACTIONS: ReadonlySet<string> = new Set(["DeleteObject", "De
 /** Storage rows are read over this window; the newest row per bucket is the level. */
 const STORAGE_WINDOW_MS = 2 * 86_400_000;
 
-const QUERY = `query CostGuardR2($accountTag: string!, $start: Time!, $end: Time!, $storageStart: Time!, $recentStart: Time!, $today: Time!) {
+/** The spike counts the guard's own bucket over this window (Behavior 6b). */
+const SPIKE_WINDOW_MS = 86_400_000;
+
+const QUERY = `query CostGuardR2($accountTag: string!, $start: Time!, $end: Time!, $storageStart: Time!, $recentStart: Time!, $today: Time!, $spikeStart: Time!, $bucket: string!) {
   viewer {
     accounts(filter: { accountTag: $accountTag }) {
       operations: r2OperationsAdaptiveGroups(limit: 10000, filter: { datetime_geq: $start, datetime_leq: $end }) {
@@ -36,6 +40,10 @@ const QUERY = `query CostGuardR2($accountTag: string!, $start: Time!, $end: Time
         dimensions { actionType }
       }
       recent: r2OperationsAdaptiveGroups(limit: 10000, filter: { datetime_geq: $recentStart, datetime_lt: $today }) {
+        sum { requests }
+        dimensions { actionType }
+      }
+      spike: r2OperationsAdaptiveGroups(limit: 10000, filter: { datetime_geq: $spikeStart, datetime_leq: $end, bucketName: $bucket }) {
         sum { requests }
         dimensions { actionType }
       }
@@ -50,9 +58,10 @@ const QUERY = `query CostGuardR2($accountTag: string!, $start: Time!, $end: Time
 /**
  * Operations from the first instant of the UTC month to `now` (never more than the 31 days a query
  * may span), and over the 7 complete UTC days before today for the rate (CG35; it may reach into the
- * previous month and never includes today).
+ * previous month and never includes today), and `bucket`'s operations over the last 24 hours for
+ * the spike (CG23, CG25; across a month boundary too, CG30).
  */
-export function r2UsageRequest(accountId: string, now: Date): { readonly query: string; readonly variables: Readonly<Record<string, string>> } {
+export function r2UsageRequest(accountId: string, now: Date, bucket: string): { readonly query: string; readonly variables: Readonly<Record<string, string>> } {
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   return {
@@ -64,6 +73,8 @@ export function r2UsageRequest(accountId: string, now: Date): { readonly query: 
       storageStart: new Date(now.getTime() - STORAGE_WINDOW_MS).toISOString(),
       recentStart: new Date(today - COST_GUARD_RATE_DAYS * 86_400_000).toISOString(),
       today: new Date(today).toISOString(),
+      spikeStart: new Date(now.getTime() - SPIKE_WINDOW_MS).toISOString(),
+      bucket,
     },
   };
 }
@@ -73,6 +84,8 @@ export interface R2Usage {
   readonly classB: number;
   /** The account's operations over the `days` complete UTC days before today (CG35). */
   readonly recent: { readonly classA: number; readonly classB: number; readonly days: number };
+  /** The guard's own bucket's Class A over the last 24 hours (CG23). */
+  readonly spike: { readonly classA: number };
   /** Newest `payloadSize + metadataSize` of each bucket, summed. */
   readonly storageBytes: number;
   /** Action types on no list of the pricing page; counted as Class A. */
@@ -97,12 +110,13 @@ export function parseR2Usage(body: unknown): R2Usage {
   const accounts = record(record(root.data)?.viewer)?.accounts;
   if (!Array.isArray(accounts) || accounts.length !== 1) throw new Error("GraphQL answer has no account");
   const account = record(accounts[0]);
-  if (account === undefined || !Array.isArray(account.operations) || !Array.isArray(account.recent) || !Array.isArray(account.storage)) {
+  if (account === undefined || !Array.isArray(account.operations) || !Array.isArray(account.recent) || !Array.isArray(account.spike) || !Array.isArray(account.storage)) {
     throw new Error("GraphQL answer has no R2 datasets");
   }
   const unclassified = new Set<string>();
   const { classA, classB } = classify(account.operations, unclassified);
   const recent = classify(account.recent, unclassified);
+  const spike = classify(account.spike, unclassified);
   const newest = new Map<string, { readonly at: string; readonly bytes: number }>();
   for (const row of account.storage) {
     const dimensions = record(record(row)?.dimensions);
@@ -115,7 +129,7 @@ export function parseR2Usage(body: unknown): R2Usage {
     if (seen === undefined || at > seen.at) newest.set(bucket, { at, bytes });
   }
   const storageBytes = [...newest.values()].reduce((sum, row) => sum + row.bytes, 0);
-  return { classA, classB, storageBytes, recent: { ...recent, days: COST_GUARD_RATE_DAYS }, unclassifiedActions: [...unclassified].sort() };
+  return { classA, classB, storageBytes, recent: { ...recent, days: COST_GUARD_RATE_DAYS }, spike: { classA: spike.classA }, unclassifiedActions: [...unclassified].sort() };
 }
 
 /** Sums operation rows by pricing class; an action on no list counts as Class A and is noted. */
@@ -139,13 +153,13 @@ function classify(rows: readonly unknown[], unclassified: Set<string>): { readon
 export type GraphqlFetch = (url: string, init: RequestInit) => Promise<Response>;
 
 /** Every error text is sanitized and stripped of the token before it leaves this function. */
-export async function fetchR2Usage(input: { readonly fetch: GraphqlFetch; readonly token: string; readonly accountId: string; readonly now: Date }): Promise<R2Usage> {
+export async function fetchR2Usage(input: { readonly fetch: GraphqlFetch; readonly token: string; readonly accountId: string; readonly bucket: string; readonly now: Date }): Promise<R2Usage> {
   const scrub = (text: string) => sanitizeErrorMessage(text.split(input.token).join("[redacted]"));
   try {
     const response = await input.fetch(GRAPHQL_ENDPOINT, {
       method: "POST",
       headers: { authorization: `Bearer ${input.token}`, "content-type": "application/json" },
-      body: JSON.stringify(r2UsageRequest(input.accountId, input.now)),
+      body: JSON.stringify(r2UsageRequest(input.accountId, input.now, input.bucket)),
       signal: AbortSignal.timeout(20_000),
     });
     const text = await response.text();

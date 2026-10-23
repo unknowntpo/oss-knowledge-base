@@ -1,6 +1,7 @@
 /**
- * Spec 026 amendment 2026-10-21 (dollar budget), CG22, CG23 and CG34: the budget's status from the
- * summed overage, and the R2 Class A spike rule. Planned slice: no test runs these rows yet (the
+ * Spec 026 amendment 2026-10-21 (dollar budget), CG22 and CG34: the budget's status from the
+ * summed overage, with the R2 Class A spike rule (CG23, implemented in
+ * test/cost-guard-spike.cases.ts) as an input. Planned slice: no test runs these rows yet (the
  * spec's marker is `[pending]`); the implementing slice adds `test.each(testPlanRows)`.
  *
  * Budget $5 a month. `percent` = overageUsd / 5 × 100, `projectedPercent` likewise, floored to
@@ -23,9 +24,5 @@ export const testPlanRows = [
   { id: "CG34", case: "projection just under 60 %", overageUsd: 1, projectedOverageUsd: 2.9999, classA24h: 976, percent: 20, projectedPercent: 59.99, status: "ok", trips: null },
   { id: "CG34", case: "projection at 60 %: warn, no trip", overageUsd: 1, projectedOverageUsd: 3, classA24h: 976, percent: 20, projectedPercent: 60, status: "warn", trips: null },
   { id: "CG34", case: "nothing spent yet, projection at 60 %", overageUsd: 0, projectedOverageUsd: 3, classA24h: 976, percent: 0, projectedPercent: 60, status: "warn", trips: null },
-  { id: "CG23", case: "Class A just under the spike threshold", overageUsd: 0, projectedOverageUsd: 0, classA24h: 49_999, percent: 0, projectedPercent: 0, status: "ok", trips: null },
-  { id: "CG23", case: "Class A at the spike threshold: trips with no dollars spent", overageUsd: 0, projectedOverageUsd: 0, classA24h: 50_000, percent: 0, projectedPercent: 0, status: "tripped", trips: "r2ClassA" },
-  { id: "CG23", case: "the 10-13 incident rate (8,150 an hour)", overageUsd: 0, projectedOverageUsd: 0, classA24h: 195_600, percent: 0, projectedPercent: 0, status: "tripped", trips: "r2ClassA" },
-  { id: "CG23", case: "budget and spike together", overageUsd: 4, projectedOverageUsd: 4.9, classA24h: 60_000, percent: 80, projectedPercent: 98, status: "tripped", trips: "budget, r2ClassA" },
-  { id: "CG23", case: "the bucket read failed: no spike trip on missing data", overageUsd: 0, projectedOverageUsd: 0, classA24h: null, percent: 0, projectedPercent: 0, status: "ok", trips: null },
+  { id: "CG22", case: "budget and spike together (the spike alone is CG23, test/cost-guard-spike.cases.ts)", overageUsd: 4, projectedOverageUsd: 4.9, classA24h: 60_000, percent: 80, projectedPercent: 98, status: "tripped", trips: "budget, r2ClassA" },
 ] as const;

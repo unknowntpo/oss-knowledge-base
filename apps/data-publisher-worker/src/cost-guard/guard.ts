@@ -5,8 +5,9 @@
  */
 import { errorText, sanitizeErrorMessage } from "@oss-knowledge-base/semantic-vectorize";
 
-import { evaluateMetric, nextBreaker, worstStatus, type Breaker, type CostMetricKey, type MetricEvaluation } from "./evaluate";
+import { evaluateMetric, evaluateSpike, nextBreaker, worstStatus, type Breaker, type CostMetricKey, type MetricEvaluation, type SpikeEvaluation } from "./evaluate";
 import { fetchR2Usage, type GraphqlFetch } from "./graphql";
+import { COST_GUARD_BUCKETS } from "./profile";
 import { costGuardSignalRun, runIdFor } from "../signals/point";
 import { runLog, type JobSignals, type RunContext } from "../signals/recorder";
 import type { TrendResult } from "../signals/rules";
@@ -21,7 +22,10 @@ export function resolveCostGuardMode(flag: string | undefined): CostGuardMode {
   return value === "monitor" || value === "enforce" ? value : "invalid";
 }
 
-/** Behavior 9: what a guarded feature does. Only `enforce` refuses; only an R2 Class A trip pauses publication. */
+/**
+ * Behavior 9, 9a: what a guarded feature does. Only `enforce` refuses; only an R2 Class A trip (the
+ * monthly level, or the own-bucket spike of CG23) pauses publication.
+ */
 export function costGuardDecision(mode: CostGuardMode, breaker: Breaker): { readonly refuse: boolean; readonly pausePublication: boolean } {
   if (mode !== "enforce" || !breaker.tripped) return { refuse: false, pausePublication: false };
   return { refuse: true, pausePublication: breaker.metrics.includes("r2ClassA") };
@@ -50,6 +54,8 @@ export interface CostGuardRunnerDeps {
   readonly flag: string | undefined;
   readonly token: string | undefined;
   readonly accountId: string | undefined;
+  /** `PUBLICATION_ENVIRONMENT`: picks the bucket the spike counts (Decision 10). */
+  readonly environment: keyof typeof COST_GUARD_BUCKETS;
   readonly fetch: GraphqlFetch;
   readonly now: () => Date;
   readonly inApp: CostGuardInApp;
@@ -62,6 +68,8 @@ export interface CostGuardError { readonly message: string; readonly at: string 
 interface StoredState {
   readonly checkedAt: string | null;
   readonly metrics: Partial<Record<CostMetricKey, MetricEvaluation>>;
+  /** The last real check's own-bucket spike (CG23); null before one. */
+  readonly r2ClassASpike: SpikeEvaluation | null;
   readonly breaker: Breaker;
   readonly lastResetAt: string | null;
   readonly lastError: CostGuardError | null;
@@ -76,6 +84,8 @@ export interface CostGuardHealth {
   readonly reason: string | null;
   readonly checkedAt: string | null;
   readonly metrics: Partial<Record<CostMetricKey, MetricEvaluation>>;
+  /** Behavior 13a `r2ClassASpike {last24h, threshold, bucket, status}`; null before the first check. */
+  readonly r2ClassASpike: SpikeEvaluation | null;
   readonly breaker: Breaker;
   readonly lastResetAt: string | null;
   readonly lastError: CostGuardError | null;
@@ -84,8 +94,12 @@ export interface CostGuardHealth {
   readonly trends?: TrendResult;
 }
 
+/** Behavior 13: the worst metric status, or `tripped` when the own-bucket spike trips (CG23). */
+const checkStatus = (metrics: Partial<Record<CostMetricKey, MetricEvaluation>>, spike: SpikeEvaluation | null) =>
+  spike?.status === "tripped" ? "tripped" : worstStatus(metrics);
+
 const STATE = "state";
-const EMPTY: StoredState = { checkedAt: null, metrics: {}, breaker: { tripped: false }, lastResetAt: null, lastError: null };
+const EMPTY: StoredState = { checkedAt: null, metrics: {}, r2ClassASpike: null, breaker: { tripped: false }, lastResetAt: null, lastError: null };
 
 /** `/health` `costGuard` where the object is not bound: the same keys, unconfigured (Behavior 13). */
 export function unboundCostGuardHealth(flag: string | undefined, reason: string): CostGuardHealth {
@@ -116,7 +130,8 @@ export class CostGuardRunner {
     const context: RunContext | undefined = this.deps.signals === undefined || options.dryRun ? undefined : { runId: options.runId ?? runIdFor("cost-guard", now.getTime()), job: "cost-guard" };
     const month = now.toISOString().slice(0, 7);
     let lastError = null as CostGuardError | null;
-    const r2 = await fetchR2Usage({ fetch: this.deps.fetch, token: this.deps.token!.trim(), accountId: this.deps.accountId!.trim(), now })
+    const bucket = COST_GUARD_BUCKETS[this.deps.environment];
+    const r2 = await fetchR2Usage({ fetch: this.deps.fetch, token: this.deps.token!.trim(), accountId: this.deps.accountId!.trim(), bucket, now })
       .catch((error: unknown) => {
         lastError = { message: errorText(error), at: now.toISOString() };
         runLog(context, "error", `cost guard: the GraphQL read failed: ${lastError.message}`);
@@ -133,16 +148,19 @@ export class CostGuardRunner {
       vectorizeQueriedDimensions: evaluateMetric("vectorizeQueriedDimensions", vectorize?.queriedDimensions ?? null, now),
       workersAiNeurons: evaluateMetric("workersAiNeurons", neurons, now),
     };
+    // CG23: the guard's own bucket over the last 24 hours; unavailable with the rest of R2.
+    const r2ClassASpike = evaluateSpike(r2?.spike.classA ?? null, bucket);
     const previous = await this.state();
-    const breaker = nextBreaker(previous.breaker, metrics, now);
-    const status = breaker.tripped ? "tripped" : worstStatus(metrics);
+    const breaker = nextBreaker(previous.breaker, metrics, now, r2ClassASpike);
+    const status = breaker.tripped ? "tripped" : checkStatus(metrics, r2ClassASpike);
     const result = {
       ok: lastError === null,
       dryRun: options.dryRun,
       mode: this.mode,
-      status: options.dryRun ? worstStatus(metrics) : status,
+      status: options.dryRun ? checkStatus(metrics, r2ClassASpike) : status,
       checkedAt: now.toISOString(),
       metrics,
+      r2ClassASpike,
       ...(r2 !== null && r2.unclassifiedActions.length > 0 ? { unclassifiedActions: r2.unclassifiedActions } : {}),
       breaker: options.dryRun ? previous.breaker : breaker,
       lastError,
@@ -151,11 +169,11 @@ export class CostGuardRunner {
     if (!options.dryRun) {
       const signals = context === undefined ? {} : {
         runId: context.runId,
-        trends: await this.deps.signals!.finish(costGuardSignalRun({ ok: result.ok, status, breaker }, { runId: context.runId, startedAtMs: now.getTime(), finishedAtMs: this.deps.now().getTime() })),
+        trends: await this.deps.signals!.finish(costGuardSignalRun({ ok: result.ok, status, breaker, ...(r2ClassASpike.last24h === null ? {} : { r2ClassASpike: { last24h: r2ClassASpike.last24h } }) }, { runId: context.runId, startedAtMs: now.getTime(), finishedAtMs: this.deps.now().getTime() })),
       };
       // A check made with signals off drops an earlier run's id and result rather than serve them stale.
       const { runId: _runId, trends: _trends, ...kept } = previous;
-      await this.deps.storage.put(STATE, { ...kept, checkedAt: now.toISOString(), metrics, breaker, lastError, ...signals } satisfies StoredState);
+      await this.deps.storage.put(STATE, { ...kept, checkedAt: now.toISOString(), metrics, r2ClassASpike, breaker, lastError, ...signals } satisfies StoredState);
     }
     return result;
   }
@@ -182,9 +200,9 @@ export class CostGuardRunner {
     const status: CostGuardStatus = state.breaker.tripped ? "tripped"
       : reason !== null ? "unconfigured"
       : state.checkedAt === null ? "pending"
-      : worstStatus(state.metrics);
+      : checkStatus(state.metrics, state.r2ClassASpike);
     return {
-      mode: this.mode, status, reason, checkedAt: state.checkedAt, metrics: state.metrics, breaker: state.breaker, lastResetAt: state.lastResetAt, lastError: state.lastError,
+      mode: this.mode, status, reason, checkedAt: state.checkedAt, metrics: state.metrics, r2ClassASpike: state.r2ClassASpike, breaker: state.breaker, lastResetAt: state.lastResetAt, lastError: state.lastError,
       ...(state.runId === undefined ? {} : { runId: state.runId }),
       ...(state.trends === undefined ? {} : { trends: state.trends }),
     };

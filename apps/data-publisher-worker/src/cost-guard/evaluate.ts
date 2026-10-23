@@ -1,9 +1,9 @@
 /**
- * Spec 026 Behavior 5–7: the threshold math, the dollars per metric (CG21, CG35) and the breaker
- * transition, pure so they are tested row by row (test/cost-guard.cases.ts,
- * test/cost-guard-dollars.cases.ts).
+ * Spec 026 Behavior 5–7: the threshold math, the dollars per metric (CG21, CG35), the own-bucket
+ * Class A spike (CG23) and the breaker transition, pure so they are tested row by row
+ * (test/cost-guard.cases.ts, test/cost-guard-dollars.cases.ts, test/cost-guard-spike.cases.ts).
  */
-import { COST_GUARD_THRESHOLDS, COST_METRICS, COST_METRIC_KEYS, type CostMetricKey, type CostMetricProfile } from "./profile";
+import { COST_GUARD_SPIKE_CLASS_A, COST_GUARD_THRESHOLDS, COST_METRICS, COST_METRIC_KEYS, type CostMetricKey, type CostMetricProfile } from "./profile";
 
 export type { CostMetricKey } from "./profile";
 
@@ -35,8 +35,10 @@ export type Breaker =
     readonly reason: string;
     readonly metric: CostMetricKey;
     readonly value: number;
-    /** The value at which it tripped: 80 % of the allowance, or the allowance for a projection. */
+    /** The value at which it tripped: 80 % of the allowance, the allowance for a projection, or the spike threshold. */
     readonly threshold: number;
+    /** The guard's own bucket, when a Class A spike opened it (Behavior 7a). */
+    readonly bucket?: string;
     readonly trippedAt: string;
     /** Every metric that tripped while the breaker was open, in profile order. */
     readonly metrics: readonly CostMetricKey[];
@@ -137,6 +139,22 @@ export function evaluateMetric(key: CostMetricKey, value: number | null, now: Da
   };
 }
 
+/** Behavior 6b: the guard's own bucket's Class A over the last 24 hours against the spike threshold. */
+export interface SpikeEvaluation {
+  /** Null when the GraphQL read failed. */
+  readonly last24h: number | null;
+  readonly threshold: number;
+  readonly bucket: string;
+  readonly status: "ok" | "tripped" | "unavailable";
+}
+
+/** CG23: `tripped` at the threshold or above, whatever the dollars; never on missing data. */
+export function evaluateSpike(last24h: number | null, bucket: string): SpikeEvaluation {
+  const threshold = COST_GUARD_SPIKE_CLASS_A;
+  if (last24h === null || !Number.isFinite(last24h)) return { last24h: null, threshold, bucket, status: "unavailable" };
+  return { last24h, threshold, bucket, status: last24h >= threshold ? "tripped" : "ok" };
+}
+
 /** The worst of the metrics; `unavailable` counts as ok (Behavior 13). */
 export function worstStatus(metrics: Partial<Record<CostMetricKey, MetricEvaluation>>): "ok" | "warn" | "tripped" {
   const statuses = Object.values(metrics).map((metric) => metric?.status);
@@ -144,15 +162,29 @@ export function worstStatus(metrics: Partial<Record<CostMetricKey, MetricEvaluat
 }
 
 /**
- * Behavior 7: a closed breaker opens on the tripped metric with the highest percent; an open one
- * only gains newly tripped metrics. Nothing here closes it (Behavior 8).
+ * Behavior 7, 7a: a closed breaker opens on a spike of the guard's own bucket (CG23) as `r2ClassA`
+ * with the 24-hour count, else on the tripped metric with the highest percent; an open one only
+ * gains newly tripped metrics. Nothing here closes it (Behavior 8).
  */
-export function nextBreaker(previous: Breaker, metrics: Partial<Record<CostMetricKey, MetricEvaluation>>, now: Date): Breaker {
-  const tripped = COST_METRIC_KEYS.filter((key) => metrics[key]?.status === "tripped");
+export function nextBreaker(previous: Breaker, metrics: Partial<Record<CostMetricKey, MetricEvaluation>>, now: Date, spike: SpikeEvaluation | null = null): Breaker {
+  const spiked = spike?.status === "tripped";
+  const tripped = COST_METRIC_KEYS.filter((key) => metrics[key]?.status === "tripped" || (spiked && key === "r2ClassA"));
   if (tripped.length === 0) return previous;
   if (previous.tripped) {
     const all = COST_METRIC_KEYS.filter((key) => previous.metrics.includes(key) || tripped.includes(key));
     return all.length === previous.metrics.length ? previous : { ...previous, metrics: all };
+  }
+  if (spiked) {
+    return {
+      tripped: true,
+      reason: `r2ClassA spike: ${spike.last24h} Class A in 24 h on ${spike.bucket} (trips at ${spike.threshold})`,
+      metric: "r2ClassA",
+      value: spike.last24h!,
+      threshold: spike.threshold,
+      bucket: spike.bucket,
+      trippedAt: now.toISOString(),
+      metrics: tripped,
+    };
   }
   // Floored values order and describe it: a floored percent below the trip line means the level
   // did not trip, so the projection did.

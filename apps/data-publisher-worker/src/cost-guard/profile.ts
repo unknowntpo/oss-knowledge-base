@@ -57,6 +57,21 @@ export const COST_GUARD_THRESHOLDS = {
  */
 export const COST_GUARD_RATE_DAYS = 7;
 
+/**
+ * Behavior 6b (Decisions 6, 12): the guard's own bucket trips `r2ClassA` at this many Class A
+ * operations over the last 24 hours, whatever the dollars. Provisional until CG37.
+ */
+export const COST_GUARD_SPIKE_CLASS_A = 50_000;
+
+/**
+ * Decision 10: the bucket each environment's guard counts for the spike, the `OSS_KB_BUCKET`
+ * binding's `bucket_name` in its wrangler file (a test keeps them equal).
+ */
+export const COST_GUARD_BUCKETS = {
+  development: "oss-knowledge-base-dev",
+  production: "oss-knowledge-base-prod",
+} as const satisfies Readonly<Record<"development" | "production", string>>;
+
 /** The one guard object. */
 export const COST_GUARD_OBJECT_NAME = "cost-guard-v1";
 
