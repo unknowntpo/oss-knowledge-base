@@ -162,12 +162,24 @@ Prod now publishes live data once a day instead of the recorded snapshot of 2026
 - Not on Prod yet: semantic search, the topic digest, review ingestion and contributor profiles (Dev only).
 ```
 
-## v0.3.2: release-notes draft
+## v0.3.2: Workers Logs and dormant code
 
-Not tagged yet. Release notes draft (for `gh release create v0.3.2 --repo unknowntpo/oss-knowledge-base --notes-file`):
+Owner-approved scope (2026-10-24): Workers Logs on the Prod data Worker plus
+the code merged since `v0.3.1`, every new flag off on Prod. Prod config adds
+only `observability` and `SRE_AGENT=off`; no new binding, cron, secret or
+Durable Object migration (still `v1`, `v2`). Tagged `v0.3.2` on `cdaf0f8` and deployed to Prod 2026-10-24. Release notes
+(for `gh release create v0.3.2 --repo unknowntpo/oss-knowledge-base --notes-file`):
 
 ```markdown
-- Workers Logs on the Prod data Worker (100% sampling, 7-day retention) for diagnosing runs from the dashboard.
+Prod gains Workers Logs; everything else ships dormant, with its flag off on Prod.
+
+- Workers Logs on the Prod data Worker (100% sampling, 7-day retention) for diagnosing runs from the dashboard (#99).
+- Spec 014: status-faithful digest wording and a zh-Hant translation gate (D96–D102). Dormant: the digest is off on Prod.
+- Spec 019 amendments (7) and (8): identity links, the `kip-pages` job, the KIPs section on profiles and the identity backfill. Dormant: `IDENTITY_LINKS`, `KIP_PAGES`, `PEOPLE_KIPS`, `IDENTITY_BACKFILL` unset. Jira polling now also requests `assignee` and stores the reporter's account key and the assignee's key and display name on Jira issue events (internal; no public response or published object carries them).
+- Spec 026: account-wide cost guard and R2 Class A spike trip. Dormant: `COST_GUARD` unset, no `CostGuard` object bound.
+- Spec 027: the `sre-agent` job. Dormant: `SRE_AGENT=off`, no cron; `/health` gains `sreAgent: {mode: "off"}`.
+- Spec 028: observability signals (Workers Analytics Engine points, trend rules, `/health.signals`). Dormant: `OBSERVABILITY_SIGNALS` unset, no dataset bound. Always on: `lastRun.r2` adds `putRetries` and `conditionalMisses`, and each retried R2 request logs one line. Wrangler 4.125.0 → 4.148.0.
+- Spec 029: R2 release retention, dry run only. Dormant: `R2_RETENTION` unset, no cron; the code has no delete path.
 ```
 
 ## Release command
