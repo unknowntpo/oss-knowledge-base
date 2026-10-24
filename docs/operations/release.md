@@ -167,7 +167,7 @@ Prod now publishes live data once a day instead of the recorded snapshot of 2026
 Owner-approved scope (2026-10-24): Workers Logs on the Prod data Worker plus
 the code merged since `v0.3.1`, every new flag off on Prod. Prod config adds
 only `observability` and `SRE_AGENT=off`; no new binding, cron, secret or
-Durable Object migration (still `v1`, `v2`). Not tagged yet. Release notes
+Durable Object migration (still `v1`, `v2`). Tagged `v0.3.2` on `cdaf0f8` and deployed to Prod 2026-10-24. Release notes
 (for `gh release create v0.3.2 --repo unknowntpo/oss-knowledge-base --notes-file`):
 
 ```markdown
