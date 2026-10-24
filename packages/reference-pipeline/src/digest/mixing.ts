@@ -1,6 +1,6 @@
 /** Spec 014 Behavior 7–9: mixing, keywords, and the summarizer's card input. */
 import { byScore } from "./candidates";
-import { placement } from "./classify";
+import { placement, rulesClassify } from "./classify";
 import type { DigestProfile, Thread, ThreadFeatures, TopicCard } from "./types";
 
 export const VISIBLE_THREADS = 5;
@@ -17,8 +17,10 @@ export interface Mix {
 export const UNCATEGORIZED_TOPIC = "other";
 
 /**
- * Behavior 7: each candidate exactly once, in a card, in routine, or in Uncategorized (effective
- * topic `other`); cards by top-3 score sum.
+ * Behavior 7: each candidate exactly once, in a card, in routine, or in Uncategorized; cards by
+ * top-3 score sum. D105: a non-routine thread whose effective topic is `other` (the model chose
+ * `other` or was below the topic gate) takes the title rules' topic; Uncategorized holds only the
+ * threads that neither names.
  */
 export function mix(threads: readonly Thread[], features: ReadonlyMap<string, ThreadFeatures>, profile: DigestProfile): Mix {
   const byTopic = new Map<string, Thread[]>();
@@ -27,8 +29,9 @@ export function mix(threads: readonly Thread[], features: ReadonlyMap<string, Th
     const feature = features.get(thread.displayId);
     if (feature === undefined) throw new Error(`No features for ${thread.displayId}`);
     const place = placement(feature);
+    const topic = place.topic === UNCATEGORIZED_TOPIC ? rulesClassify(thread, profile).topic : place.topic;
     if (place.routine) routine.push(thread);
-    else byTopic.set(place.topic, [...(byTopic.get(place.topic) ?? []), thread]);
+    else byTopic.set(topic, [...(byTopic.get(topic) ?? []), thread]);
   }
   const cards: TopicCard[] = [];
   for (const topic of profile.taxonomy.topics) {

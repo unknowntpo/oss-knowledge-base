@@ -1252,3 +1252,21 @@ the two `viewer/` items below.
   ledgers found; amend Behavior 5a's ledger sentence.
 - **Layer:** code, then a check test row.
 - **Source:** Spec 026 CG35 slice, 2026-10-23.
+
+### G102. Digest rubric v2: the prompt changes are not measured on real model output yet
+- **Where:** `IMPORTANCE_RUBRIC` and `translatePrompt` in
+  `packages/reference-pipeline/src/digest/prompts.ts` (Spec 014 D103,
+  D106); `bun run digest -- eval` replays recorded responses only.
+- **Why:** the repository has no offline path to the real models; Workers AI
+  runs only through the Dev Worker's binding. The Spec 014 eval line for
+  2026-10-24 measures the eval rules (D104, D107, D108) and the mixing
+  fallback (D105) on the published Dev 2026-10-23 digest, not the new
+  summarizer, highlights, and translation prompts. The D19 run-test row
+  also passes a 10,000-neuron cap, because its constructed text-model run
+  sits near the 5,000 cap with `digest-prompts@5`.
+- **Fix:** after deploy, record the first Dev cron week with
+  `digest-prompts@5|kafka-glossary@2` as a recorded-responses file, label it
+  by rubric v2, and add its eval line (D34 `gates.d34`, D102 classes,
+  `translation.glossary`) to the Spec 014 review log.
+- **Layer:** test (a recorded week in the eval).
+- **Source:** Spec 014 owner decisions 2026-10-24 (D103–D108).

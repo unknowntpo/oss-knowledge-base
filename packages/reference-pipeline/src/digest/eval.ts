@@ -13,7 +13,7 @@ import { chooseHighlights, digestCounts } from "./present";
 import { proposalRows } from "./proposals";
 import { protect } from "./protect";
 import type { DigestDetail, DigestEntry, DigestProfile, Highlight, Sentence, Thread, ThreadFeatures, TopicCard } from "./types";
-import { translationStatusDrift } from "./translation";
+import { glossaryViolations, translationStatusDrift, type GlossaryViolation } from "./translation";
 import { rejectSentence, validateSentences, type CitedThread, type Rejection } from "./validate";
 
 export interface DigestFixture {
@@ -42,6 +42,8 @@ export const TRANSLATION_THRESHOLDS: Readonly<Record<TranslationErrorClass, numb
 
 /** One labeled sentence of a recorded week. Every field but `text` is optional (D101). */
 export interface LabeledSentence {
+  /** The sentence's number in the labeled week, if the file numbers them. */
+  readonly n?: number;
   readonly text: string;
   readonly where?: string;
   readonly cites?: readonly string[];
@@ -69,10 +71,34 @@ export interface TranslationReport {
   readonly guard: { readonly checked: number; readonly rejected: number; readonly labeledStatusDrift: number; readonly labeledStatusDriftCaught: number };
   readonly thresholds: Readonly<Record<TranslationErrorClass, number>>;
   readonly meetsThresholds: boolean | "pending human labels";
+  /** D107: the profile glossary checked on every sentence with a zh-Hant text (no labels needed). */
+  readonly glossary: GlossaryReport;
+}
+
+export interface GlossaryReport {
+  readonly checked: number;
+  /** Sentences with at least one violation. */
+  readonly flagged: number;
+  readonly byTerm: Readonly<Record<string, number>>;
+  readonly items: readonly ({ readonly n?: number; readonly where?: string } & GlossaryViolation)[];
+}
+
+/** D107: glossary violations of every sentence with a zh-Hant text. */
+export function glossaryReport(sentences: readonly LabeledSentence[], profile: DigestProfile): GlossaryReport {
+  const glossary = profile.glossary;
+  if (glossary === undefined) return { checked: 0, flagged: 0, byTerm: {}, items: [] };
+  const translated = sentences.filter((sentence) => sentence.zhHant !== undefined);
+  const found = translated.map((sentence) => ({ sentence, violations: glossaryViolations(sentence.text, sentence.zhHant!, glossary) }));
+  const items = found.flatMap(({ sentence, violations }) => violations.map((violation) => ({
+    ...(sentence.n === undefined ? { where: sentence.where ?? sentence.text.slice(0, 60) } : { n: sentence.n }), ...violation,
+  })));
+  const byTerm: Record<string, number> = {};
+  for (const item of items) byTerm[item.term] = (byTerm[item.term] ?? 0) + 1;
+  return { checked: translated.length, flagged: found.filter((item) => item.violations.length > 0).length, byTerm, items };
 }
 
 /** D101: counts labeled translation errors per class and runs the status guard on each translation. */
-export function translationReport(labels: GoldenLabels): TranslationReport {
+export function translationReport(labels: GoldenLabels, profile: DigestProfile): TranslationReport {
   const sentences = labels.sentences ?? [];
   const labeled = sentences.filter((sentence) => sentence.translationErrors !== undefined);
   const byClass = Object.fromEntries(TRANSLATION_ERROR_CLASSES.map((name) => [name,
@@ -93,6 +119,48 @@ export function translationReport(labels: GoldenLabels): TranslationReport {
     },
     thresholds,
     meetsThresholds: labeled.length === 0 ? "pending human labels" : TRANSLATION_ERROR_CLASSES.every((name) => byClass[name] <= thresholds[name]),
+    glossary: glossaryReport(sentences, profile),
+  };
+}
+
+/** D104 (owner 2026-10-24, Open question 1): D34 passes at recall ≥ 0.8. */
+export const D34_RECALL_THRESHOLD = 0.8;
+
+export interface ImportanceReport {
+  readonly labeled: number;
+  /** Important threads shown anywhere: any card position, a KIP row, a highlight, or the headline. */
+  readonly hits: number;
+  readonly recall: number | null;
+  readonly threshold: number;
+  readonly pass: boolean | "pending human labels";
+  /** Important threads placed in the routine section or in Uncategorized. */
+  readonly routine: number;
+  readonly uncategorized: number;
+  /** Important ids that are not hits, in label order. */
+  readonly missed: readonly string[];
+}
+
+type Shown = Pick<Replay, "cards" | "proposals" | "highlights" | "headline" | "routine" | "uncategorized">;
+
+/** D104: the D34 hit rule on a replayed digest. */
+export function importanceReport(run: Shown, important: readonly string[]): ImportanceReport {
+  const shown = new Set([
+    ...run.cards.flatMap((card) => card.threads),
+    ...run.proposals.flatMap((row) => row.cites),
+    ...run.highlights.highlights.flatMap((highlight) => highlight.body.cites),
+    ...(run.headline?.cites ?? []),
+  ]);
+  const hits = important.filter((id) => shown.has(id)).length;
+  const recall = important.length === 0 ? null : hits / important.length;
+  return {
+    labeled: important.length,
+    hits,
+    recall,
+    threshold: D34_RECALL_THRESHOLD,
+    pass: recall === null ? "pending human labels" : recall >= D34_RECALL_THRESHOLD,
+    routine: important.filter((id) => run.routine.includes(id)).length,
+    uncategorized: important.filter((id) => run.uncategorized.includes(id)).length,
+    missed: important.filter((id) => !shown.has(id)),
   };
 }
 
@@ -193,9 +261,19 @@ export interface EvalReport {
   readonly sentences: { readonly kept: number; readonly dropped: number; readonly shareDropped: number; readonly byReason: Readonly<Record<string, number>> };
   readonly negatives: readonly { readonly class: ErrorClass; readonly origin: string; readonly rejectedBy: Rejection | null }[];
   readonly errorClasses: Readonly<Record<ErrorClass, { readonly fixtures: number; readonly rejectedByRules: number }>>;
+  /** "hits/labeled" under the D104 hit rule, or "pending human labels". */
   readonly recall: string;
+  readonly importance: ImportanceReport;
   readonly lagging: readonly string[];
   readonly translation: TranslationReport;
+  /** The Prod gates of this week, printed explicitly (D34 by D104, D102). */
+  readonly gates: { readonly d34: Verdict; readonly d102: Verdict };
+}
+
+export type Verdict = "pass" | "fail" | "pending human labels";
+
+function verdict(value: boolean | "pending human labels"): Verdict {
+  return value === "pending human labels" ? value : value ? "pass" : "fail";
 }
 
 export function evaluate(fixture: DigestFixture, recorded: RecordedResponses, labels: GoldenLabels, profile: DigestProfile): EvalReport {
@@ -218,11 +296,9 @@ export function evaluate(fixture: DigestFixture, recorded: RecordedResponses, la
     excerpt: thread.rootExcerpt.slice(0, 280), lastActivityAt: thread.lastActivityAt,
     ...(thread.records.at(-1)!.author === "unknown sender" ? {} : { author: thread.records.at(-1)!.author }),
   }]));
-  let recall = "pending human labels";
-  if (labels.important.length > 0) {
-    const visible = new Set(run.cards.flatMap((card) => card.threads.slice(0, 5)));
-    recall = `${labels.important.filter((id) => visible.has(id)).length}/${labels.important.length}`;
-  }
+  const importance = importanceReport(run, labels.important);
+  const recall = importance.recall === null ? "pending human labels" : `${importance.hits}/${importance.labeled}`;
+  const translation = translationReport(labels, profile);
   return {
     revision: recorded.revision,
     window: { start: digestWindowStart(fixture.release.generatedAt), end: fixture.release.generatedAt },
@@ -233,8 +309,10 @@ export function evaluate(fixture: DigestFixture, recorded: RecordedResponses, la
     negatives,
     errorClasses,
     recall,
+    importance,
     lagging: Object.entries(run.coverage).filter(([, value]) => value.lagging).map(([source]) => source),
-    translation: translationReport(labels),
+    translation,
+    gates: { d34: verdict(importance.pass), d102: verdict(translation.meetsThresholds) },
   };
 }
 

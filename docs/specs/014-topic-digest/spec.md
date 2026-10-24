@@ -1,6 +1,6 @@
 # Spec 014: Kafka topic digest
 
-Status: Implemented (slices 1–3 and 2b–2e: #33, #35, #36, #40, #43, #44, #68; accepted 2026-10-08; D95 error redaction 2026-10-19; D96 English sentence cache 2026-10-19; D97–D102 status wording and translation gate 2026-10-20); the digest runs on Dev only (`DIGEST_ENABLED`, cron 22:47 UTC), off on Prod
+Status: Implemented (slices 1–3 and 2b–2e: #33, #35, #36, #40, #43, #44, #68; accepted 2026-10-08; D95 error redaction 2026-10-19; D96 English sentence cache 2026-10-19; D97–D102 status wording and translation gate 2026-10-20; D103–D108 importance rubric v2, D34 hit rule, glossary v2 2026-10-24); the digest runs on Dev only (`DIGEST_ENABLED`, cron 22:47 UTC), off on Prod
 Date: 2026-10-06 (amended 2026-10-08 after design review)
 Traceability: enforced
 Builds on: Spec 002, Spec 005, Spec 008 (ADR-0013), Spec 010, Spec 011, Spec 012 (ADR-0014), Spec 013
@@ -630,7 +630,17 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
      routine section, or in Uncategorized.
    - Uncategorized (slice 2c) holds the non-routine threads whose effective
      topic is `other`: the model chose `other`, or `topicConfidence` was
-     below 0.6. It is collapsed, shows its count, and is ordered by score.
+     below 0.6.
+   - **Title-rules fallback** (D105, 2026-10-24). Before such a thread goes
+     to Uncategorized, it takes the topic of the Behavior 6 title rules
+     (`rulesClassify`); only a thread that neither the model nor the title
+     rules place stays in Uncategorized. Routine placement is unchanged. On
+     the Dev 2026-10-23 week, Uncategorized held 163 of 489 candidates,
+     among them "KAFKA-20402: Support broker-side consumer group rebalance
+     callback (KIP-1314)"; with the fallback it holds 114 (offline replay of
+     the published placement). A KIP thread the rules cannot place, such
+     as "[VOTE] KIP-1308: Extend Header API for Common Value Types", stays
+     in Uncategorized and is shown in its KIP row. It is collapsed, shows its count, and is ordered by score.
      `other` never gets a card. On the first Dev dry run, `other` was the
      second-largest card (131 of 318 threads): 119 of them had a non-other
      best topic below the 0.6 gate, and 12 had `other` as the best topic.
@@ -647,6 +657,13 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
    - Excluded: stopwords, `MINOR`, issue and proposal keys, and part markers
      (`[n/N]`).
 9. **Generated sentences** (cards and proposal rows).
+   - **Importance** (D103, owner 2026-10-24, prompt `digest-prompts@5`).
+     The summarizer spends a card's sentences on the most important
+     threads by rubric v2 (Golden set and evaluation), and writes about an
+     unimportant thread only when nothing important is left. The
+     highlights call (Behavior 24) picks the headline and highlights by
+     the same rubric. Both prompts carry the rubric text
+     (`IMPORTANCE_RUBRIC`).
    - **Card input:** the card's threads in score order, up to 12. Each
      thread contributes its Behavior 6 fields plus all its in-window human
      excerpts, until the card reaches 6,000 characters. Proposal stages are
@@ -968,7 +985,8 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
         has none of its zh-Hant words anywhere in the translation; or
       - a part inside the translation's parentheses holds a zh-Hant status
         word whose English status is not in the English parentheses.
-      Words outside the parentheses are not compared, so "bug fix is
+      Words outside the parentheses are not compared (except D108's two
+      checks below), so "bug fix is
       proposed (KAFKA-21280, open)" → "錯誤修復已提出 (KAFKA-21280, 仍在進行)"
       passes. A rejected translation is handled like a lost placeholder: the
       item keeps its English text with the label "Not translated", the run
@@ -988,6 +1006,29 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
       (offloading → 遷移, telemetry → 儀表板) plus Kafka terms that must stay
       stable. The translator revision is `<prompt revision>|<glossary
       revision>`, so a glossary change invalidates cached translations.
+    - **Glossary v2** (D106, owner 2026-10-24, `kafka-glossary@2`). Dev
+      2026-10-23 translated Broker → 代理 (3 sentences), SSL rotation →
+      旋轉, TLS named groups → 名稱組, and used mainland words (鏡像, 磁盤).
+      Kafka terms stay in English: broker, controller, KRaft, consumer
+      group, share group, streams group, partition, offset, topic,
+      mirroring, named group, backport, cherry-pick. rotation → 輪替 joins
+      offloading → 卸載, telemetry → 遙測, assignor → 指派器, rebalance →
+      再平衡. The glossary also lists mainland words with the Taiwan wording
+      to use instead (`avoid`), and the prompt says "Use Taiwan wording:
+      映像檔 not 鏡像, 磁碟 not 磁盤, …". The list is in `profiles.ts` and in
+      the D106 row. Words that are also correct Taiwan usage in some
+      contexts (支持, 用戶 in 用戶端, 優化, 配置) are left out, so the check
+      has no known false positive. The prompt also says "is proposed" is
+      已提出, never 將提出, and keeps "backport" in English.
+    - **Status guard, body words** (D108, 2026-10-24). Two more checks
+      reject a translation (same handling as D99):
+      - the English says "is/are/was/were/been/being proposed" (not "would
+        be proposed"), and the translation says 將提出, 將提議, or 將提案
+        (Dev 2026-10-23 #20: "metrics are proposed" → "將提出…");
+      - the English says "backport" and the translation has none of
+        backport, 回移, 向後移植, or 移植回 (Dev 2026-10-23 #2 dropped
+        "to be backported").
+      These are the only words outside the parentheses the guard compares.
     - The translator is `@cf/qwen/qwen3-30b-a3b-fp8` (decided 2026-10-08).
 26. **Counts and window label.**
     - Counts are computed from the digest object's arrays, never stored, by
@@ -1144,6 +1185,15 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
     - `digest -- eval` reports the labeled count, counts per translation
       class, and the status guard (D99) on every sentence with `zhHant`:
       how many it rejects and how many labeled `status-drift` it catches.
+    - **Glossary check** (D107, 2026-10-24). `digest -- eval` also checks
+      the profile glossary on every sentence with `zhHant`, labeled or not:
+      an English term present in the sentence (case-insensitive, plural or
+      -ed/-ing allowed, not inside a longer word) whose zh-Hant term is
+      missing from the translation, and any avoided mainland word. It
+      reports `translation.glossary` (`checked`, `flagged` sentences,
+      `byTerm`, and each violation with the sentence's `n`). It is a
+      measure for the term-error labels, not a runtime rejection and not a
+      D102 gate.
     - Prod also requires the translation thresholds (D102, decided by the
       owner 2026-10-20): `status-drift` 0,
       `omission` 0, `term-error` at most 2 per labeled week. A labels file's
@@ -1221,6 +1271,26 @@ accepted.
 
 ## Golden set and evaluation
 
+- **Important thread** (rubric v2, decided by the owner 2026-10-24). A
+  thread worth putting in this week's digest, about 20–30 a week. It is
+  important when it has:
+  - user impact: public API, configs, defaults, compatibility, or
+    upgrades, or a bug with data loss, security impact, or a major
+    performance effect;
+  - architecture: protocol, storage format, KRaft or controller,
+    replication, consumer-group mechanics, or a new subsystem; or
+  - direction: a KIP proposed, voted, or accepted, a release, a
+    deprecation or removal, or governance.
+
+  Not important: tests, refactors, docs, dependency bumps, CI, small
+  internal fixes, ordinary bug fixes, and backports or cherry-picks.
+  Rubric v1 was undefined, so the first labeler applied a broad rubric
+  (220 important threads in the Dev 2026-10-23 week).
+- **D34 hit** (D104, owner 2026-10-24). An important thread is a hit when
+  the digest shows it anywhere: any position of a card's thread list (not
+  only the first 5), a KIP row's cites, a highlight, or the headline. The
+  eval also reports important threads placed in routine and in
+  Uncategorized, and lists the misses.
 - **Labels.**
   - The human labels the Example week in
     `docs/specs/014-topic-digest/golden/2026-10-06.labels.json` (planned
@@ -1237,8 +1307,10 @@ accepted.
   - Model calls come from a recorded-responses file per classifier and
     summarizer revision, so the replay is offline and deterministic.
   - It prints, per revision:
-    - recall of labeled important threads among each card's 5 visible threads;
-    - the number of labeled important threads placed in routine;
+    - recall of labeled important threads under the D34 hit rule (D104),
+      with pass or fail against 0.8 in `gates.d34`;
+    - the number of labeled important threads placed in routine and in
+      Uncategorized;
     - the KIP-block diff;
     - the share of generated sentences dropped by validation;
     - estimated neurons.
@@ -1252,9 +1324,11 @@ accepted.
   translation as `status-drift`, `term-error`, or `omission` (D101).
 - **Recording a revision.** A ranking or prompt change records its eval line
   in this spec's review log before merge.
-- **Thresholds.** They are set by the human after labeling (open question 1).
-  Prod shows the digest only after they are met (D34). The translation
-  thresholds are decided in D102 (owner, 2026-10-20).
+- **Thresholds.** D34: recall ≥ 0.8 under the D104 hit rule (decided by
+  the owner 2026-10-24, open question 1). Prod shows the digest only after
+  it is met. The translation thresholds are decided in D102 (owner,
+  2026-10-20). `digest -- eval` prints both verdicts in `gates` (`pass`,
+  `fail`, or `pending human labels`).
 
 ## Test plan
 
@@ -1426,7 +1500,7 @@ synthetic; the others use values captured from Dev.
 | D83 | content | KAFKA-19762 Gradle feature is proposed. (second Dev dry run) | content-free |
 | D83 | content | KIP-1376 is proposed to add TLS named groups support. (second Dev dry run) | has content |
 | D83 | content | constructed: Streams standby tasks get rack-aware assignment (KAFKA-20999, merged). | has content |
-| D83 | prompt | summarizer and highlights prompts | digest-prompts@4; both JSON examples parse; the summarizer forbids bare status lines and leading ids |
+| D83 | prompt | summarizer and highlights prompts | digest-prompts@5; both JSON examples parse; the summarizer forbids bare status lines and leading ids |
 | D84 | features | Kafka profile description of other | other |
 | D85 | prompt | translation prompt | asks for active voice and avoids 被 passives; keeps committer, PMC, KIP; merged is 已合併 |
 | D97 | status tense | Dev 2026-10-20 #6: "Admin client types for Cluster Mirroring feature are added (KAFKA-PR-23829, closed)." cites KAFKA-PR-23829 (closed unmerged, "KAFKA-21226: Add Admin client types") | dropped (tense:closed) |
@@ -1482,7 +1556,26 @@ synthetic; the others use values captured from Dev.
 | D99 | translate status | constructed: "The types would be added (KAFKA-1, closed)." translated as "類型將新增 (KAFKA-1, 關閉（未合併）)。" | translated |
 | D99 | translate status | constructed: "The fix would land (KAFKA-1, open)." translated as "修正將完成 (KAFKA-1, 尚未合併)。" | translated |
 | D98 | prompt | vote status wording in the summarizer prompt and the guard | the summarizer asks for "is under vote" with voting in the parentheses; the guard maps voting and under vote to 投票中 |
-| D100 | prompt | translation prompt for the Kafka profile | glossary offloading → 卸載, telemetry → 遙測, assignor → 指派器, share group → share group, rebalance → 再平衡, KRaft → KRaft; status words open → 仍在進行, merged → 已合併, closed → 已關閉, proposed → 已提出, discussing → 討論中, resolved → 已解決, voting → 投票中 |
+| D100 | prompt | translation prompt for the Kafka profile | glossary offloading → 卸載, telemetry → 遙測, assignor → 指派器, rebalance → 再平衡, rotation → 輪替, broker → broker, controller → controller, KRaft → KRaft, consumer group → consumer group, share group → share group, streams group → streams group, partition → partition, offset → offset, topic → topic, mirroring → mirroring, named group → named group, backport → backport, cherry-pick → cherry-pick; status words open → 仍在進行, merged → 已合併, closed → 已關閉, proposed → 已提出, discussing → 討論中, resolved → 已解決, voting → 投票中 |
+| D103 | prompt | summarizer and highlights prompts (importance rubric v2) | both name user impact, architecture, and direction as important, and tests, refactors, docs, dependency bumps, CI, small internal fixes, ordinary bug fixes, and backports or cherry-picks as not important |
+| D105 | uncategorized fallback | Dev 2026-10-23: "KAFKA-20402: Support broker-side consumer group rebalance callback (KIP-1314)" with model topic other | group-coordination card (title rules) |
+| D105 | uncategorized fallback | Dev 2026-10-23: "KAFKA-20528: Verify LZ4 frame content checksum on the read path" with model topic storage at topicConfidence 0.2 | security card (title rules) |
+| D105 | uncategorized fallback | Dev 2026-10-23: "Started on work" with model topic other | Uncategorized (no rule names a topic) |
+| D105 | uncategorized fallback | Dev 2026-10-23: "[VOTE] KIP-1308: Extend Header API for Common Value Types" with model topic other | Uncategorized (no rule names a topic); still in the KIP-1308 row |
+| D105 | uncategorized fallback | constructed: "Support broker-side consumer group rebalance callback" with model topic security at topicConfidence 0.35 | security card (a confident model topic wins) |
+| D105 | uncategorized fallback | constructed: "Support broker-side consumer group rebalance callback" with model routine at routineConfidence 0.6 | routine section (routine is unchanged) |
+| D106 | prompt | translation prompt for the Kafka profile (glossary v2) | kept in English: broker, controller, KRaft, consumer group, share group, streams group, partition, offset, topic, mirroring, named group, backport, cherry-pick; rotation → 輪替; Taiwan wording 映像檔 not 鏡像, 磁碟 not 磁盤, 預設 not 默認, 伺服器 not 服務器, 資料 not 數據, 資訊 not 信息, 執行緒 not 線程, 記憶體 not 內存, 網路 not 網絡, 訊息 not 消息, 呼叫 not 調用, 介面 not 接口, 非同步 not 異步, 快取 not 緩存, 程式碼 not 代碼, 軟體 not 軟件, 叢集 not 集群, 建立 not 創建, 欄位 not 字段, 模組 not 模塊, 品質 not 質量; translator revision digest-prompts@5\|kafka-glossary@2 |
+| D107 | glossary check | Dev 2026-10-23 #29: "Brokers would support client configuration observability (KIP-1324, proposed)." translated as "代理將支援客戶端設定的可觀察性 (KIP-1324, 已提出)。" | flagged: broker (kept in English) |
+| D107 | glossary check | Dev 2026-10-23 #28: "SslEngineFactory contract would allow dynamic SSL material rotation (KIP-1288, proposed)." translated as "SslEngineFactory 合約會允許動態 SSL 材料旋轉 (KIP-1288, 已提出)。" | flagged: rotation → 輪替 |
+| D107 | glossary check | Dev 2026-10-23 #17: "Kafka would support setting TLS named groups (KIP-1376, discussing)." translated as "Kafka 會支援設定 TLS 名稱組 (KIP-1376, 討論中)。" | flagged: named group (kept in English) |
+| D107 | glossary check | Dev 2026-10-23 #10: "Offline log directory on disk error in zero-copy Fetch path is fixed (KAFKA-16304, merged)." translated as "零複製 Fetch 路徑中磁盤離線日誌目錄錯誤已修復 (KAFKA-16304, 已合併)。" | flagged: 磁盤 → 磁碟 |
+| D107 | glossary check | Dev 2026-10-23 #1: "Copartition groups and indexes would get sorted for consistent Streams topology comparison (KAFKA-21302, open)." translated as "共分區群組和索引將根據一致的Streams拓撲比較進行排序（KAFKA-21302，仍在進行）" | not flagged (Copartition is not the word partition) |
+| D107 | glossary check | constructed: "Brokers would rotate SSL material (KIP-1, proposed)." translated as "Broker 將輪替 SSL 材料 (KIP-1, 已提出)。" | not flagged |
+| D107 | glossary check | constructed: "A Docker image for system tests is proposed (KIP-1, discussing)." translated as "系統測試的 Docker 鏡像已提出 (KIP-1, 討論中)。" | flagged: 鏡像 → 映像檔 |
+| D108 | translate status | Dev 2026-10-23 #20: "Per-client-id remote fetch metrics are proposed (KAFKA-PR-23463, open)." translated as "將提出針對每個客戶端 ID 的遠端 Fetch 指標（KAFKA-PR-23463，仍在進行）" | English text kept, label Not translated (proposed: 已提出 missing; found 將提出) |
+| D108 | translate status | Dev 2026-10-23 #2: "The fix for KAFKA-21302 is proposed to be backported (KAFKA-PR-23855, open)." translated as "修正 KAFKA-21302 已提出 (KAFKA-PR-23855, 仍在進行)。" | English text kept, label Not translated (backport: backport missing; found none) |
+| D108 | translate status | constructed: "The fix for KAFKA-1 is proposed to be backported (KAFKA-PR-1, open)." translated as "KAFKA-1 的修正已提出 backport (KAFKA-PR-1, 仍在進行)。" | translated |
+| D108 | translate status | constructed: "A metric would be proposed (KAFKA-PR-1, open)." translated as "將提出一項指標 (KAFKA-PR-1, 仍在進行)。" | translated (the English does not say is proposed) |
 <!-- test-plan:end -->
 
 **Slice 2: run loop, model clients, and cache.** Case file
@@ -1580,7 +1673,7 @@ synthetic; the others use values captured from Dev.
 | D74 | call order | constructed: captured week with a Clef cap of 3 requests | 3 Clef requests; the other threads get rules features; limited true |
 | D75 | bounds | constructed: the max_tokens of each call kind in a cold run | card 500, proposal 160, highlights 800, translation 4000 |
 | D75 | bounds | captured week, cold run with Clef | 1 translation call for every item; its prompt ends with /no_think |
-| D78 | style | constructed: card sentences "Omnia Ibrahim proposed Apache Kafka 4.4.0 RC4." and "KIP-1349 moves snapshot frequency to bytes." | style {sentences 2, personLed 1}; summarizer prompt digest-prompts@4 |
+| D78 | style | constructed: card sentences "Omnia Ibrahim proposed Apache Kafka 4.4.0 RC4." and "KIP-1349 moves snapshot frequency to bytes." | style {sentences 2, personLed 1}; summarizer prompt digest-prompts@5 |
 | D79 | coverage | constructed: the translation batch returns non-JSON twice | en and zh-Hant coverage identical; notTranslated equals the zh-Hant items marked Not translated |
 | D79 | coverage | constructed: a complete en with an incomplete zh-Hant, retried | a new pair with identical coverage; the pointer names both new objects |
 | D80 | rejections | constructed: a proposal call returns JSON cut off mid-string | rejections.unparsable 1; that line null |
@@ -1620,7 +1713,7 @@ synthetic; the others use values captured from Dev.
 | D94 | spend | constructed: a call that fits the cap once fails with a retryable error | no retry; limited true; spend equals the cap |
 | D94 | spend | constructed: 4 calls started together, each fitting the cap alone, 2 fitting together | 2 run; 2 skipped; limited true; spend within the cap |
 | D99 | translate | constructed: a card sentence "… (KAFKA-PR-n, open)." is translated with 已合併 in its parentheses | that item Not translated (English kept); rejections["translate:status-drift"] 1; not cached; the other items translated |
-| D100 | translate | constructed: Kafka profile with glossary kafka-glossary@1 | revisions.translator.prompt digest-prompts@4\|kafka-glossary@1; every translation prompt lists offloading → 卸載 |
+| D100 | translate | constructed: Kafka profile with glossary kafka-glossary@2 | revisions.translator.prompt digest-prompts@5\|kafka-glossary@2; every translation prompt lists offloading → 卸載 and 磁碟 not 磁盤 |
 <!-- test-plan:end -->
 
 **Slice 3: browser.** Case file
@@ -1827,7 +1920,7 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
 - D82: a response wrapped in a ```` ```json ```` fence, or with prose
   before or after the JSON, is parsed; two JSON values give the first; a
   response cut mid-JSON is `unparsable`.
-- D83: the summarizer prompt (`digest-prompts@3`, `@4` since D98) asks for content
+- D83: the summarizer prompt (`digest-prompts@3`, `@4` since D98, `@5` since D103) asks for content
   sentences that do not start with a bare id, and shows a literal JSON
   example; `style.contentFree` counts sentences per Behavior 9, and the
   second dry run's status lines count as content-free.
@@ -2039,7 +2132,8 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   responses offline and prints the Golden set metrics for the current
   revisions.
 - D34: [measure] before Prod shows the digest, `digest -- eval` on the
-  human's labels meets the thresholds the human sets (pending labels).
+  labeled week reports `gates.d34` pass: recall ≥ 0.8 under the D104 hit
+  rule (threshold decided by the owner 2026-10-24).
 - D35: [deploy] before the daily cron is enabled, Dev dry runs
   (`POST /digest/run?dryRun=1`) cover the checks below.
   - Precondition for adding `DIGEST_CRON` (revised in slice 2c, because
@@ -2195,7 +2289,8 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   open)" → "(KAFKA-1, 投票進行中)" is rejected. On all 48 Dev 2026-10-20 translations the guard rejects #6 and
   #40, the English row that D96's cache bug left in Chinese.
 - D100: the translation prompt lists the profile glossary, and the
-  translator revision is `digest-prompts@4|kafka-glossary@1` for Kafka.
+  translator revision is `digest-prompts@4|kafka-glossary@1` for Kafka
+  (`digest-prompts@5|kafka-glossary@2` since D103 and D106).
 - D101: `digest -- eval` counts labeled zh-Hant translations per class
   (`status-drift`, `term-error`, `omission`), runs the status guard on
   every labeled sentence with `zhHant`, and reports "pending human labels"
@@ -2205,6 +2300,29 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   the translation thresholds: `status-drift` 0, `omission` 0, `term-error`
   at most 2 per labeled week (decided by the owner 2026-10-20; a labels
   file's `thresholds` may override them per class).
+- D103: the summarizer and highlights prompts carry importance rubric v2
+  (user impact, architecture, direction; not tests, refactors, docs,
+  dependency bumps, CI, small internal fixes, ordinary bug fixes,
+  backports or cherry-picks) and ask to spend sentences and highlights on
+  the most important threads. The prompt revision is `digest-prompts@5`.
+- D104: `digest -- eval` counts an important thread as a D34 hit when it
+  is in any card position, a KIP row, a highlight, or the headline;
+  reports `importance` (`labeled`, `hits`, `recall`, `threshold` 0.8,
+  `pass`, `routine`, `uncategorized`, `missed`) and `gates.d34`; 0.8 is a
+  pass and below is a fail; no labels is "pending human labels".
+- D105: a non-routine thread whose effective topic is `other` takes the
+  title rules' topic; only a thread neither places is in Uncategorized; a
+  confident model topic and routine placement are unchanged.
+- D106: the translation prompt lists glossary `kafka-glossary@2` (Kafka
+  terms kept in English, rotation → 輪替) and the Taiwan wording list; the
+  translator revision is `digest-prompts@5|kafka-glossary@2`.
+- D107: `digest -- eval` flags glossary violations on every sentence with
+  `zhHant`: Dev 2026-10-23 #29 (代理), #28 (旋轉), #17 (名稱組), and #10
+  (磁盤) are flagged; #1 (Copartition) and a translation that keeps the
+  terms are not.
+- D108: the status guard also rejects a translation that turns "is
+  proposed" into 將提出 or drops "backport" (Dev 2026-10-23 #20 and #2);
+  "would be proposed" → 將提出 and a translation keeping "backport" pass.
 
 ## Slices
 
@@ -2445,8 +2563,9 @@ is the dry run of decision 5, on a UTC day with no other digest run.
 
 ## Open questions
 
-1. Golden-set thresholds (D34): for example, recall ≥ 0.8 of important
-   threads in visible card slots and 0 important threads in routine.
+1. Decided 2026-10-24: D34 passes at recall ≥ 0.8 of important threads
+   (rubric v2) shown anywhere in the digest (D104). Important threads in
+   routine and Uncategorized are reported, not gated.
 2. Summarizer model: llama-3.3-70b, the current choice (about 920
    neurons cold for cards, rows, and highlights), against qwen3-30b-a3b
    (about 6x cheaper; JSON mode unconfirmed). Decide on the golden set. The
@@ -2562,3 +2681,34 @@ is `tense:gets`). The owner approved the D102 thresholds as final on
 2026-10-20. The verifier's precision fixes (D97 state words, modal clauses,
 now-verb list; D99 longest-match zh-Hant words, `under vote`) leave these
 numbers unchanged.
+
+Owner decisions, 2026-10-24 (importance rubric v2, D34 hit rule, glossary
+v2; D103–D108). The Dev 2026-10-23 week's eval found D34 recall 29/220:
+"important" was undefined, so the labeler used a broad rubric, and only
+each card's first 5 threads counted (47 slots). D102 failed: status-drift
+1, omission 2, term-error 6. Decided: rubric v2 defines an important thread
+(Golden set and evaluation); a hit is a thread shown anywhere (D104);
+D34 passes at recall ≥ 0.8 (open question 1); a Kafka glossary with Taiwan
+wording (D106) and an automatic glossary check (D107); backports are not
+important. The fix for threads sent to Uncategorized is the title-rules
+fallback (D105); the status guard catches "are proposed" → 將提出 and a
+dropped backport (D108).
+
+Eval line, Dev week 2026-10-16..23 (fixture of release
+2026-10-23T22-07-32-254Z, recorded responses `dev-2026-10-24` = the
+published digest, labels `golden-2026-10-23 rubric@2-claude`: 30 important
+threads labeled independently by the rubric; neither the labels nor the
+prompts were tuned to each other):
+
+| Run | D34 hits (D104) | First-5 rule | Important in routine / Uncategorized | Uncategorized | D102 labeled (drift / term / omission) | Status guard rejects | Glossary flags |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Before (published digest, `digest-prompts@4`) | 26/30 = 0.87, pass | 10/30 | 1 / 9 | 163 of 489 | 1 / 6 / 2, fail | 0 (D99 only); 2 with D108 (#20, #2) | 14 of 46 sentences, 19 violations: broker 3, controller 3, 鏡像 3, named group 2, 數據 2, backport, offset, partition, topic, rotation, 磁盤 1 each |
+| After D105 only (same recorded responses) | 27/30 = 0.90, pass | 10/30 | 1 / 6 | 114 of 489 | unchanged (no new translations) | 2 | unchanged |
+
+The prompt changes (D103, D106) need a real-model run, which needs the
+Dev Worker's Workers AI binding: the next Dev cron after deploy is their
+measurement (D34 and D102 relabeled on that week). The rubric adds about
+105 estimated neurons to the hand-2026-10-08 week (`bun run digest --
+measure`: cold 1,599 → 1,704, steady 1,233 → 1,338); the prompt revision
+bump makes the next Dev run re-generate sentences and translations, as
+D98 did, within the 5,000 cap (D91).

@@ -26,6 +26,9 @@ import {
   contentFree,
   SUMMARIZE_PROMPT,
   HIGHLIGHTS_PROMPT,
+  IMPORTANCE_RUBRIC,
+  glossaryViolations,
+  translatorPromptRevision,
   TRANSLATE_PROMPT,
   TRANSLATION_STATUS,
   translatePrompt,
@@ -171,7 +174,27 @@ function statusGuard(english: string, zh: string): string {
   if (drift === null) return "translated";
   return drift.status === null
     ? `English text kept, label Not translated (${drift.found} has no English status)`
-    : `English text kept, label Not translated (${drift.status}: ${TRANSLATION_STATUS[drift.status]![0]} missing; found ${drift.found ?? "none"})`;
+    : `English text kept, label Not translated (${drift.status}: ${drift.expected ?? TRANSLATION_STATUS[drift.status]![0]} missing; found ${drift.found ?? "none"})`;
+}
+
+/** "a, b, and c". */
+function series(items: readonly string[]): string {
+  return items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")}, and ${items.at(-1)}`;
+}
+
+/** D105: where mixing puts one thread with the given model features. */
+function mixedPlace(title: string, feature: ThreadFeatures, id = "KAFKA-PR-1"): string {
+  const mixed = mix([made(id, title, { source: id.includes("-MAIL-") ? "mail" : "github" })], new Map([[id, feature]]), KAFKA);
+  if (mixed.routine.length > 0) return "routine section";
+  if (mixed.uncategorized.length > 0) return "Uncategorized (no rule names a topic)";
+  return `${mixed.cards[0]!.topic} card${placement(feature).topic === "other" ? " (title rules)" : ""}`;
+}
+
+/** D107: the glossary check on one translation. */
+function glossaryCheck(english: string, zh: string): string {
+  const found = glossaryViolations(english, zh, KAFKA.glossary!);
+  return found.length === 0 ? "not flagged"
+    : `flagged: ${found.map((item) => item.expected === item.term ? `${item.term} (kept in English)` : `${item.term} → ${item.expected}`).join(", ")}`;
 }
 
 type CaseRow = (typeof testPlanRows)[number];
@@ -341,10 +364,10 @@ const cases: Record<string, Case> = {
     const summary = examples[0] as { sentences?: { text: string }[] } | undefined;
     const highlights = examples[1] as { headline?: unknown; highlights?: unknown[] } | undefined;
     const example = summary?.sentences?.[0]?.text ?? "";
-    const ok = PROMPT_REVISION === "digest-prompts@4" && example !== "" && !contentFree(example) && !/^[A-Z]+-\d/u.test(example)
+    const ok = PROMPT_REVISION === "digest-prompts@5" && example !== "" && !contentFree(example) && !/^[A-Z]+-\d/u.test(example)
       && highlights?.headline !== undefined && Array.isArray(highlights.highlights)
       && /bare status line/u.test(SUMMARIZE_PROMPT) && /do not start a sentence with an id/u.test(SUMMARIZE_PROMPT);
-    return ok ? "digest-prompts@4; both JSON examples parse; the summarizer forbids bare status lines and leading ids" : PROMPT_REVISION;
+    return ok ? "digest-prompts@5; both JSON examples parse; the summarizer forbids bare status lines and leading ids" : PROMPT_REVISION;
   },
   "status tense|Dev 2026-10-20 #6: \"Admin client types for Cluster Mirroring feature are added (KAFKA-PR-23829, closed).\" cites KAFKA-PR-23829 (closed unmerged, \"KAFKA-21226: Add Admin client types\")": () =>
     tense("Admin client types for Cluster Mirroring feature are added (KAFKA-PR-23829, closed).", [PR("closed", "KAFKA-21226: Add Admin client types")]),
@@ -446,7 +469,8 @@ const cases: Record<string, Case> = {
     const devNumber: Record<string, string> = { "card:clients": "#6", "card:kraft": "#11", "card:streams": "#13", "proposal:KIP-1322": "#30", "proposal:KIP-891": "#38" };
     const total = (run: ReturnType<typeof replay>) => run.kept.length + run.rejected.length;
     if (total(hand) !== 37 || total(dev) !== 45) return `totals ${total(hand)} ${total(dev)}`;
-    return `hand: ${drops(hand, (where, text) => (where === "headline" ? `(headline "${text.slice(0, 17)} …")` : where)).map((item) => item.replace("tense:gets (", "tense:gets 1 (")).join(", ")}; Dev: ${drops(dev, (where) => devNumber[where] ?? where).join(", ")}`;
+    return `hand: ${drops(hand, (where, text) => (where === "headline" ? `(headline "${text.slice(0, 17)} …")` : where)).map((item) => item.replace("tense:gets (", "tense:gets 1 (")).join(", ")}; Dev: ${drops(dev, (where) => devNumber[where] ?? where)
+      .sort((a, b) => Number(a.split("#")[1]) - Number(b.split("#")[1])).join(", ")}`;
   },
   "translate status|constructed: \"KIP-1 would add a metric (KIP-1, voting).\" translated as \"KIP-1 將新增指標（KIP-1，投票進行中）。\"": () =>
     `${statusGuard("KIP-1 would add a metric (KIP-1, voting).", "KIP-1 將新增指標（KIP-1，投票進行中）。")} (longest match: 投票進行中 is voting, not open)`,
@@ -829,6 +853,64 @@ const cases: Record<string, Case> = {
     const feature = rulesClassify({ title: "Please add the ci-approved label to the docs PR" }, KAFKA);
     return `${placed(feature)}${placement(feature).routine ? "" : ", not routine"}`;
   },
+  // D103
+  "prompt|summarizer and highlights prompts (importance rubric v2)": () => {
+    const [important = "", excluded = ""] = IMPORTANCE_RUBRIC.split("Not important:");
+    const both = [SUMMARIZE_PROMPT, HIGHLIGHTS_PROMPT].every((prompt) => prompt.includes(IMPORTANCE_RUBRIC));
+    const named = ["user impact", "architecture", "direction"].filter((word) => both && important.includes(word));
+    const not = ["tests", "refactors", "docs", "dependency bumps", "CI", "small internal fixes", "ordinary bug fixes", "backports or cherry-picks"]
+      .filter((word) => both && excluded.includes(word) && !important.includes(word));
+    return `both name ${series(named)} as important, and ${series(not)} as not important`;
+  },
+  // D105
+  "uncategorized fallback|Dev 2026-10-23: \"KAFKA-20402: Support broker-side consumer group rebalance callback (KIP-1314)\" with model topic other": () =>
+    mixedPlace("KAFKA-20402: Support broker-side consumer group rebalance callback (KIP-1314)", features("other", 0.9, false, 0.9)),
+  "uncategorized fallback|Dev 2026-10-23: \"KAFKA-20528: Verify LZ4 frame content checksum on the read path\" with model topic storage at topicConfidence 0.2": () =>
+    mixedPlace("KAFKA-20528: Verify LZ4 frame content checksum on the read path", features("storage", 0.2, false, 0.9)),
+  "uncategorized fallback|Dev 2026-10-23: \"Started on work\" with model topic other": () => mixedPlace("Started on work", features("other", 0.9, false, 0.9)),
+  "uncategorized fallback|Dev 2026-10-23: \"[VOTE] KIP-1308: Extend Header API for Common Value Types\" with model topic other": () => {
+    const title = "[VOTE] KIP-1308: Extend Header API for Common Value Types";
+    const rows = proposalRows([made("KAFKA-MAIL-3ad5e384", title, { source: "mail" })], KAFKA);
+    const row = rows.find((item) => item.key === "KIP-1308" && item.cites.includes("KAFKA-MAIL-3ad5e384"));
+    return `${mixedPlace(title, features("other", 0.9, false, 0.9), "KAFKA-MAIL-3ad5e384")}${row === undefined ? "" : "; still in the KIP-1308 row"}`;
+  },
+  "uncategorized fallback|constructed: \"Support broker-side consumer group rebalance callback\" with model topic security at topicConfidence 0.35": () =>
+    `${mixedPlace("Support broker-side consumer group rebalance callback", features("security", 0.35, false, 0.9))}`.replace(" card", " card (a confident model topic wins)"),
+  "uncategorized fallback|constructed: \"Support broker-side consumer group rebalance callback\" with model routine at routineConfidence 0.6": () =>
+    `${mixedPlace("Support broker-side consumer group rebalance callback", features("other", 0.9, true, 0.6))} (routine is unchanged)`,
+  // D106
+  "prompt|translation prompt for the Kafka profile (glossary v2)": () => {
+    const prompt = translatePrompt(KAFKA);
+    const terms = KAFKA.glossary?.terms ?? [];
+    const kept = terms.filter(([en, zh]) => en === zh && prompt.includes(`${en} → ${zh}`)).map(([en]) => en);
+    const rotation = terms.some(([en, zh]) => en === "rotation" && zh === "輪替" && prompt.includes("rotation → 輪替")) ? "rotation → 輪替" : "rotation missing";
+    const taiwan = (KAFKA.glossary?.avoid ?? []).filter(([bad, good]) => prompt.includes(`${good} not ${bad}`)).map(([bad, good]) => `${good} not ${bad}`);
+    return `kept in English: ${kept.join(", ")}; ${rotation}; Taiwan wording ${taiwan.join(", ")}; translator revision ${translatorPromptRevision(KAFKA)}`;
+  },
+  // D107
+  "glossary check|Dev 2026-10-23 #29: \"Brokers would support client configuration observability (KIP-1324, proposed).\" translated as \"代理將支援客戶端設定的可觀察性 (KIP-1324, 已提出)。\"": () =>
+    glossaryCheck("Brokers would support client configuration observability (KIP-1324, proposed).", "代理將支援客戶端設定的可觀察性 (KIP-1324, 已提出)。"),
+  "glossary check|Dev 2026-10-23 #28: \"SslEngineFactory contract would allow dynamic SSL material rotation (KIP-1288, proposed).\" translated as \"SslEngineFactory 合約會允許動態 SSL 材料旋轉 (KIP-1288, 已提出)。\"": () =>
+    glossaryCheck("SslEngineFactory contract would allow dynamic SSL material rotation (KIP-1288, proposed).", "SslEngineFactory 合約會允許動態 SSL 材料旋轉 (KIP-1288, 已提出)。"),
+  "glossary check|Dev 2026-10-23 #17: \"Kafka would support setting TLS named groups (KIP-1376, discussing).\" translated as \"Kafka 會支援設定 TLS 名稱組 (KIP-1376, 討論中)。\"": () =>
+    glossaryCheck("Kafka would support setting TLS named groups (KIP-1376, discussing).", "Kafka 會支援設定 TLS 名稱組 (KIP-1376, 討論中)。"),
+  "glossary check|Dev 2026-10-23 #10: \"Offline log directory on disk error in zero-copy Fetch path is fixed (KAFKA-16304, merged).\" translated as \"零複製 Fetch 路徑中磁盤離線日誌目錄錯誤已修復 (KAFKA-16304, 已合併)。\"": () =>
+    glossaryCheck("Offline log directory on disk error in zero-copy Fetch path is fixed (KAFKA-16304, merged).", "零複製 Fetch 路徑中磁盤離線日誌目錄錯誤已修復 (KAFKA-16304, 已合併)。"),
+  "glossary check|Dev 2026-10-23 #1: \"Copartition groups and indexes would get sorted for consistent Streams topology comparison (KAFKA-21302, open).\" translated as \"共分區群組和索引將根據一致的Streams拓撲比較進行排序（KAFKA-21302，仍在進行）\"": () =>
+    `${glossaryCheck("Copartition groups and indexes would get sorted for consistent Streams topology comparison (KAFKA-21302, open).", "共分區群組和索引將根據一致的Streams拓撲比較進行排序（KAFKA-21302，仍在進行）")} (Copartition is not the word partition)`,
+  "glossary check|constructed: \"Brokers would rotate SSL material (KIP-1, proposed).\" translated as \"Broker 將輪替 SSL 材料 (KIP-1, 已提出)。\"": () =>
+    glossaryCheck("Brokers would rotate SSL material (KIP-1, proposed).", "Broker 將輪替 SSL 材料 (KIP-1, 已提出)。"),
+  "glossary check|constructed: \"A Docker image for system tests is proposed (KIP-1, discussing).\" translated as \"系統測試的 Docker 鏡像已提出 (KIP-1, 討論中)。\"": () =>
+    glossaryCheck("A Docker image for system tests is proposed (KIP-1, discussing).", "系統測試的 Docker 鏡像已提出 (KIP-1, 討論中)。"),
+  // D108
+  "translate status|Dev 2026-10-23 #20: \"Per-client-id remote fetch metrics are proposed (KAFKA-PR-23463, open).\" translated as \"將提出針對每個客戶端 ID 的遠端 Fetch 指標（KAFKA-PR-23463，仍在進行）\"": () =>
+    statusGuard("Per-client-id remote fetch metrics are proposed (KAFKA-PR-23463, open).", "將提出針對每個客戶端 ID 的遠端 Fetch 指標（KAFKA-PR-23463，仍在進行）"),
+  "translate status|Dev 2026-10-23 #2: \"The fix for KAFKA-21302 is proposed to be backported (KAFKA-PR-23855, open).\" translated as \"修正 KAFKA-21302 已提出 (KAFKA-PR-23855, 仍在進行)。\"": () =>
+    statusGuard("The fix for KAFKA-21302 is proposed to be backported (KAFKA-PR-23855, open).", "修正 KAFKA-21302 已提出 (KAFKA-PR-23855, 仍在進行)。"),
+  "translate status|constructed: \"The fix for KAFKA-1 is proposed to be backported (KAFKA-PR-1, open).\" translated as \"KAFKA-1 的修正已提出 backport (KAFKA-PR-1, 仍在進行)。\"": () =>
+    statusGuard("The fix for KAFKA-1 is proposed to be backported (KAFKA-PR-1, open).", "KAFKA-1 的修正已提出 backport (KAFKA-PR-1, 仍在進行)。"),
+  "translate status|constructed: \"A metric would be proposed (KAFKA-PR-1, open).\" translated as \"將提出一項指標 (KAFKA-PR-1, 仍在進行)。\"": () =>
+    `${statusGuard("A metric would be proposed (KAFKA-PR-1, open).", "將提出一項指標 (KAFKA-PR-1, 仍在進行)。")} (the English does not say is proposed)`,
 };
 
 describe("Spec 014 slice 1 test plan", () => {
@@ -886,6 +968,7 @@ describe("Spec 014 offline eval and measure", () => {
       labeled: 0, byClass: { "status-drift": 0, "term-error": 0, omission: 0 },
       guard: { checked: 0, rejected: 0, labeledStatusDrift: 0, labeledStatusDriftCaught: 0 },
       thresholds: { "status-drift": 0, "term-error": 2, omission: 0 }, meetsThresholds: "pending human labels",
+      glossary: { checked: 0, flagged: 0, byTerm: {}, items: [] },
     });
     // Dev 2026-10-20 (draft golden labels #6, #16, #22, #43, #2) plus one sentence with no translation label.
     const week = [
@@ -913,6 +996,53 @@ describe("Spec 014 offline eval and measure", () => {
     expect(evaluate(fixture, recorded, { ...labels, sentences: [...terms, terms[0]!] }, KAFKA).translation.meetsThresholds).toBe(false);
     // A labels file may override a D102 threshold.
     expect(evaluate(fixture, recorded, { ...labels, sentences: [...terms, terms[0]!], thresholds: { "term-error": 3 } }, KAFKA).translation.meetsThresholds).toBe(true);
+  });
+
+  test("D104: an important thread is a D34 hit in any card position, a KIP row, or a highlight; recall >= 0.8 passes", () => {
+    const run = replay(fixture, recorded, KAFKA);
+    const inCards = new Set(run.cards.flatMap((card) => card.threads));
+    const top5 = run.cards[0]!.threads[0]!;
+    const beyondTop5 = run.cards.find((card) => card.threads.length > 5)!.threads[5]!;
+    const rowOnly = run.proposals.flatMap((row) => row.cites).find((id) => !inCards.has(id))!;
+    const highlighted = run.highlights.highlights.flatMap((item) => item.body.cites).find((id) => id !== rowOnly)!;
+    const shown = new Set([...inCards, ...run.proposals.flatMap((row) => row.cites), ...run.highlights.highlights.flatMap((item) => item.body.cites), ...(run.headline?.cites ?? [])]);
+    const routine = run.routine.find((id) => !shown.has(id))!;
+    const uncategorized = run.uncategorized.find((id) => !shown.has(id))!;
+    expect([top5, beyondTop5, rowOnly, highlighted, routine, uncategorized].every((id) => typeof id === "string")).toBe(true);
+    const at = (important: string[]) => evaluate(fixture, recorded, { ...labels, important }, KAFKA);
+    // 3 of 5: a card thread beyond the first 5, a KIP-row-only thread, and a highlight are hits; routine and Uncategorized are not.
+    const below = at([beyondTop5, rowOnly, highlighted, routine, uncategorized]);
+    expect(below.importance).toEqual({
+      labeled: 5, hits: 3, recall: 0.6, threshold: 0.8, pass: false,
+      // The KIP-row-only thread is a hit but is also placed in routine.
+      routine: 2, uncategorized: 1, missed: [routine, uncategorized],
+    });
+    expect(below.recall).toBe("3/5");
+    expect(below.gates.d34).toBe("fail");
+    // Boundary: 4 of 5 is exactly 0.8 and passes.
+    const boundary = at([top5, beyondTop5, rowOnly, highlighted, routine]);
+    expect(boundary.importance.recall).toBe(0.8);
+    expect(boundary.importance.pass).toBe(true);
+    expect(boundary.gates.d34).toBe("pass");
+    // No labels: pending, never pass.
+    expect(at([]).importance.pass).toBe("pending human labels");
+    expect(at([]).gates.d34).toBe("pending human labels");
+  });
+
+  test("D107: eval flags glossary violations on every zh-Hant sentence without needing labels", () => {
+    const week = [
+      { n: 29, where: "proposal:KIP-1324", text: "Brokers would support client configuration observability (KIP-1324, proposed).", zhHant: "代理將支援客戶端設定的可觀察性 (KIP-1324, 已提出)。" },
+      { n: 28, where: "proposal:KIP-1288", text: "SslEngineFactory contract would allow dynamic SSL material rotation (KIP-1288, proposed).", zhHant: "SslEngineFactory 合約會允許動態 SSL 材料旋轉 (KIP-1288, 已提出)。", translationErrors: ["term-error"] },
+      { n: 10, where: "card:storage", text: "Offline log directory on disk error in zero-copy Fetch path is fixed (KAFKA-16304, merged).", zhHant: "零複製 Fetch 路徑中磁盤離線日誌目錄錯誤已修復 (KAFKA-16304, 已合併)。" },
+      { n: 5, where: "card:security", text: "Brokers would rotate SSL material (KIP-1, proposed).", zhHant: "Broker 將輪替 SSL 材料 (KIP-1, 已提出)。" },
+    ] as const;
+    const report = evaluate(fixture, recorded, { ...labels, sentences: week }, KAFKA).translation.glossary;
+    expect(report).toEqual({
+      checked: 4, flagged: 3, byTerm: { broker: 1, rotation: 1, 磁盤: 1 },
+      items: [{ n: 29, term: "broker", expected: "broker" }, { n: 28, term: "rotation", expected: "輪替" }, { n: 10, term: "磁盤", expected: "磁碟" }],
+    });
+    // Positive control: no zh-Hant text, nothing checked.
+    expect(evaluate(fixture, recorded, labels, KAFKA).translation.glossary).toEqual({ checked: 0, flagged: 0, byTerm: {}, items: [] });
   });
 
   test("D25: a cold run estimates at most 4,500 neurons and a steady run at most 2,000", () => {
