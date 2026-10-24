@@ -2254,6 +2254,12 @@ high-confidence ones carry `"not-spot-checked"`. The enable PR stays a
 draft until no verdict is `pending`, and fails the gate if any is
 "different".
 
+Owner spot-check, 2026-10-24: of the 13, 4 "same" (m1a2st among them)
+and 9 "unknown", none "different". "Unknown" means the owner does not know
+the person, not a doubt about the link; those links pass on the
+issue-assignment evidence (each GitHub author's own pull requests name
+Jira issues assigned to the paired account).
+
 ### Flags and order
 
 | Step | Change | Expected | Stop / roll back |
