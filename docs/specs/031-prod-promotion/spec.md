@@ -1,4 +1,4 @@
-# Spec 030: Prod promotion as a checked pipeline stage
+# Spec 031: Prod promotion as a checked pipeline stage
 
 Status: Draft (owner intent 2026-10-24: encode Prod promotion and the workflow itself as checked artifacts; OD1–OD6 open)
 Date: 2026-10-24
@@ -50,6 +50,13 @@ apps/data-publisher-worker/wrangler.production.jsonc` shows two changes:
 | --- | --- | --- | --- |
 | `observability {enabled: true, head_sampling_rate: 1}` (#99, Workers Logs) | `workers-logs` (no user-visible change; declared cost delta $0, to be measured in slice 1) | ci pass; budget: tripped, but delta $0 passes under OD6 (a) | ready |
 | `SRE_AGENT: "off"` (#128) | `sre-agent` | value is in the manifest's `offValues` → no runtime change, not evaluated | n/a |
+
+**Deploy windows vs crons.** The documented Dev windows (21:50–23:05,
+02:05–02:30, 03:30–03:55, 10:10–10:30 UTC) miss Dev's
+`IDENTITY_BACKFILL_CRON` `23 1 * * *` (01:23 UTC, enabled by #140). The
+owner's own loop already avoids 01:20–01:30, so the real list exists only in
+someone's head. With Behavior 6 the windows test fails on this cron until
+`deploy-windows.json` gains `01:20–01:30`.
 
 Release gates: window — 00:40 is outside every window → pass. Verdict:
 **ready** (the tag itself still needs the owner under OD1).
