@@ -43,13 +43,27 @@ export const KAFKA_DIGEST_PROFILE: DigestProfile = {
     ],
     quorumNote: "proposal.apache-kafka.quorumNote",
   },
-  // D100: terms the 2026-10-20 Dev output mistranslated (offloading → 遷移, telemetry → 儀表板), plus
-  // Kafka terms that must stay stable.
+  // D100: terms the 2026-10-20 Dev output mistranslated (offloading → 遷移, telemetry → 儀表板).
+  // D106 (owner 2026-10-24): Kafka terms stay in English (Broker → 代理 and TLS named groups → 名稱組 on
+  // Dev 2026-10-23), rotation → 輪替 (旋轉), and Taiwan wording instead of mainland terms (鏡像, 磁盤).
   glossary: {
-    revision: "kafka-glossary@1",
+    revision: "kafka-glossary@2",
     terms: [
-      ["offloading", "卸載"], ["telemetry", "遙測"], ["assignor", "指派器"], ["share group", "share group"],
-      ["rebalance", "再平衡"], ["KRaft", "KRaft"],
+      ["offloading", "卸載"], ["telemetry", "遙測"], ["assignor", "指派器"], ["rebalance", "再平衡"], ["rotation", "輪替"],
+      ...([
+        "broker", "controller", "KRaft", "consumer group", "share group", "streams group", "partition", "offset", "topic",
+        "named group", "backport", "cherry-pick",
+      ] as const).map((term) => [term, term] as const),
+      ["mirroring", "鏡像"],
+    ],
+    avoid: [
+      // Context-limited where the word is also Taiwan usage: 鏡像 (mirroring), 消息 (news), 數據 (numbers),
+      // 創建 (founding), 質量 (mass). 代碼 is left out: 錯誤代碼 (error code) is Taiwan usage.
+      ["鏡像", "映像檔", ["image"]], ["磁盤", "磁碟"], ["默認", "預設"], ["服務器", "伺服器"],
+      ["數據", "資料", ["data", "metadata"]], ["信息", "資訊"], ["線程", "執行緒"], ["內存", "記憶體"], ["網絡", "網路"],
+      ["消息", "訊息", ["message"]], ["調用", "呼叫"], ["接口", "介面"], ["異步", "非同步"], ["緩存", "快取"],
+      ["軟件", "軟體"], ["集群", "叢集"], ["創建", "建立", ["create", "created", "creating", "creation"]], ["字段", "欄位"],
+      ["模塊", "模組"], ["質量", "品質", ["quality"]],
     ],
   },
 };

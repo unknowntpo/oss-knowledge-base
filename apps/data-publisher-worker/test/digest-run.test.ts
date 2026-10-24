@@ -513,7 +513,9 @@ const cases: Record<string, () => Promise<string>> = {
       ? "no model call; limited true; rules features and fallback cards" : `${model.calls.length}`;
   },
   "recovery|constructed: an en with a model fallback (a card's summary failed) for the same release": async () => {
-    const { bucket, result } = await published(new FakeModel((kind, index) => (kind === "summarize" && index < 2 ? new Error("down") : undefined)));
+    // The text-model classifier of this constructed run plus two charged failures reach about 4,800
+    // estimated neurons since digest-prompts@5 (D103); a higher cap keeps this row about fallbacks, not the cap.
+    const { bucket, result } = await published(new FakeModel((kind, index) => (kind === "summarize" && index < 2 ? new Error("down") : undefined)), { cap: 10_000 });
     const { en } = await objects(bucket, result);
     const retry = await runDigest(input(bucket, { model: new FakeModel() }));
     return en.coverage.fallbacks > 0 && !en.coverage.limited && retry.reused === "none" && retry.objectKeys!.en !== result.objectKeys!.en
@@ -564,12 +566,12 @@ const cases: Record<string, () => Promise<string>> = {
       ? "that item Not translated (English kept); rejections[\"translate:status-drift\"] 1; not cached; the other items translated"
       : JSON.stringify({ item, rejections: result.rejections });
   },
-  "translate|constructed: Kafka profile with glossary kafka-glossary@1": async () => {
+  "translate|constructed: Kafka profile with glossary kafka-glossary@2": async () => {
     const model = new FakeModel();
     const { bucket, result } = await published(model);
     const { zh } = await objects(bucket, result);
     const prompts = model.prompts.filter((prompt) => kindOf(prompt) === "translate");
-    return `revisions.translator.prompt ${zh.revisions.translator.prompt}; ${prompts.length > 0 && prompts.every((prompt) => prompt.includes("offloading → 卸載")) ? "every translation prompt lists offloading → 卸載" : "glossary missing"}`;
+    return `revisions.translator.prompt ${zh.revisions.translator.prompt}; ${prompts.length > 0 && prompts.every((prompt) => prompt.includes("offloading → 卸載") && prompt.includes("磁碟 not 磁盤")) ? "every translation prompt lists offloading → 卸載 and 磁碟 not 磁盤" : "glossary missing"}`;
   },
   "highlights|constructed: one highlight cites a thread that no kept sentence cites": async () => {
     const model = new FakeModel();

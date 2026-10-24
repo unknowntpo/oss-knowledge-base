@@ -100,7 +100,7 @@ export const testPlanRows = [
   { id: "D74", rule: "call order", input: "constructed: captured week with a Clef cap of 3 requests", expected: "3 Clef requests; the other threads get rules features; limited true" },
   { id: "D75", rule: "bounds", input: "constructed: the max_tokens of each call kind in a cold run", expected: "card 500, proposal 160, highlights 800, translation 4000" },
   { id: "D75", rule: "bounds", input: "captured week, cold run with Clef", expected: "1 translation call for every item; its prompt ends with /no_think" },
-  { id: "D78", rule: "style", input: "constructed: card sentences \"Omnia Ibrahim proposed Apache Kafka 4.4.0 RC4.\" and \"KIP-1349 moves snapshot frequency to bytes.\"", expected: "style {sentences 2, personLed 1}; summarizer prompt digest-prompts@4" },
+  { id: "D78", rule: "style", input: "constructed: card sentences \"Omnia Ibrahim proposed Apache Kafka 4.4.0 RC4.\" and \"KIP-1349 moves snapshot frequency to bytes.\"", expected: "style {sentences 2, personLed 1}; summarizer prompt digest-prompts@5" },
   { id: "D79", rule: "coverage", input: "constructed: the translation batch returns non-JSON twice", expected: "en and zh-Hant coverage identical; notTranslated equals the zh-Hant items marked Not translated" },
   { id: "D79", rule: "coverage", input: "constructed: a complete en with an incomplete zh-Hant, retried", expected: "a new pair with identical coverage; the pointer names both new objects" },
   { id: "D80", rule: "rejections", input: "constructed: a proposal call returns JSON cut off mid-string", expected: "rejections.unparsable 1; that line null" },
@@ -144,5 +144,5 @@ export const testPlanRows = [
   // D99: a translation that changes the status word of the English parentheses is not used.
   { id: "D99", rule: "translate", input: "constructed: a card sentence \"… (KAFKA-PR-n, open).\" is translated with 已合併 in its parentheses", expected: "that item Not translated (English kept); rejections[\"translate:status-drift\"] 1; not cached; the other items translated" },
   // D100: the translator prompt carries the profile glossary, and its revision is in the translator revision.
-  { id: "D100", rule: "translate", input: "constructed: Kafka profile with glossary kafka-glossary@1", expected: "revisions.translator.prompt digest-prompts@4|kafka-glossary@1; every translation prompt lists offloading → 卸載" },
+  { id: "D100", rule: "translate", input: "constructed: Kafka profile with glossary kafka-glossary@2", expected: "revisions.translator.prompt digest-prompts@5|kafka-glossary@2; every translation prompt lists offloading → 卸載 and 磁碟 not 磁盤" },
 ] as const;
