@@ -1102,11 +1102,20 @@ Prod publication's retries (until about 00:30), of the `sre-agent` ticks
 1. After `complete`: `POST /identity-links/run?dryRun=1&backfill=1&blind=1`
    (bearer). It reads the store while `IDENTITY_LINKS_BACKFILL` is unset,
    writes nothing, and answers `precision` and
-   `lastRun.inputs.backfill.months` (11). The gate: `precision.contradict` 0
-   and no labelled link "different" (amendment (7)'s gate); offline,
+   `lastRun.inputs.backfill.months` (11). The gate: `precision.contradict` 0,
+   every committer `unlabelled` component and every link to label in the
+   committed labelled sample with an owner verdict, and none "different"
+   (amendment (7)'s gate as amended 2026-10-24). A committer `unlabelled`
+   component labelled "same" by the owner counts as resolved, so
+   `precision.pass` (the automated part only) may read false while the gate
+   passes. Offline,
    `bun run measure:identity-links -- --from 2026-06-10 --to 2026-09-09`.
+   Reading of 2026-10-24: 80 links, 14 agree, 0 contradict, 1 committer
+   `unlabelled` (`m1a2st` ↔ `JIRAUSER305187`, Jira name "Ken Huang"), 65 to
+   label; sample
+   `packages/reference-pipeline/test/fixtures/identity-links/labels-2026-10-24.json`.
 2. Only with the gate passed, a PR sets `IDENTITY_LINKS_BACKFILL=read` on
-   Dev. Then one `POST /identity-links/run` (never 21:50–23:05 UTC):
+   Dev (it stays a draft while any `ownerVerdict` is `pending`). Then one `POST /identity-links/run` (never 21:50–23:05 UTC):
    `identityLinks.lastRun.inputs.backfill.months` 11, `r2.classB` ≤ 17,
    and `github:m1a2st`'s profile links `jira-account:JIRAUSER305187` "Ken
    Huang" as corroborated with at least 3 keys (W131).

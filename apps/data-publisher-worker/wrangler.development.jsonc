@@ -37,7 +37,8 @@
     "R2_RETENTION": "dry-run",
     "RETENTION_CRON": "17 10 * * *",
     "IDENTITY_BACKFILL": "prs@1",
-    "IDENTITY_BACKFILL_CRON": "23 1 * * *"
+    "IDENTITY_BACKFILL_CRON": "23 1 * * *",
+    "IDENTITY_LINKS_BACKFILL": "read"
   },
   "ai": {
     "binding": "AI"
