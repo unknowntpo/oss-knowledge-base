@@ -55,6 +55,9 @@ function reviewRows(month: string, people: number): ReviewRow[] {
   rows.push({ reviewId: id + 90, pr: 20090, prAuthor: "author1", reviewer: "dependabot", isBot: false, state: "COMMENTED", submittedAt: at(2, 1), commit: null, inlineComments: 0 });
   rows.push({ reviewId: id + 91, pr: 20091, prAuthor: "author1", reviewer: "github-actions[bot]", isBot: true, state: "COMMENTED", submittedAt: at(3, 2), commit: null, inlineComments: 0 });
   rows.push({ reviewId: id + 92, pr: 20092, prAuthor: "author2", reviewer: "author2", isBot: false, state: "COMMENTED", submittedAt: at(4, 3), commit: null, inlineComments: 1 });
+  // W12 across months: GitHub typed `ci-runner` `Bot` in January only; its untyped review in February still counts for nobody.
+  if (month === "2026-01") rows.push({ reviewId: id + 93, pr: 20093, prAuthor: "author3", reviewer: "ci-runner", isBot: true, state: "COMMENTED", submittedAt: at(5, 4), commit: null, inlineComments: 0 });
+  if (month === "2026-02") rows.push({ reviewId: id + 93, pr: 20093, prAuthor: "author3", reviewer: "ci-runner", isBot: false, state: "COMMENTED", submittedAt: at(5, 4), commit: null, inlineComments: 0 });
   return rows;
 }
 

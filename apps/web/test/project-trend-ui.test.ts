@@ -56,6 +56,12 @@ const part = (html: string, from: string, to?: string) => {
 };
 
 describe("Spec 030: the compact card", () => {
+  test("PT5: 「至 M/D」 is the earlier of the stores' update and now, whichever comes first", async () => {
+    const full = await body();
+    const at = async (until: string) => inline(part(await card({ answer: { kind: "ok", body: { ...full, until } } }), "data-in-progress", "</text>"));
+    expect(await at("2026-10-25T01:00:00.000Z")).toContain("至 10/24");
+    expect(await at("2026-10-22T23:00:00.000Z")).toContain("至 10/22");
+  });
   test("PT5: 12 bars, the first and last month labels, the current month in progress to 10/24, and hatched lanes for the three activity series before 9/10", async () => {
     const html = await card({ answer: { kind: "ok", body: await body() } });
     expect(html).toContain('class="project-trend"');
