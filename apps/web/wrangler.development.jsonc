@@ -6,7 +6,8 @@
   "vars": {
     "PEOPLE_PROFILES": "true",
     "SEARCH_SEMANTIC": "rrf-group@2",
-    "PEOPLE_KIPS": "true"
+    "PEOPLE_KIPS": "true",
+    "PROJECT_TREND": "true"
   },
   "r2_buckets": [
     {

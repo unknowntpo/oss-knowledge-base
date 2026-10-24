@@ -1,7 +1,7 @@
 /**
  * Spec 030: `GET /api/activity?projectId=` (the project activity trend) and the digest header that
- * tells This week to show the card. Served only where `PROJECT_TREND` is "true" (unset in every
- * configuration until its enable PR, decision 6); elsewhere a 404 that reads nothing, and no header.
+ * tells This week to show the card. Served only where `PROJECT_TREND` is "true" (Dev only since its
+ * enable PR, decision 6; unset on Prod and in the local E2E configuration); elsewhere a 404 that reads nothing, and no header.
  * Every answer is `noindex`; a 200 is cached 5 minutes by clients, the reader keeps parsed months
  * 10 minutes per isolate (W29).
  */
