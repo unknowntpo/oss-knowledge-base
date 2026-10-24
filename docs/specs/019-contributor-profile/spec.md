@@ -1,6 +1,6 @@
 # Spec 019: Contributor profile
 
-Status: Partially implemented (accepted 2026-10-14, all nine owner decisions recorded; amended 2026-10-15): slice 1 is Spec 022; slices 2a, 2b, 3 and amendments (4) and (5) implemented (#74–#78, #81) and on Dev only (`PEOPLE_PROFILES=true`, `PEOPLE_ACTIVITY=log@1`), off on Prod; amendment (7) slices A–C (the identity-link job, the `kip-pages` job W93, W97–W100, W102, W105, W107, W108, W110, and the profile's KIPs section W74, W75, W80, W83, W87, W94–W96, W109, W111) implemented (#113–#117) and enabled on Dev by rollout steps 2 and 4 (`IDENTITY_LINKS=corroborated@1`, `KIP_PAGES=authors@1` with their crons, `PEOPLE_KIPS=true`; 2026-10-21), off on Prod (step 5, a separate owner approval); W90, W92, W106 are checked by the operator sequence after the Dev deploy; the rest of slices 4–7 not implemented; amendment (8) (2026-10-23, the identity-link backfill, W113–W131; all five owner decisions recorded 2026-10-23) implemented and merged off (W113–W127, W130 by tests; W128, W129 measured; `IDENTITY_BACKFILL`, `IDENTITY_BACKFILL_CRON` and `IDENTITY_LINKS_BACKFILL` unset on Dev and Prod, rollout step 1); W131 is checked after the Dev enable (rollout steps 2–5)
+Status: Partially implemented (accepted 2026-10-14, all nine owner decisions recorded; amended 2026-10-15): slice 1 is Spec 022; slices 2a, 2b, 3 and amendments (4) and (5) implemented (#74–#78, #81) and on Dev only (`PEOPLE_PROFILES=true`, `PEOPLE_ACTIVITY=log@1`), off on Prod; amendment (7) slices A–C (the identity-link job, the `kip-pages` job W93, W97–W100, W102, W105, W107, W108, W110, and the profile's KIPs section W74, W75, W80, W83, W87, W94–W96, W109, W111) implemented (#113–#117) and enabled on Dev by rollout steps 2 and 4 (`IDENTITY_LINKS=corroborated@1`, `KIP_PAGES=authors@1` with their crons, `PEOPLE_KIPS=true`; 2026-10-21), off on Prod (step 5, a separate owner approval); W90, W92, W106 are checked by the operator sequence after the Dev deploy; the rest of slices 4–7 not implemented; amendment (8) (2026-10-23, the identity-link backfill, W113–W131; five owner decisions recorded 2026-10-23, a sixth 2026-10-24) implemented and merged off (W113–W127, W130 by tests; W128, W129 measured; `IDENTITY_BACKFILL`, `IDENTITY_BACKFILL_CRON` and `IDENTITY_LINKS_BACKFILL` unset on Dev and Prod, rollout step 1); Dev runs the backfill (step 2, 2026-10-23); precision gate step 5 amended 2026-10-24 (owner decision 6) and `IDENTITY_LINKS_BACKFILL=read` set on Dev by the enable PR (steps 4 and 5), unset on Prod; W131 is checked after the Dev deploy
 Date: 2026-10-13 (decisions recorded 2026-10-14; amendment and decision 10 2026-10-15)
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 008 (content-addressed objects), Spec 009 (bounded memory), Spec 012 (dev@ and Jira), Spec 014 (digest profiles), Spec 015 (governance profile and ASF roster), Spec 016/017 (search, "exact matches first"), Spec 018 (daily publication)
@@ -1600,9 +1600,15 @@ any environment:
 4. **Label the rest.** Every other corroborated link joins the labelled
    sample of W16 (same / different / unknown, from public evidence, by the
    owner).
-5. **Gate.** `contradict` = 0, committer `unlabelled` = 0, and no labelled
-   link "different". Recall (committers with evidence who are not linked)
-   is reported, not gated.
+5. **Gate.** `contradict` = 0; every committer `unlabelled` component and
+   every link to label is in the committed labelled sample with an owner
+   verdict; and none is labelled "different". A committer `unlabelled`
+   component counts as resolved when the owner labels it "same" (owner
+   decision, 2026-10-24). Recall (committers with evidence who are not
+   linked) is reported, not gated. The job's `precision.pass` is only the
+   automated part (`contradict` 0 and committer `unlabelled` 0), so it
+   stays false while a committer component is unlabelled; the enable PR
+   checks the rest against the sample.
 6. **Measured twice.** Offline, from public upstream data only, by a
    committed command (`bun run measure:identity-links -- --from <date>
    --to <date>`; W89), and on Dev from the real inputs by
@@ -2208,7 +2214,9 @@ removed (rollout step 6).
 ### Precision gate before the reader flag
 
 Amendment (7)'s gate (truth set, blind run, classify, label, `contradict` =
-0, no labelled link "different") is run again on the 12-month window:
+0, every committer `unlabelled` and to-label link owner-labelled, none
+"different"; step 5 as amended 2026-10-24) is run again on the 12-month
+window:
 
 1. On Dev, after the backfill reports `complete`:
    `POST /identity-links/run?dryRun=1&backfill=1&blind=1`. No upstream
@@ -2223,6 +2231,29 @@ Amendment (7)'s gate (truth set, blind run, classify, label, `contradict` =
    3 and dominance 3 (`corroborated@1`) unless the gate fails; changing them
    is a new revision with its own check.
 
+Dev reading (2026-10-24 10:31 UTC, `?dryRun=1&backfill=1&blind=1`, log
+months 2026-09 and 2026-10 plus backfill months 2025-11 to 2026-09):
+80 corroborated links, 15 committers touched, 14 agree, 0 contradict,
+1 committer `unlabelled`, 65 links to label; recall 15 linked of 24
+committers with evidence; 17 Class B, 0 bytes written; `precision.pass`
+false (the one unlabelled committer).
+
+The unlabelled committer is `github:m1a2st` ↔ `jira-account:JIRAUSER305187`:
+the committers capture names m1a2st "Jiunn-Yang Huang" and Jira shows "Ken
+Huang" (his English name), so the name oracle cannot agree. It is the link
+W131 expects, and it joins the labelled sample with the 65.
+
+The labelled sample is
+`packages/reference-pipeline/test/fixtures/identity-links/labels-2026-10-24.json`:
+the 66 links, each labelled from public evidence (the GitHub profile name,
+and the assignee or reporter of the Jira issues named in the author's own
+pull-request titles), with a confidence and an `ownerVerdict`. All 66 are
+labelled "same". The 13 medium-confidence labels (m1a2st among them) carry
+`ownerVerdict: "pending"` until the owner spot-checks them; the 53
+high-confidence ones carry `"not-spot-checked"`. The enable PR stays a
+draft until no verdict is `pending`, and fails the gate if any is
+"different".
+
 ### Flags and order
 
 | Step | Change | Expected | Stop / roll back |
@@ -2230,7 +2261,7 @@ Amendment (7)'s gate (truth set, blind run, classify, label, `contradict` =
 | 1 | Merge the implementation PR; `IDENTITY_BACKFILL`, `IDENTITY_BACKFILL_CRON`, `IDENTITY_LINKS_BACKFILL` unset everywhere | No runtime change (W125) | Revert |
 | 2 | Dev: `IDENTITY_BACKFILL=prs@1` with the `23 1 * * *` entry; then one `POST /identity-backfill/run` outside the windows above | `/health` `identityBackfill.lastRun {ok: true, status: "ok", month: "2026-09"}`, `months.remaining` 10, `r2 {classA: 2, classB: 2}`, `requests {github ≤ 5, jira ≤ 4}` | A `failed` or `limited` status two days in a row, or any 429: unset `IDENTITY_BACKFILL` and investigate. Nothing reads the store yet |
 | 3 | Daily, about 10 days | `months.remaining` falls by one a day; `status: "complete"` with `done` 2025-11 … 2026-09 (fewer if the horizon moved) | as step 2 |
-| 4 | Precision gate (above) | `contradict` 0; the readings and the labelled sample's commit in the enable PR | Gate fails: stop; the owner decides the thresholds |
+| 4 | Precision gate (above) | `contradict` 0; every committer `unlabelled` and to-label link owner-labelled, none "different"; the readings and the labelled sample's commit in the enable PR | Gate fails: stop; the owner decides the thresholds |
 | 5 | Dev: `IDENTITY_LINKS_BACKFILL=read`; one `POST /identity-links/run` (never 21:50–23:05 UTC) | `identityLinks.lastRun.inputs.backfill.months` 11; `github:m1a2st`'s profile links `JIRAUSER305187` "Ken Huang" as corroborated with at least 3 keys (W131) | Unset `IDENTITY_LINKS_BACKFILL`; the next run (or a manual one) writes the table without the backfill (W127) |
 | 6 | Dev: unset `IDENTITY_BACKFILL` and remove its cron entry | No `identityBackfill` field; the store stays and is still read | — |
 | 7 | Prod | Separate owner approval, after amendment (7) step 5 | — |
@@ -2375,6 +2406,16 @@ amendment is open.
    only if the gate fails.
 5. **Prod**: a separate owner approval after Dev step 5, with amendment
    (7) step 5.
+
+Owner decision of 2026-10-24 (after the Dev reading above):
+
+6. **Committer `unlabelled` in the gate**: a committer `unlabelled`
+   component counts as resolved when the owner labels it "same" in the
+   committed labelled sample, checked together with the links to label in
+   the Dev enable PR. No code change: `precision.pass` stays the automated
+   part. Rejected: keeping committer `unlabelled` = 0 as a hard gate (the
+   name oracle cannot match a committer listed under a different name, so
+   the link W131 expects could never pass).
 
 ## Test plan
 
@@ -2792,7 +2833,7 @@ Each item: precondition → action → observable result → evidence. All are
 - W86: [measure] one identity-link run for Kafka with 12 full activity months reads at most 15 objects (Class B) and writes at most 2 (Class A), keeps one month parsed at a time, and reports peak heap and duration; DataFusion makes no call (command `measure:identity-links -- --budget`, against a constructed log of Dev's size; amendment (7)).
 - W87: given a cold isolate with `PEOPLE_KIPS=true`, one profile request reads at most 28 objects (W29's 26, `links.json` and `authors.json`), and a second within 10 minutes reads none → API test with a counting bucket.
 - W88: [measure] the first activity append after the change rewrites at most the months in the 35-day state once and then nothing for unchanged rows; a Jira page of 100 issues with `assignee` stays under the 4 MiB source limit; the bytes added per page are reported (command `measure:memory --activity 1` and a recorded Jira page). Recorded 2026-10-21: `measure:memory --events 8600 --activity 1` first append 6 months read, 6 written, then an unchanged rerun 0 written, 0 KB; the Jira page `project = KAFKA AND updated >= "-30d" ORDER BY updated DESC, key ASC`, 100 of 523 issues (88 assigned), `JIRA_FIELDS` with `assignee` 641,710 characters (15.3 % of the 4 MiB limit) against 591,050 without it: 50,660 added per page.
-- W89: [measure] before enabling, `measure:identity-links -- --from <date> --to <date>` (public upstream data only: GitHub search, ASF Jira REST, Pony Mail, the committers page) reports corroborated links, committers touched, `agree`, `contradict`, committer `unlabelled`, and links to label; the gate is `contradict` 0, committer `unlabelled` 0, and no link labelled "different" in W16's sample; recall is reported. Recorded 2026-10-21 for 2026-09-15 to 2026-10-21: 28 links, 3 committers, 3 agree, 0 contradict, 25 to label.
+- W89: [measure] before enabling, `measure:identity-links -- --from <date> --to <date>` (public upstream data only: GitHub search, ASF Jira REST, Pony Mail, the committers page) reports corroborated links, committers touched, `agree`, `contradict`, committer `unlabelled`, and links to label; the gate is `contradict` 0, every committer `unlabelled` and to-label link owner-labelled in W16's sample, and none labelled "different" (a committer `unlabelled` component labelled "same" by the owner counts as resolved; amended 2026-10-24); recall is reported. Recorded 2026-10-21 for 2026-09-15 to 2026-10-21: 28 links, 3 committers, 3 agree, 0 contradict, 25 to label.
 - W101: [measure] one `kip-pages` run sends at most 10 cwiki requests and 3 Jira requests, sequential and at least 2 s apart, with the project's `User-Agent`; the first run on Kafka (365 days, about 225 pages) sends at most 5 and a normal day 1 to 2, and the run reads 1 R2 object and writes at most 2; the command `measure:kip-pages` reports requests, bytes, pages, `listed` / `no-list` / `unparsed` counts and duration from public cwiki data.
 - W112: [measure] `measure:kip-pages -- --agreement` reports, from public data, the `JIRA:` field classes over all KIP pages and, for pages with one issue, assignee unset, assignee = creator, assignee in the author line, assignee = starter (exact, other written form, other script, different), and the KIPs whose assignee has a corroborated GitHub link; the 2026-10-21 reading is 1,160 / 45 / 138 / 8 / 20, then 17 unset, 180 of 219, 12 of 12, 126 / 24 / 16 / 30 of 196, and 33 KIPs for 13 people.
 - W128: [measure] one `identity-backfill` run sends at most 5 GitHub GraphQL search requests and 4 ASF Jira requests, sequential, at least 3 s apart, with the project's `User-Agent`, and makes at most 2 Class B and 2 Class A R2 requests on every path (1 Class A on a failure, 0 when `complete` or before `retryAfter`); the 2026-10-23 volumes give 35 search and about 25 Jira requests and about 22 Class A for the 11 months (command `measure:identity-backfill -- --month <YYYY-MM>`, one month, read-only upstream, in-memory bucket).
