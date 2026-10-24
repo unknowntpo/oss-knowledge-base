@@ -920,6 +920,10 @@ const cases: Record<string, Case> = {
     `${glossaryCheck("Topics would be created on demand (KAFKA-1, open).", "Topic 將依需求創建 (KAFKA-1, 仍在進行)。")}`,
   "glossary check|constructed: \"The project was founded in 2011.\" translated as \"專案於 2011 年創建。\"": () =>
     `${glossaryCheck("The project was founded in 2011.", "專案於 2011 年創建。")} (創建 is flagged only for create)`,
+  "glossary check|constructed: \"Satellite imagery tiles would be cached (KAFKA-1, open).\" translated as \"衛星鏡像圖塊將被快取 (KAFKA-1, 仍在進行)。\"": () =>
+    `${glossaryCheck("Satellite imagery tiles would be cached (KAFKA-1, open).", "衛星鏡像圖塊將被快取 (KAFKA-1, 仍在進行)。")} (imagery is not the word image)`,
+  "glossary check|constructed: \"The metadatabase schema would change (KAFKA-1, open).\" translated as \"元數據庫結構將變更 (KAFKA-1, 仍在進行)。\"": () =>
+    `${glossaryCheck("The metadatabase schema would change (KAFKA-1, open).", "元數據庫結構將變更 (KAFKA-1, 仍在進行)。")} (metadatabase is not the word data or metadata)`,
   "translate status|constructed: \"The fix for KAFKA-1 is proposed to be backported (KAFKA-PR-1, open).\" translated as \"KAFKA-1 的修正已提出回移 (KAFKA-PR-1, 仍在進行)。\"": () =>
     `${statusGuard("The fix for KAFKA-1 is proposed to be backported (KAFKA-PR-1, open).", "KAFKA-1 的修正已提出回移 (KAFKA-PR-1, 仍在進行)。")} (回移 is backport)`,
   "translate status|constructed: \"The fix for KAFKA-1 is proposed to be backported (KAFKA-PR-1, open).\" translated as \"KAFKA-1 的修正已提出向後移植 (KAFKA-PR-1, 仍在進行)。\"": () =>
