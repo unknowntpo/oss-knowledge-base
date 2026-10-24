@@ -10,9 +10,19 @@ import { computed, onBeforeUnmount, onMounted, ref, useId } from "vue";
 import type { ProfilePeriod } from "@oss-knowledge-base/reference-pipeline/people";
 
 import { useI18n } from "../i18n";
-import { activityChart, chartLayout, type ChartBucket, type ChartInput, type ChartSeries } from "../profile-chart";
+import { activityChart, bucketEnd, bucketStart, chartLayout, type ChartBucket, type ChartInput, type ChartSeries } from "../profile-chart";
 
-const props = withDefaults(defineProps<{ readonly input: ChartInput; readonly name: string; readonly initialTable?: boolean }>(), { initialTable: false });
+const props = withDefaults(defineProps<{
+  readonly input: ChartInput;
+  readonly name: string;
+  readonly initialTable?: boolean;
+  /** Spec 030 decision 4: a vertical line where a later series starts (ISO time) and its label. */
+  readonly marker?: { readonly at: string; readonly label: string };
+  /** The bucket whose tooltip shows first (server rendering and tests; the browser follows the pointer). */
+  readonly initialHover?: number;
+  /** Spec 030 Behavior 9: the trend names the range and the newest month instead of the busiest one. */
+  readonly label?: string;
+}>(), { initialTable: false, marker: undefined, initialHover: undefined, label: undefined });
 const { t, locale } = useI18n();
 const hatch = `person-hatch-${useId()}`;
 
@@ -33,13 +43,30 @@ onBeforeUnmount(() => observer?.disconnect());
 const chart = computed(() => activityChart(props.input));
 const layout = computed(() => chartLayout(chart.value, width.value));
 const period = computed<ProfilePeriod>(() => props.input.period);
-const hovered = ref<number>();
+const hovered = ref<number | undefined>(props.initialHover);
 const showTable = ref(props.initialTable);
 
 const md = (iso: string) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`;
 function seriesLabel(series: ChartSeries): string {
+  // Spec 030: a project's reviews are all reviews, not the ones a person gave.
+  if (props.input.source === "project" && series === "given") return t("trend.series.given");
   return t(`people.chart.series.${series}`);
 }
+/** Totals on the bars only where the widest one fits its column (4-digit project counts need wider columns than a person's). */
+const totalsFit = computed(() => {
+  const digits = String(Math.max(0, ...chart.value.buckets.flatMap((bucket) => [bucket.up, bucket.down]))).length;
+  return layout.value.slot >= (digits <= 2 ? 18 : digits * 7 + 6);
+});
+/** x of the marker: its bucket's left edge plus the elapsed share of the bucket. */
+const markerX = computed(() => {
+  const at = props.marker?.at;
+  if (at === undefined) return undefined;
+  const index = chart.value.buckets.findIndex((bucket) => bucketStart(bucket.label) <= at && at <= bucketEnd(bucket.label));
+  if (index < 0) return undefined;
+  const label = chart.value.buckets[index]!.label;
+  const share = (Date.parse(at) - Date.parse(bucketStart(label))) / (Date.parse(bucketEnd(label)) + 1 - Date.parse(bucketStart(label)));
+  return layout.value.left + layout.value.slot * (index + share);
+});
 function axisLabel(label: string): string {
   if (label.length !== 7) return md(label);
   return new Intl.DateTimeFormat(locale.value === "zh-Hant" ? "zh-Hant-TW" : "en", { month: "short", timeZone: "UTC" }).format(new Date(`${label}-01T00:00:00Z`));
@@ -57,6 +84,7 @@ function notes(bucket: ChartBucket): string[] {
 const allSeries = computed(() => [...chart.value.up, ...chart.value.down]);
 
 const ariaLabel = computed(() => {
+  if (props.label !== undefined) return props.label;
   const peak = chart.value.peak;
   return t("people.chart.aria", {
     name: props.name,
@@ -119,10 +147,14 @@ function segmentPath(x: number, segment: { readonly series: ChartSeries; readonl
             <text :x="layout.left - 6" :y="tick.y + 4" text-anchor="end">{{ tick.value }}</text>
           </template>
         </g>
+        <g v-if="marker && markerX !== undefined" data-marker aria-hidden="true">
+          <line :x1="markerX" :x2="markerX" :y1="layout.top - 6" :y2="layout.bottom" class="person-chart-marker" />
+          <text :x="markerX > layout.width / 2 ? markerX - 4 : markerX + 4" :y="layout.top - 8" :text-anchor="markerX > layout.width / 2 ? 'end' : 'start'" class="person-chart-marker-label">{{ marker.label }}</text>
+        </g>
         <g v-for="column in layout.columns" :key="`col-${column.index}`" :data-bucket="chart.buckets[column.index]!.label">
           <path v-for="segment in column.segments" :key="segment.series" :d="segmentPath(column.x, segment)" :data-series="segment.series" />
-          <text v-if="chart.buckets[column.index]!.up > 0 && layout.slot >= 18" :x="column.x" :y="column.upTop - 4" text-anchor="middle" class="person-chart-total" data-total="up">{{ chart.buckets[column.index]!.up }}</text>
-          <text v-if="chart.buckets[column.index]!.down > 0 && layout.slot >= 18" :x="column.x" :y="column.downBottom + 12" text-anchor="middle" class="person-chart-total is-down" data-total="down">{{ chart.buckets[column.index]!.down }}</text>
+          <text v-if="chart.buckets[column.index]!.up > 0 && totalsFit" :x="column.x" :y="column.upTop - 4" text-anchor="middle" class="person-chart-total" data-total="up">{{ chart.buckets[column.index]!.up }}</text>
+          <text v-if="chart.buckets[column.index]!.down > 0 && totalsFit" :x="column.x" :y="column.downBottom + 12" text-anchor="middle" class="person-chart-total is-down" data-total="down">{{ chart.buckets[column.index]!.down }}</text>
         </g>
         <text v-for="index in layout.labelled" :key="`label-${index}`" :x="layout.columns[index]!.x" :y="layout.labelY" text-anchor="middle">{{ axisLabel(chart.buckets[index]!.label) }}</text>
         <g v-for="lane in layout.lanes" :key="`lane-${lane.series}`" :data-lane="lane.series">

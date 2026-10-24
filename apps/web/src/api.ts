@@ -6,6 +6,7 @@ import type {
 } from "./types";
 import type { PeopleErrorV1, PersonProfileV1 } from "@oss-knowledge-base/reference-pipeline/people";
 import type { PeopleSearchV1 } from "@oss-knowledge-base/reference-pipeline/people/search";
+import type { ProjectActivityV1 } from "@oss-knowledge-base/reference-pipeline/project-activity";
 
 async function json<T>(url: string): Promise<T> {
   const response = await fetch(url, { headers: { accept: "application/json" } });
@@ -70,4 +71,9 @@ export async function fetchPeopleConfig(): Promise<{ readonly enabled: boolean; 
 /** Spec 019 slice 3: person results for a query in one project (W7). */
 export function fetchPeopleSearch(projectKey: string, query: string): Promise<PeopleSearchV1> {
   return json<PeopleSearchV1>(`/api/people/${encodeURIComponent(projectKey)}?${new URLSearchParams({ q: query })}`);
+}
+
+/** Spec 030: the project activity trend (`PROJECT_TREND`); asked once per card, never retried (PT10). */
+export function fetchProjectActivity(projectId: string): Promise<ProjectActivityV1> {
+  return json<ProjectActivityV1>(`/api/activity?${new URLSearchParams({ projectId })}`);
 }

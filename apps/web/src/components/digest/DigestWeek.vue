@@ -8,6 +8,7 @@ import {
 } from "../../digest-view";
 import CiteChips from "./CiteChips.vue";
 import DigestSentence from "./DigestSentence.vue";
+import ProjectTrend from "./ProjectTrend.vue";
 import ProposalColumns from "./ProposalColumns.vue";
 
 const props = defineProps<{
@@ -16,6 +17,8 @@ const props = defineProps<{
   readonly projectName: string;
   readonly feedIds?: ReadonlySet<string>;
   readonly now: number;
+  /** Spec 030: the digest answer said `PROJECT_TREND` is on; the trend card asks `/api/activity`. */
+  readonly trend?: boolean;
 }>();
 const { t, locale } = useI18n();
 const counts = computed(() => digestCounts(props.digest));
@@ -53,6 +56,8 @@ const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ b
       <p v-for="lag in lags" :key="lag" class="digest-lag">{{ lag }}</p>
       <p class="ai-label">{{ generated ? aiLabel(digest, t) : t("digest.aiUnavailable") }}</p>
     </header>
+
+    <ProjectTrend v-if="trend" :project-id="profile.projectId" :project-name="projectName" :now="now" />
 
     <p v-if="digest.empty" class="digest-empty">{{ t("digest.empty") }}</p>
 

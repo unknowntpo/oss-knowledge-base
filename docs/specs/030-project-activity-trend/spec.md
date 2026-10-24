@@ -1,6 +1,6 @@
 # Spec 030: Project activity trend on This week
 
-Status: Draft (2026-10-24; awaiting the owner decisions in [Owner decisions needed](#owner-decisions-needed); nothing implemented)
+Status: Accepted (owner decisions 2026-10-24, [Owner decisions](#owner-decisions)); slice 1 built behind `PROJECT_TREND`, off in every environment (PR #141); the Dev enable PR and PT16 follow the owner's review of the look; Prod needs a separate owner approval
 Date: 2026-10-24
 Traceability: enforced
 Builds on: Spec 014 (This week layout, Behavior 27, the "Counts" design decision), Spec 019 (the profile's "活動趨勢" chart, amendment (5), W56–W65; the activity log; W10, W18, W29), Spec 022 (review month objects), Spec 023 (data tokens DS4–DS6), Spec 024 (dark theme DM4–DM8), Spec 026 (cost guard)
@@ -63,8 +63,9 @@ Kafka, as the card would read on 2026-10-24. Review figures for chia7712
 are the Spec 019 oracle (2026-10-15). Project figures marked *estimate*
 come from Spec 022's measured volume (about 17,100 review rows from
 2025-10-14 to 2026-10-14, so about 1,425 a month) and the Dev activity log's
-35-day count of 2026-10-13 (2,248 rows, about 1,950 a month). Slice 1 replaces
-every estimate with counts from the stores (PT13).
+35-day count of 2026-10-13 (2,248 rows, about 1,950 a month). Slice 1 reads
+no Dev object, so the estimates stay until the Dev enable PR, which replaces
+them with the counts `/api/activity` returns on Dev (PT16).
 
 | Month | Reviews (project) | of which chia7712 | GitHub PRs and comments | Jira | dev@ | Drawn as |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -157,28 +158,42 @@ What the example shows:
    through the same per-key cache. *(Decision 6: the public surface.)*
 2. **Counts.** `reviews` counts review rows submitted in the UTC month by
    logins that are people (W12 bot rule), including `COMMENTED` reviews.
+   As on the profile, a review by the pull request's own author (an answer
+   in a review thread, W8) is not a review, so the project count equals the
+   sum of every person's "reviews given".
    Activity series count rows by source, counting a Jira issue once across
-   months (Spec 019 rule). They are counts of events, not of people.
+   months (Spec 019 rule), in the month of its newest row. They are counts of
+   events, not of people. Only months inside a store's coverage are read;
+   every other month is `null`. Kafka only in v1 (`PROJECT_TREND_PROJECTS`;
+   another known project is a 404, an unknown one a 400).
 3. **Gate.** The endpoint and the card are behind a new flag `PROJECT_TREND`,
    unset everywhere at merge. With the flag unset, the endpoint returns 404
    and the card is absent. The flag requires `GITHUB_REVIEWS` and
-   `PEOPLE_ACTIVITY` data on the same environment.
+   `PEOPLE_ACTIVITY` data on the same environment. The page learns the flag
+   without a request of its own: where it is `"true"`, a 200 from
+   `/api/digest` carries the header `x-project-trend: on` (the digest body is
+   unchanged), and only then does This week ask `/api/activity`.
 4. **Placement.** On This week, the card sits directly below `ul.digest-stats`
    and the `.digest-lag` line, before the highlights. Spec 014 Behavior 27's
    order becomes "headline, window label and stats, activity trend card, up to
    3 highlights, …". The card is fetched separately from `/api/digest`. A
    no-digest or unavailable digest state does not show the card.
-   *(Decision 1.)*
+   *(Decision 1; amendment recorded in Spec 014 Behavior 27.)*
 5. **Compact card.** It has the title 「專案活動趨勢」, the 12 monthly bars
    oldest to newest, and plot height ≤ 96 px. There are no axis labels except
    the first and last month, and no totals written on the bars. The current
-   month carries the label 「進行中 · 至 M/D」 and a dashed outline
+   month carries the label 「進行中 · 至 M/D」 (M/D: the stores' `until`, or
+   today if earlier) and a dashed outline
    (`--data-stroke-width`, the series stroke), not a new colour. Hatched lanes
-   appear when any series is unrecorded. A button 「查看完整趨勢」 expands it.
+   appear when any series is unrecorded. A one-line legend (the four series
+   and "尚未記錄") names the colours. A button 「查看完整趨勢」 expands it.
 6. **Full view.** Expanding renders the profile's `PersonActivityChart` in
    project mode: the stacked up series per decision 2, no down series, the
    legend, the "尚未記錄" band and lanes, the tooltip with partial-start notes,
    "以表格檢視", and the collapsed 「資料範圍：…」 line from `coverage[].from`.
+   A dashed vertical line where the activity log starts (9/10 on Dev) is
+   labelled 「PR 與留言自此記錄」 (decision 4). The opened range line also
+   gives the update time from `until` and says the counts are events.
    Collapsing returns to the card. No second request is sent.
 7. **Series and colours.** Reviews use the profile's `given` tokens (勿忘草
    fill, 千草 outline). GitHub uses 柳茶 / 苔, Jira 水浅葱 / 青碧, and dev@
@@ -193,84 +208,81 @@ What the example shows:
 
 ## Acceptance
 
-Every item is `[pending]` until the owner decisions are made and slice 1
-lands; slice 1 removes the tags it covers.
+Slice 1 (PR #141) covers PT1–PT15; PT16 belongs to the Dev enable PR.
 
 ### Behavior
-- PT1: [pending] given the activity fixture (reviews 2025-11 … 2026-10, activity from 2026-09-10), `GET /api/activity?projectId=apache-kafka` returns 12 months where `reviews` equals the sum of non-bot review rows per UTC month and `github`/`jira`/`mail` equal the per-source row counts, a Jira issue in two months counted once → case rows.
-- PT2: [pending] given the same fixture, months before 2026-09 have `github`, `jira` and `mail` `null` (never 0), and `coverage` names `github-reviews` from 2025-11-01 and the activity log from 2026-09-10 → case rows.
-- PT3: [pending] given `PROJECT_TREND` unset, `/api/activity` returns 404 and This week renders exactly as before (no `.project-trend` element, no request to `/api/activity`) → function and E2E test.
-- PT4: [pending] given the flag on and a digest, This week shows in order `.digest-stats`, `.project-trend`, `.digest-highlights` → E2E test.
-- PT5: [pending] the compact card shows 12 bars, the first and last month labels, the current month labelled 「進行中 · 至 10/24」 at a controlled clock of 2026-10-24, and hatched lanes for the three activity series in 2025-11 … 2026-08 → component test.
-- PT6: [pending] pressing 「查看完整趨勢」 shows the full chart with no down series, the legend, "以表格檢視", and 「資料範圍：GitHub 審查 11/1 起 · GitHub 留言與 PR、Jira、dev@ 9/10 起」, and sends no second request → component test.
-- PT7: [pending] the 2026-09 tooltip says the activity series count only from 9/10, and a null cell in the table has class `is-unrecorded` → component test.
-- PT8: [pending] every bar fill resolves to a `--data-*` token with `color-mix` after a plain fallback, the outline is 1.2 px, and no new custom property is added (DS3, DS6, DS10 gates stay green) → existing design-system tests.
+- PT1: given the activity fixture (reviews 2025-11 … 2026-10, activity from 2026-09-10), `GET /api/activity?projectId=apache-kafka` returns 12 months where `reviews` equals the sum of non-bot review rows per UTC month and `github`/`jira`/`mail` equal the per-source row counts, a Jira issue in two months counted once → case rows.
+- PT2: given the same fixture, months before 2026-09 have `github`, `jira` and `mail` `null` (never 0), and `coverage` names `github-reviews` from 2025-11-01 and the activity log from 2026-09-10 → case rows.
+- PT3: given `PROJECT_TREND` unset, `/api/activity` returns 404 and This week renders exactly as before (no `.project-trend` element, no request to `/api/activity`) → function and E2E test.
+- PT4: given the flag on and a digest, This week shows in order `.digest-stats`, `.project-trend`, `.digest-highlights` → E2E test.
+- PT5: the compact card shows 12 bars, the first and last month labels, the current month labelled 「進行中 · 至 10/24」 at a controlled clock of 2026-10-24, and hatched lanes for the three activity series in 2025-11 … 2026-08 → component test.
+- PT6: pressing 「查看完整趨勢」 shows the full chart with no down series, the legend, "以表格檢視", the 9/10 marker 「PR 與留言自此記錄」, and 「資料範圍：GitHub 審查 11/1 起 · GitHub 留言與 PR、Jira、dev@ 9/10 起」, and sends no second request → component test (expanded view) and E2E test (the press, one request).
+- PT7: the 2026-09 tooltip says the activity series count only from 9/10, and a null cell in the table has class `is-unrecorded` → component test.
+- PT8: every bar fill resolves to a `--data-*` token with `color-mix` after a plain fallback, the outline is 1.2 px, and no new custom property is added (DS3, DS6, DS10 gates stay green) → existing design-system tests and a component test.
 
 ### Failure and retry
-- PT9: [pending] given one review month unreadable, the response lists it in `unavailableMonths`, its `reviews` is `null`, the other months are present, and the card shows 「<月份> 資料暫時無法取得」 → case row and component test.
-- PT10: [pending] given `/api/activity` answers 503 or fails, This week still renders the digest unchanged and the card shows one line 「活動趨勢暫時無法取得」, with no retry loop → component and E2E test.
-- PT11: [pending] given a store's `state.json` missing (the source never recorded on this environment), its series is `null` in every month with coverage `not-recorded`, and the card is hidden if no series is recorded → case rows.
-- PT12: [pending] given two requests within 10 minutes on one isolate, the second makes 0 R2 reads, and a failed read is not cached (W29 rule) → function test.
+- PT9: given one review month unreadable, the response lists it in `unavailableMonths`, its `reviews` is `null`, the other months are present, and the card shows 「<月份>資料暫時無法取得」 → case row and component test.
+- PT10: given `/api/activity` answers 503 or fails, This week still renders the digest unchanged and the card shows one line 「活動趨勢暫時無法取得」, with no retry loop → component and E2E test.
+- PT11: given a store's `state.json` missing (the source never recorded on this environment), its series is `null` in every month with coverage `not-recorded`, and the card is hidden if no series is recorded → case rows.
+- PT12: given two requests within 10 minutes on one isolate, the second makes 0 R2 reads, and a failed read is not cached (W29 rule) → function test.
 
 ### Budget
-- PT13: [pending] cold request for Kafka: at most 26 R2 Class B reads, 0 Class A, parsed bytes ≤ 16 MB (the Kafka profile read measured 11.6 MB), and a response ≤ 4 KB uncompressed; measured read-only by `measure:people` in project mode, which also replaces the Example's estimates.
-- PT14: [pending] worst case a month: 3,000 cold isolates × 26 reads = 78,000 Class B (0.8 % of the 10 M allowance), 0 Class A, $0 against the $5 overage cap; stated in the slice 1 PR.
+- PT13: [measure] cold request for Kafka: at most 26 R2 Class B reads, 0 Class A, parsed bytes ≤ 16 MB, and a response ≤ 4 KB uncompressed; measured read-only by `bun run measure:people --project` on a constructed store of Dev's volume with 12 full activity months (the worst case, a year after the first append): 26 reads, 11.1 MiB parsed, response 1,712 B, warm 0 reads (2026-10-24). The reader has no write path. Dev's real counts replace the Example's estimates in the Dev enable PR.
+- PT14: [measure] worst case a month: 3,000 cold isolates × 26 reads = 78,000 Class B (0.8 % of the 10 M allowance), 0 Class A, $0 against the $5 overage cap; stated in the slice 1 PR. A cold profile read in the same isolate shares the cache, so the trend adds at most the 2 `state.json` and 2 activity-month reads the profile read would not make for a reviews-only identity.
 
 ### Observability
-- PT15: [pending] the full view shows the store update time from `until`; with `until` older than 48 h the card shows the Spec 014 lag line style 「活動資料更新於 M/D」 → component test.
+- PT15: the full view shows the store update time from `until`; with `until` older than 48 h the card shows the Spec 014 lag line style 「活動資料更新於 M/D」 → component test.
 - PT16: [pending] after the Dev enable PR, `bun run verify:ui --target dev` captures `/#/kafka/` at 375 and 1280 px with the card and the expanded view, both themes.
 
 ## Test plan
 
-Slice 1 adds the case file `apps/web/test/project-trend.cases.ts` (it does
-not exist yet). `bun run docs:test-plan` will then render it here between
-test-plan markers. Planned rows:
+Generated from `apps/web/test/project-trend.cases.ts` (`bun run docs:test-plan`).
+`apps/web/test/project-trend.test.ts` runs every row against
+`readProjectActivity` over the stores of `project-trend.store.ts`.
 
-| id | case | input | expected |
-| --- | --- | --- | --- |
-| PT1 | sums per month | fixture reviews and activity | per-source counts; Jira issue once |
-| PT1 | bots excluded | rows by `dependabot`, a `[bot]` login | not counted |
-| PT2 | before activity coverage | 2025-11 … 2026-08 | activity series `null` |
-| PT2 | partial first month | 2026-09 | counts from 9/10, partial note |
-| PT9 | one month unreadable | 2026-03 review month corrupt | `reviews: null`, `unavailableMonths: ["2026-03"]` |
-| PT11 | store absent | no activity `state.json` | `not-recorded`, all `null` |
-| PT11 | nothing recorded | both absent | card hidden |
+<!-- test-plan:start apps/web/test/project-trend.cases.ts -->
+| id | case | data | store | month | reviews | github | jira | mail | unavailable | coverage | card |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| PT1 | reviews given by people in the month | constructed | full | 2026-01 | 22 | — | — | — | — | github-reviews from 2025-11-01; github, jira, mail from 2026-09-10 | shown |
+| PT1 | a GitHub App, a `[bot]` login and a reply by the pull request's author are not reviews (23 rows stored, 20 counted) | constructed | full | 2025-11 | 20 | — | — | — | — | github-reviews from 2025-11-01; github, jira, mail from 2026-09-10 | shown |
+| PT1 | activity rows by source; a `dependabot` comment is not counted; the Jira issue stored in September and October counts once, in October | recorded | full | 2026-10 | 31 | 47 | 44 | 20 | — | github-reviews from 2025-11-01; github, jira, mail from 2026-09-10 | shown |
+| PT2 | a month before the activity log's coverage: activity series null, never 0 | recorded | full | 2026-08 | 29 | — | — | — | — | github-reviews from 2025-11-01; github, jira, mail from 2026-09-10 | shown |
+| PT2 | the partial first month counts from 9/10 only: a message one second earlier is left out | recorded | full | 2026-09 | 30 | 112 | 58 | 39 | — | github-reviews from 2025-11-01; github, jira, mail from 2026-09-10 | shown |
+| PT9 | one review month unreadable: its reviews null and listed | constructed | review-month-corrupt | 2026-03 | — | — | — | — | 2026-03 | github-reviews from 2025-11-01; github, jira, mail from 2026-09-10 | shown |
+| PT9 | the other months are still present | constructed | review-month-corrupt | 2026-04 | 25 | — | — | — | 2026-03 | github-reviews from 2025-11-01; github, jira, mail from 2026-09-10 | shown |
+| PT9 | one activity month unreadable: its three activity series null and listed | recorded | activity-month-corrupt | 2026-09 | 30 | — | — | — | 2026-09 | github-reviews from 2025-11-01; github, jira, mail from 2026-09-10 | shown |
+| PT11 | no activity `state.json`: the three series null in every month and not recorded | constructed | no-activity | 2026-10 | 31 | — | — | — | — | github-reviews from 2025-11-01; github, jira, mail not recorded | shown |
+| PT11 | neither store recorded: every count null and the card hidden | constructed | nothing | 2026-10 | — | — | — | — | — | github-reviews, github, jira, mail not recorded | hidden |
+<!-- test-plan:end -->
 
-## Owner decisions needed
+## Owner decisions
 
-1. **Placement.** (a) A compact card below the headline stats, before the
-   highlights, with an in-place expand. (b) A full-width block at the bottom,
-   after routine. (c) Its own route `/#/kafka/activity`, linked from the
-   stats. *Recommended: (a)*. It amends Spec 014 Behavior 27 and needs the
-   owner's mockup review first (visual-taste rule).
-2. **Series.** (a) Reviews, GitHub PRs and comments, Jira, dev@, stacked.
-   (b) Reviews and GitHub only, as on a GitHub profile. (c) Reviews only in
-   the compact card (the one 12-month series), all four in the full view.
-   *Recommended: (a)*. It matches "the whole project", and the lanes show
-   coverage. Choose (c) if the 9/10 step still reads as growth in the mockup.
-3. **Up/down semantics.** (a) Up only, because project reviews given equal
-   reviews received. (b) Up: activity; down: reviews (contribution versus
-   review load). (c) Up: PRs opened; down: PRs merged. *Recommended: (a)*.
-   (b) and (c) need new semantics and labels the owner has not asked for.
-4. **Uneven coverage.** (a) As on the profile: per-series hatched lanes, the
-   "尚未記錄" band only where every series is unrecorded, partial-start
-   tooltip, and the footer range line. (b) Additionally, a vertical marker at
-   9/10 labelled 「PR 與留言自此記錄」. *Recommended: (a) plus the (b) marker
-   in the full view only*, because the compact card has no room for text.
-5. **DataFusion.** (a) Not in v1: no This week digest, and over the parse
-   budget. (b) Later, with a stored per-month project summary written by the
-   jobs (a new R2 key, +1 Class A a day per job). *Recommended: (a)*. Revisit
-   when DataFusion gets a digest or G75 is fixed.
-6. **New public surface.** (a) A new endpoint `GET /api/activity?projectId=`,
-   flag-gated, `noindex`, cached 5 minutes, Dev only at first. (b) Add a
-   `trend` field to `/api/digest`, which mixes sources and breaks Spec 014's
-   one-source rule. (c) Add it to `/api/people`, which today is a light
-   status call. *Recommended: (a)*. It is a new public URL with aggregated
-   counts of public upstream activity, so it needs the owner's explicit
-   approval, and again before Prod.
-7. **Unit.** (a) Events (reviews, comments, messages). (b) Distinct active
-   people per month. *Recommended: (a)* for v1. (b) is a different question
-   (contributor base) and needs its own owner.
+Decided by the owner on 2026-10-24, each as the draft recommended.
+
+1. **Placement: a compact card below the headline stats, before the
+   highlights, expanded in place** (option a). This amends Spec 014
+   Behavior 27's block order; the amendment is recorded there. Rejected: a
+   block at the bottom after routine (b), its own route
+   `/#/kafka/activity` (c). The owner reviews the look (screenshots from
+   slice 1) before the Dev enable PR (visual-taste rule).
+2. **Series: four, stacked — reviews, GitHub PRs and comments, Jira, dev@**
+   (option a). Rejected: reviews and GitHub only (b), reviews only in the
+   compact card (c).
+3. **Upward bars only** (option a): at project level reviews given equal
+   reviews received. Rejected: activity up and reviews down (b), PRs opened
+   up and merged down (c).
+4. **Uneven coverage: the profile chart's per-series hatched "尚未記錄"
+   lanes, the tooltip's partial-start notes and the footer data range; the
+   full view adds a vertical marker at 9/10 labelled
+   「PR 與留言自此記錄」** (a plus the (b) marker in the full view only).
+5. **No DataFusion in v1** (option a): it has no This week digest, and its
+   12-month read is over the parse budget (G75). Revisit when DataFusion
+   gets a digest or G75 is fixed.
+6. **A new public endpoint `GET /api/activity?projectId=`** behind the new
+   flag `PROJECT_TREND`, `noindex`, cached 5 minutes (option a). Approved for
+   Dev only. Prod needs a separate owner approval later. Rejected: a `trend`
+   field in `/api/digest` (b), a field in `/api/people` (c).
+7. **Count unit: events** (option a), not distinct active people (b).
 
 ## Non-goals
 

@@ -388,10 +388,10 @@ export function readMonth(bucket: PeopleBucket, projectId: string, month: string
   });
 }
 
-interface ActivityStoreState { readonly coverageFrom: string; readonly updatedAt: string; readonly firstAppendAt: string }
+export interface ActivityStoreState { readonly coverageFrom: string; readonly updatedAt: string; readonly firstAppendAt: string }
 
 /** Slice 2b: the activity log's `state.json`; undefined before the first append (flag off, or Prod). */
-function readActivityState(bucket: PeopleBucket, projectId: string, nowMs: number): Promise<ActivityStoreState | undefined> {
+export function readActivityState(bucket: PeopleBucket, projectId: string, nowMs: number): Promise<ActivityStoreState | undefined> {
   const key = peopleActivityStateKey(projectId);
   return cached(bucket, key, nowMs, async () => {
     const object = await bucket.get(key);
@@ -401,7 +401,7 @@ function readActivityState(bucket: PeopleBucket, projectId: string, nowMs: numbe
   });
 }
 
-interface IndexedActivityMonth {
+export interface IndexedActivityMonth {
   readonly index: ActivityMonthIndex;
   readonly threads: Readonly<Record<string, ActivityThreadV1>>;
   readonly people: Readonly<Record<string, string>>;
@@ -410,7 +410,7 @@ interface IndexedActivityMonth {
 }
 
 /** An activity month parsed once per isolate into the per-identity index the summary stores (decision 10). */
-function readActivityMonth(bucket: PeopleBucket, projectId: string, month: string, nowMs: number): Promise<IndexedActivityMonth> {
+export function readActivityMonth(bucket: PeopleBucket, projectId: string, month: string, nowMs: number): Promise<IndexedActivityMonth> {
   const key = peopleActivityMonthKey(projectId, month);
   return cached(bucket, key, nowMs, async () => {
     const object = await bucket.get(key);
@@ -444,8 +444,8 @@ async function readKipTable<T>(bucket: PeopleBucket, key: string, nowMs: number,
   }
 }
 
-/** The store's coverage clipped to the 12-month view, or undefined when the view holds none of it. */
-function recordedCoverage(source: PeopleSource, storedFrom: string, until: string, nowMs: number, firstAppendAt?: string) {
+/** The store's coverage clipped to the 12-month view, or undefined when the view holds none of it. Shared with the project trend (Spec 030). */
+export function recordedCoverage(source: PeopleSource, storedFrom: string, until: string, nowMs: number, firstAppendAt?: string) {
   const months = profileMonths(nowMs, storedFrom);
   if (months.length === 0) return undefined;
   return {
