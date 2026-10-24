@@ -2,8 +2,8 @@ import { mkdir } from "node:fs/promises";
 
 import { expect, test, type Page } from "@playwright/test";
 
-// Spec 030 in the browser. The E2E server runs with `PROJECT_TREND` unset (every wrangler config
-// keeps it off in slice 1), so PT3 reads the real Pages Functions; PT4, PT6 and PT10 turn the card
+// Spec 030 in the browser. The E2E server runs with `PROJECT_TREND` unset (the local wrangler.jsonc
+// keeps it off; only Dev sets it), so PT3 reads the real Pages Functions; PT4, PT6 and PT10 turn the card
 // on in the page by adding the digest answer's trend header and answering `/api/activity` with a
 // constructed `osskb.project-activity.v1` body (the Function itself is covered in
 // test/project-trend.test.ts). Set TREND_SCREENSHOT_DIR to keep screenshots.

@@ -1,6 +1,6 @@
 # Spec 030: Project activity trend on This week
 
-Status: Accepted (owner decisions 2026-10-24, [Owner decisions](#owner-decisions)); slice 1 built behind `PROJECT_TREND`, off in every environment (PR #141); the Dev enable PR and PT16 follow the owner's review of the look; Prod needs a separate owner approval
+Status: Partially implemented (owner decisions 2026-10-24, [Owner decisions](#owner-decisions)); slice 1 built behind `PROJECT_TREND` (PR #141); on Dev only: the owner approved the Dev enable on 2026-10-24 ([Rollout](#rollout)); PT16 runs after that deploy; Prod needs a separate owner approval
 Date: 2026-10-24
 Traceability: enforced
 Builds on: Spec 014 (This week layout, Behavior 27, the "Counts" design decision), Spec 019 (the profile's "活動趨勢" chart, amendment (5), W56–W65; the activity log; W10, W18, W29), Spec 022 (review month objects), Spec 023 (data tokens DS4–DS6), Spec 024 (dark theme DM4–DM8), Spec 026 (cost guard)
@@ -64,8 +64,8 @@ are the Spec 019 oracle (2026-10-15). Project figures marked *estimate*
 come from Spec 022's measured volume (about 17,100 review rows from
 2025-10-14 to 2026-10-14, so about 1,425 a month) and the Dev activity log's
 35-day count of 2026-10-13 (2,248 rows, about 1,950 a month). Slice 1 reads
-no Dev object, so the estimates stay until the Dev enable PR, which replaces
-them with the counts `/api/activity` returns on Dev (PT16).
+no Dev object, so the estimates stay until the Dev enable PR deploys; PT16
+then replaces them with the counts `/api/activity` returns on Dev.
 
 | Month | Reviews (project) | of which chia7712 | GitHub PRs and comments | Jira | dev@ | Drawn as |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -227,7 +227,7 @@ Slice 1 (PR #141) covers PT1–PT15; PT16 belongs to the Dev enable PR.
 - PT12: given two requests within 10 minutes on one isolate, the second makes 0 R2 reads, and a failed read is not cached (W29 rule) → function test.
 
 ### Budget
-- PT13: [measure] cold request for Kafka: at most 26 R2 Class B reads, 0 Class A, parsed bytes ≤ 16 MB, and a response ≤ 4 KB uncompressed; measured read-only by `bun run measure:people --project` on a constructed store of Dev's volume with 12 full activity months (the worst case, a year after the first append): 26 reads, 11.1 MiB parsed, response 1,712 B, warm 0 reads (2026-10-24). The reader has no write path. Dev's real counts replace the Example's estimates in the Dev enable PR.
+- PT13: [measure] cold request for Kafka: at most 26 R2 Class B reads, 0 Class A, parsed bytes ≤ 16 MB, and a response ≤ 4 KB uncompressed; measured read-only by `bun run measure:people --project` on a constructed store of Dev's volume with 12 full activity months (the worst case, a year after the first append): 26 reads, 11.1 MiB parsed, response 1,712 B, warm 0 reads (2026-10-24). The reader has no write path. Dev's real counts replace the Example's estimates after the Dev enable PR deploys (PT16).
 - PT14: [measure] worst case a month: 3,000 cold isolates × 26 reads = 78,000 Class B (0.8 % of the 10 M allowance), 0 Class A, $0 against the $5 overage cap; stated in the slice 1 PR. A cold profile read in the same isolate shares the cache, so the trend adds at most the 2 `state.json` and 2 activity-month reads the profile read would not make for a reviews-only identity.
 
 ### Observability
@@ -281,9 +281,24 @@ Decided by the owner on 2026-10-24, each as the draft recommended.
    gets a digest or G75 is fixed.
 6. **A new public endpoint `GET /api/activity?projectId=`** behind the new
    flag `PROJECT_TREND`, `noindex`, cached 5 minutes (option a). Approved for
-   Dev only. Prod needs a separate owner approval later. Rejected: a `trend`
+   Dev only; the owner approved the Dev enable on 2026-10-24 ([Rollout](#rollout)).
+   Prod needs a separate owner approval later. Rejected: a `trend`
    field in `/api/digest` (b), a field in `/api/people` (c).
 7. **Count unit: events** (option a), not distinct active people (b).
+
+## Rollout
+
+| Step | Change | Expected |
+| --- | --- | --- |
+| 1 | Merge PR #141: the endpoint, the header and the card; `PROJECT_TREND` unset everywhere | Nothing changes at runtime (PT3) |
+| 2 | Dev Pages: `PROJECT_TREND=true` in `apps/web/wrangler.development.jsonc` (owner approved 2026-10-24; the Dev enable PR) | After the push to `main` deploys Dev, a 200 from `/api/digest?projectId=apache-kafka` carries `x-project-trend: on`, `/api/activity?projectId=apache-kafka` answers 200 `osskb.project-activity.v1`, and `/#/kafka/` shows `.project-trend` under the stats |
+| 3 | PT16 on Dev: `bun run verify:ui --target dev`; replace the Example's estimates with Dev's counts | Captures at 375 and 1280 px, card and expanded view, both themes |
+| 4 | Prod: a separate owner approval, after the stores and the digest run there (Non-goals) | — |
+
+Stop and roll back (remove the var, push to `main`) if This week renders
+differently with the card absent, `/api/activity` answers 5xx, or the
+digest answer changes beyond the header. The flag reads nothing while unset,
+so rollback needs no data change.
 
 ## Non-goals
 

@@ -90,6 +90,12 @@ describe("Spec 030: the flag and the Pages Function", () => {
     expect(digestHeaders({ PROJECT_TREND: "true" }, 200).get(PROJECT_TREND_HEADER)).toBe("on");
   });
 
+  test("PT3: Dev Pages sets PROJECT_TREND=true (the Dev enable PR, 2026-10-24); local E2E and Prod leave it unset", async () => {
+    const vars = async (name: string) => (JSON.parse(await Bun.file(new URL(`../${name}`, import.meta.url)).text()) as { vars?: Record<string, string> }).vars ?? {};
+    expect((await vars("wrangler.development.jsonc")).PROJECT_TREND).toBe("true");
+    for (const name of ["wrangler.jsonc", "wrangler.production.jsonc"]) expect("PROJECT_TREND" in await vars(name)).toBe(false);
+  });
+
   test("PT13: with the flag on, a 200 is noindex, cached 5 minutes, and under 4 KB", async () => {
     const response = await projectActivityResponse(env("true"), PROJECT_ID, NOW);
     expect(response.status).toBe(200);
