@@ -25,6 +25,7 @@ onUnmounted(() => clearInterval(clock));
       :project-name="state.project.name"
       :feed-ids="feedIds"
       :now="now"
+      :trend="state.trend"
     />
     <DigestStates v-else :state="state" :project-key="projectKey" />
   </div>

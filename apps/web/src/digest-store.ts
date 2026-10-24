@@ -8,7 +8,8 @@ export type DigestState =
   | { readonly kind: "unknown-project" }
   | { readonly kind: "none"; readonly project: WebProject }
   | { readonly kind: "error"; readonly project: WebProject }
-  | { readonly kind: "ok"; readonly project: WebProject; readonly digest: ServedDigest };
+  /** `trend`: Spec 030, the answer carried `x-project-trend: on` (`PROJECT_TREND`). */
+  | { readonly kind: "ok"; readonly project: WebProject; readonly digest: ServedDigest; readonly trend: boolean };
 
 /** Loads `/api/digest` for the route's project and the current locale (Behavior 13, 27, 29). */
 export function useDigest(projectKey: Ref<string>): Ref<DigestState> {
@@ -33,7 +34,7 @@ export function useDigest(projectKey: Ref<string>): Ref<DigestState> {
       if (current !== request) return;
       if (response.status === 404) state.value = { kind: "none", project };
       else if (!response.ok) state.value = { kind: "error", project };
-      else state.value = { kind: "ok", project, digest: await response.json() as ServedDigest };
+      else state.value = { kind: "ok", project, digest: await response.json() as ServedDigest, trend: response.headers.get("x-project-trend") === "on" };
     } catch {
       if (current === request) state.value = { kind: "error", project };
     }

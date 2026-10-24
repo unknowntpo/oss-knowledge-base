@@ -1019,6 +1019,10 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
     - **This week** shows, in order: the headline, the window label and
       stats, up to 3 highlights, proposals by stage, topic cards, and
       routine (collapsed).
+      *Amended by Spec 030 (owner, 2026-10-24):* where `PROJECT_TREND` is
+      on, the project activity trend card sits between the stats (and lag
+      lines) and the highlights. It is fetched separately from
+      `/api/activity` and states its own data range (Spec 030 Behavior 4).
     - **No digest.** A project without a digest (`digest: false`;
       DataFusion in v1), or one whose `/api/digest` returns 404, shows on
       This week the notice "No weekly digest for this community yet" and a

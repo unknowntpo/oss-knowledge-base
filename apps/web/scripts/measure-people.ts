@@ -29,6 +29,7 @@ import {
   type ReviewRow,
 } from "@oss-knowledge-base/reference-pipeline";
 import { readPersonProfile, PEOPLE_INDEX_TTL_MS } from "@oss-knowledge-base/reference-pipeline/people";
+import { readProjectActivity } from "@oss-knowledge-base/reference-pipeline/project-activity";
 import { searchPeople } from "@oss-knowledge-base/reference-pipeline/people/search";
 import { heapSize } from "bun:jsc";
 
@@ -178,6 +179,47 @@ async function measure(project: string, projectId: string, input: { total: numbe
     responseGzipBytes: gzipBytes,
     heapRetainedBytes: heapRetained,
   };
+}
+
+/**
+ * Spec 030 PT13 (`--project`): one cold `/api/activity` read for Kafka on the same store (reviews
+ * and 12 activity months at Dev's volume), then a warm one. Budget: at most 26 Class B reads, 0
+ * writes, at most 16 MiB parsed, a response of at most 4 KiB. Exits 1 above any of them.
+ */
+if (Bun.argv.includes("--project")) {
+  const objects = buildStore("apache-kafka", { total: 14_000, person: "chia7712", given: 2_248, received: 11, activityRows: 1_950, personRows: 150 });
+  const reads: string[] = [];
+  let bytesRead = 0;
+  const bucket = {
+    async get(key: string) {
+      reads.push(key);
+      const body = objects.get(key);
+      if (body !== undefined) bytesRead += body.length;
+      return body === undefined ? null : { text: async () => body };
+    },
+    // Writes would be Class A; the reader has no write path, and this proves none is attempted.
+    put: () => { throw new Error("PT13: the trend wrote to R2"); },
+  };
+  const started = performance.now();
+  const cold = await readProjectActivity({ bucket, projectId: "apache-kafka", nowMs: NOW });
+  const coldMs = performance.now() - started;
+  const coldReads = reads.length;
+  const responseBytes = new TextEncoder().encode(JSON.stringify(cold.body)).length;
+  const warmStarted = performance.now();
+  await readProjectActivity({ bucket, projectId: "apache-kafka", nowMs: NOW + 1000 });
+  const result = {
+    status: cold.status, scale, activityMonths, cold: { r2Reads: coldReads, r2BytesParsed: bytesRead, wallMs: Math.round(coldMs) },
+    warm: { r2Reads: reads.length - coldReads, wallMs: Math.round(performance.now() - warmStarted) }, responseBytes,
+    months: cold.status === 200 ? cold.body.months.map((month) => `${month.month} ${month.reviews ?? "—"}/${month.github ?? "—"}/${month.jira ?? "—"}/${month.mail ?? "—"}`) : [],
+  };
+  console.log(JSON.stringify(result));
+  const failures = [
+    ...(coldReads > 26 ? [`${coldReads} reads > 26`] : []),
+    ...(bytesRead > W18_PARSE_BUDGET_BYTES ? [`${bytesRead} bytes parsed > 16 MiB`] : []),
+    ...(responseBytes > 4096 ? [`response ${responseBytes} bytes > 4 KiB`] : []),
+  ];
+  console.log(`PT13 kafka: ${coldReads} reads, ${Math.round(bytesRead / 1024 / 102.4) / 10} MiB parsed, response ${responseBytes} B: ${failures.length === 0 ? "PASS" : `FAIL (${failures.join("; ")})`}`);
+  process.exit(failures.length === 0 || reportOnly ? 0 : 1);
 }
 
 const results = [

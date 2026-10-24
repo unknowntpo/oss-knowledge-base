@@ -7,19 +7,24 @@ import type { PeopleSource, ProfilePeriod, SourceCoverageV1 } from "@oss-knowled
 
 export type ChartSeries = "given" | "github" | "jira" | "mail" | "received";
 export type IdentitySource = "github" | "jira" | "mail";
+/** Spec 030: a project's series instead of an identity's (the trend on This week). */
+export type ChartSource = IdentitySource | "project";
 
-/** One `overTime` row: review counts always, an activity-log source only where it is recorded. */
+/**
+ * One `overTime` row: review counts always, an activity-log source only where it is recorded.
+ * Spec 030: a project row has `null` where a month was not recorded or could not be read.
+ */
 export interface OverTimeRow {
   readonly label: string;
-  readonly given: number;
+  readonly given: number | null;
   readonly received: number;
-  readonly github?: number;
-  readonly jira?: number;
-  readonly mail?: number;
+  readonly github?: number | null;
+  readonly jira?: number | null;
+  readonly mail?: number | null;
 }
 
 export interface ChartInput {
-  readonly source: IdentitySource;
+  readonly source: ChartSource;
   readonly period: ProfilePeriod;
   readonly overTime: readonly OverTimeRow[];
   readonly coverage: readonly SourceCoverageV1[];
@@ -57,8 +62,12 @@ export interface ActivityChart {
 
 const DAY_MS = 86_400_000;
 
-/** W58: strict identity — a page shows its own source's series only. */
-export function chartSeries(source: IdentitySource): { readonly up: readonly ChartSeries[]; readonly down: readonly ChartSeries[] } {
+/**
+ * W58: strict identity — a page shows its own source's series only. Spec 030 decisions 2 and 3: a
+ * project stacks reviews, GitHub, Jira and dev@ upward, with no down series (given equals received).
+ */
+export function chartSeries(source: ChartSource): { readonly up: readonly ChartSeries[]; readonly down: readonly ChartSeries[] } {
+  if (source === "project") return { up: ["given", "github", "jira", "mail"], down: [] };
   return source === "github" ? { up: ["given", "github"], down: ["received"] } : { up: [source], down: [] };
 }
 
@@ -115,7 +124,7 @@ export function activityChart(input: ChartInput): ActivityChart {
       const coverage = recorded.get(coverageSource(series));
       const value = row?.[series];
       // A review count exists for every row, but only means something once reviews are recorded.
-      values[series] = row === undefined || coverage === undefined || value === undefined || bucketEnd(label) < coverage.from ? null : value;
+      values[series] = row === undefined || coverage === undefined || value === undefined || value === null || bucketEnd(label) < coverage.from ? null : value;
     }
     const partial = [...up, ...down].flatMap((series) => {
       const coverage = recorded.get(coverageSource(series));
@@ -222,9 +231,11 @@ export function chartLayout(chart: ActivityChart, width: number): ChartLayout {
   const labelled = chart.buckets.map((_, index) => index).filter((index) => (n - 1 - index) % every === 0);
   const labelY = bottom + (chart.down.length > 0 ? 30 : 16);
   const laneTop = labelY + 26;
-  const lanes = chart.lanes.map((series, index) => ({ series, y: laneTop + index * 18 }));
+  // Each lane has its label above it; a second lane starts below the first one's bar and the next label (Spec 030: three lanes).
+  const laneStep = 28;
+  const lanes = chart.lanes.map((series, index) => ({ series, y: laneTop + index * laneStep }));
   return {
-    width: w, height: lanes.length > 0 ? laneTop + lanes.length * 18 + 4 : labelY + 6, left, right, top, zero, bottom, unit, slot, barWidth,
+    width: w, height: lanes.length > 0 ? laneTop + (lanes.length - 1) * laneStep + 22 : labelY + 6, left, right, top, zero, bottom, unit, slot, barWidth,
     ticks, columns, bands, labelled, labelY, lanes,
   };
 }

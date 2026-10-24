@@ -9,6 +9,7 @@
     "./search-profiles": "./src/search/profiles.ts",
     "./people": "./src/people/index.ts",
     "./people/search": "./src/people/search.ts",
+    "./project-activity": "./src/people/project-activity.ts",
     "./kip-pages": "./src/people/kip-pages.ts",
     "./identity-backfill": "./src/people/identity-backfill.ts"
   },

@@ -2039,6 +2039,22 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
 .person-range .person-period { margin: var(--space-4) 0 0; font-family: var(--font-sans); font-size: var(--fs-sm); color: var(--text-muted); }
 .person-table-toggle { all: unset; cursor: pointer; font-size: var(--fs-sm); color: var(--accent); }
 .person-table-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Spec 030 decision 4: where a later series starts (the activity log, 9/10), in the coverage colour. */
+.person-chart-svg .person-chart-marker { stroke: var(--data-unrecorded-line); stroke-width: var(--data-stroke-width); stroke-dasharray: 3 3; }
+.person-chart-svg .person-chart-marker-label { font-family: var(--font-sans); font-size: var(--fs-2xs); fill: var(--text-secondary); }
+
+/* Spec 030: the project activity trend on This week — the profile chart's marks and --data-* series, no property of its own. */
+.project-trend { margin: var(--space-20) 0 0; padding: var(--space-12) var(--space-16); background: var(--surface-card); border: 1px solid var(--border-default); border-radius: var(--radius-xl); min-width: 0; }
+.project-trend.project-trend-error { padding: 0; background: none; border: 0; font-size: var(--fs-sm); color: var(--text-muted); }
+.project-trend-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-12); flex-wrap: wrap; }
+.project-trend .project-trend-title { margin: 0; }
+.project-trend-note { margin: var(--space-4) 0 0; font-size: var(--fs-sm); color: var(--text-state-warning); }
+.project-trend-legend { margin-top: var(--space-8); font-size: var(--fs-xs); gap: var(--space-2) var(--space-10); }
+.project-trend-compact { margin-top: var(--space-6); min-width: 0; }
+.project-trend-svg { margin-top: var(--space-6); }
+.project-trend-svg [data-series].is-current { stroke-dasharray: 3 2; }
+.project-trend-svg .project-trend-progress { fill: var(--text-secondary); font-family: var(--font-sans); }
+.project-trend-full .person-chart-block { margin-top: var(--space-4); }
 .person-chart-table-wrap { overflow-x: auto; margin-top: var(--space-8); }
 .person-chart-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
 .person-chart-table caption { text-align: left; color: var(--text-muted); padding-bottom: var(--space-4); }
