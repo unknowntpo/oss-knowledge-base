@@ -883,9 +883,10 @@ const cases: Record<string, Case> = {
     const prompt = translatePrompt(KAFKA);
     const terms = KAFKA.glossary?.terms ?? [];
     const kept = terms.filter(([en, zh]) => en === zh && prompt.includes(`${en} → ${zh}`)).map(([en]) => en);
-    const rotation = terms.some(([en, zh]) => en === "rotation" && zh === "輪替" && prompt.includes("rotation → 輪替")) ? "rotation → 輪替" : "rotation missing";
-    const taiwan = (KAFKA.glossary?.avoid ?? []).filter(([bad, good]) => prompt.includes(`${good} not ${bad}`)).map(([bad, good]) => `${good} not ${bad}`);
-    return `kept in English: ${kept.join(", ")}; ${rotation}; Taiwan wording ${taiwan.join(", ")}; translator revision ${translatorPromptRevision(KAFKA)}`;
+    const added = ["rotation → 輪替", "mirroring → 鏡像"].filter((pair) => terms.some(([en, zh]) => `${en} → ${zh}` === pair) && prompt.includes(pair));
+    const taiwan = (KAFKA.glossary?.avoid ?? []).map(([bad, good, when]) => `${good} not ${bad}${when === undefined ? "" : ` (for ${when.join(", ")})`}`)
+      .filter((text) => prompt.includes(text));
+    return `kept in English: ${kept.join(", ")}; ${added.join(", ")}; Taiwan wording ${taiwan.join(", ")}; translator revision ${translatorPromptRevision(KAFKA)}`;
   },
   // D107
   "glossary check|Dev 2026-10-23 #29: \"Brokers would support client configuration observability (KIP-1324, proposed).\" translated as \"代理將支援客戶端設定的可觀察性 (KIP-1324, 已提出)。\"": () =>
@@ -902,6 +903,29 @@ const cases: Record<string, Case> = {
     glossaryCheck("Brokers would rotate SSL material (KIP-1, proposed).", "Broker 將輪替 SSL 材料 (KIP-1, 已提出)。"),
   "glossary check|constructed: \"A Docker image for system tests is proposed (KIP-1, discussing).\" translated as \"系統測試的 Docker 鏡像已提出 (KIP-1, 討論中)。\"": () =>
     glossaryCheck("A Docker image for system tests is proposed (KIP-1, discussing).", "系統測試的 Docker 鏡像已提出 (KIP-1, 討論中)。"),
+  // D107, D108: context-limited avoid words and backport renderings
+  "glossary check|constructed: \"Cluster mirroring would add mirror-level configs (KAFKA-1, open).\" translated as \"叢集鏡像將新增鏡像層級設定 (KAFKA-1, 仍在進行)。\"": () =>
+    `${glossaryCheck("Cluster mirroring would add mirror-level configs (KAFKA-1, open).", "叢集鏡像將新增鏡像層級設定 (KAFKA-1, 仍在進行)。")} (鏡像 is Taiwan wording for mirroring)`,
+  "glossary check|constructed: \"An error code would be returned (KAFKA-1, open).\" translated as \"將回傳錯誤代碼 (KAFKA-1, 仍在進行)。\"": () =>
+    `${glossaryCheck("An error code would be returned (KAFKA-1, open).", "將回傳錯誤代碼 (KAFKA-1, 仍在進行)。")} (錯誤代碼 is Taiwan wording)`,
+  "glossary check|constructed: \"Large messages would be split (KAFKA-1, open).\" translated as \"大型消息將拆分 (KAFKA-1, 仍在進行)。\"": () =>
+    `${glossaryCheck("Large messages would be split (KAFKA-1, open).", "大型消息將拆分 (KAFKA-1, 仍在進行)。")}`,
+  "glossary check|constructed: \"Release news would be posted (KAFKA-MAIL-1, discussing).\" translated as \"發布消息將張貼 (KAFKA-MAIL-1, 討論中)。\"": () =>
+    `${glossaryCheck("Release news would be posted (KAFKA-MAIL-1, discussing).", "發布消息將張貼 (KAFKA-MAIL-1, 討論中)。")} (消息 is news; flagged only for message)`,
+  "glossary check|Dev 2026-10-23 #4: \"Share fetch offset metadata is tracked per DelayedShareFetch instead of SharePartition (KAFKA-PR-23911, merged).\" translated as \"Share fetch 的偏移量元數據會根據 DelayedShareFetch 而不是 SharePartition 跟蹤 (KAFKA-PR-23911, 已合併)。\"": () =>
+    `${glossaryCheck("Share fetch offset metadata is tracked per DelayedShareFetch instead of SharePartition (KAFKA-PR-23911, merged).", "Share fetch 的偏移量元數據會根據 DelayedShareFetch 而不是 SharePartition 跟蹤 (KAFKA-PR-23911, 已合併)。")}`,
+  "glossary check|constructed: \"The benchmark numbers would improve by 10% (KAFKA-1, open).\" translated as \"基準數據將改善 10% (KAFKA-1, 仍在進行)。\"": () =>
+    `${glossaryCheck("The benchmark numbers would improve by 10% (KAFKA-1, open).", "基準數據將改善 10% (KAFKA-1, 仍在進行)。")} (數據 is flagged only for data or metadata)`,
+  "glossary check|constructed: \"Topics would be created on demand (KAFKA-1, open).\" translated as \"Topic 將依需求創建 (KAFKA-1, 仍在進行)。\"": () =>
+    `${glossaryCheck("Topics would be created on demand (KAFKA-1, open).", "Topic 將依需求創建 (KAFKA-1, 仍在進行)。")}`,
+  "glossary check|constructed: \"The project was founded in 2011.\" translated as \"專案於 2011 年創建。\"": () =>
+    `${glossaryCheck("The project was founded in 2011.", "專案於 2011 年創建。")} (創建 is flagged only for create)`,
+  "translate status|constructed: \"The fix for KAFKA-1 is proposed to be backported (KAFKA-PR-1, open).\" translated as \"KAFKA-1 的修正已提出回移 (KAFKA-PR-1, 仍在進行)。\"": () =>
+    `${statusGuard("The fix for KAFKA-1 is proposed to be backported (KAFKA-PR-1, open).", "KAFKA-1 的修正已提出回移 (KAFKA-PR-1, 仍在進行)。")} (回移 is backport)`,
+  "translate status|constructed: \"The fix for KAFKA-1 is proposed to be backported (KAFKA-PR-1, open).\" translated as \"KAFKA-1 的修正已提出向後移植 (KAFKA-PR-1, 仍在進行)。\"": () =>
+    `${statusGuard("The fix for KAFKA-1 is proposed to be backported (KAFKA-PR-1, open).", "KAFKA-1 的修正已提出向後移植 (KAFKA-PR-1, 仍在進行)。")} (向後移植 is backport)`,
+  "translate status|constructed: \"The fix for KAFKA-1 is proposed to be backported (KAFKA-PR-1, open).\" translated as \"KAFKA-1 的修正已提出移植回 (KAFKA-PR-1, 仍在進行)。\"": () =>
+    `${statusGuard("The fix for KAFKA-1 is proposed to be backported (KAFKA-PR-1, open).", "KAFKA-1 的修正已提出移植回 (KAFKA-PR-1, 仍在進行)。")} (移植回 is backport)`,
   // D108
   "translate status|Dev 2026-10-23 #20: \"Per-client-id remote fetch metrics are proposed (KAFKA-PR-23463, open).\" translated as \"將提出針對每個客戶端 ID 的遠端 Fetch 指標（KAFKA-PR-23463，仍在進行）\"": () =>
     statusGuard("Per-client-id remote fetch metrics are proposed (KAFKA-PR-23463, open).", "將提出針對每個客戶端 ID 的遠端 Fetch 指標（KAFKA-PR-23463，仍在進行）"),
@@ -1024,6 +1048,11 @@ describe("Spec 014 offline eval and measure", () => {
     expect(boundary.importance.recall).toBe(0.8);
     expect(boundary.importance.pass).toBe(true);
     expect(boundary.gates.d34).toBe("pass");
+    // Zero hits: recall 0 is a fail, not pending.
+    const none = at([routine, uncategorized]);
+    expect(none.importance).toMatchObject({ labeled: 2, hits: 0, recall: 0, pass: false });
+    expect(none.recall).toBe("0/2");
+    expect(none.gates.d34).toBe("fail");
     // No labels: pending, never pass.
     expect(at([]).importance.pass).toBe("pending human labels");
     expect(at([]).gates.d34).toBe("pending human labels");

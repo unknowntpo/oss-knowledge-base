@@ -52,8 +52,11 @@ export interface DigestGlossary {
   readonly revision: string;
   /** English term → zh-Hant term; identical when the term stays English. */
   readonly terms: readonly (readonly [string, string])[];
-  /** D106: Mainland wording → the Taiwan wording to use instead. */
-  readonly avoid?: readonly (readonly [string, string])[];
+  /**
+   * D106: mainland wording → the Taiwan wording to use instead. With English words, only a sentence
+   * that has one of them is checked (鏡像 is wrong for an image but right for mirroring).
+   */
+  readonly avoid?: readonly (readonly [mainland: string, taiwan: string, when?: readonly string[]])[];
 }
 
 /** A Feed index entry, reduced to what the digest reads. */

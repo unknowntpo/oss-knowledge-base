@@ -52,14 +52,18 @@ export const KAFKA_DIGEST_PROFILE: DigestProfile = {
       ["offloading", "卸載"], ["telemetry", "遙測"], ["assignor", "指派器"], ["rebalance", "再平衡"], ["rotation", "輪替"],
       ...([
         "broker", "controller", "KRaft", "consumer group", "share group", "streams group", "partition", "offset", "topic",
-        "mirroring", "named group", "backport", "cherry-pick",
+        "named group", "backport", "cherry-pick",
       ] as const).map((term) => [term, term] as const),
+      ["mirroring", "鏡像"],
     ],
     avoid: [
-      ["鏡像", "映像檔"], ["磁盤", "磁碟"], ["默認", "預設"], ["服務器", "伺服器"], ["數據", "資料"], ["信息", "資訊"],
-      ["線程", "執行緒"], ["內存", "記憶體"], ["網絡", "網路"], ["消息", "訊息"], ["調用", "呼叫"], ["接口", "介面"],
-      ["異步", "非同步"], ["緩存", "快取"], ["代碼", "程式碼"], ["軟件", "軟體"], ["集群", "叢集"], ["創建", "建立"],
-      ["字段", "欄位"], ["模塊", "模組"], ["質量", "品質"],
+      // Context-limited where the word is also Taiwan usage: 鏡像 (mirroring), 消息 (news), 數據 (numbers),
+      // 創建 (founding), 質量 (mass). 代碼 is left out: 錯誤代碼 (error code) is Taiwan usage.
+      ["鏡像", "映像檔", ["image"]], ["磁盤", "磁碟"], ["默認", "預設"], ["服務器", "伺服器"],
+      ["數據", "資料", ["data", "metadata"]], ["信息", "資訊"], ["線程", "執行緒"], ["內存", "記憶體"], ["網絡", "網路"],
+      ["消息", "訊息", ["message"]], ["調用", "呼叫"], ["接口", "介面"], ["異步", "非同步"], ["緩存", "快取"],
+      ["軟件", "軟體"], ["集群", "叢集"], ["創建", "建立", ["create", "created", "creating", "creation"]], ["字段", "欄位"],
+      ["模塊", "模組"], ["質量", "品質", ["quality"]],
     ],
   },
 };

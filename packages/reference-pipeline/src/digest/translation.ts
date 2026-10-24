@@ -65,7 +65,8 @@ function englishTerm(term: string): RegExp {
 
 /**
  * D107: the glossary terms a zh-Hant translation breaks. A term in the English text must appear as its
- * zh-Hant term (case-insensitive, so Broker counts for broker), and no avoided mainland word may appear.
+ * zh-Hant term (case-insensitive, so Broker counts for broker), and no avoided mainland word may appear
+ * (a context-limited one only when the English has one of its words).
  * An eval measure only: the run does not reject a translation for it.
  */
 export function glossaryViolations(english: string, zh: string, glossary: DigestGlossary): GlossaryViolation[] {
@@ -73,6 +74,8 @@ export function glossaryViolations(english: string, zh: string, glossary: Digest
   const missing = glossary.terms
     .filter(([term, target]) => englishTerm(term).test(english) && !lower.includes(target.toLowerCase()))
     .map(([term, target]) => ({ term, expected: target }));
-  const avoided = (glossary.avoid ?? []).filter(([mainland]) => zh.includes(mainland)).map(([mainland, taiwan]) => ({ term: mainland, expected: taiwan }));
+  const avoided = (glossary.avoid ?? [])
+    .filter(([mainland, , when]) => zh.includes(mainland) && (when === undefined || when.some((word) => englishTerm(word).test(english))))
+    .map(([mainland, taiwan]) => ({ term: mainland, expected: taiwan }));
   return [...missing, ...avoided];
 }

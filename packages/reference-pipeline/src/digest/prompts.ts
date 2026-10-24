@@ -119,7 +119,10 @@ export function translatePrompt(profile: DigestProfile): string {
   if (terms.length > 0) {
     lines.push(`Glossary, use these zh-Hant terms (a term mapped to itself stays in English): ${terms.map(([english, zh]) => `${english} → ${zh}`).join(", ")}.`);
   }
-  if (avoid.length > 0) lines.push(`Use Taiwan wording: ${avoid.map(([mainland, taiwan]) => `${taiwan} not ${mainland}`).join(", ")}.`);
+  if (avoid.length > 0) {
+    lines.push(`Use Taiwan wording: ${avoid.map(([mainland, taiwan, when]) =>
+      `${taiwan} not ${mainland}${when === undefined ? "" : ` (for ${when.join(", ")})`}`).join(", ")}.`);
+  }
   return lines.join("\n");
 }
 

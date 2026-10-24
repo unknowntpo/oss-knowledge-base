@@ -1010,16 +1010,24 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
       2026-10-23 translated Broker → 代理 (3 sentences), SSL rotation →
       旋轉, TLS named groups → 名稱組, and used mainland words (鏡像, 磁盤).
       Kafka terms stay in English: broker, controller, KRaft, consumer
-      group, share group, streams group, partition, offset, topic,
-      mirroring, named group, backport, cherry-pick. rotation → 輪替 joins
+      group, share group, streams group, partition, offset, topic, named
+      group, backport, cherry-pick. rotation → 輪替 and mirroring → 鏡像 join
       offloading → 卸載, telemetry → 遙測, assignor → 指派器, rebalance →
       再平衡. The glossary also lists mainland words with the Taiwan wording
       to use instead (`avoid`), and the prompt says "Use Taiwan wording:
-      映像檔 not 鏡像, 磁碟 not 磁盤, …". The list is in `profiles.ts` and in
-      the D106 row. Words that are also correct Taiwan usage in some
-      contexts (支持, 用戶 in 用戶端, 優化, 配置) are left out, so the check
-      has no known false positive. The prompt also says "is proposed" is
-      已提出, never 將提出, and keeps "backport" in English.
+      映像檔 not 鏡像 (for image), 磁碟 not 磁盤, …". The list is in
+      `profiles.ts` and in the D106 row.
+      - A word that is also Taiwan usage in another sense is limited to
+        English context words: 鏡像 is wrong for an image but right for
+        mirroring (for image); 數據 (for data, metadata; numbers are
+        數據); 消息 (for message; news is 消息); 創建 (for create; founding
+        is 創建); 質量 (for quality; mass is 質量).
+      - Words left out because they are common Taiwan usage: 支持, 用戶
+        (用戶端), 優化, 配置, 代碼 (錯誤代碼).
+      - The check can still flag a legitimate wording the list did not
+        foresee; a flag is a prompt for review, not a label.
+      The prompt also says "is proposed" is 已提出, never 將提出, and keeps
+      "backport" in English.
     - **Status guard, body words** (D108, 2026-10-24). Two more checks
       reject a translation (same handling as D99):
       - the English says "is/are/was/were/been/being proposed" (not "would
@@ -1027,7 +1035,7 @@ Ties are broken by display id, ascending, unless a rule says otherwise.
         (Dev 2026-10-23 #20: "metrics are proposed" → "將提出…");
       - the English says "backport" and the translation has none of
         backport, 回移, 向後移植, or 移植回 (Dev 2026-10-23 #2 dropped
-        "to be backported").
+        "to be backported"); each of the four renderings passes.
       These are the only words outside the parentheses the guard compares.
     - The translator is `@cf/qwen/qwen3-30b-a3b-fp8` (decided 2026-10-08).
 26. **Counts and window label.**
@@ -1556,7 +1564,7 @@ synthetic; the others use values captured from Dev.
 | D99 | translate status | constructed: "The types would be added (KAFKA-1, closed)." translated as "類型將新增 (KAFKA-1, 關閉（未合併）)。" | translated |
 | D99 | translate status | constructed: "The fix would land (KAFKA-1, open)." translated as "修正將完成 (KAFKA-1, 尚未合併)。" | translated |
 | D98 | prompt | vote status wording in the summarizer prompt and the guard | the summarizer asks for "is under vote" with voting in the parentheses; the guard maps voting and under vote to 投票中 |
-| D100 | prompt | translation prompt for the Kafka profile | glossary offloading → 卸載, telemetry → 遙測, assignor → 指派器, rebalance → 再平衡, rotation → 輪替, broker → broker, controller → controller, KRaft → KRaft, consumer group → consumer group, share group → share group, streams group → streams group, partition → partition, offset → offset, topic → topic, mirroring → mirroring, named group → named group, backport → backport, cherry-pick → cherry-pick; status words open → 仍在進行, merged → 已合併, closed → 已關閉, proposed → 已提出, discussing → 討論中, resolved → 已解決, voting → 投票中 |
+| D100 | prompt | translation prompt for the Kafka profile | glossary offloading → 卸載, telemetry → 遙測, assignor → 指派器, rebalance → 再平衡, rotation → 輪替, broker → broker, controller → controller, KRaft → KRaft, consumer group → consumer group, share group → share group, streams group → streams group, partition → partition, offset → offset, topic → topic, named group → named group, backport → backport, cherry-pick → cherry-pick, mirroring → 鏡像; status words open → 仍在進行, merged → 已合併, closed → 已關閉, proposed → 已提出, discussing → 討論中, resolved → 已解決, voting → 投票中 |
 | D103 | prompt | summarizer and highlights prompts (importance rubric v2) | both name user impact, architecture, and direction as important, and tests, refactors, docs, dependency bumps, CI, small internal fixes, ordinary bug fixes, and backports or cherry-picks as not important |
 | D105 | uncategorized fallback | Dev 2026-10-23: "KAFKA-20402: Support broker-side consumer group rebalance callback (KIP-1314)" with model topic other | group-coordination card (title rules) |
 | D105 | uncategorized fallback | Dev 2026-10-23: "KAFKA-20528: Verify LZ4 frame content checksum on the read path" with model topic storage at topicConfidence 0.2 | security card (title rules) |
@@ -1564,7 +1572,7 @@ synthetic; the others use values captured from Dev.
 | D105 | uncategorized fallback | Dev 2026-10-23: "[VOTE] KIP-1308: Extend Header API for Common Value Types" with model topic other | Uncategorized (no rule names a topic); still in the KIP-1308 row |
 | D105 | uncategorized fallback | constructed: "Support broker-side consumer group rebalance callback" with model topic security at topicConfidence 0.35 | security card (a confident model topic wins) |
 | D105 | uncategorized fallback | constructed: "Support broker-side consumer group rebalance callback" with model routine at routineConfidence 0.6 | routine section (routine is unchanged) |
-| D106 | prompt | translation prompt for the Kafka profile (glossary v2) | kept in English: broker, controller, KRaft, consumer group, share group, streams group, partition, offset, topic, mirroring, named group, backport, cherry-pick; rotation → 輪替; Taiwan wording 映像檔 not 鏡像, 磁碟 not 磁盤, 預設 not 默認, 伺服器 not 服務器, 資料 not 數據, 資訊 not 信息, 執行緒 not 線程, 記憶體 not 內存, 網路 not 網絡, 訊息 not 消息, 呼叫 not 調用, 介面 not 接口, 非同步 not 異步, 快取 not 緩存, 程式碼 not 代碼, 軟體 not 軟件, 叢集 not 集群, 建立 not 創建, 欄位 not 字段, 模組 not 模塊, 品質 not 質量; translator revision digest-prompts@5\|kafka-glossary@2 |
+| D106 | prompt | translation prompt for the Kafka profile (glossary v2) | kept in English: broker, controller, KRaft, consumer group, share group, streams group, partition, offset, topic, named group, backport, cherry-pick; rotation → 輪替, mirroring → 鏡像; Taiwan wording 映像檔 not 鏡像 (for image), 磁碟 not 磁盤, 預設 not 默認, 伺服器 not 服務器, 資料 not 數據 (for data, metadata), 資訊 not 信息, 執行緒 not 線程, 記憶體 not 內存, 網路 not 網絡, 訊息 not 消息 (for message), 呼叫 not 調用, 介面 not 接口, 非同步 not 異步, 快取 not 緩存, 軟體 not 軟件, 叢集 not 集群, 建立 not 創建 (for create, created, creating, creation), 欄位 not 字段, 模組 not 模塊, 品質 not 質量 (for quality); translator revision digest-prompts@5\|kafka-glossary@2 |
 | D107 | glossary check | Dev 2026-10-23 #29: "Brokers would support client configuration observability (KIP-1324, proposed)." translated as "代理將支援客戶端設定的可觀察性 (KIP-1324, 已提出)。" | flagged: broker (kept in English) |
 | D107 | glossary check | Dev 2026-10-23 #28: "SslEngineFactory contract would allow dynamic SSL material rotation (KIP-1288, proposed)." translated as "SslEngineFactory 合約會允許動態 SSL 材料旋轉 (KIP-1288, 已提出)。" | flagged: rotation → 輪替 |
 | D107 | glossary check | Dev 2026-10-23 #17: "Kafka would support setting TLS named groups (KIP-1376, discussing)." translated as "Kafka 會支援設定 TLS 名稱組 (KIP-1376, 討論中)。" | flagged: named group (kept in English) |
@@ -1572,9 +1580,20 @@ synthetic; the others use values captured from Dev.
 | D107 | glossary check | Dev 2026-10-23 #1: "Copartition groups and indexes would get sorted for consistent Streams topology comparison (KAFKA-21302, open)." translated as "共分區群組和索引將根據一致的Streams拓撲比較進行排序（KAFKA-21302，仍在進行）" | not flagged (Copartition is not the word partition) |
 | D107 | glossary check | constructed: "Brokers would rotate SSL material (KIP-1, proposed)." translated as "Broker 將輪替 SSL 材料 (KIP-1, 已提出)。" | not flagged |
 | D107 | glossary check | constructed: "A Docker image for system tests is proposed (KIP-1, discussing)." translated as "系統測試的 Docker 鏡像已提出 (KIP-1, 討論中)。" | flagged: 鏡像 → 映像檔 |
+| D107 | glossary check | constructed: "Cluster mirroring would add mirror-level configs (KAFKA-1, open)." translated as "叢集鏡像將新增鏡像層級設定 (KAFKA-1, 仍在進行)。" | not flagged (鏡像 is Taiwan wording for mirroring) |
+| D107 | glossary check | constructed: "An error code would be returned (KAFKA-1, open)." translated as "將回傳錯誤代碼 (KAFKA-1, 仍在進行)。" | not flagged (錯誤代碼 is Taiwan wording) |
+| D107 | glossary check | constructed: "Large messages would be split (KAFKA-1, open)." translated as "大型消息將拆分 (KAFKA-1, 仍在進行)。" | flagged: 消息 → 訊息 |
+| D107 | glossary check | constructed: "Release news would be posted (KAFKA-MAIL-1, discussing)." translated as "發布消息將張貼 (KAFKA-MAIL-1, 討論中)。" | not flagged (消息 is news; flagged only for message) |
+| D107 | glossary check | Dev 2026-10-23 #4: "Share fetch offset metadata is tracked per DelayedShareFetch instead of SharePartition (KAFKA-PR-23911, merged)." translated as "Share fetch 的偏移量元數據會根據 DelayedShareFetch 而不是 SharePartition 跟蹤 (KAFKA-PR-23911, 已合併)。" | flagged: offset (kept in English), 數據 → 資料 |
+| D107 | glossary check | constructed: "The benchmark numbers would improve by 10% (KAFKA-1, open)." translated as "基準數據將改善 10% (KAFKA-1, 仍在進行)。" | not flagged (數據 is flagged only for data or metadata) |
+| D107 | glossary check | constructed: "Topics would be created on demand (KAFKA-1, open)." translated as "Topic 將依需求創建 (KAFKA-1, 仍在進行)。" | flagged: 創建 → 建立 |
+| D107 | glossary check | constructed: "The project was founded in 2011." translated as "專案於 2011 年創建。" | not flagged (創建 is flagged only for create) |
 | D108 | translate status | Dev 2026-10-23 #20: "Per-client-id remote fetch metrics are proposed (KAFKA-PR-23463, open)." translated as "將提出針對每個客戶端 ID 的遠端 Fetch 指標（KAFKA-PR-23463，仍在進行）" | English text kept, label Not translated (proposed: 已提出 missing; found 將提出) |
 | D108 | translate status | Dev 2026-10-23 #2: "The fix for KAFKA-21302 is proposed to be backported (KAFKA-PR-23855, open)." translated as "修正 KAFKA-21302 已提出 (KAFKA-PR-23855, 仍在進行)。" | English text kept, label Not translated (backport: backport missing; found none) |
 | D108 | translate status | constructed: "The fix for KAFKA-1 is proposed to be backported (KAFKA-PR-1, open)." translated as "KAFKA-1 的修正已提出 backport (KAFKA-PR-1, 仍在進行)。" | translated |
+| D108 | translate status | constructed: "The fix for KAFKA-1 is proposed to be backported (KAFKA-PR-1, open)." translated as "KAFKA-1 的修正已提出回移 (KAFKA-PR-1, 仍在進行)。" | translated (回移 is backport) |
+| D108 | translate status | constructed: "The fix for KAFKA-1 is proposed to be backported (KAFKA-PR-1, open)." translated as "KAFKA-1 的修正已提出向後移植 (KAFKA-PR-1, 仍在進行)。" | translated (向後移植 is backport) |
+| D108 | translate status | constructed: "The fix for KAFKA-1 is proposed to be backported (KAFKA-PR-1, open)." translated as "KAFKA-1 的修正已提出移植回 (KAFKA-PR-1, 仍在進行)。" | translated (移植回 is backport) |
 | D108 | translate status | constructed: "A metric would be proposed (KAFKA-PR-1, open)." translated as "將提出一項指標 (KAFKA-PR-1, 仍在進行)。" | translated (the English does not say is proposed) |
 <!-- test-plan:end -->
 
@@ -2314,12 +2333,15 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   title rules' topic; only a thread neither places is in Uncategorized; a
   confident model topic and routine placement are unchanged.
 - D106: the translation prompt lists glossary `kafka-glossary@2` (Kafka
-  terms kept in English, rotation → 輪替) and the Taiwan wording list; the
+  terms kept in English, rotation → 輪替, mirroring → 鏡像) and the Taiwan
+  wording list with its context words; the
   translator revision is `digest-prompts@5|kafka-glossary@2`.
 - D107: `digest -- eval` flags glossary violations on every sentence with
   `zhHant`: Dev 2026-10-23 #29 (代理), #28 (旋轉), #17 (名稱組), and #10
   (磁盤) are flagged; #1 (Copartition) and a translation that keeps the
-  terms are not.
+  terms are not. A context-limited word is flagged only with its English
+  word (鏡像 for image, not for mirroring; 消息 for message, not news;
+  數據 for data or metadata; 創建 for create); 錯誤代碼 is not flagged.
 - D108: the status guard also rejects a translation that turns "is
   proposed" into 將提出 or drops "backport" (Dev 2026-10-23 #20 and #2);
   "would be proposed" → 將提出 and a translation keeping "backport" pass.
