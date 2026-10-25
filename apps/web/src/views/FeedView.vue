@@ -12,7 +12,7 @@ import { otherResultsStart, searchCount, searchCountText } from "../search-resul
 import { useFeedStore } from "../store";
 import type { FeedIndexEntry, SearchResponseV1 } from "../types";
 
-// Spec 014: All threads is this Feed for the route's project (`/#/<projectKey>/threads`). A typed
+// Spec 014: All threads is this Feed for the route's project (`/<projectKey>/threads`). A typed
 // query searches every project (Spec 005), so the route project applies to the list only.
 const props = defineProps<{ readonly projectKey?: string }>();
 const { payload, searchQuery } = useFeedStore();

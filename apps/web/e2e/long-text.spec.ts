@@ -107,7 +107,7 @@ async function prepare(page: Page, locale: string, width: number): Promise<void>
 /** Opens the first matching link by its href. Controls are driven with dispatched events for the same
  * reason: an overflowing layout must fail a measured row, not time out on a covered button. */
 async function follow(page: Page, selector: string): Promise<void> {
-  await page.goto(`/${await page.locator(selector).first().getAttribute("href")}`);
+  await page.goto((await page.locator(selector).first().getAttribute("href"))!);
 }
 
 interface Row {
@@ -219,32 +219,32 @@ for (const width of [375, 390]) {
       };
 
       await test.step("feed", async () => {
-        await page.goto("/#/kafka/threads");
+        await page.goto("/kafka/threads");
         await expect(page.locator(".card")).toHaveCount(2);
         await page.locator(".filters-toggle").dispatchEvent("click");
         await expectWrapped(page, [...cardRows, ...filterRows]);
       });
       await test.step("feed detail", async () => {
         await follow(page, ".card");
-        await expect(page).toHaveURL(/#\/feed\//u);
+        await expect(page).toHaveURL(/\/feed\//u);
         await page.locator(".ai-actions .btn").dispatchEvent("click");
         await shot("feed-detail");
         await expectWrapped(page, feedDetailRows);
       });
       await test.step("search", async () => {
-        await page.goto("/#/kafka/threads");
+        await page.goto("/kafka/threads");
         await page.locator("#q").fill("KIP-405");
         await expect(page.locator(".search-card").first()).toBeVisible();
         await expectWrapped(page, searchRows);
       });
       await test.step("search detail", async () => {
         await follow(page, ".search-card");
-        await expect(page).toHaveURL(/#\/search\/sdr1\./u);
+        await expect(page).toHaveURL(/\/search\/sdr1\./u);
         await page.locator(".ai-actions .btn").dispatchEvent("click");
         await expectWrapped(page, searchDetailRows);
       });
       await test.step("this week", async () => {
-        await page.goto("/#/kafka/");
+        await page.goto("/kafka/");
         await expect(page.locator("#digest")).toBeVisible();
         await shot("week");
         await expectWrapped(page, weekRows);
@@ -252,12 +252,12 @@ for (const width of [375, 390]) {
         await expectWrapped(page, []);
       });
       await test.step("proposals", async () => {
-        await page.goto("/#/kafka/proposals");
+        await page.goto("/kafka/proposals");
         await expect(page.locator("#view-proposals .kip-row").first()).toBeVisible();
         await expectWrapped(page, proposalRows);
       });
       await test.step("topic page", async () => {
-        await page.goto("/#/kafka/");
+        await page.goto("/kafka/");
         await follow(page, ".topic-card-title a");
         await expect(page.locator("#view-topic-page")).toBeVisible();
         await expectWrapped(page, topicRows);
@@ -269,9 +269,9 @@ for (const width of [375, 390]) {
 test("A13: the same text stays inside its card on the detail page at 1280 px", async ({ page }) => {
   await prepare(page, "en", 375);
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto("/#/kafka/threads");
+  await page.goto("/kafka/threads");
   await follow(page, ".card");
-  await expect(page).toHaveURL(/#\/feed\//u);
+  await expect(page).toHaveURL(/\/feed\//u);
   await page.locator(".ai-actions .btn").dispatchEvent("click");
   await expectWrapped(page, feedDetailRows);
 });

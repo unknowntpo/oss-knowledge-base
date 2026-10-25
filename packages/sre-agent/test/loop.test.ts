@@ -4,6 +4,7 @@
  */
 import { describe, expect, test } from "bun:test";
 import {
+  MAX_OUTPUT_TOKENS,
   MAX_STEPS,
   NeuronLedger,
   PLAYBOOK_LIBRARY,
@@ -67,6 +68,23 @@ const scenarios: Record<string, () => Promise<void>> = {
     expect(result.trajectory.steps[0]!.toolResults[0]!.output).toContain("Invariant playbook: `job.missed`");
     expect(result.trajectory.steps[1]!.finishReason).toBe("stop");
     expect(result.evidenceCheck).toEqual({ ok: true, failures: [] });
+  },
+
+  async "output cap"() {
+    const model = scripted(answer(VALID_OUTPUT, [2000, 200]));
+    const reserved: number[] = [];
+    const ledger = new NeuronLedger(emptyState("2026-10-22"), async (state) => { reserved.push(state.today.neurons); });
+    const result = await diagnoseBundle({
+      model, modelId: MODEL_ID, bundle: await bundle(), ledger,
+      tools: { env: "dev", health, querySignals: sqlFake().querySignals, fetch: githubFake().fetch, secrets: [], library: PLAYBOOK_LIBRARY, ciRuns: false },
+    });
+    expect(result.verdict).toBe("explained");
+    expect(MAX_OUTPUT_TOKENS).toBe(4096);
+    expect(model.doGenerateCalls[0]!.maxOutputTokens).toBe(4096);
+    // One reservation before the call: estimated input plus 4,096 output tokens at GLM's rate (36,400 / M).
+    expect(reserved).toHaveLength(1);
+    expect(reserved[0]!).toBeGreaterThan(neuronsFor(MODEL_ID, 0, 4096));
+    expect(reserved[0]! - neuronsFor(MODEL_ID, 0, 4096)).toBeLessThan(neuronsFor(MODEL_ID, 20_000, 0));
   },
 
   async "unknown tool"() {

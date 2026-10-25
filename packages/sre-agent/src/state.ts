@@ -9,7 +9,8 @@ import type { Firing } from "./types";
 
 export const MAX_DIAGNOSES_PER_DAY = 3;
 export const MAX_STEPS = 12;
-export const MAX_OUTPUT_TOKENS = 1024;
+/** Per model call (B30, B31); 4,096 since the owner decision of 2026-10-25 (Spec 027 Eval notes): 1,024 ended GLM and Qwen answers at `length`. */
+export const MAX_OUTPUT_TOKENS = 4096;
 export const DAILY_NEURON_CAP = 1500;
 
 export interface SreState {

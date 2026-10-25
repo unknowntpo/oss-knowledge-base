@@ -15,7 +15,7 @@ const desktopOnly = () => test.skip(test.info().project.name !== "desktop-chromi
 
 async function openFeed(page: Page, locale: "en" | "zh-Hant" = "en"): Promise<void> {
   await page.addInitScript((value) => window.localStorage.setItem("community-kb-locale", value), locale);
-  await page.goto("/#/kafka/threads");
+  await page.goto("/kafka/threads");
   await expect(page.locator(".card")).toHaveCount(2);
 }
 

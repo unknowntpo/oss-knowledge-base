@@ -37,7 +37,7 @@ export function projectByKey(key: string | undefined): WebProject | undefined {
   return PROJECTS.find((project) => project.profile.projectKey === key);
 }
 
-/** Behavior 27: bare `/#/` opens the last selected project; storage may be unavailable. */
+/** Behavior 27: bare `/` opens the last selected project; storage may be unavailable. */
 export function lastProjectKey(storage: Pick<Storage, "getItem"> | undefined): string {
   try {
     const saved = storage?.getItem(LAST_PROJECT_KEY) ?? null;
@@ -163,7 +163,7 @@ export function citeTarget(id: string, digest: Pick<DigestV1, "threads">, feedId
   const title = thread?.title ?? id;
   // Only https source links leave the app; anything else (javascript:, http:, data:) opens Detail.
   if (feedIds === undefined || feedIds.has(id) || thread?.url === null || thread?.url === undefined || !thread.url.startsWith("https://")) {
-    return { href: `#/feed/${encodeURIComponent(id)}`, external: false, title };
+    return { href: `/feed/${encodeURIComponent(id)}`, external: false, title };
   }
   return { href: thread.url, external: true, title };
 }

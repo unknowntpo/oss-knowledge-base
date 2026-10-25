@@ -19,7 +19,7 @@ test.beforeEach(async ({ page }, testInfo) => {
 
 test("F3: an open page turns stale when the stale threshold (one day and three hours) passes", async ({ page }) => {
   await page.clock.install({ time: generatedAt + STALE_AFTER_MS - 30_000 });
-  await page.goto("/#/kafka/threads");
+  await page.goto("/kafka/threads");
   const pill = page.locator(".demo-pill");
   await expect(pill).toHaveText(overdueText);
   await expect(pill).toHaveClass(/is-overdue/u);
@@ -32,7 +32,7 @@ test("F3: an open page turns stale when the stale threshold (one day and three h
 test("F4: an unparsable generatedAt hides the age and keeps the Feed", async ({ page }) => {
   // Control: the same page shows an age for a valid generatedAt, so the check below can fail.
   await page.clock.install({ time: generatedAt + 2 * hour });
-  await page.goto("/#/kafka/threads");
+  await page.goto("/kafka/threads");
   await expect(page.locator(".demo-pill")).toContainText("ago");
 
   await page.route("**/api/feed", async (route) => {

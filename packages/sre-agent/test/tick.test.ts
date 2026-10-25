@@ -448,6 +448,25 @@ const scenarios: Record<string, () => Promise<void>> = {
     expect(run.runRecord!.diagnoses[0]).toMatchObject({ verdict: "unverified", evidenceCheck: { ok: false, failures: ["quote-not-in-item:E1"] } });
   },
 
+  async "compact JSON quote"() {
+    const pretty = JSON.stringify({ ok: false, status: "failed", r2: { classA: 8190 } }, null, 2);
+    const bundle = { items: [item("E1", pretty), item("E2", JSON.stringify({ error: "jira 503" }, null, 2)), item("E3", "conclusion: failure")], causes: new Set(["alarm-stuck", "unknown"]), runbooks: new Set<string>() };
+    const base = { ...VALID_OUTPUT, runbook: null };
+    const quote = (id: string, text: string) => checkEvidence({ ...base, evidence: [{ id, quote: text }] }, bundle);
+    // Verbatim from the compact serialization of the cited item passes.
+    expect(quote("E1", "{\"ok\":false,\"status\":\"failed\"")).toEqual({ ok: true, failures: [] });
+    expect(quote("E1", "\"r2\":{\"classA\":8190}")).toEqual({ ok: true, failures: [] });
+    // A paraphrase still fails, in either form.
+    expect(quote("E1", "\"r2.classA\":8190")).toEqual({ ok: false, failures: ["quote-not-in-item:E1"] });
+    expect(quote("E1", "{\"ok\": false,\"status\": \"failed\"")).toEqual({ ok: false, failures: ["quote-not-in-item:E1"] });
+    // Compact JSON of another item still fails.
+    expect(quote("E1", "{\"error\":\"jira 503\"}")).toEqual({ ok: false, failures: ["quote-not-in-item:E1"] });
+    expect(quote("E2", "{\"error\":\"jira 503\"}")).toEqual({ ok: true, failures: [] });
+    // A non-JSON item has only its text form.
+    expect(quote("E3", "conclusion: failure")).toEqual({ ok: true, failures: [] });
+    expect(quote("E3", "\"conclusion: failure\"")).toEqual({ ok: false, failures: ["quote-not-in-item:E3"] });
+  },
+
   async "cause and runbook"() {
     const bundle = { items: [item("E1", "x")], causes: new Set(["alarm-stuck", "unknown"]), runbooks: new Set(["cloudflare-data-publisher.md#roll-back"]) };
     const base = { ...VALID_OUTPUT, evidence: [{ id: "E1", quote: "x" }] };
