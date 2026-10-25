@@ -499,6 +499,13 @@ const scenarios: Record<string, () => Promise<void>> = {
     // A quote from another item still fails.
     expect(quote("E2", "\"status\": \"failed\", \"error\": \"cwiki.apache.org answered 503\"")).toEqual(fails("E2"));
     expect(quote("E2", "{\"costGuard\": {\"status\": \"ok\"}}")).toEqual(passes);
+    // Arrays: whitespace beside [ and ] is insignificant too, numbers still whole.
+    const rules = { signals: { rules: [{ id: "job.missed", state: "firing" }, { id: "job.failures", state: "ok" }], counts: [1, 2] } };
+    const arrays = { ...bundle, items: [item("E3", JSON.stringify(rules, null, 2))] };
+    const quoteE3 = (text: string) => checkEvidence({ ...VALID_OUTPUT, runbook: null, evidence: [{ id: "E3", quote: text }] }, arrays);
+    expect(quoteE3("\"rules\": [{\"id\": \"job.missed\", \"state\": \"firing\"}, {\"id\": \"job.failures\"")).toEqual(passes);
+    expect(quoteE3("\"counts\": [1, 2]")).toEqual(passes);
+    expect(quoteE3("\"counts\": [1, 22]")).toEqual(fails("E3"));
   },
 
   async "quote precision"() {
