@@ -5,7 +5,8 @@
  */
 import { describe, expect, test } from "bun:test";
 import { EVAL_CASES, type EvalCase } from "../scripts/eval/cases";
-import { CostMeter, evalLibrary, goldenModel, pickWinner, renderScoreboard, runCase, scoreboard, type CaseRun } from "../scripts/eval/harness";
+import { CostMeter, evalLibrary, goldenModel, grade, pickWinner, renderScoreboard, runCase, scoreboard, type CaseRun } from "../scripts/eval/harness";
+import type { Bundle } from "../src";
 import { testPlanRows } from "./eval.cases";
 
 const library = evalLibrary();
@@ -17,18 +18,48 @@ const caseOf = (scenario: string): EvalCase => {
 const golden = (value: EvalCase, mutate?: Parameters<typeof goldenModel>[2]) =>
   runCase({ evalCase: value, modelId: "golden", library, model: (bundle) => goldenModel(value, bundle, mutate), run: 1 });
 
+/** Grader mutation controls (eval.cases.ts rows with source "control"). */
+const controls: Record<string, (value: EvalCase) => Promise<void>> = {
+  async "grader control M11"(value) {
+    const result = await golden(value, { alterQuote: 0 });
+    expect(result.grade.missing).toEqual(["lastRun.r2.classA"]);
+    expect(result.grade.fabricated).toBe(true);
+    expect(result.grade.pass).toBe(false);
+  },
+  async "grader control M14"(value) {
+    const answer = caseOf("r2-class-a-spike-2026-10-13").golden!;
+    const output = { ...answer, evidence: [{ id: "E1", quote: "x" }] };
+    const graded = grade(value, { items: [], causes: new Set(["unknown"]), runbooks: new Set() } as unknown as Bundle, [], output, library);
+    expect(graded.pass).toBe(false);
+  },
+  async "grader control M15"(value) {
+    const result = await golden(value, { runbook: "cloudflare-data-publisher.md#follow-up-runs-spec-018" });
+    expect(result.grade.anchor).toBe(true);
+    expect(result.grade.pass).toBe(true);
+  },
+};
+
 describe("Spec 027 L2: eval fixtures and graders", () => {
+  test("eval harness: every control row has its control", () => {
+    expect(testPlanRows.filter((row) => row.source === "control" && controls[row.type] === undefined)).toEqual([]);
+  });
+
   test("eval harness: every eval.cases.ts row has one fixture, and every fixture a row", () => {
-    expect(EVAL_CASES.map((value) => value.scenario).sort()).toEqual(testPlanRows.map((row) => row.scenario).sort());
-    for (const row of testPlanRows) {
+    const fixtures = testPlanRows.filter((row) => row.source !== "control");
+    expect(EVAL_CASES.map((value) => value.scenario).sort()).toEqual(fixtures.map((row) => row.scenario).sort());
+    for (const row of fixtures) {
       const value = caseOf(row.scenario);
       expect(value.expected === null).toBe(row.trigger === "none");
       if (value.expected !== null) expect(value.expected.cause).toBe(row.cause);
     }
   });
 
-  test.each(testPlanRows)("$id: $scenario passes every grader with its golden answer and fails with the cause swapped, one quote altered or a wrong anchor (negative controls)", async (row) => {
+  test.each(testPlanRows)("$id: $type, $scenario: passes every grader with its golden answer and fails with the cause swapped, one quote altered or a wrong anchor (negative controls)", async (row) => {
     const value = caseOf(row.scenario);
+    if (row.source === "control") {
+      await controls[row.type]!(value);
+      return;
+    }
     const result = await golden(value);
     expect(result.grade.pass).toBe(true);
     if (row.trigger === "none") {
