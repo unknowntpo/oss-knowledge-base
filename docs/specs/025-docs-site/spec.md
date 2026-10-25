@@ -1,6 +1,6 @@
 # Spec 025: Public documentation site
 
-Status: Implemented (publication approved by the owner 2026-10-20; the Cloudflare Pages project `oss-knowledge-base-docs` was created by the owner that day through the Cloudflare API, with no deployment yet; the first deployment runs on the push to `main` that merges this spec)
+Status: Implemented (publication approved by the owner 2026-10-20; the Cloudflare Pages project `oss-knowledge-base-docs` was created by the owner that day through the Cloudflare API, with no deployment yet; the first deployment runs on the push to `main` that merges this spec); amended 2026-10-25: the system diagram covers every component (DOC20)
 Date: 2026-10-20
 Traceability: enforced
 Builds on: Spec 020 (feature-map site, its Markdown subset), Spec 023/024 (design tokens, dark theme), `docs/process/workflow.md`
@@ -197,6 +197,7 @@ estimated neurons) and are dated on the page.
 - DOC8: The product's light and dark tokens are inlined, with the dark block also under `prefers-color-scheme: dark`. Evidence: unit test.
 - DOC9: A flow renders cards, step links and one detail per step without script; invalid flows fail the build. Evidence: unit test and test-plan rows.
 - DOC19: Given the committed content, the search page in both locales shows the search pipeline flow (query normalisation, BM25 candidates, ranking, results, and the semantic branch), with Dev-only steps tagged Dev only, Clef reranking tagged design only, and the Prod path untagged. Evidence: unit test on the repository (failed before the flow existed).
+- DOC20: Given the code and the four deployed wrangler configurations, the system flow (`docs/site/flows/system.json`) names, in backticks in a step's details in both locales, every target of `cronTarget()`, every cron entry, every Worker and Pages binding and its resource (R2 bucket, Vectorize index, Analytics Engine dataset), every AI Gateway, every Pages Function route, `/health` and every other Worker route by its job; an item deployed only on Dev is named by a step tagged Dev only or under a "Dev" fact, an item deployed on Prod by an untagged step or under a "Prod" fact; a missing item or a wrong badge is reported (amendment 2026-10-25). Evidence: unit test on the repository with positive controls (`scripts/test/system-flow.test.ts`; failed before the amendment with 58 problems).
 - DOC10: `{{value:specs}}` is replaced by the derived count. Evidence: unit test.
 - DOC11: The same input gives byte-identical files. Evidence: unit test.
 - DOC14: The committed `docs/site` builds and audits clean in both locales. Evidence: unit test on the repository (failed before the content existed: 10 problems).
@@ -256,6 +257,38 @@ and audit row first checks that the unchanged fixture builds and audits clean (p
 | DOC12 | pull_request refs/pull/1/merge yes 200 | deploy | skip | pull requests deploy nothing (ci.yml has no preview deploys) |
 | DOC12 | push refs/tags/v0.3.2 yes 200 | deploy | skip | a tag deploys Prod, not the docs |
 <!-- test-plan:end -->
+
+## Amendment 2026-10-25: the system diagram covers every component
+
+**Intent.** The overview's system flow was written by hand in #103 and was stale within days:
+it had no SRE agent, cost guard, run signals, retention, identity or KIP jobs and no AI Gateways,
+and lacked three of the five Durable Objects. The owner wants one diagram that shows every component
+and cannot silently go stale again.
+
+**Change.**
+
+1. `docs/site/flows/system.json` gains a fifth column, "Observability and SRE agent"
+   (`/health`, run signals, cost guard, Workers Logs, `verify:health`, and the SRE agent's
+   collect → diagnose → record → drill steps), a card per job family, the Workers AI binding and
+   its gateways, every Durable Object, the external sources each job reads, and Cloudflare
+   Access (tagged off: Dev is public today, see `docs/feature-map.md`). The overview's stage
+   list gains the fifth stage.
+2. **Completeness rule (DOC20).** `scripts/test/system-flow.test.ts` derives an inventory from
+   the code and configuration and fails when the flow does not name an item: the string
+   literals of `cronTarget()`'s return type; `triggers.crons`; the `ai`, `vectorize`,
+   `analytics_engine_datasets`, `analytics`, `r2_buckets` and `durable_objects` bindings and their
+   resource names; every `*GATEWAY*` variable's value; every file under
+   `apps/web/functions/api` as a route; `/health`, and every other route of the Worker's
+   default handler by its first path segment (`/run` as `publisher`). A name counts only in
+   backticks in a step's lead or facts, in both locales. Badges follow the configurations: a
+   Dev-only item needs a step tagged `dev` or a fact keyed "Dev"; an item on Prod needs an
+   untagged step or a fact keyed "Prod".
+3. Manual trigger paths stay out of the page (DOC7): the flow names each job, and the runbook
+   has the paths.
+
+**Not covered.** Whether a step's prose is true, R2 key prefixes, Pages variables (covered by
+`scripts/test/feature-map.test.ts`) and the dated run numbers; those still need review when a
+job changes.
 
 ## One-time setup (owner)
 

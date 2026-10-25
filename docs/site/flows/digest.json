@@ -191,8 +191,8 @@
         "zh-Hant": "寫摘要"
        },
        "meta": {
-        "en": "Llama 3.3 70B · digest-prompts@4",
-        "zh-Hant": "Llama 3.3 70B · digest-prompts@4"
+        "en": "Llama 3.3 70B · digest-prompts@5",
+        "zh-Hant": "Llama 3.3 70B · digest-prompts@5"
        },
        "lead": {
         "en": "`@cf/meta/llama-3.3-70b-instruct-fp8-fast` writes up to 3 sentences per card, 1 per KIP row, then a headline and 3 highlights. It only sees the selected threads, and every sentence must cite them, e.g. `(KAFKA-PR-23829, closed)`.",
@@ -209,8 +209,8 @@
           "zh-Hant": "Prompt"
          },
          "v": {
-          "en": "`digest-prompts@4` (D98, 2026-10-20): status-faithful wording; \"would\" or \"is proposed\" for open, discussed or voted items",
-          "zh-Hant": "`digest-prompts@4`（D98，2026-10-20）：措辭忠於狀態；open、討論中、投票中的項目只能用 would 或 is proposed"
+          "en": "`digest-prompts@5` (D103, 2026-10-24): sentences go to the most important threads by rubric v2; keeps @4's status-faithful wording (D98): \"would\" or \"is proposed\" for open, discussed or voted items",
+          "zh-Hant": "`digest-prompts@5`（D103，2026-10-24）：句子優先寫依 rubric v2 判定最重要的 thread；沿用 @4 的措辭忠於狀態（D98）：open、討論中、投票中的項目只能用 would 或 is proposed"
          }
         }
        ]
