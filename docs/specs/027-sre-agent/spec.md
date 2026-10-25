@@ -367,7 +367,9 @@ with Amendment (1), it wins.
     `quote` must occur in that item verbatim (whitespace collapsed), or,
     when the item's text is JSON, verbatim in its compact serialization
     (`JSON.stringify` without whitespace; owner decision 2026-10-25, [Eval
-    notes](#eval-notes-2026-10-25));
+    notes](#eval-notes-2026-10-25)); in either form the quote must hold a
+    letter or digit and must not start or end inside a token (a run of
+    letters and digits) of the item;
     `cause` must be a cause id of a firing rule's playbook or `unknown`;
     `runbook` must be an anchor that playbook lists. Any failure sets
     `verdict: "unverified"` and lists the failures; the record is still
@@ -813,7 +815,9 @@ answer in the `.json` beside it.
   under Bun, so `eval` bundles the script and runs it with Node.
 - **Cost.** A meter starts a diagnosis only while the budget still covers a
   worst-case one (1,500 neurons). Workers AI reports `usage.neurons` per call;
-  it matched the A2-6 rates to 0.1 neuron. The run used 5,952 neurons
+  it matched the A2-6 rates to 0.1 neuron. The run was started with
+  `--budget-usd 1.285` ($1.29 less the smoke runs' spend; its scoreboard
+  printed it rounded as $1.28 until the label was fixed). It used 5,952 neurons
   ($0.066 if all billed), plus 353 neurons ($0.004) in two one-model smoke
   runs before it: **$0.069** in total, against $1.29. Per diagnosis: GLM 56,
   Qwen 48, Llama 134 neurons, far under A2-6's estimates, because no model
@@ -848,6 +852,18 @@ whether quotes may be checked against a canonical (compact) JSON rendering
 of the item as well as its text. Each is its own change; the eval re-runs
 with `bun run --cwd packages/sre-agent eval` and should stay well under
 $0.10.
+
+**Evidence precision (verifier survivors, 2026-10-25).** The verifier
+found two ways a quote could pass without quoting a value: a quote of
+JSON syntax only (`{"`, `":"`) through the compact path, and a token
+prefix (`"classA":8190` against `81900`, `"status":"fail` against
+`"failed"`) through either path. The check now requires a letter or digit
+in the quote and rejects a match that starts or ends inside a token
+(SRE44 row "quote precision"). The eval grader's survivors M11 (a
+required item's quote altered must be named in `missing`), M14 (a
+no-trigger row given a model answer must fail) and M15 (row 1's
+cause-listed anchor must pass) are `eval.cases.ts` control rows. No eval was
+re-run for these.
 
 **Second run (2026-10-25, after the owner decision).** Of the three
 proposals the owner adopted only the output cap: `MAX_OUTPUT_TOKENS` 4,096
@@ -919,6 +935,13 @@ run). Spend **$0.084**.
 | Llama 3.3 70B | 0/25 | 5/25 | 0/25 | 6/25 | 23/25 | 0 | 5.5 s | 129.9 |
 | Qwen3 30B | 2/24 | 15/24 | 6/24 | 13/24 | 15/24 | 0 | 10.1 s | 62.3 |
 
+- **Verifier re-grade (Fable, 2026-10-25).** The compact-JSON path matched
+  none of the 148 evidence entries of this run; Qwen's two passes quote
+  whole pretty-printed items, which the text path already accepted. So the
+  quote-match decision did not cause them, and 0 → 2 passes of 24 between
+  the second and third runs is within sampling variance; the A2-1 choice
+  rests on the third run's scoreboard as the owner's rule says, not on an
+  effect of the change.
 - Qwen's two passes are both `r2-class-a-spike-2026-10-13`; it names the
   expected cause on every run of rows 2, 3 and 5 but still fails on quotes
   (23 failures: paraphrase or mixed spacing) and on anchors outside the
@@ -1003,7 +1026,7 @@ the text above, or settles what it left open:
   neurons on the first step (4,000 in) and 184 on the twelfth (12,800 in),
   both far below the 1,500 daily cap. Reservations settle to actual usage
   after each call; at worst-case actual usage the 1,500 cap stops a
-  diagnosis after about 9 steps (Σ of 9 reservations ≈ 1,600 > 1,500), and
+  diagnosis after about 9 steps (Σ of 9 reservations ≈ 1,420, of 10 ≈ 1,600 > 1,500), and
   the diagnosis ends `inconclusive` with reason budget. Measured usage is
   far lower: 62.3 neurons a diagnosis in `scoreboard-2026-10-25c` (one step
   each), so 3 diagnoses a day ≈ 190 neurons.
@@ -1528,6 +1551,7 @@ L1, deterministic tick (`tick.cases.ts`):
 | SRE44 | verbatim quote | quote equal to text of cited item (whitespace collapsed) | check passes, verdict kept |
 | SRE44 | fabricated or misplaced quote | quote absent from cited item / present only in another item / unknown id / empty or blank quote | verdict unverified, failure listed |
 | SRE44 | compact JSON quote | quote verbatim from the cited JSON item's compact serialization (JSON.stringify, no whitespace) / a paraphrase of it / compact JSON of another item / a non-JSON item | passes (owner 2026-10-25) / unverified / unverified / only its text form counts |
+| SRE44 | quote precision | a quote of only JSON syntax ({" or ":") / a quote ending or starting inside a token ("classA":8190 against 81900, "status":"fail against failed), in text and compact form / a prefix of a non-ASCII word (échou of échoué) / the whole value, also a whole occurrence after one inside a token (fail in "failed; retry fail") | unverified / unverified / unverified / passes |
 | SRE44 | cause and runbook | cause not in playbook / runbook anchor not in playbook / cause unknown | unverified / unverified / passes |
 | SRE45 | output schema | record with every field / missing evidence / confidence "sure" | accepted / rejected / rejected |
 | SRE46 | write scope | keys internal/sre/v1/dev/runs/x.json / internal/sre/v1/prod/x / public/v2/current.json / identity-links last-run.json / public/x/internal/sre/v1/dev/y / a .. segment | written / refused before any R2 call (5 cases) |
@@ -1587,6 +1611,9 @@ B28, two controls with no model call):
 | SRE60 | 4 release/CI | tag-ci-failure-v0.3.0 | real | prod ci.release (newest v* tag run) | run 39231615488 on v0.3.0: conclusion failure, job "Unit tests", B27 stale-claim test; Prod lastRun older than the tag | non-hermetic-test | conclusion failure; Unit tests | none (reports a runbook gap) |
 | SRE60 | control | healthy-day-2026-10-20 | real | none | Dev lastRun ok, classA 794 = copiedObjectCount 791 + 3; main CI success | none (no model call) | none | none |
 | SRE60 | 5 ok-but-wrong (v2) | digest-en-zh-cache-pollution | real | none | digest.lastRun ok true; en digest object holds Han-script sentences | none (no hard rule covers served text; a v2 soft invariant) | none | cloudflare-data-publisher.md#reading-health-digest |
+| SRE60 | grader control M11 | r2-class-a-spike-2026-10-13 | control | golden answer with the required lastRun.r2.classA quote altered | as row 3 | conditional-put-on-existing (right) | grade.missing names lastRun.r2.classA; fabricated | fails |
+| SRE60 | grader control M14 | healthy-day-2026-10-20 | control | grade() of a no-trigger row given a model answer (the model was called) | as row 6 | any | any | pass false |
+| SRE60 | grader control M15 | dev-stall-2026-10-02 | control | golden answer with runbook cloudflare-data-publisher.md#follow-up-runs-spec-018 (the anchor alarm-stuck lists) | as row 1 | alarm-stuck | as golden | anchor true; passes |
 <!-- test-plan:end -->
 
 Dev fault-injection drill, core rows (`drill.cases.ts`, run by
@@ -1659,7 +1686,7 @@ by Amendment (1); SRE34 replaced it.
 ### Amendment (2): Failure and retry
 - SRE39: Dev reads the newest `ci.yml` run on `main` and Prod the newest on a `v*` tag; `failure` fires `ci.release` in that environment only, `success` does not; an HTTP 403/429, 500 or a 20 s timeout makes `ci.release` `unknown`, recorded and never a firing; every request is a GET to `api.github.com` without an `Authorization` header → L1 test with case rows.
 - SRE41: given firings of 5 jobs, 3 are diagnosed and 2 recorded `notDiagnosed: "daily-cap"`, and a second tick the same UTC day diagnoses none; with `today.neurons` 1,000 a 500-neuron reservation runs and a 501-neuron one stops the diagnosis `inconclusive`, `reason: "budget"`; a reservation written before a model call that crashes is still counted on the next tick → L1 test with case rows.
-- SRE44: the evidence check passes a quote that occurs verbatim (whitespace collapsed) in the cited item, or verbatim in the cited JSON item's compact serialization (owner 2026-10-25), and sets `unverified` with the failure listed for a quote absent from the cited item, present only in another item, an unknown evidence id, a cause not in the playbook, or a runbook anchor the playbook does not list; `cause: "unknown"` passes → L1 test with case rows.
+- SRE44: the evidence check passes a quote that occurs verbatim (whitespace collapsed) in the cited item, or verbatim in the cited JSON item's compact serialization (owner 2026-10-25), a quote holding a letter or digit that neither starts nor ends inside a token of the item (a syntax-only quote or a token prefix such as `8190` of `81900` fails), and sets `unverified` with the failure listed for a quote absent from the cited item, present only in another item, an unknown evidence id, a cause not in the playbook, or a runbook anchor the playbook does not list; `cause: "unknown"` passes → L1 test with case rows.
 - SRE46: the R2 writer writes a key under `internal/sre/v1/<env>/` and refuses, before any R2 call, a key of the other environment, a `public/` key or another job's key; across dry and live ticks no request goes to `/run`, `/*/run` or `/cost-guard/*`, no request is non-GET, and nothing is fetched from the other environment's host → L1 test with case rows.
 - SRE47: given the `sre-agent` branch throwing at each of steps 0–7 on a tick, the publication cron in the same handler still schedules its run, and `/health.sreAgent.lastRun.status` is `failed` with a sanitized reason → L1 test with case rows.
 - SRE51: given a scripted call to a tool outside B30's list, no tool executes and the diagnosis ends `inconclusive`, `reason: "unknown-tool"` → L2 test with case rows.

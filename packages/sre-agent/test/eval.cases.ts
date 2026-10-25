@@ -6,7 +6,8 @@
  * with a broken one (SRE60, mock model, $0); `bun run --cwd packages/sre-agent eval` runs the same rows
  * against real Workers AI models, 5 runs each, locally (SRE59, not in CI). Rows with trigger "none" must
  * make no model call. The runbook grader also accepts the anchors the expected cause lists in its playbook
- * (row 1: `alarm-stuck` → `#follow-up-runs-spec-018`).
+ * (row 1: `alarm-stuck` → `#follow-up-runs-spec-018`). Rows with source "control" are grader mutation controls
+ * (verifier survivors M11, M14, M15) on an existing scenario, not fixtures of their own.
  *
  * `source`: "real" rows quote recorded values; "reconstructed" rows rebuild fields of a real incident
  * from the specs named; "constructed" rows have no recorded incident behind them. Cause ids of rows 2–5
@@ -22,4 +23,7 @@ export const testPlanRows = [
   { id: "SRE60", type: "4 release/CI", scenario: "tag-ci-failure-v0.3.0", source: "real", trigger: "prod ci.release (newest v* tag run)", bundle: "run 39231615488 on v0.3.0: conclusion failure, job \"Unit tests\", B27 stale-claim test; Prod lastRun older than the tag", cause: "non-hermetic-test", evidence: "conclusion failure; Unit tests", runbook: "none (reports a runbook gap)" },
   { id: "SRE60", type: "control", scenario: "healthy-day-2026-10-20", source: "real", trigger: "none", bundle: "Dev lastRun ok, classA 794 = copiedObjectCount 791 + 3; main CI success", cause: "none (no model call)", evidence: "none", runbook: "none" },
   { id: "SRE60", type: "5 ok-but-wrong (v2)", scenario: "digest-en-zh-cache-pollution", source: "real", trigger: "none", bundle: "digest.lastRun ok true; en digest object holds Han-script sentences", cause: "none (no hard rule covers served text; a v2 soft invariant)", evidence: "none", runbook: "cloudflare-data-publisher.md#reading-health-digest" },
+  { id: "SRE60", type: "grader control M11", scenario: "r2-class-a-spike-2026-10-13", source: "control", trigger: "golden answer with the required lastRun.r2.classA quote altered", bundle: "as row 3", cause: "conditional-put-on-existing (right)", evidence: "grade.missing names lastRun.r2.classA; fabricated", runbook: "fails" },
+  { id: "SRE60", type: "grader control M14", scenario: "healthy-day-2026-10-20", source: "control", trigger: "grade() of a no-trigger row given a model answer (the model was called)", bundle: "as row 6", cause: "any", evidence: "any", runbook: "pass false" },
+  { id: "SRE60", type: "grader control M15", scenario: "dev-stall-2026-10-02", source: "control", trigger: "golden answer with runbook cloudflare-data-publisher.md#follow-up-runs-spec-018 (the anchor alarm-stuck lists)", bundle: "as row 1", cause: "alarm-stuck", evidence: "as golden", runbook: "anchor true; passes" },
 ];

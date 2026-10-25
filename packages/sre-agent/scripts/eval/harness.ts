@@ -376,7 +376,7 @@ export function renderScoreboard(board: Scoreboard, meta: { date?: string; comma
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ...board.models.map((model) => `| ${model.modelId} | ${pct(model.passed, model.runs)} | ${pct(model.causeCorrect, model.diagnoses)} | ${pct(model.evidenceOk, model.diagnoses)} | ${pct(model.anchorOk, model.diagnoses)} | ${pct(model.fabricated, model.diagnoses)} | ${Object.entries(model.failures).map(([reason, count]) => `${reason} ${count}`).join(", ") || "none"} | ${model.neuronsPerDiagnosis.toFixed(1)} | ${(model.latencyMsMean / 1000).toFixed(1)} s / ${(model.latencyMsP50 / 1000).toFixed(1)} s | $${model.costUsd.toFixed(4)} |`),
     "",
-    `Total: ${board.neurons.toFixed(1)} neurons, $${board.costUsd.toFixed(4)} (budget $${board.budgetUsd.toFixed(2)}). Winner (pass rate, then fabrication, then neurons): ${winner?.modelId ?? "none"}.`,
+    `Total: ${board.neurons.toFixed(1)} neurons, $${board.costUsd.toFixed(4)} (budget $${board.budgetUsd.toFixed(Number.isInteger(Math.round(board.budgetUsd * 1000) / 10) ? 2 : 3)}). Winner (pass rate, then fabrication, then neurons): ${winner?.modelId ?? "none"}.`,
     "",
     "## Per case (passed / runs; causes answered)",
     "",

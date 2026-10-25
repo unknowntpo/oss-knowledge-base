@@ -32,13 +32,32 @@ function compactJson(text: string): string | undefined {
   }
 }
 
-/** The quote occurs verbatim (whitespace collapsed) in the item's text, or verbatim in its compact JSON. */
+const WORD = /[\p{L}\p{N}]/u;
+
+/** `needle` occurs in `hay` at a position that neither starts nor ends inside a token (letters and digits). */
+function occursWhole(hay: string, needle: string): boolean {
+  const startsWord = WORD.test(needle[0]!);
+  const endsWord = WORD.test(needle[needle.length - 1]!);
+  for (let at = hay.indexOf(needle); at >= 0; at = hay.indexOf(needle, at + 1)) {
+    const before = at > 0 ? hay[at - 1]! : "";
+    const after = hay[at + needle.length] ?? "";
+    if (startsWord && before !== "" && WORD.test(before)) continue;
+    if (endsWord && after !== "" && WORD.test(after)) continue;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * The quote occurs verbatim (whitespace collapsed) in the item's text, or verbatim in its compact JSON; it must hold a
+ * letter or digit, and must not start or end inside a token of the item (verifier F-precision, 2026-10-25).
+ */
 function quotedIn(quote: string, text: string): boolean {
   const wanted = collapse(quote);
-  if (wanted === "") return false;
-  if (collapse(text).includes(wanted)) return true;
+  if (wanted === "" || !WORD.test(wanted)) return false;
+  if (occursWhole(collapse(text), wanted)) return true;
   const compact = compactJson(text);
-  return compact !== undefined && compact.includes(quote.trim());
+  return compact !== undefined && occursWhole(compact, quote.trim());
 }
 
 /**

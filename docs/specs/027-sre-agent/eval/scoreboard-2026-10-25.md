@@ -13,7 +13,7 @@ Command: `bun run --cwd packages/sre-agent eval -- --model @cf/zai-org/glm-4.7-f
 | @cf/meta/llama-3.3-70b-instruct-fp8-fast | 10/35 (29%) | 5/25 (20%) | 0/25 (0%) | 6/25 (24%) | 25/25 (100%) | none | 134.4 | 5.9 s / 5.3 s | $0.0370 |
 | @cf/qwen/qwen3-30b-a3b-fp8 | 10/35 (29%) | 6/25 (24%) | 0/25 (0%) | 4/25 (16%) | 4/25 (16%) | malformed 19 | 47.5 | 6.2 s / 6.2 s | $0.0131 |
 
-Total: 5952.3 neurons, $0.0655 (budget $1.28). Winner (pass rate, then fabrication, then neurons): @cf/zai-org/glm-4.7-flash.
+Total: 5952.3 neurons, $0.0655 (budget $1.285). Winner (pass rate, then fabrication, then neurons): @cf/zai-org/glm-4.7-flash.
 
 ## Per case (passed / runs; causes answered)
 
