@@ -22,7 +22,7 @@ test("evidence search opens its immutable FeedDetail timeline", async ({ page })
   const browserProblems = collectBrowserProblems(page);
   const feedResponse = page.waitForResponse((response) => response.url().endsWith("/api/feed"));
 
-  await page.goto("/#/kafka/threads");
+  await page.goto("/kafka/threads");
   expect((await feedResponse).status()).toBe(200);
   await expect(page.locator("#view-feed")).toBeVisible();
   await expect(page.locator(".card")).toHaveCount(2);
@@ -41,7 +41,7 @@ test("evidence search opens its immutable FeedDetail timeline", async ({ page })
   await expect(result.locator(".evidence").first()).toContainText("Tiered storage");
   await result.click();
 
-  await expect(page).toHaveURL(/#\/search\/sdr1\./);
+  await expect(page).toHaveURL(/\/search\/sdr1\./);
   await expect(page.getByRole("heading", {
     level: 1,
     name: "KIP-405: Kafka Tiered Storage",
@@ -62,7 +62,7 @@ test("evidence search opens its immutable FeedDetail timeline", async ({ page })
 
 test("project facets shrink with the query and stay consistent when selected", async ({ page }) => {
   const browserProblems = collectBrowserProblems(page);
-  await page.goto("/#/kafka/threads");
+  await page.goto("/kafka/threads");
   await expect(page.locator("#view-feed")).toBeVisible();
 
   const initialResponse = page.waitForResponse((response) =>
@@ -131,7 +131,7 @@ const ratio = (a: string, b: string) => {
 };
 
 test("DS1, DS2: timeline avatars have a per-author background and GitHub badges stay slate", async ({ page }) => {
-  await page.goto("/#/feed/KAFKA-PR-43");
+  await page.goto("/feed/KAFKA-PR-43");
   const avatar = page.locator(".tl-meta .avatar").first();
   await expect(avatar).toHaveText("B");
   await expect(avatar).toHaveAttribute("data-hue", "2");
@@ -152,14 +152,14 @@ test("DS1, DS2: timeline avatars have a per-author background and GitHub badges 
     expect(colours).toEqual(["rgb(76, 73, 89)", "rgb(238, 237, 241)"]);
   }
 
-  await page.goto(`/#/kafka/people/${encodeURIComponent("github:alice")}`);
+  await page.goto(`/kafka/people/${encodeURIComponent("github:alice")}`);
   const header = page.locator(".person-meta .source-badge.src-github");
   await expect(header).toHaveCSS("color", "rgb(58, 83, 176)");
   await expect(page.locator(".person-identity .source-badge.src-github")).toHaveCSS("color", "rgb(76, 73, 89)");
 });
 
 test("DS7: a focused top-bar control shows the light indigo ring; small labels use the text floor", async ({ page }) => {
-  await page.goto("/#/feed/KAFKA-PR-43");
+  await page.goto("/feed/KAFKA-PR-43");
   await page.keyboard.press("Tab");
   const locale = page.locator(".locale-control select");
   await locale.focus();
@@ -169,7 +169,7 @@ test("DS7: a focused top-bar control shows the light indigo ring; small labels u
 });
 
 test("DS8: timeline filter counts are solid colours that pass in both states", async ({ page }) => {
-  await page.goto("/#/feed/KAFKA-PR-43");
+  await page.goto("/feed/KAFKA-PR-43");
   const all = page.locator(".tl-filter", { hasText: "All sources" });
   const github = page.locator(".tl-filter", { hasText: "GitHub" });
   await expect(all).toHaveAttribute("aria-pressed", "true");
@@ -188,7 +188,7 @@ const STATE_TEXT: Record<string, string> = {
 };
 
 test("DS9: open is info blue and merged success green on the feed; every digest badge takes its colour from its state", async ({ page }) => {
-  await page.goto("/#/kafka/threads");
+  await page.goto("/kafka/threads");
   const open = page.locator(".card", { hasText: "KAFKA-ISSUE-42" }).locator(".status-badge");
   const merged = page.locator(".card", { hasText: "KAFKA-PR-43" }).locator(".status-badge");
   await expect(open).toHaveAttribute("data-state", "info");
@@ -197,7 +197,7 @@ test("DS9: open is info blue and merged success green on the feed; every digest 
   await expect(merged).toHaveAttribute("data-state", "success");
   await expect(merged).toHaveCSS("color", STATE_TEXT.success!);
 
-  await page.goto("/#/kafka/");
+  await page.goto("/kafka/");
   await page.locator("#digest, .digest-notice").first().waitFor();
   const vote = page.locator(".stage-badge.stage-vote").first();
   await expect(vote).toHaveAttribute("data-state", "warning");
@@ -215,6 +215,6 @@ test("DS9: open is info blue and merged success green on the feed; every digest 
 });
 
 test("DS5: the source-distribution bar is a translucent fill with a 3:1 outline", async ({ page }) => {
-  await page.goto("/#/feed/KAFKA-PR-43");
+  await page.goto("/feed/KAFKA-PR-43");
   await expect(page.locator(".rail-source .bar").first()).toHaveCSS("box-shadow", "rgb(86, 108, 115) 0px 0px 0px 1px inset");
 });

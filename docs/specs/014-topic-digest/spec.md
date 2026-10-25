@@ -5,6 +5,11 @@ Date: 2026-10-06 (amended 2026-10-08 after design review)
 Traceability: enforced
 Builds on: Spec 002, Spec 005, Spec 008 (ADR-0013), Spec 010, Spec 011, Spec 012 (ADR-0014), Spec 013
 
+> **Note 2026-10-25 ([Spec 032](../032-path-urls/spec.md)).** The web app
+> uses path URLs now: a route written `/#/<route>` below is `/<route>` (for
+> example `/#/kafka/threads` is `/kafka/threads`). Old `/#/…` links still
+> land on the same page.
+
 > **Note 2026-10-13 ([Spec 018](../018-daily-publication/spec.md)).** The
 > publisher now runs once a day (Dev 22:07 UTC), not hourly; "the hourly
 > publication run" below is that daily run and `7 * * * *` in the examples
@@ -1746,8 +1751,8 @@ synthetic; the others use values captured from Dev.
 | D18 | freshness | digest generatedAt 2026-10-07T01:37:00Z, now 2026-10-08T13:37:01Z | Digest may be out of date · 36 h ago; stale |
 | D18 | freshness | constructed: cited KAFKA-PR-23426 absent from the current feed | title from the digest, link to https://github.com/apache/kafka/pull/23426 |
 | D39 | window label | zh-Hant, same window | 過去 7 天 · Intl.DateTimeFormat("zh-Hant", …).formatRange output; no 週/week number |
-| D36 | proposals tab | /#/datafusion/proposals | redirects to /#/datafusion/ |
-| D36 | proposals tab | /#/kafka/proposals, en | every row grouped by stage; quorum note "3 binding +1 votes" |
+| D36 | proposals tab | /datafusion/proposals | redirects to /datafusion/ |
+| D36 | proposals tab | /kafka/proposals, en | every row grouped by stage; quorum note "3 binding +1 votes" |
 | D17 | empty | constructed: digest with empty true | This week shows "No activity in the past 7 days" |
 | D77 | uncategorized | constructed: digest with uncategorized threads KAFKA-PR-23426 and KAFKA-MAIL-85a6bd91 | collapsed section after the topic cards: "Uncategorized", "Show list · 2 items" |
 | D77 | uncategorized | constructed: digest object without the uncategorized field | no Uncategorized section |

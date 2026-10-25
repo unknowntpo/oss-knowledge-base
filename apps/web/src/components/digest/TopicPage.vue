@@ -50,17 +50,19 @@ const date = (at: string | undefined) => (at === undefined ? "" : at.slice(0, 10
     <ul class="thread-cards">
       <li v-for="id in shown" :key="id" class="thread-card" :data-source="digest.threads[id]?.source">
         <div class="thread-card-head">
-          <a class="thread-id" :href="`#/feed/${encodeURIComponent(id)}`">{{ id }}</a>
+          <RouterLink class="thread-id" :to="`/feed/${encodeURIComponent(id)}`">{{ id }}</RouterLink>
           <span v-if="digest.threads[id]?.status" class="thread-status" :class="`status-${digest.threads[id]?.status}`" :data-state="badgeState(digest.threads[id]?.status)">
             {{ t(`status.${digest.threads[id]?.status}`) }}
           </span>
         </div>
         <a
+          v-if="citeTarget(id, digest, new Set()).external"
           class="thread-title"
           :href="citeTarget(id, digest, new Set()).href"
-          :target="digest.threads[id]?.url ? '_blank' : undefined"
-          :rel="digest.threads[id]?.url ? 'noopener noreferrer' : undefined"
+          target="_blank"
+          rel="noopener noreferrer"
         >{{ digest.threads[id]?.title ?? id }}</a>
+        <RouterLink v-else class="thread-title" :to="citeTarget(id, digest, new Set()).href">{{ digest.threads[id]?.title ?? id }}</RouterLink>
         <p v-if="digest.threads[id]?.excerpt" class="thread-excerpt">{{ digest.threads[id]?.excerpt }}</p>
         <p class="thread-meta">
           {{ digest.threads[id]?.source }}<template v-if="digest.threads[id]?.author"> · {{ digest.threads[id]?.author }}</template>

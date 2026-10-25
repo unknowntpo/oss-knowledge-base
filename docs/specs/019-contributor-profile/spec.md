@@ -5,6 +5,11 @@ Date: 2026-10-13 (decisions recorded 2026-10-14; amendment and decision 10 2026-
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 008 (content-addressed objects), Spec 009 (bounded memory), Spec 012 (dev@ and Jira), Spec 014 (digest profiles), Spec 015 (governance profile and ASF roster), Spec 016/017 (search, "exact matches first"), Spec 018 (daily publication)
 
+> **Note 2026-10-25 ([Spec 032](../032-path-urls/spec.md)).** The web app
+> uses path URLs now: a route written `/#/<route>` below is `/<route>` (for
+> example `/#/kafka/threads` is `/kafka/threads`). Old `/#/…` links still
+> land on the same page.
+
 > **How to read this spec.** Sections 1–3 are the intent, the real-data
 > Example, and the data-range estimate. The owner decided all nine open
 > questions on 2026-10-14; they are in [Decisions made](#decisions-made).

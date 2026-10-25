@@ -43,7 +43,7 @@ async function open(page: Page, options: { trend: boolean; activity?: "ok" | "fa
       ? route.fulfill({ status: 503, json: { error: "down" } })
       : route.fulfill({ status: 200, json: body })));
   }
-  await page.goto("/#/kafka/");
+  await page.goto("/kafka/");
   await expect(page.locator(".digest-headline")).toBeVisible();
   return requests;
 }

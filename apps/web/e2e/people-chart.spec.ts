@@ -7,8 +7,8 @@ import { expect, test, type Page } from "@playwright/test";
 // `bun run e2e:prepare` seeds (apps/web/scripts/people-e2e-fixture.ts). Set PEOPLE_SCREENSHOT_DIR
 // to keep screenshots.
 
-const aliceRoute = `/#/kafka/people/${encodeURIComponent("github:alice")}`;
-const danaRoute = `/#/kafka/people/${encodeURIComponent("mail:dana mailer")}`;
+const aliceRoute = `/kafka/people/${encodeURIComponent("github:alice")}`;
+const danaRoute = `/kafka/people/${encodeURIComponent("mail:dana mailer")}`;
 
 async function open(page: Page, hash: string, locale = "en") {
   await page.addInitScript((value) => window.localStorage.setItem("community-kb-locale", value), locale);
