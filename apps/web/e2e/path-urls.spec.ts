@@ -32,6 +32,38 @@ test("U2: an in-app link is a path URL and navigates without a page load", async
   expect(await page.evaluate(() => (window as unknown as { marker?: number }).marker)).toBe(1);
 });
 
+test("U2: an internal citation chip is a router link: the URL changes without a page load", async ({ page }) => {
+  // The fixture digest cites threads with https source URLs, which link out. Without a source URL a
+  // cite links to Detail (Spec 014 Behavior 19), so drop the URLs to get internal cites.
+  await page.route("**/api/digest?*", async (route) => {
+    const response = await route.fetch();
+    const body = (await response.json()) as { threads: Record<string, { url: string | null }> };
+    for (const thread of Object.values(body.threads)) thread.url = null;
+    await route.fulfill({ response, json: body });
+  });
+  await page.goto("/kafka/");
+  const cite = page.locator('a.cite[href^="/feed/"]').first();
+  await expect(cite).toBeVisible();
+  const href = (await cite.getAttribute("href"))!;
+  await page.evaluate(() => { (window as unknown as { marker: number }).marker = 1; });
+  await cite.click();
+  await expect(page).toHaveURL((url) => url.pathname === href);
+  await expect(page.locator("#view-topic")).toBeAttached();
+  expect(await page.evaluate(() => (window as unknown as { marker?: number }).marker)).toBe(1);
+});
+
+test("U4: the legacy rewrite replaces the hash URL and adds no history entry", async ({ page }) => {
+  await page.goto("/kafka/threads");
+  await expect(page.locator("#view-feed")).toBeVisible();
+  const before = await page.evaluate(() => history.length);
+  await page.goto(`/#${alice}`);
+  await expect(page.locator(`article.person[data-person="github:alice"]`)).toBeVisible();
+  // One entry for the load itself; a pushState rewrite would add a second.
+  expect(await page.evaluate(() => history.length)).toBe(before + 1);
+  await page.goBack();
+  await expect(page).toHaveURL((url) => url.pathname === "/kafka/threads" && url.hash === "");
+});
+
 test("U4: an old #/ link lands on its path form, also when a path precedes the hash", async ({ page }) => {
   await page.goto(`/#${alice}`);
   await expect(page.locator(`article.person[data-person="github:alice"]`)).toBeVisible();

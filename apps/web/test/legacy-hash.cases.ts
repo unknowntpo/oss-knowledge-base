@@ -16,4 +16,5 @@ export const testPlanRows = [
   { id: "U5", case: "a fragment that only looks like a path", path: "/kafka/", hash: "#kafka/threads", lands: null },
   { id: "U5", case: "a protocol-relative URL (another origin) is refused", path: "/", hash: "#//evil.example/x", lands: null },
   { id: "U5", case: "a backslash form of the same is refused", path: "/", hash: "#/\\evil.example/x", lands: null },
+  { id: "U5", case: "encoded slashes stay one same-origin path segment", path: "/", hash: "#/%2F%2Fevil.example/x", lands: "/%2F%2Fevil.example/x" },
 ] as const;

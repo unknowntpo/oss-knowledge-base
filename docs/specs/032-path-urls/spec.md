@@ -130,6 +130,7 @@ string check before the first navigation.
 | U5 | a fragment that only looks like a path | /kafka/ | #kafka/threads | — |
 | U5 | a protocol-relative URL (another origin) is refused | / | #//evil.example/x | — |
 | U5 | a backslash form of the same is refused | / | #/\evil.example/x | — |
+| U5 | encoded slashes stay one same-origin path segment | / | #/%2F%2Fevil.example/x | /%2F%2Fevil.example/x |
 <!-- test-plan:end -->
 
 ## Non-goals
