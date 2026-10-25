@@ -1,6 +1,6 @@
 # Spec 027: Read-only SRE triage agent
 
-Status: Draft (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; [Amendment (1)](#amendment-1-triggered-diagnosis-2026-10-22) 2026-10-22: the agent diagnoses only after a deterministic rule fires; [Amendment (2)](#amendment-2-a-worker-job-on-the-ai-sdk-2026-10-22) 2026-10-22: an `sre-agent` job on the data publisher Worker, AI SDK with Workers AI, invariant playbooks; A2-1–A2-5 decided by owner 2026-10-22; [Dev fault-injection drill](#dev-fault-injection-drill-2026-10-22) added 2026-10-22; A2-9 slice 1 (the `packages/sre-agent` library core, L1/L2 tests) implemented; A2-9 slice 2 (the `sre-agent` cron job wired into the data publisher Worker, `/health.sreAgent`, the Spec 026 neuron term) implemented with `SRE_AGENT=off` on Dev and Prod, the drill routes not yet; see [Slice 1 notes](#slice-1-notes-2026-10-22) and [Slice 2 notes](#slice-2-notes-2026-10-23); the L3 eval (SRE59, SRE60) run 2026-10-25: no candidate passes a diagnosis, A2-1 keeps the prior GLM-4.7-Flash, see [Eval notes](#eval-notes-2026-10-25))
+Status: Draft (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; [Amendment (1)](#amendment-1-triggered-diagnosis-2026-10-22) 2026-10-22: the agent diagnoses only after a deterministic rule fires; [Amendment (2)](#amendment-2-a-worker-job-on-the-ai-sdk-2026-10-22) 2026-10-22: an `sre-agent` job on the data publisher Worker, AI SDK with Workers AI, invariant playbooks; A2-1–A2-5 decided by owner 2026-10-22; [Dev fault-injection drill](#dev-fault-injection-drill-2026-10-22) added 2026-10-22; A2-9 slice 1 (the `packages/sre-agent` library core, L1/L2 tests) implemented; A2-9 slice 2 (the `sre-agent` cron job wired into the data publisher Worker, `/health.sreAgent`, the Spec 026 neuron term) implemented with `SRE_AGENT=off` on Dev and Prod, the drill routes not yet; see [Slice 1 notes](#slice-1-notes-2026-10-22) and [Slice 2 notes](#slice-2-notes-2026-10-23); the L3 eval (SRE59, SRE60) run twice 2026-10-25, the second with the owner's 4,096-token output cap: no candidate passes a diagnosis, the scoreboard's tie-break keeps GLM-4.7-Flash (A2-1), see [Eval notes](#eval-notes-2026-10-25))
 Date: 2026-10-20 (amended 2026-10-22)
 Traceability: enforced
 Builds on: Spec 008 (R2 operations), Spec 010, 011, 018, 021 (freshness and stalls), Spec 014 (digest), Spec 019 amendment (7) (identity-links, kip-pages jobs), Spec 020 (feature map), Spec 026 and its dollar-budget amendment (cost guard), Spec 028 (observability signals, PR #108, not merged), Spec 029 (R2 retention)
@@ -328,7 +328,8 @@ with Amendment (1), it wins.
 30. The loop (step 5) is AI SDK `generateText` with `model`, a fixed system
     prompt, the bundle as the prompt, `tools`, `stopWhen: stepCountIs(12)`,
     `output: Output.object({schema})` (the record of B32), `maxRetries: 1`
-    and `maxOutputTokens` 1,024 per step. Read-only tools, each `tool()`
+    and `maxOutputTokens` 4,096 per step (1,024 until the owner decision of
+    2026-10-25, [A2-6](#a2-6-cost-estimate)). Read-only tools, each `tool()`
     with an input schema, 20 s timeout and 16 KB output cap; every result
     is appended to the bundle as a new evidence item:
     - `get_health_section(path)`: a field of this environment's `/health`
@@ -348,7 +349,7 @@ with Amendment (1), it wins.
     `model-error`, `unknown-tool`, `step-limit` or `malformed`; a tool
     timeout or HTTP error is a tool-error result the model sees.
 31. Neurons: before each step the harness reserves the step's worst case
-    (input tokens so far + 1,024 output tokens) at the model's neuron rates
+    (input tokens so far + 4,096 output tokens) at the model's neuron rates
     (table in A2-6) in `state.json`'s `today.neurons`, written before the
     call, and settles it with the step's `usage` afterwards, so a crash
     leaves the reservation counted. A reservation that would pass 1,500
@@ -485,7 +486,24 @@ diagnosis (trajectory), so ≤ 5 Class A and 1 Class B a day; each
 `/health` read adds 1 Class B for `state.json`; 1 WAE point; ≤ 3 SQL
 queries per diagnosis; ≤ 2 GitHub requests a tick (free). A full 24 KB
 bundle (≈ 6,000 tokens) raises a diagnosis by about half; the daily cap
-still bounds the day. L3 eval, one full run (5 rows that call the model × 5
+still bounds the day.
+
+**Owner decision (2026-10-25): per-step output cap 4,096 tokens.** The
+first L3 run ([Eval notes](#eval-notes-2026-10-25)) ended 21 of 25 GLM and
+19 of 25 Qwen answers at `finishReason: length` under the 1,024 cap, so
+`MAX_OUTPUT_TOKENS` is 4,096; the 1,500-neuron daily cap (B31) and the
+eval's cost meter are unchanged, and nothing else in the loop changes. The
+typical estimate above is unchanged (it assumes ≤ 300 output tokens a
+step). What changes is each step's reservation and the worst case:
+
+| Model | Reservation, first step (4,000 in + 4,096 out) | Worst, 12 steps of 4,096 out (100,800 in, 49,152 out), before the cap |
+| --- | --- | --- |
+| GLM-4.7-Flash | 171 neurons (was 59) | 2,344 → capped at 1,500 |
+| Qwen3 30B | 143 (was 50) | 1,964 → capped at 1,500 |
+| Llama 3.3 70B | 946 (was 316) | 12,755 → capped at 1,500; after one long step the next reservation can pass the cap (`reason: "budget"`) |
+
+So one diagnosis can now reach the 1,500 cap with any model, and a day
+stays bounded at 1,500 neurons ($0.0165 if billed) as before. L3 eval, one full run (5 rows that call the model × 5
 runs × 3 models, worst case, outside the daily cap): GLM 17,135 + Qwen
 14,400 + Llama 85,625 ≈ 117,200 neurons ≈ $1.29 if all billed; Llama alone
 ≈ $0.94. Run it one model at a time, on a day with spare allocation.
@@ -591,14 +609,15 @@ adopted as written):
   fits the cap; Llama's does not). **Decided (owner, 2026-10-22):** the
   SRE59 scoreboard chooses the model; GLM-4.7-Flash is the prior until it
   does.
-  **Eval result (2026-10-25, [scoreboard](eval/scoreboard-2026-10-25.md)):**
-  no candidate passed a single diagnosis (0 of 25 per model; the 10 passes
-  each are the two no-call rows), so the scoreboard does not separate them.
-  Its tie-break (pass rate, then fabrication, then neurons) names
-  GLM-4.7-Flash, which only keeps the prior: `SRE_AGENT_MODEL` stays
-  `@cf/zai-org/glm-4.7-flash`. The failures are in the loop's settings, not
-  in a model choice, so A2-1 is re-run after they are fixed ([Eval
-  notes](#eval-notes-2026-10-25)).
+  **Eval result (2026-10-25, two runs; [first](eval/scoreboard-2026-10-25.md),
+  [second](eval/scoreboard-2026-10-25b.md) after the owner raised the
+  output cap to 4,096):** no candidate passed a single diagnosis in either
+  run (second run: 0 of 24 per model). By the owner's rule the scoreboard
+  chooses: its tie-break (pass rate, then fabrication rate, then neurons)
+  names **GLM-4.7-Flash** in both runs, so `SRE_AGENT_MODEL` stays
+  `@cf/zai-org/glm-4.7-flash`. The choice rests on the tie-break, not on a
+  passing diagnosis: Qwen3 30B names the right cause most often (14 of 24)
+  but fails the evidence check more ([Eval notes](#eval-notes-2026-10-25)).
 - **A2-2 Where the owner labels diagnoses.** Recommended: a small JSON file
   per label in the repository (`docs/specs/027-sre-agent/labels/`), read
   by the KPI command; no new write path on Cloudflare. Alternative: a
@@ -633,7 +652,7 @@ Spec 028 decisions D2–D10 were decided by the owner on 2026-10-22 in Spec
    the provider import.
 2. **Slice 2 (PR):** wiring in the data publisher Worker (cron, writer,
    `/health.sreAgent`, Spec 026 neuron term SRE62), flag `off`.
-3. **Eval (owner, local):** SRE59 scoreboard; Decision A2-1. Run 2026-10-25 ([Eval notes](#eval-notes-2026-10-25)): no model passes; re-run after the fixes listed there.
+3. **Eval (owner, local):** SRE59 scoreboard; Decision A2-1. Run twice 2026-10-25 ([Eval notes](#eval-notes-2026-10-25)): no model passes a diagnosis; the scoreboard's tie-break keeps GLM-4.7-Flash.
 4. **Enable (PR):** Dev `SRE_AGENT=dry` for 7 days (SRE64), then Dev
    `live` (SRE65); Prod per Decision A2-4.
 5. **Drill (owner, Dev):** after Dev `live` and the `job.failures`
@@ -816,6 +835,38 @@ whether quotes may be checked against a canonical (compact) JSON rendering
 of the item as well as its text. Each is its own change; the eval re-runs
 with `bun run --cwd packages/sre-agent eval` and should stay well under
 $0.10.
+
+**Second run (2026-10-25, after the owner decision).** Of the three
+proposals the owner adopted only the output cap: `MAX_OUTPUT_TOKENS` 4,096
+([A2-6](#a2-6-cost-estimate)); `"null"` handling, quote matching and the
+prompt are unchanged. Command: `bun run --cwd packages/sre-agent eval --
+--runs 5 --budget-usd 0.10 --interleave --suffix b` (models in the inner
+loop, so a budget stop leaves them comparable); result
+[`eval/scoreboard-2026-10-25b.md`](eval/scoreboard-2026-10-25b.md), the
+first scoreboard kept. The meter stopped the run at the $0.10 cap after 72
+of 75 diagnoses (7,620 neurons spent; a worst-case diagnosis would have
+passed the cap): each model is missing the fifth `tag-ci-failure-v0.3.0`
+run, and the two no-call rows, last in order, did not run (they make no
+model call by construction and passed in the first run). Spend **$0.084**;
+both runs together $0.153.
+
+| Model | Diagnoses passed | Cause right | Fabrication (B32 check failed) | Malformed | Latency mean | Neurons / diagnosis |
+| --- | --- | --- | --- | --- | --- | --- |
+| GLM-4.7-Flash | 0/24 | 7/24 | 6/24 | 16/24 (13 still at `length`) | 50.4 s | 124.0 |
+| Llama 3.3 70B | 0/24 | 4/24 | 22/24 | 0 | 6.2 s | 136.6 |
+| Qwen3 30B | 0/24 | 14/24 | 21/24 | 0 | 8.2 s | 56.9 |
+
+- Qwen no longer truncates and names the right cause in 14 of 24, but its
+  answers fail the evidence check: quotes not verbatim (36 failures) and
+  runbook anchors outside the playbook (12).
+- GLM still ends 13 of 24 answers at 4,096 tokens and takes 50 s a
+  diagnosis; Llama is unchanged (`"null"` runbook strings, paraphrased
+  quotes).
+- Still no tool call in any diagnosis.
+
+The other two proposals (normalizing `"null"`, a canonical-JSON quote
+match) remain open owner decisions; without one of them no candidate can
+pass this eval.
 
 ## Dev fault-injection drill (2026-10-22)
 
@@ -1368,6 +1419,7 @@ L2, AI SDK loop with `MockLanguageModelV4` (`loop.cases.ts`):
 | id | case | script | expected |
 | --- | --- | --- | --- |
 | SRE50 | happy path | read_playbook, then a valid output quoting E1 | verdict explained; steps 2, toolCalls 1; neurons from usage at the model's rates; trajectory holds both steps |
+| SRE50 | output cap | a valid output; a ledger recording each persisted reservation | the model call carries maxOutputTokens 4,096 (owner 2026-10-25); the reservation counts 4,096 output tokens at the model's rate |
 | SRE51 | unknown tool | a call to delete_object | no tool executes; inconclusive, reason unknown-tool |
 | SRE52 | step limit | a tool call on every response, never an output | exactly 12 model calls; inconclusive, reason step-limit |
 | SRE53 | malformed output | final text not JSON / JSON missing evidence | inconclusive, reason malformed; record written |
@@ -1443,7 +1495,7 @@ by Amendment (1); SRE34 replaced it.
 - SRE45: the diagnosis output schema accepts a record with every B32 field and rejects one missing `evidence` or with a `confidence` outside `low|medium|high`; the run record holds B33's fields → L1 test with case rows.
 - SRE48: every `docs/runbooks/sre/*.md` has the six B35 sections and an ordered cause list whose anchors exist in `docs/runbooks/`, and the generated playbook module matches the files; a firing rule without a playbook is diagnosed with `playbookMissing: true` and only `cause: "unknown"` passes → L1 test with case rows and a drift check in CI.
 - SRE49: firings of the type 1–4 rule ids of B28 are diagnosed; a firing of any other rule is recorded with `notDiagnosed: "out-of-scope"` → L1 test with case rows.
-- SRE50: given a mock model scripted to call `read_playbook` and then return a valid output quoting `E1`, the record has verdict `explained`, 2 steps, 1 tool call, neurons computed from the mock usage at the model's rates, and a trajectory with both steps → L2 test with the `loop.cases.ts` rows.
+- SRE50: given a mock model scripted to call `read_playbook` and then return a valid output quoting `E1`, the record has verdict `explained`, 2 steps, 1 tool call, neurons computed from the mock usage at the model's rates, and a trajectory with both steps; every model call carries `maxOutputTokens` 4,096 and its reservation counts 4,096 output tokens (owner decision 2026-10-25) → L2 test with the `loop.cases.ts` rows.
 - SRE57: the core in `packages/sre-agent/src` imports no provider package (`agents`, `workers-ai-provider`, `@ai-sdk/*` providers) and takes a `LanguageModel`; the Worker constructs the model in one line from the `AI` binding and `SRE_AGENT_MODEL` → L1 test over the package's imports.
 - SRE58: given `SRE_AGENT=dry` and a new firing, the bundle and run record are written with verdict `dry-run` and the mock model receives 0 calls → L2 test with case rows.
 

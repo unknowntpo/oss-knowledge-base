@@ -4,6 +4,7 @@
  */
 export const testPlanRows = [
   { id: "SRE50", case: "happy path", script: "read_playbook, then a valid output quoting E1", expected: "verdict explained; steps 2, toolCalls 1; neurons from usage at the model's rates; trajectory holds both steps" },
+  { id: "SRE50", case: "output cap", script: "a valid output; a ledger recording each persisted reservation", expected: "the model call carries maxOutputTokens 4,096 (owner 2026-10-25); the reservation counts 4,096 output tokens at the model's rate" },
   { id: "SRE51", case: "unknown tool", script: "a call to delete_object", expected: "no tool executes; inconclusive, reason unknown-tool" },
   { id: "SRE52", case: "step limit", script: "a tool call on every response, never an output", expected: "exactly 12 model calls; inconclusive, reason step-limit" },
   { id: "SRE53", case: "malformed output", script: "final text not JSON / JSON missing evidence", expected: "inconclusive, reason malformed; record written" },
