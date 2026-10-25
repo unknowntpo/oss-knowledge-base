@@ -277,6 +277,18 @@ Generated from `apps/web/test/project-trend-axis.cases.ts` (`bun run docs:test-p
 | PT18 | every January inside the view gets a marker | en | 2025-12 | 2027-01 | Dec 2025 | Jan 2027 | 2026 at 2026-01; 2027 at 2027-01 |
 <!-- test-plan:end -->
 
+Generated from `apps/web/test/project-trend-layout.cases.ts` (`bun run docs:test-plan`).
+`apps/web/test/project-trend-layout.test.ts` runs every row against `compactLayout`.
+
+<!-- test-plan:start apps/web/test/project-trend-layout.cases.ts -->
+| id | case | from | to | width | top | marks |
+| --- | --- | --- | --- | --- | --- | --- |
+| PT18 | a year boundary adds the marker row above the plot | 2025-11 | 2026-10 | 343 | 16 | 2026 at slot 2, start |
+| PT18 | a view within one year keeps the 4 px top | 2026-03 | 2026-10 | 343 | 4 | — |
+| PT18 | January as the first month: no row, 4 px top | 2026-01 | 2026-12 | 343 | 4 | — |
+| PT17 | a January in the last slot writes its year left of the line, inside the card | 2025-02 | 2026-01 | 343 | 16 | 2026 at slot 11, end |
+<!-- test-plan:end -->
+
 ## Owner decisions
 
 Decided by the owner on 2026-10-24, each as the draft recommended.
