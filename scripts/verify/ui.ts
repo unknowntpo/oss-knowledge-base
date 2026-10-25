@@ -31,7 +31,7 @@ async function feedGeneratedAt(baseUrl: string, access: AccessHeaders | undefine
   return body.metadata?.manifest?.generatedAt;
 }
 
-// Spec 014: the Feed lives at /<project>/threads (Spec 031 path URLs); This week, Proposals and topic pages are digest views.
+// Spec 014: the Feed lives at /<project>/threads (Spec 032 path URLs); This week, Proposals and topic pages are digest views.
 const PROJECT = "kafka";
 
 async function openView(page: Page, baseUrl: string, options: UiOptions, view: View): Promise<void> {

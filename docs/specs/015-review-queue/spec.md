@@ -5,7 +5,7 @@ Date: 2026-10-08
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 009 (bounded memory), Spec 010 (freshness), Spec 012 (dev@ and Jira, ADR-0014), Spec 014 (topic digest, profile `proposal`), ADR-0016
 
-> **Note 2026-10-25 ([Spec 031](../031-path-urls/spec.md)).** The web app
+> **Note 2026-10-25 ([Spec 032](../032-path-urls/spec.md)).** The web app
 > uses path URLs now: a route written `/#/<route>` below is `/<route>` (for
 > example `/#/kafka/threads` is `/kafka/threads`). Old `/#/…` links still
 > land on the same page.

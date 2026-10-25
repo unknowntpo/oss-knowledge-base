@@ -5,7 +5,7 @@ Date: 2026-10-06
 Traceability: enforced
 Builds on: Spec 010
 
-> **Note 2026-10-25 ([Spec 031](../031-path-urls/spec.md)).** The web app
+> **Note 2026-10-25 ([Spec 032](../032-path-urls/spec.md)).** The web app
 > uses path URLs now: a route written `/#/<route>` below is `/<route>` (for
 > example `/#/kafka/threads` is `/kafka/threads`). Old `/#/…` links still
 > land on the same page.

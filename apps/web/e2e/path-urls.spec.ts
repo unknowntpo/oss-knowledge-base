@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-// Spec 031 in the browser, against the local Pages server (`wrangler pages dev dist`), which
+// Spec 032 in the browser, against the local Pages server (`wrangler pages dev dist`), which
 // serves index.html for page paths the way Cloudflare Pages does.
 
 const alice = `/kafka/people/${encodeURIComponent("github:alice")}`;

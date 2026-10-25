@@ -1,4 +1,4 @@
-# Spec 031: Path URLs instead of hash routing
+# Spec 032: Path URLs instead of hash routing
 
 Status: Implemented (owner decision 2026-10-25)
 Date: 2026-10-25

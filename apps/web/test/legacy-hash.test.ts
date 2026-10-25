@@ -1,11 +1,11 @@
-/** Spec 031: old `#/…` links map to their path form before the first navigation. */
+/** Spec 032: old `#/…` links map to their path form before the first navigation. */
 import { describe, expect, test } from "bun:test";
 
 import { legacyHashPath } from "../src/legacy-hash";
 import { testPlanRows } from "./legacy-hash.cases";
 import { registerVuePlugin } from "./vue-plugin";
 
-describe("Spec 031 legacy hash", () => {
+describe("Spec 032 legacy hash", () => {
   // `path` is in each row to show that it plays no part: the hash alone decides.
   test.each(testPlanRows)("$id: $case", (row) => {
     expect(legacyHashPath(row.hash)).toBe(row.lands);

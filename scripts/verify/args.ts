@@ -42,7 +42,7 @@ export const defaultSelectors = [
 
 export interface UiOptions {
   readonly target: Target;
-  /** Route (path URL, Spec 031) opened first, e.g. "/" or "/feed/<id>". */
+  /** Route (path URL, Spec 032) opened first, e.g. "/" or "/feed/<id>". */
   readonly route: string;
   readonly views: readonly View[];
   readonly query: string;

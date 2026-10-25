@@ -1,6 +1,6 @@
 /**
- * Spec 031 test plan: an old `#/…` link and the path it lands on. Rendered into
- * docs/specs/031-path-urls/spec.md by `bun run docs:test-plan`; run by legacy-hash.test.ts.
+ * Spec 032 test plan: an old `#/…` link and the path it lands on. Rendered into
+ * docs/specs/032-path-urls/spec.md by `bun run docs:test-plan`; run by legacy-hash.test.ts.
  * `null` means the hash is not a legacy route and the URL is left alone. `path` is the page's path
  * when the link is opened; the mapping ignores it, as the hash router did.
  */

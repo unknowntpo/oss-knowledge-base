@@ -5,7 +5,7 @@ Date: 2026-10-24
 Traceability: enforced
 Builds on: Spec 014 (This week layout, Behavior 27, the "Counts" design decision), Spec 019 (the profile's "活動趨勢" chart, amendment (5), W56–W65; the activity log; W10, W18, W29), Spec 022 (review month objects), Spec 023 (data tokens DS4–DS6), Spec 024 (dark theme DM4–DM8), Spec 026 (cost guard)
 
-> **Note 2026-10-25 ([Spec 031](../031-path-urls/spec.md)).** The web app
+> **Note 2026-10-25 ([Spec 032](../032-path-urls/spec.md)).** The web app
 > uses path URLs now: a route written `/#/<route>` below is `/<route>` (for
 > example `/#/kafka/threads` is `/kafka/threads`). Old `/#/…` links still
 > land on the same page.
