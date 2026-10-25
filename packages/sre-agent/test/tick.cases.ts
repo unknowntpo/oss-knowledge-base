@@ -32,5 +32,6 @@ export const testPlanRows = [
   { id: "SRE46", case: "forbidden requests", given: "any path of a tick, dry and live", expected: "no request to /run, /*/run, /cost-guard/*, no non-GET, no fetch to the other env's host" },
   { id: "SRE48", case: "playbook format", given: "docs/runbooks/sre/*.md missing a section / cause without anchor / anchor not in docs/runbooks", expected: "check fails naming the file" },
   { id: "SRE48", case: "playbook missing", given: "firing rule with no playbook file", expected: "diagnosed with playbookMissing true; only cause unknown passes" },
+  { id: "SRE46", case: "delete scope", given: "scopedStore(dev).delete of internal/sre/v1/prod/... / public/v2/current.json / identity last-run.json / public/x/internal/sre/v1/dev/y / a .. segment; then a Dev drill pointer", expected: "WriteScopeError for each, no raw delete, raw objects unchanged / deleted" },
   { id: "SRE49", case: "scope v1", given: "firing job.duration / job.r2ClassA", expected: "notDiagnosed out-of-scope / diagnosed (type 3)" },
 ];

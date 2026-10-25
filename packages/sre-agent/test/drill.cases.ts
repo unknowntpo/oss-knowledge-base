@@ -10,5 +10,6 @@ export const testPlanRows = [
   { id: "SRE72", case: "grade pass", given: "throw fired; the tick's diagnosis: cause upstream-unavailable, quotes kipPages.lastRun.error and cites Q-window, playbook anchor, explained", expected: "record graded pass, reasons []; pointer deleted; state.json lastDrill the summary" },
   { id: "SRE72", case: "grade fail", given: "cause unknown / Q-window not cited / runbook roll-back / a quote not in its item (unverified)", expected: "fail: wrong-cause:unknown / missing-evidence:Q-window / runbook-mismatch:cloudflare-data-publisher.md#roll-back / verdict:unverified" },
   { id: "SRE72", case: "no diagnosis", given: "throw fired 23 h / 25 h before a tick with no kip-pages diagnosis; skip fired 47 h / 49 h before", expected: "nothing graded, pointer kept / fail no-diagnosis; same for skip at 48 h" },
+  { id: "SRE72", case: "failure before the drill", given: "throw fired; the tick diagnoses kip-pages job.failures whose since (21:00) is before armedAt (21:10)", expected: "nothing graded: record stays fired, result null; pointer kept" },
   { id: "SRE72", case: "drift", given: "drillExpectations vs the bundled job.failures and job.missed playbooks / a library without the cause, the anchor or the playbook", expected: "no error / an error naming the missing cause, anchor or playbook" },
 ];

@@ -646,7 +646,9 @@ cost guard, `ci.release`) with Workers AI and writes a record under
 anything. Dev runs `SRE_AGENT=live` (owner decision 2026-10-25, no `dry`
 week); Prod is `off`. Ticks: `30 0 * * *` and `0 11 * * *` UTC on Dev.
 Caps per UTC day: 3 diagnoses, 12 steps each, 1,500 neurons (counted by the
-cost guard).
+cost guard). Model calls go through AI Gateway `osskb-sre-dev` on Dev
+(`SRE_AGENT_GATEWAY`; logs on, rate limit 60 per hour): its logs show each
+call, and a 429 there means the gateway's rate limit, not Workers AI.
 
 ### After the deploy that turns on `live` (Dev)
 

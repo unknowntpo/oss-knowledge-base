@@ -802,9 +802,18 @@ the text above, or settles what it left open:
   cap). Class B is 14 for a `throw` drill end to end, counting each
   `kip-pages` run's own 2 reads and the tick's `/health` reads. Both stay
   far below the cost guard's thresholds.
-- **AI Gateway (G100, open).** `createAI` routes through the gateway
-  `default` unless one is named; this slice does not change it, so Dev
-  `live` uses `default` until the owner decides otherwise.
+- **AI Gateway (G100, owner decision 2026-10-25).** The agent's Workers AI
+  calls go through a dedicated gateway, `osskb-sre-dev` on Dev (created by
+  the owner: logs on, cache off, rate limit 60 per hour, authenticated; the
+  binding's calls are authenticated automatically). `SRE_AGENT_GATEWAY` in
+  `wrangler.development.jsonc` names it and `sreAgentModel` passes it as
+  `createAI({binding, gateway: {id}})`; Prod sets none, so a future Prod
+  `live` would use `default` until decided. `SRE_AGENT_MODEL` is unchanged.
+  Test: SRE57 "model through the gateway" checks that the id reaches the
+  binding call.
+- **Merge order (owner decision 2026-10-25).** Dev `live` waits until the
+  loop fix (PR #152) shows a passing model; this slice keeps
+  `SRE_AGENT=live` but merges only after #152.
 
 ## Dev fault-injection drill (2026-10-22)
 
@@ -1331,6 +1340,7 @@ L1, deterministic tick (`tick.cases.ts`):
 | SRE46 | forbidden requests | any path of a tick, dry and live | no request to /run, /*/run, /cost-guard/*, no non-GET, no fetch to the other env's host |
 | SRE48 | playbook format | docs/runbooks/sre/*.md missing a section / cause without anchor / anchor not in docs/runbooks | check fails naming the file |
 | SRE48 | playbook missing | firing rule with no playbook file | diagnosed with playbookMissing true; only cause unknown passes |
+| SRE46 | delete scope | scopedStore(dev).delete of internal/sre/v1/prod/... / public/v2/current.json / identity last-run.json / public/x/internal/sre/v1/dev/y / a .. segment; then a Dev drill pointer | WriteScopeError for each, no raw delete, raw objects unchanged / deleted |
 | SRE49 | scope v1 | firing job.duration / job.r2ClassA | notDiagnosed out-of-scope / diagnosed (type 3) |
 <!-- test-plan:end -->
 
@@ -1342,12 +1352,13 @@ the wiring slice, run by `apps/data-publisher-worker/test/sre-agent-worker.test.
 | --- | --- | --- | --- |
 | SRE34 | health as served | the sre-agent tick's /health on a Worker with signals on and a firing rule | equal to GET /health without sreAgent, redacted as served; no derived field |
 | SRE37 | flag off in the Worker | SRE_AGENT unset / off / "Live"; the sre-agent cron tick, then GET /health | 0 R2 calls, 0 AI calls, no point, no log line; sreAgent {mode: off} / {mode: off} / {mode: off, reason: invalid-flag} |
-| SRE37 | deploy config | wrangler.development.jsonc / wrangler.production.jsonc | SRE_AGENT live (owner decision 2026-10-25), SRE_AGENT_CRON 30 0 * * *;0 11 * * * in vars and in triggers / SRE_AGENT off, no SRE_AGENT_CRON, no sre-agent trigger |
+| SRE37 | deploy config | wrangler.development.jsonc / wrangler.production.jsonc | SRE_AGENT live (owner decision 2026-10-25), SRE_AGENT_CRON 30 0 * * *;0 11 * * * in vars and in triggers, SRE_AGENT_GATEWAY osskb-sre-dev / SRE_AGENT off, no SRE_AGENT_CRON, no SRE_AGENT_GATEWAY, no sre-agent trigger |
 | SRE43 | job names | Spec 028 SIGNAL_JOBS of the Worker | each one is in SRE_JOBS (query_signals' job enum) and JOB_HEALTH_FIELDS; embedding, not search-embedding |
 | SRE47 | isolation | sre-agent branch throws at each step 0-7 on a tick shared with the publication cron | publication still scheduled; sreAgent lastRun.status failed with sanitized reason |
 | SRE47 | own tick | an SRE_AGENT_CRON expression with the flag off, dry or live; /health unreadable; a state.json read that throws | cron target sre-agent, never the publisher; the handler resolves; lastRun failed / state.json not replaced, the reason in the log line and /health |
 | SRE47 | model construction throws | SRE_AGENT live; building the model from the AI binding throws on the sre-agent cron tick | the handler resolves; lastRun.status failed with the sanitized reason; 0 AI calls |
 | SRE57 | model from the binding | SRE_AGENT_MODEL @cf/zai-org/glm-4.7-flash and an AI binding / either missing with SRE_AGENT live | one binding.run with that model id / no model; the run fails with a reason, 0 AI calls |
+| SRE57 | model through the gateway | SRE_AGENT_GATEWAY osskb-sre-dev (G100, owner decision 2026-10-25) / unset | the binding.run call carries gateway id osskb-sre-dev with the same model id / no osskb-sre-dev gateway (account default) |
 | SRE62 | neuron term | digest, embedding and query ledgers at 5,000, 2,500, 1,000; the agent at 1,500 / the agent off or of another day | neurons today 10,000 / 8,500 with no state.json read while off |
 | SRE63 | dry tick observability | a dry tick with a publication job.missed firing, signals on, SIGNALS bound | /health.sreAgent {mode, status, reason, lastRun {runId, at, firings, diagnosed, notDiagnosed, modelCalls, neurons, verdicts, recordKey}, today}; one point job sre-agent with c1-c6; one runId in point, run record, trajectory and log line |
 <!-- test-plan:end -->
@@ -1394,6 +1405,7 @@ Dev fault-injection drill, core rows (`drill.cases.ts`, run by
 | SRE72 | grade pass | throw fired; the tick's diagnosis: cause upstream-unavailable, quotes kipPages.lastRun.error and cites Q-window, playbook anchor, explained | record graded pass, reasons []; pointer deleted; state.json lastDrill the summary |
 | SRE72 | grade fail | cause unknown / Q-window not cited / runbook roll-back / a quote not in its item (unverified) | fail: wrong-cause:unknown / missing-evidence:Q-window / runbook-mismatch:cloudflare-data-publisher.md#roll-back / verdict:unverified |
 | SRE72 | no diagnosis | throw fired 23 h / 25 h before a tick with no kip-pages diagnosis; skip fired 47 h / 49 h before | nothing graded, pointer kept / fail no-diagnosis; same for skip at 48 h |
+| SRE72 | failure before the drill | throw fired; the tick diagnoses kip-pages job.failures whose since (21:00) is before armedAt (21:10) | nothing graded: record stays fired, result null; pointer kept |
 | SRE72 | drift | drillExpectations vs the bundled job.failures and job.missed playbooks / a library without the cause, the anchor or the playbook | no error / an error naming the missing cause, anchor or playbook |
 <!-- test-plan:end -->
 
@@ -1409,6 +1421,8 @@ Dev fault-injection drill, Worker rows (`sre-drill-worker.cases.ts`, run by
 | SRE68 | Prod guard | PUBLICATION_ENVIRONMENT production or staging, SRE_DRILL on, token; a pointer present in the bucket | arm and cancel 404; a kip-pages run reads no drill key and runs normally; development with the same pointer applies the fault (positive control) |
 | SRE68 | config | wrangler.production.jsonc / wrangler.development.jsonc | no SRE_DRILL, SRE_AGENT off / SRE_DRILL on, SRE_AGENT live |
 | SRE69 | throw | throw armed; runs 1, 2 (route), 3 | runs 1-2: 0 upstream requests, run record and point equal to a run whose transport answers a real 503 (except times and runId), one console.error drill:<id> with the runId; record fired with both runIds; pointer kept until graded; run 3 normal |
+| SRE69 | throw dry run | throw armed; POST /kip-pages/run?dryRun=1 | 200 from the real upstream, no drill: log line, record armed with applied 0 and no runIds, pointer kept |
+| SRE70 | skip manual run | skip armed; manual POST /kip-pages/run first | 409 {ok:false, skipped:drill}, 0 upstream requests, no run record, record fired with applied 1 |
 | SRE70 | skip | skip armed; the cron tick, then the route | tick: 0 upstream requests, no run record, no point, one console.warn drill:<id>, record fired; route: normal run |
 | SRE73 | manual tick | POST /sre-agent/run with SRE_AGENT dry and the token / without the token / SRE_AGENT off | 200 with the tick's run record, state.json written / 401 / 404 |
 | SRE74 | expiry and errors | a pointer 49 h after arming / the pointer read throws / the drill record write fails on arm | deleted unapplied, record expired, run normal / run normal with no fault, one drill: log line / 503, no pointer |
@@ -1443,7 +1457,7 @@ by Amendment (1); SRE34 replaced it.
 - SRE48: every `docs/runbooks/sre/*.md` has the six B35 sections and an ordered cause list whose anchors exist in `docs/runbooks/`, and the generated playbook module matches the files; a firing rule without a playbook is diagnosed with `playbookMissing: true` and only `cause: "unknown"` passes → L1 test with case rows and a drift check in CI.
 - SRE49: firings of the type 1–4 rule ids of B28 are diagnosed; a firing of any other rule is recorded with `notDiagnosed: "out-of-scope"` → L1 test with case rows.
 - SRE50: given a mock model scripted to call `read_playbook` and then return a valid output quoting `E1`, the record has verdict `explained`, 2 steps, 1 tool call, neurons computed from the mock usage at the model's rates, and a trajectory with both steps → L2 test with the `loop.cases.ts` rows.
-- SRE57: the core in `packages/sre-agent/src` imports no provider package (`agents`, `workers-ai-provider`, `@ai-sdk/*` providers) and takes a `LanguageModel`; the Worker constructs the model in one line from the `AI` binding and `SRE_AGENT_MODEL` → L1 test over the package's imports.
+- SRE57: the core in `packages/sre-agent/src` imports no provider package (`agents`, `workers-ai-provider`, `@ai-sdk/*` providers) and takes a `LanguageModel`; the Worker constructs the model in one line from the `AI` binding and `SRE_AGENT_MODEL` → L1 test over the package's imports. Amended 2026-10-25 (G100): with `SRE_AGENT_GATEWAY` set (Dev `osskb-sre-dev`) the binding call carries that gateway id; unset, the account default.
 - SRE58: given `SRE_AGENT=dry` and a new firing, the bundle and run record are written with verdict `dry-run` and the mock model receives 0 calls → L2 test with case rows.
 
 ### Amendment (2): Failure and retry

@@ -182,9 +182,11 @@ const scenarios: Record<string, () => Promise<void>> = {
     expect(dev.vars?.SRE_AGENT).toBe("live");
     expect(dev.vars?.SRE_AGENT_CRON).toBe(SRE_CRONS);
     expect(dev.vars?.SRE_AGENT_MODEL).toBe(MODEL);
+    expect(dev.vars?.SRE_AGENT_GATEWAY).toBe("osskb-sre-dev");
     for (const cron of SRE_CRONS.split(";")) expect(dev.triggers?.crons).toContain(cron);
     expect(prod.vars?.SRE_AGENT).toBe("off");
     expect(prod.vars?.SRE_AGENT_CRON).toBeUndefined();
+    expect(prod.vars?.SRE_AGENT_GATEWAY).toBeUndefined();
     expect(prod.triggers?.crons).toEqual(["37 22 * * *"]);
   },
 
@@ -275,6 +277,19 @@ const scenarios: Record<string, () => Promise<void>> = {
       expect(binding.calls).toHaveLength(0);
       expect(bucket.json(STATE_KEY).lastRun).toMatchObject({ status: "failed", reason: "SRE_AGENT=live needs a model" });
     }
+  },
+
+  async "model through the gateway"() {
+    const gatewayOf = (call: unknown[]) => (call[2] as { gateway?: { id?: string } } | undefined)?.gateway?.id;
+    const ai = new FakeAi();
+    await generateText({ model: sreAgentModel({ AI: ai, SRE_AGENT_MODEL: MODEL, SRE_AGENT_GATEWAY: "osskb-sre-dev" })!, prompt: "ping" });
+    expect(ai.calls).toHaveLength(1);
+    expect(ai.calls[0]![0]).toBe(MODEL);
+    expect(gatewayOf(ai.calls[0]!)).toBe("osskb-sre-dev");
+    // Unset (Prod has none) keeps the account default gateway.
+    const plain = new FakeAi();
+    await generateText({ model: sreAgentModel({ AI: plain, SRE_AGENT_MODEL: MODEL })!, prompt: "ping" });
+    expect(gatewayOf(plain.calls[0]!)).not.toBe("osskb-sre-dev");
   },
 
   async "neuron term"() {

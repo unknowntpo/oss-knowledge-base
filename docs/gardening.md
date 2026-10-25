@@ -1221,7 +1221,7 @@ the two `viewer/` items below.
 - **Layer:** static check (typecheck), then test rows (wiring slice, L3).
 - **Source:** Spec 027 A2-9 slice 1, 2026-10-22.
 
-### G100. SRE agent wiring: the AI Gateway for `live` and `agents`' install footprint are open
+### G100. SRE agent wiring: `agents`' install footprint is open (gateway decided 2026-10-25)
 - **Where:** `apps/data-publisher-worker/src/sre-agent/run.ts` (`sreAgentModel`),
   `apps/data-publisher-worker/package.json` (`agents` 0.27.0).
 - **Why:** `createAI` routes every call through an AI Gateway, id `default`
@@ -1233,9 +1233,11 @@ the two `viewer/` items below.
   (Babel, esbuild, the MCP SDK, Express) for the one `agents/models/ai-sdk`
   import; the Worker bundle includes only that module. The CI log-tail check
   of G99 was not done in this slice.
-- **Fix:** the owner decides the gateway (pass a named one, for example
-  `osskb-sre-dev`, through `createAI`'s gateway setting, or accept `default`);
-  revisit `agents` when `createAI` ships in a
+- **Gateway, resolved (owner decision 2026-10-25):** the agent uses its own
+  gateway `osskb-sre-dev` on Dev through `SRE_AGENT_GATEWAY`, passed to
+  `createAI` as `gateway: {id}` (test SRE57 "model through the gateway");
+  Prod sets none.
+- **Fix:** revisit `agents` when `createAI` ships in a
   smaller package or `workers-ai-provider` is retired.
 - **Layer:** config and code (gateway), test rows (drill).
 - **Source:** Spec 027 A2-9 slice 2, 2026-10-23.

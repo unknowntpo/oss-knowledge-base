@@ -24,6 +24,8 @@ export interface SreAgentEnv {
   readonly SRE_AGENT_CRON?: string;
   /** B30: the Workers AI model id for `live` (A2-1: GLM-4.7-Flash until the SRE59 scoreboard decides). */
   readonly SRE_AGENT_MODEL?: string;
+  /** G100: the AI Gateway id the agent's model calls go through (Dev `osskb-sre-dev`); unset uses the account default. */
+  readonly SRE_AGENT_GATEWAY?: string;
   /** Spec 027 drill (B38): `on` only on Dev; see `drill.ts`. */
   readonly SRE_DRILL?: string;
   readonly AI?: unknown;
@@ -48,9 +50,12 @@ export function sreAgentCron(cron: string, configured: string | undefined): bool
 }
 
 /** SRE57: the core takes a `LanguageModel`; the Worker builds it in one line from the `AI` binding. */
-export function sreAgentModel(env: Pick<SreAgentEnv, "AI" | "SRE_AGENT_MODEL">) {
+export function sreAgentModel(env: Pick<SreAgentEnv, "AI" | "SRE_AGENT_MODEL" | "SRE_AGENT_GATEWAY">) {
   const modelId = env.SRE_AGENT_MODEL?.trim() ?? "";
-  return env.AI === undefined || modelId === "" ? undefined : createAI({ binding: env.AI as Ai }).languageModel(modelId);
+  if (env.AI === undefined || modelId === "") return undefined;
+  // G100 (owner decision 2026-10-25): Dev routes the agent's calls through its own AI Gateway; unset keeps the account default.
+  const gateway = env.SRE_AGENT_GATEWAY?.trim() ?? "";
+  return createAI(gateway === "" ? { binding: env.AI as Ai } : { binding: env.AI as Ai, gateway: { id: gateway } }).languageModel(modelId);
 }
 
 /** The core's only path to R2; `scopedStore` inside the core refuses any key outside the prefix (B33). */

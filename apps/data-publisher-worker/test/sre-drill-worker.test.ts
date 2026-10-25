@@ -282,6 +282,33 @@ const scenarios: Record<string, () => Promise<void>> = {
     expect(JSON.stringify(await tickHealth(drill.env as never))).not.toMatch(/drill/iu);
   },
 
+  async "throw dry run"() {
+    const { arm, bucket, request } = workerEnv();
+    expect((await arm("throw")).status).toBe(201);
+    setSystemTime(new Date(at(1)));
+    outbound = [];
+    logs.length = 0;
+    const response = await request("/kip-pages/run?dryRun=1", { method: "POST" });
+    expect(response.status).toBe(200);
+    // The dry run reaches the real upstream: no 503 fault was applied.
+    expect(outbound.length).toBeGreaterThan(0);
+    expect(logs.filter((line) => JSON.stringify(line.value).includes("drill:"))).toEqual([]);
+    expect(record(bucket, DRILL_ID)).toMatchObject({ state: "armed", applied: 0, runIds: [] });
+    expect(bucket.objects.has("internal/sre/v1/dev/drills/armed/kip-pages.json")).toBe(true);
+  },
+
+  async "skip manual run"() {
+    const { arm, bucket, runKip } = workerEnv();
+    expect((await arm("skip")).status).toBe(201);
+    outbound = [];
+    const response = await runKip(1);
+    expect(response.status).toBe(409);
+    expect(await response.json() as unknown).toEqual({ ok: false, skipped: "drill" });
+    expect(outbound).toEqual([]);
+    expect(bucket.objects.has(LAST_RUN_KEY)).toBe(false);
+    expect(record(bucket, "skip-20261025T0930Z")).toMatchObject({ state: "fired", applied: 1, runIds: [] });
+  },
+
   async skip() {
     const { arm, bucket, wae, tick, runKip } = workerEnv();
     expect((await arm("skip")).status).toBe(201);

@@ -170,6 +170,16 @@ const scenarios: Record<string, () => Promise<void>> = {
     expect(await tick("skip", 49)).toMatchObject({ record: { state: "graded", result: "fail", reasons: ["no-diagnosis"] }, pointer: false });
   },
 
+  async "failure before the drill"() {
+    // The firing's since (21:00) predates armedAt (21:10): the diagnosis is of an earlier, real failure.
+    const store = storeWithDrill(drillRecord({ armedAt: "2026-10-21T21:10:00.000Z" }));
+    const result = await runTick(tickDeps(store, failingHealth(), scripted(answer(GOLDEN))));
+    expect(result.runRecord!.diagnoses[0]).toMatchObject({ job: "kip-pages", since: FIRST_FAILED });
+    const record = JSON.parse(store.objects.get(drillRecordKey(DRILL_ID))!) as DrillRecord;
+    expect(record).toMatchObject({ state: "fired", result: null, reasons: [], gradedAt: null, diagnosis: null });
+    expect(store.objects.has(DRILL_POINTER_KEY)).toBe(true);
+  },
+
   async drift() {
     expect(drillExpectationErrors("throw")).toEqual([]);
     expect(drillExpectationErrors("skip")).toEqual([]);

@@ -156,6 +156,8 @@ interface Env {
   readonly SRE_AGENT_CRON?: string;
   /** Spec 027 B30: the Workers AI model id `live` uses through the `AI` binding. */
   readonly SRE_AGENT_MODEL?: string;
+  /** Spec 027 G100: the dedicated AI Gateway for the agent's model calls; Dev `osskb-sre-dev`, Prod unset. */
+  readonly SRE_AGENT_GATEWAY?: string;
   /**
    * Spec 027 drill (B38): `on` only in `wrangler.development.jsonc`. With `PUBLICATION_ENVIRONMENT`
    * `development` it enables `POST`/`DELETE /sre-agent/drill` and the fault in the `kip-pages` job.
