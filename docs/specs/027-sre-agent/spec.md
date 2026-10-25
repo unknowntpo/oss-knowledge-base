@@ -814,6 +814,20 @@ the text above, or settles what it left open:
 - **Merge order (owner decision 2026-10-25).** Dev `live` waits until the
   loop fix (PR #152) shows a passing model; this slice keeps
   `SRE_AGENT=live` but merges only after #152.
+- **Model (A2-1, owner decision 2026-10-25).** Dev `SRE_AGENT_MODEL` is
+  `@cf/qwen/qwen3-30b-a3b-fp8` (Qwen3 30B), the pick of PR #152's third
+  scoreboard (`scoreboard-2026-10-25c`: 2 of 24 diagnoses pass, the only
+  model with any pass). The owner accepts that as meeting "the eval passes
+  before Dev `live`"; GLM-4.7-Flash, the prior in A2-1, is no longer the Dev
+  model. Budget with #152's 4,096-token output cap (B31): a step reserves
+  (input + 4,096 output) at 4,625 / 30,475 neurons per M tokens, so 143
+  neurons on the first step (4,000 in) and 184 on the twelfth (12,800 in),
+  both far below the 1,500 daily cap. Reservations settle to actual usage
+  after each call; at worst-case actual usage the 1,500 cap stops a
+  diagnosis after about 9 steps (Σ of 9 reservations ≈ 1,600 > 1,500), and
+  the diagnosis ends `inconclusive` with reason budget. Measured usage is
+  far lower: ≈ 57 neurons a diagnosis in the scoreboard, so 3 diagnoses a
+  day ≈ 171 neurons.
 
 ## Dev fault-injection drill (2026-10-22)
 
@@ -951,7 +965,7 @@ correct answer as wrong, so the arm route refuses that kind (B41).
 | --- | --- | --- |
 | R2 Class A | arm 2 (record, pointer) + 2 faulted runs × 2 (run record, drill record) + tick 3 (`state.json`, run record, trajectory) + grade 1 = 10 | arm 2 + skipped run 1 (drill record; the run itself writes nothing) + tick 3 + grade 1 = 7 |
 | R2 Class B | ≤ 10 (pointer reads, `/health` polls) | ≤ 10 |
-| Neurons | one diagnosis: ≈ 160 typical, ≤ 685 worst (GLM-4.7-Flash, A2-6), inside the 1,500 daily cap and the 10,000 free a day | same |
+| Neurons | one diagnosis on Qwen3 30B: ≈ 57 measured (eval scoreboard-2026-10-25c), first-step reservation 143 with the 4,096-token output cap; a worst case stops at the 1,500 daily cap; inside the 10,000 free a day | same |
 | Upstream requests | 0 | 0 |
 | WAE | 2 points (kip-pages) + 1 (sre-agent), ≤ 3 SQL queries | 1 + ≤ 3 queries |
 | Money | $0 inside included allowances; if every op were billed, 10 Class A ≈ $0.000045 and 685 neurons ≈ $0.0075 | less |
@@ -1352,12 +1366,12 @@ the wiring slice, run by `apps/data-publisher-worker/test/sre-agent-worker.test.
 | --- | --- | --- | --- |
 | SRE34 | health as served | the sre-agent tick's /health on a Worker with signals on and a firing rule | equal to GET /health without sreAgent, redacted as served; no derived field |
 | SRE37 | flag off in the Worker | SRE_AGENT unset / off / "Live"; the sre-agent cron tick, then GET /health | 0 R2 calls, 0 AI calls, no point, no log line; sreAgent {mode: off} / {mode: off} / {mode: off, reason: invalid-flag} |
-| SRE37 | deploy config | wrangler.development.jsonc / wrangler.production.jsonc | SRE_AGENT live (owner decision 2026-10-25), SRE_AGENT_CRON 30 0 * * *;0 11 * * * in vars and in triggers, SRE_AGENT_GATEWAY osskb-sre-dev / SRE_AGENT off, no SRE_AGENT_CRON, no SRE_AGENT_GATEWAY, no sre-agent trigger |
+| SRE37 | deploy config | wrangler.development.jsonc / wrangler.production.jsonc | SRE_AGENT live (owner decision 2026-10-25), SRE_AGENT_CRON 30 0 * * *;0 11 * * * in vars and in triggers, SRE_AGENT_MODEL @cf/qwen/qwen3-30b-a3b-fp8 (A2-1, owner decision 2026-10-25), SRE_AGENT_GATEWAY osskb-sre-dev / SRE_AGENT off, no SRE_AGENT_CRON, no SRE_AGENT_GATEWAY, no sre-agent trigger |
 | SRE43 | job names | Spec 028 SIGNAL_JOBS of the Worker | each one is in SRE_JOBS (query_signals' job enum) and JOB_HEALTH_FIELDS; embedding, not search-embedding |
 | SRE47 | isolation | sre-agent branch throws at each step 0-7 on a tick shared with the publication cron | publication still scheduled; sreAgent lastRun.status failed with sanitized reason |
 | SRE47 | own tick | an SRE_AGENT_CRON expression with the flag off, dry or live; /health unreadable; a state.json read that throws | cron target sre-agent, never the publisher; the handler resolves; lastRun failed / state.json not replaced, the reason in the log line and /health |
 | SRE47 | model construction throws | SRE_AGENT live; building the model from the AI binding throws on the sre-agent cron tick | the handler resolves; lastRun.status failed with the sanitized reason; 0 AI calls |
-| SRE57 | model from the binding | SRE_AGENT_MODEL @cf/zai-org/glm-4.7-flash and an AI binding / either missing with SRE_AGENT live | one binding.run with that model id / no model; the run fails with a reason, 0 AI calls |
+| SRE57 | model from the binding | SRE_AGENT_MODEL @cf/qwen/qwen3-30b-a3b-fp8 and an AI binding / either missing with SRE_AGENT live | one binding.run with that model id / no model; the run fails with a reason, 0 AI calls |
 | SRE57 | model through the gateway | SRE_AGENT_GATEWAY osskb-sre-dev (G100, owner decision 2026-10-25) / unset | the binding.run call carries gateway id osskb-sre-dev with the same model id / no osskb-sre-dev gateway (account default) |
 | SRE62 | neuron term | digest, embedding and query ledgers at 5,000, 2,500, 1,000; the agent at 1,500 / the agent off or of another day | neurons today 10,000 / 8,500 with no state.json read while off |
 | SRE63 | dry tick observability | a dry tick with a publication job.missed firing, signals on, SIGNALS bound | /health.sreAgent {mode, status, reason, lastRun {runId, at, firings, diagnosed, notDiagnosed, modelCalls, neurons, verdicts, recordKey}, today}; one point job sre-agent with c1-c6; one runId in point, run record, trajectory and log line |

@@ -726,7 +726,7 @@ minutes of a tick (00:30, 11:00 UTC):
    | `cause` | `upstream-unavailable` |
    | `evidence` | a quote containing `cwiki.apache.org answered 503` (the `kip-pages /health fields` item) and a quote of the `Q-window` item |
    | `runbook` | `cloudflare-data-publisher.md#upstream-failures-job-runs` |
-   | `neurons` | ≈ 160 typical, ≤ 685 worst (GLM-4.7-Flash) |
+   | `neurons` | ≈ 57 typical (Qwen3 30B, eval scoreboard-2026-10-25c); a step reserves ≤ 184; never past the 1,500 daily cap |
 5. Read the grade:
 
    ```sh

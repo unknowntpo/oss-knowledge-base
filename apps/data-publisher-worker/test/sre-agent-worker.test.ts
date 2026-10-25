@@ -15,7 +15,7 @@ const NOW_MS = Date.parse(NOW);
 const SRE_CRONS = "30 0 * * *;0 11 * * *";
 const RUN_ID = "sre-agent-2026-10-23T00-30-00-000Z";
 const STATE_KEY = "internal/sre/v1/dev/state.json";
-const MODEL = "@cf/zai-org/glm-4.7-flash";
+const MODEL = "@cf/qwen/qwen3-30b-a3b-fp8"; // A2-1, owner decision 2026-10-25
 /** A Worker secret: 40 token characters, so the sanitizer's 32-character rule must catch it. */
 const SECRET = "ghs_0123456789abcdefghijABCDEFGHIJ012345";
 

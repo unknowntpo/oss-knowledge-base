@@ -17,7 +17,7 @@ const DRILL_ID = "throw-20261025T0930Z";
 const TOKEN = "manual-under-test";
 const KIP_CRON = "43 3 * * *";
 const SRE_CRONS = "30 0 * * *;0 11 * * *";
-const MODEL = "@cf/zai-org/glm-4.7-flash";
+const MODEL = "@cf/qwen/qwen3-30b-a3b-fp8"; // A2-1, owner decision 2026-10-25
 const LAST_RUN_KEY = "internal/kips/v1/last-run.json";
 const CWIKI_EMPTY = { results: [], start: 0, limit: 50, size: 0, _links: { base: "https://cwiki.apache.org/confluence" } };
 

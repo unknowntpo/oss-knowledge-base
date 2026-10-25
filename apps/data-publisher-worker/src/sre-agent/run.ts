@@ -22,7 +22,7 @@ export interface SreAgentEnv {
   readonly SRE_AGENT?: string;
   /** A2-3: the job's cron expressions, separated by `;` (Dev `30 0 * * *;0 11 * * *`). */
   readonly SRE_AGENT_CRON?: string;
-  /** B30: the Workers AI model id for `live` (A2-1: GLM-4.7-Flash until the SRE59 scoreboard decides). */
+  /** B30: the Workers AI model id for `live` (A2-1, owner decision 2026-10-25: Qwen3 30B on Dev). */
   readonly SRE_AGENT_MODEL?: string;
   /** G100: the AI Gateway id the agent's model calls go through (Dev `osskb-sre-dev`); unset uses the account default. */
   readonly SRE_AGENT_GATEWAY?: string;
