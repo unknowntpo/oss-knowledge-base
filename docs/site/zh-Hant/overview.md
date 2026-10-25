@@ -6,12 +6,13 @@
 
 {{flow:system}}
 
-## 四個階段 {#stages}
+## 五個階段 {#stages}
 
 1. **收集。** 各環境的 cron 觸發發布器。它從 Durable Object 裡保存的各來源游標讀取 GitHub、Jira 與 Kafka dev@ 郵件列表；一個來源失敗不會擋住其他來源，程式中途掛掉也會從停下的地方續跑（[ADR-0014](docs/architecture/decisions/0014-publish-per-source-with-independent-cursors.md)）。
 2. **處理。** [apps/data-publisher-worker/src/pipeline.ts](apps/data-publisher-worker/src/pipeline.ts) 的 `runDataPublication` 用確定性的規則整理 thread（發布流程中不使用語言模型），寫出 Feed release，並建立搜尋索引。
 3. **儲存。** R2 存放不可變的 release 與內容定址的詳細物件；只有小小的 `current.json` 指標會變，而且最後才寫。所以讀者看到的一定是一份完整的 release，回復也只要改指標（[Spec 006](docs/specs/006-environment-isolated-r2-publication/spec.md)、[Spec 008](docs/specs/008-content-addressed-details/spec.md)）。
 4. **應用。** Pages Functions 讀 R2、回傳快取 30 秒的 JSON，由 Vue 網站呈現。部署程式碼不會發布資料：資料只來自 Worker（[docs/operations/release.md](docs/operations/release.md)）。
+5. **可觀測性。** 每個 job 都在公開的 `/health` 回報上一次 run。Dev 上每次 run 還會寫一個 Workers Analytics Engine 資料點，依這些資料點評估的規則會標出漏跑或失敗的 job；成本守門員記錄本月至今的成本；SRE agent 每天兩次用 Workers AI 模型診斷新觸發的規則，並把推理過程存進 R2 給負責人看（[Spec 027](docs/specs/027-sre-agent/spec.md)、[Spec 028](docs/specs/028-observability-signals/spec.md)）。
 
 ## Dev 與 Prod {#environments}
 
@@ -20,7 +21,7 @@
 | 項目 | Dev | Prod |
 | --- | --- | --- |
 | 網站 | [oss-knowledge-base-dev.pages.dev](https://oss-knowledge-base-dev.pages.dev/) | [oss-knowledge-base.pages.dev](https://oss-knowledge-base.pages.dev/) |
-| 部署方式 | 每次 push 到 `main`、所有 CI 工作通過後部署，接著對已部署的網站跑端對端測試 | 從 `main` 可達的 `v*` tag（目前 `v0.3.1`，2026-10-19） |
+| 部署方式 | 每次 push 到 `main`、所有 CI 工作通過後部署，接著對已部署的網站跑端對端測試 | 從 `main` 可達的 `v*` tag（目前 `v0.3.2`，2026-10-24） |
 | 發布 cron | 22:07 UTC | 22:37 UTC |
 | 關鍵字搜尋 `bm25-reference@3` | 開 | 開 |
 | 每週週報 | 開（22:47 UTC） | 關 |

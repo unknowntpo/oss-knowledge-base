@@ -6,12 +6,13 @@ Once a day a scheduled Worker collects community activity, turns it into threads
 
 {{flow:system}}
 
-## The four stages {#stages}
+## The five stages {#stages}
 
 1. **Collection.** A cron trigger starts the publisher in each environment. It reads GitHub, Jira and the Kafka dev@ list from per-source cursors kept in a Durable Object, so one failing source never blocks the others and a crash resumes where it stopped ([ADR-0014](docs/architecture/decisions/0014-publish-per-source-with-independent-cursors.md)).
 2. **Processing.** `runDataPublication` in [apps/data-publisher-worker/src/pipeline.ts](apps/data-publisher-worker/src/pipeline.ts) materializes threads with deterministic rules (no language model in the publication path), writes the Feed release, and builds the search index.
 3. **Storage.** R2 holds immutable releases and content-addressed detail objects; only small `current.json` pointers change, and they are written last. A reader therefore sees one complete release, and rollback is a pointer change ([Spec 006](docs/specs/006-environment-isolated-r2-publication/spec.md), [Spec 008](docs/specs/008-content-addressed-details/spec.md)).
 4. **Application.** Pages Functions read R2 and return JSON with a 30-second cache; the Vue app renders it. Code deploys never publish data: data comes only from the Worker ([docs/operations/release.md](docs/operations/release.md)).
+5. **Observability.** Every job reports its last run in the public `/health`. On Dev each run also writes a Workers Analytics Engine data point, rules over those points mark a missed or failing job, the cost guard records the month-to-date cost, and twice a day the SRE agent diagnoses new firing rules with a Workers AI model and stores its reasoning in R2 for the owner ([Spec 027](docs/specs/027-sre-agent/spec.md), [Spec 028](docs/specs/028-observability-signals/spec.md)).
 
 ## Dev and Prod {#environments}
 
@@ -20,7 +21,7 @@ The two environments are fully isolated: separate Workers, Durable Objects, R2 b
 | Aspect | Dev | Prod |
 | --- | --- | --- |
 | Web app | [oss-knowledge-base-dev.pages.dev](https://oss-knowledge-base-dev.pages.dev/) | [oss-knowledge-base.pages.dev](https://oss-knowledge-base.pages.dev/) |
-| Deployed by | every push to `main`, after all CI jobs pass, then checked by deployed end-to-end tests | a `v*` tag reachable from `main` (current `v0.3.1`, 2026-10-19) |
+| Deployed by | every push to `main`, after all CI jobs pass, then checked by deployed end-to-end tests | a `v*` tag reachable from `main` (current `v0.3.2`, 2026-10-24) |
 | Publication cron | 22:07 UTC | 22:37 UTC |
 | Lexical search `bm25-reference@3` | on | on |
 | Weekly digest | on (22:47 UTC) | off |
