@@ -1,13 +1,16 @@
 /**
- * Spec 027 Amendment (2) L3 eval fixtures, [pending] until slice 1. Each row becomes a fixed evidence
- * bundle (slice 1 saves it as a fixture file) with the expected cause, the evidence the diagnosis must
- * quote, and the runbook anchor. CI runs every row through the graders with a golden answer and with a
- * broken one (SRE60, mock model, $0); `eval` runs the same rows against real Workers AI models, 5 runs
- * each, locally (SRE59, not in CI). Rows with trigger "none" must make no model call.
+ * Spec 027 Amendment (2) L3 eval fixtures. Each row is a fixed case in `scripts/eval/cases.ts` (the
+ * `/health`, CI rule and SQL answers the harness would read) with the expected cause, the evidence the
+ * diagnosis must quote, and the runbook anchor; rows 2–5 read the eval-only playbooks of
+ * `scripts/eval/playbooks.ts`. eval.test.ts runs every row through the graders with a golden answer and
+ * with a broken one (SRE60, mock model, $0); `bun run --cwd packages/sre-agent eval` runs the same rows
+ * against real Workers AI models, 5 runs each, locally (SRE59, not in CI). Rows with trigger "none" must
+ * make no model call. The runbook grader also accepts the anchors the expected cause lists in its playbook
+ * (row 1: `alarm-stuck` → `#follow-up-runs-spec-018`).
  *
  * `source`: "real" rows quote recorded values; "reconstructed" rows rebuild fields of a real incident
- * from the specs named; "constructed" rows have no recorded incident behind them. Cause ids are
- * provisional until each rule's playbook (docs/runbooks/sre/<id>.md, first one in PR #123) lists them.
+ * from the specs named; "constructed" rows have no recorded incident behind them. Cause ids of rows 2–5
+ * are provisional until each rule's playbook (docs/runbooks/sre/<id>.md) lists them.
  * Sources: Spec 008 "R2 operations", Specs 009, 010, 011 Evidence, commit a303636, PR #98, PR #100,
  * Dev and Prod /health (2026-10-20, 2026-10-22).
  */

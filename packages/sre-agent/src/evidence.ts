@@ -23,8 +23,27 @@ export interface EvidenceCheck {
 
 const collapse = (text: string) => text.replace(/\s+/gu, " ").trim();
 
+/** The item's compact JSON (`JSON.stringify`, no whitespace) when its text is JSON; owner decision 2026-10-25. */
+function compactJson(text: string): string | undefined {
+  try {
+    return JSON.stringify(JSON.parse(text));
+  } catch {
+    return undefined;
+  }
+}
+
+/** The quote occurs verbatim (whitespace collapsed) in the item's text, or verbatim in its compact JSON. */
+function quotedIn(quote: string, text: string): boolean {
+  const wanted = collapse(quote);
+  if (wanted === "") return false;
+  if (collapse(text).includes(wanted)) return true;
+  const compact = compactJson(text);
+  return compact !== undefined && compact.includes(quote.trim());
+}
+
 /**
- * Each quote occurs verbatim (whitespace collapsed) in the item it cites; the cause is a playbook
+ * Each quote occurs verbatim (whitespace collapsed) in the item it cites, or verbatim in that item's compact
+ * JSON serialization when the item is JSON (owner decision 2026-10-25: models quote compact JSON); the cause is a playbook
  * cause id or `unknown`; the runbook is an anchor the playbook lists. Code only, no model.
  */
 export function checkEvidence(
@@ -35,7 +54,7 @@ export function checkEvidence(
   for (const { id, quote } of output.evidence) {
     const item = bundle.items.find((value) => value.id === id);
     if (item === undefined) failures.push(`unknown-evidence-id:${id}`);
-    else if (collapse(quote) === "" || !collapse(item.text).includes(collapse(quote))) failures.push(`quote-not-in-item:${id}`);
+    else if (!quotedIn(quote, item.text)) failures.push(`quote-not-in-item:${id}`);
   }
   if (!bundle.causes.has(output.cause)) failures.push(`cause-not-in-playbook:${output.cause}`);
   if (output.runbook !== null && !bundle.runbooks.has(output.runbook)) failures.push(`runbook-not-in-playbook:${output.runbook}`);

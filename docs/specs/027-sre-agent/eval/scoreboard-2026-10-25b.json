@@ -1,0 +1,3434 @@
+{
+  "date": "2026-10-25",
+  "command": "bun run --cwd packages/sre-agent eval -- --model @cf/zai-org/glm-4.7-flash --model @cf/meta/llama-3.3-70b-instruct-fp8-fast --model @cf/qwen/qwen3-30b-a3b-fp8 --runs 5 --budget-usd 0.1 --interleave --suffix b",
+  "stub": false,
+  "scoreboard": {
+    "budgetUsd": 0.1,
+    "models": [
+      {
+        "modelId": "@cf/zai-org/glm-4.7-flash",
+        "runs": 24,
+        "diagnoses": 24,
+        "passed": 0,
+        "passRate": 0,
+        "causeCorrect": 7,
+        "evidenceOk": 0,
+        "anchorOk": 6,
+        "fabricated": 6,
+        "fabricationRate": 0.75,
+        "failures": {
+          "malformed": 16
+        },
+        "noCallRuns": 0,
+        "noCallPassed": 0,
+        "neurons": 2975.8449999999993,
+        "neuronsPerDiagnosis": 123.99354166666664,
+        "latencyMsMean": 50381.5,
+        "latencyMsP50": 59233,
+        "costUsd": 0.03273429499999999,
+        "byCase": {
+          "dev-stall-2026-10-02": {
+            "runs": 5,
+            "passed": 0,
+            "causes": {
+              "(malformed)": 4,
+              "unknown": 1
+            }
+          },
+          "kip-pages-two-failures": {
+            "runs": 5,
+            "passed": 0,
+            "causes": {
+              "(malformed)": 2,
+              "upstream-unavailable": 3
+            }
+          },
+          "r2-class-a-spike-2026-10-13": {
+            "runs": 5,
+            "passed": 0,
+            "causes": {
+              "conditional-put-on-existing": 2,
+              "(malformed)": 3
+            }
+          },
+          "dev-cost-guard-trip-2026-10-21": {
+            "runs": 5,
+            "passed": 0,
+            "causes": {
+              "(malformed)": 5
+            }
+          },
+          "tag-ci-failure-v0.3.0": {
+            "runs": 4,
+            "passed": 0,
+            "causes": {
+              "non-hermetic-test": 2,
+              "(malformed)": 2
+            }
+          }
+        }
+      },
+      {
+        "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+        "runs": 24,
+        "diagnoses": 24,
+        "passed": 0,
+        "passRate": 0,
+        "causeCorrect": 4,
+        "evidenceOk": 0,
+        "anchorOk": 9,
+        "fabricated": 22,
+        "fabricationRate": 0.9166666666666666,
+        "failures": {},
+        "noCallRuns": 0,
+        "noCallPassed": 0,
+        "neurons": 3277.5026321411133,
+        "neuronsPerDiagnosis": 136.5626096725464,
+        "latencyMsMean": 6176.708333333333,
+        "latencyMsP50": 5060.5,
+        "costUsd": 0.036052528953552244,
+        "byCase": {
+          "dev-stall-2026-10-02": {
+            "runs": 5,
+            "passed": 0,
+            "causes": {
+              "unknown": 5
+            }
+          },
+          "kip-pages-two-failures": {
+            "runs": 5,
+            "passed": 0,
+            "causes": {
+              "unknown": 5
+            }
+          },
+          "r2-class-a-spike-2026-10-13": {
+            "runs": 5,
+            "passed": 0,
+            "causes": {
+              "unknown": 5
+            }
+          },
+          "dev-cost-guard-trip-2026-10-21": {
+            "runs": 5,
+            "passed": 0,
+            "causes": {
+              "unknown": 5
+            }
+          },
+          "tag-ci-failure-v0.3.0": {
+            "runs": 4,
+            "passed": 0,
+            "causes": {
+              "non-hermetic-test": 4
+            }
+          }
+        }
+      },
+      {
+        "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+        "runs": 24,
+        "diagnoses": 24,
+        "passed": 0,
+        "passRate": 0,
+        "causeCorrect": 14,
+        "evidenceOk": 1,
+        "anchorOk": 12,
+        "fabricated": 21,
+        "fabricationRate": 0.875,
+        "failures": {},
+        "noCallRuns": 0,
+        "noCallPassed": 0,
+        "neurons": 1366.7586154937744,
+        "neuronsPerDiagnosis": 56.948275645573936,
+        "latencyMsMean": 8189.958333333333,
+        "latencyMsP50": 7134,
+        "costUsd": 0.015034344770431519,
+        "byCase": {
+          "dev-stall-2026-10-02": {
+            "runs": 5,
+            "passed": 0,
+            "causes": {
+              "unknown": 5
+            }
+          },
+          "kip-pages-two-failures": {
+            "runs": 5,
+            "passed": 0,
+            "causes": {
+              "upstream-unavailable": 5
+            }
+          },
+          "r2-class-a-spike-2026-10-13": {
+            "runs": 5,
+            "passed": 0,
+            "causes": {
+              "conditional-put-on-existing": 5
+            }
+          },
+          "dev-cost-guard-trip-2026-10-21": {
+            "runs": 5,
+            "passed": 0,
+            "causes": {
+              "current-spike": 4,
+              "unknown": 1
+            }
+          },
+          "tag-ci-failure-v0.3.0": {
+            "runs": 4,
+            "passed": 0,
+            "causes": {
+              "non-hermetic-test": 4
+            }
+          }
+        }
+      }
+    ],
+    "neurons": 7620.106247634887,
+    "costUsd": 0.08382116872398375,
+    "aborted": "budget: 7620.1 of 9090 neurons spent; a worst-case diagnosis (1,500) would pass $0.1"
+  },
+  "winner": "@cf/zai-org/glm-4.7-flash",
+  "runs": [
+    {
+      "scenario": "dev-stall-2026-10-02",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 1,
+      "firings": 2,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": "malformed",
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 5915,
+      "outputTokens": 4096,
+      "neurons": 181.6269,
+      "neuronsReported": 181.6269,
+      "latencyMs": 59716,
+      "finalText": "",
+      "finishReason": "length",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": false,
+        "pass": false,
+        "missing": [
+          "lastRun.completedAt",
+          "scheduled"
+        ]
+      }
+    },
+    {
+      "scenario": "dev-stall-2026-10-02",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 1,
+      "firings": 2,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": "cloudflare-data-publisher.md#health-and-manual-run",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "job.missed"
+        },
+        {
+          "id": "E2",
+          "quote": "publication.freshness"
+        },
+        {
+          "id": "E4",
+          "quote": "running: false"
+        },
+        {
+          "id": "E5",
+          "quote": "no publication point after 2026-09-30T01:07Z"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E4"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 6021,
+      "outputTokens": 172,
+      "neurons": 195.794488,
+      "neuronsReported": 195.7925567626953,
+      "latencyMs": 8413,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"unknown\", \"confidence\": \"low\", \"evidence\": [{\"id\": \"E1\", \"quote\": \"job.missed\"}, {\"id\": \"E2\", \"quote\": \"publication.freshness\"}, {\"id\": \"E4\", \"quote\": \"running: false\"}, {\"id\": \"E5\", \"quote\": \"no publication point after 2026-09-30T01:07Z\"}], \"runbook\": \"cloudflare-data-publisher.md#health-and-manual-run\", \"ownerAction\": \"Check the Dev runs after 2026-09-30 01:07 UTC for a failure such as exceededMemory; if the deploys caused it, roll back or fix forward, then publish manually (POST /run).\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [
+          "scheduled"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "dev-stall-2026-10-02",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 1,
+      "firings": 2,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": "[Roll back](../cloudflare-data-publisher.md#roll-back) for cause 5; [Health and manual run](../cloudflare-data-publisher.md#health-and-manual-run) for checking state",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "{\n  \"id\": \"job.missed\",\n  \"job\": \"publication\",\n  \"status\": \"firing\",\n  \"value\": \"48.9 h\",\n  \"threshold\": \"27 h\",\n  \"since\": \"2026-10-01T04:07:00Z\",\n  \"runId\": null\n}"
+        },
+        {
+          "id": "E2",
+          "quote": "{\n  \"id\": \"publication.freshness\",\n  \"job\": \"publication\",\n  \"status\": \"firing\",\n  \"value\": \"48.9 h\",\n  \"threshold\": \"27 h\",\n  \"since\": \"2026-10-01T04:07:00Z\",\n  \"runId\": null\n}"
+        },
+        {
+          "id": "E4",
+          "quote": "{\n  \"running\": false,\n  \"scheduled\": \"2026-09-30T02:07:00Z (overdue, reconstructed)\",\n  \"lastRun\": {\n    \"ok\": true,\n    \"completedAt\": \"2026-09-30T01:07:00Z\"\n  }\n}"
+        },
+        {
+          "id": "E5",
+          "quote": "\"no publication point after 2026-09-30T01:07Z\""
+        }
+      ],
+      "evidenceFailures": [
+        "runbook-not-in-playbook:[Roll back](../cloudflare-data-publisher.md#roll-back) for cause 5; [Health and manual run](../cloudflare-data-publisher.md#health-and-manual-run) for checking state"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 6154,
+      "outputTokens": 1776,
+      "neurons": 82.58585,
+      "neuronsReported": 82.58287048339844,
+      "latencyMs": 14297,
+      "finalText": "{\n\n  \"verdict\": \"inconclusive\",\n  \"cause\": \"unknown\",\n  \"confidence\": \"low\",\n  \"evidence\": [\n    {\n      \"id\": \"E1\",\n      \"quote\": \"{\\n  \\\"id\\\": \\\"job.missed\\\",\\n  \\\"job\\\": \\\"publication\\\",\\n  \\\"status\\\": \\\"firing\\\",\\n  \\\"value\\\": \\\"48.9 h\\\",\\n  \\\"threshold\\\": \\\"27 h\\\",\\n  \\\"since\\\": \\\"2026-10-01T04:07:00Z\\\",\\n  \\\"runId\\\": null\\n}\"\n    },\n    {\n      \"id\": \"E2\",\n      \"quote\": \"{\\n  \\\"id\\\": \\\"publication.freshness\\\",\\n  \\\"job\\\": \\\"publication\\\",\\n  \\\"status\\\": \\\"firing\\\",\\n  \\\"value\\\": \\\"48.9 h\\\",\\n  \\\"threshold\\\": \\\"27 h\\\",\\n  \\\"since\\\": \\\"2026-10-01T04:07:00Z\\\",\\n  \\\"runId\\\": null\\n}\"\n    },\n    {\n      \"id\": \"E4\",\n      \"quote\": \"{\\n  \\\"running\\\": false,\\n  \\\"scheduled\\\": \\\"2026-09-30T02:07:00Z (overdue, reconstructed)\\\",\\n  \\\"lastRun\\\": {\\n    \\\"ok\\\": true,\\n    \\\"completedAt\\\": \\\"2026-09-30T01:07:00Z\\\"\\n  }\\n}\"\n    },\n    {\n      \"id\": \"E5\",\n      \"quote\": \"\\\"no publication point after 2026-09-30T01:07Z\\\"\"\n    }\n  ],\n  \"runbook\": \"[Roll back](../cloudflare-data-publisher.md#roll-back) for cause 5; [Health and manual run](../cloudflare-data-publisher.md#health-and-manual-run) for checking state\",\n  \"ownerAction\": \"Check the Dev runs after 2026-09-30 01:07 UTC for a failure such as `exceededMemory`; if the deploys caused it, roll back or fix forward, then publish manually (`POST /run`).\"\n}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "dev-stall-2026-10-02",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 2,
+      "firings": 2,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": "cloudflare-data-publisher.md#health-and-manual-run",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "\"value\": \"48.9 h\", \"since\": \"2026-10-01T04:07:00Z\""
+        },
+        {
+          "id": "E2",
+          "quote": "\"value\": \"48.9 h\", \"since\": \"2026-10-01T04:07:00Z\""
+        },
+        {
+          "id": "E4",
+          "quote": "\"running\": false, \"scheduled\": \"2026-09-30T02:07:00Z (overdue, reconstructed)\", \"lastRun\": { \"ok\": true, \"completedAt\": \"2026-09-30T01:07:00Z\" }"
+        },
+        {
+          "id": "E5",
+          "quote": "\"no publication point after 2026-09-30T01:07Z\""
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E1",
+        "quote-not-in-item:E2"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 5915,
+      "outputTokens": 1361,
+      "neurons": 82.0729,
+      "neuronsReported": 82.0729,
+      "latencyMs": 17037,
+      "finalText": "{\n  \"verdict\": \"inconclusive\",\n  \"cause\": \"unknown\",\n  \"confidence\": \"low\",\n  \"evidence\": [\n    { \"id\": \"E1\", \"quote\": \"\\\"value\\\": \\\"48.9 h\\\", \\\"since\\\": \\\"2026-10-01T04:07:00Z\\\"\" },\n    { \"id\": \"E2\", \"quote\": \"\\\"value\\\": \\\"48.9 h\\\", \\\"since\\\": \\\"2026-10-01T04:07:00Z\\\"\" },\n    { \"id\": \"E4\", \"quote\": \"\\\"running\\\": false, \\\"scheduled\\\": \\\"2026-09-30T02:07:00Z (overdue, reconstructed)\\\", \\\"lastRun\\\": { \\\"ok\\\": true, \\\"completedAt\\\": \\\"2026-09-30T01:07:00Z\\\" }\" },\n    { \"id\": \"E5\", \"quote\": \"\\\"no publication point after 2026-09-30T01:07Z\\\"\" }\n  ],\n  \"runbook\": \"cloudflare-data-publisher.md#health-and-manual-run\",\n  \"ownerAction\": \"Check the publication runs after 2026-09-30T01:07:00Z for a failure such as `exceededMemory`; if the deploys caused it, roll back or fix forward, then publish manually (`POST /run`).\"\n}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "dev-stall-2026-10-02",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 2,
+      "firings": 2,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "job: publication, status: firing, value: 48.9 h, threshold: 27 h, since: 2026-10-01T04:07:00Z"
+        },
+        {
+          "id": "E2",
+          "quote": "job: publication, status: firing, value: 48.9 h, threshold: 27 h, since: 2026-10-01T04:07:00Z"
+        },
+        {
+          "id": "E4",
+          "quote": "running: false, scheduled: 2026-09-30T02:07:00Z, lastRun: {ok: true, completedAt: 2026-09-30T01:07:00Z}"
+        },
+        {
+          "id": "E5",
+          "quote": "no publication point after 2026-09-30T01:07Z"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E1",
+        "quote-not-in-item:E2",
+        "quote-not-in-item:E4"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 6021,
+      "outputTokens": 245,
+      "neurons": 210.74525300000005,
+      "neuronsReported": 210.74334716796875,
+      "latencyMs": 8827,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"unknown\", \"confidence\": \"low\", \"evidence\": [{\"id\": \"E1\", \"quote\": \"job: publication, status: firing, value: 48.9 h, threshold: 27 h, since: 2026-10-01T04:07:00Z\"}, {\"id\": \"E2\", \"quote\": \"job: publication, status: firing, value: 48.9 h, threshold: 27 h, since: 2026-10-01T04:07:00Z\"}, {\"id\": \"E4\", \"quote\": \"running: false, scheduled: 2026-09-30T02:07:00Z, lastRun: {ok: true, completedAt: 2026-09-30T01:07:00Z}\"}, {\"id\": \"E5\", \"quote\": \"no publication point after 2026-09-30T01:07Z\"}], \"runbook\": null, \"ownerAction\": \"Check the publication job's last run and scheduled time to determine the cause of the firing rule.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "scheduled"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "dev-stall-2026-10-02",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 2,
+      "firings": 2,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": "[Health and manual run](../cloudflare-data-publisher.md#health-and-manual-run)",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "{\"id\": \"job.missed\", \"job\": \"publication\", \"status\": \"firing\", \"value\": \"48.9 h\", \"threshold\": \"27 h\", \"since\": \"2026-10-01T04:07:00Z\", \"runId\": null}"
+        },
+        {
+          "id": "E2",
+          "quote": "{\"id\": \"publication.freshness\", \"job\": \"publication\", \"status\": \"firing\", \"value\": \"48.9 h\", \"threshold\": \"27 h\", \"since\": \"2026-10-01T04:07:00Z\", \"runId\": null}"
+        },
+        {
+          "id": "E4",
+          "quote": "{\"running\": false, \"scheduled\": \"2026-09-30T02:07:00Z (overdue, reconstructed)\", \"lastRun\": {\"ok\": true, \"completedAt\": \"2026-09-30T01:07:00Z\"}}"
+        },
+        {
+          "id": "E5",
+          "quote": "\"no publication point after 2026-09-30T01:07Z\""
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E1",
+        "quote-not-in-item:E2",
+        "quote-not-in-item:E4",
+        "runbook-not-in-playbook:[Health and manual run](../cloudflare-data-publisher.md#health-and-manual-run)"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 6154,
+      "outputTokens": 1865,
+      "neurons": 85.298125,
+      "neuronsReported": 85.29512023925781,
+      "latencyMs": 11214,
+      "finalText": "{\"verdict\":\"inconclusive\",\"cause\":\"unknown\",\"confidence\":\"low\",\"evidence\":[{\"id\":\"E1\",\"quote\":\"{\\\"id\\\": \\\"job.missed\\\", \\\"job\\\": \\\"publication\\\", \\\"status\\\": \\\"firing\\\", \\\"value\\\": \\\"48.9 h\\\", \\\"threshold\\\": \\\"27 h\\\", \\\"since\\\": \\\"2026-10-01T04:07:00Z\\\", \\\"runId\\\": null}\"},{\"id\":\"E2\",\"quote\":\"{\\\"id\\\": \\\"publication.freshness\\\", \\\"job\\\": \\\"publication\\\", \\\"status\\\": \\\"firing\\\", \\\"value\\\": \\\"48.9 h\\\", \\\"threshold\\\": \\\"27 h\\\", \\\"since\\\": \\\"2026-10-01T04:07:00Z\\\", \\\"runId\\\": null}\"},{\"id\":\"E4\",\"quote\":\"{\\\"running\\\": false, \\\"scheduled\\\": \\\"2026-09-30T02:07:00Z (overdue, reconstructed)\\\", \\\"lastRun\\\": {\\\"ok\\\": true, \\\"completedAt\\\": \\\"2026-09-30T01:07:00Z\\\"}}\"},{\"id\":\"E5\",\"quote\":\"\\\"no publication point after 2026-09-30T01:07Z\\\"\"}],\"runbook\":\"[Health and manual run](../cloudflare-data-publisher.md#health-and-manual-run)\",\"ownerAction\":\"Check the Dev runs after 2026-09-30 01:07 UTC for a failure such as `exceededMemory`; if the deploys caused it, roll back or fix forward, then publish manually (`POST /run`).\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "scheduled"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "dev-stall-2026-10-02",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 3,
+      "firings": 2,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": "malformed",
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 5915,
+      "outputTokens": 4096,
+      "neurons": 181.6269,
+      "neuronsReported": 181.6269,
+      "latencyMs": 58750,
+      "finalText": "",
+      "finishReason": "length",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": false,
+        "pass": false,
+        "missing": [
+          "lastRun.completedAt",
+          "scheduled"
+        ]
+      }
+    },
+    {
+      "scenario": "dev-stall-2026-10-02",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 3,
+      "firings": 2,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": "cloudflare-data-publisher.md#health-and-manual-run",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "job.missed"
+        },
+        {
+          "id": "E2",
+          "quote": "publication.freshness"
+        },
+        {
+          "id": "E4",
+          "quote": "publication /health fields"
+        },
+        {
+          "id": "E5",
+          "quote": "Q-history"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E4",
+        "quote-not-in-item:E5"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 6021,
+      "outputTokens": 159,
+      "neurons": 193.132023,
+      "neuronsReported": 193.13009643554688,
+      "latencyMs": 10077,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"unknown\", \"confidence\": \"low\", \"evidence\": [{\"id\": \"E1\", \"quote\": \"job.missed\"}, {\"id\": \"E2\", \"quote\": \"publication.freshness\"}, {\"id\": \"E4\", \"quote\": \"publication /health fields\"}, {\"id\": \"E5\", \"quote\": \"Q-history\"}], \"runbook\": \"cloudflare-data-publisher.md#health-and-manual-run\", \"ownerAction\": \"Check the Dev runs after 2026-09-30 01:07 UTC for a failure such as exceededMemory; if the deploys caused it, roll back or fix forward, then publish manually (POST /run).\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [
+          "lastRun.completedAt",
+          "scheduled"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "dev-stall-2026-10-02",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 3,
+      "firings": 2,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": "[Roll back](../cloudflare-data-publisher.md#roll-back) for cause 5; [Health and manual run](../cloudflare-data-publisher.md#health-and-manual-run) for checking state",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "{\n  \"id\": \"job.missed\",\n  \"job\": \"publication\",\n  \"status\": \"firing\",\n  \"value\": \"48.9 h\",\n  \"threshold\": \"27 h\",\n  \"since\": \"2026-10-01T04:07:00Z\",\n  \"runId\": null\n}"
+        },
+        {
+          "id": "E4",
+          "quote": "{\n  \"running\": false,\n  \"scheduled\": \"2026-09-30T02:07:00Z (overdue, reconstructed)\",\n  \"lastRun\": {\n    \"ok\": true,\n    \"completedAt\": \"2026-09-30T01:07:00Z\"\n  }\n}"
+        },
+        {
+          "id": "E5",
+          "quote": "\"no publication point after 2026-09-30T01:07Z\""
+        }
+      ],
+      "evidenceFailures": [
+        "runbook-not-in-playbook:[Roll back](../cloudflare-data-publisher.md#roll-back) for cause 5; [Health and manual run](../cloudflare-data-publisher.md#health-and-manual-run) for checking state"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 6154,
+      "outputTokens": 1476,
+      "neurons": 73.44335,
+      "neuronsReported": 73.44043731689453,
+      "latencyMs": 11048,
+      "finalText": "{\n\n  \"verdict\": \"inconclusive\",\n  \"cause\": \"unknown\",\n  \"confidence\": \"low\",\n  \"evidence\": [\n    {\n      \"id\": \"E1\",\n      \"quote\": \"{\\n  \\\"id\\\": \\\"job.missed\\\",\\n  \\\"job\\\": \\\"publication\\\",\\n  \\\"status\\\": \\\"firing\\\",\\n  \\\"value\\\": \\\"48.9 h\\\",\\n  \\\"threshold\\\": \\\"27 h\\\",\\n  \\\"since\\\": \\\"2026-10-01T04:07:00Z\\\",\\n  \\\"runId\\\": null\\n}\"\n    },\n    {\n      \"id\": \"E4\",\n      \"quote\": \"{\\n  \\\"running\\\": false,\\n  \\\"scheduled\\\": \\\"2026-09-30T02:07:00Z (overdue, reconstructed)\\\",\\n  \\\"lastRun\\\": {\\n    \\\"ok\\\": true,\\n    \\\"completedAt\\\": \\\"2026-09-30T01:07:00Z\\\"\\n  }\\n}\"\n    },\n    {\n      \"id\": \"E5\",\n      \"quote\": \"\\\"no publication point after 2026-09-30T01:07Z\\\"\"\n    }\n  ],\n  \"runbook\": \"[Roll back](../cloudflare-data-publisher.md#roll-back) for cause 5; [Health and manual run](../cloudflare-data-publisher.md#health-and-manual-run) for checking state\",\n  \"ownerAction\": \"Check the Dev runs after 2026-09-30 01:07 UTC for a failure such as `exceededMemory`; if the deploys caused it, roll back or fix forward, then publish manually (`POST /run`).\"\n}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "dev-stall-2026-10-02",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 4,
+      "firings": 2,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": "malformed",
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 5915,
+      "outputTokens": 4096,
+      "neurons": 181.6269,
+      "neuronsReported": 181.6269,
+      "latencyMs": 76857,
+      "finalText": "",
+      "finishReason": "length",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": false,
+        "pass": false,
+        "missing": [
+          "lastRun.completedAt",
+          "scheduled"
+        ]
+      }
+    },
+    {
+      "scenario": "dev-stall-2026-10-02",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 4,
+      "firings": 2,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": "cloudflare-data-publisher.md#health-and-manual-run",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "job.missed"
+        },
+        {
+          "id": "E2",
+          "quote": "publication.freshness"
+        },
+        {
+          "id": "E4",
+          "quote": "lastRun"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 6021,
+      "outputTokens": 143,
+      "neurons": 189.855143,
+      "neuronsReported": 189.85321044921875,
+      "latencyMs": 6136,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"unknown\", \"confidence\": \"low\", \"evidence\": [{\"id\": \"E1\", \"quote\": \"job.missed\"}, {\"id\": \"E2\", \"quote\": \"publication.freshness\"}, {\"id\": \"E4\", \"quote\": \"lastRun\"}], \"runbook\": \"cloudflare-data-publisher.md#health-and-manual-run\", \"ownerAction\": \"Check the Dev runs after 2026-09-30 01:07 UTC for a failure such as exceededMemory; if the deploys caused it, roll back or fix forward, then publish manually (POST /run).\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [
+          "lastRun.completedAt",
+          "scheduled"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "dev-stall-2026-10-02",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 4,
+      "firings": 2,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": "[Health and manual run](../cloudflare-data-publisher.md#health-and-manual-run)",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "{\"id\": \"job.missed\", \"job\": \"publication\", \"status\": \"firing\", \"value\": \"48.9 h\", \"threshold\": \"27 h\", \"since\": \"2026-10-01T04:07:00Z\", \"runId\": null}"
+        },
+        {
+          "id": "E4",
+          "quote": "{\"running\": false, \"scheduled\": \"2026-09-30T02:07:00Z (overdue, reconstructed)\", \"lastRun\": {\"ok\": true, \"completedAt\": \"2026-09-30T01:07:00Z\"}}"
+        },
+        {
+          "id": "E5",
+          "quote": "\"no publication point after 2026-09-30T01:07Z\""
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E1",
+        "quote-not-in-item:E4",
+        "runbook-not-in-playbook:[Health and manual run](../cloudflare-data-publisher.md#health-and-manual-run)"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 6154,
+      "outputTokens": 1873,
+      "neurons": 85.541925,
+      "neuronsReported": 85.53892517089844,
+      "latencyMs": 10507,
+      "finalText": "{\"verdict\":\"inconclusive\",\"cause\":\"unknown\",\"confidence\":\"low\",\"evidence\":[{\"id\":\"E1\",\"quote\":\"{\\\"id\\\": \\\"job.missed\\\", \\\"job\\\": \\\"publication\\\", \\\"status\\\": \\\"firing\\\", \\\"value\\\": \\\"48.9 h\\\", \\\"threshold\\\": \\\"27 h\\\", \\\"since\\\": \\\"2026-10-01T04:07:00Z\\\", \\\"runId\\\": null}\"},{\"id\":\"E4\",\"quote\":\"{\\\"running\\\": false, \\\"scheduled\\\": \\\"2026-09-30T02:07:00Z (overdue, reconstructed)\\\", \\\"lastRun\\\": {\\\"ok\\\": true, \\\"completedAt\\\": \\\"2026-09-30T01:07:00Z\\\"}}\"},{\"id\":\"E5\",\"quote\":\"\\\"no publication point after 2026-09-30T01:07Z\\\"\"}],\"runbook\":\"[Health and manual run](../cloudflare-data-publisher.md#health-and-manual-run)\",\"ownerAction\":\"Check the Dev runs after 2026-09-30 01:07 UTC for a failure such as `exceededMemory`; if the deploys caused it, roll back or fix forward, then publish manually (`POST /run`).\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "scheduled"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "dev-stall-2026-10-02",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 5,
+      "firings": 2,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": "malformed",
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 5915,
+      "outputTokens": 4096,
+      "neurons": 181.6269,
+      "neuronsReported": 181.6269,
+      "latencyMs": 60119,
+      "finalText": "",
+      "finishReason": "length",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": false,
+        "pass": false,
+        "missing": [
+          "lastRun.completedAt",
+          "scheduled"
+        ]
+      }
+    },
+    {
+      "scenario": "dev-stall-2026-10-02",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 5,
+      "firings": 2,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": "cloudflare-data-publisher.md#health-and-manual-run",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "The rule entry: job.missed, job: publication, env: dev, since 2026-10-01T04:07:00Z, value 48.9 h"
+        },
+        {
+          "id": "E4",
+          "quote": "The job's last N data points: start (runId), status, durationMs"
+        },
+        {
+          "id": "E5",
+          "quote": "No publication point after 2026-09-30T01:07Z"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E1",
+        "quote-not-in-item:E4",
+        "quote-not-in-item:E5"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 6021,
+      "outputTokens": 205,
+      "neurons": 202.55305299999998,
+      "neuronsReported": 202.55113220214844,
+      "latencyMs": 8563,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"unknown\", \"confidence\": \"low\", \"evidence\": [{\"id\": \"E1\", \"quote\": \"The rule entry: job.missed, job: publication, env: dev, since 2026-10-01T04:07:00Z, value 48.9 h\"}, {\"id\": \"E4\", \"quote\": \"The job's last N data points: start (runId), status, durationMs\"}, {\"id\": \"E5\", \"quote\": \"No publication point after 2026-09-30T01:07Z\"}], \"runbook\": \"cloudflare-data-publisher.md#health-and-manual-run\", \"ownerAction\": \"Check the Dev runs after 2026-09-30 01:07 UTC for a failure such as exceededMemory; if the deploys caused it, roll back or fix forward, then publish manually (POST /run).\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [
+          "lastRun.completedAt",
+          "scheduled"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "dev-stall-2026-10-02",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 5,
+      "firings": 2,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": "[Roll back](../cloudflare-data-publisher.md#roll-back) for cause 5; [Health and manual run](../cloudflare-data-publisher.md#health-and-manual-run) for checking state",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "{\"id\": \"job.missed\", \"job\": \"publication\", \"status\": \"firing\", \"value\": \"48.9 h\", \"threshold\": \"27 h\", \"since\": \"2026-10-01T04:07:00Z\", \"runId\": null}"
+        },
+        {
+          "id": "E4",
+          "quote": "{\"running\": false, \"scheduled\": \"2026-09-30T02:07:00Z (overdue, reconstructed)\", \"lastRun\": {\"ok\": true, \"completedAt\": \"2026-09-30T01:07:00Z\"}}"
+        },
+        {
+          "id": "E5",
+          "quote": "\"no publication point after 2026-09-30T01:07Z\""
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E1",
+        "quote-not-in-item:E4",
+        "runbook-not-in-playbook:[Roll back](../cloudflare-data-publisher.md#roll-back) for cause 5; [Health and manual run](../cloudflare-data-publisher.md#health-and-manual-run) for checking state"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 6154,
+      "outputTokens": 1347,
+      "neurons": 69.512075,
+      "neuronsReported": 69.50918579101562,
+      "latencyMs": 7361,
+      "finalText": "{\n\n  \"verdict\": \"inconclusive\",\n  \"cause\": \"unknown\",\n  \"confidence\": \"low\",\n  \"evidence\": [\n    {\n      \"id\": \"E1\",\n      \"quote\": \"{\\\"id\\\": \\\"job.missed\\\", \\\"job\\\": \\\"publication\\\", \\\"status\\\": \\\"firing\\\", \\\"value\\\": \\\"48.9 h\\\", \\\"threshold\\\": \\\"27 h\\\", \\\"since\\\": \\\"2026-10-01T04:07:00Z\\\", \\\"runId\\\": null}\"\n    },\n    {\n      \"id\": \"E4\",\n      \"quote\": \"{\\\"running\\\": false, \\\"scheduled\\\": \\\"2026-09-30T02:07:00Z (overdue, reconstructed)\\\", \\\"lastRun\\\": {\\\"ok\\\": true, \\\"completedAt\\\": \\\"2026-09-30T01:07:00Z\\\"}}\"\n    },\n    {\n      \"id\": \"E5\",\n      \"quote\": \"\\\"no publication point after 2026-09-30T01:07Z\\\"\"\n    }\n  ],\n  \"runbook\": \"[Roll back](../cloudflare-data-publisher.md#roll-back) for cause 5; [Health and manual run](../cloudflare-data-publisher.md#health-and-manual-run) for checking state\",\n  \"ownerAction\": \"Check the Dev runs after 2026-09-30 01:07 UTC for a failure such as `exceededMemory`; if the deploys caused it, roll back or fix forward, then publish manually (`POST /run`).\"\n}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "scheduled"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "kip-pages-two-failures",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 1,
+      "firings": 1,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": "malformed",
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 2981,
+      "outputTokens": 1567,
+      "neurons": 73.4343,
+      "neuronsReported": 73.43430000000001,
+      "latencyMs": 28829,
+      "finalText": "```json\n{\n  \"cause\": \"upstream-unavailable\",\n  \"runbook\": null,\n  \"ownerAction\": \"The job is failing because Jira returned a 503 error (upstream-unavailable). Evidence: lastRun.error is 'jira 503' (E3, E4, E5), and other jobs in Q-window are ok (E6). This is a runbook gap; there is no documented procedure for this cause. The owner should investigate Jira's status and retry the job once Jira is available.\"\n}\n```",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": false,
+        "pass": false,
+        "missing": [
+          "kipPages.lastRun.error",
+          "Q-window"
+        ]
+      }
+    },
+    {
+      "scenario": "kip-pages-two-failures",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 1,
+      "firings": 1,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3106,
+      "outputTokens": 61,
+      "neurons": 95.32391299999995,
+      "neuronsReported": 95.32290649414062,
+      "latencyMs": 2658,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"unknown\", \"confidence\": \"low\", \"evidence\": [], \"runbook\": null, \"ownerAction\": \"The rule fired with an unknown cause; further investigation is needed to determine the root cause of the job failure.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [
+          "kipPages.lastRun.error",
+          "Q-window"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "kip-pages-two-failures",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 1,
+      "firings": 1,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": null,
+      "cause": "upstream-unavailable",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E3",
+          "quote": "\"kipPages\": { \"lastRun\": { \"ok\": false, \"status\": \"failed\", \"at\": \"2026-10-22T03:43:00.000Z\", \"durationMs\": 1210, \"requests\": 2, \"jiraRequests\": 2, \"r2\": { \"classA\": 0, \"classB\": 1 }, \"error\": \"jira 503\" },"
+        },
+        {
+          "id": "E4",
+          "quote": "\"error\": \"jira 503\""
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3122,
+      "outputTokens": 742,
+      "neurons": 37.0517,
+      "neuronsReported": 37.05022430419922,
+      "latencyMs": 5600,
+      "finalText": "{\"verdict\":\"inconclusive\",\"cause\":\"upstream-unavailable\",\"confidence\": \"high\",\"evidence\":[{\"id\":\"E3\",\"quote\":\"\\\"kipPages\\\": { \\\"lastRun\\\": { \\\"ok\\\": false, \\\"status\\\": \\\"failed\\\", \\\"at\\\": \\\"2026-10-22T03:43:00.000Z\\\", \\\"durationMs\\\": 1210, \\\"requests\\\": 2, \\\"jiraRequests\\\": 2, \\\"r2\\\": { \\\"classA\\\": 0, \\\"classB\\\": 1 }, \\\"error\\\": \\\"jira 503\\\" },\"},{\"id\":\"E4\",\"quote\":\"\\\"error\\\": \\\"jira 503\\\"\"}],\"runbook\":null,\"ownerAction\":\"The kip-pages job failed with Jira 503 errors. This indicates an upstream service outage. No runbook exists for this cause; investigate Jira's status and retry after resolution.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [
+          "Q-window"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "kip-pages-two-failures",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 2,
+      "firings": 1,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": "malformed",
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 2981,
+      "outputTokens": 4096,
+      "neurons": 165.4899,
+      "neuronsReported": 165.4899,
+      "latencyMs": 75504,
+      "finalText": "",
+      "finishReason": "length",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": false,
+        "pass": false,
+        "missing": [
+          "kipPages.lastRun.error",
+          "Q-window"
+        ]
+      }
+    },
+    {
+      "scenario": "kip-pages-two-failures",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 2,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "job.failures"
+        },
+        {
+          "id": "E3",
+          "quote": "lastRun.error: jira 503"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E3"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3106,
+      "outputTokens": 94,
+      "neurons": 102.08247800000004,
+      "neuronsReported": 102.08148193359375,
+      "latencyMs": 3556,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"unknown\", \"confidence\": \"low\", \"evidence\": [{\"id\": \"E1\", \"quote\": \"job.failures\"}, {\"id\": \"E3\", \"quote\": \"lastRun.error: jira 503\"}], \"runbook\": null, \"ownerAction\": \"Investigate the cause of the job failure and update the runbook with the correct diagnosis and solution.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [
+          "kipPages.lastRun.error",
+          "Q-window"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "kip-pages-two-failures",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 2,
+      "firings": 1,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": null,
+      "cause": "upstream-unavailable",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E3",
+          "quote": "\"kipPages\": { \"lastRun\": { \"ok\": false, \"status\": \"failed\", \"at\": \"2026-10-22T03:43:00.000Z\", \"durationMs\": 1210, \"requests\": 2, \"jiraRequests\": 2, \"r2\": { \"classA\": 0, \"classB\": 1 }, \"error\": \"jira 503\" },"
+        },
+        {
+          "id": "E4",
+          "quote": "\"error\": \"jira 503\""
+        },
+        {
+          "id": "E5",
+          "quote": "\"error\": \"jira 503\""
+        },
+        {
+          "id": "E6",
+          "quote": "\"job\": \"kip-pages\", \"at\": \"2026-10-21T03:43:00Z\", \"status\": \"failed\""
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3122,
+      "outputTokens": 933,
+      "neurons": 42.87242499999999,
+      "neuronsReported": 42.87090301513672,
+      "latencyMs": 5296,
+      "finalText": "{\"verdict\":\"inconclusive\",\"cause\":\"upstream-unavailable\",\"confidence\": \"high\",\"evidence\":[{\"id\":\"E3\",\"quote\":\"\\\"kipPages\\\": { \\\"lastRun\\\": { \\\"ok\\\": false, \\\"status\\\": \\\"failed\\\", \\\"at\\\": \\\"2026-10-22T03:43:00.000Z\\\", \\\"durationMs\\\": 1210, \\\"requests\\\": 2, \\\"jiraRequests\\\": 2, \\\"r2\\\": { \\\"classA\\\": 0, \\\"classB\\\": 1 }, \\\"error\\\": \\\"jira 503\\\" },\"},{\"id\":\"E4\",\"quote\":\"\\\"error\\\": \\\"jira 503\\\"\"},{\"id\":\"E5\",\"quote\":\"\\\"error\\\": \\\"jira 503\\\"\"},{\"id\":\"E6\",\"quote\":\"\\\"job\\\": \\\"kip-pages\\\", \\\"at\\\": \\\"2026-10-21T03:43:00Z\\\", \\\"status\\\": \\\"failed\\\"\"}],\"runbook\":null,\"ownerAction\":\"The 'kip-pages' job failed with Jira 503 errors. The cause appears to be 'upstream-unavailable' (Jira service outage), but no runbook exists for this scenario. Check Jira's status and consider manual intervention if the issue persists.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [
+          "Q-window"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "kip-pages-two-failures",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 3,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "upstream-unavailable",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E3",
+          "quote": "\"error\": \"jira 503\""
+        },
+        {
+          "id": "E4",
+          "quote": "\"error\": \"jira 503\""
+        },
+        {
+          "id": "E5",
+          "quote": "\"error\": \"jira 503\""
+        },
+        {
+          "id": "E6",
+          "quote": "[{\"job\": \"publication\", \"at\": \"2026-10-20T22:07:00Z\", \"status\": \"ok\"}, {\"job\": \"identity-links\", \"at\": \"2026-10-21T02:17:00Z\", \"status\": \"ok\"}, {\"job\": \"retention\", \"at\": \"2026-10-21T10:17:00Z\", \"status\": \"ok\"}]"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E6"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 2981,
+      "outputTokens": 881,
+      "neurons": 48.463899999999995,
+      "neuronsReported": 48.4639,
+      "latencyMs": 15350,
+      "finalText": "{\n  \"verdict\": \"inconclusive\",\n  \"cause\": \"upstream-unavailable\",\n  \"confidence\": \"high\",\n  \"evidence\": [\n    {\n      \"id\": \"E3\",\n      \"quote\": \"\\\"error\\\": \\\"jira 503\\\"\"\n    },\n    {\n      \"id\": \"E4\",\n      \"quote\": \"\\\"error\\\": \\\"jira 503\\\"\"\n    },\n    {\n      \"id\": \"E5\",\n      \"quote\": \"\\\"error\\\": \\\"jira 503\\\"\"\n    },\n    {\n      \"id\": \"E6\",\n      \"quote\": \"[{\\\"job\\\": \\\"publication\\\", \\\"at\\\": \\\"2026-10-20T22:07:00Z\\\", \\\"status\\\": \\\"ok\\\"}, {\\\"job\\\": \\\"identity-links\\\", \\\"at\\\": \\\"2026-10-21T02:17:00Z\\\", \\\"status\\\": \\\"ok\\\"}, {\\\"job\\\": \\\"retention\\\", \\\"at\\\": \\\"2026-10-21T10:17:00Z\\\", \\\"status\\\": \\\"ok\\\"}]\"\n    }\n  ],\n  \"runbook\": null,\n  \"ownerAction\": \"The playbook lists no runbook for this cause. Check upstream Jira status and retry after resolving the 503 error.\"\n}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [
+          "Q-window"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "kip-pages-two-failures",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 3,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "status: firing"
+        },
+        {
+          "id": "E3",
+          "quote": "lastRun.ok: false"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E1",
+        "quote-not-in-item:E3"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3106,
+      "outputTokens": 101,
+      "neurons": 103.51611300000002,
+      "neuronsReported": 103.51512145996094,
+      "latencyMs": 3541,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"unknown\", \"confidence\": \"low\", \"evidence\": [{\"id\": \"E1\", \"quote\": \"status: firing\"}, {\"id\": \"E3\", \"quote\": \"lastRun.ok: false\"}], \"runbook\": null, \"ownerAction\": \"The cause could not be determined from the evidence bundle. Please review the bundle items and the rule's playbook to determine the cause and any necessary actions.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [
+          "kipPages.lastRun.error",
+          "Q-window"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "kip-pages-two-failures",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 3,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "upstream-unavailable",
+      "runbook": "runbook: null",
+      "evidence": [
+        {
+          "id": "E3",
+          "quote": "{\"kipPages\": {\"lastRun\": {\"ok\": false,\"status\": \"failed\",\"at\": \"2026-10-22T03:43:00.000Z\",\"durationMs\": 1210,\"requests\": 2,\"jiraRequests\": 2,\"r2\": {\"classA\": 0,\"classB\": 1},\"error\": \"jira 503\"},\"lastGoodAt\": \"2026-10-20T03:43:00.000Z\"}}"
+        },
+        {
+          "id": "E4",
+          "quote": "[{\"job\": \"kip-pages\",\"runId\": \"kip-pages-2026-10-22T03-43-00-000Z\",\"status\": \"failed\",\"durationMs\": 1210,\"error\": \"jira 503\"}]"
+        },
+        {
+          "id": "E5",
+          "quote": "[{\"job\": \"kip-pages\",\"runId\": \"kip-pages-2026-10-22T03-43-00-000Z\",\"status\": \"failed\",\"error\": \"jira 503\"},{\"job\": \"kip-pages\",\"runId\": \"kip-pages-2026-10-21T03-43-00-000Z\",\"status\": \"failed\",\"error\": \"jira 503\"},{\"job\": \"kip-pages\",\"runId\": \"kip-pages-2026-10-20T03-43-00-000Z\",\"status\": \"ok\",\"error\": null}]"
+        },
+        {
+          "id": "E6",
+          "quote": "[{\"job\": \"publication\",\"at\": \"2026-10-20T22:07:00Z\",\"status\": \"ok\"},{\"job\": \"identity-links\",\"at\": \"2026-10-21T02:17:00Z\",\"status\": \"ok\"},{\"job\": \"kip-pages\",\"at\": \"2026-10-21T03:43:00Z\",\"status\": \"failed\"},{\"job\": \"retention\",\"at\": \"2026-10-21T10:17:00Z\",\"status\": \"ok\"}]"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E3",
+        "quote-not-in-item:E4",
+        "quote-not-in-item:E5",
+        "quote-not-in-item:E6",
+        "runbook-not-in-playbook:runbook: null"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3122,
+      "outputTokens": 1189,
+      "neurons": 50.674025,
+      "neuronsReported": 50.67244338989258,
+      "latencyMs": 6391,
+      "finalText": "{\n\n  \"verdict\": \"inconclusive\",\n  \"cause\": \"upstream-unavailable\",\n  \"confidence\":  \"high\",\n  \"evidence\": [\n    {\n      \"id\": \"E3\",\n      \"quote\": \"{\\\"kipPages\\\": {\\\"lastRun\\\": {\\\"ok\\\": false,\\\"status\\\": \\\"failed\\\",\\\"at\\\": \\\"2026-10-22T03:43:00.000Z\\\",\\\"durationMs\\\": 1210,\\\"requests\\\": 2,\\\"jiraRequests\\\": 2,\\\"r2\\\": {\\\"classA\\\": 0,\\\"classB\\\": 1},\\\"error\\\": \\\"jira 503\\\"},\\\"lastGoodAt\\\": \\\"2026-10-20T03:43:00.000Z\\\"}}\"\n    },\n    {\n      \"id\": \"E4\",\n      \"quote\": \"[{\\\"job\\\": \\\"kip-pages\\\",\\\"runId\\\": \\\"kip-pages-2026-10-22T03-43-00-000Z\\\",\\\"status\\\": \\\"failed\\\",\\\"durationMs\\\": 1210,\\\"error\\\": \\\"jira 503\\\"}]\"\n    },\n    {\n      \"id\": \"E5\",\n      \"quote\": \"[{\\\"job\\\": \\\"kip-pages\\\",\\\"runId\\\": \\\"kip-pages-2026-10-22T03-43-00-000Z\\\",\\\"status\\\": \\\"failed\\\",\\\"error\\\": \\\"jira 503\\\"},{\\\"job\\\": \\\"kip-pages\\\",\\\"runId\\\": \\\"kip-pages-2026-10-21T03-43-00-000Z\\\",\\\"status\\\": \\\"failed\\\",\\\"error\\\": \\\"jira 503\\\"},{\\\"job\\\": \\\"kip-pages\\\",\\\"runId\\\": \\\"kip-pages-2026-10-20T03-43-00-000Z\\\",\\\"status\\\": \\\"ok\\\",\\\"error\\\": null}]\"\n    },\n    {\n      \"id\": \"E6\",\n      \"quote\": \"[{\\\"job\\\": \\\"publication\\\",\\\"at\\\": \\\"2026-10-20T22:07:00Z\\\",\\\"status\\\": \\\"ok\\\"},{\\\"job\\\": \\\"identity-links\\\",\\\"at\\\": \\\"2026-10-21T02:17:00Z\\\",\\\"status\\\": \\\"ok\\\"},{\\\"job\\\": \\\"kip-pages\\\",\\\"at\\\": \\\"2026-10-21T03:43:00Z\\\",\\\"status\\\": \\\"failed\\\"},{\\\"job\\\": \\\"retention\\\",\\\"at\\\": \\\"2026-10-21T10:17:00Z\\\",\\\"status\\\": \\\"ok\\\"}]\"\n    }\n  ],\n  \"runbook\": \"runbook: null\",\n  \"ownerAction\": \"The kip-pages job failed with 'jira 503' errors. Other jobs in Q-window (publication, identity-links, retention) were successful. This suggests an upstream Jira service outage. No runbook exists for this cause; investigate Jira's status and retry after resolution.\"\n}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "kipPages.lastRun.error",
+          "Q-window"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "kip-pages-two-failures",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 4,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "upstream-unavailable",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E3",
+          "quote": "error: \"jira 503\""
+        },
+        {
+          "id": "E4",
+          "quote": "error: \"jira 503\""
+        },
+        {
+          "id": "E5",
+          "quote": "error: \"jira 503\""
+        },
+        {
+          "id": "E6",
+          "quote": "kip-pages failed"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E3",
+        "quote-not-in-item:E4",
+        "quote-not-in-item:E5",
+        "quote-not-in-item:E6"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 2981,
+      "outputTokens": 813,
+      "neurons": 45.988699999999994,
+      "neuronsReported": 45.9887,
+      "latencyMs": 12588,
+      "finalText": "{\n  \"verdict\": \"inconclusive\",\n  \"cause\": \"upstream-unavailable\",\n  \"confidence\":  \"high\",\n  \"evidence\": [\n    {\n      \"id\": \"E3\",\n      \"quote\": \"error: \\\"jira 503\\\"\"\n    },\n    {\n      \"id\": \"E4\",\n      \"quote\": \"error: \\\"jira 503\\\"\"\n    },\n    {\n      \"id\": \"E5\",\n      \"quote\": \"error: \\\"jira 503\\\"\"\n    },\n    {\n      \"id\": \"E6\",\n      \"quote\": \"kip-pages failed\"\n    }\n  ],\n  \"runbook\": null,\n  \"ownerAction\": \"Check Jira service status and API limits. The kip-pages job is failing with a Jira 503 error. Verify Jira is not rate-limiting or experiencing 5xx errors. If Jira is down, wait for it to recover. If Jira is up but rate-limited, consider increasing the rate limit or implementing retry logic.\"\n}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [
+          "kipPages.lastRun.error",
+          "Q-window"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "kip-pages-two-failures",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 4,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "job.failures"
+        },
+        {
+          "id": "E3",
+          "quote": "lastRun.error: jira 503"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E3"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3106,
+      "outputTokens": 91,
+      "neurons": 101.46806300000003,
+      "neuronsReported": 101.4670639038086,
+      "latencyMs": 3299,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"unknown\", \"confidence\": \"low\", \"evidence\": [{\"id\": \"E1\", \"quote\": \"job.failures\"}, {\"id\": \"E3\", \"quote\": \"lastRun.error: jira 503\"}], \"runbook\": null, \"ownerAction\": \"Investigate the cause of the job failure and update the playbook with the missing evidence.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [
+          "kipPages.lastRun.error",
+          "Q-window"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "kip-pages-two-failures",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 4,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "upstream-unavailable",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "{\"id\": \"job.failures\", \"job\": \"kip-pages\", \"status\": \"firing\", \"value\": 2, \"threshold\": 2, \"since\": \"2026-10-21T03:43:00.000Z\", \"runId\": \"kip-pages-2026-10-22T03-43-00-000Z\"}"
+        },
+        {
+          "id": "E3",
+          "quote": "{\"kipPages\": {\"lastRun\": {\"ok\": false, \"status\": \"failed\", \"at\": \"2026-10-22T03:43:00.000Z\", \"durationMs\": 1210, \"requests\": 2, \"jiraRequests\": 2, \"r2\": {\"classA\": 0, \"classB\": 1}, \"error\": \"jira 503\"}, \"lastGoodAt\": \"2026-10-20T03:43:00.000Z\"}}"
+        },
+        {
+          "id": "E5",
+          "quote": "[{\"job\": \"kip-pages\", \"runId\": \"kip-pages-2026-10-22T03-43-00-000Z\", \"status\": \"failed\", \"error\": \"jira 503\"}, {\"job\": \"kip-pages\", \"runId\": \"kip-pages-2026-10-21T03-43-00-000Z\", \"status\": \"failed\", \"error\": \"jira 503\"}, {\"job\": \"kip-pages\", \"runId\": \"kip-pages-2026-10-20T03-43-00-000Z\", \"status\": \"ok\", \"error\": null}]"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E1",
+        "quote-not-in-item:E3",
+        "quote-not-in-item:E5"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3122,
+      "outputTokens": 975,
+      "neurons": 44.152375000000006,
+      "neuronsReported": 44.15084457397461,
+      "latencyMs": 5707,
+      "finalText": "{\"verdict\":\"inconclusive\",\"cause\":\"upstream-unavailable\",\"confidence\": \"high\",\"evidence\":[{\"id\":\"E1\",\"quote\":\"{\\\"id\\\": \\\"job.failures\\\", \\\"job\\\": \\\"kip-pages\\\", \\\"status\\\": \\\"firing\\\", \\\"value\\\": 2, \\\"threshold\\\": 2, \\\"since\\\": \\\"2026-10-21T03:43:00.000Z\\\", \\\"runId\\\": \\\"kip-pages-2026-10-22T03-43-00-000Z\\\"}\"},{\"id\":\"E3\",\"quote\":\"{\\\"kipPages\\\": {\\\"lastRun\\\": {\\\"ok\\\": false, \\\"status\\\": \\\"failed\\\", \\\"at\\\": \\\"2026-10-22T03:43:00.000Z\\\", \\\"durationMs\\\": 1210, \\\"requests\\\": 2, \\\"jiraRequests\\\": 2, \\\"r2\\\": {\\\"classA\\\": 0, \\\"classB\\\": 1}, \\\"error\\\": \\\"jira 503\\\"}, \\\"lastGoodAt\\\": \\\"2026-10-20T03:43:00.000Z\\\"}}\"},{\"id\":\"E5\",\"quote\":\"[{\\\"job\\\": \\\"kip-pages\\\", \\\"runId\\\": \\\"kip-pages-2026-10-22T03-43-00-000Z\\\", \\\"status\\\": \\\"failed\\\", \\\"error\\\": \\\"jira 503\\\"}, {\\\"job\\\": \\\"kip-pages\\\", \\\"runId\\\": \\\"kip-pages-2026-10-21T03-43-00-000Z\\\", \\\"status\\\": \\\"failed\\\", \\\"error\\\": \\\"jira 503\\\"}, {\\\"job\\\": \\\"kip-pages\\\", \\\"runId\\\": \\\"kip-pages-2026-10-20T03-43-00-000Z\\\", \\\"status\\\": \\\"ok\\\", \\\"error\\\": null}]\"}],\"runbook\":null,\"ownerAction\":\"Investigate Jira upstream issues (error: 'jira 503'). No runbook available for this cause; follow general incident response procedures.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [
+          "kipPages.lastRun.error",
+          "Q-window"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "kip-pages-two-failures",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 5,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "upstream-unavailable",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E3",
+          "quote": "\"error\": \"jira 503\""
+        },
+        {
+          "id": "E6",
+          "quote": "[{\"job\": \"publication\",\"at\": \"2026-10-20T22:07:00Z\",\"status\": \"ok\"},{\"job\": \"identity-links\",\"at\": \"2026-10-21T02:17:00Z\",\"status\": \"ok\"},{\"job\": \"kip-pages\",\"at\": \"2026-10-21T03:43:00Z\",\"status\": \"failed\"},{\"job\": \"retention\",\"at\": \"2026-10-21T10:17:00Z\",\"status\": \"ok\"}]"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E6"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 2981,
+      "outputTokens": 686,
+      "neurons": 41.36590000000001,
+      "neuronsReported": 41.365899999999996,
+      "latencyMs": 11224,
+      "finalText": "{\n  \"verdict\": \"inconclusive\",\n  \"cause\": \"upstream-unavailable\",\n  \"confidence\": \"high\",\n  \"evidence\": [\n    {\n      \"id\": \"E3\",\n      \"quote\": \"\\\"error\\\": \\\"jira 503\\\"\"\n    },\n    {\n      \"id\": \"E6\",\n      \"quote\": \"[{\\\"job\\\": \\\"publication\\\",\\\"at\\\": \\\"2026-10-20T22:07:00Z\\\",\\\"status\\\": \\\"ok\\\"},{\\\"job\\\": \\\"identity-links\\\",\\\"at\\\": \\\"2026-10-21T02:17:00Z\\\",\\\"status\\\": \\\"ok\\\"},{\\\"job\\\": \\\"kip-pages\\\",\\\"at\\\": \\\"2026-10-21T03:43:00Z\\\",\\\"status\\\": \\\"failed\\\"},{\\\"job\\\": \\\"retention\\\",\\\"at\\\": \\\"2026-10-21T10:17:00Z\\\",\\\"status\\\": \\\"ok\\\"}]\"\n    }\n  ],\n  \"runbook\": null,\n  \"ownerAction\": \"The job failed with upstream error \\\"jira 503\\\" while other jobs are healthy. This indicates an upstream service issue. The playbook lists no runbook for this cause, so please investigate the Jira service status and retry the job.\"\n}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [
+          "Q-window"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "kip-pages-two-failures",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 5,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "job.failures: {\"id\": \"job.failures\", \"job\": \"kip-pages\", \"status\": \"firing\", \"value\": 2, \"threshold\": 2, \"since\": \"2026-10-21T03:43:00.000Z\", \"runId\": \"kip-pages-2026-10-22T03-43-00-000Z\"}"
+        },
+        {
+          "id": "E2",
+          "quote": "costGuard: {\"mode\": \"monitor\", \"status\": \"ok\", \"breaker\": {\"tripped\": false}}"
+        },
+        {
+          "id": "E3",
+          "quote": "kipPages: {\"lastRun\": {\"ok\": false, \"status\": \"failed\", \"at\": \"2026-10-22T03:43:00.000Z\", \"durationMs\": 1210, \"requests\": 2, \"jiraRequests\": 2, \"r2\": {\"classA\": 0, \"classB\": 1}, \"error\": \"jira 503\"}, \"lastGoodAt\": \"2026-10-20T03:43:00.000Z\"}"
+        },
+        {
+          "id": "E4",
+          "quote": "Q-run: [{\"job\": \"kip-pages\", \"runId\": \"kip-pages-2026-10-22T03-43-00-000Z\", \"status\": \"failed\", \"durationMs\": 1210, \"error\": \"jira 503\"}]"
+        },
+        {
+          "id": "E5",
+          "quote": "Q-history: [{\"job\": \"kip-pages\", \"runId\": \"kip-pages-2026-10-22T03-43-00-000Z\", \"status\": \"failed\", \"error\": \"jira 503\"}, {\"job\": \"kip-pages\", \"runId\": \"kip-pages-2026-10-21T03-43-00-000Z\", \"status\": \"failed\", \"error\": \"jira 503\"}, {\"job\": \"kip-pages\", \"runId\": \"kip-pages-2026-10-20T03-43-00-000Z\", \"status\": \"ok\", \"error\": null}]"
+        },
+        {
+          "id": "E6",
+          "quote": "Q-window: [{\"job\": \"publication\", \"at\": \"2026-10-20T22:07:00Z\", \"status\": \"ok\"}, {\"job\": \"identity-links\", \"at\": \"2026-10-21T02:17:00Z\", \"status\": \"ok\"}, {\"job\": \"kip-pages\", \"at\": \"2026-10-21T03:43:00Z\", \"status\": \"failed\"}, {\"job\": \"retention\", \"at\": \"2026-10-21T10:17:00Z\", \"status\": \"ok\"}]"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E1",
+        "quote-not-in-item:E2",
+        "quote-not-in-item:E3",
+        "quote-not-in-item:E4",
+        "quote-not-in-item:E5",
+        "quote-not-in-item:E6"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3106,
+      "outputTokens": 697,
+      "neurons": 225.57989299999997,
+      "neuronsReported": 225.5791015625,
+      "latencyMs": 20097,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"unknown\", \"confidence\": \"low\", \"evidence\": [{\"id\": \"E1\", \"quote\": \"job.failures: {\\\"id\\\": \\\"job.failures\\\", \\\"job\\\": \\\"kip-pages\\\", \\\"status\\\": \\\"firing\\\", \\\"value\\\": 2, \\\"threshold\\\": 2, \\\"since\\\": \\\"2026-10-21T03:43:00.000Z\\\", \\\"runId\\\": \\\"kip-pages-2026-10-22T03-43-00-000Z\\\"}\"}, {\"id\": \"E2\", \"quote\": \"costGuard: {\\\"mode\\\": \\\"monitor\\\", \\\"status\\\": \\\"ok\\\", \\\"breaker\\\": {\\\"tripped\\\": false}}\"}, {\"id\": \"E3\", \"quote\": \"kipPages: {\\\"lastRun\\\": {\\\"ok\\\": false, \\\"status\\\": \\\"failed\\\", \\\"at\\\": \\\"2026-10-22T03:43:00.000Z\\\", \\\"durationMs\\\": 1210, \\\"requests\\\": 2, \\\"jiraRequests\\\": 2, \\\"r2\\\": {\\\"classA\\\": 0, \\\"classB\\\": 1}, \\\"error\\\": \\\"jira 503\\\"}, \\\"lastGoodAt\\\": \\\"2026-10-20T03:43:00.000Z\\\"}\"}, {\"id\": \"E4\", \"quote\": \"Q-run: [{\\\"job\\\": \\\"kip-pages\\\", \\\"runId\\\": \\\"kip-pages-2026-10-22T03-43-00-000Z\\\", \\\"status\\\": \\\"failed\\\", \\\"durationMs\\\": 1210, \\\"error\\\": \\\"jira 503\\\"}]\"}, {\"id\": \"E5\", \"quote\": \"Q-history: [{\\\"job\\\": \\\"kip-pages\\\", \\\"runId\\\": \\\"kip-pages-2026-10-22T03-43-00-000Z\\\", \\\"status\\\": \\\"failed\\\", \\\"error\\\": \\\"jira 503\\\"}, {\\\"job\\\": \\\"kip-pages\\\", \\\"runId\\\": \\\"kip-pages-2026-10-21T03-43-00-000Z\\\", \\\"status\\\": \\\"failed\\\", \\\"error\\\": \\\"jira 503\\\"}, {\\\"job\\\": \\\"kip-pages\\\", \\\"runId\\\": \\\"kip-pages-2026-10-20T03-43-00-000Z\\\", \\\"status\\\": \\\"ok\\\", \\\"error\\\": null}]\"}, {\"id\": \"E6\", \"quote\": \"Q-window: [{\\\"job\\\": \\\"publication\\\", \\\"at\\\": \\\"2026-10-20T22:07:00Z\\\", \\\"status\\\": \\\"ok\\\"}, {\\\"job\\\": \\\"identity-links\\\", \\\"at\\\": \\\"2026-10-21T02:17:00Z\\\", \\\"status\\\": \\\"ok\\\"}, {\\\"job\\\": \\\"kip-pages\\\", \\\"at\\\": \\\"2026-10-21T03:43:00Z\\\", \\\"status\\\": \\\"failed\\\"}, {\\\"job\\\": \\\"retention\\\", \\\"at\\\": \\\"2026-10-21T10:17:00Z\\\", \\\"status\\\": \\\"ok\\\"}]\"}], \"runbook\": null, \"ownerAction\": \"The cause is unknown. The distinguishing evidence for the cause is not present in the bundle. Please check the runbook for further guidance.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [
+          "kipPages.lastRun.error",
+          "Q-window"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "kip-pages-two-failures",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 5,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "upstream-unavailable",
+      "runbook": "none: a runbook gap",
+      "evidence": [
+        {
+          "id": "E3",
+          "quote": "{\n  \"kipPages\": {\n    \"lastRun\": {\n      \"ok\": false,\n      \"status\": \"failed\",\n      \"at\": \"2026-10-22T03:43:00.000Z\",\n      \"durationMs\": 1210,\n      \"requests\": 2,\n      \"jiraRequests\": 2,\n      \"r2\": {\n        \"classA\": 0,\n        \"classB\": 1\n      },\n      \"error\": \"jira 503\"\n    },\n    \"lastGoodAt\": \"2026-10-20T03:43:00.000Z\"\n  }\n}"
+        },
+        {
+          "id": "E5",
+          "quote": "[\n  {\n    \"job\": \"kip-pages\",\n    \"runId\": \"kip-pages-2026-10-22T03-43-00-000Z\",\n    \"status\": \"failed\",\n    \"error\": \"jira 503\"\n  },\n  {\n    \"job\": \"kip-pages\",\n    \"runId\": \"kip-pages-2026-10-21T03-43-00-000Z\",\n    \"status\": \"failed\",\n    \"error\": \"jira 503\"\n  },\n  {\n    \"job\": \"kip-pages\",\n    \"runId\": \"kip-pages-2026-10-20T03-43-00-000Z\",\n    \"status\": \"ok\",\n    \"error\": null\n  }\n]"
+        }
+      ],
+      "evidenceFailures": [
+        "runbook-not-in-playbook:none: a runbook gap"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3122,
+      "outputTokens": 1028,
+      "neurons": 45.76755,
+      "neuronsReported": 45.76600646972656,
+      "latencyMs": 5698,
+      "finalText": "{ \"verdict\": \"inconclusive\", \"cause\": \"upstream-unavailable\", \"confidence\":  \"high\", \"evidence\": [ { \"id\": \"E3\", \"quote\": \"{\\n  \\\"kipPages\\\": {\\n    \\\"lastRun\\\": {\\n      \\\"ok\\\": false,\\n      \\\"status\\\": \\\"failed\\\",\\n      \\\"at\\\": \\\"2026-10-22T03:43:00.000Z\\\",\\n      \\\"durationMs\\\": 1210,\\n      \\\"requests\\\": 2,\\n      \\\"jiraRequests\\\": 2,\\n      \\\"r2\\\": {\\n        \\\"classA\\\": 0,\\n        \\\"classB\\\": 1\\n      },\\n      \\\"error\\\": \\\"jira 503\\\"\\n    },\\n    \\\"lastGoodAt\\\": \\\"2026-10-20T03:43:00.000Z\\\"\\n  }\\n}\" }, { \"id\": \"E5\", \"quote\": \"[\\n  {\\n    \\\"job\\\": \\\"kip-pages\\\",\\n    \\\"runId\\\": \\\"kip-pages-2026-10-22T03-43-00-000Z\\\",\\n    \\\"status\\\": \\\"failed\\\",\\n    \\\"error\\\": \\\"jira 503\\\"\\n  },\\n  {\\n    \\\"job\\\": \\\"kip-pages\\\",\\n    \\\"runId\\\": \\\"kip-pages-2026-10-21T03-43-00-000Z\\\",\\n    \\\"status\\\": \\\"failed\\\",\\n    \\\"error\\\": \\\"jira 503\\\"\\n  },\\n  {\\n    \\\"job\\\": \\\"kip-pages\\\",\\n    \\\"runId\\\": \\\"kip-pages-2026-10-20T03-43-00-000Z\\\",\\n    \\\"status\\\": \\\"ok\\\",\\n    \\\"error\\\": null\\n  }\\n]\" } ], \"runbook\": \"none: a runbook gap\", \"ownerAction\": \"The 'upstream-unavailable' cause is indicated by 'jira 503' errors. No runbook exists for this cause; investigate Jira's availability and check for rate limits.\" }",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "Q-window"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "r2-class-a-spike-2026-10-13",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 1,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "conditional-put-on-existing",
+      "runbook": "cloudflare-data-publisher.md#r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "\"r2.classA\": 8190, \"threshold\": \"copiedObjectCount + 3 = 38\""
+        },
+        {
+          "id": "E3",
+          "quote": "\"copiedObjectCount\": 35, \"reusedObjectCount\": 8150, \"r2\": { \"classA\": 8190 }"
+        },
+        {
+          "id": "E4",
+          "quote": "\"r2ClassA\": 8190, \"copiedObjectCount\": 35"
+        },
+        {
+          "id": "E5",
+          "quote": "[{\"runId\": \"publication-2026-10-13T11-07-00-000Z\", \"r2ClassA\": 8190, \"copiedObjectCount\": 35}, {\"runId\": \"publication-2026-10-13T10-07-00-000Z\", \"r2ClassA\": 8190, \"copiedObjectCount\": 35}, {\"runId\": \"publication-2026-10-13T09-07-00-000Z\", \"r2ClassA\": 8190, \"copiedObjectCount\": 35}]"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E1",
+        "quote-not-in-item:E5"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3582,
+      "outputTokens": 2043,
+      "neurons": 94.0662,
+      "neuronsReported": 94.06620000000001,
+      "latencyMs": 38466,
+      "finalText": "{\n  \"verdict\": \"inconclusive\",\n  \"cause\": \"conditional-put-on-existing\",\n  \"confidence\": \"high\",\n  \"evidence\": [\n    {\n      \"id\": \"E1\",\n      \"quote\": \"\\\"r2.classA\\\": 8190, \\\"threshold\\\": \\\"copiedObjectCount + 3 = 38\\\"\"\n    },\n    {\n      \"id\": \"E3\",\n      \"quote\": \"\\\"copiedObjectCount\\\": 35, \\\"reusedObjectCount\\\": 8150, \\\"r2\\\": { \\\"classA\\\": 8190 }\"\n    },\n    {\n      \"id\": \"E4\",\n      \"quote\": \"\\\"r2ClassA\\\": 8190, \\\"copiedObjectCount\\\": 35\"\n    },\n    {\n      \"id\": \"E5\",\n      \"quote\": \"[{\\\"runId\\\": \\\"publication-2026-10-13T11-07-00-000Z\\\", \\\"r2ClassA\\\": 8190, \\\"copiedObjectCount\\\": 35}, {\\\"runId\\\": \\\"publication-2026-10-13T10-07-00-000Z\\\", \\\"r2ClassA\\\": 8190, \\\"copiedObjectCount\\\": 35}, {\\\"runId\\\": \\\"publication-2026-10-13T09-07-00-000Z\\\", \\\"r2ClassA\\\": 8190, \\\"copiedObjectCount\\\": 35}]\"\n    }\n  ],\n  \"runbook\": \"cloudflare-data-publisher.md#r2-operations-and-cost\",\n  \"ownerAction\": \"Investigate conditional puts on existing objects: reusedObjectCount (8150) is nearly equal to r2.classA (8190), indicating many conditional puts are failing and being billed as Class A operations. The runbook notes that conditional puts with precondition failures are still Class A operations and contribute to classA. Check for excessive conditionalMisses or putRetries, and review the source that writes objects that already exist.\"\n}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "r2-class-a-spike-2026-10-13",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 1,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": "null",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "r2.classA = 8190"
+        },
+        {
+          "id": "E3",
+          "quote": "copiedObjectCount = 35, reusedObjectCount = 8150"
+        },
+        {
+          "id": "E4",
+          "quote": "r2ClassA = 8190, copiedObjectCount = 35"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E1",
+        "quote-not-in-item:E3",
+        "quote-not-in-item:E4",
+        "runbook-not-in-playbook:null"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3690,
+      "outputTokens": 153,
+      "neurons": 129.74008500000002,
+      "neuronsReported": 129.73892211914062,
+      "latencyMs": 5414,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"unknown\", \"confidence\": \"low\", \"evidence\": [{\"id\": \"E1\", \"quote\": \"r2.classA = 8190\"}, {\"id\": \"E3\", \"quote\": \"copiedObjectCount = 35, reusedObjectCount = 8150\"}, {\"id\": \"E4\", \"quote\": \"r2ClassA = 8190, copiedObjectCount = 35\"}], \"runbook\": \"null\", \"ownerAction\": \"The rule fired, but the cause is unknown. The distinguishing evidence for the causes in the playbook is not in the bundle. The owner should investigate further and check the runbook for more information.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "lastRun.r2.classA",
+          "copiedObjectCount"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "r2-class-a-spike-2026-10-13",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 1,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "conditional-put-on-existing",
+      "runbook": "cloudflare-data-publisher.md#r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E3",
+          "quote": "\"lastRun\": {\"ok\": true,\"runId\": \"publication-2026-10-13T11-07-00-000Z\",\"completedAt\": \"2026-10-13T11:08:40.000Z\",\"copiedObjectCount\": 35,\"reusedObjectCount\": 8150,\"r2\": {\"classA\": 8190}}"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E3"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3775,
+      "outputTokens": 1263,
+      "neurons": 55.949299999999994,
+      "neuronsReported": 55.94742965698242,
+      "latencyMs": 6670,
+      "finalText": "{\"verdict\":\"inconclusive\",\"cause\":\"conditional-put-on-existing\",\"confidence\": \"high\",\"evidence\":[{\"id\":\"E3\",\"quote\":\"\\\"lastRun\\\": {\\\"ok\\\": true,\\\"runId\\\": \\\"publication-2026-10-13T11-07-00-000Z\\\",\\\"completedAt\\\": \\\"2026-10-13T11:08:40.000Z\\\",\\\"copiedObjectCount\\\": 35,\\\"reusedObjectCount\\\": 8150,\\\"r2\\\": {\\\"classA\\\": 8190}}\"}],\"runbook\":\"cloudflare-data-publisher.md#r2-operations-and-cost\",\"ownerAction\":\"Investigate conditional puts on existing objects; check for high reusedObjectCount in r2 classA metrics\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [
+          "lastRun.r2.classA",
+          "copiedObjectCount"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "r2-class-a-spike-2026-10-13",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 2,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "conditional-put-on-existing",
+      "runbook": "r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E3",
+          "quote": "copiedObjectCount\": 35,\n      \"reusedObjectCount\": 8150,\n      \"r2\": {\n        \"classA\": 8190\n      }"
+        },
+        {
+          "id": "E4",
+          "quote": "r2ClassA\": 8190,\n      \"copiedObjectCount\": 35"
+        },
+        {
+          "id": "E5",
+          "quote": "r2ClassA\": 8190,\n      \"copiedObjectCount\": 35"
+        }
+      ],
+      "evidenceFailures": [
+        "runbook-not-in-playbook:r2-operations-and-cost"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3582,
+      "outputTokens": 3387,
+      "neurons": 142.9878,
+      "neuronsReported": 142.9878,
+      "latencyMs": 75959,
+      "finalText": "{\n  \"verdict\": \"inconclusive\",\n  \"cause\": \"conditional-put-on-existing\",\n  \"confidence\": \"high\",\n  \"evidence\": [\n    {\n      \"id\": \"E3\",\n      \"quote\": \"copiedObjectCount\\\": 35,\\n      \\\"reusedObjectCount\\\": 8150,\\n      \\\"r2\\\": {\\n        \\\"classA\\\": 8190\\n      }\"\n    },\n    {\n      \"id\": \"E4\",\n      \"quote\": \"r2ClassA\\\": 8190,\\n      \\\"copiedObjectCount\\\": 35\"\n    },\n    {\n      \"id\": \"E5\",\n      \"quote\": \"r2ClassA\\\": 8190,\\n      \\\"copiedObjectCount\\\": 35\"\n    }\n  ],\n  \"runbook\": \"r2-operations-and-cost\",\n  \"ownerAction\": \"Review conditional puts on existing objects and check R2 operations and cost.\"\n}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "r2-class-a-spike-2026-10-13",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 2,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": "null",
+      "evidence": [],
+      "evidenceFailures": [
+        "runbook-not-in-playbook:null"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3690,
+      "outputTokens": 71,
+      "neurons": 112.94607499999995,
+      "neuronsReported": 112.94487762451172,
+      "latencyMs": 3473,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"unknown\", \"confidence\": \"low\", \"evidence\": [], \"runbook\": \"null\", \"ownerAction\": \"The rule fired but the cause is unknown. Review the evidence bundle for distinguishing evidence and update the playbook with a new cause or runbook link if necessary.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "lastRun.r2.classA",
+          "copiedObjectCount"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "r2-class-a-spike-2026-10-13",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 2,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "conditional-put-on-existing",
+      "runbook": "cloudflare-data-publisher.md#r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E3",
+          "quote": "\"lastRun.r2.classA\": 8190, \"copiedObjectCount\": 35, \"reusedObjectCount\": 8150"
+        },
+        {
+          "id": "E4",
+          "quote": "\"r2ClassA\": 8190, \"copiedObjectCount\": 35"
+        },
+        {
+          "id": "E5",
+          "quote": "\"r2ClassA\": 8190, \"copiedObjectCount\": 35"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E3"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3775,
+      "outputTokens": 1393,
+      "neurons": 59.91105,
+      "neuronsReported": 59.909149169921875,
+      "latencyMs": 8246,
+      "finalText": "{\"verdict\":\"inconclusive\",\"cause\":\"conditional-put-on-existing\",\"confidence\": \"high\",\"evidence\":[{\"id\":\"E3\",\"quote\":\"\\\"lastRun.r2.classA\\\": 8190, \\\"copiedObjectCount\\\": 35, \\\"reusedObjectCount\\\": 8150\"},{\"id\":\"E4\",\"quote\":\"\\\"r2ClassA\\\": 8190, \\\"copiedObjectCount\\\": 35\"},{\"id\":\"E5\",\"quote\":\"\\\"r2ClassA\\\": 8190, \\\"copiedObjectCount\\\": 35\"}],\"runbook\":\"cloudflare-data-publisher.md#r2-operations-and-cost\",\"ownerAction\":\"Review the R2 operations and cost runbook to investigate conditional puts on existing objects. Check for high reusedObjectCount and verify if conditional puts are causing excessive Class A operations.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "r2-class-a-spike-2026-10-13",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 3,
+      "firings": 1,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": "malformed",
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3582,
+      "outputTokens": 1818,
+      "neurons": 85.8762,
+      "neuronsReported": 85.87620000000001,
+      "latencyMs": 35127,
+      "finalText": "```json\n{\n  \"cause\": \"conditional-put-on-existing\",\n  \"ownerAction\": \"The publication run shows r2.classA (8190) ≈ copiedObjectCount + reusedObjectCount (8185), far above the expected copiedObjectCount + 3 (38), indicating conditional puts on existing objects are being billed as Class A operations. Review the publication run for excessive conditional puts on existing objects. See [R2 operations and cost](../cloudflare-data-publisher.md#r2-operations-and-cost) for details.\",\n  \"runbook\": \"cloudflare-data-publisher.md#r2-operations-and-cost\"\n}\n```",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": false,
+        "pass": false,
+        "missing": [
+          "lastRun.r2.classA",
+          "copiedObjectCount"
+        ]
+      }
+    },
+    {
+      "scenario": "r2-class-a-spike-2026-10-13",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 3,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": "null",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "r2.classA: 8190, copiedObjectCount: 35, reusedObjectCount: 8150"
+        },
+        {
+          "id": "E3",
+          "quote": "running: false, scheduled: false, lastRun: {ok: true, runId: publication-2026-10-13T11-07-00-000Z, completedAt: 2026-10-13T11:08:40.000Z, copiedObjectCount: 35, reusedObjectCount: 8150, r2: {classA: 8190}}"
+        },
+        {
+          "id": "E4",
+          "quote": "job: publication, runId: publication-2026-10-13T11-07-00-000Z, status: ok, r2ClassA: 8190, copiedObjectCount: 35"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E1",
+        "quote-not-in-item:E3",
+        "quote-not-in-item:E4",
+        "runbook-not-in-playbook:null"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3690,
+      "outputTokens": 251,
+      "neurons": 149.81097499999998,
+      "neuronsReported": 149.80984497070312,
+      "latencyMs": 8439,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"unknown\", \"confidence\": \"low\", \"evidence\": [{\"id\": \"E1\", \"quote\": \"r2.classA: 8190, copiedObjectCount: 35, reusedObjectCount: 8150\"}, {\"id\": \"E3\", \"quote\": \"running: false, scheduled: false, lastRun: {ok: true, runId: publication-2026-10-13T11-07-00-000Z, completedAt: 2026-10-13T11:08:40.000Z, copiedObjectCount: 35, reusedObjectCount: 8150, r2: {classA: 8190}}\"}, {\"id\": \"E4\", \"quote\": \"job: publication, runId: publication-2026-10-13T11-07-00-000Z, status: ok, r2ClassA: 8190, copiedObjectCount: 35\"}], \"runbook\": \"null\", \"ownerAction\": \"The cause of the firing rule could not be determined from the provided evidence. Further investigation is needed to identify the root cause.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "lastRun.r2.classA",
+          "copiedObjectCount"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "r2-class-a-spike-2026-10-13",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 3,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "conditional-put-on-existing",
+      "runbook": "cloudflare-data-publisher.md#r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E3",
+          "quote": "{\"running\": false, \"scheduled\": false, \"lastRun\": {\"ok\": true, \"runId\": \"publication-2026-10-13T11-07-00-000Z\", \"completedAt\": \"2026-10-13T11:08:40.000Z\", \"copiedObjectCount\": 35, \"reusedObjectCount\": 8150, \"r2\": {\"classA\": 8190}}}"
+        },
+        {
+          "id": "E4",
+          "quote": "[{\"job\": \"publication\", \"runId\": \"publication-2026-10-13T11-07-00-000Z\", \"status\": \"ok\", \"r2ClassA\": 8190, \"copiedObjectCount\": 35}]"
+        },
+        {
+          "id": "E5",
+          "quote": "[{\"runId\": \"publication-2026-10-13T11-07-00-000Z\", \"r2ClassA\": 8190, \"copiedObjectCount\": 35}, {\"runId\": \"publication-2026-10-13T10-07-00-000Z\", \"r2ClassA\": 8190, \"copiedObjectCount\": 35}, {\"runId\": \"publication-2026-10-13T09-07-00-000Z\", \"r2ClassA\": 8190, \"copiedObjectCount\": 35}]"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E3",
+        "quote-not-in-item:E4",
+        "quote-not-in-item:E5"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3775,
+      "outputTokens": 1723,
+      "neurons": 69.9678,
+      "neuronsReported": 69.9658203125,
+      "latencyMs": 12326,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"conditional-put-on-existing\", \"confidence\":  \"high\", \"evidence\": [{\"id\": \"E3\", \"quote\": \"{\\\"running\\\": false, \\\"scheduled\\\": false, \\\"lastRun\\\": {\\\"ok\\\": true, \\\"runId\\\": \\\"publication-2026-10-13T11-07-00-000Z\\\", \\\"completedAt\\\": \\\"2026-10-13T11:08:40.000Z\\\", \\\"copiedObjectCount\\\": 35, \\\"reusedObjectCount\\\": 8150, \\\"r2\\\": {\\\"classA\\\": 8190}}}\"}, {\"id\": \"E4\", \"quote\": \"[{\\\"job\\\": \\\"publication\\\", \\\"runId\\\": \\\"publication-2026-10-13T11-07-00-000Z\\\", \\\"status\\\": \\\"ok\\\", \\\"r2ClassA\\\": 8190, \\\"copiedObjectCount\\\": 35}]\"}, {\"id\": \"E5\", \"quote\": \"[{\\\"runId\\\": \\\"publication-2026-10-13T11-07-00-000Z\\\", \\\"r2ClassA\\\": 8190, \\\"copiedObjectCount\\\": 35}, {\\\"runId\\\": \\\"publication-2026-10-13T10-07-00-000Z\\\", \\\"r2ClassA\\\": 8190, \\\"copiedObjectCount\\\": 35}, {\\\"runId\\\": \\\"publication-2026-10-13T09-07-00-000Z\\\", \\\"r2ClassA\\\": 8190, \\\"copiedObjectCount\\\": 35}]\"}], \"runbook\": \"cloudflare-data-publisher.md#r2-operations-and-cost\", \"ownerAction\": \"Investigate conditional puts on existing objects; verify if reusedObjectCount (8150) correlates with unexpected conditional misses in R2 operations.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [
+          "lastRun.r2.classA",
+          "copiedObjectCount"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "r2-class-a-spike-2026-10-13",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 4,
+      "firings": 1,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": "malformed",
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3582,
+      "outputTokens": 4096,
+      "neurons": 168.7954,
+      "neuronsReported": 168.7954,
+      "latencyMs": 70873,
+      "finalText": "",
+      "finishReason": "length",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": false,
+        "pass": false,
+        "missing": [
+          "lastRun.r2.classA",
+          "copiedObjectCount"
+        ]
+      }
+    },
+    {
+      "scenario": "r2-class-a-spike-2026-10-13",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 4,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": "null",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "r2.classA: 8190"
+        },
+        {
+          "id": "E3",
+          "quote": "copiedObjectCount: 35"
+        },
+        {
+          "id": "E4",
+          "quote": "r2ClassA: 8190"
+        },
+        {
+          "id": "E5",
+          "quote": "r2ClassA: 8190"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E1",
+        "quote-not-in-item:E3",
+        "quote-not-in-item:E4",
+        "quote-not-in-item:E5",
+        "runbook-not-in-playbook:null"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3690,
+      "outputTokens": 143,
+      "neurons": 127.69203500000003,
+      "neuronsReported": 127.69086456298828,
+      "latencyMs": 5136,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"unknown\", \"confidence\": \"low\", \"evidence\": [{\"id\": \"E1\", \"quote\": \"r2.classA: 8190\"}, {\"id\": \"E3\", \"quote\": \"copiedObjectCount: 35\"}, {\"id\": \"E4\", \"quote\": \"r2ClassA: 8190\"}, {\"id\": \"E5\", \"quote\": \"r2ClassA: 8190\"}], \"runbook\": \"null\", \"ownerAction\": \"The cause is unknown because none of the distinguishing evidence is in the bundle. Please check the runbook for further guidance.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "lastRun.r2.classA",
+          "copiedObjectCount"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "r2-class-a-spike-2026-10-13",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 4,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "conditional-put-on-existing",
+      "runbook": "cloudflare-data-publisher.md#r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E3",
+          "quote": "{\"running\": false, \"scheduled\": false, \"lastRun\": {\"ok\": true, \"runId\": \"publication-2026-10-13T11-07-00-000Z\", \"completedAt\": \"2026-10-13T11:08:40.000Z\", \"copiedObjectCount\": 35, \"reusedObjectCount\": 8150, \"r2\": {\"classA\": 8190}}}"
+        },
+        {
+          "id": "E4",
+          "quote": "[{\"job\": \"publication\", \"runId\": \"publication-2026-10-13T11-07-00-000Z\", \"status\": \"ok\", \"r2ClassA\": 8190, \"copiedObjectCount\": 35}]"
+        },
+        {
+          "id": "E5",
+          "quote": "[{\"runId\": \"publication-2026-10-13T11-07-00-000Z\", \"r2ClassA\": 8190, \"copiedObjectCount\": 35}, {\"runId\": \"publication-2026-10-13T10-07-00-000Z\", \"r2ClassA\": 8190, \"copiedObjectCount\": 35}, {\"runId\": \"publication-2026-10-13T09-07-00-000Z\", \"r2ClassA\": 8190, \"copiedObjectCount\": 35}]"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E3",
+        "quote-not-in-item:E4",
+        "quote-not-in-item:E5"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3775,
+      "outputTokens": 1172,
+      "neurons": 53.176075,
+      "neuronsReported": 53.174224853515625,
+      "latencyMs": 6820,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"conditional-put-on-existing\", \"confidence\":  \"high\", \"evidence\": [{\"id\": \"E3\", \"quote\": \"{\\\"running\\\": false, \\\"scheduled\\\": false, \\\"lastRun\\\": {\\\"ok\\\": true, \\\"runId\\\": \\\"publication-2026-10-13T11-07-00-000Z\\\", \\\"completedAt\\\": \\\"2026-10-13T11:08:40.000Z\\\", \\\"copiedObjectCount\\\": 35, \\\"reusedObjectCount\\\": 8150, \\\"r2\\\": {\\\"classA\\\": 8190}}}\"}, {\"id\": \"E4\", \"quote\": \"[{\\\"job\\\": \\\"publication\\\", \\\"runId\\\": \\\"publication-2026-10-13T11-07-00-000Z\\\", \\\"status\\\": \\\"ok\\\", \\\"r2ClassA\\\": 8190, \\\"copiedObjectCount\\\": 35}]\"}, {\"id\": \"E5\", \"quote\": \"[{\\\"runId\\\": \\\"publication-2026-10-13T11-07-00-000Z\\\", \\\"r2ClassA\\\": 8190, \\\"copiedObjectCount\\\": 35}, {\\\"runId\\\": \\\"publication-2026-10-13T10-07-00-000Z\\\", \\\"r2ClassA\\\": 8190, \\\"copiedObjectCount\\\": 35}, {\\\"runId\\\": \\\"publication-2026-10-13T09-07-00-000Z\\\", \\\"r2ClassA\\\": 8190, \\\"copiedObjectCount\\\": 35}]\"}], \"runbook\": \"cloudflare-data-publisher.md#r2-operations-and-cost\", \"ownerAction\": \"Check if conditional puts on existing objects are occurring, as indicated by the high r2.classA value relative to copiedObjectCount and reusedObjectCount. Verify the runbook for R2 operations and cost adjustments.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [
+          "lastRun.r2.classA",
+          "copiedObjectCount"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "r2-class-a-spike-2026-10-13",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 5,
+      "firings": 1,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": "malformed",
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3582,
+      "outputTokens": 4096,
+      "neurons": 168.7954,
+      "neuronsReported": 168.7954,
+      "latencyMs": 64778,
+      "finalText": "",
+      "finishReason": "length",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": false,
+        "pass": false,
+        "missing": [
+          "lastRun.r2.classA",
+          "copiedObjectCount"
+        ]
+      }
+    },
+    {
+      "scenario": "r2-class-a-spike-2026-10-13",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 5,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": "null",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "r2.classA = 8190"
+        },
+        {
+          "id": "E3",
+          "quote": "copiedObjectCount = 35"
+        },
+        {
+          "id": "E4",
+          "quote": "r2ClassA = 8190"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E1",
+        "quote-not-in-item:E3",
+        "quote-not-in-item:E4",
+        "runbook-not-in-playbook:null"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3690,
+      "outputTokens": 149,
+      "neurons": 128.92086500000005,
+      "neuronsReported": 128.91969299316406,
+      "latencyMs": 4985,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"unknown\", \"confidence\": \"low\", \"evidence\": [{\"id\": \"E1\", \"quote\": \"r2.classA = 8190\"}, {\"id\": \"E3\", \"quote\": \"copiedObjectCount = 35\"}, {\"id\": \"E4\", \"quote\": \"r2ClassA = 8190\"}], \"runbook\": \"null\", \"ownerAction\": \"The rule fired because the publication's R2 Class A operations are higher than expected. Check the runbook for R2 operations and cost to understand the cause. The distinguishing evidence for the cause is not in the bundle, so the cause is unknown.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "lastRun.r2.classA",
+          "copiedObjectCount"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "r2-class-a-spike-2026-10-13",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 5,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "conditional-put-on-existing",
+      "runbook": "cloudflare-data-publisher.md#r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E3",
+          "quote": "\"lastRun\": {\"ok\": true,\"runId\": \"publication-2026-10-13T11-07-00-000Z\",\"completedAt\": \"2026-10-13T11:08:40.000Z\",\"copiedObjectCount\": 35,\"reusedObjectCount\": 8150,\"r2\": {\"classA\": 8190}}"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E3"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3775,
+      "outputTokens": 1099,
+      "neurons": 50.95140000000001,
+      "neuronsReported": 50.94956588745117,
+      "latencyMs": 6834,
+      "finalText": "{\"verdict\":\"inconclusive\",\"cause\":\"conditional-put-on-existing\",\"confidence\": \"high\",\"evidence\":[{\"id\":\"E3\",\"quote\":\"\\\"lastRun\\\": {\\\"ok\\\": true,\\\"runId\\\": \\\"publication-2026-10-13T11-07-00-000Z\\\",\\\"completedAt\\\": \\\"2026-10-13T11:08:40.000Z\\\",\\\"copiedObjectCount\\\": 35,\\\"reusedObjectCount\\\": 8150,\\\"r2\\\": {\\\"classA\\\": 8190}}\"}],\"runbook\":\"cloudflare-data-publisher.md#r2-operations-and-cost\",\"ownerAction\":\"Investigate conditional puts on existing objects: check if repeated conditional writes are causing excessive R2 Class A operations. Verify if 'conditionalMisses' metrics are elevated, indicating failed conditional puts on existing keys.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [
+          "lastRun.r2.classA",
+          "copiedObjectCount"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "dev-cost-guard-trip-2026-10-21",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 1,
+      "firings": 1,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": "malformed",
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3756,
+      "outputTokens": 4096,
+      "neurons": 169.7524,
+      "neuronsReported": 169.7524,
+      "latencyMs": 97994,
+      "finalText": "",
+      "finishReason": "length",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": false,
+        "pass": false,
+        "missing": [
+          "costGuard.breaker.value",
+          "lastRun.r2.classA"
+        ]
+      }
+    },
+    {
+      "scenario": "dev-cost-guard-trip-2026-10-21",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 1,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": "null",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "r2ClassA at 206.47% of 1000000 (trips at 80%)"
+        },
+        {
+          "id": "E2",
+          "quote": "r2ClassA at 206.47% of 1000000 (trips at 80%)"
+        }
+      ],
+      "evidenceFailures": [
+        "runbook-not-in-playbook:null"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3871,
+      "outputTokens": 134,
+      "neurons": 130.675698,
+      "neuronsReported": 130.67445373535156,
+      "latencyMs": 5673,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"unknown\", \"confidence\": \"low\", \"evidence\": [{\"id\": \"E1\", \"quote\": \"r2ClassA at 206.47% of 1000000 (trips at 80%)\"}, {\"id\": \"E2\", \"quote\": \"r2ClassA at 206.47% of 1000000 (trips at 80%)\"}], \"runbook\": \"null\", \"ownerAction\": \"The rule fired; the harness put its entry first in the bundle. The distinguishing evidence for the cause is not in the bundle.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "costGuard.breaker.value",
+          "lastRun.r2.classA"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "dev-cost-guard-trip-2026-10-21",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 1,
+      "firings": 1,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": null,
+      "cause": "current-spike",
+      "runbook": "cloudflare-data-publisher.md#r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E3",
+          "quote": "[\n  {\n    \"job\": \"cost-guard\",\n    \"at\": \"2026-10-21T22:07:14Z\",\n    \"status\": \"tripped\",\n    \"r2ClassA\": 2064777\n  }\n]"
+        },
+        {
+          "id": "E4",
+          "quote": "[\n  {\n    \"job\": \"publication\",\n    \"at\": \"2026-10-21T22:07:13Z\",\n    \"status\": \"ok\",\n    \"r2ClassA\": 1092,\n    \"copiedObjectCount\": 1089\n  },\n  {\n    \"job\": \"digest\",\n    \"at\": \"2026-10-21T22:49:00Z\",\n    \"status\": \"ok\",\n    \"r2ClassA\": 4\n  }\n]"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3955,
+      "outputTokens": 1131,
+      "neurons": 52.75909999999999,
+      "neuronsReported": 52.75718688964844,
+      "latencyMs": 8488,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"current-spike\", \"confidence\":  \"high\", \"evidence\": [{\"id\": \"E3\", \"quote\": \"[\\n  {\\n    \\\"job\\\": \\\"cost-guard\\\",\\n    \\\"at\\\": \\\"2026-10-21T22:07:14Z\\\",\\n    \\\"status\\\": \\\"tripped\\\",\\n    \\\"r2ClassA\\\": 2064777\\n  }\\n]\"}, {\"id\": \"E4\", \"quote\": \"[\\n  {\\n    \\\"job\\\": \\\"publication\\\",\\n    \\\"at\\\": \\\"2026-10-21T22:07:13Z\\\",\\n    \\\"status\\\": \\\"ok\\\",\\n    \\\"r2ClassA\\\": 1092,\\n    \\\"copiedObjectCount\\\": 1089\\n  },\\n  {\\n    \\\"job\\\": \\\"digest\\\",\\n    \\\"at\\\": \\\"2026-10-21T22:49:00Z\\\",\\n    \\\"status\\\": \\\"ok\\\",\\n    \\\"r2ClassA\\\": 4\\n  }\\n]\"}], \"runbook\": \"cloudflare-data-publisher.md#r2-operations-and-cost\", \"ownerAction\": \"Investigate the R2 Class A spike (2064777) in cost-guard. Check if runs around 2026-10-21T22:07:14Z have r2.classA far above copiedObjectCount + 3 (1089 + 3 = 1092). Review R2 operations and cost guidelines in the runbook.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "dev-cost-guard-trip-2026-10-21",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 2,
+      "firings": 1,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": "malformed",
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3756,
+      "outputTokens": 4096,
+      "neurons": 169.7524,
+      "neuronsReported": 169.7524,
+      "latencyMs": 72063,
+      "finalText": "",
+      "finishReason": "length",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": false,
+        "pass": false,
+        "missing": [
+          "costGuard.breaker.value",
+          "lastRun.r2.classA"
+        ]
+      }
+    },
+    {
+      "scenario": "dev-cost-guard-trip-2026-10-21",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 2,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "r2ClassA at 206.47% of 1000000 (trips at 80%)"
+        },
+        {
+          "id": "E2",
+          "quote": "r2ClassA at 206.47% of 1000000 (trips at 80%)"
+        },
+        {
+          "id": "E3",
+          "quote": "r2ClassA: 2064777"
+        },
+        {
+          "id": "E4",
+          "quote": "r2ClassA: 1092"
+        },
+        {
+          "id": "E5",
+          "quote": "A job is spending R2 Class A now"
+        },
+        {
+          "id": "E6",
+          "quote": "R2 bills requests by class, for the whole account (both buckets):"
+        },
+        {
+          "id": "E7",
+          "quote": "Only by hand; a check, a new month or a deploy never closes it."
+        },
+        {
+          "id": "E8",
+          "quote": "Read `/health`"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E3",
+        "quote-not-in-item:E4"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3871,
+      "outputTokens": 260,
+      "neurons": 156.481128,
+      "neuronsReported": 156.4799346923828,
+      "latencyMs": 9953,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"unknown\", \"confidence\": \"low\", \"evidence\": [{\"id\": \"E1\", \"quote\": \"r2ClassA at 206.47% of 1000000 (trips at 80%)\"}, {\"id\": \"E2\", \"quote\": \"r2ClassA at 206.47% of 1000000 (trips at 80%)\"}, {\"id\": \"E3\", \"quote\": \"r2ClassA: 2064777\"}, {\"id\": \"E4\", \"quote\": \"r2ClassA: 1092\"}, {\"id\": \"E5\", \"quote\": \"A job is spending R2 Class A now\"}, {\"id\": \"E6\", \"quote\": \"R2 bills requests by class, for the whole account (both buckets):\"}, {\"id\": \"E7\", \"quote\": \"Only by hand; a check, a new month or a deploy never closes it.\"}, {\"id\": \"E8\", \"quote\": \"Read `/health`\"}], \"runbook\": null, \"ownerAction\": \"Review the evidence and runbook to determine the cause of the cost guard tripping.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "costGuard.breaker.value",
+          "lastRun.r2.classA"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "dev-cost-guard-trip-2026-10-21",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 2,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "current-spike",
+      "runbook": "cloudflare-data-publisher.md#r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "{\"tripped\": true, \"metric\": \"r2ClassA\", \"value\": 2064777, \"threshold\": 800000, \"reason\": \"r2ClassA at 206.47% of 1000000 (trips at 80%)\", \"trippedAt\": \"2026-10-21T22:07:14.115Z\"}"
+        },
+        {
+          "id": "E2",
+          "quote": "{\"mode\": \"monitor\", \"status\": \"tripped\", \"reason\": \"r2ClassA at 206.47% of 1000000 (trips at 80%)\", \"checkedAt\": \"2026-10-21T22:07:14.115Z\", \"metrics\": {\"r2ClassA\": 2064777}, \"breaker\": {\"tripped\": true, \"metric\": \"r2ClassA\", \"value\": 2064777, \"threshold\": 800000, \"reason\": \"r2ClassA at 206.47% of 1000000 (trips at 80%)\", \"trippedAt\": \"2026-10-21T22:07:14.115Z\"}}"
+        },
+        {
+          "id": "E3",
+          "quote": "[{\"job\": \"cost-guard\", \"at\": \"2026-10-21T22:07:14Z\", \"status\": \"tripped\", \"r2ClassA\": 2064777}]"
+        },
+        {
+          "id": "E4",
+          "quote": "[{\"job\": \"publication\", \"at\": \"2026-10-21T22:07:13Z\", \"status\": \"ok\", \"r2ClassA\": 1092, \"copiedObjectCount\": 1089}, {\"job\": \"digest\", \"at\": \"2026-10-21T22:49:00Z\", \"status\": \"ok\", \"r2ClassA\": 4}]"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E1",
+        "quote-not-in-item:E2",
+        "quote-not-in-item:E3",
+        "quote-not-in-item:E4"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3955,
+      "outputTokens": 1510,
+      "neurons": 64.309125,
+      "neuronsReported": 64.30712127685547,
+      "latencyMs": 12537,
+      "finalText": "{\"verdict\":\"inconclusive\",\"cause\":\"current-spike\",\"confidence\": \"high\",\"evidence\":[{\"id\":\"E1\",\"quote\":\"{\\\"tripped\\\": true, \\\"metric\\\": \\\"r2ClassA\\\", \\\"value\\\": 2064777, \\\"threshold\\\": 800000, \\\"reason\\\": \\\"r2ClassA at 206.47% of 1000000 (trips at 80%)\\\", \\\"trippedAt\\\": \\\"2026-10-21T22:07:14.115Z\\\"}\"},{\"id\":\"E2\",\"quote\":\"{\\\"mode\\\": \\\"monitor\\\", \\\"status\\\": \\\"tripped\\\", \\\"reason\\\": \\\"r2ClassA at 206.47% of 1000000 (trips at 80%)\\\", \\\"checkedAt\\\": \\\"2026-10-21T22:07:14.115Z\\\", \\\"metrics\\\": {\\\"r2ClassA\\\": 2064777}, \\\"breaker\\\": {\\\"tripped\\\": true, \\\"metric\\\": \\\"r2ClassA\\\", \\\"value\\\": 2064777, \\\"threshold\\\": 800000, \\\"reason\\\": \\\"r2ClassA at 206.47% of 1000000 (trips at 80%)\\\", \\\"trippedAt\\\": \\\"2026-10-21T22:07:14.115Z\\\"}}\"},{\"id\":\"E3\",\"quote\":\"[{\\\"job\\\": \\\"cost-guard\\\", \\\"at\\\": \\\"2026-10-21T22:07:14Z\\\", \\\"status\\\": \\\"tripped\\\", \\\"r2ClassA\\\": 2064777}]\"},{\"id\":\"E4\",\"quote\":\"[{\\\"job\\\": \\\"publication\\\", \\\"at\\\": \\\"2026-10-21T22:07:13Z\\\", \\\"status\\\": \\\"ok\\\", \\\"r2ClassA\\\": 1092, \\\"copiedObjectCount\\\": 1089}, {\\\"job\\\": \\\"digest\\\", \\\"at\\\": \\\"2026-10-21T22:49:00Z\\\", \\\"status\\\": \\\"ok\\\", \\\"r2ClassA\\\": 4}]\"}],\"runbook\":\"cloudflare-data-publisher.md#r2-operations-and-cost\",\"ownerAction\":\"Check R2 Class A usage spikes. Verify if 'r2ClassA' value (2,064,777) exceeds 'copiedObjectCount + 3' (1089 + 3 = 1092) and investigate the cause of the spike using the runbook.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [
+          "costGuard.breaker.value",
+          "lastRun.r2.classA"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "dev-cost-guard-trip-2026-10-21",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 3,
+      "firings": 1,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": "malformed",
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3756,
+      "outputTokens": 4096,
+      "neurons": 169.7524,
+      "neuronsReported": 169.7524,
+      "latencyMs": 73285,
+      "finalText": "",
+      "finishReason": "length",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": false,
+        "pass": false,
+        "missing": [
+          "costGuard.breaker.value",
+          "lastRun.r2.classA"
+        ]
+      }
+    },
+    {
+      "scenario": "dev-cost-guard-trip-2026-10-21",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 3,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": "null",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "r2ClassA at 206.47% of 1000000 (trips at 80%)"
+        },
+        {
+          "id": "E2",
+          "quote": "r2ClassA at 206.47% of 1000000 (trips at 80%)"
+        }
+      ],
+      "evidenceFailures": [
+        "runbook-not-in-playbook:null"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3871,
+      "outputTokens": 125,
+      "neurons": 128.832453,
+      "neuronsReported": 128.83120727539062,
+      "latencyMs": 4771,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"unknown\", \"confidence\": \"low\", \"evidence\": [{\"id\": \"E1\", \"quote\": \"r2ClassA at 206.47% of 1000000 (trips at 80%)\"}, {\"id\": \"E2\", \"quote\": \"r2ClassA at 206.47% of 1000000 (trips at 80%)\"}], \"runbook\": \"null\", \"ownerAction\": \"Review the evidence and investigate further to determine the cause of the cost guard tripping.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "costGuard.breaker.value",
+          "lastRun.r2.classA"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "dev-cost-guard-trip-2026-10-21",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 3,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "current-spike",
+      "runbook": "cloudflare-data-publisher.md#r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "{\"tripped\": true, \"metric\": \"r2ClassA\", \"value\": 2064777, \"threshold\": 800000, \"reason\": \"r2ClassA at 206.47% of 1000000 (trips at 80%)\", \"trippedAt\": \"2026-10-21T22:07:14.115Z\"}"
+        },
+        {
+          "id": "E2",
+          "quote": "{\"mode\": \"monitor\", \"status\": \"tripped\", \"reason\": \"r2ClassA at 206.47% of 1000000 (trips at 80%)\", \"checkedAt\": \"2026-10-21T22:07:14.115Z\", \"metrics\": {\"r2ClassA\": 2064777}, \"breaker\": {\"tripped\": true, \"metric\": \"r2ClassA\", \"value\": 2064777, \"threshold\": 800000, \"reason\": \"r2ClassA at 206.47% of 1000000 (trips at 80%)\", \"trippedAt\": \"2026-10-21T22:07:14.115Z\"}}"
+        },
+        {
+          "id": "E3",
+          "quote": "[ {\"job\": \"cost-guard\", \"at\": \"2026-10-21T22:07:14Z\", \"status\": \"tripped\", \"r2ClassA\": 2064777} ]"
+        },
+        {
+          "id": "E4",
+          "quote": "[ {\"job\": \"publication\", \"at\": \"2026-10-21T22:07:13Z\", \"status\": \"ok\", \"r2ClassA\": 1092, \"copiedObjectCount\": 1089}, {\"job\": \"digest\", \"at\": \"2026-10-21T22:49:00Z\", \"status\": \"ok\", \"r2ClassA\": 4} ]"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E1",
+        "quote-not-in-item:E2",
+        "quote-not-in-item:E3",
+        "quote-not-in-item:E4"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3955,
+      "outputTokens": 1173,
+      "neurons": 54.03905,
+      "neuronsReported": 54.03712463378906,
+      "latencyMs": 6587,
+      "finalText": "{\"verdict\":\"inconclusive\",\"cause\":\"current-spike\",\"confidence\": \"high\",\"evidence\":[{\"id\":\"E1\",\"quote\":\"{\\\"tripped\\\": true, \\\"metric\\\": \\\"r2ClassA\\\", \\\"value\\\": 2064777, \\\"threshold\\\": 800000, \\\"reason\\\": \\\"r2ClassA at 206.47% of 1000000 (trips at 80%)\\\", \\\"trippedAt\\\": \\\"2026-10-21T22:07:14.115Z\\\"}\"},{\"id\":\"E2\",\"quote\":\"{\\\"mode\\\": \\\"monitor\\\", \\\"status\\\": \\\"tripped\\\", \\\"reason\\\": \\\"r2ClassA at 206.47% of 1000000 (trips at 80%)\\\", \\\"checkedAt\\\": \\\"2026-10-21T22:07:14.115Z\\\", \\\"metrics\\\": {\\\"r2ClassA\\\": 2064777}, \\\"breaker\\\": {\\\"tripped\\\": true, \\\"metric\\\": \\\"r2ClassA\\\", \\\"value\\\": 2064777, \\\"threshold\\\": 800000, \\\"reason\\\": \\\"r2ClassA at 206.47% of 1000000 (trips at 80%)\\\", \\\"trippedAt\\\": \\\"2026-10-21T22:07:14.115Z\\\"}}\"},{\"id\":\"E3\",\"quote\":\"[ {\\\"job\\\": \\\"cost-guard\\\", \\\"at\\\": \\\"2026-10-21T22:07:14Z\\\", \\\"status\\\": \\\"tripped\\\", \\\"r2ClassA\\\": 2064777} ]\"},{\"id\":\"E4\",\"quote\":\"[ {\\\"job\\\": \\\"publication\\\", \\\"at\\\": \\\"2026-10-21T22:07:13Z\\\", \\\"status\\\": \\\"ok\\\", \\\"r2ClassA\\\": 1092, \\\"copiedObjectCount\\\": 1089}, {\\\"job\\\": \\\"digest\\\", \\\"at\\\": \\\"2026-10-21T22:49:00Z\\\", \\\"status\\\": \\\"ok\\\", \\\"r2ClassA\\\": 4} ]\"}],\"runbook\":\"cloudflare-data-publisher.md#r2-operations-and-cost\",\"ownerAction\":\"Investigate R2 Class A spike: check /health r2.metrics, verify copiedObjectCount + 3 vs classA, and review recent runs for excessive retries/conditional misses per cloudflare-data-publisher.md#r2-operations-and-cost\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [
+          "costGuard.breaker.value",
+          "lastRun.r2.classA"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "dev-cost-guard-trip-2026-10-21",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 4,
+      "firings": 1,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": "malformed",
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3756,
+      "outputTokens": 4096,
+      "neurons": 169.7524,
+      "neuronsReported": 169.7524,
+      "latencyMs": 57860,
+      "finalText": "",
+      "finishReason": "length",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": false,
+        "pass": false,
+        "missing": [
+          "costGuard.breaker.value",
+          "lastRun.r2.classA"
+        ]
+      }
+    },
+    {
+      "scenario": "dev-cost-guard-trip-2026-10-21",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 4,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": "null",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "r2ClassA at 206.47% of 1000000 (trips at 80%)"
+        },
+        {
+          "id": "E2",
+          "quote": "r2ClassA at 206.47% of 1000000 (trips at 80%)"
+        },
+        {
+          "id": "E3",
+          "quote": "r2ClassA: 2064777"
+        },
+        {
+          "id": "E4",
+          "quote": "r2ClassA: 1092"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E3",
+        "quote-not-in-item:E4",
+        "runbook-not-in-playbook:null"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3871,
+      "outputTokens": 177,
+      "neurons": 139.48231299999998,
+      "neuronsReported": 139.4810791015625,
+      "latencyMs": 5990,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"unknown\", \"confidence\": \"low\", \"evidence\": [{\"id\": \"E1\", \"quote\": \"r2ClassA at 206.47% of 1000000 (trips at 80%)\"}, {\"id\": \"E2\", \"quote\": \"r2ClassA at 206.47% of 1000000 (trips at 80%)\"}, {\"id\": \"E3\", \"quote\": \"r2ClassA: 2064777\"}, {\"id\": \"E4\", \"quote\": \"r2ClassA: 1092\"}], \"runbook\": \"null\", \"ownerAction\": \"Check the R2 operations and cost runbook to understand the cause of the tripped breaker and reset it after fixing the issue.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "costGuard.breaker.value",
+          "lastRun.r2.classA"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "dev-cost-guard-trip-2026-10-21",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 4,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "current-spike",
+      "runbook": "cloudflare-data-publisher.md#r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E3",
+          "quote": "{\"job\": \"cost-guard\", \"at\": \"2026-10-21T22:07:14Z\", \"status\": \"tripped\", \"r2ClassA\": 2064777}"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E3"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3955,
+      "outputTokens": 1530,
+      "neurons": 64.918625,
+      "neuronsReported": 64.91661834716797,
+      "latencyMs": 8608,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"current-spike\", \"confidence\":  \"high\", \"evidence\": [{\"id\": \"E3\", \"quote\": \"{\\\"job\\\": \\\"cost-guard\\\", \\\"at\\\": \\\"2026-10-21T22:07:14Z\\\", \\\"status\\\": \\\"tripped\\\", \\\"r2ClassA\\\": 2064777}\"}], \"runbook\": \"cloudflare-data-publisher.md#r2-operations-and-cost\", \"ownerAction\": \"The cost guard's breaker is tripped due to a current spike in R2 Class A usage. Check the R2 operations and cost runbook for mitigation steps.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [
+          "costGuard.breaker.value",
+          "lastRun.r2.classA"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "dev-cost-guard-trip-2026-10-21",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 5,
+      "firings": 1,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": "malformed",
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3756,
+      "outputTokens": 4096,
+      "neurons": 169.7524,
+      "neuronsReported": 169.7524,
+      "latencyMs": 66418,
+      "finalText": "",
+      "finishReason": "length",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": false,
+        "pass": false,
+        "missing": [
+          "costGuard.breaker.value",
+          "lastRun.r2.classA"
+        ]
+      }
+    },
+    {
+      "scenario": "dev-cost-guard-trip-2026-10-21",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 5,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": "null",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "r2ClassA at 206.47% of 1000000 (trips at 80%)"
+        },
+        {
+          "id": "E2",
+          "quote": "r2ClassA at 206.47% of 1000000 (trips at 80%)"
+        }
+      ],
+      "evidenceFailures": [
+        "runbook-not-in-playbook:null"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3871,
+      "outputTokens": 130,
+      "neurons": 129.85647800000004,
+      "neuronsReported": 129.85523986816406,
+      "latencyMs": 4800,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"unknown\", \"confidence\": \"low\", \"evidence\": [{\"id\": \"E1\", \"quote\": \"r2ClassA at 206.47% of 1000000 (trips at 80%)\"}, {\"id\": \"E2\", \"quote\": \"r2ClassA at 206.47% of 1000000 (trips at 80%)\"}], \"runbook\": \"null\", \"ownerAction\": \"Check the runbook for the cost-guard job and look for the distinguishing evidence for each cause in the bundle.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "costGuard.breaker.value",
+          "lastRun.r2.classA"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "dev-cost-guard-trip-2026-10-21",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 5,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": "null",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "{\"tripped\": true, \"metric\": \"r2ClassA\", \"value\": 2064777, \"threshold\": 800000, \"reason\": \"r2ClassA at 206.47% of 1000000 (trips at 80%)\", \"trippedAt\": \"2026-10-21T22:07:14.115Z\"}"
+        },
+        {
+          "id": "E2",
+          "quote": "{\"mode\": \"monitor\", \"status\": \"tripped\", \"reason\": \"r2ClassA at 206.47% of 1000000 (trips at 80%)\", \"checkedAt\": \"2026-10-21T22:07:14.115Z\", \"metrics\": {\"r2ClassA\": 2064777}, \"breaker\": {\"tripped\": true, \"metric\": \"r2ClassA\", \"value\": 2064777, \"threshold\": 800000, \"reason\": \"r2ClassA at 206.47% of 1000000 (trips at 80%)\", \"trippedAt\": \"2026-10-21T22:07:14.115Z\"}}"
+        },
+        {
+          "id": "E3",
+          "quote": "[{\"job\": \"cost-guard\", \"at\": \"2026-10-21T22:07:14Z\", \"status\": \"tripped\", \"r2ClassA\": 2064777}]"
+        },
+        {
+          "id": "E4",
+          "quote": "[{\"job\": \"publication\", \"at\": \"2026-10-21T22:07:13Z\", \"status\": \"ok\", \"r2ClassA\": 1092, \"copiedObjectCount\": 1089}, {\"job\": \"digest\", \"at\": \"2026-10-21T22:49:00Z\", \"status\": \"ok\", \"r2ClassA\": 4}]"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E1",
+        "quote-not-in-item:E2",
+        "quote-not-in-item:E3",
+        "quote-not-in-item:E4",
+        "runbook-not-in-playbook:null"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 3955,
+      "outputTokens": 1785,
+      "neurons": 72.68975,
+      "neuronsReported": 72.68768310546875,
+      "latencyMs": 12012,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"unknown\", \"confidence\":  \"low\", \"evidence\": [{\"id\": \"E1\", \"quote\": \"{\\\"tripped\\\": true, \\\"metric\\\": \\\"r2ClassA\\\", \\\"value\\\": 2064777, \\\"threshold\\\": 800000, \\\"reason\\\": \\\"r2ClassA at 206.47% of 1000000 (trips at 80%)\\\", \\\"trippedAt\\\": \\\"2026-10-21T22:07:14.115Z\\\"}\"}, {\"id\": \"E2\", \"quote\": \"{\\\"mode\\\": \\\"monitor\\\", \\\"status\\\": \\\"tripped\\\", \\\"reason\\\": \\\"r2ClassA at 206.47% of 1000000 (trips at 80%)\\\", \\\"checkedAt\\\": \\\"2026-10-21T22:07:14.115Z\\\", \\\"metrics\\\": {\\\"r2ClassA\\\": 2064777}, \\\"breaker\\\": {\\\"tripped\\\": true, \\\"metric\\\": \\\"r2ClassA\\\", \\\"value\\\": 2064777, \\\"threshold\\\": 800000, \\\"reason\\\": \\\"r2ClassA at 206.47% of 1000000 (trips at 80%)\\\", \\\"trippedAt\\\": \\\"2026-10-21T22:07:14.115Z\\\"}}\"}, {\"id\": \"E3\", \"quote\": \"[{\\\"job\\\": \\\"cost-guard\\\", \\\"at\\\": \\\"2026-10-21T22:07:14Z\\\", \\\"status\\\": \\\"tripped\\\", \\\"r2ClassA\\\": 2064777}]\"}, {\"id\": \"E4\", \"quote\": \"[{\\\"job\\\": \\\"publication\\\", \\\"at\\\": \\\"2026-10-21T22:07:13Z\\\", \\\"status\\\": \\\"ok\\\", \\\"r2ClassA\\\": 1092, \\\"copiedObjectCount\\\": 1089}, {\\\"job\\\": \\\"digest\\\", \\\"at\\\": \\\"2026-10-21T22:49:00Z\\\", \\\"status\\\": \\\"ok\\\", \\\"r2ClassA\\\": 4}]\"}], \"runbook\": \"null\", \"ownerAction\": \"No cause has its distinguishing evidence in the bundle. The rule fired, but the evidence does not confirm any of the listed causes. Check the runbook for further guidance.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "costGuard.breaker.value",
+          "lastRun.r2.classA"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "tag-ci-failure-v0.3.0",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 1,
+      "firings": 1,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": null,
+      "cause": "non-hermetic-test",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E2",
+          "quote": "failed job: Unit tests\nlast 60 log lines:\nscripts/test/feature-map-site.test.ts:\n(fail) B27: in this repository, a stale but valid-looking Runs on fails the default page naming the spec, the value and the evidence\n  const production = repositoryProduction(); // the newest local v* tag\n1 fail"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 2067,
+      "outputTokens": 636,
+      "neurons": 34.5189,
+      "neuronsReported": 34.5189,
+      "latencyMs": 31751,
+      "finalText": "{\n  \"verdict\": \"inconclusive\",\n  \"cause\": \"non-hermetic-test\",\n  \"confidence\":  \"high\",\n  \"evidence\": [\n    {\n      \"id\": \"E2\",\n      \"quote\": \"failed job: Unit tests\\nlast 60 log lines:\\nscripts/test/feature-map-site.test.ts:\\n(fail) B27: in this repository, a stale but valid-looking Runs on fails the default page naming the spec, the value and the evidence\\n  const production = repositoryProduction(); // the newest local v* tag\\n1 fail\"\n    }\n  ],\n  \"runbook\": null,\n  \"ownerAction\": \"runbook: null - this cause has no runbook link\"\n}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [
+          "conclusion failure"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "tag-ci-failure-v0.3.0",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 1,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "non-hermetic-test",
+      "runbook": "null",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "conclusion: failure"
+        },
+        {
+          "id": "E2",
+          "quote": "failed job: Unit tests"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E1",
+        "runbook-not-in-playbook:null"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 2222,
+      "outputTokens": 97,
+      "neurons": 79.12238100000002,
+      "neuronsReported": 79.1216812133789,
+      "latencyMs": 3291,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"non-hermetic-test\", \"confidence\": \"high\", \"evidence\": [{\"id\": \"E1\", \"quote\": \"conclusion: failure\"}, {\"id\": \"E2\", \"quote\": \"failed job: Unit tests\"}], \"runbook\": \"null\", \"ownerAction\": \"The cause is likely a non-hermetic test. A runbook is needed for this cause.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "conclusion failure"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "tag-ci-failure-v0.3.0",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 1,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "non-hermetic-test",
+      "runbook": "runbook: null",
+      "evidence": [
+        {
+          "id": "E2",
+          "quote": "scripts/test/feature-map-site.test.ts:\n(fail) B27: in this repository, a stale but valid-looking Runs on fails the default page naming the spec, the value and the evidence\n  const production = repositoryProduction(); // the newest local v* tag\n1 fail"
+        }
+      ],
+      "evidenceFailures": [
+        "runbook-not-in-playbook:runbook: null"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 2121,
+      "outputTokens": 676,
+      "neurons": 30.410725,
+      "neuronsReported": 30.40968132019043,
+      "latencyMs": 4619,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"non-hermetic-test\", \"confidence\":  \"high\", \"evidence\": [{\"id\": \"E2\", \"quote\": \"scripts/test/feature-map-site.test.ts:\\n(fail) B27: in this repository, a stale but valid-looking Runs on fails the default page naming the spec, the value and the evidence\\n  const production = repositoryProduction(); // the newest local v* tag\\n1 fail\"}], \"runbook\": \"runbook: null\", \"ownerAction\": \"The cause 'non-hermetic-test' requires investigation. The playbook indicates this cause has no runbook link (runbook: null). Review the test environment dependencies in E2's log tail.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "conclusion failure",
+          "Unit tests"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "tag-ci-failure-v0.3.0",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 2,
+      "firings": 1,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": "malformed",
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 2067,
+      "outputTokens": 4096,
+      "neurons": 160.4629,
+      "neuronsReported": 160.46290000000002,
+      "latencyMs": 77996,
+      "finalText": "",
+      "finishReason": "length",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": false,
+        "pass": false,
+        "missing": [
+          "conclusion failure",
+          "Unit tests"
+        ]
+      }
+    },
+    {
+      "scenario": "tag-ci-failure-v0.3.0",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 2,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "non-hermetic-test",
+      "runbook": "null",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "conclusion: failure"
+        },
+        {
+          "id": "E2",
+          "quote": "failed job: Unit tests"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E1",
+        "runbook-not-in-playbook:null"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 2222,
+      "outputTokens": 117,
+      "neurons": 83.218481,
+      "neuronsReported": 83.21778869628906,
+      "latencyMs": 4036,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"non-hermetic-test\", \"confidence\": \"high\", \"evidence\": [{\"id\": \"E1\", \"quote\": \"conclusion: failure\"}, {\"id\": \"E2\", \"quote\": \"failed job: Unit tests\"}], \"runbook\": \"null\", \"ownerAction\": \"The cause is likely a non-hermetic test. Please check the test environment and the test itself to ensure they are not dependent on external factors. A runbook for this cause is not available.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "conclusion failure"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "tag-ci-failure-v0.3.0",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 2,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "non-hermetic-test",
+      "runbook": "none: a runbook gap",
+      "evidence": [
+        {
+          "id": "E2",
+          "quote": "scripts/test/feature-map-site.test.ts:\n(fail) B27: in this repository, a stale but valid-looking Runs on fails the default page naming the spec, the value and the evidence\n  const production = repositoryProduction(); // the newest local v* tag\n1 fail"
+        }
+      ],
+      "evidenceFailures": [
+        "runbook-not-in-playbook:none: a runbook gap"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 2121,
+      "outputTokens": 909,
+      "neurons": 37.51140000000001,
+      "neuronsReported": 37.51030349731445,
+      "latencyMs": 7885,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"non-hermetic-test\", \"confidence\":  \"high\", \"evidence\": [{\"id\": \"E2\", \"quote\": \"scripts/test/feature-map-site.test.ts:\\n(fail) B27: in this repository, a stale but valid-looking Runs on fails the default page naming the spec, the value and the evidence\\n  const production = repositoryProduction(); // the newest local v* tag\\n1 fail\"}], \"runbook\": \"none: a runbook gap\", \"ownerAction\": \"The 'non-hermetic-test' cause is indicated by a test failure in 'Unit tests' that reads environment state (newest local tag). No runbook exists for this cause; investigate why the test depends on local git tags.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "conclusion failure",
+          "Unit tests"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "tag-ci-failure-v0.3.0",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 3,
+      "firings": 1,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": "malformed",
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 2067,
+      "outputTokens": 1133,
+      "neurons": 52.609700000000004,
+      "neuronsReported": 52.6097,
+      "latencyMs": 20949,
+      "finalText": "```json\n{\n  \"cause\": \"non-hermetic-test\",\n  \"ownerAction\": \"runbook: null\",\n  \"runbook\": null,\n  \"evidence\": [\n    {\n      \"id\": \"E2\",\n      \"quote\": \"failed job: Unit tests\\nlast 60 log lines:\\nscripts/test/feature-map-site.test.ts:\\n(fail) B27: in this repository, a stale but valid-looking Runs on fails the default page naming the spec, the value and the evidence\\n  const production = repositoryProduction(); // the newest local v* tag\\n1 fail\"\n    }\n  ]\n}\n```",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": false,
+        "pass": false,
+        "missing": [
+          "conclusion failure",
+          "Unit tests"
+        ]
+      }
+    },
+    {
+      "scenario": "tag-ci-failure-v0.3.0",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 3,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "non-hermetic-test",
+      "runbook": "null",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "conclusion: failure"
+        },
+        {
+          "id": "E2",
+          "quote": "failed job: Unit tests"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E1",
+        "runbook-not-in-playbook:null"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 2222,
+      "outputTokens": 101,
+      "neurons": 79.94160099999999,
+      "neuronsReported": 79.94090270996094,
+      "latencyMs": 3450,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"non-hermetic-test\", \"confidence\": \"high\", \"evidence\": [{\"id\": \"E1\", \"quote\": \"conclusion: failure\"}, {\"id\": \"E2\", \"quote\": \"failed job: Unit tests\"}], \"runbook\": \"null\", \"ownerAction\": \"A runbook gap was found for cause `non-hermetic-test`. Please create a runbook for this cause.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "conclusion failure"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "tag-ci-failure-v0.3.0",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 3,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "non-hermetic-test",
+      "runbook": "none: a runbook gap",
+      "evidence": [
+        {
+          "id": "E2",
+          "quote": "run: https://github.com/unknowntpo/oss-knowledge-base/actions/runs/39231615488\nconclusion: failure\nfailed job: Unit tests\nlast 60 log lines:\nscripts/test/feature-map-site.test.ts:\n(fail) B27: in this repository, a stale but valid-looking Runs on fails the default page naming the spec, the value and the evidence\n  const production = repositoryProduction(); // the newest local v* tag\n1 fail"
+        }
+      ],
+      "evidenceFailures": [
+        "runbook-not-in-playbook:none: a runbook gap"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 2121,
+      "outputTokens": 794,
+      "neurons": 34.006775000000005,
+      "neuronsReported": 34.005706787109375,
+      "latencyMs": 4901,
+      "finalText": "{\n\n  \"verdict\": \"inconclusive\",\n  \"cause\": \"non-hermetic-test\",\n  \"confidence\":  \"medium\",\n  \"evidence\": [\n    {\n      \"id\": \"E2\",\n      \"quote\": \"run: https://github.com/unknowntpo/oss-knowledge-base/actions/runs/39231615488\\nconclusion: failure\\nfailed job: Unit tests\\nlast 60 log lines:\\nscripts/test/feature-map-site.test.ts:\\n(fail) B27: in this repository, a stale but valid-looking Runs on fails the default page naming the spec, the value and the evidence\\n  const production = repositoryProduction(); // the newest local v* tag\\n1 fail\"\n    }\n  ],\n  \"runbook\": \"none: a runbook gap\",\n  \"ownerAction\": \"Investigate environment dependencies in 'Unit tests' failing due to local tag state. No runbook available for this cause.\"\n}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "tag-ci-failure-v0.3.0",
+      "modelId": "@cf/zai-org/glm-4.7-flash",
+      "run": 4,
+      "firings": 1,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": null,
+      "cause": "non-hermetic-test",
+      "runbook": "cloudflare-data-publisher.md#roll-back",
+      "evidence": [
+        {
+          "id": "E2",
+          "quote": "(fail) B27: in this repository, a stale but valid-looking Runs on fails the default page naming the spec, the value and the evidence\n  const production = repositoryProduction(); // the newest local v* tag\n1 fail"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 2067,
+      "outputTokens": 667,
+      "neurons": 35.6473,
+      "neuronsReported": 35.6473,
+      "latencyMs": 9663,
+      "finalText": "{\n  \"verdict\": \"inconclusive\",\n  \"cause\": \"non-hermetic-test\",\n  \"confidence\":  \"high\",\n  \"evidence\": [\n    {\n      \"id\": \"E2\",\n      \"quote\": \"(fail) B27: in this repository, a stale but valid-looking Runs on fails the default page naming the spec, the value and the evidence\\n  const production = repositoryProduction(); // the newest local v* tag\\n1 fail\"\n    }\n  ],\n  \"runbook\": \"cloudflare-data-publisher.md#roll-back\",\n  \"ownerAction\": \"Runbook: cloudflare-data-publisher.md#roll-back\"\n}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": false,
+        "missing": [
+          "conclusion failure",
+          "Unit tests"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "tag-ci-failure-v0.3.0",
+      "modelId": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "run": 4,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "non-hermetic-test",
+      "runbook": "null",
+      "evidence": [
+        {
+          "id": "E1",
+          "quote": "conclusion: failure"
+        },
+        {
+          "id": "E2",
+          "quote": "failed job: Unit tests"
+        }
+      ],
+      "evidenceFailures": [
+        "quote-not-in-item:E1",
+        "runbook-not-in-playbook:null"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 2222,
+      "outputTokens": 105,
+      "neurons": 80.76082099999996,
+      "neuronsReported": 80.76012420654297,
+      "latencyMs": 3663,
+      "finalText": "{\"verdict\": \"inconclusive\", \"cause\": \"non-hermetic-test\", \"confidence\": \"high\", \"evidence\": [{\"id\": \"E1\", \"quote\": \"conclusion: failure\"}, {\"id\": \"E2\", \"quote\": \"failed job: Unit tests\"}], \"runbook\": \"null\", \"ownerAction\": \"A runbook gap was found for cause `non-hermetic-test`. Please create a runbook for this cause and update the playbook.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "conclusion failure"
+        ],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "tag-ci-failure-v0.3.0",
+      "modelId": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "run": 4,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "non-hermetic-test",
+      "runbook": "none: a runbook gap",
+      "evidence": [
+        {
+          "id": "E2",
+          "quote": "scripts/test/feature-map-site.test.ts:\n(fail) B27: in this repository, a stale but valid-looking Runs on fails the default page naming the spec, the value and the evidence\n  const production = repositoryProduction(); // the newest local v* tag"
+        }
+      ],
+      "evidenceFailures": [
+        "runbook-not-in-playbook:none: a runbook gap"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 2121,
+      "outputTokens": 1296,
+      "neurons": 49.30522500000001,
+      "neuronsReported": 49.304039001464844,
+      "latencyMs": 6907,
+      "finalText": "{\n\n  \"verdict\": \"inconclusive\",\n  \"cause\": \"non-hermetic-test\",\n  \"confidence\":  \"medium\",\n  \"evidence\": [\n    {\n      \"id\": \"E2\",\n      \"quote\": \"scripts/test/feature-map-site.test.ts:\\n(fail) B27: in this repository, a stale but valid-looking Runs on fails the default page naming the spec, the value and the evidence\\n  const production = repositoryProduction(); // the newest local v* tag\"\n    }\n  ],\n  \"runbook\": \"none: a runbook gap\",\n  \"ownerAction\": \"The 'non-hermetic-test' cause is indicated by the test failure involving environment state (newest local tag). However, no runbook exists for this cause; please document the resolution process.\"\n}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": false,
+        "fabricated": true,
+        "missing": [
+          "conclusion failure",
+          "Unit tests"
+        ],
+        "pass": false
+      }
+    }
+  ]
+}

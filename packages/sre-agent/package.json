@@ -8,14 +8,18 @@
     "test": "bun test",
     "typecheck": "tsc -p tsconfig.json",
     "playbooks": "bun scripts/playbooks.ts",
-    "check:playbooks": "bun scripts/playbooks.ts --check"
+    "check:playbooks": "bun scripts/playbooks.ts --check",
+    "eval": "bun build scripts/eval.ts --target=node --format=esm --outfile=.eval/eval.mjs --external wrangler --external agents && node .eval/eval.mjs"
   },
   "dependencies": {
     "ai": "7.0.133",
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260820.1",
     "@types/bun": "^1.4.0",
-    "typescript": "5.9.3"
+    "agents": "0.27.0",
+    "typescript": "5.9.3",
+    "wrangler": "^4.148.0"
   }
 }
