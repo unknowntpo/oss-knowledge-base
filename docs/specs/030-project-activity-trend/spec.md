@@ -1,6 +1,6 @@
 # Spec 030: Project activity trend on This week
 
-Status: Partially implemented (owner decisions 2026-10-24, [Owner decisions](#owner-decisions)); slice 1 built behind `PROJECT_TREND` (PR #141); on Dev only: the owner approved the Dev enable on 2026-10-24 ([Rollout](#rollout)); PT16 runs after that deploy; Prod needs a separate owner approval
+Status: Partially implemented (owner decisions 2026-10-24, [Owner decisions](#owner-decisions)); slice 1 built behind `PROJECT_TREND` (PR #141); on Dev only: the owner approved the Dev enable on 2026-10-24 ([Rollout](#rollout)); PT16 runs after that deploy; Prod needs a separate owner approval; [amendment (1)](#amendment-2026-10-25-1-years-on-the-compact-axis) (2026-10-25) adds years to the compact axis
 Date: 2026-10-24
 Traceability: enforced
 Builds on: Spec 014 (This week layout, Behavior 27, the "Counts" design decision), Spec 019 (the profile's "活動趨勢" chart, amendment (5), W56–W65; the activity log; W10, W18, W29), Spec 022 (review month objects), Spec 023 (data tokens DS4–DS6), Spec 024 (dark theme DM4–DM8), Spec 026 (cost guard)
@@ -186,7 +186,10 @@ What the example shows:
    *(Decision 1; amendment recorded in Spec 014 Behavior 27.)*
 5. **Compact card.** It has the title 「專案活動趨勢」, the 12 monthly bars
    oldest to newest, and plot height ≤ 96 px. There are no axis labels except
-   the first and last month, and no totals written on the bars. The current
+   the first and last month, each with its year (「2025/11」 … 「2026/10」;
+   English "Nov 2025" … "Oct 2026"), a small year marker 「2026」 at each
+   January inside the view (not when January is the first month, whose label
+   already names the year), and no totals written on the bars. The current
    month carries the label 「進行中 · 至 M/D」 (M/D: the stores' `until`, or
    today if earlier) and a dashed outline
    (`--data-stroke-width`, the series stroke), not a new colour. Hatched lanes
@@ -213,7 +216,7 @@ What the example shows:
 
 ## Acceptance
 
-Slice 1 (PR #141) covers PT1–PT15; PT16 belongs to the Dev enable PR.
+Slice 1 (PR #141) covers PT1–PT15; PT16 belongs to the Dev enable PR. Amendment (1) adds PT17 and PT18.
 
 ### Behavior
 - PT1: given the activity fixture (reviews 2025-11 … 2026-10, activity from 2026-09-10), `GET /api/activity?projectId=apache-kafka` returns 12 months where `reviews` equals the sum of non-bot review rows per UTC month and `github`/`jira`/`mail` equal the per-source row counts, a Jira issue in two months counted once → case rows.
@@ -223,6 +226,8 @@ Slice 1 (PR #141) covers PT1–PT15; PT16 belongs to the Dev enable PR.
 - PT5: the compact card shows 12 bars, the first and last month labels, the current month labelled 「進行中 · 至 10/24」 at a controlled clock of 2026-10-24, and hatched lanes for the three activity series in 2025-11 … 2026-08 → component test.
 - PT6: pressing 「查看完整趨勢」 shows the full chart with no down series, the legend, "以表格檢視", the 9/10 marker 「PR 與留言自此記錄」, and 「資料範圍：GitHub 審查 11/1 起 · GitHub 留言與 PR、Jira、dev@ 9/10 起」, and sends no second request → component test (expanded view) and E2E test (the press, one request).
 - PT7: the 2026-09 tooltip says the activity series count only from 9/10, and a null cell in the table has class `is-unrecorded` → component test.
+- PT17: the compact card's first and last labels carry the year: at a controlled clock of 2026-10-24, zh-Hant shows 「2025/11」 and 「2026/10 · 進行中 · 至 10/24」, English "Nov 2025" and "Oct 2026 · in progress · to 10/24", and at 375 px the labels and year markers do not overlap and the page does not scroll sideways, in both themes → case rows, component test and E2E test.
+- PT18: a year marker 「YYYY」 sits at each January inside the view (2026 at 2026-01 for 2025-11 … 2026-10), none when the view lies within one year or starts in January → case rows and component test.
 - PT8: every bar fill resolves to a `--data-*` token with `color-mix` after a plain fallback, the outline is 1.2 px, and no new custom property is added (DS3, DS6, DS10 gates stay green) → existing design-system tests and a component test.
 
 ### Failure and retry
@@ -261,6 +266,34 @@ Generated from `apps/web/test/project-trend.cases.ts` (`bun run docs:test-plan`)
 | PT11 | neither store recorded: every count null and the card hidden | constructed | nothing | 2026-10 | — | — | — | — | — | github-reviews, github, jira, mail not recorded | hidden |
 <!-- test-plan:end -->
 
+### Compact axis (amendment (1))
+
+Generated from `apps/web/test/project-trend-axis.cases.ts` (`bun run docs:test-plan`).
+`apps/web/test/project-trend-axis.test.ts` runs every row against `trendAxis`.
+
+<!-- test-plan:start apps/web/test/project-trend-axis.cases.ts -->
+| id | case | locale | from | to | first | last | years |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| PT17 | Dev's view across a year boundary: both ends name their year | zh-Hant | 2025-11 | 2026-10 | 2025/11 | 2026/10 | 2026 at 2026-01 |
+| PT17 | the same view in English | en | 2025-11 | 2026-10 | Nov 2025 | Oct 2026 | 2026 at 2026-01 |
+| PT18 | a view within one year has no marker | zh-Hant | 2026-03 | 2026-10 | 2026/3 | 2026/10 | — |
+| PT18 | January as the first month: its label already names the year, no marker | en | 2026-01 | 2026-12 | Jan 2026 | Dec 2026 | — |
+| PT18 | a January as the second month gets a marker | zh-Hant | 2025-12 | 2026-11 | 2025/12 | 2026/11 | 2026 at 2026-01 |
+| PT18 | every January inside the view gets a marker | en | 2025-12 | 2027-01 | Dec 2025 | Jan 2027 | 2026 at 2026-01; 2027 at 2027-01 |
+<!-- test-plan:end -->
+
+Generated from `apps/web/test/project-trend-layout.cases.ts` (`bun run docs:test-plan`).
+`apps/web/test/project-trend-layout.test.ts` runs every row against `compactLayout`.
+
+<!-- test-plan:start apps/web/test/project-trend-layout.cases.ts -->
+| id | case | from | to | width | top | marks |
+| --- | --- | --- | --- | --- | --- | --- |
+| PT18 | a year boundary adds the marker row above the plot | 2025-11 | 2026-10 | 343 | 16 | 2026 at slot 2, start |
+| PT18 | a view within one year keeps the 4 px top | 2026-03 | 2026-10 | 343 | 4 | — |
+| PT18 | January as the first month: no row, 4 px top | 2026-01 | 2026-12 | 343 | 4 | — |
+| PT17 | a January in the last slot writes its year left of the line, inside the card | 2025-02 | 2026-01 | 343 | 16 | 2026 at slot 11, end |
+<!-- test-plan:end -->
+
 ## Owner decisions
 
 Decided by the owner on 2026-10-24, each as the draft recommended.
@@ -290,6 +323,20 @@ Decided by the owner on 2026-10-24, each as the draft recommended.
    Prod needs a separate owner approval later. Rejected: a `trend`
    field in `/api/digest` (b), a field in `/api/people` (c).
 7. **Count unit: events** (option a), not distinct active people (b).
+
+## Amendment 2026-10-25 (1): years on the compact axis
+
+The owner read the Dev card (2026-10-25): with only 「11月」 on the left and
+「10月 · 進行中 · 至 10/24」 on the right, the 12 bars looked newest-first.
+Approved fix: the two end labels carry the year (zh-Hant `YYYY/M`, as the
+dates on this page are written; English the short month and the year), and a
+small 「YYYY」 marker with a faint boundary line sits above the plot at each
+January inside the view (Behavior 5, PT17, PT18). The marker row exists only
+when a January falls inside the view, so a view within one year keeps its
+height. The full view is the profile's chart (Spec 019) with its own axis,
+which already labels every month (every other month when narrow) in order; it is unchanged. No data, contract,
+token or colour change: the line uses `--border-strong` like the axis and the
+text the existing chart label style.
 
 ## Rollout
 

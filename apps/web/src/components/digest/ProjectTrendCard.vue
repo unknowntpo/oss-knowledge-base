@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
  * Spec 030 Behavior 4–9: the project activity trend on This week. Compact: 12 stacked monthly bars,
- * the first and last month, the current month in progress (dashed), and a hatched lane per series
+ * the first and last month with their years and a year marker at each January inside the view
+ * (amendment (1)), the current month in progress (dashed), and a hatched lane per series
  * recorded only in part. Expanded in place: the profile's chart in project mode with the 9/10
  * marker, the table and the data range line. Both read the one response already loaded.
  */
@@ -10,7 +11,7 @@ import { computed, onBeforeUnmount, ref, useId, watch } from "vue";
 import { useI18n } from "../../i18n";
 import { activityChart, type ChartSeries } from "../../profile-chart";
 import {
-  compactLayout, coverageMarker, inProgressDate, monthDay, recordedCoverage, trendChartInput, trendStale, trendVisible, updatedAt,
+  compactLayout, coverageMarker, inProgressDate, monthDay, recordedCoverage, trendAxis, trendChartInput, trendStale, trendVisible, updatedAt,
   type TrendAnswer,
 } from "../../project-trend";
 import PersonActivityChart from "../PersonActivityChart.vue";
@@ -52,9 +53,10 @@ const chart = computed(() => (input.value === undefined ? undefined : activityCh
 const layout = computed(() => (chart.value === undefined ? undefined : compactLayout(chart.value, width.value)));
 const lastIndex = computed(() => (chart.value?.buckets.length ?? 0) - 1);
 
+const axis = computed(() => trendAxis(chart.value?.buckets.map((bucket) => bucket.label) ?? [], locale.value === "zh-Hant" ? "zh-Hant" : "en"));
 const localeTag = computed(() => (locale.value === "zh-Hant" ? "zh-Hant-TW" : "en"));
-const monthName = (label: string, month: "short" | "long" = "short") =>
-  new Intl.DateTimeFormat(localeTag.value, { ...(month === "long" ? { year: "numeric" } : {}), month, timeZone: "UTC" }).format(new Date(`${label}-01T00:00:00Z`));
+const monthName = (label: string) =>
+  new Intl.DateTimeFormat(localeTag.value, { year: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${label}-01T00:00:00Z`));
 function seriesLabel(series: ChartSeries): string {
   return series === "given" ? t("trend.series.given") : t(`people.chart.series.${series}`);
 }
@@ -64,8 +66,8 @@ const ariaLabel = computed(() => {
   if (chart.value === undefined || current === undefined) return "";
   return t("trend.aria", {
     project: props.projectName,
-    from: monthName(chart.value.buckets[0]!.label, "long"),
-    to: monthName(current.label, "long"),
+    from: monthName(chart.value.buckets[0]!.label),
+    to: monthName(current.label),
     counts: chart.value.up.map((series) => `${seriesLabel(series)} ${current.values[series] ?? t("people.chart.notRecorded")}`).join(t("people.listSeparator")),
   });
 });
@@ -107,7 +109,7 @@ function segmentPath(x: number, segment: { readonly y: number; readonly height: 
       </button>
     </div>
     <template v-if="body && chart && layout">
-      <p v-for="month in body.unavailableMonths" :key="month" class="project-trend-note">{{ t("trend.monthUnavailable", { month: monthName(month, "long") }) }}</p>
+      <p v-for="month in body.unavailableMonths" :key="month" class="project-trend-note">{{ t("trend.monthUnavailable", { month: monthName(month) }) }}</p>
       <p v-if="stale" class="digest-lag">{{ t("trend.lag", { date: monthDay(body.until!) }) }}</p>
       <div v-if="!expanded" ref="wrap" class="project-trend-compact">
         <ul class="person-legend project-trend-legend">
@@ -131,8 +133,12 @@ function segmentPath(x: number, segment: { readonly y: number; readonly height: 
               :class="{ 'is-current': column.index === lastIndex }"
             />
           </g>
-          <text :x="layout.left" :y="layout.labelY" text-anchor="start" :data-trend-label="chart.buckets[0]!.label">{{ monthName(chart.buckets[0]!.label) }}</text>
-          <text :x="layout.width - layout.right" :y="layout.labelY" text-anchor="end" :data-trend-label="chart.buckets[lastIndex]!.label">{{ monthName(chart.buckets[lastIndex]!.label) }} <tspan class="project-trend-progress" data-in-progress>· {{ t("trend.inProgress", { date: inProgressDate(body, nowMs) }) }}</tspan></text>
+          <g v-for="year in layout.years" :key="year.index" class="project-trend-year" :data-trend-year="chart.buckets[year.index]!.label" aria-hidden="true">
+            <line :x1="year.x" :x2="year.x" :y1="year.textY - 8" :y2="layout.zero" />
+            <text :x="year.anchor === 'start' ? year.x + 3 : year.x - 3" :y="year.textY" :text-anchor="year.anchor">{{ year.year }}</text>
+          </g>
+          <text :x="layout.left" :y="layout.labelY" text-anchor="start" :data-trend-label="chart.buckets[0]!.label">{{ axis.first }}</text>
+          <text :x="layout.width - layout.right" :y="layout.labelY" text-anchor="end" :data-trend-label="chart.buckets[lastIndex]!.label">{{ axis.last }} <tspan class="project-trend-progress" data-in-progress>· {{ t("trend.inProgress", { date: inProgressDate(body, nowMs) }) }}</tspan></text>
           <g v-for="lane in layout.lanes" :key="lane.series" :data-lane="lane.series" aria-hidden="true">
             <rect
               v-for="(bucket, index) in chart.buckets" :key="bucket.label"

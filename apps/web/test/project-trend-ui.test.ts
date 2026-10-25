@@ -68,7 +68,7 @@ describe("Spec 030: the compact card", () => {
     expect(text(part(html, "project-trend-title", "</h2>"))).toContain("專案活動趨勢");
     expect(html.match(/data-trend-bucket="/gu)).toHaveLength(12);
     expect([...html.matchAll(/data-trend-label="([^"]+)"/gu)].map((match) => match[1])).toEqual(["2025-11", "2026-10"]);
-    expect(text(part(html, 'data-trend-label="2026-10"', "</text>"))).toContain("10月");
+    expect(text(part(html, 'data-trend-label="2026-10"', "</text>"))).toContain("2026/10");
     expect(inline(part(html, "data-in-progress", "</text>"))).toContain("進行中 · 至 10/24");
     expect(part(html, 'data-trend-bucket="2026-10"', "</g>")).toContain("is-current");
     expect(part(html, 'data-trend-bucket="2026-09"', "</g>")).not.toContain("is-current");
@@ -85,6 +85,33 @@ describe("Spec 030: the compact card", () => {
     expect(html).not.toContain("data-total");
     expect(html).not.toContain("person-chart-grid");
     expect(text(part(html, "data-trend-toggle", "</button>").replace(/^[^>]*>/u, ""))).toBe("查看完整趨勢");
+  });
+
+  test("PT17: the first and last labels carry the year, in zh-Hant and English", async () => {
+    const full = await body();
+    const zh = await card({ answer: { kind: "ok", body: full } });
+    expect(inline(part(zh, 'data-trend-label="2025-11"', "</text>")).replace(/^[^>]*>/u, "")).toBe("2025/11");
+    expect(inline(part(zh, 'data-trend-label="2026-10"', "</text>")).replace(/^[^>]*>/u, "")).toBe("2026/10 · 進行中 · 至 10/24");
+    const en = await card({ answer: { kind: "ok", body: full } }, "en");
+    expect(inline(part(en, 'data-trend-label="2025-11"', "</text>")).replace(/^[^>]*>/u, "")).toBe("Nov 2025");
+    expect(inline(part(en, 'data-trend-label="2026-10"', "</text>")).replace(/^[^>]*>/u, "")).toBe("Oct 2026 · in progress · to 10/24");
+  });
+
+  test("PT18: one year marker 「2026」 at the January bar, left of it a boundary line; none when the view starts in January", async () => {
+    const full = await body();
+    const html = await card({ answer: { kind: "ok", body: full } });
+    expect([...html.matchAll(/data-trend-year="([^"]+)"/gu)].map((match) => match[1])).toEqual(["2026-01"]);
+    const mark = part(html, 'data-trend-year="2026-01"', "</g>");
+    expect(text(mark.replace(/^[^>]*>/u, ""))).toBe("2026");
+    const lineX = Number(/<line x1="([\d.]+)"/u.exec(mark)![1]);
+    const janBarLeft = Number(/ d="M([\d.]+),/u.exec(part(html, 'data-trend-bucket="2026-01"', "</g>"))![1]);
+    const decBarLeft = Number(/ d="M([\d.]+),/u.exec(part(html, 'data-trend-bucket="2025-12"', "</g>"))![1]);
+    // The line is between the December and January bars.
+    expect(lineX).toBeGreaterThan(decBarLeft);
+    expect(lineX).toBeLessThan(janBarLeft);
+    // Positive control: shift the same months to start in January; the marker disappears.
+    const shifted = { ...full, months: full.months.map((month, index) => ({ ...month, month: `2026-${String(index + 1).padStart(2, "0")}` })) };
+    expect(await card({ answer: { kind: "ok", body: shifted } })).not.toContain("data-trend-year");
   });
 
   test("PT5: with every series recorded there is no lane (positive control for the hatching)", async () => {
