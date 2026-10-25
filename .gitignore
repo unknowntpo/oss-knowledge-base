@@ -20,3 +20,6 @@ playwright-report/
 playwright-report-development/
 test-results/
 dist/docs-site/
+
+# Spec 027 SRE59 eval: the Node bundle and --stub output
+packages/sre-agent/.eval/

@@ -1,6 +1,6 @@
 # Spec 027: Read-only SRE triage agent
 
-Status: Draft (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; [Amendment (1)](#amendment-1-triggered-diagnosis-2026-10-22) 2026-10-22: the agent diagnoses only after a deterministic rule fires; [Amendment (2)](#amendment-2-a-worker-job-on-the-ai-sdk-2026-10-22) 2026-10-22: an `sre-agent` job on the data publisher Worker, AI SDK with Workers AI, invariant playbooks; A2-1–A2-5 decided by owner 2026-10-22; [Dev fault-injection drill](#dev-fault-injection-drill-2026-10-22) added 2026-10-22; A2-9 slice 1 (the `packages/sre-agent` library core, L1/L2 tests) implemented; A2-9 slice 2 (the `sre-agent` cron job wired into the data publisher Worker, `/health.sreAgent`, the Spec 026 neuron term) implemented with `SRE_AGENT=off` on Dev and Prod, the drill routes not yet; see [Slice 1 notes](#slice-1-notes-2026-10-22) and [Slice 2 notes](#slice-2-notes-2026-10-23))
+Status: Draft (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; [Amendment (1)](#amendment-1-triggered-diagnosis-2026-10-22) 2026-10-22: the agent diagnoses only after a deterministic rule fires; [Amendment (2)](#amendment-2-a-worker-job-on-the-ai-sdk-2026-10-22) 2026-10-22: an `sre-agent` job on the data publisher Worker, AI SDK with Workers AI, invariant playbooks; A2-1–A2-5 decided by owner 2026-10-22; [Dev fault-injection drill](#dev-fault-injection-drill-2026-10-22) added 2026-10-22; A2-9 slice 1 (the `packages/sre-agent` library core, L1/L2 tests) implemented; A2-9 slice 2 (the `sre-agent` cron job wired into the data publisher Worker, `/health.sreAgent`, the Spec 026 neuron term) implemented with `SRE_AGENT=off` on Dev and Prod, the drill routes not yet; see [Slice 1 notes](#slice-1-notes-2026-10-22) and [Slice 2 notes](#slice-2-notes-2026-10-23); the L3 eval (SRE59, SRE60) run 2026-10-25: no candidate passes a diagnosis, A2-1 keeps the prior GLM-4.7-Flash, see [Eval notes](#eval-notes-2026-10-25))
 Date: 2026-10-20 (amended 2026-10-22)
 Traceability: enforced
 Builds on: Spec 008 (R2 operations), Spec 010, 011, 018, 021 (freshness and stalls), Spec 014 (digest), Spec 019 amendment (7) (identity-links, kip-pages jobs), Spec 020 (feature map), Spec 026 and its dollar-budget amendment (cost guard), Spec 028 (observability signals, PR #108, not merged), Spec 029 (R2 retention)
@@ -591,6 +591,14 @@ adopted as written):
   fits the cap; Llama's does not). **Decided (owner, 2026-10-22):** the
   SRE59 scoreboard chooses the model; GLM-4.7-Flash is the prior until it
   does.
+  **Eval result (2026-10-25, [scoreboard](eval/scoreboard-2026-10-25.md)):**
+  no candidate passed a single diagnosis (0 of 25 per model; the 10 passes
+  each are the two no-call rows), so the scoreboard does not separate them.
+  Its tie-break (pass rate, then fabrication, then neurons) names
+  GLM-4.7-Flash, which only keeps the prior: `SRE_AGENT_MODEL` stays
+  `@cf/zai-org/glm-4.7-flash`. The failures are in the loop's settings, not
+  in a model choice, so A2-1 is re-run after they are fixed ([Eval
+  notes](#eval-notes-2026-10-25)).
 - **A2-2 Where the owner labels diagnoses.** Recommended: a small JSON file
   per label in the repository (`docs/specs/027-sre-agent/labels/`), read
   by the KPI command; no new write path on Cloudflare. Alternative: a
@@ -625,7 +633,7 @@ Spec 028 decisions D2–D10 were decided by the owner on 2026-10-22 in Spec
    the provider import.
 2. **Slice 2 (PR):** wiring in the data publisher Worker (cron, writer,
    `/health.sreAgent`, Spec 026 neuron term SRE62), flag `off`.
-3. **Eval (owner, local):** SRE59 scoreboard; Decision A2-1.
+3. **Eval (owner, local):** SRE59 scoreboard; Decision A2-1. Run 2026-10-25 ([Eval notes](#eval-notes-2026-10-25)): no model passes; re-run after the fixes listed there.
 4. **Enable (PR):** Dev `SRE_AGENT=dry` for 7 days (SRE64), then Dev
    `live` (SRE65); Prod per Decision A2-4.
 5. **Drill (owner, Dev):** after Dev `live` and the `job.failures`
@@ -743,6 +751,71 @@ Where it differs from the text above, or settles what it left open:
 - **Not in this slice.** The drill routes and faults (SRE67–SRE75), which
   A2-9 placed in the wiring slice, and `POST /sre-agent/run` (SRE73) ship in
   their own PR; their rows stay `[pending]` (G100).
+
+### Eval notes (2026-10-25)
+
+The L3 eval (SRE59) and its grader self-test (SRE60). Command: `bun run
+--cwd packages/sre-agent eval -- --runs 5` (all three candidates, one model
+at a time); result:
+[`eval/scoreboard-2026-10-25.md`](eval/scoreboard-2026-10-25.md), every run's
+answer in the `.json` beside it.
+
+- **Harness.** `packages/sre-agent/scripts/eval/` turns each
+  `eval.cases.ts` row into fixed inputs (`/health`, the CI rule, the SQL
+  templates' answers) and runs the tick's own steps on them: `collectFirings`,
+  `planDiagnoses`, `buildBundle`, `diagnoseBundle` with the production
+  prompt, tools, 12-step limit and a fresh 1,500-neuron day per diagnosis.
+  Graders are code: the cause id, each required evidence item quoted by an
+  entry that passes `checkEvidence` (and no entry failing it), and the runbook
+  anchor (the row's, or one the expected cause lists in its playbook, which
+  reconciles row 1's `#health-and-manual-run` with `alarm-stuck`'s
+  `#follow-up-runs-spec-018`).
+- **Fixture playbooks.** Rows 2–5 fire rules with no playbook in
+  `docs/runbooks/sre/` yet, so only `unknown` could pass for them (B35).
+  `scripts/eval/playbooks.ts` gives each an eval-only cause list (the row's
+  cause plus distractors); the Worker never reads them.
+- **Workers AI from a laptop.** A remote `AI` binding from Wrangler's
+  `getPlatformProxy` (`scripts/eval.wrangler.jsonc`, the `wrangler login`
+  session, no API token), wrapped by the same `createAI(...).languageModel(id)`
+  call as the Worker (AI Gateway `default`). Wrangler's proxy does not run
+  under Bun, so `eval` bundles the script and runs it with Node.
+- **Cost.** A meter starts a diagnosis only while the budget still covers a
+  worst-case one (1,500 neurons). Workers AI reports `usage.neurons` per call;
+  it matched the A2-6 rates to 0.1 neuron. The run used 5,952 neurons
+  ($0.066 if all billed), plus 353 neurons ($0.004) in two one-model smoke
+  runs before it: **$0.069** in total, against $1.29. Per diagnosis: GLM 56,
+  Qwen 48, Llama 134 neurons, far under A2-6's estimates, because no model
+  called a tool (one step each).
+
+| Model | Diagnoses passed | Cause right | Fabrication (B32 check failed) | Malformed | Latency mean |
+| --- | --- | --- | --- | --- | --- |
+| GLM-4.7-Flash | 0/25 | 4/25 | 2/25 | 21/25 | 18.0 s |
+| Llama 3.3 70B | 0/25 | 5/25 | 25/25 | 0 | 5.9 s |
+| Qwen3 30B | 0/25 | 6/25 | 4/25 | 19/25 | 6.2 s |
+
+Why nothing passed, from the recorded answers:
+
+1. **Output cap.** Every GLM and Qwen `malformed` ended with `finishReason:
+   length`: `MAX_OUTPUT_TOKENS` (1,024 a step, B31) is spent on reasoning
+   tokens and long quotes before the JSON closes. A2-6 assumed ≤ 300 output
+   tokens a step.
+2. **`"null"` as text.** Llama wrote `"runbook": "null"` (a string) in 18 of
+   25 answers; `checkEvidence` rejects it as a runbook outside the playbook,
+   so every Llama answer is `unverified`.
+3. **Quotes not verbatim.** Answers quote reformatted JSON (`"ok":
+   false,"status"`, `r2.classA: 8190`) or prefix the item label; the
+   whitespace-collapsing check rejects them, as B32 requires.
+4. **No tool calls.** No model called a tool in 75 diagnoses, so no answer
+   cited a playbook or runbook item it fetched.
+
+Decision A2-1 therefore stays at the prior (above). Before Dev `live` and
+the A2-1 re-run, the owner decides: a higher per-step output cap or a
+reasoning-effort setting for GLM and Qwen (it changes the B31 reservation
+and the A2-6 table); normalizing a `"null"` runbook string to `null`; and
+whether quotes may be checked against a canonical (compact) JSON rendering
+of the item as well as its text. Each is its own change; the eval re-runs
+with `bun run --cwd packages/sre-agent eval` and should stay well under
+$0.10.
 
 ## Dev fault-injection drill (2026-10-22)
 
@@ -1308,7 +1381,7 @@ L2, AI SDK loop with `MockLanguageModelV4` (`loop.cases.ts`):
 L2 grader self-test and L3 eval fixtures (`eval.cases.ts`; types 1–4 of
 B28, two controls with no model call):
 
-<!-- test-plan:start packages/sre-agent/test/eval.cases.ts [pending] -->
+<!-- test-plan:start packages/sre-agent/test/eval.cases.ts -->
 | id | type | scenario | source | trigger | bundle | cause | evidence | runbook |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | SRE60 | 1 missed | dev-stall-2026-10-02 | reconstructed | dev publication: job.missed + publication.freshness | lastRun.completedAt 2026-09-30T01:07Z, now 2026-10-02T02:00Z, running false, scheduled alarm overdue; no publication point after 01:07Z | alarm-stuck | lastRun.completedAt; scheduled | cloudflare-data-publisher.md#health-and-manual-run |
@@ -1389,7 +1462,7 @@ by Amendment (1); SRE34 replaced it.
 
 ### Amendment (2): Eval
 - SRE59: [measure] for each candidate model, every `eval.cases.ts` row runs 5 times against real Workers AI; programmatic graders check the cause id, that each required evidence item is quoted and passes the check, and the runbook anchor; rows with trigger `none` make no model call; the scoreboard lists per model pass rate, fabrication rate, neurons per diagnosis and latency, measured by `bun run --cwd packages/sre-agent eval -- --model <id> --runs 5` (local, not CI) and committed under `docs/specs/027-sre-agent/eval/`.
-- SRE60: [pending] every `eval.cases.ts` row, given its golden answer through the mock model, passes all graders; with the cause id swapped or one quote altered it fails (negative control) → L2 test with the `eval.cases.ts` rows.
+- SRE60: every `eval.cases.ts` row, given its golden answer through the mock model, passes all graders; with the cause id swapped or one quote altered it fails (negative control) → L2 test with the `eval.cases.ts` rows.
 
 ### Amendment (2): Budget
 - SRE61: [measure] a healthy tick makes ≤ 1 R2 Class B, ≤ 2 Class A, 1 WAE point, ≤ 2 GitHub requests and 0 model calls; a diagnosis adds ≤ 12 model calls, ≤ 3 SQL queries and 1 Class A; a UTC day stays ≤ 3 diagnoses and ≤ 1,500 neurons, measured by `bun test --cwd packages/sre-agent -t SRE61`, which counts calls through fakes over the eval fixtures.

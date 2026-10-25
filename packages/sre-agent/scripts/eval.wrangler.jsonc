@@ -1,0 +1,8 @@
+// Spec 027 SRE59: the local eval's only binding, Workers AI through `wrangler login` (remote, no token).
+// Not a deployable Worker: `scripts/eval.ts` reads it with getPlatformProxy.
+{
+  "name": "sre-agent-eval",
+  "account_id": "2ef5fb1cf4a7bfd3de423dd10c2b2191",
+  "compatibility_date": "2026-08-21",
+  "ai": { "binding": "AI", "remote": true }
+}
