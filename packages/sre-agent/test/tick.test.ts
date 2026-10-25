@@ -456,15 +456,49 @@ const scenarios: Record<string, () => Promise<void>> = {
     // Verbatim from the compact serialization of the cited item passes.
     expect(quote("E1", "{\"ok\":false,\"status\":\"failed\"")).toEqual({ ok: true, failures: [] });
     expect(quote("E1", "\"r2\":{\"classA\":8190}")).toEqual({ ok: true, failures: [] });
-    // A paraphrase still fails, in either form.
+    // A paraphrase still fails.
     expect(quote("E1", "\"r2.classA\":8190")).toEqual({ ok: false, failures: ["quote-not-in-item:E1"] });
-    expect(quote("E1", "{\"ok\": false,\"status\": \"failed\"")).toEqual({ ok: false, failures: ["quote-not-in-item:E1"] });
+    // Mixed spacing passes since whitespace is insignificant (owner 2026-10-25, row "whitespace-insensitive quote").
+    expect(quote("E1", "{\"ok\": false,\"status\": \"failed\"")).toEqual({ ok: true, failures: [] });
     // Compact JSON of another item still fails.
     expect(quote("E1", "{\"error\":\"jira 503\"}")).toEqual({ ok: false, failures: ["quote-not-in-item:E1"] });
     expect(quote("E2", "{\"error\":\"jira 503\"}")).toEqual({ ok: true, failures: [] });
     // A non-JSON item has only its text form.
     expect(quote("E3", "conclusion: failure")).toEqual({ ok: true, failures: [] });
     expect(quote("E3", "\"conclusion: failure\"")).toEqual({ ok: false, failures: ["quote-not-in-item:E3"] });
+  },
+
+  async "whitespace-insensitive quote"() {
+    const lastRun = { status: "failed", error: "cwiki.apache.org answered 503", r2: { classA: 81900 } };
+    const bundle = {
+      items: [item("E1", JSON.stringify({ kipPages: { lastRun } }, null, 2)), item("E2", JSON.stringify({ costGuard: { status: "ok" } }, null, 2))],
+      causes: new Set(["alarm-stuck", "unknown"]), runbooks: new Set<string>(),
+    };
+    const quote = (id: string, text: string) => checkEvidence({ ...VALID_OUTPUT, runbook: null, evidence: [{ id, quote: text }] }, bundle);
+    const passes = { ok: true, failures: [] };
+    const fails = (id: string) => ({ ok: false, failures: [`quote-not-in-item:${id}`] });
+    // One-line quotes of the multi-line item, spaced after ":" and "," (drill throw-20261025T0627Z).
+    expect(quote("E1", "\"status\": \"failed\", \"error\": \"cwiki.apache.org answered 503\"")).toEqual(passes);
+    expect(quote("E1", "{\"status\": \"failed\", \"error\": \"cwiki.apache.org answered 503\"")).toEqual(passes);
+    expect(quote("E1", "\"lastRun\": {\"status\": \"failed\", \"error\": \"cwiki.apache.org answered 503\", \"r2\": {\"classA\": 81900}}")).toEqual(passes);
+    // Mixed spacing, tabs and newlines.
+    expect(quote("E1", "\"lastRun\": {\"status\":\"failed\", \"error\": \"cwiki.apache.org answered 503\"")).toEqual(passes);
+    expect(quote("E1", "\"status\":\"failed\",  \"error\" :\t\"cwiki.apache.org answered 503\",\n\"r2\"")).toEqual(passes);
+    expect(quote("E1", "cwiki.apache.org  answered\n503")).toEqual(passes);
+    // Elisions still fail.
+    expect(quote("E1", "\"status\": \"failed\", ... \"error\": \"cwiki.apache.org answered 503\"")).toEqual(fails("E1"));
+    expect(quote("E1", "\"status\": \"failed\", \u2026 \"error\": \"cwiki.apache.org answered 503\"")).toEqual(fails("E1"));
+    // Letters, digits and other punctuation still match exactly.
+    expect(quote("E1", "\"error\": \"cwiki.apache.org answered 502\"")).toEqual(fails("E1"));
+    expect(quote("E1", "status: failed")).toEqual(fails("E1"));
+    expect(quote("E1", "\"error\": \"cwiki-apache.org answered 503\"")).toEqual(fails("E1"));
+    expect(quote("E1", "cwikiapache.org answered 503")).toEqual(fails("E1"));
+    // Token boundaries hold across lines.
+    expect(quote("E1", "\"r2\": {\n  \"classA\": 8190")).toEqual(fails("E1"));
+    expect(quote("E1", "\"r2\": {\n  \"classA\": 81900")).toEqual(passes);
+    // A quote from another item still fails.
+    expect(quote("E2", "\"status\": \"failed\", \"error\": \"cwiki.apache.org answered 503\"")).toEqual(fails("E2"));
+    expect(quote("E2", "{\"costGuard\": {\"status\": \"ok\"}}")).toEqual(passes);
   },
 
   async "quote precision"() {

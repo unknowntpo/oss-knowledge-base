@@ -21,16 +21,11 @@ export interface EvidenceCheck {
   readonly failures: string[];
 }
 
-const collapse = (text: string) => text.replace(/\s+/gu, " ").trim();
-
-/** The item's compact JSON (`JSON.stringify`, no whitespace) when its text is JSON; owner decision 2026-10-25. */
-function compactJson(text: string): string | undefined {
-  try {
-    return JSON.stringify(JSON.parse(text));
-  } catch {
-    return undefined;
-  }
-}
+/**
+ * Whitespace is insignificant (owner decision 2026-10-25): every run collapses to one space, and a space beside JSON
+ * punctuation `:` `,` `{` `}` `[` `]` is dropped, so a one-line quote matches a pretty-printed item and its compact JSON.
+ */
+const normalize = (text: string) => text.replace(/\s+/gu, " ").replace(/ ?([:,{}[\]]) ?/gu, "$1").trim();
 
 const WORD = /[\p{L}\p{N}]/u;
 
@@ -49,20 +44,17 @@ function occursWhole(hay: string, needle: string): boolean {
 }
 
 /**
- * The quote occurs verbatim (whitespace collapsed) in the item's text, or verbatim in its compact JSON; it must hold a
- * letter or digit, and must not start or end inside a token of the item (verifier F-precision, 2026-10-25).
+ * The quote occurs in the item's text once both are normalized; it must hold a letter or digit, and must not start or
+ * end inside a token of the item (verifier F-precision, 2026-10-25).
  */
 function quotedIn(quote: string, text: string): boolean {
-  const wanted = collapse(quote);
-  if (wanted === "" || !WORD.test(wanted)) return false;
-  if (occursWhole(collapse(text), wanted)) return true;
-  const compact = compactJson(text);
-  return compact !== undefined && occursWhole(compact, quote.trim());
+  const wanted = normalize(quote);
+  return WORD.test(wanted) && occursWhole(normalize(text), wanted);
 }
 
 /**
- * Each quote occurs verbatim (whitespace collapsed) in the item it cites, or verbatim in that item's compact
- * JSON serialization when the item is JSON (owner decision 2026-10-25: models quote compact JSON); the cause is a playbook
+ * Each quote occurs in the item it cites, letters, digits and punctuation verbatim and in order, whitespace
+ * insignificant (`normalize`; owner decisions 2026-10-25); the cause is a playbook
  * cause id or `unknown`; the runbook is an anchor the playbook lists. Code only, no model.
  */
 export function checkEvidence(
