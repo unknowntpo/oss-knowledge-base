@@ -17,7 +17,8 @@ import { R2PublicationDestination } from "./r2-destination";
 import { FOLLOW_UP_KEY, runPending, runStarting, scheduleFollowUp, type FollowUpMarker } from "./run-schedule";
 import { healthBody } from "./health";
 import { identityLinksSet, R2IdentityLinksBucket, runIdentityLinks } from "./identity-links/run";
-import { KIP_PAGES_CRON_WALL_MS, kipPagesHealth, kipPagesRun, kipPagesSet } from "./kip-pages/run";
+import { parseFlag } from "@oss-knowledge-base/sre-agent";
+import { KIP_PAGES_CRON_WALL_MS, kipPagesHealth, kipPagesSet } from "./kip-pages/run";
 import { identityBackfillHealth, identityBackfillRun, identityBackfillSet } from "./identity-backfill/run";
 import { appendActivityLog, peopleActivitySet, R2ActivityBucket } from "./people-activity/run";
 import { runDataPublication, type PipelinePhaseMarker, type PipelineRunStatus } from "./pipeline";
@@ -35,6 +36,7 @@ import { PUBLICATION_RUN_KEY, publicationRunMarker, signalingPipelineState, sour
 import { signalsFor } from "./signals/env";
 import { runLog, type AnalyticsSql, type RunContext, type SignalsSink } from "./signals/recorder";
 import { signalsHealth } from "./signals/rules";
+import { drillRoute, kipPagesJob } from "./sre-agent/drill";
 import { sreAgentCron, sreAgentHealth, sreAgentNeuronsToday, sreAgentTick } from "./sre-agent/run";
 import { requestRetention, RETENTION_PENDING_KEY, RETENTION_REPORT_KEY, retentionAlarm, retentionHealth } from "./retention/job";
 import { resolveRetentionMode } from "./retention/plan";
@@ -154,6 +156,13 @@ interface Env {
   readonly SRE_AGENT_CRON?: string;
   /** Spec 027 B30: the Workers AI model id `live` uses through the `AI` binding. */
   readonly SRE_AGENT_MODEL?: string;
+  /** Spec 027 G100: the dedicated AI Gateway for the agent's model calls; Dev `osskb-sre-dev`, Prod unset. */
+  readonly SRE_AGENT_GATEWAY?: string;
+  /**
+   * Spec 027 drill (B38): `on` only in `wrangler.development.jsonc`. With `PUBLICATION_ENVIRONMENT`
+   * `development` it enables `POST`/`DELETE /sre-agent/drill` and the fault in the `kip-pages` job.
+   */
+  readonly SRE_DRILL?: string;
   /**
    * Spec 029 (dry-run slice): `dry-run` lists and reports what retention would delete, on its own
    * cron tick and its own alarm invocation of `PipelineState`. Unset, blank or `off`: nothing runs,
@@ -451,7 +460,8 @@ export default {
     if (target === "kip-pages") {
       // Spec 019 amendment (7), W98/W99: the kip-pages tick runs that job only, and nothing while `KIP_PAGES` is unset.
       // The scheduled handler has 15 minutes of wall time; the run stops before a request that could outlast 14 (W97).
-      if (kipPagesSet(env)) context.waitUntil(kipPagesRun(env, false, Date.now() + KIP_PAGES_CRON_WALL_MS).then(() => undefined));
+      // Spec 027 B39: an armed drill on Dev faults this run (kipPagesJob); elsewhere it never reads the pointer.
+      if (kipPagesSet(env)) context.waitUntil(kipPagesJob(env, false, Date.now() + KIP_PAGES_CRON_WALL_MS).then(() => undefined));
       return;
     }
     if (target === "identity-backfill") {
@@ -577,8 +587,21 @@ export default {
       if (!kipPagesSet(env)) return new Response("Not found", { status: 404 });
       if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
       // Runs while the caller waits (at most 13 upstream requests, 2 s apart): no Durable Object holds this job.
-      const result = await kipPagesRun(env, url.searchParams.get("dryRun") === "1");
-      return json(result, { status: result.lastRun?.ok === true ? 200 : 502 });
+      const result = await kipPagesJob(env, url.searchParams.get("dryRun") === "1");
+      // Spec 027 B40: a `skip` drill skips a manual run too.
+      if (result.skipped === "drill") return json({ ok: false, skipped: "drill" }, { status: 409 });
+      return json(result.health, { status: result.health.lastRun?.ok === true ? 200 : 502 });
+    }
+    if ((request.method === "POST" || request.method === "DELETE") && url.pathname === "/sre-agent/drill") {
+      // Spec 027 B38: Dev only; 404 before any other check elsewhere (SRE68).
+      return drillRoute(request, env, authorized(request, env));
+    }
+    if (request.method === "POST" && url.pathname === "/sre-agent/run") {
+      // Spec 027 B46: one tick now, under the same caps; no route while SRE_AGENT is off. The agent never calls it (B34).
+      if (parseFlag(env.SRE_AGENT).mode === "off") return new Response("Not found", { status: 404 });
+      if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
+      const result = await sreAgentTick(env, { now: new Date(), readHealth: () => tickHealth(env) });
+      return json(result, { status: result?.status === "ok" ? 200 : 502 });
     }
     if (request.method === "POST" && url.pathname === "/identity-backfill/run") {
       // W125: no route while the flag is unset.

@@ -107,6 +107,8 @@ export function readOnlyTools(bundle: Bundle, deps: ToolDeps, timeoutMs: number)
       description: "A field of this environment's /health JSON as served, by dotted path (for example kipPages.lastRun).",
       inputSchema: z.object({ path: z.string().regex(/^[A-Za-z][\w]*(\.[\w]+)*$/u) }),
       execute: run<{ path: string }>("get_health_section", "health", ({ path }) => path, async ({ path }) => {
+        // SRE71: the agent's own state (and the drill's `lastDrill` in it) is out of reach.
+        if (path === "sreAgent" || path.startsWith("sreAgent.")) return "refused: sreAgent is not readable";
         const value = path.split(".").reduce<unknown>((node, key) => (node !== null && typeof node === "object" ? (node as Record<string, unknown>)[key] : undefined), deps.health);
         return value === undefined ? `no field ${path}` : json(value);
       }),

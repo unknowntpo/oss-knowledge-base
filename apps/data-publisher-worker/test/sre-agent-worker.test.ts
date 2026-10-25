@@ -15,7 +15,7 @@ const NOW_MS = Date.parse(NOW);
 const SRE_CRONS = "30 0 * * *;0 11 * * *";
 const RUN_ID = "sre-agent-2026-10-23T00-30-00-000Z";
 const STATE_KEY = "internal/sre/v1/dev/state.json";
-const MODEL = "@cf/zai-org/glm-4.7-flash";
+const MODEL = "@cf/qwen/qwen3-30b-a3b-fp8"; // A2-1, owner decision 2026-10-25
 /** A Worker secret: 40 token characters, so the sanitizer's 32-character rule must catch it. */
 const SECRET = "ghs_0123456789abcdefghijABCDEFGHIJ012345";
 
@@ -178,12 +178,15 @@ const scenarios: Record<string, () => Promise<void>> = {
   async "deploy config"() {
     const dev = await readConfig("wrangler.development.jsonc");
     const prod = await readConfig("wrangler.production.jsonc");
-    expect(dev.vars?.SRE_AGENT).toBe("off");
+    // Owner decision 2026-10-25: Dev goes straight to live (A2-9 step 4); Prod stays off.
+    expect(dev.vars?.SRE_AGENT).toBe("live");
     expect(dev.vars?.SRE_AGENT_CRON).toBe(SRE_CRONS);
     expect(dev.vars?.SRE_AGENT_MODEL).toBe(MODEL);
+    expect(dev.vars?.SRE_AGENT_GATEWAY).toBe("osskb-sre-dev");
     for (const cron of SRE_CRONS.split(";")) expect(dev.triggers?.crons).toContain(cron);
     expect(prod.vars?.SRE_AGENT).toBe("off");
     expect(prod.vars?.SRE_AGENT_CRON).toBeUndefined();
+    expect(prod.vars?.SRE_AGENT_GATEWAY).toBeUndefined();
     expect(prod.triggers?.crons).toEqual(["37 22 * * *"]);
   },
 
@@ -274,6 +277,19 @@ const scenarios: Record<string, () => Promise<void>> = {
       expect(binding.calls).toHaveLength(0);
       expect(bucket.json(STATE_KEY).lastRun).toMatchObject({ status: "failed", reason: "SRE_AGENT=live needs a model" });
     }
+  },
+
+  async "model through the gateway"() {
+    const gatewayOf = (call: unknown[]) => (call[2] as { gateway?: { id?: string } } | undefined)?.gateway?.id;
+    const ai = new FakeAi();
+    await generateText({ model: sreAgentModel({ AI: ai, SRE_AGENT_MODEL: MODEL, SRE_AGENT_GATEWAY: "osskb-sre-dev" })!, prompt: "ping" });
+    expect(ai.calls).toHaveLength(1);
+    expect(ai.calls[0]![0]).toBe(MODEL);
+    expect(gatewayOf(ai.calls[0]!)).toBe("osskb-sre-dev");
+    // Unset (Prod has none) keeps the account default gateway.
+    const plain = new FakeAi();
+    await generateText({ model: sreAgentModel({ AI: plain, SRE_AGENT_MODEL: MODEL })!, prompt: "ping" });
+    expect(gatewayOf(plain.calls[0]!)).not.toBe("osskb-sre-dev");
   },
 
   async "neuron term"() {
