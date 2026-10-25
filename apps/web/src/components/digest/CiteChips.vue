@@ -10,14 +10,10 @@ const props = defineProps<{
 
 <template>
   <span class="cite-chips">
-    <a
-      v-for="id in props.cites"
-      :key="id"
-      class="cite"
-      :href="citeTarget(id, props.digest, props.feedIds).href"
-      :title="citeTarget(id, props.digest, props.feedIds).title"
-      :target="citeTarget(id, props.digest, props.feedIds).external ? '_blank' : undefined"
-      :rel="citeTarget(id, props.digest, props.feedIds).external ? 'noopener noreferrer' : undefined"
-    >{{ id }}</a>
+    <template v-for="target in props.cites.map((id) => ({ id, ...citeTarget(id, props.digest, props.feedIds) }))" :key="target.id">
+      <a v-if="target.external" class="cite" :href="target.href" :title="target.title" target="_blank" rel="noopener noreferrer">{{ target.id }}</a>
+      <!-- Spec 031: an internal cite is a path URL; RouterLink navigates without a page load. -->
+      <RouterLink v-else class="cite" :to="target.href" :title="target.title">{{ target.id }}</RouterLink>
+    </template>
   </span>
 </template>

@@ -5,6 +5,11 @@ Date: 2026-10-17
 Traceability: enforced
 Builds on: constitution §6 (visual language), ADR-0017 (the design system it links), Spec 019 (contributor profile chart and area donut), gardening G89 and G92
 
+> **Note 2026-10-25 ([Spec 031](../031-path-urls/spec.md)).** The web app
+> uses path URLs now: a route written `/#/<route>` below is `/<route>` (for
+> example `/#/kafka/threads` is `/kafka/threads`). Old `/#/…` links still
+> land on the same page.
+
 ## Intent
 
 Readers of every page can read every label and tell every chart series

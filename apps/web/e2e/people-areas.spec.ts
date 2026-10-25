@@ -7,8 +7,8 @@ import { expect, test, type Page } from "@playwright/test";
 // GitHub's avatar host is answered by a constructed image (or refused), so no real avatar loads.
 // Set PEOPLE_SCREENSHOT_DIR to keep the screenshots.
 
-const aliceRoute = `/#/kafka/people/${encodeURIComponent("github:alice")}`;
-const bobRoute = `/#/kafka/people/${encodeURIComponent("github:bob")}`;
+const aliceRoute = `/kafka/people/${encodeURIComponent("github:alice")}`;
+const bobRoute = `/kafka/people/${encodeURIComponent("github:bob")}`;
 const AVATAR = "https://avatars.githubusercontent.com/**";
 const SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="112" height="112"><rect width="112" height="112" fill="#8a4fb0"/><circle cx="56" cy="44" r="22" fill="#eef1fb"/><rect x="20" y="74" width="72" height="38" rx="18" fill="#eef1fb"/></svg>`;
 
@@ -96,7 +96,7 @@ for (const width of [320, 375]) {
 }
 
 test("W52: the person result in Search shows the avatar and the public name", async ({ page }) => {
-  await open(page, "/#/kafka/threads");
+  await open(page, "/kafka/threads");
   const people = page.waitForResponse((response) => response.url().includes("/api/people/kafka?"));
   await page.locator("#q").fill("alice");
   await people;

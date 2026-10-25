@@ -31,17 +31,17 @@ async function feedGeneratedAt(baseUrl: string, access: AccessHeaders | undefine
   return body.metadata?.manifest?.generatedAt;
 }
 
-// Spec 014: the Feed lives at /#/<project>/threads; This week, Proposals and topic pages are digest views.
+// Spec 014: the Feed lives at /<project>/threads (Spec 031 path URLs); This week, Proposals and topic pages are digest views.
 const PROJECT = "kafka";
 
 async function openView(page: Page, baseUrl: string, options: UiOptions, view: View): Promise<void> {
   if (options.route !== "/") {
-    await page.goto(`${baseUrl}/#${options.route}`);
+    await page.goto(`${baseUrl}${options.route}`);
     await page.waitForLoadState("networkidle");
     return;
   }
   if (view === "week" || view === "proposals" || view === "topic") {
-    await page.goto(`${baseUrl}/#/${PROJECT}/${view === "proposals" ? "proposals" : ""}`);
+    await page.goto(`${baseUrl}/${PROJECT}/${view === "proposals" ? "proposals" : ""}`);
     await page.locator("#digest, .proposals-tab, .digest-notice:not(.is-loading)").first().waitFor();
     if (view === "topic") {
       await page.locator(".topic-card-title a").first().click();
@@ -49,11 +49,11 @@ async function openView(page: Page, baseUrl: string, options: UiOptions, view: V
     }
     return;
   }
-  await page.goto(`${baseUrl}/#/${PROJECT}/threads`);
+  await page.goto(`${baseUrl}/${PROJECT}/threads`);
   await page.locator(".card").first().waitFor();
   if (view === "feed-detail") {
     await page.locator(".card").first().click();
-    await page.waitForURL(/#\/feed\//u);
+    await page.waitForURL(/\/feed\//u);
   }
   if (view === "search" || view === "search-detail") {
     await page.locator("#q").fill(options.query);
@@ -61,7 +61,7 @@ async function openView(page: Page, baseUrl: string, options: UiOptions, view: V
   }
   if (view === "search-detail") {
     await page.locator(".search-card").first().click();
-    await page.waitForURL(/#\/search\//u);
+    await page.waitForURL(/\/search\//u);
   }
   // The detail view reuses .load-error for its loading state; wait for content or a real error.
   if (view === "feed-detail" || view === "search-detail") {

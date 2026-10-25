@@ -5,6 +5,11 @@ Date: 2026-10-08
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 009 (bounded memory), Spec 010 (freshness), Spec 012 (dev@ and Jira, ADR-0014), Spec 014 (topic digest, profile `proposal`), ADR-0016
 
+> **Note 2026-10-25 ([Spec 031](../031-path-urls/spec.md)).** The web app
+> uses path URLs now: a route written `/#/<route>` below is `/<route>` (for
+> example `/#/kafka/threads` is `/kafka/threads`). Old `/#/…` links still
+> land on the same page.
+
 > **Note 2026-10-13 ([Spec 018](../018-daily-publication/spec.md)).** The
 > publisher now runs once a day (Dev 22:07 UTC), not hourly. This spec's
 > Decision 6 ("Hourly"), its proposed crons (`27 * * * *`, `57 * * * *`, "20
@@ -722,7 +727,7 @@ Slice 1, deterministic core:
 | Q13 | counts | queue object with stored counts {noReviewer 310, waiting 61, approved 22, vote 5, discuss 9} | accepted; counts equal the arrays |
 | Q13 | counts | constructed: stored noReviewer 309 with 310 rows | rejected: counts-mismatch |
 | Q14 | cite | #18706 | https://github.com/apache/kafka/pull/18706 |
-| Q14 | cite | KIP-1349 vote row | https://lists.apache.org/thread/ow8p1n05rob9n3k4b7xw8m8zqx4molbl and /#/feed/KAFKA-MAIL-82e0d5b3 |
+| Q14 | cite | KIP-1349 vote row | https://lists.apache.org/thread/ow8p1n05rob9n3k4b7xw8m8zqx4molbl and /feed/KAFKA-MAIL-82e0d5b3 |
 | Q16 | wording | KIP-1349, all 6 bodies read, root archived, roster read | "+1 × 2 · binding 2 of 3 (1 via roster)" |
 | Q16 | wording | constructed: KIP-1349 with Andrew Schofield's message unread | "seen +1 × 1 · binding ≥ 1 of 3 (1 via roster); 1 message unread"; short |
 | Q16 | wording | KIP-1279 with 1 unclear line | "seen +1 × 4 · binding ≥ 3 of 3 · 1 unmarked; 1 unclear line" |
@@ -821,7 +826,7 @@ Slice 3, web:
 | id | rule | input | expected |
 | --- | --- | --- | --- |
 | Q7 | column | fixture: apache-datafusion (proposal.kind null) | no KIP column |
-| Q5 | block | fixture queue for apache-kafka | #review-queue shows PR 393 and KIP 13, 3 rows each, link "All" to /#/review/apache-kafka |
+| Q5 | block | fixture queue for apache-kafka | #review-queue shows PR 393 and KIP 13, 3 rows each, link "All" to /review/apache-kafka |
 | Q6 | card | fixture: topic page with #23724 and #23739 | .pr-review-label "Awaiting reviewer" and "In review · 4 reviewers" |
 | Q15 | i18n | every review.* key | present in en and zh-Hant |
 | Q31 | stale | object generatedAt 3 h 0 min 1 s ago (controlled clock) | freshness line stale |

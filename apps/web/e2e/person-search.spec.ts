@@ -9,7 +9,7 @@ import { expect, test, type Page } from "@playwright/test";
 async function typeQuery(page: Page, query: string, options: { locale?: string; width?: number } = {}) {
   await page.addInitScript((value) => window.localStorage.setItem("community-kb-locale", value), options.locale ?? "en");
   if (options.width !== undefined) await page.setViewportSize({ width: options.width, height: 812 });
-  await page.goto("/#/kafka/threads");
+  await page.goto("/kafka/threads");
   const threads = page.waitForResponse((response) => response.url().includes("/api/search?"));
   const people = page.waitForResponse((response) => response.url().includes("/api/people/kafka?"));
   await page.locator("#q").fill(query);
@@ -28,7 +28,7 @@ test("W7: an exact login shows its person result first; the thread list is the /
   expect(people.people).toEqual([{ id: "github:alice", source: "github", display: "alice", name: "Alice Example", match: "exact" }]);
   const person = page.locator(".person-result");
   await expect(person).toHaveCount(1);
-  await expect(person.first()).toHaveAttribute("href", `#/kafka/people/${encodeURIComponent("github:alice")}`);
+  await expect(person.first()).toHaveAttribute("href", `/kafka/people/${encodeURIComponent("github:alice")}`);
   await expect(person.first()).toContainText("Exact login");
   // The person block comes before the thread list, which is unchanged: same cards, numbered from #1.
   const before = await page.evaluate(() => {
@@ -57,7 +57,7 @@ test("W7: a prefix shows prefix matches; the person result opens the profile", a
   const { people } = await typeQuery(page, "ca");
   expect(people.people.map((person: { id: string; match: string }) => `${person.id} ${person.match}`)).toEqual(["github:carol prefix"]);
   await page.locator(".person-result").first().click();
-  await expect(page).toHaveURL(new RegExp(`#/kafka/people/${encodeURIComponent("github:carol")}$`, "u"));
+  await expect(page).toHaveURL(new RegExp(`/kafka/people/${encodeURIComponent("github:carol")}$`, "u"));
   await expect(page.locator(".person-name")).toHaveText("carol");
 });
 
@@ -65,7 +65,7 @@ test("W7: a query that is not a login sends no person request and shows no perso
   const requests: string[] = [];
   page.on("request", (request) => { if (request.url().includes("/api/people/kafka?")) requests.push(request.url()); });
   await page.addInitScript(() => window.localStorage.setItem("community-kb-locale", "en"));
-  await page.goto("/#/kafka/threads");
+  await page.goto("/kafka/threads");
   const threads = page.waitForResponse((response) => response.url().includes("/api/search?"));
   await page.locator("#q").fill("alice bob");
   await threads;

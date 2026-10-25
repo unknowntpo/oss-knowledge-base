@@ -104,7 +104,7 @@ export const testPlanRows = [
   { id: "Q13", rule: "counts", input: "queue object with stored counts {noReviewer 310, waiting 61, approved 22, vote 5, discuss 9}", expected: "accepted; counts equal the arrays" },
   { id: "Q13", rule: "counts", input: "constructed: stored noReviewer 309 with 310 rows", expected: "rejected: counts-mismatch" },
   { id: "Q14", rule: "cite", input: "#18706", expected: "https://github.com/apache/kafka/pull/18706" },
-  { id: "Q14", rule: "cite", input: "KIP-1349 vote row", expected: "https://lists.apache.org/thread/ow8p1n05rob9n3k4b7xw8m8zqx4molbl and /#/feed/KAFKA-MAIL-82e0d5b3" },
+  { id: "Q14", rule: "cite", input: "KIP-1349 vote row", expected: "https://lists.apache.org/thread/ow8p1n05rob9n3k4b7xw8m8zqx4molbl and /feed/KAFKA-MAIL-82e0d5b3" },
   { id: "Q16", rule: "wording", input: "KIP-1349, all 6 bodies read, root archived, roster read", expected: "\"+1 × 2 · binding 2 of 3 (1 via roster)\"" },
   { id: "Q16", rule: "wording", input: "constructed: KIP-1349 with Andrew Schofield's message unread", expected: "\"seen +1 × 1 · binding ≥ 1 of 3 (1 via roster); 1 message unread\"; short" },
   { id: "Q16", rule: "wording", input: "KIP-1279 with 1 unclear line", expected: "\"seen +1 × 4 · binding ≥ 3 of 3 · 1 unmarked; 1 unclear line\"" },

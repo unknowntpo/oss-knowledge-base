@@ -6,7 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const DARK_PAGE = "rgb(24, 24, 29)";
 const LIGHT_PAGE = "rgb(245, 244, 241)";
-const aliceRoute = `/#/kafka/people/${encodeURIComponent("github:alice")}`;
+const aliceRoute = `/kafka/people/${encodeURIComponent("github:alice")}`;
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -26,7 +26,7 @@ test("DM1: a dark OS gets a dark first paint before the app script has run", asy
   let release!: () => void;
   const held = new Promise<void>((resolve) => { release = resolve; });
   await page.route("**/assets/*.js", async (route) => { await held; await route.continue(); });
-  await page.goto("/#/kafka/threads", { waitUntil: "commit" });
+  await page.goto("/kafka/threads", { waitUntil: "commit" });
   await page.waitForFunction(() => document.body !== null && getComputedStyle(document.body).backgroundColor !== "rgba(0, 0, 0, 0)");
   const first = await page.evaluate(() => ({
     theme: document.documentElement.dataset.theme,
@@ -42,7 +42,7 @@ test("DM1: a dark OS gets a dark first paint before the app script has run", asy
 
 test("DM1: a light OS stays light; a stored choice wins over the OS and survives a reload; a live OS change is followed only without one", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
-  await page.goto("/#/kafka/threads");
+  await page.goto("/kafka/threads");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await expect(page.locator("body")).toHaveCSS("background-color", LIGHT_PAGE);
   await page.emulateMedia({ colorScheme: "dark" });
@@ -63,7 +63,7 @@ test("DM3: storage that throws still renders the OS theme, without errors", asyn
   });
   const errors = collectErrors(page);
   await page.emulateMedia({ colorScheme: "dark" });
-  await page.goto("/#/kafka/threads");
+  await page.goto("/kafka/threads");
   await expect(page.locator(".card").first()).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   expect(errors).toEqual([]);
@@ -86,7 +86,7 @@ for (const width of [320, 375]) {
     test(`DM8: every page at ${width} px in ${scheme} has the theme's page colour and no sideways scroll`, async ({ page }) => {
       await page.setViewportSize({ width, height: 800 });
       await page.emulateMedia({ colorScheme: scheme });
-      for (const hash of ["/#/kafka/threads", "/#/feed/KAFKA-PR-43", "/#/kafka/", "/#/kafka/proposals", aliceRoute, `/#/kafka/people/${encodeURIComponent("mail:dana mailer")}`]) {
+      for (const hash of ["/kafka/threads", "/feed/KAFKA-PR-43", "/kafka/", "/kafka/proposals", aliceRoute, `/kafka/people/${encodeURIComponent("mail:dana mailer")}`]) {
         await page.goto(hash);
         await page.waitForLoadState("networkidle");
         await expect(page.locator("html")).toHaveAttribute("data-theme", scheme);
@@ -104,7 +104,7 @@ const themeColors = (page: Page) => page.locator('meta[name="theme-color"]').eva
 test("DM2: the toggle switches the theme at once, persists across a reload, and updates theme-color", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 }); // the radio group shows above 420 px
   await page.emulateMedia({ colorScheme: "light" });
-  await page.goto("/#/kafka/threads");
+  await page.goto("/kafka/threads");
   const group = page.getByRole("radiogroup", { name: "Theme" });
   await expect(group.getByRole("radio", { name: "System" })).toHaveAttribute("aria-checked", "true");
   await group.getByRole("radio", { name: "Dark" }).click();
@@ -124,7 +124,7 @@ test("DM2: 跟隨系統 follows a live OS change; zh-Hant labels", async ({ page
   await page.setViewportSize({ width: 1280, height: 800 }); // the radio group shows above 420 px
   await page.addInitScript(() => window.localStorage.setItem("community-kb-locale", "zh-Hant"));
   await page.emulateMedia({ colorScheme: "light" });
-  await page.goto("/#/kafka/threads");
+  await page.goto("/kafka/threads");
   const group = page.getByRole("radiogroup", { name: "外觀" });
   await group.getByRole("radio", { name: "深色" }).click();
   await group.getByRole("radio", { name: "跟隨系統" }).click();
@@ -139,7 +139,7 @@ test("DM2: 跟隨系統 follows a live OS change; zh-Hant labels", async ({ page
 test("DM2: the toggle works from the keyboard with the light focus ring", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 }); // the radio group shows above 420 px
   await page.emulateMedia({ colorScheme: "dark" });
-  await page.goto("/#/kafka/threads");
+  await page.goto("/kafka/threads");
   const system = page.getByRole("radio", { name: "System" });
   await system.focus();
   await page.keyboard.press("ArrowLeft");
@@ -159,7 +159,7 @@ test("DM2: with storage that throws, the toggle still applies the theme for the 
   });
   const errors = collectErrors(page);
   await page.emulateMedia({ colorScheme: "light" });
-  await page.goto("/#/kafka/threads");
+  await page.goto("/kafka/threads");
   await page.getByRole("radio", { name: "Dark" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.emulateMedia({ colorScheme: "dark" });
@@ -172,7 +172,7 @@ for (const width of [320, 375]) {
   test(`DM2: at ${width} px one theme button inside the top bar cycles the choice, and the stale pill wraps to no more lines than before`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 });
     await page.emulateMedia({ colorScheme: "dark" });
-    await page.goto("/#/kafka/threads");
+    await page.goto("/kafka/threads");
     await expect(page.locator("[data-theme-control]")).toBeHidden();
     const button = page.locator("[data-theme-cycle]");
     await expect(button).toHaveAccessibleName("Theme: System (press for Light)");
@@ -206,7 +206,7 @@ for (const width of [320, 375]) {
     test(`DM2: at ${width} px (${locale}) the short locale label sits inside the top bar, overlaps no other control, is hidden from assistive tech, and still switches the language`, async ({ page }) => {
       await page.addInitScript((value) => window.localStorage.setItem("community-kb-locale", value), locale);
       await page.setViewportSize({ width, height: 800 });
-      await page.goto("/#/kafka/threads");
+      await page.goto("/kafka/threads");
       const short = page.locator(".locale-short");
       await expect(short).toHaveText(locale === "en" ? "EN" : "中文");
       const box = async (selector: string) => (await page.locator(selector).boundingBox())!;
@@ -234,7 +234,7 @@ for (const width of [320, 375]) {
 
 test("DM2: at 375 px the locale focus ring follows the select's :focus-visible: shown after Tab, and after a mouse press exactly when the browser shows it on a native select", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
-  await page.goto("/#/kafka/threads");
+  await page.goto("/kafka/threads");
   const short = page.locator(".locale-short");
   const select = page.locator(".locale-control select");
   await expect(short).toHaveCSS("outline-style", "none");
@@ -262,7 +262,7 @@ test("DM2: at 375 px the locale focus ring follows the select's :focus-visible: 
 
 test("DM2: every theme option has its own accessible name (not only a title)", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto("/#/kafka/threads");
+  await page.goto("/kafka/threads");
   for (const [choice, name] of [["light", "Light"], ["dark", "Dark"], ["system", "System"]]) {
     await expect(page.locator(`[data-theme-choice="${choice}"]`)).toHaveAttribute("aria-label", name);
   }

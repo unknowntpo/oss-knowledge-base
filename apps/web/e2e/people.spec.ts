@@ -6,7 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 // e2e:prepare` seeds (apps/web/scripts/people-e2e-fixture.ts) and the Feed fixture's authors.
 // Set PEOPLE_SCREENSHOT_DIR to keep a screenshot of the profile per project (desktop, phone).
 
-const aliceRoute = `/#/kafka/people/${encodeURIComponent("github:alice")}`;
+const aliceRoute = `/kafka/people/${encodeURIComponent("github:alice")}`;
 
 async function open(page: Page, hash: string, locale = "en") {
   await page.addInitScript((value) => window.localStorage.setItem("community-kb-locale", value), locale);
@@ -26,11 +26,11 @@ async function screenshot(page: Page, name: string) {
 }
 
 test("W28: a GitHub author in Detail links to the profile, which shows coverage and every section", async ({ page }) => {
-  await open(page, "/#/feed/KAFKA-PR-43");
+  await open(page, "/feed/KAFKA-PR-43");
   const author = page.locator("a.author-link", { hasText: "bob" }).first();
-  await expect(author).toHaveAttribute("href", `#/kafka/people/${encodeURIComponent("github:bob")}`);
+  await expect(author).toHaveAttribute("href", `/kafka/people/${encodeURIComponent("github:bob")}`);
   await author.click();
-  await expect(page).toHaveURL(new RegExp(`#/kafka/people/${encodeURIComponent("github:bob")}$`, "u"));
+  await expect(page).toHaveURL(new RegExp(`/kafka/people/${encodeURIComponent("github:bob")}$`, "u"));
   await expect(page.locator(".person-name")).toHaveText("bob");
   await expect(page.locator(".person-community")).toHaveText("Activity in Apache Kafka");
   await expect(page.locator(".person-coverage li")).toHaveText([/^Reviews: \d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2}$/u, /^Comments, pull requests, Jira, dev@: \d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2}$/u]);
@@ -69,7 +69,7 @@ for (const width of [320, 375]) {
   });
 }
 
-const danaRoute = `/#/kafka/people/${encodeURIComponent("mail:dana mailer")}`;
+const danaRoute = `/kafka/people/${encodeURIComponent("mail:dana mailer")}`;
 
 test("W1 (2b): a dev@ identity has its own page, linked from nowhere else, with only dev@ counts", async ({ page }) => {
   await open(page, danaRoute);
@@ -99,7 +99,7 @@ for (const width of [320, 375]) {
 }
 
 test("W11: an identity with no recorded activity says so and names what is recorded", async ({ page }) => {
-  await open(page, `/#/kafka/people/${encodeURIComponent("github:nobody-here")}`);
+  await open(page, `/kafka/people/${encodeURIComponent("github:nobody-here")}`);
   await expect(page.locator(".person-missing")).toContainText("No recorded activity for this identity in Apache Kafka.");
   await expect(page.locator(".person-missing .person-coverage li").last()).toHaveText(/^Comments, pull requests, Jira, dev@: \d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2}$/u);
 });

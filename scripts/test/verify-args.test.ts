@@ -118,7 +118,7 @@ describe("summaries", () => {
       captures: [
         {
           view: "feed",
-          url: "https://example.test/#/",
+          url: "https://example.test/kafka/threads",
           screenshot: "/tmp/feed.png",
           htmlLang: "en",
           pageOverflowX: false,
@@ -141,7 +141,7 @@ describe("summaries", () => {
     expect(text).toBe(
       [
         "dev https://example.test 375x800 en clock=2026-08-25T15:23:00.000Z generatedAt=2026-08-25T12:00:00Z",
-        "[feed] https://example.test/#/ lang=en pageOverflowX=false",
+        "[feed] https://example.test/kafka/threads lang=en pageOverflowX=false",
         '  .demo-pill x1 visible class="demo-pill is-stale" box=60,10,200x40 "Data may be out of date · 3 h ago"',
         '  .topic-wrap x1 hidden,overflowX class="topic-wrap"',
       ].join("\n"),

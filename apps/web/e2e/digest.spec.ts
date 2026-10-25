@@ -25,7 +25,7 @@ test("D12: This week shows the digest: headline, stats, proposals with badges, t
   await expect(page.locator(".digest-kips .kip-row[data-stage]").first()).toBeVisible();
   await expect(page.locator('.kip-row:has(.kip-key:text("KIP-1349")) .stage-badge')).toHaveText(["Vote", "Discuss"]);
   await expect(page.locator(".topic-card").first()).toBeVisible();
-  await expect(page.locator(".topic-card a.cite").first()).toHaveAttribute("href", /^(#\/feed\/|https:\/\/)/u);
+  await expect(page.locator(".topic-card a.cite").first()).toHaveAttribute("href", /^(\/feed\/|https:\/\/)/u);
   await expect(page.locator("details.digest-routine")).not.toHaveAttribute("open", /.*/u);
   await expect(page.locator(".ai-label")).toContainText("AI summary · unreviewed");
   await noHorizontalOverflow(page);
@@ -33,18 +33,18 @@ test("D12: This week shows the digest: headline, stats, proposals with badges, t
 
 test("D62: routes carry the project; / opens the last project; DataFusion has no digest; Detail keeps its URL", async ({ page }) => {
   await open(page, "/");
-  await expect(page).toHaveURL(/#\/kafka\/$/u);
+  await expect(page).toHaveURL(/\/kafka\/$/u);
   await page.locator(".community-switcher").selectOption("datafusion");
-  await expect(page).toHaveURL(/#\/datafusion\/$/u);
+  await expect(page).toHaveURL(/\/datafusion\/$/u);
   await expect(page.locator(".no-digest-notice")).toContainText("No weekly digest for this community yet");
-  await expect(page.locator(".no-digest-notice a")).toHaveAttribute("href", "#/datafusion/threads");
+  await expect(page.locator(".no-digest-notice a")).toHaveAttribute("href", "/datafusion/threads");
   await expect(page.locator(".top-tab", { hasText: "Proposals" })).toHaveCount(0);
-  await page.goto("/#/");
-  await expect(page).toHaveURL(/#\/datafusion\/$/u);
-  await page.goto("/#/kafka/threads");
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/datafusion\/$/u);
+  await page.goto("/kafka/threads");
   await expect(page.locator(".card")).toHaveCount(2);
   await page.locator(".card").first().click();
-  await expect(page).toHaveURL(/#\/feed\//u);
+  await expect(page).toHaveURL(/\/feed\//u);
 });
 
 test("D43: every view, including a topic page, has the top bar; filters match their lists", async ({ page }) => {
@@ -90,7 +90,7 @@ test("D53: an unknown project or topic shows a not-found state with the top bar"
   await open(page, "/nope/");
   await expect(page.locator(".not-found")).toBeVisible();
   await expect(page.locator(".top-tabs")).toBeVisible();
-  await page.goto("/#/kafka/topic/no-such-topic");
+  await page.goto("/kafka/topic/no-such-topic");
   await expect(page.locator(".not-found")).toBeVisible();
 });
 
@@ -108,7 +108,7 @@ test("D62: the top-bar search hands its query to All threads", async ({ page }) 
   const search = page.waitForResponse((response) => response.url().includes("/api/search?") && response.url().includes("KIP-405"));
   await page.locator("#topbar-q").fill("KIP-405");
   await page.locator("#topbar-q").press("Enter");
-  await expect(page).toHaveURL(/#\/kafka\/threads$/u);
+  await expect(page).toHaveURL(/\/kafka\/threads$/u);
   expect((await search).status()).toBe(200);
   await expect(page.locator("#q")).toHaveValue("KIP-405");
   await expect(page.locator(".search-card").first()).toBeVisible();
