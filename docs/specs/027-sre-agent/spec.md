@@ -1464,7 +1464,7 @@ L1, deterministic tick (`tick.cases.ts`):
 | SRE44 | verbatim quote | quote equal to text of cited item (whitespace collapsed) | check passes, verdict kept |
 | SRE44 | fabricated or misplaced quote | quote absent from cited item / present only in another item / unknown id / empty or blank quote | verdict unverified, failure listed |
 | SRE44 | compact JSON quote | quote verbatim from the cited JSON item's compact serialization (JSON.stringify, no whitespace) / a paraphrase of it / compact JSON of another item / a non-JSON item | passes (owner 2026-10-25) / unverified / unverified / only its text form counts |
-| SRE44 | quote precision | a quote of only JSON syntax ({" or ":") / a quote ending or starting inside a token ("classA":8190 against 81900, "status":"fail against failed), in text and compact form / the whole value | unverified / unverified / passes |
+| SRE44 | quote precision | a quote of only JSON syntax ({" or ":") / a quote ending or starting inside a token ("classA":8190 against 81900, "status":"fail against failed), in text and compact form / a prefix of a non-ASCII word (échou of échoué) / the whole value, also a whole occurrence after one inside a token (fail in "failed; retry fail") | unverified / unverified / unverified / passes |
 | SRE44 | cause and runbook | cause not in playbook / runbook anchor not in playbook / cause unknown | unverified / unverified / passes |
 | SRE45 | output schema | record with every field / missing evidence / confidence "sure" | accepted / rejected / rejected |
 | SRE46 | write scope | keys internal/sre/v1/dev/runs/x.json / internal/sre/v1/prod/x / public/v2/current.json / identity-links last-run.json / public/x/internal/sre/v1/dev/y / a .. segment | written / refused before any R2 call (5 cases) |

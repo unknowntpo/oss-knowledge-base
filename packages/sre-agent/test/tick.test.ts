@@ -465,7 +465,7 @@ const scenarios: Record<string, () => Promise<void>> = {
 
   async "quote precision"() {
     const bundle = {
-      items: [item("E1", "{\"ok\":false}"), item("E2", JSON.stringify({ classA: 81900, status: "failed" }, null, 2)), item("E3", "run 39231615488 failed")],
+      items: [item("E1", "{\"ok\":false}"), item("E2", JSON.stringify({ classA: 81900, status: "failed" }, null, 2)), item("E3", "run 39231615488 failed"), item("E4", "état: échoué"), item("E5", "status failed; retry fail")],
       causes: new Set(["alarm-stuck", "unknown"]), runbooks: new Set<string>(),
     };
     const quote = (id: string, text: string) => checkEvidence({ ...VALID_OUTPUT, runbook: null, evidence: [{ id, quote: text }] }, bundle);
@@ -481,6 +481,8 @@ const scenarios: Record<string, () => Promise<void>> = {
     // Starts inside a token.
     expect(quote("E3", "9231615488 failed")).toEqual(fails("E3"));
     expect(quote("E2", "lassA\": 81900")).toEqual(fails("E2"));
+    // Unicode letters are word characters.
+    expect(quote("E4", "échou")).toEqual(fails("E4"));
     // Positive controls: whole values pass in both forms.
     expect(quote("E1", "{\"ok\":false}")).toEqual({ ok: true, failures: [] });
     expect(quote("E2", "\"classA\":81900")).toEqual({ ok: true, failures: [] });
@@ -488,6 +490,9 @@ const scenarios: Record<string, () => Promise<void>> = {
     expect(quote("E2", "\"status\":\"failed\"")).toEqual({ ok: true, failures: [] });
     expect(quote("E3", "39231615488")).toEqual({ ok: true, failures: [] });
     expect(quote("E3", "failed")).toEqual({ ok: true, failures: [] });
+    expect(quote("E4", "échoué")).toEqual({ ok: true, failures: [] });
+    // A later whole occurrence counts even when the first is inside a token.
+    expect(quote("E5", "fail")).toEqual({ ok: true, failures: [] });
   },
 
   async "cause and runbook"() {

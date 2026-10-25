@@ -124,6 +124,8 @@ describe("Spec 027 L3 harness: scoreboard and cost meter", () => {
     expect(a.latencyMsMean).toBeCloseTo((1000 + 3000 + 1000 + 1000) / 4);
     expect(a.costUsd).toBeCloseTo(600 * 0.011 / 1000);
     expect(renderScoreboard(board)).toContain("| a |");
+    expect(renderScoreboard(board)).toContain("$1.29");
+    expect(renderScoreboard(scoreboard([run("a", {})], { budgetUsd: 1.285 }))).toContain("$1.285");
   });
 
   test("eval harness: the winner has the highest pass rate, then the lowest fabrication rate, then the fewest neurons", () => {
