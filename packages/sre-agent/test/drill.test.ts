@@ -180,6 +180,14 @@ const scenarios: Record<string, () => Promise<void>> = {
     expect(store.objects.has(DRILL_POINTER_KEY)).toBe(true);
   },
 
+  async "failure at arming"() {
+    // since === armedAt: the boundary belongs to the drill.
+    const store = storeWithDrill(drillRecord({ armedAt: FIRST_FAILED }));
+    await runTick(tickDeps(store, failingHealth(), scripted(answer(GOLDEN))));
+    const record = JSON.parse(store.objects.get(drillRecordKey(DRILL_ID))!) as DrillRecord;
+    expect(record).toMatchObject({ state: "graded", result: "pass", reasons: [] });
+  },
+
   async drift() {
     expect(drillExpectationErrors("throw")).toEqual([]);
     expect(drillExpectationErrors("skip")).toEqual([]);

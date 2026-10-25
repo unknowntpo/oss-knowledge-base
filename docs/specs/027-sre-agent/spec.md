@@ -1406,6 +1406,7 @@ Dev fault-injection drill, core rows (`drill.cases.ts`, run by
 | SRE72 | grade fail | cause unknown / Q-window not cited / runbook roll-back / a quote not in its item (unverified) | fail: wrong-cause:unknown / missing-evidence:Q-window / runbook-mismatch:cloudflare-data-publisher.md#roll-back / verdict:unverified |
 | SRE72 | no diagnosis | throw fired 23 h / 25 h before a tick with no kip-pages diagnosis; skip fired 47 h / 49 h before | nothing graded, pointer kept / fail no-diagnosis; same for skip at 48 h |
 | SRE72 | failure before the drill | throw fired; the tick diagnoses kip-pages job.failures whose since (21:00) is before armedAt (21:10) | nothing graded: record stays fired, result null; pointer kept |
+| SRE72 | failure at arming | throw fired; the tick diagnoses kip-pages job.failures whose since equals armedAt (21:00) | graded pass: a failure at the arming instant is the drill's |
 | SRE72 | drift | drillExpectations vs the bundled job.failures and job.missed playbooks / a library without the cause, the anchor or the playbook | no error / an error naming the missing cause, anchor or playbook |
 <!-- test-plan:end -->
 
