@@ -364,12 +364,15 @@ with Amendment (1), it wins.
     "explained"|"unexplained"|"inconclusive", cause, confidence:
     "low"|"medium"|"high", evidence: [{id, quote}], runbook|null,
     ownerAction|null}`. Each `evidence[].id` must name a bundle item and its
-    `quote` must occur in that item verbatim (whitespace collapsed), or,
-    when the item's text is JSON, verbatim in its compact serialization
-    (`JSON.stringify` without whitespace; owner decision 2026-10-25, [Eval
-    notes](#eval-notes-2026-10-25)); in either form the quote must hold a
+    `quote` must occur in that item with whitespace insignificant: in both
+    the quote and the item every run of whitespace becomes one space and a
+    space beside JSON punctuation `:` `,` `{` `}` `[` `]` is dropped, so a
+    one-line quote matches a pretty-printed item and its compact JSON;
+    letters, digits and other punctuation must match exactly and in order,
+    and an elision (`...`, `…`) fails (owner decisions 2026-10-25, [Eval
+    notes](#eval-notes-2026-10-25)); the normalized quote must hold a
     letter or digit and must not start or end inside a token (a run of
-    letters and digits) of the item;
+    letters and digits) of the normalized item;
     `cause` must be a cause id of a firing rule's playbook or `unknown`;
     `runbook` must be an anchor that playbook lists. Any failure sets
     `verdict: "unverified"` and lists the failures; the record is still
@@ -920,6 +923,8 @@ item's compact JSON (`JSON.stringify` without whitespace), when the item's
 text is JSON. The quote must still be in the cited item; a paraphrase,
 mixed spacing or a quote from another item still fails. This closes that
 proposal. Normalizing a `"null"` runbook string stays declined.
+(Superseded for mixed spacing by the [whitespace-insensitive quote
+match](#eval-notes-2026-10-25) decision later that day.)
 
 **Third run (2026-10-25, with both owner decisions).** Command: `bun run
 --cwd packages/sre-agent eval -- --runs 5 --budget-usd 0.10 --interleave
@@ -950,6 +955,47 @@ run). Spend **$0.084**.
   `"null"` runbooks and paraphrases. No tool call in any diagnosis.
 - Spend across the day: $0.069 (first run and smoke runs) + $0.084 +
   $0.084 + $0.005 for the five single-call tool probes = **$0.241**.
+
+**Owner decision (2026-10-25): whitespace-insensitive quote match.** Dev
+drill `throw-20261025T0627Z` (run `sre-agent-2026-10-25T06-33-58-766Z`)
+named the right cause, `upstream-unavailable`, and runbook, but its verdict
+was `unverified`: all three quotes failed. Two held the right content as
+one-line JSON spaced after `:` and `,` (`{"status": "failed", "error":
+"cwiki.apache.org answered 503"`…) against a pretty-printed item, where the
+space after `{` and the line breaks differ; the third elided with `...`.
+The evidence check (B32, SRE44) now normalizes both quote and item:
+whitespace runs collapse to one space and a space beside `:` `,` `{` `}`
+`[` `]` is dropped. This replaces the separate compact-JSON path: every
+JSON item is `JSON.stringify(value, null, 2)` (bundle and tool results),
+whose whitespace outside strings always sits beside that punctuation, so
+the normalized item equals its normalized compact JSON. Letters, digits
+and other punctuation still match exactly; the two precision rules apply
+to the normalized forms; elisions and quotes from another item still fail
+(SRE44 row "whitespace-insensitive quote"). Normalizing a `"null"` runbook
+string stays declined.
+
+Regrade under whitespace-insensitive matching, no model calls: the
+production `checkEvidence` and the eval grader re-run over every recorded
+answer of the three scoreboards, bundles rebuilt from the fixtures (a
+recompute with the previous check reproduces every recorded grade; no
+recorded quote that passed before fails now; the committed scoreboards are
+unchanged).
+
+| Scoreboard | Model | Quotes passing (old → new) | Evidence check ok | Diagnoses passed |
+| --- | --- | --- | --- | --- |
+| first | GLM-4.7-Flash | 7 → 8 of 9 | 2 → 3 | 0 → 1 of 25 |
+| first | Llama 3.3 70B | 28 → 28 of 65 | 0 → 0 | 0 → 0 of 25 |
+| first | Qwen3 30B | 6 → 9 of 10 | 2 → 3 | 0 → 0 of 25 |
+| second | GLM-4.7-Flash | 13 → 15 of 23 | 2 → 3 | 0 → 1 of 24 |
+| second | Llama 3.3 70B | 29 → 29 of 69 | 2 → 2 | 0 → 0 of 24 |
+| second | Qwen3 30B | 26 → 61 of 62 | 3 → 11 | 0 → 4 of 24 |
+| third | GLM-4.7-Flash | 16 → 20 of 29 | 5 → 7 | 0 → 2 of 25 |
+| third | Llama 3.3 70B | 23 → 23 of 60 | 2 → 2 | 0 → 0 of 25 |
+| third | Qwen3 30B | 36 → 54 of 59 | 9 → 13 | 2 → 4 of 24 |
+
+Overall, diagnoses passed: first run 0 → 1 of 75, second 0 → 5 of 72,
+third 2 → 6 of 74. Qwen3 30B stays the third run's winner (A2-1 unchanged).
+Llama's answers still fail on paraphrase and the `"null"` runbook string.
 
 ### Drill slice notes (2026-10-25)
 
@@ -1552,6 +1598,7 @@ L1, deterministic tick (`tick.cases.ts`):
 | SRE44 | fabricated or misplaced quote | quote absent from cited item / present only in another item / unknown id / empty or blank quote | verdict unverified, failure listed |
 | SRE44 | compact JSON quote | quote verbatim from the cited JSON item's compact serialization (JSON.stringify, no whitespace) / a paraphrase of it / compact JSON of another item / a non-JSON item | passes (owner 2026-10-25) / unverified / unverified / only its text form counts |
 | SRE44 | quote precision | a quote of only JSON syntax ({" or ":") / a quote ending or starting inside a token ("classA":8190 against 81900, "status":"fail against failed), in text and compact form / a prefix of a non-ASCII word (échou of échoué) / the whole value, also a whole occurrence after one inside a token (fail in "failed; retry fail") | unverified / unverified / unverified / passes |
+| SRE44 | whitespace-insensitive quote | a pretty-printed multi-line JSON item quoted on one line with a space after : and , (two fields; the drill's {"status": "failed", "error": "cwiki.apache.org answered 503"}), with mixed spacing, tabs or newlines / the same quote elided with ... or … / a letter or digit changed (answered 502) / other punctuation changed (status: failed without quotes, cwiki-apache.org) / "classA": 8190 against 81900, across lines / the quote cited from another item | passes (owner 2026-10-25) / unverified / unverified / unverified / unverified / unverified |
 | SRE44 | cause and runbook | cause not in playbook / runbook anchor not in playbook / cause unknown | unverified / unverified / passes |
 | SRE45 | output schema | record with every field / missing evidence / confidence "sure" | accepted / rejected / rejected |
 | SRE46 | write scope | keys internal/sre/v1/dev/runs/x.json / internal/sre/v1/prod/x / public/v2/current.json / identity-links last-run.json / public/x/internal/sre/v1/dev/y / a .. segment | written / refused before any R2 call (5 cases) |
@@ -1686,7 +1733,7 @@ by Amendment (1); SRE34 replaced it.
 ### Amendment (2): Failure and retry
 - SRE39: Dev reads the newest `ci.yml` run on `main` and Prod the newest on a `v*` tag; `failure` fires `ci.release` in that environment only, `success` does not; an HTTP 403/429, 500 or a 20 s timeout makes `ci.release` `unknown`, recorded and never a firing; every request is a GET to `api.github.com` without an `Authorization` header → L1 test with case rows.
 - SRE41: given firings of 5 jobs, 3 are diagnosed and 2 recorded `notDiagnosed: "daily-cap"`, and a second tick the same UTC day diagnoses none; with `today.neurons` 1,000 a 500-neuron reservation runs and a 501-neuron one stops the diagnosis `inconclusive`, `reason: "budget"`; a reservation written before a model call that crashes is still counted on the next tick → L1 test with case rows.
-- SRE44: the evidence check passes a quote that occurs verbatim (whitespace collapsed) in the cited item, or verbatim in the cited JSON item's compact serialization (owner 2026-10-25), a quote holding a letter or digit that neither starts nor ends inside a token of the item (a syntax-only quote or a token prefix such as `8190` of `81900` fails), and sets `unverified` with the failure listed for a quote absent from the cited item, present only in another item, an unknown evidence id, a cause not in the playbook, or a runbook anchor the playbook does not list; `cause: "unknown"` passes → L1 test with case rows.
+- SRE44: the evidence check passes a quote that occurs in the cited item once both have whitespace runs collapsed to one space and spaces beside JSON punctuation `:` `,` `{` `}` `[` `]` dropped (owner 2026-10-25: a one-line `"status": "failed", "error": "…"` matches the pretty-printed item and its compact JSON; letters, digits and other punctuation exact and in order; `...` or `…` elisions fail), a quote holding a letter or digit that neither starts nor ends inside a token of the item (a syntax-only quote or a token prefix such as `8190` of `81900` fails), and sets `unverified` with the failure listed for a quote absent from the cited item, present only in another item, an unknown evidence id, a cause not in the playbook, or a runbook anchor the playbook does not list; `cause: "unknown"` passes → L1 test with case rows.
 - SRE46: the R2 writer writes a key under `internal/sre/v1/<env>/` and refuses, before any R2 call, a key of the other environment, a `public/` key or another job's key; across dry and live ticks no request goes to `/run`, `/*/run` or `/cost-guard/*`, no request is non-GET, and nothing is fetched from the other environment's host → L1 test with case rows.
 - SRE47: given the `sre-agent` branch throwing at each of steps 0–7 on a tick, the publication cron in the same handler still schedules its run, and `/health.sreAgent.lastRun.status` is `failed` with a sanitized reason → L1 test with case rows.
 - SRE51: given a scripted call to a tool outside B30's list, no tool executes and the diagnosis ends `inconclusive`, `reason: "unknown-tool"` → L2 test with case rows.
