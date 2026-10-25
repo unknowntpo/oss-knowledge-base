@@ -178,7 +178,8 @@ const scenarios: Record<string, () => Promise<void>> = {
   async "deploy config"() {
     const dev = await readConfig("wrangler.development.jsonc");
     const prod = await readConfig("wrangler.production.jsonc");
-    expect(dev.vars?.SRE_AGENT).toBe("off");
+    // Owner decision 2026-10-25: Dev goes straight to live (A2-9 step 4); Prod stays off.
+    expect(dev.vars?.SRE_AGENT).toBe("live");
     expect(dev.vars?.SRE_AGENT_CRON).toBe(SRE_CRONS);
     expect(dev.vars?.SRE_AGENT_MODEL).toBe(MODEL);
     for (const cron of SRE_CRONS.split(";")) expect(dev.triggers?.crons).toContain(cron);

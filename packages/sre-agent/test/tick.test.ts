@@ -370,6 +370,10 @@ const scenarios: Record<string, () => Promise<void>> = {
         expect(playbooks.map((value) => value.label)).toEqual(["job.missed"]);
         expect(runbooks).toEqual(["cloudflare-data-publisher.md#health-and-manual-run", "cloudflare-data-publisher.md#follow-up-runs-spec-018", "cloudflare-data-publisher.md#read-health", "cloudflare-data-publisher.md#reset-the-breaker", "cloudflare-data-publisher.md#failure-and-rollback", "cloudflare-data-publisher.md#roll-back"]);
         expect(bundle.playbookMissing).toEqual([]);
+      } else if (ruleId === "job.failures") {
+        expect(playbooks.map((value) => value.label)).toEqual(["job.failures"]);
+        expect(runbooks).toEqual(["cloudflare-data-publisher.md#upstream-failures-job-runs", "cloudflare-data-publisher.md#roll-back", "cloudflare-data-publisher.md#environment-map"]);
+        expect(bundle.playbookMissing).toEqual([]);
       } else {
         expect(playbooks).toEqual([]);
         expect(bundle.playbookMissing).toEqual([ruleId]);

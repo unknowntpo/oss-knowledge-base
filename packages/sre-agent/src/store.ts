@@ -26,5 +26,10 @@ export function scopedStore(env: Env, raw: RawStore): RawStore {
       if (!inScope(env, key)) throw new WriteScopeError(key);
       return raw.put(key, body);
     },
+    async delete(key) {
+      if (!inScope(env, key)) throw new WriteScopeError(key);
+      if (raw.delete === undefined) throw new Error("this store cannot delete");
+      return raw.delete(key);
+    },
   };
 }

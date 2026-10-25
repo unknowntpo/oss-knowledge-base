@@ -621,6 +621,159 @@ every invocation (Cron, alarm, `fetch`) and its `console` output is kept. Pages
 - Never copy checkpoints or Durable Object state between development and
   production.
 
+## Upstream failures (job runs)
+
+A job run that fails on its upstream records the host and the answer in its
+`lastRun.error` (for example `cwiki.apache.org answered 503`, `issues.apache.org answered
+429` or `<host>: <timeout or connection error>`) and writes nothing else;
+the previous output stays readable.
+
+- **5xx, timeout, connection error:** the upstream is down. Check its status
+  page; do nothing until it answers again, then run the job once by hand
+  (its `POST /<job>/run` route with `MANUAL_TRIGGER_TOKEN`) or wait for its
+  next cron run. No code or config change.
+- **403 or 429, or `retryAfter` in the record:** the upstream is limiting
+  this Worker. Wait for `retryAfter` (or an hour) before a manual run; if it
+  repeats daily, the job's request budget needs a spec change.
+- If other jobs failed in the same hours too, the cause is not this upstream:
+  read [Observability / logs](#observability--logs) for the Worker's errors.
+
+## SRE agent (Spec 027)
+
+The `sre-agent` job diagnoses firing rules (Spec 028 `signals`, a tripped
+cost guard, `ci.release`) with Workers AI and writes a record under
+`internal/sre/v1/<env>/`. It only reads: it never runs, pauses or resets
+anything. Dev runs `SRE_AGENT=live` (owner decision 2026-10-25, no `dry`
+week); Prod is `off`. Ticks: `30 0 * * *` and `0 11 * * *` UTC on Dev.
+Caps per UTC day: 3 diagnoses, 12 steps each, 1,500 neurons (counted by the
+cost guard).
+
+### After the deploy that turns on `live` (Dev)
+
+```sh
+DEV=https://oss-knowledge-base-data-dev.unknowntpo.workers.dev
+curl -sS "$DEV/health" | jq '.sreAgent'
+# {"mode":"live","status":null,"reason":null,"lastRun":null,"today":{…},"lastDrill":null}
+```
+
+After the next tick (or a manual tick, below) `status` is `ok`,
+`lastRun.runId` is `sre-agent-<time>` and `lastRun.recordKey` names the run
+record. `status: "failed"` with a `reason` means the tick failed and nothing
+else was touched; `status: "unknown"` means `state.json` could not be read.
+
+### Manual tick
+
+```sh
+curl -sS -X POST -H "Authorization: Bearer $MANUAL_TRIGGER_TOKEN" "$DEV/sre-agent/run" | jq '.runRecord | {runId, firings, diagnosed, modelCalls, neurons, diagnoses: [.diagnoses[] | {job, ruleIds, verdict, cause, confidence, evidence, runbook, evidenceCheck, trajectoryKey}]}'
+```
+
+One tick now, under the same caps (404 while `SRE_AGENT` is `off`). The run
+record and the trajectory (the bundle, every tool call and result) stay in
+R2; to read one (owner, from `apps/data-publisher-worker`):
+
+```sh
+bunx wrangler r2 object get "oss-knowledge-base-dev/<recordKey or trajectoryKey>" --remote --pipe -c wrangler.development.jsonc | jq .
+```
+
+### Fault-injection drill (Dev only)
+
+`SRE_DRILL=on` exists only in `wrangler.development.jsonc`; on Prod the drill
+routes answer 404 and the job never reads a drill pointer. The drill targets
+`kip-pages` only and never touches the publication, the feed or search. The
+agent does not know it is a drill. Spec:
+[Dev fault-injection drill](../specs/027-sre-agent/spec.md#dev-fault-injection-drill-2026-10-22).
+
+`throw` (about 15 minutes, hands on). Do not start it between 03:30 and
+03:50 UTC (the 03:43 `kip-pages` cron would take a fault) or within 10
+minutes of a tick (00:30, 11:00 UTC):
+
+1. Arm:
+
+   ```sh
+   curl -sS -X POST -H "Authorization: Bearer $MANUAL_TRIGGER_TOKEN" -H 'content-type: application/json' \
+     -d '{"job":"kip-pages","kind":"throw"}' "$DEV/sre-agent/drill"
+   # 201 {"drillId":"throw-<YYYYMMDDTHHmmZ>","job":"kip-pages","kind":"throw","runs":2,"armedAt":…,"expiresAt":…}
+   ```
+
+   409 `drill-active`: another drill is armed or fired and not graded (cancel
+   it, step 7). 409 `playbook-missing-cause`: the playbook does not list the
+   expected cause; do not drill.
+2. First faulted run:
+
+   ```sh
+   curl -sS -X POST -H "Authorization: Bearer $MANUAL_TRIGGER_TOKEN" "$DEV/kip-pages/run" | jq '.lastRun | {ok, status, error, runId, requests}'
+   # HTTP 502; {"ok":false,"status":"failed","error":"cwiki.apache.org answered 503",…}
+   ```
+
+   No request left the Worker. Dashboard → Workers & Pages →
+   `oss-knowledge-base-data-dev` → Observability: search `drill:` for one
+   error line with the `runId`. `/health.signals` shows `job.failures`
+   `warn` for `kip-pages`; `.sreAgent.lastDrill.state` is `armed`.
+3. Wait 5 minutes (time for run 1's data point to be queryable), then repeat
+   step 2. `/health.signals` shows `job.failures` `firing` for `kip-pages`
+   and `.sreAgent.lastDrill` is `{state: "fired", runIds: [2 ids]}`. If it
+   still shows `warn`, the history query did not see run 1 yet: cancel
+   (step 7), run the clean-up (step 6), wait longer and arm again.
+4. Tick now (or wait for 00:30 / 11:00 UTC) with the manual tick above. The
+   diagnosis for `kip-pages` should read:
+
+   | Field | Expected |
+   | --- | --- |
+   | `ruleIds` | `["job.failures"]` |
+   | `verdict` | `explained` (`evidenceCheck.ok: true`) |
+   | `cause` | `upstream-unavailable` |
+   | `evidence` | a quote containing `cwiki.apache.org answered 503` (the `kip-pages /health fields` item) and a quote of the `Q-window` item |
+   | `runbook` | `cloudflare-data-publisher.md#upstream-failures-job-runs` |
+   | `neurons` | ≈ 160 typical, ≤ 685 worst (GLM-4.7-Flash) |
+5. Read the grade:
+
+   ```sh
+   curl -sS "$DEV/health" | jq '.sreAgent.lastDrill'
+   # {"drillId":"throw-…","kind":"throw","state":"graded","result":"pass","reasons":[],"runIds":[…]}
+   ```
+
+   `fail` names each miss: `wrong-cause:<got>`, `missing-evidence:<item>`,
+   `runbook-mismatch:<got>`, `verdict:<verdict>`, or `no-diagnosis` (no
+   `kip-pages` diagnosis 24 h after the last faulted run). The full record is
+   `internal/sre/v1/dev/drills/<drillId>.json`; the diagnosis's trajectory is
+   its `diagnosis.trajectoryKey`.
+6. Clean up: one normal `POST $DEV/kip-pages/run` (HTTP 200, about 13
+   upstream requests) so `job.failures` returns to `ok`.
+7. To abandon a drill at any step: `curl -sS -X DELETE -H "Authorization:
+   Bearer $MANUAL_TRIGGER_TOKEN" "$DEV/sre-agent/drill"` (200 `cancelled`; 409
+   when none is active). An armed drill whose runs were not all faulted
+   expires after 48 h on its own.
+
+`skip` (about a day, mostly waiting): arm with `"kind":"skip"` after the
+03:43 UTC `kip-pages` run. The next run (the following 03:43 cron, or a
+manual one, which answers 409 `skipped: "drill"`) is skipped with a
+`console.warn` `drill:<drillId>` line and writes nothing; do not start
+`kip-pages` by hand until graded. `job.missed` fires 27 h after the last real
+run; the 11:00 UTC tick (or a manual tick after that) grades it, expecting
+cause `cron-not-fired` and runbook
+`cloudflare-data-publisher.md#health-and-manual-run`. The next cron run
+restores the job.
+
+### Stop and roll back
+
+Set `SRE_AGENT` to `off` (and remove `SRE_DRILL` to stop the drill) in
+`wrangler.development.jsonc` and merge; the deploy on merge applies it. For
+an immediate stop, change the variable in the dashboard (Workers & Pages →
+`oss-knowledge-base-data-dev` → Settings → Variables); the next deploy
+restores the file's value, so merge the change too. Stop when:
+
+- a record or trajectory quotes a secret;
+- anything is written outside `internal/sre/v1/dev/` (the drill adds only
+  `kip-pages`' own `internal/kips/v1/last-run.json`);
+- `/health.sreAgent.today.neurons` passes 1,500, or the cost guard's neurons
+  estimate rises by more than the agent's term;
+- another job's `/health` section (publication, digest, embedding, cost
+  guard) changes because of the agent or a drill;
+- Prod's `/health.sreAgent` shows anything but `{"mode":"off"}`.
+
+A drill left `fired` holds the pointer until a tick grades it (at most 24 h
+for `throw`, 48 h for `skip`); cancel it to free the route at once.
+
 ## Search lexical revision (Spec 016)
 
 `SEARCH_LEXICAL_REVISION` in a Worker's `vars` selects the lexical revision a

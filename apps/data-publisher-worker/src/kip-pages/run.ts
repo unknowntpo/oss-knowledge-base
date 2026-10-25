@@ -41,14 +41,17 @@ export function kipPagesSet(env: Pick<KipPagesEnv, "KIP_PAGES">): boolean {
  */
 export const KIP_PAGES_CRON_WALL_MS = 14 * 60_000;
 
-export function kipPagesRun(env: KipPagesEnv, dryRun: boolean, deadline?: number): Promise<KipPagesHealthV1> {
+/** The job's upstream transport; Spec 027's `throw` drill (B40) swaps it for one that answers 503 without sending. */
+export type KipPagesTransport = (url: string, init: RequestInit) => Promise<Response>;
+
+export function kipPagesRun(env: KipPagesEnv, dryRun: boolean, deadline?: number, transport: KipPagesTransport = (url, init) => fetch(url, init)): Promise<KipPagesHealthV1> {
   const signals = env.PUBLICATION_ENVIRONMENT === undefined ? undefined : signalsFor(env as SignalsEnv);
   let context: RunContext | undefined;
   return runKipPages({
     flag: env.KIP_PAGES ?? "",
     profile: KAFKA_KIP_PAGES,
     bucket: new R2KipPagesBucket(env.OSS_KB_BUCKET),
-    fetch: (url, init) => fetch(url, init),
+    fetch: transport,
     now: () => Date.now(),
     delay: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
     dryRun,

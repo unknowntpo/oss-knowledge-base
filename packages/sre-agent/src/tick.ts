@@ -4,7 +4,8 @@
  * propagate; the Worker's branch catches them (B23, SRE47).
  */
 import type { LanguageModel } from "ai";
-import { buildBundle, type Bundle } from "./bundle";
+import { buildBundle, type Bundle, type EvidenceItem } from "./bundle";
+import type { DrillSummary } from "./drill";
 import type { EvidenceCheck } from "./evidence";
 import { CI_JOB, collectFirings, parseFlag, readCiRelease } from "./firings";
 import { diagnoseBundle, renderPrompt, SYSTEM_PROMPT, type Diagnosis } from "./loop";
@@ -37,6 +38,12 @@ export interface TickDeps {
   readonly ciTimeoutMs?: number;
   /** Called as each step of B26 starts (0–7); a throw ends the tick like any other error (SRE47). */
   readonly onStep?: (step: number) => void;
+  /**
+   * B42: called after the run record is written and before `state.json`, with the `/health` the tick
+   * read and each diagnosed job's final bundle items (tool results included). A summary it returns is
+   * stored as `state.lastDrill`. The Worker passes the drill grader here only while the drill is on.
+   */
+  readonly afterRun?: (input: { readonly runRecord: RunRecord; readonly health: Health; readonly items: ReadonlyMap<string, readonly EvidenceItem[]> }) => Promise<DrillSummary | undefined>;
 }
 
 /** B33: the same `runId` in the WAE point, the run record, the trajectories and the log line. */
@@ -137,6 +144,7 @@ export async function runTick(deps: TickDeps): Promise<TickResult> {
 
   // Steps 4–6 per job (step 3, no new firing, is the empty loop).
   const diagnoses: DiagnosisRecord[] = [];
+  const items = new Map<string, readonly EvidenceItem[]>();
   for (const group of plan.groups) {
     step(4);
     const bundle = await buildBundle({ env, job: group.job, firings: group.firings, health, querySignals: deps.querySignals, ci, library, secrets });
@@ -154,6 +162,7 @@ export async function runTick(deps: TickDeps): Promise<TickResult> {
       output: diagnosis.output, evidenceCheck: diagnosis.evidenceCheck, verdict: diagnosis.verdict, reason: diagnosis.reason,
     }));
     for (const firing of group.firings) state.fingerprints[fingerprint(firing)] = { runId: firing.runId, diagnosedOn: date };
+    items.set(group.job, bundle.items);
     diagnoses.push(record(env, group.firings, bundle, diagnosis, deps.modelId, at, trajectoryKey));
   }
 
@@ -175,6 +184,8 @@ export async function runTick(deps: TickDeps): Promise<TickResult> {
     recordKey,
   };
   await store.put(recordKey, JSON.stringify(runRecord));
+  const lastDrill = deps.afterRun === undefined ? undefined : await deps.afterRun({ runRecord, health, items });
+  if (lastDrill !== undefined) state.lastDrill = lastDrill;
   state.lastRun = {
     runId, at, status: "ok", firings: runRecord.firings, diagnosed: runRecord.diagnosed, notDiagnosed: runRecord.notDiagnosed.length,
     modelCalls: runRecord.modelCalls, neurons: runRecord.neurons, verdicts: diagnoses.map((value) => value.verdict), recordKey,

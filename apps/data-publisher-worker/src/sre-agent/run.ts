@@ -7,8 +7,8 @@
  */
 import { createAI } from "agents/models/ai-sdk";
 import {
-  loadState, parseFlag, recordFailedTick, runTick, sreKey, sreRunId, utcDate,
-  type Env as SreEnv, type Health, type LastRun, type QuerySignals, type RawStore, type RunRecord, type SqlArgs,
+  activeDrillSummary, gradeActiveDrill, loadState, parseFlag, recordFailedTick, runTick, sreKey, sreRunId, utcDate,
+  type Env as SreEnv, type Health, type LastRun, type TickDeps, type QuerySignals, type RawStore, type RunRecord, type SqlArgs,
 } from "@oss-knowledge-base/sre-agent";
 import { errorText, sanitizeErrorMessage } from "../search-embedding/sanitize";
 import { signalsDataset } from "../signals/profile";
@@ -24,6 +24,8 @@ export interface SreAgentEnv {
   readonly SRE_AGENT_CRON?: string;
   /** B30: the Workers AI model id for `live` (A2-1: GLM-4.7-Flash until the SRE59 scoreboard decides). */
   readonly SRE_AGENT_MODEL?: string;
+  /** Spec 027 drill (B38): `on` only on Dev; see `drill.ts`. */
+  readonly SRE_DRILL?: string;
   readonly AI?: unknown;
   readonly OSS_KB_BUCKET: R2Bucket;
   readonly OBSERVABILITY_SIGNALS?: string;
@@ -33,6 +35,10 @@ export interface SreAgentEnv {
   readonly MANUAL_TRIGGER_TOKEN?: string;
   readonly CF_ANALYTICS_TOKEN?: string;
 }
+
+/** Spec 027 drill (B38, B39): `SRE_DRILL=on` and `PUBLICATION_ENVIRONMENT=development` (an allowlist). */
+export const drillEnabled = (env: { readonly SRE_DRILL?: string; readonly PUBLICATION_ENVIRONMENT?: string }) =>
+  (env.SRE_DRILL?.trim() ?? "") === "on" && env.PUBLICATION_ENVIRONMENT === "development";
 
 export const sreEnv = (environment: "development" | "production"): SreEnv => (environment === "production" ? "prod" : "dev");
 
@@ -56,6 +62,9 @@ export function r2Store(bucket: R2Bucket): RawStore {
     },
     async put(key, body) {
       await bucket.put(key, body, { httpMetadata: { contentType: "application/json" } });
+    },
+    async delete(key) {
+      await bucket.delete(key);
     },
   };
 }
@@ -106,6 +115,8 @@ export interface SreAgentTickDeps {
   readonly readHealth: () => Promise<Health>;
   readonly fetch?: typeof fetch;
   readonly onStep?: (step: number) => void;
+  /** Test seam: a model instead of the one built from the `AI` binding (SRE75 counts calls through a mock). */
+  readonly model?: ReturnType<typeof sreAgentModel>;
 }
 
 export interface SreAgentTickResult {
@@ -129,7 +140,7 @@ export async function sreAgentTick(env: SreAgentEnv, deps: SreAgentTickDeps): Pr
   let result: SreAgentTickResult;
   try {
     // Inside the try: a binding that fails as the model is built is a failed tick too (SRE47).
-    const model = flag.mode === "live" ? sreAgentModel(env) : undefined;
+    const model = flag.mode === "live" ? deps.model ?? sreAgentModel(env) : undefined;
     const tick = await runTick({
       env: sre,
       flag: env.SRE_AGENT,
@@ -142,6 +153,8 @@ export async function sreAgentTick(env: SreAgentEnv, deps: SreAgentTickDeps): Pr
       modelId: env.SRE_AGENT_MODEL?.trim() ?? "",
       secrets: secretsOf(env),
       ...(deps.onStep === undefined ? {} : { onStep: deps.onStep }),
+      // B42: the drill grader, only while the drill is on; its failure never fails the tick.
+      ...(drillEnabled(env) ? { afterRun: (input) => gradeDrill(store, input, deps.now, runId) } : {}),
     });
     result = { runId, status: "ok", ...(tick.runRecord === undefined ? {} : { runRecord: tick.runRecord }) };
   } catch (error) {
@@ -158,6 +171,21 @@ export async function sreAgentTick(env: SreAgentEnv, deps: SreAgentTickDeps): Pr
     : `sre-agent ${flag.mode} run: ${record.firings} firings, ${record.diagnosed} diagnosed, ${record.modelCalls} model calls, ${record.recordKey}`;
   (result.status === "ok" ? console.log : console.error)({ message: summary, runId, job: SRE_AGENT_JOB });
   return result;
+}
+
+/** B42: grades an active drill after the tick's run record; logs `drill:<drillId>` (B43). */
+async function gradeDrill(store: RawStore, input: Parameters<NonNullable<TickDeps["afterRun"]>>[0], now: Date, runId: string) {
+  try {
+    const summary = await gradeActiveDrill(store, { ...input, now });
+    if (summary !== undefined) {
+      const message = `drill:${summary.drillId} graded ${summary.result}${summary.reasons.length === 0 ? "" : `: ${summary.reasons.join(", ")}`}`;
+      console.log({ message, runId, job: SRE_AGENT_JOB });
+    }
+    return summary;
+  } catch (error) {
+    console.error({ message: sanitizeErrorMessage(`drill: grading failed: ${errorText(error)}`), runId, job: SRE_AGENT_JOB });
+    return undefined;
+  }
 }
 
 /**
@@ -189,13 +217,15 @@ function writePoint(env: SreAgentEnv, result: SreAgentTickResult, startedMs: num
 /**
  * B25, B33: `/health.sreAgent`. `off` (unset, `off`, or an invalid value with `reason:
  * "invalid-flag"`) reads nothing. Otherwise one R2 read of `state.json`: `{mode, status, reason,
- * lastRun, today}`, with `status` and `reason` from the last run (null before the first one).
+ * lastRun, today}`, with `status` and `reason` from the last run (null before the first one). While
+ * the drill is on, `lastDrill` too (the pointer and record of an active drill, else `state.lastDrill`).
  */
-export async function sreAgentHealth(env: Pick<SreAgentEnv, "SRE_AGENT" | "OSS_KB_BUCKET" | "PUBLICATION_ENVIRONMENT">, now: Date): Promise<Record<string, unknown>> {
+export async function sreAgentHealth(env: Pick<SreAgentEnv, "SRE_AGENT" | "SRE_DRILL" | "OSS_KB_BUCKET" | "PUBLICATION_ENVIRONMENT">, now: Date): Promise<Record<string, unknown>> {
   const flag = parseFlag(env.SRE_AGENT);
   if (flag.mode === "off") return flag.reason === undefined ? { mode: "off" } : { mode: "off", reason: flag.reason };
   try {
-    const body = await r2Store(env.OSS_KB_BUCKET).get(sreKey(sreEnv(env.PUBLICATION_ENVIRONMENT), "state.json"));
+    const store = r2Store(env.OSS_KB_BUCKET);
+    const body = await store.get(sreKey(sreEnv(env.PUBLICATION_ENVIRONMENT), "state.json"));
     const state = loadState(body, utcDate(now));
     const lastRun: LastRun | null = state.lastRun ?? null;
     return {
@@ -204,6 +234,8 @@ export async function sreAgentHealth(env: Pick<SreAgentEnv, "SRE_AGENT" | "OSS_K
       reason: lastRun?.status === "failed" ? lastRun.reason : null,
       lastRun,
       today: state.today,
+      // B42: the active drill (armed or fired), else the last graded one; only while the drill is on.
+      ...(drillEnabled(env) ? { lastDrill: (await activeDrillSummary(store).catch(() => null)) ?? state.lastDrill ?? null } : {}),
     };
   } catch (error) {
     return { mode: flag.mode, status: "unknown", reason: sanitizeErrorMessage(`reading state.json failed: ${errorText(error)}`), lastRun: null, today: null };

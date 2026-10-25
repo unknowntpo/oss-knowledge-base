@@ -8,4 +8,5 @@ export * from "./playbook";
 export * from "./store";
 export * from "./loop";
 export * from "./tick";
+export * from "./drill";
 export { PLAYBOOK_LIBRARY } from "./playbooks.generated";

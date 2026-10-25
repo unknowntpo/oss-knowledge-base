@@ -1212,26 +1212,30 @@ the two `viewer/` items below.
 - **Fix:** drop `skipLibCheck` when an `ai` release type-checks under
   `exactOptionalPropertyTypes`; verify the logs endpoint unauthenticated in
   the wiring slice and fetch the tail or remove it from B29; make eval row 1
-  and the playbook agree in the L3 slice; the Dev `live` enable PR states
-  whether its operator sequence clears `state.json` `fingerprints`.
+  and the playbook agree in the L3 slice (eval row 2 still expects "a runbook
+  gap" for `job.failures`; since 2026-10-25 the playbook cites
+  `cloudflare-data-publisher.md#upstream-failures-job-runs`). The
+  fingerprint carry-over does not apply to Dev: the owner skipped the `dry`
+  week (2026-10-25), Dev never ran `dry`, and `state.json` had no
+  fingerprints when `live` started.
 - **Layer:** static check (typecheck), then test rows (wiring slice, L3).
 - **Source:** Spec 027 A2-9 slice 1, 2026-10-22.
 
-### G100. SRE agent wiring: the AI Gateway for `live`, the drill routes, and `agents`' install footprint are open
+### G100. SRE agent wiring: the AI Gateway for `live` and `agents`' install footprint are open
 - **Where:** `apps/data-publisher-worker/src/sre-agent/run.ts` (`sreAgentModel`),
-  `apps/data-publisher-worker/package.json` (`agents` 0.27.0),
-  `packages/sre-agent/test/drill.cases.ts` (SRE67–SRE75, `[pending]`).
+  `apps/data-publisher-worker/package.json` (`agents` 0.27.0).
 - **Why:** `createAI` routes every call through an AI Gateway, id `default`
   unless one is set, and Cloudflare creates `default` on first use; the digest
   and search use named gateways (`osskb-digest-dev`, `osskb-search-dev`).
-  The drill routes and faults, and `POST /sre-agent/run`, which A2-9 placed in
-  the wiring slice, are not built. `agents` 0.27.0 installs about 110 packages
+  Dev runs `live` since the 2026-10-25 owner decision without a named
+  gateway, so it uses `default`. The drill and `POST /sre-agent/run` were
+  built in their own PR (2026-10-25). `agents` 0.27.0 installs about 110 packages
   (Babel, esbuild, the MCP SDK, Express) for the one `agents/models/ai-sdk`
   import; the Worker bundle includes only that module. The CI log-tail check
   of G99 was not done in this slice.
-- **Fix:** decide the gateway before Dev `live` (pass a named one, for example
+- **Fix:** the owner decides the gateway (pass a named one, for example
   `osskb-sre-dev`, through `createAI`'s gateway setting, or accept `default`);
-  build the drill in its own PR; revisit `agents` when `createAI` ships in a
+  revisit `agents` when `createAI` ships in a
   smaller package or `workers-ai-provider` is retired.
 - **Layer:** config and code (gateway), test rows (drill).
 - **Source:** Spec 027 A2-9 slice 2, 2026-10-23.
