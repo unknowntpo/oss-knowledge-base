@@ -1,6 +1,6 @@
 # Spec 027: Read-only SRE triage agent
 
-Status: Draft (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; [Amendment (1)](#amendment-1-triggered-diagnosis-2026-10-22) 2026-10-22: the agent diagnoses only after a deterministic rule fires; [Amendment (2)](#amendment-2-a-worker-job-on-the-ai-sdk-2026-10-22) 2026-10-22: an `sre-agent` job on the data publisher Worker, AI SDK with Workers AI, invariant playbooks; A2-1–A2-5 decided by owner 2026-10-22; [Dev fault-injection drill](#dev-fault-injection-drill-2026-10-22) added 2026-10-22; A2-9 slice 1 (the `packages/sre-agent` library core, L1/L2 tests) implemented; A2-9 slice 2 (the `sre-agent` cron job wired into the data publisher Worker, `/health.sreAgent`, the Spec 026 neuron term) implemented with `SRE_AGENT=off` on Dev and Prod, the drill routes not yet; see [Slice 1 notes](#slice-1-notes-2026-10-22) and [Slice 2 notes](#slice-2-notes-2026-10-23); the L3 eval (SRE59, SRE60) run three times 2026-10-25, with the owner's 4,096-token output cap and compact-JSON quote match from the second and third: the third run's scoreboard chooses Qwen3 30B (A2-1; 2 of 24 diagnoses pass), see [Eval notes](#eval-notes-2026-10-25))
+Status: Partially implemented (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; [Amendment (1)](#amendment-1-triggered-diagnosis-2026-10-22) 2026-10-22: the agent diagnoses only after a deterministic rule fires; [Amendment (2)](#amendment-2-a-worker-job-on-the-ai-sdk-2026-10-22) 2026-10-22: an `sre-agent` job on the data publisher Worker, AI SDK with Workers AI, invariant playbooks; A2-1–A2-5 decided by owner 2026-10-22; [Dev fault-injection drill](#dev-fault-injection-drill-2026-10-22) added 2026-10-22; A2-9 slice 1 (the `packages/sre-agent` library core, L1/L2 tests) implemented; A2-9 slice 2 (the `sre-agent` cron job wired into the data publisher Worker, `/health.sreAgent`, the Spec 026 neuron term) implemented with `SRE_AGENT=off` on Dev and Prod; the drill (SRE67–SRE75, the `job.failures` playbook) implemented and Dev `SRE_AGENT=live` on Qwen3 30B without the `dry` week (owner decisions 2026-10-25), Prod `off`; see [Slice 1 notes](#slice-1-notes-2026-10-22), [Slice 2 notes](#slice-2-notes-2026-10-23) and [Drill slice notes](#drill-slice-notes-2026-10-25); the L3 eval (SRE59, SRE60) run three times 2026-10-25, with the owner's 4,096-token output cap and compact-JSON quote match from the second and third: the third run's scoreboard chooses Qwen3 30B (A2-1; 2 of 24 diagnoses pass), see [Eval notes](#eval-notes-2026-10-25))
 Date: 2026-10-20 (amended 2026-10-22)
 Traceability: enforced
 Builds on: Spec 008 (R2 operations), Spec 010, 011, 018, 021 (freshness and stalls), Spec 014 (digest), Spec 019 amendment (7) (identity-links, kip-pages jobs), Spec 020 (feature map), Spec 026 and its dollar-budget amendment (cost guard), Spec 028 (observability signals, PR #108, not merged), Spec 029 (R2 retention)
@@ -621,8 +621,9 @@ adopted as written):
   the right cause most often (15 of 24) and costs the fewest neurons (62 a
   diagnosis). **Decided by the scoreboard (owner rule, 2026-10-25):
   `@cf/qwen/qwen3-30b-a3b-fp8`.** `SRE_AGENT_MODEL` in
-  `wrangler.development.jsonc` still names GLM-4.7-Flash; the switch is left
-  to the PR that owns that hunk (PR #151, Dev `live`). A pass rate of 8 % is
+  `wrangler.development.jsonc` names it since PR #151 (Dev `live`; the owner
+  accepts this result as the eval gate, see [Drill slice
+  notes](#drill-slice-notes-2026-10-25)). A pass rate of 8 % is
   far from a working diagnosis: see the third run in [Eval
   notes](#eval-notes-2026-10-25).
 - **A2-2 Where the owner labels diagnoses.** Recommended: a small JSON file
@@ -662,6 +663,11 @@ Spec 028 decisions D2–D10 were decided by the owner on 2026-10-22 in Spec
 3. **Eval (owner, local):** SRE59 scoreboard; Decision A2-1. Run three times 2026-10-25 ([Eval notes](#eval-notes-2026-10-25)); the third run's scoreboard chooses Qwen3 30B (2 of 24 diagnoses pass).
 4. **Enable (PR):** Dev `SRE_AGENT=dry` for 7 days (SRE64), then Dev
    `live` (SRE65); Prod per Decision A2-4.
+   **Owner decision (2026-10-25):** the 7-day Dev `dry` period (SRE64) is
+   skipped; Dev goes to `SRE_AGENT=live` directly, in the PR that ships the
+   drill. Reason: the agent only reads and its neurons are capped by B31 and
+   counted by the Spec 026 cost guard (SRE62). Prod stays `off` (Decision
+   A2-4 unchanged). The text above is kept as the original plan.
 5. **Drill (owner, Dev):** after Dev `live` and the `job.failures`
    playbook, the `throw` drill (SRE76), then once the `skip` drill (SRE77);
    the drill routes and faults ship in the wiring slice (SRE67–SRE75).
@@ -922,6 +928,86 @@ run). Spend **$0.084**.
 - Spend across the day: $0.069 (first run and smoke runs) + $0.084 +
   $0.084 + $0.005 for the five single-call tool probes = **$0.241**.
 
+### Drill slice notes (2026-10-25)
+
+This slice ships the drill (B37–B46, SRE67–SRE75), the `job.failures`
+playbook (`docs/runbooks/sre/job.failures.md`, B35) and Dev
+`SRE_AGENT=live` (owner decision 2026-10-25, [A2-9](#a2-9-rollout) step 4).
+Core: `packages/sre-agent/src/drill.ts`; Worker:
+`apps/data-publisher-worker/src/sre-agent/drill.ts`. Where it differs from
+the text above, or settles what it left open:
+
+- **Owner decision (2026-10-25).** No Dev `dry` week (SRE64 not run). Dev
+  never ran `dry`, so it has no `state.json` fingerprints to carry into
+  `live`, and G99's operator step does not apply. Prod stays `off`.
+- **The pointer marks the active drill (B39, SRE69, SRE70).** A faulted run
+  does not delete the pointer; the record's `applied` count tells the job
+  that the fault is used up (`applied ≥ runs`), and the pointer is deleted
+  when the drill is graded, cancelled or expires. Reason: the tick (B42) and
+  `/health` must find a `fired` drill, and without the pointer only an R2
+  list (a Class A operation) or an extra key would find it. The 409 of B38
+  is therefore "a pointer exists". Expiry (48 h) applies to a drill still
+  `armed` (not all its runs faulted).
+- **Expected answers (B41).** `skip` expects `cron-not-fired`, the
+  `job.missed` playbook's id for cause 1. `throw` expects
+  `upstream-unavailable` with runbook
+  `cloudflare-data-publisher.md#upstream-failures-job-runs`, a new runbook
+  section that the playbook cites. A required evidence item is either a
+  `/health` field (some quote contains its value) or a harness result (some
+  evidence entry cites the bundle item with that label, `Q-window` or
+  `Q-history`); verdict `explained` already means every quote passed B32.
+  The grader is `gradeDiagnosis`; SRE60's eval graders, when built, can
+  reuse it.
+- **Grader timing (B42).** The core's `runTick` takes an `afterRun` hook,
+  called after the run record is written and before `state.json`, so the
+  result lands in `state.lastDrill` in the tick's own write. The Worker
+  passes the grader only while the drill is on; a grader error is logged
+  (`drill:`) and never fails the tick. A `dry` tick grades too: its
+  diagnosis fails with `verdict:dry-run`.
+- **`/health.sreAgent.lastDrill`.** Present only while the drill is on (Dev):
+  the active drill's record (1–2 Class B per `/health`), else
+  `state.lastDrill`, else null. `get_health_section` answers `refused:
+  sreAgent is not readable` for `sreAgent` and every path under it, without
+  echoing the path.
+- **Routes.** A manual `POST /kip-pages/run` while a `skip` drill is armed is
+  skipped too and answers 409 `{ok: false, skipped: "drill"}`; a dry run
+  (`?dryRun=1`) never takes a fault. `DELETE /sre-agent/drill` with no
+  active drill answers 409 `no-active-drill`; a body that is not JSON
+  answers 400. `POST /sre-agent/run` answers 200 with `{runId, status,
+  runRecord}` (502 when the tick failed).
+- **Cost (SRE75, measured with fakes).** B31 persists `state.json` before
+  every model call, which the drill's cost table left out: Class A is 10 +
+  1 per model call (11 with a one-step diagnosis, at most 22 at the 12-step
+  cap). Class B is 14 for a `throw` drill end to end, counting each
+  `kip-pages` run's own 2 reads and the tick's `/health` reads. Both stay
+  far below the cost guard's thresholds.
+- **AI Gateway (G100, owner decision 2026-10-25).** The agent's Workers AI
+  calls go through a dedicated gateway, `osskb-sre-dev` on Dev (created by
+  the owner: logs on, cache off, rate limit 60 per hour, authenticated; the
+  binding's calls are authenticated automatically). `SRE_AGENT_GATEWAY` in
+  `wrangler.development.jsonc` names it and `sreAgentModel` passes it as
+  `createAI({binding, gateway: {id}})`; Prod sets none, so a future Prod
+  `live` would use `default` until decided. `SRE_AGENT_MODEL` is not changed by G100.
+  Test: SRE57 "model through the gateway" checks that the id reaches the
+  binding call.
+- **Merge order (owner decision 2026-10-25).** Dev `live` waits until the
+  loop fix (PR #152) shows a passing model; this slice keeps
+  `SRE_AGENT=live` but merges only after #152 (merged 2026-10-25).
+- **Model (A2-1, owner decision 2026-10-25).** Dev `SRE_AGENT_MODEL` is
+  `@cf/qwen/qwen3-30b-a3b-fp8` (Qwen3 30B), the pick of PR #152's third
+  scoreboard (`scoreboard-2026-10-25c`: 2 of 24 diagnoses pass, the only
+  model with any pass). The owner accepts that as meeting "the eval passes
+  before Dev `live`"; GLM-4.7-Flash, the prior in A2-1, is no longer the Dev
+  model. Budget with #152's 4,096-token output cap (B31): a step reserves
+  (input + 4,096 output) at 4,625 / 30,475 neurons per M tokens, so 143
+  neurons on the first step (4,000 in) and 184 on the twelfth (12,800 in),
+  both far below the 1,500 daily cap. Reservations settle to actual usage
+  after each call; at worst-case actual usage the 1,500 cap stops a
+  diagnosis after about 9 steps (Σ of 9 reservations ≈ 1,600 > 1,500), and
+  the diagnosis ends `inconclusive` with reason budget. Measured usage is
+  far lower: 62.3 neurons a diagnosis in `scoreboard-2026-10-25c` (one step
+  each), so 3 diagnoses a day ≈ 190 neurons.
+
 ## Dev fault-injection drill (2026-10-22)
 
 Owner intent (2026-10-22): a deterministic experiment where the owner
@@ -938,7 +1024,8 @@ its Dev enable (WAE points, `job.failures` and `job.missed` in
 the `job.failures` playbook (`docs/runbooks/sre/job.failures.md`, B35)
 listing cause `upstream-unavailable`, and the `job.missed` playbook (PR
 #123) whose cause 1 ("the cron did not fire, or the handler threw before
-recording a start") has the id `not-started`. Until a playbook lists the
+recording a start") has the id `cron-not-fired` (named `not-started` here
+before slice 1 gave the playbook its ids). Until a playbook lists the
 expected cause, B35 lets only `unknown` pass and the drill would grade a
 correct answer as wrong, so the arm route refuses that kind (B41).
 
@@ -1005,8 +1092,8 @@ correct answer as wrong, so the arm route refuses that kind (B41).
 
     | Kind | Rule | `cause` | Required evidence (quoted, passing B32) | `runbook` |
     | --- | --- | --- | --- | --- |
-    | `throw` | `job.failures` | `upstream-unavailable` | `kipPages.lastRun.error`; the `Q-window` result (other jobs ok) | the anchor the `job.failures` playbook lists for that cause |
-    | `skip` | `job.missed` | `not-started` | `kipPages.lastRun.at`; the `Q-history` result (no `kip-pages` point after it) | `cloudflare-data-publisher.md#health-and-manual-run` |
+    | `throw` | `job.failures` | `upstream-unavailable` | `kipPages.lastRun.error`; the `Q-window` result (other jobs ok) | the anchor the `job.failures` playbook lists for that cause (`cloudflare-data-publisher.md#upstream-failures-job-runs`) |
+    | `skip` | `job.missed` | `cron-not-fired` | `kipPages.lastRun.at`; the `Q-history` result (no `kip-pages` point after it) | `cloudflare-data-publisher.md#health-and-manual-run` |
 
     A check (SRE72) fails CI when an expected cause or anchor is not in the
     rule's playbook; the arm route refuses a kind whose playbook does not
@@ -1057,7 +1144,7 @@ correct answer as wrong, so the arm route refuses that kind (B41).
 | --- | --- | --- |
 | R2 Class A | arm 2 (record, pointer) + 2 faulted runs × 2 (run record, drill record) + tick 3 (`state.json`, run record, trajectory) + grade 1 = 10 | arm 2 + skipped run 1 (drill record; the run itself writes nothing) + tick 3 + grade 1 = 7 |
 | R2 Class B | ≤ 10 (pointer reads, `/health` polls) | ≤ 10 |
-| Neurons | one diagnosis: ≈ 160 typical, ≤ 685 worst (GLM-4.7-Flash, A2-6), inside the 1,500 daily cap and the 10,000 free a day | same |
+| Neurons | one diagnosis on Qwen3 30B: 62.3 measured (eval scoreboard-2026-10-25c), first-step reservation 143 with the 4,096-token output cap; a worst case stops at the 1,500 daily cap; inside the 10,000 free a day | same |
 | Upstream requests | 0 | 0 |
 | WAE | 2 points (kip-pages) + 1 (sre-agent), ≤ 3 SQL queries | 1 + ≤ 3 queries |
 | Money | $0 inside included allowances; if every op were billed, 10 Class A ≈ $0.000045 and 685 neurons ≈ $0.0075 | less |
@@ -1447,6 +1534,7 @@ L1, deterministic tick (`tick.cases.ts`):
 | SRE46 | forbidden requests | any path of a tick, dry and live | no request to /run, /*/run, /cost-guard/*, no non-GET, no fetch to the other env's host |
 | SRE48 | playbook format | docs/runbooks/sre/*.md missing a section / cause without anchor / anchor not in docs/runbooks | check fails naming the file |
 | SRE48 | playbook missing | firing rule with no playbook file | diagnosed with playbookMissing true; only cause unknown passes |
+| SRE46 | delete scope | scopedStore(dev).delete of internal/sre/v1/prod/... / public/v2/current.json / identity last-run.json / public/x/internal/sre/v1/dev/y / a .. segment; then a Dev drill pointer | WriteScopeError for each, no raw delete, raw objects unchanged / deleted |
 | SRE49 | scope v1 | firing job.duration / job.r2ClassA | notDiagnosed out-of-scope / diagnosed (type 3) |
 <!-- test-plan:end -->
 
@@ -1458,12 +1546,13 @@ the wiring slice, run by `apps/data-publisher-worker/test/sre-agent-worker.test.
 | --- | --- | --- | --- |
 | SRE34 | health as served | the sre-agent tick's /health on a Worker with signals on and a firing rule | equal to GET /health without sreAgent, redacted as served; no derived field |
 | SRE37 | flag off in the Worker | SRE_AGENT unset / off / "Live"; the sre-agent cron tick, then GET /health | 0 R2 calls, 0 AI calls, no point, no log line; sreAgent {mode: off} / {mode: off} / {mode: off, reason: invalid-flag} |
-| SRE37 | deploy config | wrangler.development.jsonc / wrangler.production.jsonc | SRE_AGENT off, SRE_AGENT_CRON 30 0 * * *;0 11 * * * in vars and in triggers / SRE_AGENT off, no SRE_AGENT_CRON, no sre-agent trigger |
+| SRE37 | deploy config | wrangler.development.jsonc / wrangler.production.jsonc | SRE_AGENT live (owner decision 2026-10-25), SRE_AGENT_CRON 30 0 * * *;0 11 * * * in vars and in triggers, SRE_AGENT_MODEL @cf/qwen/qwen3-30b-a3b-fp8 (A2-1, owner decision 2026-10-25), SRE_AGENT_GATEWAY osskb-sre-dev / SRE_AGENT off, no SRE_AGENT_CRON, no SRE_AGENT_GATEWAY, no sre-agent trigger |
 | SRE43 | job names | Spec 028 SIGNAL_JOBS of the Worker | each one is in SRE_JOBS (query_signals' job enum) and JOB_HEALTH_FIELDS; embedding, not search-embedding |
 | SRE47 | isolation | sre-agent branch throws at each step 0-7 on a tick shared with the publication cron | publication still scheduled; sreAgent lastRun.status failed with sanitized reason |
 | SRE47 | own tick | an SRE_AGENT_CRON expression with the flag off, dry or live; /health unreadable; a state.json read that throws | cron target sre-agent, never the publisher; the handler resolves; lastRun failed / state.json not replaced, the reason in the log line and /health |
 | SRE47 | model construction throws | SRE_AGENT live; building the model from the AI binding throws on the sre-agent cron tick | the handler resolves; lastRun.status failed with the sanitized reason; 0 AI calls |
-| SRE57 | model from the binding | SRE_AGENT_MODEL @cf/zai-org/glm-4.7-flash and an AI binding / either missing with SRE_AGENT live | one binding.run with that model id / no model; the run fails with a reason, 0 AI calls |
+| SRE57 | model from the binding | SRE_AGENT_MODEL @cf/qwen/qwen3-30b-a3b-fp8 and an AI binding / either missing with SRE_AGENT live | one binding.run with that model id / no model; the run fails with a reason, 0 AI calls |
+| SRE57 | model through the gateway | SRE_AGENT_GATEWAY osskb-sre-dev (G100, owner decision 2026-10-25) / unset | the binding.run call carries gateway id osskb-sre-dev with the same model id / no osskb-sre-dev gateway (account default) |
 | SRE62 | neuron term | digest, embedding and query ledgers at 5,000, 2,500, 1,000; the agent at 1,500 / the agent off or of another day | neurons today 10,000 / 8,500 with no state.json read while off |
 | SRE63 | dry tick observability | a dry tick with a publication job.missed firing, signals on, SIGNALS bound | /health.sreAgent {mode, status, reason, lastRun {runId, at, firings, diagnosed, notDiagnosed, modelCalls, neurons, verdicts, recordKey}, today}; one point job sre-agent with c1-c6; one runId in point, run record, trajectory and log line |
 <!-- test-plan:end -->
@@ -1500,27 +1589,40 @@ B28, two controls with no model call):
 | SRE60 | 5 ok-but-wrong (v2) | digest-en-zh-cache-pollution | real | none | digest.lastRun ok true; en digest object holds Han-script sentences | none (no hard rule covers served text; a v2 soft invariant) | none | cloudflare-data-publisher.md#reading-health-digest |
 <!-- test-plan:end -->
 
-Dev fault-injection drill (`drill.cases.ts`; worker rows run in the wiring
-slice):
+Dev fault-injection drill, core rows (`drill.cases.ts`, run by
+`packages/sre-agent/test/drill.test.ts`):
 
-<!-- test-plan:start packages/sre-agent/test/drill.cases.ts [pending] -->
+<!-- test-plan:start packages/sre-agent/test/drill.cases.ts -->
 | id | case | given | expected |
 | --- | --- | --- | --- |
-| SRE67 | arm | SRE_DRILL on, development, token, {job: kip-pages, kind: throw} | 201 {drillId, runs 2, armedAt, expiresAt}; drill record and pointer written |
-| SRE67 | arm refused | no token / job digest / kind slow / already armed / SRE_DRILL unset / playbook lacks expected cause | 401 / 400 / 400 / 409 / 404 / 409 with reason |
-| SRE67 | cancel | DELETE /sre-agent/drill while armed | pointer removed; record cancelled; next run normal |
-| SRE68 | Prod guard | PUBLICATION_ENVIRONMENT production or staging, SRE_DRILL on; pointer present in bucket | arm and cancel 404; kip-pages run reads no pointer, runs normally |
-| SRE68 | config | wrangler.production.jsonc / wrangler.development.jsonc | no SRE_DRILL / SRE_DRILL on |
-| SRE69 | throw | throw armed; runs 1, 2, 3 | runs 1-2: 0 upstream requests, record and point equal to a real 503 run (except times, runId), one console.error drill:<id> with runId; run 3 normal; record fired with 2 runIds |
-| SRE70 | skip | skip armed; runs 1, 2 | run 1: 0 upstream requests, no run record, no WAE point, one console.warn drill:<id>; run 2 normal |
-| SRE71 | blind agent | tick diagnosing the throw firing / same firing without a drill | no 'drill' (any case) or drillId in bundle, prompt, tool results, trajectory; bundles equal except times and runIds |
-| SRE71 | health section refused | get_health_section sreAgent / sreAgent.lastDrill | refusal result; nothing read |
-| SRE72 | grade pass | throw: cause upstream-unavailable, quotes kipPages.lastRun.error and Q-window, playbook anchor, explained | pass, reasons [] |
-| SRE72 | grade fail | cause unknown / Q-window not quoted / other anchor / verdict unverified | fail: wrong-cause:unknown / missing-evidence:Q-window / runbook-mismatch:<got> / verdict:unverified |
-| SRE72 | no diagnosis | throw fired, no kip-pages diagnosis 24 h after the last faulted run (skip: 48 h) | fail: no-diagnosis |
-| SRE72 | drift | drillExpectations vs docs/runbooks/sre/job.failures.md and job.missed.md | every expected cause and anchor listed, else check fails naming it |
-| SRE73 | manual tick | POST /sre-agent/run with token / without / SRE_AGENT off | one tick under B31 caps / 401 / 404 |
-| SRE74 | expiry and errors | pointer past expiresAt / pointer read throws / drill record write fails on arm | deleted unapplied, record expired / job runs with no fault, one drill: log line / 503, no pointer |
+| SRE71 | blind agent | a live tick diagnosing kip-pages job.failures while a drill is fired, the model asking get_health_section for sreAgent and sreAgent.lastDrill / the same firing without a drill | no 'drill' (any case) or drillId in bundle, prompt, tool results, trajectory or run record, except the path the model typed; no bundled playbook or runbook section mentions a drill; bundles equal |
+| SRE71 | health section refused | get_health_section sreAgent / sreAgent.lastDrill / kipPages.lastRun (control) | refusal result and sreAgent never read / refusal / the field as served |
+| SRE72 | grade pass | throw fired; the tick's diagnosis: cause upstream-unavailable, quotes kipPages.lastRun.error and cites Q-window, playbook anchor, explained | record graded pass, reasons []; pointer deleted; state.json lastDrill the summary |
+| SRE72 | grade fail | cause unknown / Q-window not cited / runbook roll-back / a quote not in its item (unverified) | fail: wrong-cause:unknown / missing-evidence:Q-window / runbook-mismatch:cloudflare-data-publisher.md#roll-back / verdict:unverified |
+| SRE72 | no diagnosis | throw fired 23 h / 25 h before a tick with no kip-pages diagnosis; skip fired 47 h / 49 h before | nothing graded, pointer kept / fail no-diagnosis; same for skip at 48 h |
+| SRE72 | failure before the drill | throw fired; the tick diagnoses kip-pages job.failures whose since (21:00) is before armedAt (21:10) | nothing graded: record stays fired, result null; pointer kept |
+| SRE72 | failure at arming | throw fired; the tick diagnoses kip-pages job.failures whose since equals armedAt (21:00) | graded pass: a failure at the arming instant is the drill's |
+| SRE72 | drift | drillExpectations vs the bundled job.failures and job.missed playbooks / a library without the cause, the anchor or the playbook | no error / an error naming the missing cause, anchor or playbook |
+<!-- test-plan:end -->
+
+Dev fault-injection drill, Worker rows (`sre-drill-worker.cases.ts`, run by
+`apps/data-publisher-worker/test/sre-drill-worker.test.ts`):
+
+<!-- test-plan:start apps/data-publisher-worker/test/sre-drill-worker.cases.ts -->
+| id | case | given | expected |
+| --- | --- | --- | --- |
+| SRE67 | arm | SRE_DRILL on, development, token, {job: kip-pages, kind: throw} | 201 {drillId throw-<YYYYMMDDTHHmmZ>, job, kind, runs 2, armedAt, expiresAt +48 h}; drill record (armed) and pointer written |
+| SRE67 | arm refused | no token / job digest / kind slow / a drill already active / SRE_DRILL unset / a playbook library without the expected cause | 401 / 400 / 400 / 409 drill-active / 404 / 409 playbook-missing-cause; nothing written |
+| SRE67 | cancel | DELETE /sre-agent/drill while armed; again with no drill | 200; pointer removed; record cancelled; the next run is normal / 409 no-active-drill |
+| SRE68 | Prod guard | PUBLICATION_ENVIRONMENT production or staging, SRE_DRILL on, token; a pointer present in the bucket | arm and cancel 404; a kip-pages run reads no drill key and runs normally; development with the same pointer applies the fault (positive control) |
+| SRE68 | config | wrangler.production.jsonc / wrangler.development.jsonc | no SRE_DRILL, SRE_AGENT off / SRE_DRILL on, SRE_AGENT live |
+| SRE69 | throw | throw armed; runs 1, 2 (route), 3 | runs 1-2: 0 upstream requests, run record and point equal to a run whose transport answers a real 503 (except times and runId), one console.error drill:<id> with the runId; record fired with both runIds; pointer kept until graded; run 3 normal |
+| SRE69 | throw dry run | throw armed; POST /kip-pages/run?dryRun=1 | 200 from the real upstream, no drill: log line, record armed with applied 0 and no runIds, pointer kept |
+| SRE70 | skip manual run | skip armed; manual POST /kip-pages/run first | 409 {ok:false, skipped:drill}, 0 upstream requests, no run record, record fired with applied 1 |
+| SRE70 | skip | skip armed; the cron tick, then the route | tick: 0 upstream requests, no run record, no point, one console.warn drill:<id>, record fired; route: normal run |
+| SRE73 | manual tick | POST /sre-agent/run with SRE_AGENT dry and the token / without the token / SRE_AGENT off | 200 with the tick's run record, state.json written / 401 / 404 |
+| SRE74 | expiry and errors | a pointer 49 h after arming / the pointer read throws / the drill record write fails on arm | deleted unapplied, record expired, run normal / run normal with no fault, one drill: log line / 503, no pointer |
+| SRE75 | budget | a throw drill end to end: arm, 2 faulted runs, one live tick with a one-step mock model | graded pass; Class A 10 + 1 per model call, Class B as counted; 0 upstream requests from the faulted runs; writes only under internal/sre/v1/dev/ and kip-pages' run record; neurons ≤ 1,500; no publication, digest or cost-guard request |
 <!-- test-plan:end -->
 
 The four Evidence incidents cover types 1, 3, 4 and 5 (the digest, v2). No
@@ -1551,7 +1653,7 @@ by Amendment (1); SRE34 replaced it.
 - SRE48: every `docs/runbooks/sre/*.md` has the six B35 sections and an ordered cause list whose anchors exist in `docs/runbooks/`, and the generated playbook module matches the files; a firing rule without a playbook is diagnosed with `playbookMissing: true` and only `cause: "unknown"` passes → L1 test with case rows and a drift check in CI.
 - SRE49: firings of the type 1–4 rule ids of B28 are diagnosed; a firing of any other rule is recorded with `notDiagnosed: "out-of-scope"` → L1 test with case rows.
 - SRE50: given a mock model scripted to call `read_playbook` and then return a valid output quoting `E1`, the record has verdict `explained`, 2 steps, 1 tool call, neurons computed from the mock usage at the model's rates, and a trajectory with both steps; every model call carries `maxOutputTokens` 4,096 and its reservation counts 4,096 output tokens (owner decision 2026-10-25) → L2 test with the `loop.cases.ts` rows.
-- SRE57: the core in `packages/sre-agent/src` imports no provider package (`agents`, `workers-ai-provider`, `@ai-sdk/*` providers) and takes a `LanguageModel`; the Worker constructs the model in one line from the `AI` binding and `SRE_AGENT_MODEL` → L1 test over the package's imports.
+- SRE57: the core in `packages/sre-agent/src` imports no provider package (`agents`, `workers-ai-provider`, `@ai-sdk/*` providers) and takes a `LanguageModel`; the Worker constructs the model in one line from the `AI` binding and `SRE_AGENT_MODEL` → L1 test over the package's imports. Amended 2026-10-25 (G100): with `SRE_AGENT_GATEWAY` set (Dev `osskb-sre-dev`) the binding call carries that gateway id; unset, the account default.
 - SRE58: given `SRE_AGENT=dry` and a new firing, the bundle and run record are written with verdict `dry-run` and the mock model receives 0 calls → L2 test with case rows.
 
 ### Amendment (2): Failure and retry
@@ -1577,24 +1679,24 @@ by Amendment (1); SRE34 replaced it.
 
 ### Amendment (2): Observability
 - SRE63: after a tick, `/health.sreAgent` is `{mode, status, reason, lastRun {runId, at, firings, diagnosed, notDiagnosed, modelCalls, neurons, verdicts, recordKey}, today {date, diagnoses, neurons}}`, the WAE point (when bound) has `job: "sre-agent"` and c1–c6 of B33, and the same `runId` is in the point, run record, trajectory and log line → wiring test.
-- SRE64: [deploy] on Dev with `SRE_AGENT=dry` for 7 consecutive days, `/health.sreAgent` shows `mode: "dry"`, 7 run records exist under `internal/sre/v1/dev/runs/` with `modelCalls: 0`, R2 operations stay within SRE61, and the other jobs' `/health` sections match a flag-off day.
+- SRE64: [deploy] (skipped by owner decision 2026-10-25, A2-9 step 4) on Dev with `SRE_AGENT=dry` for 7 consecutive days, `/health.sreAgent` shows `mode: "dry"`, 7 run records exist under `internal/sre/v1/dev/runs/` with `modelCalls: 0`, R2 operations stay within SRE61, and the other jobs' `/health` sections match a flag-off day.
 - SRE65: [deploy] on Dev with `SRE_AGENT=live`, the first new firing produces one run record and one trajectory under the prefix whose `runId`s match, an `evidenceCheck` result, and `neurons` within 10 % of the Workers AI dashboard's neurons for that model and day.
 - SRE66: [measure] `bun run --cwd packages/sre-agent kpi -- --env dev` prints, from the run records and eval reports, correctness rate (labelled or eval cases only), fabrication rate, neurons per diagnosis and the median time from firing `since` to record `at`.
 
 ### Dev fault-injection drill: Behavior
-- SRE67: [pending] with `SRE_DRILL=on` on `development`, `POST /sre-agent/drill` with the manual token and `{job: "kip-pages", kind: "throw"}` answers 201 `{drillId, job, kind, runs: 2, armedAt, expiresAt}` and writes the drill record and the pointer under `internal/sre/v1/dev/drills/`; it answers 401 without the token, 400 for another job or kind, 409 while a drill is armed or fired-but-ungraded, 404 with `SRE_DRILL` unset, and refuses a kind whose rule's playbook does not list the expected cause; `DELETE` removes the pointer and marks the record `cancelled` → worker test with the `drill.cases.ts` rows.
-- SRE68: [pending] with `PUBLICATION_ENVIRONMENT` `production` (or any value but `development`), the arm and cancel routes answer 404 even with `SRE_DRILL=on`, and a `kip-pages` run with a pointer present in the bucket reads no pointer and runs normally; `wrangler.production.jsonc` has no `SRE_DRILL`; the same run on `development` applies the fault (positive control) → worker and config tests with case rows.
-- SRE69: [pending] with a `throw` drill armed, the next two `kip-pages` runs send 0 upstream requests and each writes a run record and WAE point equal, except times and `runId`, to those of a run whose fake transport answers a real 503, and logs one `console.error` starting `drill:<drillId>` with the `runId`; the pointer is gone after the second run, the drill record is `fired` with both `runIds`, and a third run is normal → worker test with case rows.
-- SRE70: [pending] with a `skip` drill armed, the next `kip-pages` run sends 0 upstream requests, writes no run record and no WAE point, logs one `console.warn` starting `drill:<drillId>`, deletes the pointer, and the following run is normal → worker test with case rows.
-- SRE71: [pending] on a tick that diagnoses a drill firing, the bundle, prompt, every tool result and the trajectory contain neither `drill` (any case) nor the `drillId`; `get_health_section("sreAgent")` and any path under it return a refusal; the WAE point schema has no drill column; the same tick without a drill gives an identical bundle except times and `runId`s (control) → L1 test with case rows.
-- SRE72: [pending] the grader, given a fired drill and a diagnosis for `kip-pages` with `since` at or after `armedAt`, writes `pass` when cause, required evidence, runbook and verdict `explained` match B41, and `fail` with each reason (`wrong-cause:<got>`, `missing-evidence:<item>`, `runbook-mismatch:<got>`, `verdict:<verdict>`) when one is broken (negative controls), and `no-diagnosis` 24 h (`throw`) or 48 h (`skip`) after the last faulted run; the result is in the drill record and `/health.sreAgent.lastDrill`; every expected cause and anchor of `drillExpectations` exists in its rule's playbook (drift check) → L1 test with case rows.
-- SRE73: [pending] `POST /sre-agent/run` with the manual token runs one tick under the B31 caps and answers with its run record; 401 without the token; 404 while `SRE_AGENT` is `off` → worker test with case rows.
+- SRE67: with `SRE_DRILL=on` on `development`, `POST /sre-agent/drill` with the manual token and `{job: "kip-pages", kind: "throw"}` answers 201 `{drillId, job, kind, runs: 2, armedAt, expiresAt}` and writes the drill record and the pointer under `internal/sre/v1/dev/drills/`; it answers 401 without the token, 400 for another job or kind, 409 while a drill is armed or fired-but-ungraded, 404 with `SRE_DRILL` unset, and 409 for a kind whose rule's playbook does not list the expected cause; `DELETE` removes the pointer and marks the record `cancelled` → worker test with the `sre-drill-worker.cases.ts` rows.
+- SRE68: with `PUBLICATION_ENVIRONMENT` `production` (or any value but `development`), the arm and cancel routes answer 404 even with `SRE_DRILL=on`, and a `kip-pages` run with a pointer present in the bucket reads no pointer and runs normally; `wrangler.production.jsonc` has no `SRE_DRILL`; the same run on `development` applies the fault (positive control) → worker and config tests with case rows.
+- SRE69: with a `throw` drill armed, the next two `kip-pages` runs send 0 upstream requests and each writes a run record and WAE point equal, except times and `runId`, to those of a run whose fake transport answers a real 503, and logs one `console.error` starting `drill:<drillId>` with the `runId`; the drill record is `fired` with both `runIds`, the pointer stays until the drill is graded, cancelled or expires (drill slice notes), and a third run is normal → worker test with case rows.
+- SRE70: with a `skip` drill armed, the next `kip-pages` run sends 0 upstream requests, writes no run record and no WAE point, logs one `console.warn` starting `drill:<drillId>`, sets the record `fired`, and the following run is normal → worker test with case rows.
+- SRE71: on a tick that diagnoses a drill firing, the bundle, prompt, every tool result and the trajectory contain neither `drill` (any case) nor the `drillId`, except a path the model itself typed; `get_health_section("sreAgent")` and any path under it return a refusal; the WAE point schema has no drill column; the same tick without a drill gives an identical bundle except times and `runId`s (control) → L1 test with case rows.
+- SRE72: the grader, given a fired drill and a diagnosis for `kip-pages` with `since` at or after `armedAt`, writes `pass` when cause, required evidence, runbook and verdict `explained` match B41, and `fail` with each reason (`wrong-cause:<got>`, `missing-evidence:<item>`, `runbook-mismatch:<got>`, `verdict:<verdict>`) when one is broken (negative controls), and `no-diagnosis` 24 h (`throw`) or 48 h (`skip`) after the last faulted run; the result is in the drill record and `/health.sreAgent.lastDrill`; every expected cause and anchor of `drillExpectations` exists in its rule's playbook (drift check) → L1 test with case rows.
+- SRE73: `POST /sre-agent/run` with the manual token runs one tick under the B31 caps and answers with its run record; 401 without the token; 404 while `SRE_AGENT` is `off` → worker test with case rows.
 
 ### Dev fault-injection drill: Failure
-- SRE74: [pending] a pointer older than `expiresAt` (48 h) is deleted unapplied and the record set `expired`; an R2 error reading the pointer runs the job normally with no fault and logs one `drill:`-prefixed line; a drill record that cannot be written makes the arm route answer 503 and leaves no pointer → worker test with case rows.
+- SRE74: a pointer older than `expiresAt` (48 h) is deleted unapplied and the record set `expired`; an R2 error reading the pointer runs the job normally with no fault and logs one `drill:`-prefixed line; a drill record that cannot be written makes the arm route answer 503 and leaves no pointer → worker test with case rows.
 
 ### Dev fault-injection drill: Budget
-- SRE75: [measure] a `throw` drill end to end makes ≤ 10 R2 Class A, ≤ 10 Class B, 0 upstream requests from the faulted runs, 1 diagnosis within the 1,500-neuron cap, no write outside `internal/sre/v1/dev/` and `kip-pages`' own run record, and leaves the publication's `/health` `lastRun` and the cost guard's breaker unchanged, measured by `bun test --cwd apps/data-publisher-worker -t SRE75`, which counts calls through fakes.
+- SRE75: [measure] a `throw` drill end to end makes ≤ 10 R2 Class A plus 1 per model call (B31 reservations; drill slice notes), ≤ 14 Class B, 0 upstream requests from the faulted runs, 1 diagnosis within the 1,500-neuron cap, no write outside `internal/sre/v1/dev/` and `kip-pages`' own run record, and leaves the publication's `/health` `lastRun` and the cost guard's breaker unchanged, measured by `bun test --cwd apps/data-publisher-worker -t SRE75`, which counts calls through fakes.
 
 ### Dev fault-injection drill: Deploy
 - SRE76: [deploy] on Dev the owner runs the `throw` runbook: the Observability Events view of `oss-knowledge-base-data-dev` shows the `drill:<drillId>` error line, `/health.signals` shows `kip-pages` `job.failures` `firing` after the second run, and `/health.sreAgent.lastDrill` has a `result` within 30 minutes of arming; the record notes the observed delay before run 1's point was queryable.

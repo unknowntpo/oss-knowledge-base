@@ -12,12 +12,12 @@ export const MODEL_ID = "@cf/zai-org/glm-4.7-flash";
 
 export interface RecordingStore extends RawStore {
   readonly objects: Map<string, string>;
-  readonly calls: { op: "get" | "put"; key: string }[];
+  readonly calls: { op: "get" | "put" | "delete"; key: string }[];
 }
 
 export function memoryStore(initial: Record<string, string> = {}): RecordingStore {
   const objects = new Map(Object.entries(initial));
-  const calls: { op: "get" | "put"; key: string }[] = [];
+  const calls: { op: "get" | "put" | "delete"; key: string }[] = [];
   return {
     objects,
     calls,
@@ -28,6 +28,10 @@ export function memoryStore(initial: Record<string, string> = {}): RecordingStor
     async put(key, body) {
       calls.push({ op: "put", key });
       objects.set(key, body);
+    },
+    async delete(key) {
+      calls.push({ op: "delete", key });
+      objects.delete(key);
     },
   };
 }

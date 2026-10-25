@@ -48,6 +48,8 @@ export interface CiRelease {
 export interface RawStore {
   get(key: string): Promise<string | null>;
   put(key: string, body: string): Promise<void>;
+  /** Only the drill (B39) deletes; deletes are free in R2. */
+  delete?(key: string): Promise<void>;
 }
 
 export type SqlTemplate = "Q-run" | "Q-history" | "Q-window";

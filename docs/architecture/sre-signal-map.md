@@ -160,7 +160,7 @@ Spec 028 Example（行 125）用 Dev 2026-10-20 的真實值走過一遍：全�
 
 ### 不變式與 playbook（提案，owner 審閱中）
 
-把診斷規則當成**不變式（invariant）**：每條是一份 markdown playbook，路徑為 `docs/runbooks/sre/<id>.md`；目前只有範例 [`job.missed`](../runbooks/sre/job.missed.md)，其餘 id 為暫定、檔案尚不存在，內容固定六段：陳述、為什麼、證據、硬檢查（如有）、判斷指引、原因 → runbook 小節。
+把診斷規則當成**不變式（invariant）**：每條是一份 markdown playbook，路徑為 `docs/runbooks/sre/<id>.md`；目前有 [`job.missed`](../runbooks/sre/job.missed.md) 與 [`job.failures`](../runbooks/sre/job.failures.md)（2026-10-25，Spec 027 drill 需要的 `upstream-unavailable` 原因），其餘 id 為暫定、檔案尚不存在，內容固定六段：陳述、為什麼、證據、硬檢查（如有）、判斷指引、原因 → runbook 小節。
 
 - **硬不變式（hard）**：由程式碼檢查，違反即 `firing`，觸發 agent（v1）。
 - **軟不變式（soft）**：agent 每日巡檢時判斷，只回報「疑似」，永不成為 `firing`（v2）。這會放寬 028／027「agent 從不偵測」的原則，**待 owner 確認**。

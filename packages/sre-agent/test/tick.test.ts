@@ -370,6 +370,10 @@ const scenarios: Record<string, () => Promise<void>> = {
         expect(playbooks.map((value) => value.label)).toEqual(["job.missed"]);
         expect(runbooks).toEqual(["cloudflare-data-publisher.md#health-and-manual-run", "cloudflare-data-publisher.md#follow-up-runs-spec-018", "cloudflare-data-publisher.md#read-health", "cloudflare-data-publisher.md#reset-the-breaker", "cloudflare-data-publisher.md#failure-and-rollback", "cloudflare-data-publisher.md#roll-back"]);
         expect(bundle.playbookMissing).toEqual([]);
+      } else if (ruleId === "job.failures") {
+        expect(playbooks.map((value) => value.label)).toEqual(["job.failures"]);
+        expect(runbooks).toEqual(["cloudflare-data-publisher.md#upstream-failures-job-runs", "cloudflare-data-publisher.md#roll-back", "cloudflare-data-publisher.md#environment-map"]);
+        expect(bundle.playbookMissing).toEqual([]);
       } else {
         expect(playbooks).toEqual([]);
         expect(bundle.playbookMissing).toEqual([ruleId]);
@@ -496,6 +500,21 @@ const scenarios: Record<string, () => Promise<void>> = {
       await expect(store.get(key)).rejects.toBeInstanceOf(WriteScopeError);
     }
     expect(raw.calls).toHaveLength(1);
+  },
+
+  async "delete scope"() {
+    const outside = ["internal/sre/v1/prod/drills/armed/kip-pages.json", "public/v2/current.json", "internal/identity/v1/last-run.json", "public/x/internal/sre/v1/dev/y", "internal/sre/v1/dev/../../identity/v1/last-run.json"];
+    const raw = memoryStore();
+    for (const key of outside) raw.objects.set(key, "{}");
+    const store = scopedStore("dev", raw);
+    for (const key of outside) await expect(store.delete!(key)).rejects.toBeInstanceOf(WriteScopeError);
+    expect(raw.calls).toEqual([]);
+    expect([...raw.objects.keys()].sort()).toEqual([...outside].sort());
+    // Positive control: a key inside the Dev prefix is deleted.
+    raw.objects.set("internal/sre/v1/dev/drills/armed/kip-pages.json", "{}");
+    await store.delete!("internal/sre/v1/dev/drills/armed/kip-pages.json");
+    expect(raw.calls).toEqual([{ op: "delete", key: "internal/sre/v1/dev/drills/armed/kip-pages.json" }]);
+    expect(raw.objects.has("internal/sre/v1/dev/drills/armed/kip-pages.json")).toBe(false);
   },
 
   async "forbidden requests"() {

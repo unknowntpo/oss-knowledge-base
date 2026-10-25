@@ -3,6 +3,7 @@
  * ≤ 3 diagnoses, ≤ 12 steps each, ≤ 1,500 neurons a UTC day, reserved before each model call.
  */
 import { V1_RULES } from "./firings";
+import type { DrillSummary } from "./drill";
 import type { LastRun } from "./tick";
 import type { Firing } from "./types";
 
@@ -17,6 +18,8 @@ export interface SreState {
   fingerprints: Record<string, { runId: string | null; diagnosedOn: string }>;
   today: { date: string; diagnoses: number; neurons: number };
   lastRun?: LastRun;
+  /** The last graded drill (B42), served as `/health.sreAgent.lastDrill` once the drill is no longer active. */
+  lastDrill?: DrillSummary;
 }
 
 export function emptyState(date: string): SreState {
