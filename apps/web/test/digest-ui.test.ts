@@ -91,13 +91,13 @@ const cases: Record<string, () => Promise<string>> = {
     return label === `過去 7 天 · ${range}` && !/週|week/iu.test(label)
       ? "過去 7 天 · Intl.DateTimeFormat(\"zh-Hant\", …).formatRange output; no 週/week number" : label;
   },
-  "proposals tab|/#/datafusion/proposals": async () => {
+  "proposals tab|/datafusion/proposals": async () => {
     const { createMemoryHistory, createRouter } = await import("vue-router");
     const router = createRouter({ history: createMemoryHistory("/"), routes: routes.createRoutes(() => undefined) });
     await router.push("/datafusion/proposals");
-    return `redirects to /#${router.currentRoute.value.fullPath}`;
+    return `redirects to ${router.currentRoute.value.fullPath}`;
   },
-  "proposals tab|/#/kafka/proposals, en": async () => {
+  "proposals tab|/kafka/proposals, en": async () => {
     const html = await render(components.ProposalColumns, { digest: en, profile: kafka().profile });
     const rows = count(html, /class="kip-row"/gu);
     const note = translations("en")(kafka().profile.proposal.quorumNote!);
@@ -217,15 +217,30 @@ describe("Spec 014 slice 3 named tests", () => {
     const id = card.threads[0]!;
     const noUrl = { ...en, threads: { ...en.threads, [id]: { ...en.threads[id]!, url: null } } };
     const html = await render(components.TopicPage, { digest: noUrl, profile: kafka().profile, card });
-    const start = html.lastIndexOf("<li", html.indexOf(`class="thread-id" href="#/feed/${encodeURIComponent(id)}"`));
+    const start = html.lastIndexOf("<li", html.indexOf(`href="/feed/${encodeURIComponent(id)}" class="thread-id"`));
     const block = html.slice(start, html.indexOf("</li>", start));
     const titleTag = /<a[^>]*class="thread-title"[^>]*>/u.exec(block)![0];
     const titleLink = /href="([^"]*)"/u.exec(titleTag)?.[1];
-    expect(titleLink).toBe(`#/feed/${encodeURIComponent(id)}`);
+    expect(titleLink).toBe(`/feed/${encodeURIComponent(id)}`);
     expect(block).not.toContain('target="_blank"');
     // Positive control: with its URL the same card links to the source.
     const withUrl = await render(components.TopicPage, { digest: en, profile: kafka().profile, card });
     expect(withUrl).toContain(`href="${en.threads[id]!.url}"`);
+  });
+
+  test("U2: internal digest links are path URLs rendered as router links; external ones open a new tab", async () => {
+    const card = en.cards.find((item) => item.topic === "releases")!;
+    const id = card.threads[0]!;
+    const noUrl = { ...en, threads: { ...en.threads, [id]: { ...en.threads[id]!, url: null } } };
+    const html = await render(components.TopicPage, { digest: noUrl, profile: kafka().profile, card });
+    const internal = [...html.matchAll(/<a [^>]*href="(\/feed\/[^"]*)"[^>]*>/gu)].map((match) => match[0]);
+    expect(internal.length).toBeGreaterThan(1);
+    for (const tag of internal) expect(tag).not.toContain("target=");
+    expect(html).not.toContain('href="#/');
+    // Positive control: a citation of a thread with an https URL, outside the Feed, stays external.
+    expect(view.citeTarget(id, en, new Set()).href).toBe(en.threads[id]!.url!);
+    const week = await render(components.DigestWeek, { digest: en, profile: kafka().profile, projectName: "Apache Kafka", now: NOW });
+    expect(week).not.toContain('href="#/');
   });
 
   test("D23: with no digest or a failed read, This week shows the notice and a link to All threads, no feed", async () => {
@@ -244,7 +259,7 @@ describe("Spec 014 slice 3 named tests", () => {
     expect(html).toContain("This page does not exist");
   });
 
-  test("D62: bare /#/ opens the last project, else kafka; storage errors fall back", async () => {
+  test("D62: bare / opens the last project, else kafka; storage errors fall back", async () => {
     const { createMemoryHistory, createRouter } = await import("vue-router");
     const open = async (storage: () => Pick<Storage, "getItem"> | undefined) => {
       const router = createRouter({ history: createMemoryHistory("/"), routes: routes.createRoutes(storage) });
@@ -269,7 +284,7 @@ describe("Spec 014 slice 3 named tests", () => {
     const thread = en.threads["KAFKA-PR-23426"]!;
     for (const url of ["javascript:alert(1)", "http://example.com/x", "data:text/html,x"]) {
       const target = view.citeTarget("KAFKA-PR-23426", { threads: { "KAFKA-PR-23426": { ...thread, url } } }, new Set());
-      expect(target).toMatchObject({ href: "#/feed/KAFKA-PR-23426", external: false });
+      expect(target).toMatchObject({ href: "/feed/KAFKA-PR-23426", external: false });
     }
     // Positive control: the real https URL is external.
     expect(view.citeTarget("KAFKA-PR-23426", en, new Set()).external).toBe(true);

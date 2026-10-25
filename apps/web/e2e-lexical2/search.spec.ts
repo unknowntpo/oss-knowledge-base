@@ -34,7 +34,7 @@ const rows = testPlanRows.filter((row) => row.revision === "bm25-reference@2" &&
 for (const row of rows) {
   test(`H34: ${row.case} — "${row.query}" searches the @2 release in the browser`, async ({ page }) => {
     const browserProblems = collectBrowserProblems(page);
-    await page.goto("/#/kafka/threads");
+    await page.goto("/kafka/threads");
     await expect(page.locator("#view-feed")).toBeVisible();
 
     const searchResponse = page.waitForResponse((response) =>
@@ -68,7 +68,7 @@ for (const row of rows) {
     await expect(page.locator(".search-match-badge")).toHaveCount(0);
 
     await cards.first().click();
-    await expect(page).toHaveURL(/#\/search\/sdr1\./u);
+    await expect(page).toHaveURL(/\/search\/sdr1\./u);
     await expect(page.locator(".timeline .tl-item").first()).toBeVisible();
     expect(browserProblems).toEqual([]);
   });
@@ -83,7 +83,7 @@ for (const [locale, others, count, kafkaCount] of [
     test(`S17: KIP770 lists its exact matches, "${others}", then the rest, ${locale} at ${width} px`, async ({ page }, testInfo) => {
       await page.addInitScript((value) => window.localStorage.setItem("community-kb-locale", value), locale);
       await page.setViewportSize({ width, height: 900 });
-      await page.goto("/#/kafka/threads");
+      await page.goto("/kafka/threads");
       const answered = page.waitForResponse((response) => response.url().includes("/api/search?"));
       await page.locator("#q").fill("KIP770");
       const body = await (await answered).json() as SearchBody;

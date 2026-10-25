@@ -73,6 +73,29 @@ export function updatedAt(iso: string): string {
   return `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
 }
 
+export interface YearMark {
+  /** The January's bucket index in the view. */
+  readonly index: number;
+  readonly year: string;
+}
+
+/** PT18: each January inside the view; not the first month, whose label already names the year. */
+export function yearMarks(labels: readonly string[]): readonly YearMark[] {
+  return labels.flatMap((label, index) => (index > 0 && label.endsWith("-01") ? [{ index, year: label.slice(0, 4) }] : []));
+}
+
+/** PT17: a `YYYY-MM` bucket with its year: zh-Hant `YYYY/M` (as the page writes dates), English "Nov 2025". */
+export function yearMonth(label: string, locale: "zh-Hant" | "en"): string {
+  if (locale === "zh-Hant") return `${label.slice(0, 4)}/${Number(label.slice(5, 7))}`;
+  return new Intl.DateTimeFormat("en", { year: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${label}-01T00:00:00Z`));
+}
+
+/** Spec 030 amendment (1): the compact card's end labels and year markers. */
+export function trendAxis(labels: readonly string[], locale: "zh-Hant" | "en"): { readonly first: string; readonly last: string; readonly years: readonly YearMark[] } {
+  if (labels.length === 0) return { first: "", last: "", years: [] };
+  return { first: yearMonth(labels[0]!, locale), last: yearMonth(labels.at(-1)!, locale), years: yearMarks(labels) };
+}
+
 export interface CompactLayout {
   readonly width: number;
   readonly height: number;
@@ -84,6 +107,8 @@ export interface CompactLayout {
   readonly slot: number;
   readonly barWidth: number;
   readonly labelY: number;
+  /** PT18: a boundary line left of each January bar (`x`), its year written above the plot at `textY`. */
+  readonly years: readonly (YearMark & { readonly x: number; readonly textY: number; readonly anchor: "start" | "end" })[];
   readonly columns: readonly {
     readonly index: number;
     readonly x: number;
@@ -93,12 +118,16 @@ export interface CompactLayout {
   readonly laneHeight: number;
 }
 
-/** The compact card's geometry: stacked bars scaled to the largest month, no axis, a lane per partly recorded series. */
+/**
+ * The compact card's geometry: stacked bars scaled to the largest month, no axis, a lane per partly
+ * recorded series. A row for the year markers is added above the plot only when a January is inside the view.
+ */
 export function compactLayout(chart: ActivityChart, width: number): CompactLayout {
   const w = Math.max(240, Math.round(width));
   const left = 2;
   const right = 2;
-  const top = 4;
+  const marks = yearMarks(chart.buckets.map((bucket) => bucket.label));
+  const top = marks.length === 0 ? 4 : 16;
   const plotHeight = w < 480 ? 64 : 72;
   const n = Math.max(1, chart.buckets.length);
   const slot = (w - left - right) / n;
@@ -116,12 +145,18 @@ export function compactLayout(chart: ActivityChart, width: number): CompactLayou
     });
     return { index, x: left + slot * index + slot / 2, segments };
   });
+  const years = marks.map((mark) => {
+    const x = left + slot * mark.index;
+    // Written right of the line over the January bar; a January in the last slot writes it to the left.
+    return { ...mark, x, textY: 10, anchor: (x + 32 > w - right ? "end" : "start") as "start" | "end" };
+  });
   const labelY = zero + 15;
   const laneHeight = 5;
   const laneTop = labelY + 9;
   const lanes = chart.lanes.map((series, index) => ({ series, y: laneTop + index * (laneHeight + 4) }));
   return {
     width: w, height: lanes.length === 0 ? labelY + 4 : laneTop + lanes.length * (laneHeight + 4), left, right, plotHeight, zero, slot, barWidth,
-    labelY, columns, lanes, laneHeight,
+    labelY, years, columns, lanes, laneHeight,
   };
 }
+

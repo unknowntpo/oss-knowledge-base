@@ -42,11 +42,14 @@ const newest = (cites: readonly string[]) => [...cites]
           <span class="sentence-text">{{ digest.threads[newest(row.cites) ?? ""]?.title ?? row.key }}</span>
           <CiteChips :cites="row.cites" :digest="digest" :feed-ids="feedIds" />
         </p>
-        <a
-          v-if="voteThread(row, digest.threads)"
-          class="vote-link"
-          :href="citeTarget(voteThread(row, digest.threads)!, digest, feedIds).href"
-        >{{ t("digest.voteThread") }}</a>
+        <template v-if="voteThread(row, digest.threads)">
+          <a
+            v-if="citeTarget(voteThread(row, digest.threads)!, digest, feedIds).external"
+            class="vote-link"
+            :href="citeTarget(voteThread(row, digest.threads)!, digest, feedIds).href"
+          >{{ t("digest.voteThread") }}</a>
+          <RouterLink v-else class="vote-link" :to="citeTarget(voteThread(row, digest.threads)!, digest, feedIds).href">{{ t("digest.voteThread") }}</RouterLink>
+        </template>
       </article>
       <RouterLink v-if="column.more > 0" class="stage-more" :to="`/${profile.projectKey}/proposals`">
         {{ t("digest.more", { n: column.more }) }}

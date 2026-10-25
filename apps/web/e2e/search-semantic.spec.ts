@@ -52,7 +52,7 @@ async function search(page: Page, locale: string, query: string, width = 375): P
   await page.setViewportSize({ width, height: 812 });
   // A second search in one test starts from a fresh page, so the box is empty and the query is sent again.
   await page.goto("about:blank");
-  await page.goto("/#/kafka/threads");
+  await page.goto("/kafka/threads");
   const answered = page.waitForResponse((response) => response.url().includes("/api/search?"));
   await page.locator("#q").fill(query);
   const body = await (await answered).json();
@@ -108,8 +108,8 @@ for (const { locale } of locales) {
     await testInfo.attach(`semantic-only-${locale}`, { path, contentType: "image/png" });
 
     // The semantic-only result opens its detail like any other, and the detail names no method either.
-    await page.goto(`/${await cards.nth(1).getAttribute("href")}`);
-    await expect(page).toHaveURL(/#\/search\/sdr1\./u);
+    await page.goto((await cards.nth(1).getAttribute("href"))!);
+    await expect(page).toHaveURL(/\/search\/sdr1\./u);
     await expect(page.locator("#topic-title")).toBeVisible();
     await expect(page.locator(".topic-meta > span")).toHaveCount(2);
     await expect(page.locator(".topic-meta")).not.toContainText(methodWording);

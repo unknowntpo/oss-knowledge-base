@@ -49,7 +49,7 @@ describe("header scoping", () => {
   test.each([
     ["https://oss-knowledge-base-dev.pages.dev/api/feed", true],
     ["https://oss-knowledge-base-dev.pages.dev", true],
-    ["https://1a2b3c4d.oss-knowledge-base-dev.pages.dev/#/kafka/threads", true],
+    ["https://1a2b3c4d.oss-knowledge-base-dev.pages.dev/kafka/threads", true],
     ["https://codex-branch.oss-knowledge-base-dev.pages.dev/api/search?q=x", true],
     ["https://OSS-KNOWLEDGE-BASE-DEV.pages.dev/", true],
     // Not the Dev Pages site: the token must never go here.
@@ -78,7 +78,7 @@ describe("isAccessChallenge", () => {
     [{ status: 403, url: "https://oss-knowledge-base-dev.pages.dev/", location: login }, true],
     [{ status: 401, location: login }, true],
     [{ status: 200, url: login }, true],
-    [{ status: 302, location: "https://oss-knowledge-base-dev.pages.dev/#/kafka/" }, false],
+    [{ status: 302, location: "https://oss-knowledge-base-dev.pages.dev/kafka/" }, false],
     [{ status: 302, location: "/login" }, false],
     // Access answers a missing or rejected service token on the protected host with 401/403 and no Location.
     [{ status: 403, url: "https://oss-knowledge-base-dev.pages.dev/" }, true],

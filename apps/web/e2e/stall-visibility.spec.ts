@@ -30,16 +30,16 @@ async function prepare(page: Page, locale: Locale, width: number, time: number, 
 }
 
 async function open(page: Page, view: View): Promise<void> {
-  await page.goto("/#/kafka/threads");
+  await page.goto("/kafka/threads");
   await expect(page.locator(".card")).toHaveCount(2);
   if (view === "feed detail") {
     await page.locator(".card").first().click();
-    await expect(page).toHaveURL(/#\/feed\//u);
+    await expect(page).toHaveURL(/\/feed\//u);
   }
   if (view === "search detail") {
     await page.locator("#q").fill("KIP-405");
     await page.locator(".search-card").first().click();
-    await expect(page).toHaveURL(/#\/search\/sdr1\./u);
+    await expect(page).toHaveURL(/\/search\/sdr1\./u);
   }
 }
 

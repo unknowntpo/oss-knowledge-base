@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** Spec 019 slice 2a: `/#/<projectKey>/people/<id>`; the API decides whether profiles are served (W25). */
+/** Spec 019 slice 2a: `/<projectKey>/people/<id>`; the API decides whether profiles are served (W25). */
 import { ref, watch } from "vue";
 
 import type { PeopleErrorV1, PersonProfileV1 } from "@oss-knowledge-base/reference-pipeline/people";

@@ -181,5 +181,5 @@ export function threadUrl(rootMid: string): string {
 }
 
 export function feedLink(displayId: string): string {
-  return `/#/feed/${displayId}`;
+  return `/feed/${displayId}`;
 }

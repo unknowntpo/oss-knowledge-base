@@ -43,7 +43,7 @@ async function open(page: Page, options: { trend: boolean; activity?: "ok" | "fa
       ? route.fulfill({ status: 503, json: { error: "down" } })
       : route.fulfill({ status: 200, json: body })));
   }
-  await page.goto("/#/kafka/");
+  await page.goto("/kafka/");
   await expect(page.locator(".digest-headline")).toBeVisible();
   return requests;
 }
@@ -53,11 +53,13 @@ async function noHorizontalOverflow(page: Page) {
   expect(scroll).toBeLessThanOrEqual(width);
 }
 
-async function screenshot(page: Page, name: string) {
+/** The whole page, or with `card` the viewport around the trend card. */
+async function screenshot(page: Page, name: string, card = false) {
   const directory = process.env.TREND_SCREENSHOT_DIR;
   if (directory === undefined || directory === "") return;
   await mkdir(directory, { recursive: true });
-  await page.screenshot({ path: `${directory}/${name}-${test.info().project.name}.png`, fullPage: true });
+  if (card) await page.locator(".project-trend").evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await page.screenshot({ path: `${directory}/${name}-${test.info().project.name}.png`, fullPage: !card });
 }
 
 test("PT3: with PROJECT_TREND unset This week renders as before: no card, no request to /api/activity, and the endpoint is a 404", async ({ page, request }) => {
@@ -82,6 +84,32 @@ test("PT4: with the trend on, This week shows the stats, the trend card, then th
   await noHorizontalOverflow(page);
   await screenshot(page, "compact");
 });
+
+for (const scheme of ["light", "dark"] as const) {
+  for (const [locale, first, last] of [["zh-Hant", "2025/11", "2026/10 · 進行中 · 至 10/24"], ["en", "Nov 2025", "Oct 2026 · in progress · to 10/24"]] as const) {
+    test(`PT17: at 375 px (${scheme}, ${locale}) the end labels carry the year and the 2026 marker sits at January without overlap`, async ({ page }) => {
+      await page.setViewportSize({ width: 375, height: 812 });
+      await page.emulateMedia({ colorScheme: scheme });
+      await open(page, { trend: true, locale });
+      await expect(page.locator(".project-trend [data-trend-label]")).toHaveText([first, last]);
+      await expect(page.locator(".project-trend [data-trend-year]")).toHaveText(["2026"]);
+      const boxes = await page.locator(".project-trend [data-trend-label], .project-trend [data-trend-year] text").evaluateAll((elements) =>
+        elements.map((element) => { const box = element.getBoundingClientRect(); return { left: box.left, right: box.right, top: box.top, bottom: box.bottom }; }));
+      const svg = await page.locator(".project-trend-svg").evaluate((element) => { const box = element.getBoundingClientRect(); return { left: box.left, right: box.right }; });
+      expect(boxes).toHaveLength(3);
+      for (const [index, box] of boxes.entries()) {
+        expect(box.left).toBeGreaterThanOrEqual(svg.left - 0.5);
+        expect(box.right).toBeLessThanOrEqual(svg.right + 0.5);
+        for (const other of boxes.slice(index + 1)) {
+          const apart = box.right <= other.left || other.right <= box.left || box.bottom <= other.top || other.bottom <= box.top;
+          expect(apart).toBe(true);
+        }
+      }
+      await noHorizontalOverflow(page);
+      await screenshot(page, `axis-375-${scheme}-${locale}`, true);
+    });
+  }
+}
 
 test("PT6: pressing 「查看完整趨勢」 shows the full chart in place and sends no second request; collapsing returns to the card", async ({ page }) => {
   const requests = await open(page, { trend: true });

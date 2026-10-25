@@ -127,7 +127,7 @@ bun run verify:health -- --target prod
 | About 30 minutes after step 5 (`followUp: null`, `running: false`) | 6 runs read up to 1,200 issues a source. Measured 2026-10-19 for 30 days (`bun run measure:daily-volume -- --hours 720`): Kafka GitHub 621 (4 runs, complete), Kafka Jira 494 (3 runs, complete), DataFusion GitHub 2,905 (15 runs: 1,200 read, oldest first). So `pollTruncated: true` still; DataFusion's newest updates are missing until it is complete |
 | Backlog complete: the 22:37 UTC tick and the next day's (1–3 ticks in all), or sooner with another `POST /run` each time `followUp` is `null` (each starts 6 more runs; 2 more are enough) | `pollTruncated: false`; `lastRun.r2.classA` = `copiedObjectCount + 3`; `/api/feed` within 150 s: `generatedAt` = `lastRun.completedAt`, sources `github`, `jira`, `mail`; `/api/search` `lexicalRevision: "bm25-reference@3"`; `verify:health` prints `consistent=true` |
 | After the 22:37 UTC run | a new `lastRun.completedAt` near 22:37; `classA` near the new objects + 3 |
-| Browser, desktop and 375 px | Feed with Jira and dev@ cards, Search, Detail, theme toggle; no person links (`/api/people` 404) and no digest on `/#/kafka/` (the no-digest notice) |
+| Browser, desktop and 375 px | Feed with Jira and dev@ cards, Search, Detail, theme toggle; no person links (`/api/people` 404) and no digest on `/kafka/` (the no-digest notice) |
 
 Memory: the full 30-day state is about Dev's 35-day state (9,323 events on
 2026-10-14). `bun run --cwd apps/data-publisher-worker measure:memory --
@@ -309,7 +309,7 @@ The deploy sets the cron, so the next 22:47 UTC tick publishes.
    has `dryRun: false`, `ok: true`, `limited: false`, that day's
    `sourceReleaseId`, and `objectKeys`;
    `/api/digest?projectId=apache-kafka&locale=zh-Hant` on Dev answers 200
-   and `/#/kafka/` shows the digest.
+   and `/kafka/` shows the digest.
 
 ### Turn off
 
@@ -1006,7 +1006,7 @@ the review ingestion on the same tick and the digest (22:47) run then.
    both projects, `r2` about `{classA: 10, classB: 6}`, `durationMs` under
    10,000. `lastRun.r2` and the run's total time near the previous day's.
    Then `/api/people` lists `kafka: ["github-reviews", "github", "jira",
-   "mail"]`, and `/#/kafka/people/mail%3Aandrew%20schofield` shows dev@
+   "mail"]`, and `/kafka/people/mail%3Aandrew%20schofield` shows dev@
    counts with the coverage line "Comments, pull requests, Jira, dev@:
    <coverageFrom> to <run date>".
 4. Second run (the next day's, or a second `POST /run`): `activity.ok:

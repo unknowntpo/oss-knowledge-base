@@ -156,7 +156,7 @@ function activityPart(thread: ActivityThreadView): string {
   if ((thread.kinds.message ?? 0) > 0) parts.push(unit("message", thread.kinds.message ?? 0));
   return parts.join(" · ");
 }
-/** Hash routing owns `#…`, so the counts scroll to the evidence instead of linking to an anchor. */
+/** The counts scroll to the evidence (smoothly, below the sticky top bar) instead of linking to an anchor. */
 function toThreads() {
   document.getElementById("person-threads")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
