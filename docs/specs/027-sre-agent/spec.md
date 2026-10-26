@@ -1118,12 +1118,12 @@ item by path, not by copied text.
   An unresolved path records `quote: null`. The trajectory's `output`
   keeps the model's answer as given.
 - **Grader (SRE88).** The drill grader counts a required `/health` field
-  as cited by a path entry when the value at that path in the cited item
-  is the field's value or the object directly holding it
-  (`kipPages.lastRun.error`, or `kipPages.lastRun`), compared as parsed
-  JSON; since the [path citation
+  as cited by a path entry when the path is that field
+  (`kipPages.lastRun.error`) or its parent (`kipPages.lastRun`, holding the
+  value under `error`), compared as parsed JSON; since the [path citation
   scope](#owner-decision-2026-10-26-path-citation-scope) decision an
-  ancestor further up (`kipPages`) no longer counts (SRE96). A quote entry
+  ancestor further up (`kipPages`) or a match under another key no longer
+  counts (SRE96). A quote entry
   still counts when its text contains the value. A label requirement
   (`Q-window`) counts any entry citing that item, path or quote. The L3
   eval grader matches its patterns against the recorded field of a path
@@ -1155,17 +1155,25 @@ the record's quote became the whole object: the copy of a large object that
 SRE79 used to forbid. The owner chose to limit the scope of a citation:
 
 - **Drill grader (SRE96).** A path entry cites a required `/health` field
-  only when its value in the cited item is the field's value (the exact
-  field) or an object or array that holds the value as one of its own
-  values (the immediate parent, one level up). `kipPages.lastRun.error`
-  and `kipPages.lastRun` count; `kipPages` does not, and the drill fails
-  `missing-evidence:kipPages.lastRun.error`.
+  only when the path is that field and reads its value (the exact field),
+  or the path is the field's parent and the parent's own key named by the
+  field's last key (`error`, `at`) holds the value (the immediate parent,
+  one level up). The `/health` item keeps `/health`'s paths, so the paths
+  compare directly. `kipPages.lastRun.error` and `kipPages.lastRun` count;
+  `kipPages` does not, and the drill fails
+  `missing-evidence:kipPages.lastRun.error`. A value match under another
+  key does not count either: after a good run `kipPages.lastGoodAt` equals
+  `kipPages.lastRun.at`, but neither `kipPages` nor `kipPages.lastGoodAt`
+  cites the `skip` drill's `kipPages.lastRun.at`.
 - **Eval grader (SRE97).** The L3 grader matches a required pattern
   against the recorded field of a path entry when its value is not an
   object or array, and against the recorded field of each value directly in
   it (`"<key>": <value>`, or the value alone for an array element) that is
   not an object or array. `kipPages.lastRun.error`, `kipPages.lastRun` and
-  `[0]` of Q-window count; `kipPages` does not.
+  `[0]` of Q-window count; `kipPages` does not. An eval requirement is a
+  pattern with a display name, not a field path, so this grader cannot
+  check the key the way the drill grader does: a scalar under another key
+  of the cited object that matches the pattern still counts.
 - **Not changed.** B32's evidence check still accepts any path that
   resolves (SRE85), and the record still keeps the field the path read.
   Quote entries grade as before.
@@ -1994,6 +2002,7 @@ Dev fault-injection drill, core rows (`drill.cases.ts`, run by
 | SRE72 | grade fail | cause unknown / Q-window not cited / runbook roll-back / a quote not in its item (unverified) | fail: wrong-cause:unknown / missing-evidence:Q-window / runbook-mismatch:cloudflare-data-publisher.md#roll-back / verdict:unverified |
 | SRE88 | grade path evidence | throw fired; the diagnosis cites {E3, path kipPages.lastRun.error} and {E6, path [0].template}, explained / E3 path kipPages.lastRun (the object holding the error) / E3 path kipPages.lastRun.status only / E3 path kipPages.lastRun.nope (unverified) / the eval grader on kip-pages-two-failures with path-cited golden evidence, then E3 path to status | graded pass / pass / fail missing-evidence:kipPages.lastRun.error / fail missing-evidence:kipPages.lastRun.error, verdict:unverified / eval pass, then missing kipPages.lastRun.error |
 | SRE96 | drill path scope | throw fired; the diagnosis cites E6 by [0].template and E3 by path kipPages.lastRun.error / kipPages.lastRun / kipPages (the root object) | pass / pass / fail missing-evidence:kipPages.lastRun.error with no verdict reason (the path still resolves) |
+| SRE96 | drill path scope by key | skip graded, kipPages.lastGoodAt equal to kipPages.lastRun.at, E3 cited by path kipPages.lastRun.at / kipPages.lastRun / kipPages / kipPages.lastGoodAt (a sibling key, same value); throw graded, E3 cited by kipPages.lastRun / kipPages.other holding error with the same value | pass / pass / fail missing-evidence:kipPages.lastRun.at / fail missing-evidence:kipPages.lastRun.at; error counted / missing-evidence:kipPages.lastRun.error |
 | SRE97 | eval path scope | the eval grader on kip-pages-two-failures, Q-window cited by [0].status, the /health item by path kipPages.lastRun.error / kipPages.lastRun / kipPages; then Q-window cited by [0] | pass / pass / missing kipPages.lastRun.error; pass |
 | SRE72 | no diagnosis | throw fired 23 h / 25 h before a tick with no kip-pages diagnosis; skip fired 47 h / 49 h before | nothing graded, pointer kept / fail no-diagnosis; same for skip at 48 h |
 | SRE72 | failure before the drill | throw fired; the tick diagnoses kip-pages job.failures whose since (21:00) is before armedAt (21:10) | nothing graded: record stays fired, result null; pointer kept |
@@ -2107,8 +2116,8 @@ by Amendment (1); SRE34 replaced it.
 - SRE95: (owner decision 2026-10-26) the `cause` description in the JSON Schema says a playbook cause id makes the verdict `explained` and `unknown` makes it `inconclusive` or `unexplained`; `SYSTEM_PROMPT` and the `confidence` description say confidence never changes the verdict, so a playbook cause at low confidence is still `explained` → L1 test with case rows.
 
 ### Path citation scope: Behavior
-- SRE96: (owner decision 2026-10-26; narrows SRE88) given a fired `throw` drill whose diagnosis cites E6 by path, the drill grader counts the required `kipPages.lastRun.error` as cited by `{E3, path kipPages.lastRun.error}` (the exact field) and by `{E3, path kipPages.lastRun}` (the object directly holding it), and grades `fail` with `missing-evidence:kipPages.lastRun.error` for `{E3, path kipPages}` (the root object, two levels up), which still passes the evidence check (verdict `explained`) → L1 test with case rows.
-- SRE97: (owner decision 2026-10-26) the L3 eval grader on `kip-pages-two-failures` with path-cited golden evidence passes with `kipPages.lastRun.error` and with `kipPages.lastRun`, and with Q-window cited as `[0]` (the row holding `"status": "ok"`); it reports `kipPages.lastRun.error` missing for `kipPages`, whose recorded field holds the error two levels down → L1 test with case rows.
+- SRE96: (owner decision 2026-10-26; narrows SRE88) given a fired `throw` drill whose diagnosis cites E6 by path, the drill grader counts the required `kipPages.lastRun.error` as cited by `{E3, path kipPages.lastRun.error}` (the exact field) and by `{E3, path kipPages.lastRun}` (the object directly holding it), and grades `fail` with `missing-evidence:kipPages.lastRun.error` for `{E3, path kipPages}` (the root object, two levels up), which still passes the evidence check (verdict `explained`); the parent counts only through the required field's own key: in a `skip` drill where `kipPages.lastGoodAt` equals `kipPages.lastRun.at`, `kipPages.lastRun.at` and `kipPages.lastRun` pass and `kipPages` and `kipPages.lastGoodAt` fail `missing-evidence:kipPages.lastRun.at`, and an object at another path holding the error under `error` does not count → L1 test with case rows.
+- SRE97: (owner decision 2026-10-26) the L3 eval grader on `kip-pages-two-failures` with path-cited golden evidence passes with `kipPages.lastRun.error` and with `kipPages.lastRun`, and with Q-window cited as `[0]` (the row holding `"status": "ok"`); it reports `kipPages.lastRun.error` missing for `kipPages`, whose recorded field holds the error two levels down; requirements are patterns without a field path, so a matching scalar under another key of the cited object still counts → L1 test with case rows.
 
 ### Dev fault-injection drill: Behavior
 - SRE67: with `SRE_DRILL=on` on `development`, `POST /sre-agent/drill` with the manual token and `{job: "kip-pages", kind: "throw"}` answers 201 `{drillId, job, kind, runs: 2, armedAt, expiresAt}` and writes the drill record and the pointer under `internal/sre/v1/dev/drills/`; it answers 401 without the token, 400 for another job or kind, 409 while a drill is armed or fired-but-ungraded, 404 with `SRE_DRILL` unset, and 409 for a kind whose rule's playbook does not list the expected cause; `DELETE` removes the pointer and marks the record `cancelled` → worker test with the `sre-drill-worker.cases.ts` rows.

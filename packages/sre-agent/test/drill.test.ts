@@ -12,10 +12,12 @@ import {
   drillExpectations,
   drillRecordKey,
   gradeActiveDrill,
+  gradeDiagnosis,
   readOnlyTools,
   runTick,
   sreKey,
   type DiagnosisOutput,
+  type DiagnosisRecord,
   type DrillRecord,
   type Health,
   type PlaybookLibrary,
@@ -191,6 +193,34 @@ const scenarios: Record<string, () => Promise<void>> = {
     expect(await graded(cites("kipPages.lastRun"))).toMatchObject({ result: "pass", reasons: [] });
     // The root path resolves (B32 passes, no verdict reason) but no longer satisfies the requirement.
     expect(await graded(cites("kipPages"))).toMatchObject({ result: "fail", reasons: ["missing-evidence:kipPages.lastRun.error"] });
+  },
+
+  async "drill path scope by key"() {
+    // A healthy-then-skipped kip-pages: lastGoodAt equals lastRun.at, so a value match under another key is easy.
+    const health = devHealth({ rules: [] });
+    const at = (health.kipPages as { lastRun: { at: string } }).lastRun.at;
+    expect((health.kipPages as { lastGoodAt: string }).lastGoodAt).toBe(at);
+    const items = [
+      { id: "E3", source: "health" as const, label: "kip-pages /health fields", text: JSON.stringify({ kipPages: { ...health.kipPages as object, other: { error: ERROR } } }, null, 2) },
+      { id: "E7", source: "sql" as const, label: "Q-history", text: "[]" },
+    ];
+    const skip = drillExpectations.skip;
+    const diagnosis = (e3: string) => ({
+      verdict: "explained", cause: skip.cause, runbook: skip.runbook, evidence: [{ id: "E3", path: e3, quote: null }, { id: "E7", quote: "[]" }],
+    }) as unknown as DiagnosisRecord;
+    const skipGrade = (e3: string) => gradeDiagnosis("skip", diagnosis(e3), items, health);
+    expect(skipGrade("kipPages.lastRun.at")).toEqual({ result: "pass", reasons: [] });
+    expect(skipGrade("kipPages.lastRun")).toEqual({ result: "pass", reasons: [] });
+    // The root holds lastGoodAt == lastRun.at directly: not the required key's parent, so it no longer counts.
+    expect(skipGrade("kipPages")).toEqual({ result: "fail", reasons: ["missing-evidence:kipPages.lastRun.at"] });
+    // A sibling key with the same value is not the required field.
+    expect(skipGrade("kipPages.lastGoodAt")).toEqual({ result: "fail", reasons: ["missing-evidence:kipPages.lastRun.at"] });
+    // throw: an object holding the error under the required key name but at another path does not count either.
+    const throwHealth = failingHealth();
+    const throwItems = [{ ...items[0]!, text: JSON.stringify({ kipPages: { ...throwHealth.kipPages as object, other: { error: ERROR } } }) }];
+    const throwGrade = (e3: string) => gradeDiagnosis("throw", { ...diagnosis(e3), cause: GOLDEN.cause, runbook: RUNBOOK, evidence: [{ id: "E3", path: e3, quote: null }] } as unknown as DiagnosisRecord, [...throwItems, { id: "E6", source: "sql", label: "Q-window", text: "[]" }], throwHealth);
+    expect(throwGrade("kipPages.lastRun")).toMatchObject({ reasons: ["missing-evidence:Q-window"] });
+    expect(throwGrade("kipPages.other")).toMatchObject({ reasons: ["missing-evidence:kipPages.lastRun.error", "missing-evidence:Q-window"] });
   },
 
   async "eval path scope"() {

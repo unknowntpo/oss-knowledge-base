@@ -233,10 +233,21 @@ export function citedFields(text: string, path: string): { readonly value: unkno
   return [found, ...children];
 }
 
-/** SRE88, SRE96: the value at `path` in a JSON item is `wanted`, or directly holds it (one level up, no further). */
-export function pathHolds(text: string, path: string, wanted: unknown): boolean {
-  if (wanted === undefined) return false;
-  return citedFields(text, path).some((field) => same(field.value, wanted));
+/**
+ * SRE88, SRE96: a path citation in a JSON item names the required `field` (its keys from the root) and reads
+ * `wanted`: the path is that field, or the field's parent object whose own key `field.at(-1)` holds `wanted`. A value
+ * match under another key or at another path does not count.
+ */
+export function pathHolds(text: string, path: string, field: readonly string[], wanted: unknown): boolean {
+  const segments = parsePath(path);
+  if (wanted === undefined || segments === null || field.length === 0) return false;
+  const found = resolvePath(text, path);
+  if (found === null) return false;
+  const at = (keys: readonly string[]) => segments.length === keys.length && keys.every((key, index) => segments[index] === key);
+  if (at(field)) return same(found.value, wanted);
+  if (!at(field.slice(0, -1)) || !isObject(found.value)) return false;
+  const key = field.at(-1)!;
+  return Object.hasOwn(found.value, key) && same(found.value[key], wanted);
 }
 
 /**
