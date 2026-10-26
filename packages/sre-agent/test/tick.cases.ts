@@ -18,6 +18,7 @@ export const testPlanRows = [
   { id: "SRE41", case: "neuron cap boundary", given: "today.neurons 1,000 and next reservation 500 / 501", expected: "step runs / diagnosis stops inconclusive budget" },
   { id: "SRE41", case: "crash after reservation", given: "state written with reservation, model call throws, process ends", expected: "next tick counts the reservation in today.neurons" },
   { id: "SRE41", case: "new UTC day", given: "state.json of 2026-10-21 at the caps (3 diagnoses, 1,500 neurons); a tick on 2026-10-22 with a new firing", expected: "today resets to 2026-10-22; the firing is diagnosed" },
+  { id: "SRE90", case: "configured caps", given: "firings of 5 jobs with no caps passed / maxDiagnosesPerDay 4; today.neurons 1,499 with dailyNeuronCap 3,000; a ledger at 2,500 of 3,000 reserving 500 / 501", expected: "3 diagnosed / 4 diagnosed, 1 notDiagnosed daily-cap; the diagnosis calls the model (no budget stop); fits / BudgetExceededError naming 3000, today unchanged" },
   { id: "SRE42", case: "no new firing", given: "0 firings / 1 new firing", expected: "run record healthy, modelCalls 0 / 1 diagnosis" },
   { id: "SRE42", case: "group by job", given: "job.missed and publication.freshness firing for publication", expected: "1 bundle, 1 diagnosis, 2 fingerprints recorded" },
   { id: "SRE43", case: "bundle per job", given: "a firing for each job of A2", expected: "exactly A2's /health fields, firing entries, costGuard, Q-run and Q-history (Q-window for cost guard, job.failures), playbook and its runbook sections, ids E1..En" },

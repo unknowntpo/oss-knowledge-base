@@ -11,7 +11,7 @@ import { CI_JOB, collectFirings, parseFlag, readCiRelease } from "./firings";
 import { diagnoseBundle, renderPrompt, SYSTEM_PROMPT, type Diagnosis } from "./loop";
 import type { PlaybookLibrary } from "./playbook";
 import { PLAYBOOK_LIBRARY } from "./playbooks.generated";
-import { NeuronLedger, fingerprint, loadState, planDiagnoses, utcDate, type NotDiagnosedReason, type SreState } from "./state";
+import { DAILY_NEURON_CAP, MAX_DIAGNOSES_PER_DAY, NeuronLedger, fingerprint, loadState, planDiagnoses, utcDate, type NotDiagnosedReason, type SreState } from "./state";
 import { scopedStore, sreKey } from "./store";
 import type { CiRelease, Env, Firing, Health, Mode, QuerySignals, RawStore } from "./types";
 
@@ -38,6 +38,10 @@ export interface TickDeps {
   readonly library?: PlaybookLibrary;
   readonly toolTimeoutMs?: number;
   readonly ciTimeoutMs?: number;
+  /** SRE90: diagnoses per UTC day (B31); `MAX_DIAGNOSES_PER_DAY` (3) when absent. The Worker validates it. */
+  readonly maxDiagnosesPerDay?: number;
+  /** SRE90: neurons per UTC day (B31); `DAILY_NEURON_CAP` (1,500) when absent. The Worker validates it. */
+  readonly dailyNeuronCap?: number;
   /** Called as each step of B26 starts (0–7); a throw ends the tick like any other error (SRE47). */
   readonly onStep?: (step: number) => void;
   /**
@@ -134,7 +138,7 @@ export async function runTick(deps: TickDeps): Promise<TickResult> {
   const stateKey = sreKey(env, "state.json");
   const state: SreState = loadState(await store.get(stateKey), date);
   const persist = (value: SreState) => store.put(stateKey, JSON.stringify(value));
-  const ledger = new NeuronLedger(state, persist);
+  const ledger = new NeuronLedger(state, persist, deps.dailyNeuronCap ?? DAILY_NEURON_CAP);
   const secrets = deps.secrets ?? [];
   const library = deps.library ?? PLAYBOOK_LIBRARY;
 
@@ -144,7 +148,7 @@ export async function runTick(deps: TickDeps): Promise<TickResult> {
   const ci = await readCiRelease(env, deps.fetch, deps.ciTimeoutMs === undefined ? {} : { timeoutMs: deps.ciTimeoutMs });
   const { firings, signals } = collectFirings(env, health, ci);
   step(2);
-  const plan = planDiagnoses(firings, state, date);
+  const plan = planDiagnoses(firings, state, date, deps.maxDiagnosesPerDay ?? MAX_DIAGNOSES_PER_DAY);
   if (plan.groups.length === 0) step(3);
 
   // Steps 4–6 per job (step 3, no new firing, is the empty loop).

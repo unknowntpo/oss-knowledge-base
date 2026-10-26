@@ -38,6 +38,8 @@
     "SRE_AGENT_CRON": "30 0 * * *;0 11 * * *",
     "SRE_AGENT_MODEL": "@cf/qwen/qwen3-30b-a3b-fp8",
     "SRE_AGENT_GATEWAY": "osskb-sre-dev",
+    "SRE_AGENT_MAX_DIAGNOSES": "10",
+    "SRE_AGENT_DAILY_NEURONS": "3000",
     "SRE_DRILL": "on",
     "R2_RETENTION": "dry-run",
     "RETENTION_CRON": "17 10 * * *",
