@@ -3,6 +3,7 @@
  * `ai/test` and scripted responses. No network, $0.
  */
 import { describe, expect, test } from "bun:test";
+import { generateText } from "ai";
 import {
   MAX_OUTPUT_TOKENS,
   MAX_STEPS,
@@ -14,6 +15,7 @@ import {
   neuronsFor,
   runTick,
   sreKey,
+  sreRunId,
   type Bundle,
   type QuerySignals,
   type TickDeps,
@@ -168,6 +170,39 @@ const scenarios: Record<string, () => Promise<void>> = {
     const toolMessage = JSON.parse(promptTexts(model)[1]!).find((message: { role: string }) => message.role === "tool");
     expect(toolMessage.content[0].output.type).toBe("error-text");
     expect(toolMessage.content[0].output.value).toContain("timeout");
+  },
+
+  async "agent identity"() {
+    // A spy in place of the traced generateText: it records each call's identity fields, then delegates.
+    const spy = () => {
+      const calls: { telemetry: unknown; runtimeContext: unknown }[] = [];
+      const fn = ((options: Parameters<typeof generateText>[0]) => {
+        calls.push({ telemetry: options.telemetry, runtimeContext: options.runtimeContext });
+        return generateText(options);
+      }) as typeof generateText;
+      return { calls, fn };
+    };
+    const identity = (runId: string) => ({
+      telemetry: { functionId: "sre-agent", includeRuntimeContext: { runId: true, env: true, job: true } },
+      runtimeContext: { agentId: "sre-agent-dev", conversationId: runId, runId, env: "dev", job: "publication" },
+    });
+    const direct = spy();
+    const runId = "sre-agent-2026-10-22T00-30-00-000Z";
+    const ledger = new NeuronLedger(emptyState("2026-10-22"), async () => {});
+    const result = await diagnoseBundle({
+      model: scripted(answer(VALID_OUTPUT)), modelId: MODEL_ID, bundle: await bundle(), ledger, runId, generateText: direct.fn,
+      tools: { env: "dev", health, querySignals: sqlFake().querySignals, fetch: githubFake().fetch, secrets: [], library: PLAYBOOK_LIBRARY, ciRuns: false },
+    });
+    expect(result.verdict).toBe("explained");
+    expect(direct.calls).toEqual([identity(runId)]);
+    // runTick passes its generateText and runId through; the secret never reaches the identity fields.
+    const secret = "ghs_0123456789abcdefghijABCDEFGHIJ012345";
+    const ticked = spy();
+    const run = await runTick(tickDeps({ model: scripted(toolCall("read_playbook", { id: "job.missed" }), answer(VALID_OUTPUT)), generateText: ticked.fn, secrets: [secret] }));
+    expect(run.runRecord!.diagnoses.map((value) => value.verdict)).toEqual(["explained"]);
+    expect(ticked.calls).toEqual([identity(sreRunId(NOW))]);
+    for (const value of Object.values(ticked.calls[0]!.runtimeContext as Record<string, unknown>)) expect(typeof value).toBe("string");
+    expect(JSON.stringify(ticked.calls)).not.toContain(secret);
   },
 
   async "dry run"() {

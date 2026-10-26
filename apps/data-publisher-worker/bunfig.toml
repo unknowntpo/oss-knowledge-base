@@ -1,0 +1,3 @@
+[test]
+# Spec 027 SRE81, SRE82: bun has no cloudflare:workers; a recording stand-in (see the file).
+preload = ["./test/support/cloudflare-workers.ts"]

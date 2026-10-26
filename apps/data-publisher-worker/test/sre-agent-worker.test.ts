@@ -4,11 +4,13 @@
  */
 import { afterEach, beforeEach, describe, expect, setSystemTime, test } from "bun:test";
 import { generateText } from "ai";
-import { JOB_HEALTH_FIELDS, SRE_JOBS } from "@oss-knowledge-base/sre-agent";
+import { MockLanguageModelV4 } from "ai/test";
+import { JOB_HEALTH_FIELDS, SRE_JOBS, type RunRecord } from "@oss-knowledge-base/sre-agent";
 import worker, { cronTarget, inAppSources, tickHealth } from "../src/index";
 import { SIGNAL_JOBS } from "../src/signals/profile";
-import { sreAgentModel, sreAgentTick, type SreAgentEnv } from "../src/sre-agent/run";
+import { SRE_TICK_SPAN, sreAgentModel, sreAgentTick, tickSpanAttributes, tracedGenerateText, type SreAgentEnv, type SreAgentTickResult } from "../src/sre-agent/run";
 import { testPlanRows } from "./sre-agent-worker.cases";
+import { recordedSpans } from "./support/cloudflare-workers";
 
 const NOW = "2026-10-23T00:30:00.000Z";
 const NOW_MS = Date.parse(NOW);
@@ -133,8 +135,21 @@ afterEach(() => {
 });
 
 const readConfig = async (name: string) => JSON.parse((await Bun.file(new URL(`../${name}`, import.meta.url)).text()).replace(/^\s*\/\/.*$/gmu, "")) as {
-  vars?: Record<string, string>; triggers?: { crons?: string[] };
+  vars?: Record<string, string>; triggers?: { crons?: string[] }; observability?: Record<string, unknown>;
 };
+
+/** SRE81, SRE82: a model that answers one diagnosis citing an item and a cause the bundle does not have. */
+function inventedModel() {
+  const usage = { inputTokens: { total: 3000, noCache: 3000, cacheRead: undefined, cacheWrite: undefined }, outputTokens: { total: 200, text: 200, reasoning: undefined } };
+  const output = { verdict: "unexplained", cause: "invented-cause", confidence: "low", evidence: [{ id: "E99", quote: "\"job\": \"publication\"" }], runbook: null, ownerAction: null };
+  return new MockLanguageModelV4({
+    modelId: MODEL,
+    doGenerate: async () => ({ content: [{ type: "text" as const, text: JSON.stringify(output) }], finishReason: { unified: "stop" as const, raw: undefined }, usage, warnings: [] }),
+  });
+}
+
+const liveTick = (env: unknown, deps: Partial<Parameters<typeof sreAgentTick>[1]> = {}) =>
+  sreAgentTick(env as SreAgentEnv, { now: new Date(NOW), readHealth: () => tickHealth(env as never), fetch: globalThis.fetch, model: inventedModel(), ...deps });
 
 const sreLogs = () => logs.filter((value): value is { message: string; runId: string; job: string } =>
   value !== null && typeof value === "object" && (value as { job?: unknown }).job === "sre-agent");
@@ -350,6 +365,95 @@ const scenarios: Record<string, () => Promise<void>> = {
     expect(sreAgent.lastRun).toEqual({
       runId: RUN_ID, at: NOW, status: "ok", firings: record.firings, diagnosed: 1, notDiagnosed: 0, modelCalls: 0, neurons: 0, verdicts: ["dry-run"], recordKey,
     });
+  },
+
+  async "traced generateText"() {
+    // Injected: the tick's model calls go through the given generateText.
+    const injected: unknown[] = [];
+    const spy = ((options: Parameters<typeof generateText>[0]) => { injected.push(options.runtimeContext); return generateText(options); }) as typeof generateText;
+    const first = workerEnv({ SRE_AGENT: "live" });
+    const viaSpy = await liveTick(first.env, { generateText: spy });
+    expect(viaSpy?.runRecord).toMatchObject({ diagnosed: 1, modelCalls: 1 });
+    expect(injected).toEqual([expect.objectContaining({ runId: RUN_ID, env: "dev", job: "publication" })]);
+
+    // Default: the wiring's wrapAISDK generateText, not the AI SDK's own, recording the replay payloads.
+    expect(tracedGenerateText).not.toBe(generateText);
+    recordedSpans.length = 0;
+    const second = workerEnv({ SRE_AGENT: "live" });
+    const viaWrapper = await liveTick(second.env);
+    expect(viaWrapper?.runRecord).toMatchObject({ diagnosed: 1, modelCalls: 1 });
+    expect(viaWrapper!.runRecord!.diagnoses.map((value) => value.verdict)).toEqual(["unverified"]);
+    const agent = recordedSpans.filter((span) => span.attributes["gen_ai.agent.name"] === "sre-agent" && span.name.includes("sre-agent"));
+    expect(agent.length).toBeGreaterThan(0);
+    expect(agent[0]!.attributes).toMatchObject({
+      "gen_ai.conversation.id": RUN_ID,
+      "gen_ai.agent.id": "sre-agent-dev",
+      "cloudflare.agents.runtime_context.runId": RUN_ID,
+      "cloudflare.agents.runtime_context.env": "dev",
+      "cloudflare.agents.runtime_context.job": "publication",
+    });
+    const inputs = recordedSpans.map((span) => span.attributes["gen_ai.input.messages"]).filter((value) => typeof value === "string");
+    const outputs = recordedSpans.map((span) => span.attributes["gen_ai.output.messages"]).filter((value) => typeof value === "string");
+    expect(inputs.some((value) => (value as string).includes("Firing job: publication"))).toBe(true);
+    expect(outputs.some((value) => (value as string).includes("invented-cause"))).toBe(true);
+    // Positive control: without the wrapper (the spy above) no agent span was recorded for that tick.
+    recordedSpans.length = 0;
+    await liveTick(workerEnv({ SRE_AGENT: "live" }).env, { generateText: spy });
+    expect(recordedSpans.filter((span) => span.attributes["gen_ai.agent.name"] !== undefined)).toEqual([]);
+  },
+
+  async "tick span attributes"() {
+    const diagnosis = (job: string, verdict: string, failures: string[], inputTokens: number, outputTokens: number) =>
+      ({ job, verdict, evidenceCheck: { ok: failures.length === 0, failures }, inputTokens, outputTokens });
+    const runRecord = {
+      firings: 3, diagnosed: 2, neurons: 120.25,
+      diagnoses: [diagnosis("publication", "explained", [], 3000, 200), diagnosis("kip-pages", "unverified", ["quote-not-in-item:E3", "unknown-evidence-id:E9"], 1000, 50)],
+    } as unknown as RunRecord;
+    const ok: SreAgentTickResult = { runId: RUN_ID, status: "ok", runRecord, neuronsToday: 412.5 };
+    expect(tickSpanAttributes({ env: "dev", mode: "live", result: ok })).toEqual({
+      runId: RUN_ID, env: "dev", mode: "live", status: "ok", firings: 3, diagnosed: 2, verdicts: "explained,unverified",
+      evidenceCheckFailures: 2, evidenceCheckFailureIds: "kip-pages:quote-not-in-item:E3,kip-pages:unknown-evidence-id:E9",
+      inputTokens: 4000, outputTokens: 250, neurons: 120.25, neuronsToday: 412.5, neuronsDailyCap: 1500,
+    });
+    const failed: SreAgentTickResult = { runId: RUN_ID, status: "failed", reason: "/health answered 503" };
+    expect(tickSpanAttributes({ env: "dev", mode: "dry", result: failed })).toEqual({ runId: RUN_ID, env: "dev", mode: "dry", status: "failed", reason: "/health answered 503" });
+    // Scalar values only, and the failure ids stay short.
+    const many = { ...runRecord, diagnoses: [diagnosis("kip-pages", "unverified", Array.from({ length: 200 }, (_, index) => `quote-not-in-item:E${index}`), 1, 1)] } as unknown as RunRecord;
+    const capped = tickSpanAttributes({ env: "prod", mode: "live", result: { runId: RUN_ID, status: "ok", runRecord: many, neuronsToday: 1 } });
+    expect(capped.evidenceCheckFailures).toBe(200);
+    expect(String(capped.evidenceCheckFailureIds).length).toBeLessThanOrEqual(1024);
+    for (const value of Object.values(capped)) expect(["string", "number", "boolean"]).toContain(typeof value);
+  },
+
+  async "tick span"() {
+    const ticks = () => recordedSpans.filter((span) => span.name === SRE_TICK_SPAN);
+    recordedSpans.length = 0;
+    const off = workerEnv({ SRE_AGENT: "off" });
+    expect(await sreAgentTick(off.env as unknown as SreAgentEnv, { now: new Date(NOW), readHealth: () => tickHealth(off.env as never) })).toBeUndefined();
+    expect(recordedSpans).toEqual([]);
+
+    const dry = workerEnv({ SRE_AGENT: "dry" });
+    const dryResult = await sreAgentTick(dry.env as unknown as SreAgentEnv, { now: new Date(NOW), readHealth: () => tickHealth(dry.env as never), fetch: globalThis.fetch });
+    expect(ticks()).toEqual([{ name: SRE_TICK_SPAN, attributes: tickSpanAttributes({ env: "dev", mode: "dry", result: dryResult! }), ended: true }]);
+    expect(ticks()[0]!.attributes).toMatchObject({ status: "ok", diagnosed: 1, verdicts: "dry-run" });
+
+    recordedSpans.length = 0;
+    const live = workerEnv({ SRE_AGENT: "live" });
+    const liveResult = await liveTick(live.env);
+    expect(liveResult?.neuronsToday).toBeGreaterThan(0);
+    expect(ticks()).toEqual([{ name: SRE_TICK_SPAN, attributes: tickSpanAttributes({ env: "dev", mode: "live", result: liveResult! }), ended: true }]);
+    expect(ticks()[0]!.attributes).toMatchObject({ runId: RUN_ID, status: "ok", diagnosed: 1, verdicts: "unverified", evidenceCheckFailures: 2, inputTokens: 3000, outputTokens: 200, neuronsDailyCap: 1500 });
+    const text = JSON.stringify(ticks()[0]!.attributes);
+    expect(text).not.toContain(SECRET);
+    expect(text).not.toContain("Firing job");
+    expect(text).not.toContain("tool-output");
+  },
+
+  async "tracing config"() {
+    const dev = await readConfig("wrangler.development.jsonc");
+    const prod = await readConfig("wrangler.production.jsonc");
+    expect(dev.observability).toEqual({ enabled: true, head_sampling_rate: 1, traces: { enabled: true } });
+    expect(prod.observability).toEqual({ enabled: true, head_sampling_rate: 1 });
   },
 };
 
