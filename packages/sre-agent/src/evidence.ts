@@ -6,10 +6,21 @@ import type { EvidenceItem } from "./bundle";
 export const PATH_SYNTAX =
   "the path of one field inside that item: keys joined by dots, array indexes in brackets, for example kipPages.lastRun.error, status or [0].status (a SQL item is an array of rows); write a key holding a dot, bracket, quote or space as [\"the.key\"]. The code reads the value there, so never copy JSON text.";
 
+/** SRE94: what each verdict means, as the prompt and the schema define it to the model (owner decision 2026-10-26). */
+export const VERDICT_DEFINITION = [
+  "verdict \"explained\": cause is a playbook cause id (not \"unknown\") and evidence cites its distinguishing evidence, at any confidence.",
+  "verdict \"inconclusive\": only when cause is \"unknown\" because the bundle lacks the evidence that would decide it; name the missing fields in ownerAction.",
+  "verdict \"unexplained\": only when cause is \"unknown\" and the cited evidence rules out every playbook cause: the firing is real but no listed cause fits.",
+].join(" ");
+
+/** SRE95: confidence grades the cause and never sets the verdict. */
+export const CONFIDENCE_DEFINITION =
+  "How sure you are of the cause, by the playbook's confidence guidance. It never changes the verdict: a playbook cause at low confidence is still \"explained\".";
+
 export const diagnosisOutputSchema = z.object({
-  verdict: z.enum(["explained", "unexplained", "inconclusive"]),
-  cause: z.string().describe("A cause id from a firing rule's playbook, or \"unknown\""),
-  confidence: z.enum(["low", "medium", "high"]),
+  verdict: z.enum(["explained", "unexplained", "inconclusive"]).describe(VERDICT_DEFINITION),
+  cause: z.string().describe("A cause id from a firing rule's playbook, or \"unknown\". A playbook cause id makes the verdict \"explained\"; \"unknown\" makes it \"inconclusive\" or \"unexplained\"."),
+  confidence: z.enum(["low", "medium", "high"]).describe(CONFIDENCE_DEFINITION),
   // SRE87: exactly one of `path` and `quote`; the evidence check, not the schema, enforces it, so a bad entry
   // makes the verdict `unverified` and the rest of the diagnosis is kept.
   evidence: z.array(z.object({

@@ -1,6 +1,6 @@
 # Spec 027: Read-only SRE triage agent
 
-Status: Partially implemented (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; [Amendment (1)](#amendment-1-triggered-diagnosis-2026-10-22) 2026-10-22: the agent diagnoses only after a deterministic rule fires; [Amendment (2)](#amendment-2-a-worker-job-on-the-ai-sdk-2026-10-22) 2026-10-22: an `sre-agent` job on the data publisher Worker, AI SDK with Workers AI, invariant playbooks; A2-1–A2-5 decided by owner 2026-10-22; [Dev fault-injection drill](#dev-fault-injection-drill-2026-10-22) added 2026-10-22; A2-9 slice 1 (the `packages/sre-agent` library core, L1/L2 tests) implemented; A2-9 slice 2 (the `sre-agent` cron job wired into the data publisher Worker, `/health.sreAgent`, the Spec 026 neuron term) implemented with `SRE_AGENT=off` on Dev and Prod; the drill (SRE67–SRE75, the `job.failures` playbook) implemented and Dev `SRE_AGENT=live` on Qwen3 30B without the `dry` week (owner decisions 2026-10-25), Prod `off`; see [Slice 1 notes](#slice-1-notes-2026-10-22), [Slice 2 notes](#slice-2-notes-2026-10-23) and [Drill slice notes](#drill-slice-notes-2026-10-25); the L3 eval (SRE59, SRE60) run three times 2026-10-25, with the owner's 4,096-token output cap and compact-JSON quote match from the second and third: the third run's scoreboard chooses Qwen3 30B (A2-1; 2 of 24 diagnoses pass), see [Eval notes](#eval-notes-2026-10-25); the evidence check also accepts JSON-pair quotes (SRE78, owner decision 2026-10-26, [JSON-pair quote match](#owner-decision-2026-10-26-json-pair-quote-match)); JSON evidence is cited by path, not copied text (SRE85–SRE89, owner decision 2026-10-26, [Path citation](#owner-decision-2026-10-26-cite-json-evidence-by-path); SRE79 withdrawn); Cloudflare Agent tracing on Dev (SRE80–SRE84, owner decision 2026-10-26, [Agent tracing on Dev](#agent-tracing-on-dev-owner-decision-2026-10-26)); the daily caps are Worker vars, Dev 10 diagnoses and 3,000 neurons a day, Prod unchanged (SRE90–SRE93, owner decision 2026-10-26, [Dev diagnosis quota](#dev-diagnosis-quota-owner-decision-2026-10-26)))
+Status: Partially implemented (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; [Amendment (1)](#amendment-1-triggered-diagnosis-2026-10-22) 2026-10-22: the agent diagnoses only after a deterministic rule fires; [Amendment (2)](#amendment-2-a-worker-job-on-the-ai-sdk-2026-10-22) 2026-10-22: an `sre-agent` job on the data publisher Worker, AI SDK with Workers AI, invariant playbooks; A2-1–A2-5 decided by owner 2026-10-22; [Dev fault-injection drill](#dev-fault-injection-drill-2026-10-22) added 2026-10-22; A2-9 slice 1 (the `packages/sre-agent` library core, L1/L2 tests) implemented; A2-9 slice 2 (the `sre-agent` cron job wired into the data publisher Worker, `/health.sreAgent`, the Spec 026 neuron term) implemented with `SRE_AGENT=off` on Dev and Prod; the drill (SRE67–SRE75, the `job.failures` playbook) implemented and Dev `SRE_AGENT=live` on Qwen3 30B without the `dry` week (owner decisions 2026-10-25), Prod `off`; see [Slice 1 notes](#slice-1-notes-2026-10-22), [Slice 2 notes](#slice-2-notes-2026-10-23) and [Drill slice notes](#drill-slice-notes-2026-10-25); the L3 eval (SRE59, SRE60) run three times 2026-10-25, with the owner's 4,096-token output cap and compact-JSON quote match from the second and third: the third run's scoreboard chooses Qwen3 30B (A2-1; 2 of 24 diagnoses pass), see [Eval notes](#eval-notes-2026-10-25); the evidence check also accepts JSON-pair quotes (SRE78, owner decision 2026-10-26, [JSON-pair quote match](#owner-decision-2026-10-26-json-pair-quote-match)); JSON evidence is cited by path, not copied text (SRE85–SRE89, owner decision 2026-10-26, [Path citation](#owner-decision-2026-10-26-cite-json-evidence-by-path); SRE79 withdrawn); Cloudflare Agent tracing on Dev (SRE80–SRE84, owner decision 2026-10-26, [Agent tracing on Dev](#agent-tracing-on-dev-owner-decision-2026-10-26)); the daily caps are Worker vars, Dev 10 diagnoses and 3,000 neurons a day, Prod unchanged (SRE90–SRE93, owner decision 2026-10-26, [Dev diagnosis quota](#dev-diagnosis-quota-owner-decision-2026-10-26)); the prompt and the output schema define each verdict (SRE94, SRE95, owner decision 2026-10-26, [Verdict definition](#verdict-definition-owner-decision-2026-10-26)))
 Date: 2026-10-20 (amended 2026-10-22)
 Traceability: enforced
 Builds on: Spec 008 (R2 operations), Spec 010, 011, 018, 021 (freshness and stalls), Spec 014 (digest), Spec 019 amendment (7) (identity-links, kip-pages jobs), Spec 020 (feature map), Spec 026 and its dollar-budget amendment (cost guard), Spec 028 (observability signals, PR #108, not merged), Spec 029 (R2 retention)
@@ -387,6 +387,9 @@ with Amendment (1), it wins.
     field it read verbatim (SRE85, SRE86); each entry gives exactly one of
     `path` and `quote` (SRE87), and the prompt and the schema ask for
     `path` for JSON items and `quote` only for text items (SRE89);
+    the prompt and the schema define each verdict from the cause (SRE94,
+    SRE95, [Verdict
+    definition](#verdict-definition-owner-decision-2026-10-26));
     `cause` must be a cause id of a firing rule's playbook or `unknown`;
     `runbook` must be an anchor that playbook lists. Any failure sets
     `verdict: "unverified"` and lists the failures; the record is still
@@ -1225,6 +1228,46 @@ caps.
   R2 operations grow with diagnoses: +1 Class A per diagnosis (trajectory)
   and +1 per model call (reservation), within Spec 026's Class A budget.
 
+### Verdict definition (owner decision 2026-10-26)
+
+Dev run `sre-agent-2026-10-26T06-22-06-386Z`: Qwen3 30B answered `cause:
+"upstream-unavailable"`, `confidence: "high"`, evidence that passed B32,
+and `verdict: "inconclusive"`. The loop keeps the model's verdict when the
+evidence check passes, so the drill graded `fail` with `verdict:inconclusive`.
+The model was never told what a verdict means: the system prompt only said
+how to pick the cause, the schema's `verdict` enum had no description, and
+only the `job.missed` playbook ties `unknown` to `inconclusive`.
+
+Spec 027 lists the three verdicts (A3 item 21, B32) but defines none.
+`unexplained` follows the spec's use of "explained": a firing is explained
+when a known cause accounts for it (A2: "a missed schedule caused by a guard
+pause is explained"). So `unexplained` is the case where the evidence is
+there and no playbook cause accounts for it, and `inconclusive` is the case
+where evidence is missing. The owner chose to define the verdict in the
+prompt and the schema (option A):
+
+- **Verdict (SRE94).** `VERDICT_DEFINITION`
+  (`packages/sre-agent/src/evidence.ts`) is the schema's `verdict`
+  description, so it reaches the structured-output JSON Schema, and a line
+  of `SYSTEM_PROMPT`:
+  - `explained`: `cause` is a playbook cause id (not `unknown`) and
+    `evidence` cites its distinguishing evidence, at any confidence.
+  - `inconclusive`: only when `cause` is `unknown` because the bundle lacks
+    the evidence that would decide it; `ownerAction` names the missing
+    fields.
+  - `unexplained`: only when `cause` is `unknown` and the cited evidence
+    rules out every playbook cause: the firing is real, but no listed cause
+    fits.
+- **Cause and confidence (SRE95).** The schema's `cause` description says a
+  playbook cause id makes the verdict `explained` and `unknown` makes it
+  `inconclusive` or `unexplained`. `CONFIDENCE_DEFINITION` is the schema's
+  `confidence` description and a line of `SYSTEM_PROMPT`: confidence follows
+  the playbook's guidance and never changes the verdict.
+- **Not changed.** The verdict enum, B32's evidence check and the playbooks
+  stay as they are. The harness does not check the verdict against the
+  cause; that is a separate later decision (option B). Only a Dev drill
+  shows whether Qwen3 30B follows the definition.
+
 ### Drill slice notes (2026-10-25)
 
 This slice ships the drill (B37–B46, SRE67–SRE75), the `job.failures`
@@ -1835,6 +1878,8 @@ L1, deterministic tick (`tick.cases.ts`):
 | SRE86 | path not in item | a missing key / an index past the end / an index on an object, a key on an array / a key through a scalar / an inherited key (constructor, __proto__, toString) / invalid syntax (empty, a.., .a, a., a[, a[01], a[-1], a["b], a b) / a path against a non-JSON item (playbook text) or a truncated item / an unknown id with a path | unverified, path-not-in-item:<id>, the record's quote null / unknown-evidence-id:<id> |
 | SRE87 | path or quote | an entry with both path and quote / with neither / with path and quote null / path and an empty quote, quote and an empty path / quote only (a JSON pair, SRE78) / path only | unverified evidence-needs-path-or-quote:<id> / the same / the same / read as path only and quote only, passing / passes as before / passes; the schema accepts all of them |
 | SRE89 | path instruction | the system prompt, the rendered first prompt and the output schema's path and quote descriptions | each asks for path for a JSON item and quote only for a non-JSON item, exactly one per entry; the prompt and path description give the syntax (dots, [n], ["key"]); the quote description asks for a plain substring copied verbatim, no ellipsis; none asks to copy "key": value |
+| SRE94 | verdict definition | the system prompt and the verdict description in the output schema's JSON Schema (the structured-output schema the model receives) | each defines explained (a playbook cause id, not unknown, with its evidence cited, at any confidence), inconclusive (only with cause unknown, the missing evidence named in ownerAction) and unexplained (only with cause unknown, the cited evidence ruling out every playbook cause); the verdict enum is unchanged |
+| SRE95 | cause and confidence definition | the system prompt and the cause and confidence descriptions in the output schema's JSON Schema | the cause description ties a playbook cause id to explained and unknown to inconclusive or unexplained; the prompt and the confidence description say confidence never changes the verdict (a playbook cause at low confidence is still explained) |
 | SRE45 | output schema | record with every field / missing evidence / confidence "sure" | accepted / rejected / rejected |
 | SRE46 | write scope | keys internal/sre/v1/dev/runs/x.json / internal/sre/v1/prod/x / public/v2/current.json / identity-links last-run.json / public/x/internal/sre/v1/dev/y / a .. segment | written / refused before any R2 call (5 cases) |
 | SRE46 | forbidden requests | any path of a tick, dry and live | no request to /run, /*/run, /cost-guard/*, no non-GET, no fetch to the other env's host |
@@ -2023,6 +2068,10 @@ by Amendment (1); SRE34 replaced it.
 - SRE91: (owner decision 2026-10-26) `sreAgentCaps` maps unset vars to `{maxDiagnosesPerDay: 3, dailyNeuronCap: 1500}` and `"10"`, `"3000"` (with or without surrounding spaces) to `{10, 3000}`; each of `""`, `" "`, `"0"`, `"-1"`, `"2.5"`, `"1e3"`, `"0x10"`, `"10abc"`, `"abc"`, `"NaN"`, `"Infinity"` and an integer past 2^53 gives the default for that var only → wiring test with case rows.
 - SRE92: (owner decision 2026-10-26) with `state.json` at 3 diagnoses and 1,499 neurons today, a live Worker tick with a firing diagnoses nothing (every firing `daily-cap`, 0 model calls, span `neuronsDailyCap` 1500) when the vars are unset or `"0"` and `"Infinity"`, and diagnoses it with one model call (span `neuronsDailyCap` 3000) with `SRE_AGENT_MAX_DIAGNOSES` `"10"` and `SRE_AGENT_DAILY_NEURONS` `"3000"` → wiring test with case rows.
 - SRE93: (owner decision 2026-10-26) `wrangler.development.jsonc` has `SRE_AGENT_MAX_DIAGNOSES` `"10"` and `SRE_AGENT_DAILY_NEURONS` `"3000"`; `wrangler.production.jsonc` has neither → config test with case rows.
+
+### Verdict definition: Behavior
+- SRE94: (owner decision 2026-10-26) `SYSTEM_PROMPT` and the `verdict` description in `z.toJSONSchema(diagnosisOutputSchema)` define `explained` (a playbook cause id, not `unknown`, whose distinguishing evidence is cited, at any confidence), `inconclusive` (only with cause `unknown`, when the bundle lacks the deciding evidence, the missing fields named in `ownerAction`) and `unexplained` (only with cause `unknown`, when the cited evidence rules out every playbook cause); the enum stays `explained`, `unexplained`, `inconclusive` → L1 test with case rows.
+- SRE95: (owner decision 2026-10-26) the `cause` description in the JSON Schema says a playbook cause id makes the verdict `explained` and `unknown` makes it `inconclusive` or `unexplained`; `SYSTEM_PROMPT` and the `confidence` description say confidence never changes the verdict, so a playbook cause at low confidence is still `explained` → L1 test with case rows.
 
 ### Dev fault-injection drill: Behavior
 - SRE67: with `SRE_DRILL=on` on `development`, `POST /sre-agent/drill` with the manual token and `{job: "kip-pages", kind: "throw"}` answers 201 `{drillId, job, kind, runs: 2, armedAt, expiresAt}` and writes the drill record and the pointer under `internal/sre/v1/dev/drills/`; it answers 401 without the token, 400 for another job or kind, 409 while a drill is armed or fired-but-ungraded, 404 with `SRE_DRILL` unset, and 409 for a kind whose rule's playbook does not list the expected cause; `DELETE` removes the pointer and marks the record `cancelled` → worker test with the `sre-drill-worker.cases.ts` rows.

@@ -5,6 +5,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { z } from "zod";
 import {
   BUNDLE_MAX_BYTES,
   BudgetExceededError,
@@ -709,6 +710,24 @@ const scenarios: Record<string, () => Promise<void>> = {
     for (const text of [SYSTEM_PROMPT, quote]) {
       expect(text).toMatch(/verbatim/u);
       expect(text).toMatch(/no ellipsis/u);
+    }
+  },
+
+  async "verdict definition"() {
+    const verdict = (z.toJSONSchema(diagnosisOutputSchema).properties!.verdict as { description?: string; enum?: string[] });
+    expect(verdict.enum).toEqual(["explained", "unexplained", "inconclusive"]);
+    for (const text of [SYSTEM_PROMPT, verdict.description ?? ""]) {
+      expect(text).toMatch(/verdict "explained": cause is a playbook cause id \(not "unknown"\) and evidence cites its distinguishing evidence, at any confidence\./u);
+      expect(text).toMatch(/verdict "inconclusive": only when cause is "unknown" because the bundle lacks the evidence that would decide it; name the missing fields in ownerAction\./u);
+      expect(text).toMatch(/verdict "unexplained": only when cause is "unknown" and the cited evidence rules out every playbook cause/u);
+    }
+  },
+
+  async "cause and confidence definition"() {
+    const properties = z.toJSONSchema(diagnosisOutputSchema).properties! as Record<string, { description?: string }>;
+    expect(properties.cause!.description).toMatch(/A playbook cause id makes the verdict "explained"; "unknown" makes it "inconclusive" or "unexplained"\./u);
+    for (const text of [SYSTEM_PROMPT, properties.confidence!.description ?? ""]) {
+      expect(text).toMatch(/never changes the verdict: a playbook cause at low confidence is still "explained"/u);
     }
   },
 
