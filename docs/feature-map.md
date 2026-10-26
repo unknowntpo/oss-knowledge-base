@@ -208,6 +208,11 @@ publication. Per run it reads at most 10 pages of
 `https://issues.apache.org/jira/rest/api/2/search?jql=key in (<≤ 100 keys>)&fields=assignee&validateQuery=warn&maxResults=100`,
 sequentially, 2 s apart, 90 s timeout, the same `User-Agent`, no retry; the first run reads 365 days back. Recorded answers:
 `packages/reference-pipeline/test/fixtures/kip-pages/`.
+Its output is only each KIP's authors and `JIRA:` field (with the Jira
+assignees) under `internal/kips/v1/`; it indexes no page content. The name
+reads wider than that output (the naming rule in
+[workflow](process/workflow.md#naming-stage-2-for-every-new-name)); a rename
+is tracked separately.
 
 The `identity-backfill` job (Spec 019 amendment (8); implemented; on for Dev since 2026-10-23, off on Prod) is not part
 of the publication. Per run, one calendar month: at most 5 GitHub GraphQL requests to `https://api.github.com/graphql`,
