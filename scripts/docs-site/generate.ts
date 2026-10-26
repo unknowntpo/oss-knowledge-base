@@ -84,8 +84,8 @@ export interface FlowNode {
   readonly gate?: readonly string[];
   /** Spec 033 Behavior 4: where it runs when not on Cloudflare. */
   readonly runsOn?: Exclude<RunsOn, "cloudflare">;
-  /** Spec 033 Behavior 5: the `/health` `components` id it shows. */
-  readonly health?: string;
+  /** Spec 033 Behavior 5: the `/health` `components` id(s) it shows; with several, the worst. */
+  readonly health?: string | readonly string[];
   readonly lead: Text;
   readonly facts?: readonly { readonly k: Text; readonly v: Text }[];
   readonly sources: readonly string[];

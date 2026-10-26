@@ -12,6 +12,7 @@
 import { escapeHtml, parseMarkdown, plainText } from "../feature-map-site/markdown";
 import { sectionNamed, tableOf } from "../feature-map-site/generate";
 import type { Flow, FlowNode, Locale, Text } from "./generate";
+import { COMPONENT_IDS } from "../../apps/data-publisher-worker/src/signals/profile";
 
 export type Env = "dev" | "prod";
 export const ENVS: readonly Env[] = ["dev", "prod"];
@@ -24,11 +25,8 @@ export const HEALTH_URLS: Readonly<Record<Env, string>> = {
   prod: "https://oss-knowledge-base-data-prod.unknowntpo.workers.dev/health",
 };
 
-/** The `/health` `components` ids the Worker can emit (Behavior 7: Spec 028 job names and one per publication source). */
-export const HEALTH_COMPONENT_IDS = [
-  "publication", "digest", "embedding", "cost-guard", "identity-links", "kip-pages", "identity-backfill", "retention", "sre-agent",
-  "source:github", "source:mail", "source:jira",
-] as const;
+/** The `/health` `components` ids the Worker can emit (Behavior 7), from the Worker's own list. */
+export const HEALTH_COMPONENT_IDS: readonly string[] = COMPONENT_IDS;
 
 const CLOUDFLARE = "https://dash.cloudflare.com/?to=/:account";
 
@@ -122,7 +120,12 @@ export function mapFieldProblems(node: Record<string, unknown>, at: (message: st
     if (tag !== undefined) at(`a gated node has no hand tag (found kind ${String(tag.kind)}); its badge comes from the gate (Spec 033 Behavior 1, 3)`);
   }
   if (node.runsOn !== undefined && !(RUNS_ON as readonly unknown[]).includes(node.runsOn)) at(`runsOn must be one of ${RUNS_ON.join(", ")}`);
-  if (node.health !== undefined && !(HEALTH_COMPONENT_IDS as readonly unknown[]).includes(node.health)) at(`health must be one of ${HEALTH_COMPONENT_IDS.join(", ")}`);
+  if (node.health !== undefined) {
+    const ids = typeof node.health === "string" ? [node.health] : node.health;
+    if (!Array.isArray(ids) || ids.length === 0 || ids.some((id) => !HEALTH_COMPONENT_IDS.includes(id as string)) || new Set(ids).size !== ids.length) {
+      at(`health must be one of ${HEALTH_COMPONENT_IDS.join(", ")}, or a non-empty list of distinct ones`);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -159,7 +162,8 @@ export interface MapNode {
   readonly lead: string;
   readonly stage: Stages;
   readonly runsOn: RunsOn;
-  readonly health: string | null;
+  /** Behavior 5: the bound `/health` `components` ids; empty when unbound. */
+  readonly health: readonly string[];
   readonly added: boolean;
   readonly links: Readonly<Record<Env, readonly MapLink[]>>;
 }
@@ -194,6 +198,10 @@ function mentions(node: FlowNode, name: string): boolean {
   const word = new RegExp(`(^|[^a-z0-9-])${name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}([^a-z0-9-]|$)`, "u");
   return texts.some((text) => word.test(text));
 }
+
+/** Behavior 5: a node's bindings as a list (`"health": "id"` or `"health": ["id", …]`). */
+export const healthIds = (node: Pick<FlowNode, "health">): readonly string[] =>
+  node.health === undefined ? [] : typeof node.health === "string" ? [node.health] : node.health;
 
 /** Behavior 13: links out per environment, all in the `?to=/:account/…` form (no account id). */
 export function nodeLinks(node: FlowNode, env: Env, deployment: Deployment, repository: string, locale: Locale): MapLink[] {
@@ -230,7 +238,7 @@ export function systemMapData(flow: Flow, context: MapContext): MapData {
     lead: context.inline(t(node.lead)),
     stage: nodeStages(node, context.rows),
     runsOn: node.runsOn ?? "cloudflare",
-    health: node.health ?? null,
+    health: healthIds(node),
     added: before !== null && !before.has(node.id),
     links: { dev: nodeLinks(node, "dev", context.deployments.dev, context.repository, locale), prod: nodeLinks(node, "prod", context.deployments.prod, context.repository, locale) },
   }));

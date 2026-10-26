@@ -42,16 +42,21 @@ export function mountSystemMap(win: Window, root: HTMLElement, healthUrls: { rea
   const liveNodes = () => data.nodes.filter(live);
   const cardLive = (card: string) => data.nodes.some((node) => node.card === card && live(node));
 
+  const worst = (statuses: readonly Status[]) => statuses.reduce<Status>((a, b) => (RANK[b] < RANK[a] ? b : a), "loading");
+  /** Behavior 5: the worst of the node's bound components (a missing one is unknown), with its id. */
+  const componentOf = (node: MapNode): (Component & { readonly id: string }) | undefined => {
+    const health = state.health;
+    if (health.kind !== "ok" || node.health.length === 0) return undefined;
+    const bound = node.health.map((id) => ({ id, ...(health.components.get(id) ?? { status: "unknown" as Status, at: "", reason: "" }) }));
+    return bound.reduce((a, b) => (RANK[b.status] < RANK[a.status] ? b : a));
+  };
   function statusOf(node: MapNode): Status {
     const health = state.health;
     if (health.kind === "loading") return "loading";
     if (health.kind === "error") return "unknown";
-    if (health.kind === "none" || node.health === null) return "na";
-    return health.components.get(node.health)?.status ?? "unknown";
+    if (health.kind === "none" || node.health.length === 0) return "na";
+    return componentOf(node)!.status;
   }
-  const componentOf = (node: MapNode): Component | undefined =>
-    state.health.kind === "ok" && node.health !== null ? state.health.components.get(node.health) : undefined;
-  const worst = (statuses: readonly Status[]) => statuses.reduce<Status>((a, b) => (RANK[b] < RANK[a] ? b : a), "loading");
   const dot = (status: Status) => `<span class="sdot st-${status}" title="${esc(t[status])}" aria-label="${esc(t[status])}"></span>`;
   const stageChip = (node: MapNode, env: Env) => {
     const stage = node.stage[env];
@@ -190,7 +195,7 @@ export function mountSystemMap(win: Window, root: HTMLElement, healthUrls: { rea
         + `<p class="lead">${node.lead}</p>`
         + `<dl class="kv"><dt>${esc(t.stage)}</dt><dd>Dev ${esc(stage("dev"))} · Prod ${esc(stage("prod"))}</dd>`
         + `<dt>${esc(t.status)}</dt><dd data-field="status">${esc(t[status])}${component === undefined ? "" : ` · ${esc(t.at)} ${esc(time(component.at))}`}</dd>`
-        + (component !== undefined && component.reason !== "" ? `<dt>${esc(t.reason)}</dt><dd data-field="reason">${esc(component.reason)}</dd>` : "")
+        + (component !== undefined && component.reason !== "" ? `<dt>${esc(t.reason)}</dt><dd data-field="reason">${esc(node.health.length > 1 ? `${component.id}: ${component.reason}` : component.reason)}</dd>` : "")
         + `<dt>${esc(t.runsOn)}</dt><dd>${esc(node.runsOn === "manual" ? t.manualRun : t[node.runsOn])}</dd></dl>`
         + `<div class="smap-rel">${esc(t.upstream)} ${related(up)}</div><div class="smap-rel">${esc(t.downstream)} ${related(down)}</div>`
         + `<ul class="smap-links">${links.map((link) => `<li><a href="${esc(link.url)}" target="_blank" rel="noopener"><span>${esc(link.label)}</span><span class="ext">${esc(link.site)} ↗</span></a></li>`).join("")}</ul>`
@@ -198,7 +203,7 @@ export function mountSystemMap(win: Window, root: HTMLElement, healthUrls: { rea
         + (node.runsOn === "manual" ? `<p class="smap-risk" data-risk="manual">⚠ ${esc(t.risk)}</p>` : "");
     }
     const unbound = $(".smap-unbound");
-    const bound = new Set(data.nodes.map((node) => node.health));
+    const bound = new Set(data.nodes.flatMap((node) => node.health));
     const ids = state.health.kind === "ok" ? [...state.health.components.keys()].filter((id) => !bound.has(id)) : [];
     unbound.hidden = ids.length === 0;
     unbound.innerHTML = ids.length === 0 ? "" : `<h3>${esc(t.unbound)}</h3><p class="hint">${esc(t.unboundHint)}</p><ul>${ids.map((id) => {

@@ -1,6 +1,6 @@
 # Spec 033: System map
 
-Status: Accepted (slice 1 implemented: SM1–SM8, SM12–SM17, SM23; SM19 measured; slice 2 items SM9–SM11, SM18, SM20–SM22 pending; owner decisions 2026-10-26: decisions 1–5 below)
+Status: Implemented (slice 1: SM1–SM8, SM12–SM17, SM23, SM19 measured; slice 2: SM9–SM11, SM18, SM20 measured; SM21–SM22 [deploy], checked on Dev after the merge deploys; owner decisions 2026-10-26: decisions 1–5 below, and slice 2: `components` and the CORS header of `GET /health`)
 Date: 2026-10-26
 Traceability: enforced
 Builds on: Spec 025 (docs site, the system flow `docs/site/flows/system.json`, DOC20), Spec 020 (feature-map site, the Deployed configuration parser), Spec 018 (`/health`), Spec 028 (signals)
@@ -112,8 +112,8 @@ branch after the verifier's round-2 fixes (parent commit `ea2809b`,
 | View | Shows |
 | --- | --- |
 | Prod, data flow | 26 live components; no SRE agent group, no Workers AI group; `rq-trig` absent, `j-rq` present with "manual ⚠"; title "26 live components (36 not live, not shown)" |
-| Dev, data flow | 60 components (`rq-trig` and `access` not live); `j-people` red (failed, reason from `kip-pages`); `cost` yellow (warn); `manual`, `j-rq`, `verify` and `sre-drill` carry "manual ⚠" |
-| Dev, list | groups Failed (2: `j-people`, `src-asf`), Warn, Manual (4), OK, No status |
+| Dev, data flow | 60 components (`rq-trig` and `access` not live); `j-people` and `cron-people` red (failed, reason "kip-pages: cwiki.apache.org answered 503"); `cost` yellow (warn); `manual`, `j-rq`, `verify` and `sre-drill` carry "manual ⚠" |
+| Dev, list | groups Failed (3: `cron-people`, `j-people`, `src-asf`), Warn, Manual (4), OK, No status |
 | Changes | nodes added since `v0.3.2` per group, among them "New group SRE agent: Collect firings, Diagnose, Record the run, Fault drill" and "New group Workers AI"; new manual steps Manual triggers, Review queue, Fault drill; "`SRE_AGENT` Dev off → live", "`PROJECT_TREND` added", "`Cloudflare Access` added" (`R2_RETENTION` was already `dry-run` at `v0.3.2`, so it is not listed); PRs #141–#158 from `v0.3.2..HEAD` |
 | Any component, Cloudflare link | Worker logs of `oss-knowledge-base-data-dev` (or `-prod`) in the Cloudflare dashboard |
 
@@ -145,10 +145,16 @@ branch after the verifier's round-2 fixes (parent commit `ea2809b`,
    `"runsOn": "manual"`; the default is Cloudflare. `manual` means a person
    runs it (a token-authenticated `curl`, `bun run` on a laptop) and nothing
    schedules it. Needed by: the owner, to see laptop risk.
-5. **Health binding.** A node may declare `"health": "<component id>"` naming
-   an entry of `/health` `components` (rule 7). Several nodes may bind the
-   same id. A node without a binding has no live status (shown as n/a).
-   Needed by: rule 9.
+5. **Health binding.** A node may declare `"health": "<component id>"`, or a
+   list of distinct ids, naming entries of `/health` `components` (rule 7); an
+   id the Worker cannot emit fails the docs build. Several nodes may bind the
+   same id. A node bound to several ids shows the worst of their statuses
+   (failed, stale, warn, unknown, ok; an id missing from `components` is
+   unknown), and its reason is prefixed with that id (`j-people`, one step
+   for `identity-links`, `kip-pages` and `identity-backfill`). A node without
+   a binding has no live status (shown as n/a). Needed by: rule 9.
+   Amended 2026-10-26 (slice 2, G103): a list replaces the slice 1 stand-in
+   bindings.
 6. **Page.** The docs site gets a page "System map" (`docs/site/en/system-map.md`,
    `docs/site/zh-Hant/system-map.md`, registered in `PAGES` of
    `scripts/docs-site/generate.ts`, rendered from a `{{map:system}}` block
@@ -171,9 +177,22 @@ branch after the verifier's round-2 fixes (parent commit `ea2809b`,
    on `OBSERVABILITY_SIGNALS` being on: it reuses the state readers of
    `signals/rules.ts` (`stateRules`) and the thresholds of
    `signals/profile.ts` (`SIGNAL_THRESHOLDS`: daily jobs 24.5 h warn, 27 h
-   stale) instead of new ones. Needed by: decision 2.
-8. **CORS.** `GET /health` answers with `access-control-allow-origin: *`. No
-   other route changes. Needed by: rule 9 (the page runs on another origin).
+   stale) instead of new ones. Details (slice 2): a `job.missed` warn (late)
+   is `warn`; a source is judged by its own `ok` and `lastSuccessAt`; the SRE
+   agent, not a Spec 028 job, is judged against the same daily limits; cost
+   guard `warn` and `unconfigured`, retention `overrun`, `evidence-missing`
+   and `unconfigured` are also `warn`; a record that did not answer, could not
+   be read or has the wrong type is `unknown` with a reason. `at` is when the
+   judged state was recorded (the last run, check or success), null when none
+   is. The id list is the Worker's `COMPONENT_IDS`
+   (`apps/data-publisher-worker/src/signals/profile.ts`), which the docs site
+   imports. `components` is derived, so the SRE agent's tick body leaves it
+   out like `sreAgent` (Spec 027 SRE34: no derived field). Needed by:
+   decision 2.
+8. **CORS.** `GET /health` answers with `access-control-allow-origin: *`,
+   also when the publisher's answer is not ok. No other route or method
+   changes (no `OPTIONS` handler: the page's `GET` with an `accept` header is
+   a simple request). Needed by: rule 9 (the page runs on another origin).
 9. **Live status.** In the browser the page fetches the selected
    environment's `/health` once on load and on switching environment, maps
    `components` to nodes by rule 5, and shows a status dot per node and the
@@ -243,9 +262,44 @@ branch after the verifier's round-2 fixes (parent commit `ea2809b`,
 - SM6: Given a node with `runsOn: "manual"` → it carries the manual chip in both views, counts in the header's manual total, and its detail shows the risk note. Evidence: unit test.
 - SM7: Given a node of each kind → its links point to `https://dash.cloudflare.com/?to=/:account/…` for its Worker, gateway or bucket, and no link contains an account id. Evidence: unit test.
 - SM8: Given tag `v0.3.2` and the build commit → the changes list names the nodes added since the tag, each Deployed configuration cell change as old → new, and the merged PRs `(#N)` in `v0.3.2..HEAD`. Evidence: unit test on a fixture repository.
-- SM9: [pending] Given Dev state with `kipPages.lastRun.status: "failed"` → `/health` `components` has `{ id: "kip-pages", status: "failed" }` with the run's error as reason. Evidence: Worker unit test.
-- SM10: [pending] Given every job's state → `components` has one entry per job that is on, with the status rules of Behavior 7, and none for a job that is off. Evidence: Worker unit test (case file).
-- SM11: [pending] Given `GET /health` → the response has `access-control-allow-origin: *`; `POST /run` and other routes do not. Evidence: Worker unit test.
+- SM9: Given Dev state with `kipPages.lastRun.status: "failed"` → `/health` `components` has `{ id: "kip-pages", status: "failed" }` with the run's error as reason. Evidence: Worker unit test.
+- SM10: Given every job's state → `components` has one entry per job that is on, with the status rules of Behavior 7, and none for a job that is off. Evidence: Worker unit test (case file; the SM18 rows are SM18's cases).
+
+<!-- test-plan:start apps/data-publisher-worker/test/health-components.cases.ts -->
+| id | component | state | off | status | reason | why |
+| --- | --- | --- | --- | --- | --- | --- |
+| SM10 | every id | {} | — | ok | — | every job on and run 10 h ago: one ok entry per job and per source |
+| SM10 | publication | {"lastRun":{"ok":false,"completedAt":"2026-10-26T02:00:00.000Z","error":"github: GitHub answered 503"}} | — | failed | GitHub answered 503 | the last run failed |
+| SM10 | publication | {"lastRun":{"ok":true,"completedAt":"2026-10-25T11:00:00.000Z"}} | — | warn | no run for 25.0 h | late: past job.missed warn (24.5 h) |
+| SM10 | publication | {"lastRun":{"ok":true,"completedAt":"2026-10-25T08:00:00.000Z"}} | — | stale | no run for 28.0 h | no run within the cadence plus the job.missed grace (27 h) |
+| SM10 | source:jira | {"lastRun":{"ok":true,"completedAt":"2026-10-26T02:00:00.000Z","sources":{"jira":{"ok":false,"lastSuccessAt":"2026-10-25T22:00:00.000Z","error":"Jira answered 429"}}}} | — | failed | Jira answered 429 | the source failed in the last run |
+| SM10 | source:mail | {"lastRun":{"ok":true,"completedAt":"2026-10-26T02:00:00.000Z","sources":{"mail":{"ok":true,"lastSuccessAt":"2026-10-25T06:00:00.000Z"}}}} | — | stale | no success for 30.0 h | no success within the daily limit |
+| SM10 | source:github | {"lastRun":{"ok":true,"completedAt":"2026-10-26T02:00:00.000Z","sources":{}}} | — | unknown | no record of this source | the run has no record of the source |
+| SM10 | digest | {"digest":{"enabled":true,"lastRun":{"ok":false,"completedAt":"2026-10-26T02:00:00.000Z","error":"model unavailable"}}} | — | failed | model unavailable | the last run failed |
+| SM10 | digest | {"digest":{"enabled":false,"lastRun":null}} | — | absent | — | off (DIGEST_ENABLED unset): not listed |
+| SM10 | embedding | {"searchEmbedding":{"enabled":true,"lastRun":{"ok":true,"pending":40,"completedAt":"2026-10-26T08:00:00.000Z"}}} | — | stale | no run for 4.0 h | chunks pending and no run within its 3 h limit |
+| SM10 | embedding | {"searchEmbedding":{"enabled":true,"lastRun":{"ok":true,"pending":0,"completedAt":"2026-10-24T08:00:00.000Z"}}} | — | ok | — | nothing pending: no run is due |
+| SM10 | cost-guard | {"costGuard":{"mode":"monitor","status":"tripped","reason":null,"checkedAt":"2026-10-26T02:00:00.000Z","metrics":{"r2ClassA":{"percent":207.81,"status":"tripped"},"r2ClassB":{"percent":4.05,"status":"ok"}}}} | — | warn | tripped: r2ClassA 207.81% | a tripped guard is degraded, not failed |
+| SM10 | cost-guard | {} | costGuard | absent | — | off (COST_GUARD unset): not listed |
+| SM10 | identity-links | {"identityLinks":{"lastRun":{"ok":false,"status":"failed","at":"2026-10-26T02:00:00.000Z","durationMs":10,"error":"roster read failed"}}} | — | failed | roster read failed | the last run failed |
+| SM10 | identity-backfill | {"identityBackfill":{"lastRun":{"ok":true,"status":"complete","at":"2026-10-20T01:23:00.000Z","durationMs":10}}} | — | ok | — | a finished backfill is not due again |
+| SM10 | identity-backfill | {} | identityBackfill | absent | — | off (IDENTITY_BACKFILL unset): not listed |
+| SM10 | retention | {"retention":{"mode":"dry-run","status":"failed","reason":null,"lastRun":{"at":"2026-10-26T02:00:00.000Z","mode":"dry-run","status":"failed","reason":null,"error":"listing failed"}}} | — | failed | listing failed | the last run failed |
+| SM10 | retention | {"retention":{"mode":"dry-run","status":"ok","reason":"evidence-missing","lastRun":{"at":"2026-10-26T02:00:00.000Z","mode":"dry-run","status":"ok","reason":"evidence-missing","error":null}}} | — | warn | evidence-missing | a dry run with errors |
+| SM10 | retention | {"retention":{"mode":"dry-run","status":"overrun","reason":null,"lastRun":{"at":"2026-10-26T02:00:00.000Z","mode":"dry-run","status":"overrun","reason":null,"error":null}}} | — | warn | overrun | a dry run that ran out of time |
+| SM10 | sre-agent | {"sreAgent":{"mode":"live","status":"ok","lastRun":{"at":"2026-10-26T02:00:00.000Z","status":"ok","verdicts":["explained","inconclusive"]}}} | — | warn | inconclusive | a diagnosis the agent could not decide |
+| SM10 | sre-agent | {"sreAgent":{"mode":"live","status":"failed","reason":"model call failed","lastRun":{"at":"2026-10-26T02:00:00.000Z","status":"failed","reason":"model call failed"}}} | — | failed | model call failed | the last tick failed |
+| SM10 | sre-agent | {"sreAgent":{"mode":"off"}} | — | absent | — | off (SRE_AGENT unset or off): not listed |
+| SM10 | kip-pages | {"kipPages":{"revision":"authors@1","lastRun":null}} | — | unknown | no run yet | on, before the first run |
+| SM18 | kip-pages | {"kipPages":null} | — | unknown | could not be read | last-run.json unreadable |
+| SM18 | digest | {"digest":null} | — | unknown | did not answer | the digest object did not answer while DIGEST_ENABLED is on |
+| SM18 | cost-guard | {"costGuard":null} | — | unknown | did not answer | the cost guard object did not answer |
+| SM18 | sre-agent | {"sreAgent":{"mode":"live","status":"unknown","reason":"reading state.json failed: boom","lastRun":null}} | — | unknown | reading state.json failed | state.json unreadable |
+| SM18 | publication | {"lastRun":"garbage","sources":42} | — | unknown | no run yet | a record of the wrong type counts as missing |
+| SM18 | identity-links | {"identityLinks":{"lastRun":{"ok":true,"status":"ok","at":"not a date"}}} | — | unknown | no run yet | an unreadable time is not a run |
+<!-- test-plan:end -->
+
+- SM11: Given `GET /health` → the response has `access-control-allow-origin: *`; `POST /run` and other routes do not. Evidence: Worker unit test.
 
 - SM23: Given a built page whose inline script or inline event handler names a URL other than the two `/health` URLs, absolute or protocol-relative → `auditSite` reports it. Evidence: unit test.
 
@@ -256,7 +310,7 @@ branch after the verifier's round-2 fixes (parent commit `ea2809b`,
 - SM15: Given a `components` id that no node binds → it is listed in the detail area as "not on the map" so drift is visible, and the test of SM3 fails for ids that the repository's Worker can emit but no node binds. Evidence: unit test.
 - SM16: Given a build with no `v*` tag reachable (a fork, a shallow clone) → the changes section says no release tag was found; the build does not fail. Evidence: unit test.
 - SM17: Given a fetch for Dev still pending when the reader switches to Prod → only the Prod answer is applied. Evidence: unit test (stubbed fetch).
-- SM18: [pending] Given a job whose state is missing or unreadable → its entry is `unknown` with a reason, and `/health` still answers 200. Evidence: Worker unit test.
+- SM18: Given a job whose state is missing or unreadable → its entry is `unknown` with a reason, and `/health` still answers 200. Evidence: Worker unit test.
 
 ### Budget
 - SM19: [measure] The built page, both locales, stays under 300 KB each uncompressed (limit chosen against the current overview page; measured value in the PR; command `bun run docs:build` then `wc -c`).
