@@ -21,6 +21,8 @@ import {
   type PlaybookLibrary,
   type TickDeps,
 } from "../src";
+import { EVAL_CASES, type EvalCase } from "../scripts/eval/cases";
+import { evalLibrary, grade } from "../scripts/eval/harness";
 import { testPlanRows } from "./drill.cases";
 import { MODEL_ID, NOW, answer, devHealth, githubFake, memoryStore, promptTexts, rule, scripted, sqlFake, toolCall, type RecordingStore } from "./fixtures";
 
@@ -154,6 +156,32 @@ const scenarios: Record<string, () => Promise<void>> = {
       [{ ...GOLDEN, evidence: [GOLDEN.evidence[0]!, { id: "E6", quote: "jira is down" }] }, ["verdict:unverified"]],
     ];
     for (const [output, reasons] of cases) expect(await graded(output)).toMatchObject({ state: "graded", result: "fail", reasons });
+  },
+
+  async "grade path evidence"() {
+    // Owner decision 2026-10-26: required evidence cited by path counts when the cited value holds the field's value.
+    const path = (id: string, value: string) => ({ id, path: value });
+    const pathCited: DiagnosisOutput = { ...GOLDEN, evidence: [path("E3", "kipPages.lastRun.error"), path("E6", "[0].template")] };
+    expect(await graded(pathCited)).toMatchObject({ state: "graded", result: "pass", reasons: [] });
+    expect(await graded({ ...pathCited, evidence: [path("E3", "kipPages.lastRun"), path("E6", "[0].template")] })).toMatchObject({ result: "pass", reasons: [] });
+    expect(await graded({ ...pathCited, evidence: [path("E3", "kipPages.lastRun.status"), path("E6", "[0].template")] }))
+      .toMatchObject({ result: "fail", reasons: ["missing-evidence:kipPages.lastRun.error"] });
+    expect(await graded({ ...pathCited, evidence: [path("E3", "kipPages.lastRun.nope"), path("E6", "[0].template")] }))
+      .toMatchObject({ result: "fail", reasons: ["missing-evidence:kipPages.lastRun.error", "verdict:unverified"] });
+    // The eval grader reads the recorded field of a path citation like a quote.
+    const evalCase = EVAL_CASES.find((value) => value.scenario === "kip-pages-two-failures")!;
+    const firing = { env: evalCase.env, job: "kip-pages", ruleId: "job.failures", since: "2026-10-21T03:43:00.000Z", runId: "kip-pages-2026-10-22T03-43-00-000Z", entry: {} };
+    const querySignals = async (args: { template: keyof EvalCase["sql"] }) => evalCase.sql[args.template] ?? [];
+    const library = evalLibrary();
+    const bundle = await buildBundle({ env: evalCase.env, job: "kip-pages", firings: [firing], health: evalCase.health, querySignals, ci: evalCase.ci, library, secrets: [] });
+    const id = (label: string) => bundle.items.find((item) => item.label === label)!.id;
+    const golden = evalCase.golden!;
+    const output = (fieldPath: string): DiagnosisOutput => ({
+      verdict: golden.verdict, cause: golden.cause, confidence: golden.confidence, runbook: golden.runbook, ownerAction: golden.ownerAction,
+      evidence: [path(id("kip-pages /health fields"), fieldPath), path(id("Q-window"), "[0].status")],
+    });
+    expect(grade(evalCase, bundle, ["job.failures"], output("kipPages.lastRun.error"), library)).toMatchObject({ pass: true, missing: [] });
+    expect(grade(evalCase, bundle, ["job.failures"], output("kipPages.lastRun.status"), library)).toMatchObject({ pass: false, missing: ["kipPages.lastRun.error"] });
   },
 
   async "no diagnosis"() {
