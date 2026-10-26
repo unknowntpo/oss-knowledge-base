@@ -21,6 +21,8 @@ const MODEL = "@cf/qwen/qwen3-30b-a3b-fp8"; // A2-1, owner decision 2026-10-25
 const LAST_RUN_KEY = "internal/kips/v1/last-run.json";
 const CWIKI_EMPTY = { results: [], start: 0, limit: 50, size: 0, _links: { base: "https://cwiki.apache.org/confluence" } };
 
+/** SRE98: the pointer while no drill is active. */
+const IDLE = { armed: false, job: "kip-pages", since: expect.any(String) as unknown as string };
 const r2KeysOf = (calls: readonly string[], op: "get" | "put") => calls.filter((call) => call.startsWith(`${op} `)).map((call) => call.slice(op.length + 1));
 
 class MemoryBucket {
@@ -199,7 +201,7 @@ const scenarios: Record<string, () => Promise<void>> = {
     const cancelled = await request("/sre-agent/drill", { method: "DELETE" });
     expect(cancelled.status).toBe(200);
     expect(await cancelled.json() as unknown).toEqual({ ok: true, drillId: DRILL_ID, state: "cancelled" });
-    expect(bucket.objects.has(DRILL_POINTER_KEY)).toBe(false);
+    expect(bucket.json<unknown>(DRILL_POINTER_KEY)).toEqual(IDLE);
     expect(record(bucket).state).toBe("cancelled");
     expect((await runKip(1)).status).toBe(200);
     expect(outbound.filter((url) => url.startsWith("https://cwiki.apache.org/"))).toHaveLength(1);
@@ -345,7 +347,7 @@ const scenarios: Record<string, () => Promise<void>> = {
     outbound = [];
     expect((await expired.runKip(49 * 60)).status).toBe(200);
     expect(outbound).toHaveLength(1);
-    expect(expired.bucket.objects.has(DRILL_POINTER_KEY)).toBe(false);
+    expect(expired.bucket.json<unknown>(DRILL_POINTER_KEY)).toEqual(IDLE);
     expect(record(expired.bucket).state).toBe("expired");
 
     setSystemTime(new Date(T0));
@@ -368,6 +370,37 @@ const scenarios: Record<string, () => Promise<void>> = {
     expect(unwritable.bucket.objects.has(DRILL_POINTER_KEY)).toBe(false);
   },
 
+  async "idle pointer"() {
+    // The pointer key was never written: the first DELETE still answers 409 and writes the idle pointer once.
+    const { arm, request, bucket, runKip, tick } = workerEnv();
+    const cancel = () => request("/sre-agent/drill", { method: "DELETE" });
+    const first = await cancel();
+    expect(first.status).toBe(409);
+    expect(await first.json() as unknown).toEqual({ ok: false, reason: "no-active-drill" });
+    expect(bucket.json<unknown>(DRILL_POINTER_KEY)).toEqual({ armed: false, job: "kip-pages", since: new Date(T0).toISOString() });
+    expect(r2KeysOf(bucket.calls, "put")).toEqual([DRILL_POINTER_KEY]);
+    bucket.calls.length = 0;
+    expect((await cancel()).status).toBe(409);
+    expect(bucket.calls).toEqual([`get ${DRILL_POINTER_KEY}`]);
+    // No drill: a kip-pages run, the SRE tick and /health read only drill keys that exist, and write none.
+    const drillCalls = () => bucket.calls.filter((call) => call.includes("internal/sre/v1/dev/drills/"));
+    bucket.calls.length = 0;
+    outbound = [];
+    expect((await runKip(1)).status).toBe(200);
+    expect(outbound).toHaveLength(1);
+    await tick(SRE_CRONS.split(";")[1]!);
+    const health = await (await request("/health", { method: "GET", token: false })).json() as { sreAgent: { lastDrill: unknown } };
+    expect(health.sreAgent.lastDrill).toBeNull();
+    expect(drillCalls().length).toBeGreaterThanOrEqual(3);
+    expect(drillCalls()).toEqual(drillCalls().map(() => `get ${DRILL_POINTER_KEY}`));
+    // Arming over the idle pointer works; cancelling restores it.
+    expect((await arm("throw")).status).toBe(201);
+    expect(bucket.json(DRILL_POINTER_KEY)).toMatchObject({ armedAt: new Date(at(1)).toISOString(), kind: "throw" });
+    expect((await cancel()).status).toBe(200);
+    expect(bucket.json<unknown>(DRILL_POINTER_KEY)).toEqual(IDLE);
+    expect(bucket.calls.filter((call) => call.startsWith("delete "))).toEqual([]);
+  },
+
   async budget() {
     const { env, arm, runKip, bucket, calls, request } = workerEnv({ SRE_AGENT: "live" });
     const before = (await (await request("/health", { method: "GET", token: false })).json() as { lastRun: unknown }).lastRun;
@@ -383,11 +416,12 @@ const scenarios: Record<string, () => Promise<void>> = {
     const tick = await sreAgentTick(env as unknown as SreAgentEnv, { now: new Date(at(10)), readHealth: () => tickHealth(env as never), model });
     const runRecord = tick!.runRecord!;
     expect(record(bucket)).toMatchObject({ state: "graded", result: "pass", reasons: [] });
-    expect(bucket.objects.has(DRILL_POINTER_KEY)).toBe(false);
+    expect(bucket.json<unknown>(DRILL_POINTER_KEY)).toEqual(IDLE);
     const modelCalls = model.doGenerateCalls.length;
     const measured = { classA: bucket.count("put"), classB: bucket.count("get"), deletes: bucket.count("delete"), upstream: faultedOutbound, modelCalls, neurons: runRecord.neurons };
     console.info(`SRE75 measured: ${JSON.stringify(measured)}`);
-    expect(measured).toMatchObject({ classA: 10 + modelCalls, upstream: 0, modelCalls: 1 });
+    // SRE98: grading writes the idle pointer (Class A) where it used to delete the pointer.
+    expect(measured).toMatchObject({ classA: 11 + modelCalls, deletes: 0, upstream: 0, modelCalls: 1 });
     expect(measured.classB).toBeLessThanOrEqual(14);
     expect(runRecord.neurons).toBeLessThanOrEqual(1500);
     for (const key of r2KeysOf(bucket.calls, "put")) expect(key.startsWith("internal/sre/v1/dev/") || key === LAST_RUN_KEY).toBe(true);

@@ -64,6 +64,12 @@ function storeWithDrill(record: DrillRecord): RecordingStore {
   });
 }
 
+/** SRE98: whether the pointer marks a drill (present and not the idle `{armed: false}` record). */
+const armedPointer = (store: RecordingStore) => {
+  const body = store.objects.get(DRILL_POINTER_KEY);
+  return body !== undefined && (JSON.parse(body) as { armed?: unknown }).armed !== false;
+};
+
 /** The bundle of a kip-pages job.failures firing: E3 the job's /health fields, E6 Q-window. */
 const GOLDEN: DiagnosisOutput = {
   verdict: "explained",
@@ -145,7 +151,8 @@ const scenarios: Record<string, () => Promise<void>> = {
     const record = JSON.parse(store.objects.get(drillRecordKey(DRILL_ID))!) as DrillRecord;
     expect(record).toMatchObject({ state: "graded", result: "pass", reasons: [], gradedAt: NOW.toISOString() });
     expect(record.diagnosis).toEqual({ runId: result.runRecord!.runId, trajectoryKey: result.runRecord!.diagnoses[0]!.trajectoryKey });
-    expect(store.objects.has(DRILL_POINTER_KEY)).toBe(false);
+    // SRE98: grading leaves the idle pointer, not a missing key.
+    expect(JSON.parse(store.objects.get(DRILL_POINTER_KEY)!)).toEqual({ armed: false, job: "kip-pages", since: NOW.toISOString() });
     const state = JSON.parse(store.objects.get(sreKey("dev", "state.json"))!) as { lastDrill: unknown };
     expect(state.lastDrill).toEqual({ drillId: DRILL_ID, kind: "throw", state: "graded", result: "pass", reasons: [], runIds: drillRecord().runIds });
   },
@@ -248,7 +255,7 @@ const scenarios: Record<string, () => Promise<void>> = {
       const store = storeWithDrill(drillRecord({ kind, runs: kind === "throw" ? 2 : 1, firedAt, armedAt: "2026-10-19T00:00:00.000Z", expiresAt: "2026-10-21T00:00:00.000Z" }));
       // A healthy /health: no firing, no diagnosis, no model call.
       await runTick(tickDeps(store, devHealth({ rules: [] }), scripted(answer(GOLDEN))));
-      return { record: JSON.parse(store.objects.get(drillRecordKey(DRILL_ID))!) as DrillRecord, pointer: store.objects.has(DRILL_POINTER_KEY) };
+      return { record: JSON.parse(store.objects.get(drillRecordKey(DRILL_ID))!) as DrillRecord, pointer: armedPointer(store) };
     };
     expect(await tick("throw", 23)).toMatchObject({ record: { state: "fired", result: null }, pointer: true });
     expect(await tick("throw", 25)).toMatchObject({ record: { state: "graded", result: "fail", reasons: ["no-diagnosis"] }, pointer: false });
