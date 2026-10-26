@@ -796,6 +796,13 @@ restores the file's value, so merge the change too. Stop when:
 A drill left `fired` holds the pointer until a tick grades it (at most 24 h
 for `throw`, 48 h for `skip`); cancel it to free the route at once.
 
+With no drill active, `internal/sre/v1/dev/drills/armed/kip-pages.json`
+holds the idle pointer `{"armed": false, …}`: grading, cancelling and expiry
+write it instead of deleting the pointer (SRE98), so no read hits a missing
+key and Agent tracing shows no failed `r2_get`. If the key is absent (never
+written), one `DELETE $HOST/sre-agent/drill` (token) creates it; the answer
+is still 409 `no-active-drill`.
+
 ## Search lexical revision (Spec 016)
 
 `SEARCH_LEXICAL_REVISION` in a Worker's `vars` selects the lexical revision a

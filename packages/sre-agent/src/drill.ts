@@ -3,10 +3,11 @@
  * record and pointer under `internal/sre/v1/dev/drills/` (B38, B39), and the grader (B42). Dev only:
  * the Worker calls these only while `SRE_DRILL=on` on `development` (SRE68). No model call.
  *
- * The pointer marks the one active drill: it is written on arm and deleted when the drill is graded,
- * cancelled or expires. A faulted run does not delete it (drill notes, 2026-10-25): the record's
- * `applied` count tells the job when the fault is used up, and the tick and `/health` find a fired,
- * ungraded drill through the pointer without listing the bucket.
+ * The pointer marks the one active drill: it is written on arm and replaced by the idle pointer
+ * `{armed: false}` when the drill is graded, cancelled or expires (SRE98), so a read with no drill
+ * finds an object instead of a missing key. A faulted run does not touch it (drill notes,
+ * 2026-10-25): the record's `applied` count tells the job when the fault is used up, and the tick and
+ * `/health` find a fired, ungraded drill through the pointer without listing the bucket.
  */
 import type { EvidenceItem } from "./bundle";
 import { pathHolds } from "./evidence";
@@ -84,6 +85,16 @@ export interface DrillPointer {
   readonly expiresAt: string;
 }
 
+/**
+ * SRE98: `drills/armed/kip-pages.json` while no drill is active. Readers treat it, and a key never
+ * written, as "no drill". `since` is when the last drill ended (or the first cancel created it).
+ */
+export interface IdlePointer {
+  readonly armed: false;
+  readonly job: typeof DRILL_JOB;
+  readonly since: string;
+}
+
 /** `drills/<drillId>.json`: the drill record (B38). */
 export interface DrillRecord extends DrillPointer {
   readonly state: DrillState;
@@ -127,19 +138,37 @@ export interface DrillOutcome {
 
 const parse = <T>(body: string | null): T | null => (body === null ? null : JSON.parse(body) as T);
 
-/** The active drill, after expiring an armed one past `expiresAt` (B39); null when there is none. */
-async function active(store: RawStore, now: Date): Promise<{ pointer: DrillPointer; record: DrillRecord } | null> {
-  const pointer = parse<DrillPointer>(await store.get(DRILL_POINTER_KEY));
-  if (pointer === null) return null;
+/** SRE98: ends the active drill by writing the idle pointer over it (one Class A, no delete). */
+const writeIdlePointer = (store: RawStore, now: Date) =>
+  store.put(DRILL_POINTER_KEY, JSON.stringify({ armed: false, job: DRILL_JOB, since: now.toISOString() } satisfies IdlePointer));
+
+/** The pointer's drill; `idle` for the idle pointer, `absent` for a key never written (SRE98). */
+async function readPointer(store: RawStore): Promise<DrillPointer | "idle" | "absent"> {
+  const body = parse<DrillPointer | IdlePointer>(await store.get(DRILL_POINTER_KEY));
+  if (body === null) return "absent";
+  return "armed" in body && body.armed === false ? "idle" : body as DrillPointer;
+}
+
+type Active = { readonly pointer: DrillPointer; readonly record: DrillRecord };
+
+/** The active drill, after expiring an armed one past `expiresAt` (B39); `idle` or `absent` when there is none. */
+async function active(store: RawStore, now: Date): Promise<Active | "idle" | "absent"> {
+  const pointer = await readPointer(store);
+  if (typeof pointer === "string") return pointer;
   const record = parse<DrillRecord>(await store.get(drillRecordKey(pointer.drillId)));
   if (record === null) throw new Error(`the record of ${pointer.drillId} is missing`);
   if (record.state === "armed" && now.getTime() > Date.parse(record.expiresAt)) {
     await store.put(drillRecordKey(record.drillId), JSON.stringify({ ...record, state: "expired" } satisfies DrillRecord));
-    await store.delete!(DRILL_POINTER_KEY);
-    return null;
+    await writeIdlePointer(store, now);
+    return "idle";
   }
   return { pointer, record };
 }
+
+const activeOrNull = async (store: RawStore, now: Date): Promise<Active | null> => {
+  const current = await active(store, now);
+  return typeof current === "string" ? null : current;
+};
 
 /**
  * B38 arm: refuses a kind whose playbook lacks the expected cause (409, B41), a second active drill
@@ -149,9 +178,9 @@ export async function armDrill(raw: RawStore, input: { readonly kind: DrillKind;
   const errors = drillExpectationErrors(input.kind, input.library);
   if (errors.length > 0) return { status: 409, body: { ok: false, reason: "playbook-missing-cause", errors } };
   const store = scopedStore("dev", raw);
-  let current: Awaited<ReturnType<typeof active>>;
+  let current: Active | null;
   try {
-    current = await active(store, input.now);
+    current = await activeOrNull(store, input.now);
   } catch {
     return { status: 503, body: { ok: false, reason: "active-drill-unreadable" } };
   }
@@ -175,19 +204,23 @@ export async function armDrill(raw: RawStore, input: { readonly kind: DrillKind;
   return { status: 201, body: { ...pointer } };
 }
 
-/** B38 cancel: removes the pointer and marks the record `cancelled`; 409 when no drill is active. */
+/**
+ * B38 cancel: writes the idle pointer and marks the record `cancelled`; 409 when no drill is active.
+ * SRE98: a 409 on a pointer key never written also writes the idle pointer, so later reads find it.
+ */
 export async function cancelDrill(raw: RawStore, now: Date): Promise<DrillOutcome> {
   const store = scopedStore("dev", raw);
   const current = await active(store, now);
-  if (current === null) return { status: 409, body: { ok: false, reason: "no-active-drill" } };
-  await store.delete!(DRILL_POINTER_KEY);
+  if (current === "absent") await writeIdlePointer(store, now);
+  if (typeof current === "string") return { status: 409, body: { ok: false, reason: "no-active-drill" } };
+  await writeIdlePointer(store, now);
   await store.put(drillRecordKey(current.record.drillId), JSON.stringify({ ...current.record, state: "cancelled" } satisfies DrillRecord));
   return { status: 200, body: { ok: true, drillId: current.record.drillId, state: "cancelled" } };
 }
 
-/** B39: the drill whose fault applies to this run, or none (no pointer, expired, or used up). */
+/** B39: the drill whose fault applies to this run, or none (idle or no pointer, expired, or used up). */
 export async function takeDrillFault(raw: RawStore, now: Date): Promise<DrillRecord | null> {
-  const current = await active(scopedStore("dev", raw), now);
+  const current = await activeOrNull(scopedStore("dev", raw), now);
   if (current === null || current.record.state !== "armed" || current.record.applied >= current.record.runs) return null;
   return current.record;
 }
@@ -245,7 +278,7 @@ export function gradeDiagnosis(kind: DrillKind, diagnosis: DiagnosisRecord | und
 /**
  * B42: at the end of a tick, grades a `fired` drill with this tick's `kip-pages` diagnosis whose
  * `since` is at or after `armedAt`, or fails it `no-diagnosis` once the wait is over. Writes the
- * record, deletes the pointer and returns the summary for `state.json`; undefined when nothing was graded.
+ * record, writes the idle pointer (SRE98) and returns the summary for `state.json`; undefined when nothing was graded.
  */
 export async function gradeActiveDrill(raw: RawStore, input: {
   readonly now: Date;
@@ -254,7 +287,7 @@ export async function gradeActiveDrill(raw: RawStore, input: {
   readonly health: Health;
 }): Promise<DrillSummary | undefined> {
   const store = scopedStore("dev", raw);
-  const current = await active(store, input.now);
+  const current = await activeOrNull(store, input.now);
   if (current === null || current.record.state !== "fired") return undefined;
   const { record } = current;
   const diagnosis = input.runRecord.diagnoses.find((value) => value.job === DRILL_JOB && value.since >= record.armedAt);
@@ -265,15 +298,15 @@ export async function gradeActiveDrill(raw: RawStore, input: {
     diagnosis: diagnosis === undefined ? null : { runId: input.runRecord.runId, trajectoryKey: diagnosis.trajectoryKey },
   };
   await store.put(drillRecordKey(record.drillId), JSON.stringify(graded));
-  await store.delete!(DRILL_POINTER_KEY);
+  await writeIdlePointer(store, input.now);
   return drillSummary(graded);
 }
 
-/** `/health.sreAgent.lastDrill` while a drill is active (reads only); null when none is. */
+/** `/health.sreAgent.lastDrill` while a drill is active (reads only); null when none is (idle or no pointer). */
 export async function activeDrillSummary(raw: RawStore): Promise<DrillSummary | null> {
   const store = scopedStore("dev", raw);
-  const pointer = parse<DrillPointer>(await store.get(DRILL_POINTER_KEY));
-  if (pointer === null) return null;
+  const pointer = await readPointer(store);
+  if (typeof pointer === "string") return null;
   const record = parse<DrillRecord>(await store.get(drillRecordKey(pointer.drillId)));
   return record === null ? null : drillSummary(record);
 }
