@@ -10,6 +10,7 @@ import {
   BudgetExceededError,
   DAILY_NEURON_CAP,
   JOB_HEALTH_FIELDS,
+  SYSTEM_PROMPT,
   NeuronLedger,
   PLAYBOOK_LIBRARY,
   WriteScopeError,
@@ -23,10 +24,12 @@ import {
   fingerprint,
   parseFlag,
   readCiRelease,
+  renderPrompt,
   renderPlaybookModule,
   runTick,
   scopedStore,
   sreKey,
+  type Bundle,
   type EvidenceItem,
   type Health,
   type SqlArgs,
@@ -506,6 +509,84 @@ const scenarios: Record<string, () => Promise<void>> = {
     expect(quoteE3("\"rules\": [{\"id\": \"job.missed\", \"state\": \"firing\"}, {\"id\": \"job.failures\"")).toEqual(passes);
     expect(quoteE3("\"counts\": [1, 2]")).toEqual(passes);
     expect(quoteE3("\"counts\": [1, 22]")).toEqual(fails("E3"));
+  },
+
+  ...(() => {
+    // Modeled on Dev drill throw-20261025T0745Z: E3 the kip-pages /health field, E6 the Q-window rows.
+    const lastRun = { ok: false, status: "failed", at: "2026-10-25T07:45:12.000Z", error: "cwiki.apache.org answered 503", durationMs: 1210, r2: { classA: 4, classB: 2 } };
+    const rows = [
+      { runId: "kip-pages-2026-10-25T07-45-00-000Z", job: "kip-pages", at: "2026-10-25T07:45:12.000Z", status: "failed", error: "cwiki.apache.org answered 503" },
+      { runId: "publication-2026-10-24T22-07-00-000Z", job: "publication", at: "2026-10-24T22:09:41.000Z", status: "ok", error: null },
+    ];
+    const bundle = {
+      items: [
+        item("E3", JSON.stringify({ kipPages: { lastRun } }, null, 2)),
+        item("E5", JSON.stringify({ costGuard: { status: "ok" } }, null, 2)),
+        item("E6", JSON.stringify(rows, null, 2), "sql"),
+        item("E7", "conclusion: failure"),
+      ],
+      causes: new Set(["upstream-unavailable", "unknown"]), runbooks: new Set<string>(),
+    };
+    const quote = (id: string, text: string) => checkEvidence({ ...VALID_OUTPUT, cause: "upstream-unavailable", runbook: null, evidence: [{ id, quote: text }] }, bundle);
+    const passes = { ok: true, failures: [] };
+    const fails = (id: string) => ({ ok: false, failures: [`quote-not-in-item:${id}`] });
+    return {
+      async "JSON pair quote"() {
+        // One pair, several pairs, a balanced object (drill E3), any order, a subset of one object.
+        expect(quote("E3", "\"error\": \"cwiki.apache.org answered 503\"")).toEqual(passes);
+        expect(quote("E3", "{\"error\": \"cwiki.apache.org answered 503\"}")).toEqual(passes);
+        expect(quote("E3", "{\"error\": \"cwiki.apache.org answered 503\", \"status\": \"failed\"}")).toEqual(passes);
+        expect(quote("E3", "\"durationMs\": 1210, \"ok\": false")).toEqual(passes);
+        // A nested object value, keys reordered: deep equality.
+        expect(quote("E3", "\"r2\": {\"classB\": 2, \"classA\": 4}")).toEqual(passes);
+        // One SQL row, fields reordered and runId left out (drill E6), as pairs or an object.
+        expect(quote("E6", "{\"status\": \"failed\", \"job\": \"kip-pages\", \"at\": \"2026-10-25T07:45:12.000Z\", \"error\": \"cwiki.apache.org answered 503\"}")).toEqual(passes);
+        expect(quote("E6", "\"job\": \"kip-pages\", \"status\": \"failed\"")).toEqual(passes);
+        expect(quote("E6", "\"error\": null")).toEqual(passes);
+        // Positive control: the whole row, verbatim.
+        expect(quote("E6", JSON.stringify(rows[1]))).toEqual(passes);
+      },
+
+      async "JSON pair quote rejected"() {
+        // Drill E3: two pairs and an invented closing brace; the item has more fields after "error". Falls back and fails.
+        expect(quote("E3", "\"status\": \"failed\", \"at\": \"2026-10-25T07:45:12.000Z\", \"error\": \"cwiki.apache.org answered 503\"}")).toEqual(fails("E3"));
+        expect(quote("E3", "{\"error\": \"cwiki.apache.org answered 503\"}}")).toEqual(fails("E3"));
+        // A value changed: a letter or digit, a type, a partial nested object.
+        expect(quote("E3", "{\"error\": \"cwiki.apache.org answered 502\"}")).toEqual(fails("E3"));
+        expect(quote("E3", "\"durationMs\": \"1210\"")).toEqual(fails("E3"));
+        expect(quote("E3", "\"r2\": {\"classA\": 4}")).toEqual(fails("E3"));
+        expect(quote("E3", "\"r2\": {\"classA\": 4, \"classB\": 2, \"classC\": 0}")).toEqual(fails("E3"));
+        // An invented key.
+        expect(quote("E3", "{\"error\": \"cwiki.apache.org answered 503\", \"retries\": 3}")).toEqual(fails("E3"));
+        // Pairs from two rows.
+        expect(quote("E6", "\"job\": \"kip-pages\", \"status\": \"ok\"")).toEqual(fails("E6"));
+        expect(quote("E6", "{\"job\": \"publication\", \"error\": \"cwiki.apache.org answered 503\"}")).toEqual(fails("E6"));
+        // The object cited from another item.
+        expect(quote("E5", "{\"status\": \"failed\", \"error\": \"cwiki.apache.org answered 503\"}")).toEqual(fails("E5"));
+        // A duplicate key: JSON.parse keeps the last value, so the invented first one must not hide.
+        expect(quote("E6", "\"status\": \"ok\", \"status\": \"failed\", \"job\": \"kip-pages\"")).toEqual(fails("E6"));
+        // No letter or digit.
+        expect(quote("E6", "{\"\": \"\"}")).toEqual(fails("E6"));
+        // A JSON pair against a non-JSON item: only its text counts.
+        expect(quote("E7", "\"conclusion\": \"failure\"")).toEqual(fails("E7"));
+        expect(quote("E7", "conclusion: failure")).toEqual(passes);
+      },
+    };
+  })(),
+
+  async "one-field quote instruction"() {
+    const rule = /one field/iu;
+    const prompt = renderPrompt({ job: "kip-pages", items: [] } as unknown as Bundle);
+    const description = diagnosisOutputSchema.shape.evidence.element.shape.quote.description ?? "";
+    for (const text of [SYSTEM_PROMPT, prompt, description]) {
+      expect(text).toMatch(rule);
+      expect(text).toContain("\"key\": value");
+      expect(text).toMatch(/verbatim/u);
+      expect(text).toMatch(/never a whole object or row/u);
+      expect(text).toMatch(/no braces/u);
+      expect(text).toMatch(/no ellipsis/u);
+    }
+    expect(SYSTEM_PROMPT).toMatch(/non-JSON item/u);
   },
 
   async "quote precision"() {

@@ -1,6 +1,6 @@
 # Spec 027: Read-only SRE triage agent
 
-Status: Partially implemented (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; [Amendment (1)](#amendment-1-triggered-diagnosis-2026-10-22) 2026-10-22: the agent diagnoses only after a deterministic rule fires; [Amendment (2)](#amendment-2-a-worker-job-on-the-ai-sdk-2026-10-22) 2026-10-22: an `sre-agent` job on the data publisher Worker, AI SDK with Workers AI, invariant playbooks; A2-1–A2-5 decided by owner 2026-10-22; [Dev fault-injection drill](#dev-fault-injection-drill-2026-10-22) added 2026-10-22; A2-9 slice 1 (the `packages/sre-agent` library core, L1/L2 tests) implemented; A2-9 slice 2 (the `sre-agent` cron job wired into the data publisher Worker, `/health.sreAgent`, the Spec 026 neuron term) implemented with `SRE_AGENT=off` on Dev and Prod; the drill (SRE67–SRE75, the `job.failures` playbook) implemented and Dev `SRE_AGENT=live` on Qwen3 30B without the `dry` week (owner decisions 2026-10-25), Prod `off`; see [Slice 1 notes](#slice-1-notes-2026-10-22), [Slice 2 notes](#slice-2-notes-2026-10-23) and [Drill slice notes](#drill-slice-notes-2026-10-25); the L3 eval (SRE59, SRE60) run three times 2026-10-25, with the owner's 4,096-token output cap and compact-JSON quote match from the second and third: the third run's scoreboard chooses Qwen3 30B (A2-1; 2 of 24 diagnoses pass), see [Eval notes](#eval-notes-2026-10-25))
+Status: Partially implemented (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; [Amendment (1)](#amendment-1-triggered-diagnosis-2026-10-22) 2026-10-22: the agent diagnoses only after a deterministic rule fires; [Amendment (2)](#amendment-2-a-worker-job-on-the-ai-sdk-2026-10-22) 2026-10-22: an `sre-agent` job on the data publisher Worker, AI SDK with Workers AI, invariant playbooks; A2-1–A2-5 decided by owner 2026-10-22; [Dev fault-injection drill](#dev-fault-injection-drill-2026-10-22) added 2026-10-22; A2-9 slice 1 (the `packages/sre-agent` library core, L1/L2 tests) implemented; A2-9 slice 2 (the `sre-agent` cron job wired into the data publisher Worker, `/health.sreAgent`, the Spec 026 neuron term) implemented with `SRE_AGENT=off` on Dev and Prod; the drill (SRE67–SRE75, the `job.failures` playbook) implemented and Dev `SRE_AGENT=live` on Qwen3 30B without the `dry` week (owner decisions 2026-10-25), Prod `off`; see [Slice 1 notes](#slice-1-notes-2026-10-22), [Slice 2 notes](#slice-2-notes-2026-10-23) and [Drill slice notes](#drill-slice-notes-2026-10-25); the L3 eval (SRE59, SRE60) run three times 2026-10-25, with the owner's 4,096-token output cap and compact-JSON quote match from the second and third: the third run's scoreboard chooses Qwen3 30B (A2-1; 2 of 24 diagnoses pass), see [Eval notes](#eval-notes-2026-10-25); the evidence check also accepts JSON-pair quotes and the prompt asks for one field per evidence entry (SRE78, SRE79, owner decision 2026-10-26, [JSON-pair quote match](#owner-decision-2026-10-26-json-pair-quote-match)))
 Date: 2026-10-20 (amended 2026-10-22)
 Traceability: enforced
 Builds on: Spec 008 (R2 operations), Spec 010, 011, 018, 021 (freshness and stalls), Spec 014 (digest), Spec 019 amendment (7) (identity-links, kip-pages jobs), Spec 020 (feature map), Spec 026 and its dollar-budget amendment (cost guard), Spec 028 (observability signals, PR #108, not merged), Spec 029 (R2 retention)
@@ -372,7 +372,16 @@ with Amendment (1), it wins.
     and an elision (`...`, `…`) fails (owner decisions 2026-10-25, [Eval
     notes](#eval-notes-2026-10-25)); the normalized quote must hold a
     letter or digit and must not start or end inside a token (a run of
-    letters and digits) of the normalized item;
+    letters and digits) of the normalized item. A quote written as JSON
+    pairs (`"key": value`, several comma-separated, or one balanced
+    `{…}` object, in its own serialization up to whitespace) also passes
+    when the cited item parses as JSON and one object of it, at any depth
+    and inside an array element too, holds every quoted key with a deeply
+    equal value, in any order and as a subset of its keys (owner decision
+    2026-10-26, [JSON-pair quote
+    match](#owner-decision-2026-10-26-json-pair-quote-match), SRE78); the
+    prompt and the schema ask for one such field per evidence entry
+    (SRE79);
     `cause` must be a cause id of a firing rule's playbook or `unknown`;
     `runbook` must be an anchor that playbook lists. Any failure sets
     `verdict: "unverified"` and lists the failures; the record is still
@@ -997,6 +1006,67 @@ Overall, diagnoses passed: first run 0 → 1 of 75, second 0 → 5 of 72,
 third 2 → 6 of 74. Qwen3 30B stays the third run's winner (A2-1 unchanged).
 Llama's answers still fail on paraphrase and the `"null"` runbook string.
 
+#### Owner decision (2026-10-26): JSON-pair quote match
+
+Dev drill `throw-20261025T0745Z` again named the right cause,
+`upstream-unavailable`, and runbook, but two quotes failed and the verdict
+was `unverified`: E3 quoted the `kipPages.lastRun` fields with a closing
+`}` the item does not have at that point (more fields follow), and E6
+quoted a `Q-window` row with its fields in another order and without
+`runId`. Both held only true pairs of one object. The owner chose both:
+
+- **A. Prompt (SRE79).** `SYSTEM_PROMPT`, the closing line of
+  `renderPrompt` and the schema's `quote` description ask for one field per
+  evidence entry, as `"key": value` copied verbatim (or a plain substring
+  of a non-JSON item), never a whole object or row, no braces, no ellipsis.
+- **B. Matching (SRE78, B32).** When the cited item's text parses as JSON
+  and the quote parses as JSON pairs (one `"key": value`, several
+  comma-separated, or one `{…}` object) written as its own
+  `JSON.stringify` serialization up to whitespace, the quote passes if one
+  object of the item, at any depth (an array element such as one SQL row
+  included), holds every quoted key with a deeply equal value: any order,
+  a subset of the keys. Otherwise the 2026-10-25 normalized text match
+  applies unchanged. Still `unverified`: an invented key or value, a
+  changed value or type, a partial nested object, pairs from two objects
+  (rows), the object cited from another item, an unbalanced or invented
+  brace that does not parse (the text match then fails too), a duplicate
+  key (the serialization check keeps it from hiding an invented value),
+  a quote without a letter or digit, and a JSON pair against a non-JSON
+  item. Accepted (verifier note, 2026-10-26): "deeply equal" compares parsed
+  values, so a number written differently but parsing equal (`1` for `1.0`,
+  `0` for `-0`, an integer beyond 2^53 that rounds to the same value) or a
+  string with a `\u` escape passes; bundle items are `JSON.stringify` output
+  of small integers and strings, so no realistic false `explained` follows.
+  The "rejected" test row is a regression guard for the new path and could
+  not fail before it: every rejected input already failed the text match.
+
+Re-grade, no model calls: the production `checkEvidence` and the eval
+grader over every recorded answer of the three scoreboards, bundles rebuilt
+from the fixtures and each answer replayed through a mock model (the
+script reproduces the "new" column of the 2026-10-25 table exactly before
+this change). No quote that passed before fails now; the committed
+scoreboards are unchanged. The replay script was a one-off and is not
+committed, so this table is not reproducible from the repository.
+
+| Scoreboard | Model | Quotes passing (before → after) | Evidence check ok | Diagnoses passed |
+| --- | --- | --- | --- | --- |
+| first | GLM-4.7-Flash | 8 → 8 of 9 | 3 → 3 | 1 → 1 of 25 |
+| first | Llama 3.3 70B | 28 → 28 of 65 | 0 → 0 | 0 → 0 of 25 |
+| first | Qwen3 30B | 9 → 9 of 10 | 3 → 3 | 0 → 0 of 25 |
+| second | GLM-4.7-Flash | 15 → 17 of 23 | 3 → 4 | 1 → 1 of 24 |
+| second | Llama 3.3 70B | 29 → 29 of 69 | 2 → 2 | 0 → 0 of 24 |
+| second | Qwen3 30B | 61 → 61 of 62 | 11 → 11 | 4 → 4 of 24 |
+| third | GLM-4.7-Flash | 20 → 23 of 29 | 7 → 8 | 2 → 2 of 25 |
+| third | Llama 3.3 70B | 23 → 23 of 60 | 2 → 2 | 0 → 0 of 25 |
+| third | Qwen3 30B | 54 → 54 of 59 | 13 → 13 | 4 → 4 of 24 |
+
+The five new passes are GLM quotes of a subset of one `signals.rules[]`
+entry or one run's fields in another order. Diagnoses passed are unchanged
+(1, 5 and 6); the eval answers predate the reordering and brace habits seen
+in the drill, so the drill's next run is the real test of A and B. Qwen's
+remaining quote failures are Python-style dicts (`{'id': …}`) and
+paraphrases, which B does not accept.
+
 ### Drill slice notes (2026-10-25)
 
 This slice ships the drill (B37–B46, SRE67–SRE75), the `job.failures`
@@ -1600,6 +1670,9 @@ L1, deterministic tick (`tick.cases.ts`):
 | SRE44 | quote precision | a quote of only JSON syntax ({" or ":") / a quote ending or starting inside a token ("classA":8190 against 81900, "status":"fail against failed), in text and compact form / a prefix of a non-ASCII word (échou of échoué) / the whole value, also a whole occurrence after one inside a token (fail in "failed; retry fail") | unverified / unverified / unverified / passes |
 | SRE44 | whitespace-insensitive quote | a pretty-printed multi-line JSON item quoted on one line with a space after : and , (two fields; the drill's {"status": "failed", "error": "cwiki.apache.org answered 503"}), with mixed spacing, tabs or newlines / the same quote elided with ... or … / a letter or digit changed (answered 502) / other punctuation changed (status: failed without quotes, cwiki-apache.org) / "classA": 8190 against 81900, across lines / the quote cited from another item / a pretty-printed array (signals.rules[] objects, counts [1, 2]) quoted on one line, and counts [1, 22] | passes (owner 2026-10-25) / unverified / unverified / unverified / unverified / unverified / passes, and unverified |
 | SRE44 | cause and runbook | cause not in playbook / runbook anchor not in playbook / cause unknown | unverified / unverified / passes |
+| SRE78 | JSON pair quote | a pretty-printed JSON item (the drill's kipPages.lastRun; Q-window rows) quoted as one "key": value pair, several pairs, or a balanced {…} object: a subset of one object's pairs in any order, with runId left out of a row (drill E6), a nested object value with its keys reordered, a pair inside one array element, {"error": "cwiki.apache.org answered 503"} (drill E3 with balanced braces), and the whole row | passes (owner 2026-10-26) |
+| SRE78 | JSON pair quote rejected | an unbalanced or invented brace (drill E3: two pairs and a closing } the item has after more fields) / a value changed (answered 502, "1210" for 1210, a partial nested object) / an invented key / pairs from two rows (job of one, status of the other) / the object cited from another item / a duplicate key hiding a changed value / {"": ""} / a JSON pair against a non-JSON item | unverified (falls back to the 2026-10-25 text match, which also fails) / unverified / unverified / unverified / unverified / unverified / unverified / unverified |
+| SRE79 | one-field quote instruction | the system prompt, the rendered first prompt and the output schema's quote description | each asks for one field per evidence entry as "key": value copied verbatim (or a plain substring of a non-JSON item), never a whole object or row, no braces, no ellipsis |
 | SRE45 | output schema | record with every field / missing evidence / confidence "sure" | accepted / rejected / rejected |
 | SRE46 | write scope | keys internal/sre/v1/dev/runs/x.json / internal/sre/v1/prod/x / public/v2/current.json / identity-links last-run.json / public/x/internal/sre/v1/dev/y / a .. segment | written / refused before any R2 call (5 cases) |
 | SRE46 | forbidden requests | any path of a tick, dry and live | no request to /run, /*/run, /cost-guard/*, no non-GET, no fetch to the other env's host |
@@ -1734,6 +1807,8 @@ by Amendment (1); SRE34 replaced it.
 - SRE39: Dev reads the newest `ci.yml` run on `main` and Prod the newest on a `v*` tag; `failure` fires `ci.release` in that environment only, `success` does not; an HTTP 403/429, 500 or a 20 s timeout makes `ci.release` `unknown`, recorded and never a firing; every request is a GET to `api.github.com` without an `Authorization` header → L1 test with case rows.
 - SRE41: given firings of 5 jobs, 3 are diagnosed and 2 recorded `notDiagnosed: "daily-cap"`, and a second tick the same UTC day diagnoses none; with `today.neurons` 1,000 a 500-neuron reservation runs and a 501-neuron one stops the diagnosis `inconclusive`, `reason: "budget"`; a reservation written before a model call that crashes is still counted on the next tick → L1 test with case rows.
 - SRE44: the evidence check passes a quote that occurs in the cited item once both have whitespace runs collapsed to one space and spaces beside JSON punctuation `:` `,` `{` `}` `[` `]` dropped (owner 2026-10-25: a one-line `"status": "failed", "error": "…"` matches the pretty-printed item and its compact JSON; letters, digits and other punctuation exact and in order; `...` or `…` elisions fail), a quote holding a letter or digit that neither starts nor ends inside a token of the item (a syntax-only quote or a token prefix such as `8190` of `81900` fails), and sets `unverified` with the failure listed for a quote absent from the cited item, present only in another item, an unknown evidence id, a cause not in the playbook, or a runbook anchor the playbook does not list; `cause: "unknown"` passes → L1 test with case rows.
+- SRE78: (owner decision 2026-10-26) given a pretty-printed JSON item, a quote written as JSON pairs (`"key": value`, several pairs, or a balanced `{…}` object) passes when one object of the item at any depth holds every quoted key with a deeply equal value, in any order and as a subset (the drill's E6 row without `runId`, E3 as `{"error": "cwiki.apache.org answered 503"}`); it is `unverified` for an unbalanced or invented brace that does not parse and is not in the text (E3 as quoted), a changed value or type, a partial nested object, an invented key, pairs from two rows, the object cited from another item, a duplicate key hiding a changed value, a quote without a letter or digit, or a JSON pair against a non-JSON item → L1 test with case rows.
+- SRE79: (owner decision 2026-10-26) `SYSTEM_PROMPT`, the rendered first prompt and the output schema's `quote` description each ask for one field per evidence entry as `"key": value` copied verbatim (or a plain substring of a non-JSON item), never a whole object or row, no braces, no ellipsis → L1 test with case rows.
 - SRE46: the R2 writer writes a key under `internal/sre/v1/<env>/` and refuses, before any R2 call, a key of the other environment, a `public/` key or another job's key; across dry and live ticks no request goes to `/run`, `/*/run` or `/cost-guard/*`, no request is non-GET, and nothing is fetched from the other environment's host → L1 test with case rows.
 - SRE47: given the `sre-agent` branch throwing at each of steps 0–7 on a tick, the publication cron in the same handler still schedules its run, and `/health.sreAgent.lastRun.status` is `failed` with a sanitized reason → L1 test with case rows.
 - SRE51: given a scripted call to a tool outside B30's list, no tool executes and the diagnosis ends `inconclusive`, `reason: "unknown-tool"` → L2 test with case rows.
