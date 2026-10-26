@@ -445,7 +445,7 @@
             { "id": "sre-write", "icon": "3", "kind": "rule",
               "title": { "en": "Record the run", "zh-Hant": "記錄這次 run" },
               "tag": { "kind": "dev", "text": { "en": "Dev only", "zh-Hant": "僅 Dev" } },
-              "lead": { "en": "Writes trajectories, a run record and `state.json` under `internal/sre/v1/<env>/`, one `SIGNALS` data point with job `sre-agent`, and serves the last run as `/health.sreAgent`. A failed tick records `failed` and never reaches another job.", "zh-Hant": "在 `internal/sre/v1/<env>/` 下寫入軌跡、run 紀錄與 `state.json`，寫一個 job 為 `sre-agent` 的 `SIGNALS` 資料點，並以 `/health.sreAgent` 提供上一次 run。失敗的 tick 記為 `failed`，不會影響其他 job。" },
+              "lead": { "en": "Writes trajectories, a run record and `state.json` under `internal/sre/v1/<env>/`, one `SIGNALS` data point with job `sre-agent`, and serves the last run as `/health.sreAgent`. A failed tick records `failed` and never reaches another job. Each tick is also traced (`traces.enabled`): the `sre-agent tick` span and every model call show in the Workers Observability Agents tab for 7 days.", "zh-Hant": "在 `internal/sre/v1/<env>/` 下寫入軌跡、run 紀錄與 `state.json`，寫一個 job 為 `sre-agent` 的 `SIGNALS` 資料點，並以 `/health.sreAgent` 提供上一次 run。失敗的 tick 記為 `failed`，不會影響其他 job。每個 tick 也會被追蹤（`traces.enabled`）：`sre-agent tick` span 與每次模型呼叫會在 Workers Observability 的 Agents 分頁保留 7 天。" },
               "sources": ["packages/sre-agent/src/tick.ts", "apps/data-publisher-worker/src/sre-agent/run.ts"] },
             { "id": "sre-drill", "icon": "!", "kind": "rule",
               "title": { "en": "Fault drill", "zh-Hant": "故障演練" },

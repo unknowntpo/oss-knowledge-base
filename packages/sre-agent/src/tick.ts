@@ -3,7 +3,7 @@
  * GitHub fetch, Analytics SQL, model), so the Worker wiring (A2-9 slice 2) only binds them. Errors
  * propagate; the Worker's branch catches them (B23, SRE47).
  */
-import type { LanguageModel } from "ai";
+import type { LanguageModel, generateText } from "ai";
 import { buildBundle, type Bundle, type EvidenceItem } from "./bundle";
 import type { DrillSummary } from "./drill";
 import type { EvidenceCheck } from "./evidence";
@@ -31,6 +31,8 @@ export interface TickDeps {
   /** Required for `live`; the Worker builds it from the `AI` binding. */
   readonly model?: Exclude<LanguageModel, string>;
   readonly modelId: string;
+  /** SRE80: the `generateText` of every diagnosis (the AI SDK's own by default; the Worker injects the traced one). */
+  readonly generateText?: typeof generateText;
   /** Values of the Worker's secrets, redacted from every bundle item and tool result (B29). */
   readonly secrets?: readonly string[];
   readonly library?: PlaybookLibrary;
@@ -104,6 +106,8 @@ export interface TickResult {
   readonly mode: Mode;
   readonly reason?: "invalid-flag";
   readonly runRecord?: RunRecord;
+  /** SRE82: `state.json`'s `today.neurons` after the run (the tick span's `neuronsToday`). */
+  readonly neuronsToday?: number;
 }
 
 function dryRun(bundle: Bundle): Diagnosis {
@@ -151,7 +155,8 @@ export async function runTick(deps: TickDeps): Promise<TickResult> {
     state.today.diagnoses += 1;
     step(5);
     const diagnosis = mode === "dry" ? dryRun(bundle) : await diagnoseBundle({
-      model: deps.model!, modelId: deps.modelId, bundle, ledger,
+      model: deps.model!, modelId: deps.modelId, bundle, ledger, runId,
+      ...(deps.generateText === undefined ? {} : { generateText: deps.generateText }),
       tools: { env, health, querySignals: deps.querySignals, fetch: deps.fetch, library, secrets, ciRuns: group.job === CI_JOB },
       ...(deps.toolTimeoutMs === undefined ? {} : { toolTimeoutMs: deps.toolTimeoutMs }),
     });
@@ -191,7 +196,7 @@ export async function runTick(deps: TickDeps): Promise<TickResult> {
     modelCalls: runRecord.modelCalls, neurons: runRecord.neurons, verdicts: diagnoses.map((value) => value.verdict), recordKey,
   };
   await persist(state);
-  return { mode, runRecord };
+  return { mode, runRecord, neuronsToday: state.today.neurons };
 }
 
 /**
