@@ -247,7 +247,7 @@ async function tick(env: SreAgentEnv, deps: SreAgentTickDeps, mode: Exclude<Mode
   const record = result.runRecord;
   const summary = record === undefined
     ? `sre-agent ${mode} run failed: ${result.reason}`
-    : `sre-agent ${mode} run:${record.firings} firings, ${record.diagnosed} diagnosed, ${record.modelCalls} model calls, ${record.recordKey}`;
+    : `sre-agent ${mode} run: ${record.firings} firings, ${record.diagnosed} diagnosed, ${record.modelCalls} model calls, ${record.recordKey}`;
   (result.status === "ok" ? console.log : console.error)({ message: summary, runId, job: SRE_AGENT_JOB });
   return result;
 }
