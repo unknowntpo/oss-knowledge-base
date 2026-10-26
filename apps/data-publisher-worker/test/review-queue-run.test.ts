@@ -459,24 +459,47 @@ const cases: Record<string, () => Promise<string>> = {
     return `last-run ${record.ok ? "ok" : "failed"}; github ${record.sources.github.requests} requests; mail ${count(w, "thread.lua")} thread + ${count(w, "email.lua")} email requests; ` +
       `roster ${record.sources.roster.requests} requests; counts noReviewer ${c.noReviewer}, waiting ${c.waiting}, approved ${c.approved}, vote ${c.vote}, discuss ${c.discuss}`;
   },
-  "run record|constructed: GET /health with last-run.json in R2": async () => {
-    const record = { ok: true, completedAt: "2026-10-08T05:00:00.000Z" };
-    const stub = (body: unknown) => ({ get: () => ({ fetch: async () => Response.json(body) }), idFromName: (name: string) => name });
-    const env = {
-      PUBLICATION_ENVIRONMENT: "development",
-      PIPELINE_STATE: stub({ environment: "development", running: false }),
-      DIGEST_RUN: stub({ running: false }),
-      OSS_KB_BUCKET: { get: async (key: string) => (key === LAST_RUN ? { json: async () => record } : null) },
-    };
-    const response = await worker.fetch(new Request("https://data.example/health"), env as never);
-    const body = await response.json() as { reviewQueue: unknown };
-    return JSON.stringify(body.reviewQueue) === JSON.stringify(record) ? "reviewQueue is the last-run object" : JSON.stringify(body.reviewQueue);
+  "run record|constructed: REVIEW_QUEUE_CRON 27 * * * * set; GET /health with last-run.json in R2": async () => {
+    const { body } = await healthWithLastRun("27 * * * *");
+    return JSON.stringify(body.reviewQueue) === JSON.stringify(HEALTH_RECORD) ? "reviewQueue is the last-run object" : JSON.stringify(body.reviewQueue);
   },
   "run record|constructed: /health merge with no last-run object": async () => {
     const merged = mergeHealth({ environment: "development" }, null, null) as { reviewQueue: unknown };
     return `reviewQueue ${String(merged.reviewQueue)}`;
   },
+  // Q59
+  "health gate|constructed: REVIEW_QUEUE_CRON unset; GET /health with last-run.json in R2": async () => {
+    const { body, reads } = await healthWithLastRun(undefined);
+    return `reviewQueue ${JSON.stringify(body.reviewQueue)}; ${reads.length} R2 reads`;
+  },
+  "health gate|constructed: REVIEW_QUEUE_CRON blank; GET /health with last-run.json in R2": async () => {
+    const { body, reads } = await healthWithLastRun("  ");
+    return `reviewQueue ${JSON.stringify(body.reviewQueue)}; ${reads.length} R2 reads`;
+  },
+  "health gate|constructed: REVIEW_QUEUE_CRON unset; POST /review-queue/run without the bearer token": async () => {
+    const stub = { get: () => ({ fetch: async () => Response.json({}) }), idFromName: (name: string) => name };
+    const env = { MANUAL_TRIGGER_TOKEN: "secret", PIPELINE_STATE: stub, DIGEST_RUN: stub };
+    const response = await worker.fetch(new Request("https://data.example/review-queue/run", { method: "POST" }), env as never);
+    return `${response.status} (the manual route ${response.status === 404 ? "is disabled" : "stays enabled"})`;
+  },
 };
+
+const HEALTH_RECORD = { ok: true, completedAt: "2026-10-08T05:00:00.000Z" };
+
+/** `/health` with only the review queue's `last-run.json` in R2; returns the body and every R2 key read. */
+async function healthWithLastRun(reviewQueueCron: string | undefined): Promise<{ body: { reviewQueue: unknown }; reads: string[] }> {
+  const reads: string[] = [];
+  const stub = (body: unknown) => ({ get: () => ({ fetch: async () => Response.json(body) }), idFromName: (name: string) => name });
+  const env = {
+    PUBLICATION_ENVIRONMENT: "development",
+    ...(reviewQueueCron === undefined ? {} : { REVIEW_QUEUE_CRON: reviewQueueCron }),
+    PIPELINE_STATE: stub({ environment: "development", running: false }),
+    DIGEST_RUN: stub({ running: false }),
+    OSS_KB_BUCKET: { get: async (key: string) => { reads.push(key); return key === LAST_RUN ? { json: async () => HEALTH_RECORD } : null; } },
+  };
+  const response = await worker.fetch(new Request("https://data.example/health"), env as never);
+  return { body: await response.json() as { reviewQueue: unknown }, reads };
+}
 
 function rosterFixture(): Roster {
   return asfRosterAdapter.parse([{ projects: ldapSample.projects }, { people: ldapSample.people }], "kafka", new Date(START).toISOString());

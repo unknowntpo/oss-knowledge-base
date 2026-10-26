@@ -1,6 +1,6 @@
 # Spec 015: Review queue for PRs and KIPs
 
-Status: Partially implemented: slices 1–2 (core and the Worker job, #38, #39; accepted 2026-10-08, decisions and governance amendment below); no cron starts the job on Dev or Prod (`REVIEW_QUEUE_CRON` unset); slice 3 (web) not built
+Status: Partially implemented: slices 1–2 (core and the Worker job, #38, #39; accepted 2026-10-08, decisions and governance amendment below; `/health` read amendment 2026-10-26, Q59); no cron starts the job on Dev or Prod (`REVIEW_QUEUE_CRON` unset); slice 3 (web) not built
 Date: 2026-10-08
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 009 (bounded memory), Spec 010 (freshness), Spec 012 (dev@ and Jira, ADR-0014), Spec 014 (topic digest, profile `proposal`), ADR-0016
@@ -18,6 +18,24 @@ Builds on: Spec 004 (GitHub connector), Spec 009 (bounded memory), Spec 010 (fre
 > hourly publication. **Open for the owner** (Spec 018, open decision 1):
 > keep the review queue hourly, or run it once a day after the publication.
 > Until then the job stays unscheduled and nothing here is changed.
+
+> **Amendment 2026-10-26 (`/health` reads no `last-run.json` while the job
+> is unscheduled, Q59).** Dev traces (the 2026-10-26 09:35 UTC SRE agent run)
+> showed every `/health` build issuing an R2 `get` of
+> `public/review-queue/v1/apache-kafka/last-run.json`. No cron runs the job,
+> so the key does not exist: the `r2_get` span fails with code 10007 ("The
+> specified key does not exist") and Agent tracing marks the whole trace
+> Error, although `/health` answered 200. Now `/health` reads that key only
+> while `REVIEW_QUEUE_CRON` is not blank. Otherwise `reviewQueue` is `null`
+> with no R2 read, so the field and its shape stay the same for
+> `verify:health` and the SRE agent's `review-queue` bundle.
+> `POST /review-queue/run` stays enabled while the cron is unset: an operator
+> may still run the job by hand, and the run still writes
+> `last-run.json`, `current.json` and the content object. The route's
+> response is that run's record; `/health.reviewQueue` shows it only after
+> `REVIEW_QUEUE_CRON` is set. This keeps the manual dry run that the
+> follow-up needs before it sets the cron, and keeps `/health` free of reads
+> for a job nothing schedules.
 
 ## Intent
 
@@ -232,6 +250,8 @@ Placement of the job:
   `last-run`; `?dryRun=1` computes and returns it without any R2 write
   (Q58).
 - `/health` gains `reviewQueue`: the `last-run.json` object, or null.
+  Amended 2026-10-26 (Q59): read only while `REVIEW_QUEUE_CRON` is set;
+  null with no R2 read otherwise.
 - No Durable Object. The run is short (≈ 1–3 min) and hourly, so runs do not
   overlap in practice; the pointer write is conditional (Behavior 17) for the
   case where they do. Run status is an R2 object, not DO storage.
@@ -816,8 +836,11 @@ Slice 2, the job in the data Worker:
 | Q57 | cron | constructed: DIGEST_CRON and REVIEW_QUEUE_CRON both 27 * * * * (misconfigured); it fires | digest |
 | Q58 | manual run | constructed: run with dryRun | counts returned; 0 R2 writes |
 | Q40 | run record | captured samples: a full run | last-run ok; github 7 requests; mail 17 thread + 34 email requests; roster 2 requests; counts noReviewer 310, waiting 61, approved 22, vote 5, discuss 9 |
-| Q40 | run record | constructed: GET /health with last-run.json in R2 | reviewQueue is the last-run object |
+| Q40 | run record | constructed: REVIEW_QUEUE_CRON 27 * * * * set; GET /health with last-run.json in R2 | reviewQueue is the last-run object |
 | Q40 | run record | constructed: /health merge with no last-run object | reviewQueue null |
+| Q59 | health gate | constructed: REVIEW_QUEUE_CRON unset; GET /health with last-run.json in R2 | reviewQueue null; 0 R2 reads |
+| Q59 | health gate | constructed: REVIEW_QUEUE_CRON blank; GET /health with last-run.json in R2 | reviewQueue null; 0 R2 reads |
+| Q59 | health gate | constructed: REVIEW_QUEUE_CRON unset; POST /review-queue/run without the bearer token | 401 (the manual route stays enabled) |
 <!-- test-plan:end -->
 
 Slice 3, web:
@@ -990,6 +1013,10 @@ until they are done.
   runs as before; the digest cron still runs the digest.
 - Q58: `POST /review-queue/run?dryRun=1` returns the run record with counts
   and writes nothing to R2, the roster cache included.
+- Q59: with `REVIEW_QUEUE_CRON` unset or blank, `/health` makes no R2 read
+  of the review queue's `last-run.json` and `reviewQueue` is null (the field
+  stays); `POST /review-queue/run` stays enabled (401 without the bearer
+  token, not 404). Amendment 2026-10-26.
 
 (Q39 was removed in review as a duplicate of Q31.)
 
@@ -1064,4 +1091,5 @@ until they are done.
 | V3 | Verifier survivors V9, P3, P16, T2, T4, R4 | Applied: one row each (Q11, Q23 ×2, Q8, Q7, Q50); all killed |
 | V4 | Verifier doc drift: shared-code claims, G8/G9 promises, Behavior 12 first sentence, Behavior 13 names, silent drop when no proposal vote rule | Applied: code now reuses Spec 014's `isMachineAuthor`, `proposalKeys`, and `subjectHasTag` (signatures widened to the fields they read); `threadKey` is explicitly not shared; G8 note added, G9 moved to slice 2; Behavior 12–13 rewritten; a missing proposal vote rule is an error (Q49 row) |
 | S2 | Slice 2 coordinator notes: memberKey single pass, unattributed without the tag condition, `isReply` on gateway-tagged roots, the "reply not attributed" text, a declared non-binding -1 missing from the text, "-1, binding, see below" read as unmarked | Applied: rows for each (Q8 ×3, Q16 ×2, Q9 ×2); `isReply` strips gateway tags first; the text shows "non-binding -1"; a comma may precede the marker; `VOTE_REGEX_VERSION` 2 |
+| A1 | 2026-10-26: Dev traces showed a failed `r2_get` (10007, missing `last-run.json`) in every `/health` build, which marked healthy traces Error, because `/health` read the key although no cron runs the job | Applied: amendment 2026-10-26, Q59; `/health` reads the key only while `REVIEW_QUEUE_CRON` is set; the manual route stays enabled |
 | S3 | Slice 2 verifier: every source failing still published an object (empty on a first run); mail `fetchedAt` kept but untested (V23); `/health` read untested (V39); run `ok` with one failed source unpinned (V21); `feedReleaseId` in the text but not the object; `finally` wording | Applied: `no-source` skips the content and pointer writes (Behavior 16, Q43 rows); Q30 row asserts `fetchedAt` and `feedReleaseId`; a handler test reads `/health`; Q43 row asserts the run is `ok`; `sources.mail.feedReleaseId` added; Behavior 17 states why the run record is written after the run, not in `finally` |
