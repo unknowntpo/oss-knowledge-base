@@ -5,10 +5,13 @@
  * one responsibility (B23): its own cron, its own prefix, its own `/health.sreAgent`; it never throws
  * into the scheduled handler.
  */
+import * as ai from "ai";
+import * as workers from "cloudflare:workers";
 import { createAI } from "agents/models/ai-sdk";
+import { wrapAISDK } from "agents/observability/ai";
 import {
-  activeDrillSummary, gradeActiveDrill, loadState, parseFlag, recordFailedTick, runTick, sreKey, sreRunId, utcDate,
-  type Env as SreEnv, type Health, type LastRun, type TickDeps, type QuerySignals, type RawStore, type RunRecord, type SqlArgs,
+  activeDrillSummary, DAILY_NEURON_CAP, gradeActiveDrill, loadState, parseFlag, recordFailedTick, runTick, sreKey, sreRunId, utcDate,
+  type Env as SreEnv, type Health, type LastRun, type Mode, type TickDeps, type QuerySignals, type RawStore, type RunRecord, type SqlArgs,
 } from "@oss-knowledge-base/sre-agent";
 import { errorText, sanitizeErrorMessage } from "../search-embedding/sanitize";
 import { signalsDataset } from "../signals/profile";
@@ -114,6 +117,58 @@ function querySignals(env: SreAgentEnv, now: () => number): QuerySignals {
 const secretsOf = (env: SreAgentEnv) =>
   [env.GITHUB_SOURCE_TOKEN, env.MANUAL_TRIGGER_TOKEN, env.CF_ANALYTICS_TOKEN].filter((value): value is string => typeof value === "string" && value !== "");
 
+/**
+ * SRE81 (owner decision 2026-10-26): the agent's model calls go through Cloudflare Agent tracing.
+ * Without the two store flags the Agents tab's session replay has no payloads; tool results are
+ * bundle items, already redacted (B29). Where traces are off (Prod) the wrapper only calls through.
+ */
+export const tracedGenerateText = wrapAISDK(ai, { storeMessages: true, storeTools: true }).generateText;
+
+/** SRE82: the custom span each tick (not `off`) runs inside. */
+export const SRE_TICK_SPAN = "sre-agent tick";
+const MAX_FAILURE_IDS = 1024;
+
+type SpanValue = string | number | boolean;
+
+/**
+ * SRE82: the tick span's attributes, a pure function of the tick's result. Counts, ids and verdicts
+ * only: no secret, no bundle text (the session replay carries content).
+ */
+export function tickSpanAttributes(input: { readonly env: SreEnv; readonly mode: Exclude<Mode, "off">; readonly result: SreAgentTickResult }): Record<string, SpanValue> {
+  const { result } = input;
+  const base = { runId: result.runId, env: input.env, mode: input.mode, status: result.status };
+  const record = result.runRecord;
+  if (record === undefined) return { ...base, ...(result.reason === undefined ? {} : { reason: result.reason }) };
+  const diagnoses = record.diagnoses;
+  const failures = diagnoses.flatMap((value) => (value.evidenceCheck?.failures ?? []).map((failure) => `${value.job}:${failure}`));
+  const sum = (pick: (value: (typeof diagnoses)[number]) => number) => diagnoses.reduce((total, value) => total + pick(value), 0);
+  return {
+    ...base,
+    firings: record.firings,
+    diagnosed: record.diagnosed,
+    verdicts: diagnoses.map((value) => value.verdict).join(","),
+    evidenceCheckFailures: failures.length,
+    evidenceCheckFailureIds: failures.join(",").slice(0, MAX_FAILURE_IDS),
+    inputTokens: sum((value) => value.inputTokens),
+    outputTokens: sum((value) => value.outputTokens),
+    neurons: record.neurons,
+    ...(result.neuronsToday === undefined ? {} : { neuronsToday: result.neuronsToday }),
+    neuronsDailyCap: DAILY_NEURON_CAP,
+  };
+}
+
+interface TickSpan { setAttribute(key: string, value: SpanValue): unknown }
+
+/**
+ * SRE82: `tracing.enterSpan` from `cloudflare:workers`, read off the namespace so a runtime without
+ * it links (and runs the tick without a span) instead of failing to load.
+ */
+function enterTickSpan<T>(run: (span: TickSpan) => Promise<T>): Promise<T> {
+  const tracing = (workers as { readonly tracing?: { enterSpan?: unknown } }).tracing;
+  if (typeof tracing?.enterSpan !== "function") return run({ setAttribute: () => undefined });
+  return (workers.tracing.enterSpan as (name: string, callback: (span: TickSpan) => Promise<T>) => Promise<T>)(SRE_TICK_SPAN, run);
+}
+
 export interface SreAgentTickDeps {
   readonly now: Date;
   /** `/health` as served, from the functions the route uses (B24, SRE34). */
@@ -122,6 +177,8 @@ export interface SreAgentTickDeps {
   readonly onStep?: (step: number) => void;
   /** Test seam: a model instead of the one built from the `AI` binding (SRE75 counts calls through a mock). */
   readonly model?: ReturnType<typeof sreAgentModel>;
+  /** SRE81: the `generateText` of the tick's diagnoses; `tracedGenerateText` by default. */
+  readonly generateText?: typeof ai.generateText;
 }
 
 export interface SreAgentTickResult {
@@ -129,6 +186,8 @@ export interface SreAgentTickResult {
   readonly status: "ok" | "failed";
   readonly reason?: string;
   readonly runRecord?: RunRecord;
+  /** SRE82: the day's neurons after an ok tick. */
+  readonly neuronsToday?: number;
 }
 
 /**
@@ -138,6 +197,16 @@ export interface SreAgentTickResult {
 export async function sreAgentTick(env: SreAgentEnv, deps: SreAgentTickDeps): Promise<SreAgentTickResult | undefined> {
   const flag = parseFlag(env.SRE_AGENT);
   if (flag.mode === "off") return undefined;
+  const mode = flag.mode;
+  // SRE82: the whole tick, model calls included, inside one span; its attributes once the result is known.
+  return enterTickSpan(async (span) => {
+    const result = await tick(env, deps, mode);
+    for (const [key, value] of Object.entries(tickSpanAttributes({ env: sreEnv(env.PUBLICATION_ENVIRONMENT), mode, result }))) span.setAttribute(key, value);
+    return result;
+  });
+}
+
+async function tick(env: SreAgentEnv, deps: SreAgentTickDeps, mode: Exclude<Mode, "off">): Promise<SreAgentTickResult> {
   const runId = sreRunId(deps.now);
   const started = Date.now();
   const store = r2Store(env.OSS_KB_BUCKET);
@@ -145,8 +214,9 @@ export async function sreAgentTick(env: SreAgentEnv, deps: SreAgentTickDeps): Pr
   let result: SreAgentTickResult;
   try {
     // Inside the try: a binding that fails as the model is built is a failed tick too (SRE47).
-    const model = flag.mode === "live" ? deps.model ?? sreAgentModel(env) : undefined;
+    const model = mode === "live" ? deps.model ?? sreAgentModel(env) : undefined;
     const tick = await runTick({
+      generateText: deps.generateText ?? tracedGenerateText,
       env: sre,
       flag: env.SRE_AGENT,
       now: deps.now,
@@ -161,7 +231,11 @@ export async function sreAgentTick(env: SreAgentEnv, deps: SreAgentTickDeps): Pr
       // B42: the drill grader, only while the drill is on; its failure never fails the tick.
       ...(drillEnabled(env) ? { afterRun: (input) => gradeDrill(store, input, deps.now, runId) } : {}),
     });
-    result = { runId, status: "ok", ...(tick.runRecord === undefined ? {} : { runRecord: tick.runRecord }) };
+    result = {
+      runId, status: "ok",
+      ...(tick.runRecord === undefined ? {} : { runRecord: tick.runRecord }),
+      ...(tick.neuronsToday === undefined ? {} : { neuronsToday: tick.neuronsToday }),
+    };
   } catch (error) {
     const reason = sanitizeErrorMessage(errorText(error));
     result = { runId, status: "failed", reason };
@@ -172,8 +246,8 @@ export async function sreAgentTick(env: SreAgentEnv, deps: SreAgentTickDeps): Pr
   writePoint(env, result, started, deps.now.getTime());
   const record = result.runRecord;
   const summary = record === undefined
-    ? `sre-agent ${flag.mode} run failed: ${result.reason}`
-    : `sre-agent ${flag.mode} run: ${record.firings} firings, ${record.diagnosed} diagnosed, ${record.modelCalls} model calls, ${record.recordKey}`;
+    ? `sre-agent ${mode} run failed: ${result.reason}`
+    : `sre-agent ${mode} run:${record.firings} firings, ${record.diagnosed} diagnosed, ${record.modelCalls} model calls, ${record.recordKey}`;
   (result.status === "ok" ? console.log : console.error)({ message: summary, runId, job: SRE_AGENT_JOB });
   return result;
 }

@@ -371,7 +371,7 @@ const scenarios: Record<string, () => Promise<void>> = {
     // Injected: the tick's model calls go through the given generateText.
     const injected: unknown[] = [];
     const spy = ((options: Parameters<typeof generateText>[0]) => { injected.push(options.runtimeContext); return generateText(options); }) as typeof generateText;
-    const first = workerEnv({ SRE_AGENT: "live" });
+    const first = workerEnv({ SRE_AGENT: "live", OBSERVABILITY_SIGNALS: "on" });
     const viaSpy = await liveTick(first.env, { generateText: spy });
     expect(viaSpy?.runRecord).toMatchObject({ diagnosed: 1, modelCalls: 1 });
     expect(injected).toEqual([expect.objectContaining({ runId: RUN_ID, env: "dev", job: "publication" })]);
@@ -379,7 +379,7 @@ const scenarios: Record<string, () => Promise<void>> = {
     // Default: the wiring's wrapAISDK generateText, not the AI SDK's own, recording the replay payloads.
     expect(tracedGenerateText).not.toBe(generateText);
     recordedSpans.length = 0;
-    const second = workerEnv({ SRE_AGENT: "live" });
+    const second = workerEnv({ SRE_AGENT: "live", OBSERVABILITY_SIGNALS: "on" });
     const viaWrapper = await liveTick(second.env);
     expect(viaWrapper?.runRecord).toMatchObject({ diagnosed: 1, modelCalls: 1 });
     expect(viaWrapper!.runRecord!.diagnoses.map((value) => value.verdict)).toEqual(["unverified"]);
@@ -398,7 +398,7 @@ const scenarios: Record<string, () => Promise<void>> = {
     expect(outputs.some((value) => (value as string).includes("invented-cause"))).toBe(true);
     // Positive control: without the wrapper (the spy above) no agent span was recorded for that tick.
     recordedSpans.length = 0;
-    await liveTick(workerEnv({ SRE_AGENT: "live" }).env, { generateText: spy });
+    await liveTick(workerEnv({ SRE_AGENT: "live", OBSERVABILITY_SIGNALS: "on" }).env, { generateText: spy });
     expect(recordedSpans.filter((span) => span.attributes["gen_ai.agent.name"] !== undefined)).toEqual([]);
   },
 
@@ -432,13 +432,13 @@ const scenarios: Record<string, () => Promise<void>> = {
     expect(await sreAgentTick(off.env as unknown as SreAgentEnv, { now: new Date(NOW), readHealth: () => tickHealth(off.env as never) })).toBeUndefined();
     expect(recordedSpans).toEqual([]);
 
-    const dry = workerEnv({ SRE_AGENT: "dry" });
+    const dry = workerEnv({ SRE_AGENT: "dry", OBSERVABILITY_SIGNALS: "on" });
     const dryResult = await sreAgentTick(dry.env as unknown as SreAgentEnv, { now: new Date(NOW), readHealth: () => tickHealth(dry.env as never), fetch: globalThis.fetch });
     expect(ticks()).toEqual([{ name: SRE_TICK_SPAN, attributes: tickSpanAttributes({ env: "dev", mode: "dry", result: dryResult! }), ended: true }]);
     expect(ticks()[0]!.attributes).toMatchObject({ status: "ok", diagnosed: 1, verdicts: "dry-run" });
 
     recordedSpans.length = 0;
-    const live = workerEnv({ SRE_AGENT: "live" });
+    const live = workerEnv({ SRE_AGENT: "live", OBSERVABILITY_SIGNALS: "on" });
     const liveResult = await liveTick(live.env);
     expect(liveResult?.neuronsToday).toBeGreaterThan(0);
     expect(ticks()).toEqual([{ name: SRE_TICK_SPAN, attributes: tickSpanAttributes({ env: "dev", mode: "live", result: liveResult! }), ended: true }]);
