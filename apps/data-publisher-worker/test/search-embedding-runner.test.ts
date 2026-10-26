@@ -504,7 +504,7 @@ describe("Spec 016 embedding endpoints of the Worker", () => {
     const health = async (extra: Record<string, unknown>) =>
       (await (await worker.fetch(new Request("https://publisher.example/health"), baseEnv(extra))).json()) as Record<string, unknown>;
     const bound = await health({ SEARCH_EMBEDDING_RUN: stub((url) => (url.endsWith("/status") ? Response.json({ enabled: true, lastRun: { ok: true, pending: 0 } }) : new Response("no", { status: 404 }))) });
-    expect(bound).toEqual({ ...publisher, digest: { enabled: false }, reviewQueue: null, searchEmbedding: { enabled: true, lastRun: { ok: true, pending: 0 } }, searchQuery: expect.objectContaining({ enabled: false }), sreAgent: { mode: "off" } });
+    expect(bound).toEqual({ ...publisher, digest: { enabled: false }, reviewQueue: null, searchEmbedding: { enabled: true, lastRun: { ok: true, pending: 0 } }, searchQuery: expect.objectContaining({ enabled: false }), sreAgent: { mode: "off" }, components: expect.any(Array) });
     expect((await health({ SEARCH_EMBEDDING_RUN: stub(() => new Response("boom", { status: 500 })) })).searchEmbedding).toBeNull();
     expect((await health({ SEARCH_EMBEDDING_RUN: stub(() => { throw new Error("gone"); }) })).searchEmbedding).toBeNull();
     expect((await health({})).searchEmbedding).toMatchObject({ enabled: false, lastRun: null });

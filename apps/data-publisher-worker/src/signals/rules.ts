@@ -5,7 +5,7 @@
  * are pure: no binding, no read. Missing data is `unknown`, never `firing`.
  */
 import type { SignalRun } from "./point";
-import { R2_COUNTED, SIGNAL_THRESHOLDS as T, WALL_BUDGET_MS, type SignalJob } from "./profile";
+import { PUBLICATION_SOURCES, R2_COUNTED, SIGNAL_THRESHOLDS as T, WALL_BUDGET_MS, type SignalJob } from "./profile";
 
 export type RuleStatus = "ok" | "warn" | "firing" | "unknown";
 
@@ -56,7 +56,6 @@ export interface SignalsHealth {
   readonly lastError: string | null;
 }
 
-const PUBLICATION_SOURCES = ["github", "mail", "jira"] as const;
 const iso = (ms: number) => new Date(ms).toISOString();
 const median = (values: readonly number[]) => {
   const sorted = [...values].sort((a, b) => a - b);
@@ -238,8 +237,8 @@ interface JobView {
   readonly runId: string | null;
 }
 
-/** Behavior 5 (state rules) and 15 (`job.missed`), from the body `/health` already built. */
-function stateRules(health: Record_, now: number): { readonly rules: RuleEntry[]; readonly jobs: JobView[] } {
+/** Behavior 5 (state rules) and 15 (`job.missed`), from the body `/health` already built; Spec 033 `components` reuses it. */
+export function stateRules(health: Record_, now: number): { readonly rules: RuleEntry[]; readonly jobs: JobView[] } {
   const rules: RuleEntry[] = [];
   const jobs: JobView[] = [];
 

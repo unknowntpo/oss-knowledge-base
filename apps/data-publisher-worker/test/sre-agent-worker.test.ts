@@ -160,10 +160,13 @@ const scenarios: Record<string, () => Promise<void>> = {
     // A job record only the route's redaction covers (not mergeHealth's).
     bucket.objects.set("internal/kips/v1/last-run.json", JSON.stringify({ revision: "authors@1", lastRun: { ok: false, status: "failed", at: NOW, durationMs: 1, error: `jira said ${SECRET}` }, lastGoodAt: null, coverageFrom: null }));
     const served = await health(env);
-    const { sreAgent: _served, ...withoutAgent } = served;
+    // Spec 033: `components` is derived from the body, so the tick does not get it either (no derived field).
+    const { sreAgent: _served, components: _components, ...withoutAgent } = served;
+    expect(_components).toEqual(expect.any(Array));
     const ticked = await tickHealth(env as never);
     expect(ticked).toEqual(withoutAgent);
     expect(ticked).not.toHaveProperty("sreAgent");
+    expect(ticked).not.toHaveProperty("components");
     // Redacted as served, and a firing rule is in it (positive control: signals were judged, not copied).
     expect(JSON.stringify(ticked)).not.toContain(SECRET);
     expect((ticked.signals as { rules: { id: string; job: string; status: string }[] }).rules).toContainEqual(expect.objectContaining({ id: "job.missed", job: "publication", status: "firing" }));

@@ -15,6 +15,16 @@ export function resolveSignalsMode(value: string | undefined): SignalsMode {
 export const SIGNAL_JOBS = ["publication", "digest", "embedding", "cost-guard", "retention", "identity-links", "kip-pages", "identity-backfill"] as const;
 export type SignalJob = (typeof SIGNAL_JOBS)[number];
 
+/** The publication's sources, in the order of their `counters` slots (Behavior 13). */
+export const PUBLICATION_SOURCES = ["github", "mail", "jira"] as const;
+
+/**
+ * Spec 033 Behavior 7: every `/health` `components` id the Worker can emit: each signal job, the SRE
+ * agent, and one per publication source. The docs site's system map validates its bindings against it.
+ */
+export type ComponentId = SignalJob | "sre-agent" | `source:${(typeof PUBLICATION_SOURCES)[number]}`;
+export const COMPONENT_IDS: readonly ComponentId[] = [...SIGNAL_JOBS, "sre-agent", ...PUBLICATION_SOURCES.map((source) => `source:${source}` as const)];
+
 /** `r2Counted`: the job counts its own R2 operations (D8: the digest and the embedding job too). */
 export const R2_COUNTED: Readonly<Record<SignalJob, boolean>> = {
   publication: true, digest: true, embedding: true, "cost-guard": false, retention: true, "identity-links": true, "kip-pages": true, "identity-backfill": true,
