@@ -216,18 +216,27 @@ export function citeEvidence(evidence: readonly EvidenceEntry[], items: readonly
   });
 }
 
-/** Every value in a JSON value, itself first, at any depth. */
-function* valuesIn(value: unknown): Generator<unknown> {
-  yield value;
-  if (typeof value === "object" && value !== null) for (const child of Object.values(value)) yield* valuesIn(child);
+/**
+ * SRE96, SRE97 (owner decision 2026-10-26): the field at `path` in a JSON item and, when its value is an object or
+ * an array, each field directly in it (`"<key>": <value>`, the value alone for an array element); none deeper.
+ * Empty when the path does not resolve.
+ */
+export function citedFields(text: string, path: string): { readonly value: unknown; readonly quote: string }[] {
+  const found = resolvePath(text, path);
+  if (found === null) return [];
+  const parent = found.value;
+  if (typeof parent !== "object" || parent === null) return [found];
+  const children = Object.entries(parent).map(([key, value]) => ({
+    value,
+    quote: Array.isArray(parent) ? JSON.stringify(value) : `${JSON.stringify(key)}: ${JSON.stringify(value)}`,
+  }));
+  return [found, ...children];
 }
 
-/** SRE88: the value at `path` in a JSON item is `wanted`, or holds it at any depth. */
+/** SRE88, SRE96: the value at `path` in a JSON item is `wanted`, or directly holds it (one level up, no further). */
 export function pathHolds(text: string, path: string, wanted: unknown): boolean {
-  const found = resolvePath(text, path);
-  if (found === null || wanted === undefined) return false;
-  for (const value of valuesIn(found.value)) if (same(value, wanted)) return true;
-  return false;
+  if (wanted === undefined) return false;
+  return citedFields(text, path).some((field) => same(field.value, wanted));
 }
 
 /**

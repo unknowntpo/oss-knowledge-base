@@ -184,6 +184,34 @@ const scenarios: Record<string, () => Promise<void>> = {
     expect(grade(evalCase, bundle, ["job.failures"], output("kipPages.lastRun.status"), library)).toMatchObject({ pass: false, missing: ["kipPages.lastRun.error"] });
   },
 
+  async "drill path scope"() {
+    // Owner decision 2026-10-26: the exact field or its immediate parent counts; an ancestor further up does not.
+    const cites = (e3: string): DiagnosisOutput => ({ ...GOLDEN, evidence: [{ id: "E3", path: e3 }, { id: "E6", path: "[0].template" }] });
+    expect(await graded(cites("kipPages.lastRun.error"))).toMatchObject({ result: "pass", reasons: [] });
+    expect(await graded(cites("kipPages.lastRun"))).toMatchObject({ result: "pass", reasons: [] });
+    // The root path resolves (B32 passes, no verdict reason) but no longer satisfies the requirement.
+    expect(await graded(cites("kipPages"))).toMatchObject({ result: "fail", reasons: ["missing-evidence:kipPages.lastRun.error"] });
+  },
+
+  async "eval path scope"() {
+    const evalCase = EVAL_CASES.find((value) => value.scenario === "kip-pages-two-failures")!;
+    const firing = { env: evalCase.env, job: "kip-pages", ruleId: "job.failures", since: "2026-10-21T03:43:00.000Z", runId: "kip-pages-2026-10-22T03-43-00-000Z", entry: {} };
+    const querySignals = async (args: { template: keyof EvalCase["sql"] }) => evalCase.sql[args.template] ?? [];
+    const library = evalLibrary();
+    const bundle = await buildBundle({ env: evalCase.env, job: "kip-pages", firings: [firing], health: evalCase.health, querySignals, ci: evalCase.ci, library, secrets: [] });
+    const id = (label: string) => bundle.items.find((item) => item.label === label)!.id;
+    const golden = evalCase.golden!;
+    const output = (healthPath: string, windowPath = "[0].status"): DiagnosisOutput => ({
+      verdict: golden.verdict, cause: golden.cause, confidence: golden.confidence, runbook: golden.runbook, ownerAction: golden.ownerAction,
+      evidence: [{ id: id("kip-pages /health fields"), path: healthPath }, { id: id("Q-window"), path: windowPath }],
+    });
+    const graded = (value: DiagnosisOutput) => grade(evalCase, bundle, ["job.failures"], value, library);
+    expect(graded(output("kipPages.lastRun.error"))).toMatchObject({ pass: true, missing: [] });
+    expect(graded(output("kipPages.lastRun"))).toMatchObject({ pass: true, missing: [] });
+    expect(graded(output("kipPages"))).toMatchObject({ pass: false, fabricated: false, missing: ["kipPages.lastRun.error"] });
+    expect(graded(output("kipPages.lastRun.error", "[0]"))).toMatchObject({ pass: true, missing: [] });
+  },
+
   async "no diagnosis"() {
     const tick = async (kind: "throw" | "skip", hoursAgo: number) => {
       const firedAt = new Date(NOW.getTime() - hoursAgo * 3_600_000).toISOString();

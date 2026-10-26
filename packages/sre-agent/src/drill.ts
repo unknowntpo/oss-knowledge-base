@@ -212,8 +212,8 @@ function field(health: Health, path: readonly string[]): unknown {
 
 /**
  * B42, SRE72: grades one diagnosis against B41 (no model, no LLM judge). Each required evidence item
- * must be cited: a `/health` field by a quote containing its value or a path whose value is or holds it
- * (SRE88), a harness result by citing the item with that label. The verdict must be `explained`, so every quote passed the B32 check.
+ * must be cited: a `/health` field by a quote containing its value or a path whose value is it or directly
+ * holds it (SRE88, SRE96), a harness result by citing the item with that label. The verdict must be `explained`, so every quote passed the B32 check.
  */
 export function gradeDiagnosis(kind: DrillKind, diagnosis: DiagnosisRecord | undefined, items: readonly EvidenceItem[], health: Health): { result: "pass" | "fail"; reasons: string[] } {
   if (diagnosis === undefined) return { result: "fail", reasons: ["no-diagnosis"] };
@@ -227,7 +227,7 @@ export function gradeDiagnosis(kind: DrillKind, diagnosis: DiagnosisRecord | und
           const value = field(health, required.path);
           const text = typeof value === "string" || typeof value === "number" ? collapse(String(value)) : "";
           return diagnosis.evidence.some((entry) => {
-            // SRE88: a path citation counts when the value it reads is the field's value or holds it.
+            // SRE88, SRE96: a path citation counts when the value it reads is the field's value or directly holds it.
             if (entry.path !== undefined) {
               const item = items.find((candidate) => candidate.id === entry.id);
               return item !== undefined && pathHolds(item.text, entry.path, value);
