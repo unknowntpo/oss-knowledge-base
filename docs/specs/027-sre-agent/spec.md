@@ -1306,6 +1306,12 @@ prompt and the schema (option A):
   stay as they are. The harness does not check the verdict against the
   cause; that is a separate later decision (option B). Only a Dev drill
   shows whether Qwen3 30B follows the definition.
+- **Playbook wording (docs follow-up, 2026-10-26).** The `job.missed`
+  playbook's judgment guidance and the eval playbook template
+  (`packages/sre-agent/scripts/eval/playbooks.ts`) now use these
+  definitions: `unknown` is `inconclusive` when evidence is missing and
+  `unexplained` when the cited evidence rules out every cause. No cause,
+  rule or golden verdict changed.
 
 ### Drill slice notes (2026-10-25)
 
