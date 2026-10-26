@@ -1032,14 +1032,21 @@ quoted a `Q-window` row with its fields in another order and without
   brace that does not parse (the text match then fails too), a duplicate
   key (the serialization check keeps it from hiding an invented value),
   a quote without a letter or digit, and a JSON pair against a non-JSON
-  item.
+  item. Accepted (verifier note, 2026-10-26): "deeply equal" compares parsed
+  values, so a number written differently but parsing equal (`1` for `1.0`,
+  `0` for `-0`, an integer beyond 2^53 that rounds to the same value) or a
+  string with a `\u` escape passes; bundle items are `JSON.stringify` output
+  of small integers and strings, so no realistic false `explained` follows.
+  The "rejected" test row is a regression guard for the new path and could
+  not fail before it: every rejected input already failed the text match.
 
 Re-grade, no model calls: the production `checkEvidence` and the eval
 grader over every recorded answer of the three scoreboards, bundles rebuilt
 from the fixtures and each answer replayed through a mock model (the
 script reproduces the "new" column of the 2026-10-25 table exactly before
 this change). No quote that passed before fails now; the committed
-scoreboards are unchanged.
+scoreboards are unchanged. The replay script was a one-off and is not
+committed, so this table is not reproducible from the repository.
 
 | Scoreboard | Model | Quotes passing (before → after) | Evidence check ok | Diagnoses passed |
 | --- | --- | --- | --- | --- |
