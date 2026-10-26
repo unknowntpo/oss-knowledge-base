@@ -8,7 +8,7 @@ export const diagnosisOutputSchema = z.object({
   confidence: z.enum(["low", "medium", "high"]),
   evidence: z.array(z.object({
     id: z.string().describe("The id of a bundle item, E1…En"),
-    quote: z.string().describe("Text copied verbatim from that item"),
+    quote: z.string().describe("One field of that item, as \"key\": value copied verbatim (or a plain substring of a non-JSON item); never a whole object or row, no braces, no ellipsis"),
   })),
   runbook: z.string().nullable().describe("A runbook anchor the playbook lists, as <file>.md#<anchor>"),
   ownerAction: z.string().nullable().describe("Text for the owner; no tool can perform it"),
@@ -43,18 +43,72 @@ function occursWhole(hay: string, needle: string): boolean {
   return false;
 }
 
+type JsonObject = Record<string, unknown>;
+
+const isObject = (value: unknown): value is JsonObject => typeof value === "object" && value !== null && !Array.isArray(value);
+
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Deep equality of JSON values; object keys in any order. */
+function same(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null || Array.isArray(a) !== Array.isArray(b)) return false;
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((key) => Object.hasOwn(b, key) && same((a as JsonObject)[key], (b as JsonObject)[key]));
+}
+
+/** Every object in a JSON value, at any depth, array elements included. */
+function* objectsIn(value: unknown): Generator<JsonObject> {
+  if (typeof value !== "object" || value === null) return;
+  if (!Array.isArray(value)) yield value as JsonObject;
+  for (const child of Object.values(value)) yield* objectsIn(child);
+}
+
 /**
- * The quote occurs in the item's text once both are normalized; it must hold a letter or digit, and must not start or
- * end inside a token of the item (verifier F-precision, 2026-10-25).
+ * The pairs of a quote written as JSON: `"key": value` pairs, or one `{...}` object. Null unless it parses and is
+ * written as its own serialization (whitespace aside), so a duplicate key cannot hide an invented value.
+ */
+function quotedPairs(quote: string): JsonObject | null {
+  const trimmed = quote.trim();
+  const source = trimmed.startsWith("{") ? trimmed : `{${trimmed}}`;
+  const value = parseJson(source);
+  return isObject(value) && normalize(JSON.stringify(value)) === normalize(source) ? value : null;
+}
+
+/**
+ * Owner decision 2026-10-26: a JSON-pair quote passes when one object of the cited JSON item, at any depth, holds every
+ * quoted key with an equal value (any order, a subset of its keys).
+ */
+function pairsIn(quote: string, text: string): boolean {
+  const pairs = quotedPairs(quote);
+  if (pairs === null) return false;
+  const wanted = Object.entries(pairs);
+  for (const node of objectsIn(parseJson(text))) {
+    if (wanted.every(([key, value]) => Object.hasOwn(node, key) && same(node[key], value))) return true;
+  }
+  return false;
+}
+
+/**
+ * The quote holds a letter or digit, and either its JSON pairs are in one object of the item (`pairsIn`) or it occurs
+ * in the item's text once both are normalized, neither starting nor ending inside a token of the item (verifier
+ * F-precision, 2026-10-25).
  */
 function quotedIn(quote: string, text: string): boolean {
   const wanted = normalize(quote);
-  return WORD.test(wanted) && occursWhole(normalize(text), wanted);
+  return WORD.test(wanted) && (pairsIn(quote, text) || occursWhole(normalize(text), wanted));
 }
 
 /**
  * Each quote occurs in the item it cites, letters, digits and punctuation verbatim and in order, whitespace
- * insignificant (`normalize`; owner decisions 2026-10-25); the cause is a playbook
+ * insignificant (`normalize`; owner decisions 2026-10-25), or as JSON pairs of one object of it (`pairsIn`; owner
+ * decision 2026-10-26); the cause is a playbook
  * cause id or `unknown`; the runbook is an anchor the playbook lists. Code only, no model.
  */
 export function checkEvidence(

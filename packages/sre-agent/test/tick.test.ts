@@ -555,6 +555,7 @@ const scenarios: Record<string, () => Promise<void>> = {
         expect(quote("E3", "{\"error\": \"cwiki.apache.org answered 502\"}")).toEqual(fails("E3"));
         expect(quote("E3", "\"durationMs\": \"1210\"")).toEqual(fails("E3"));
         expect(quote("E3", "\"r2\": {\"classA\": 4}")).toEqual(fails("E3"));
+        expect(quote("E3", "\"r2\": {\"classA\": 4, \"classB\": 2, \"classC\": 0}")).toEqual(fails("E3"));
         // An invented key.
         expect(quote("E3", "{\"error\": \"cwiki.apache.org answered 503\", \"retries\": 3}")).toEqual(fails("E3"));
         // Pairs from two rows.
