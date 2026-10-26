@@ -694,6 +694,21 @@ agent does not know it is a drill. Spec:
 03:50 UTC (the 03:43 `kip-pages` cron would take a fault) or within 10
 minutes of a tick (00:30, 11:00 UTC):
 
+0. Clear an earlier firing. The tick dedupes by fingerprint (job, rule,
+   `since`), and `since` stays at the first failure until the job succeeds
+   again, so a drill started while `job.failures` still fires for
+   `kip-pages` (for example a previous drill that never had a clean run
+   after it) is skipped as a duplicate: `firings` > 0, `diagnosed: 0`,
+   `notDiagnosed: []`, and `lastDrill` stays `fired`. Check, and when it
+   fires, run the job once without a fault and check again:
+
+   ```sh
+   curl -sS "$DEV/health" | jq '[.signals.rules[] | select(.job == "kip-pages" and .id == "job.failures") | {status, since}]'
+   # [{"status":"ok","since":null}] → go to step 1
+   curl -sS -X POST -H "Authorization: Bearer $MANUAL_TRIGGER_TOKEN" "$DEV/kip-pages/run"   # 200, no drill armed
+   ```
+
+   Cancel any drill still `armed` or `fired` first (step 7).
 1. Arm:
 
    ```sh
