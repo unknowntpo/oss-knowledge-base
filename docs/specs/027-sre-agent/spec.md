@@ -1,6 +1,6 @@
 # Spec 027: Read-only SRE triage agent
 
-Status: Partially implemented (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; [Amendment (1)](#amendment-1-triggered-diagnosis-2026-10-22) 2026-10-22: the agent diagnoses only after a deterministic rule fires; [Amendment (2)](#amendment-2-a-worker-job-on-the-ai-sdk-2026-10-22) 2026-10-22: an `sre-agent` job on the data publisher Worker, AI SDK with Workers AI, invariant playbooks; A2-1–A2-5 decided by owner 2026-10-22; [Dev fault-injection drill](#dev-fault-injection-drill-2026-10-22) added 2026-10-22; A2-9 slice 1 (the `packages/sre-agent` library core, L1/L2 tests) implemented; A2-9 slice 2 (the `sre-agent` cron job wired into the data publisher Worker, `/health.sreAgent`, the Spec 026 neuron term) implemented with `SRE_AGENT=off` on Dev and Prod; the drill (SRE67–SRE75, the `job.failures` playbook) implemented and Dev `SRE_AGENT=live` on Qwen3 30B without the `dry` week (owner decisions 2026-10-25), Prod `off`; see [Slice 1 notes](#slice-1-notes-2026-10-22), [Slice 2 notes](#slice-2-notes-2026-10-23) and [Drill slice notes](#drill-slice-notes-2026-10-25); the L3 eval (SRE59, SRE60) run three times 2026-10-25, with the owner's 4,096-token output cap and compact-JSON quote match from the second and third: the third run's scoreboard chooses Qwen3 30B (A2-1; 2 of 24 diagnoses pass), see [Eval notes](#eval-notes-2026-10-25); the evidence check also accepts JSON-pair quotes and the prompt asks for one field per evidence entry (SRE78, SRE79, owner decision 2026-10-26, [JSON-pair quote match](#owner-decision-2026-10-26-json-pair-quote-match)))
+Status: Partially implemented (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; [Amendment (1)](#amendment-1-triggered-diagnosis-2026-10-22) 2026-10-22: the agent diagnoses only after a deterministic rule fires; [Amendment (2)](#amendment-2-a-worker-job-on-the-ai-sdk-2026-10-22) 2026-10-22: an `sre-agent` job on the data publisher Worker, AI SDK with Workers AI, invariant playbooks; A2-1–A2-5 decided by owner 2026-10-22; [Dev fault-injection drill](#dev-fault-injection-drill-2026-10-22) added 2026-10-22; A2-9 slice 1 (the `packages/sre-agent` library core, L1/L2 tests) implemented; A2-9 slice 2 (the `sre-agent` cron job wired into the data publisher Worker, `/health.sreAgent`, the Spec 026 neuron term) implemented with `SRE_AGENT=off` on Dev and Prod; the drill (SRE67–SRE75, the `job.failures` playbook) implemented and Dev `SRE_AGENT=live` on Qwen3 30B without the `dry` week (owner decisions 2026-10-25), Prod `off`; see [Slice 1 notes](#slice-1-notes-2026-10-22), [Slice 2 notes](#slice-2-notes-2026-10-23) and [Drill slice notes](#drill-slice-notes-2026-10-25); the L3 eval (SRE59, SRE60) run three times 2026-10-25, with the owner's 4,096-token output cap and compact-JSON quote match from the second and third: the third run's scoreboard chooses Qwen3 30B (A2-1; 2 of 24 diagnoses pass), see [Eval notes](#eval-notes-2026-10-25); the evidence check also accepts JSON-pair quotes and the prompt asks for one field per evidence entry (SRE78, SRE79, owner decision 2026-10-26, [JSON-pair quote match](#owner-decision-2026-10-26-json-pair-quote-match)); Cloudflare Agent tracing on Dev (SRE80–SRE84, owner decision 2026-10-26, [Agent tracing on Dev](#agent-tracing-on-dev-owner-decision-2026-10-26)))
 Date: 2026-10-20 (amended 2026-10-22)
 Traceability: enforced
 Builds on: Spec 008 (R2 operations), Spec 010, 011, 018, 021 (freshness and stalls), Spec 014 (digest), Spec 019 amendment (7) (identity-links, kip-pages jobs), Spec 020 (feature map), Spec 026 and its dollar-budget amendment (cost guard), Spec 028 (observability signals, PR #108, not merged), Spec 029 (R2 retention)
@@ -1067,6 +1067,54 @@ in the drill, so the drill's next run is the real test of A and B. Qwen's
 remaining quote failures are Python-style dicts (`{'id': …}`) and
 paraphrases, which B does not accept.
 
+### Agent tracing on Dev (owner decision 2026-10-26)
+
+Reading one run today means fetching its trajectory from R2. The owner
+chose Cloudflare Agent tracing
+([docs](https://developers.cloudflare.com/agents/runtime/operations/observability/tracing/))
+so one `sre-agent` run is readable in the dashboard instead: the Workers
+Observability **Agents** tab shows a session replay (system prompt, the
+rendered prompt with its bundle, each model step's output and tool results,
+the final diagnosis), the trace timeline and token usage, and a Worker log
+line's "View trace" opens the same trace. Dev only.
+
+- **Config (SRE83).** `wrangler.development.jsonc` adds
+  `observability.traces.enabled: true` next to the existing logs settings
+  (`enabled: true`, `head_sampling_rate: 1`, so every tick is traced).
+  `wrangler.production.jsonc` is unchanged: no `traces`.
+- **Model calls (SRE80, SRE81).** The library stays free of
+  `cloudflare:workers` (it runs under bun tests and the offline eval):
+  `diagnoseBundle` and `runTick` take an optional `generateText` (default the
+  AI SDK's own) and pass the agent identity on every call through AI SDK v7's
+  native telemetry fields: `telemetry.functionId: "sre-agent"` (the agent
+  name), `runtimeContext {agentId: "sre-agent-<env>", conversationId: <runId>,
+  runId, env, job}`, and `telemetry.includeRuntimeContext` marking `runId`,
+  `env` and `job`. Only these non-secret scalars; never a token, bundle text
+  or the flag. The Worker wiring (`src/sre-agent/run.ts`) injects
+  `wrapAISDK(ai, {storeMessages: true, storeTools: true}).generateText` from
+  `agents/observability/ai`: without the two store flags the replay has no
+  payloads. Tool results are bundle items, already redacted (B29).
+- **Tick span (SRE82).** The wiring runs each tick (not `off`) inside one
+  custom span, `sre-agent tick` (`tracing.enterSpan` from
+  `cloudflare:workers`), whose attributes come from a pure builder:
+  `runId`, `env`, `mode`, `status`, `reason` (failed ticks, the sanitized
+  reason `/health` already serves), `firings`, `diagnosed`, `verdicts`
+  (comma-joined), `evidenceCheckFailures` (count) and
+  `evidenceCheckFailureIds` (`<job>:<failure>`, comma-joined, at most 1,024
+  characters), `inputTokens`, `outputTokens`, `neurons`, `neuronsToday` and
+  `neuronsDailyCap` (1,500). No secret and no bundle text in attributes;
+  the replay carries content. Where `tracing` is missing (bun tests), the
+  tick runs without a span.
+- **Cost and retention.** Agent traces follow Workers Observability
+  pricing; from 2026-12-01 they count toward the account's Cloudflare
+  Observability ingestion and storage usage. Two ticks a day with at most
+  3 diagnoses of at most 12 model calls each is a few hundred spans a day.
+  Traces are kept 7 days, as Workers Logs.
+- **Limits.** Span size limits (about 64 KB of attributes per span) may
+  truncate long messages, tool arguments and results in the replay. A
+  trace is a debugging aid, not a lossless record: the R2 trajectory (B33)
+  stays the record of a run.
+
 ### Drill slice notes (2026-10-25)
 
 This slice ships the drill (B37–B46, SRE67–SRE75), the `job.failures`
@@ -1831,6 +1879,13 @@ by Amendment (1); SRE34 replaced it.
 - SRE64: [deploy] (skipped by owner decision 2026-10-25, A2-9 step 4) on Dev with `SRE_AGENT=dry` for 7 consecutive days, `/health.sreAgent` shows `mode: "dry"`, 7 run records exist under `internal/sre/v1/dev/runs/` with `modelCalls: 0`, R2 operations stay within SRE61, and the other jobs' `/health` sections match a flag-off day.
 - SRE65: [deploy] on Dev with `SRE_AGENT=live`, the first new firing produces one run record and one trajectory under the prefix whose `runId`s match, an `evidenceCheck` result, and `neurons` within 10 % of the Workers AI dashboard's neurons for that model and day.
 - SRE66: [measure] `bun run --cwd packages/sre-agent kpi -- --env dev` prints, from the run records and eval reports, correctness rate (labelled or eval cases only), fabrication rate, neurons per diagnosis and the median time from firing `since` to record `at`.
+
+### Agent tracing on Dev: Observability
+- SRE80: (owner decision 2026-10-26) given a bundle for job `<job>` on `<env>` in run `<runId>`, `diagnoseBundle` calls the injected `generateText` (the AI SDK's own when none is injected), and every call carries `telemetry {functionId: "sre-agent", includeRuntimeContext {runId: true, env: true, job: true}}` and `runtimeContext {agentId: "sre-agent-<env>", conversationId: <runId>, runId, env, job}`, all scalar strings with no secret value; `runTick` passes its `generateText` and `runId` through → L2 test with case rows.
+- SRE81: (owner decision 2026-10-26) a live Worker tick calls the `generateText` its deps inject when one is given; without one, the wiring's default is `wrapAISDK(ai, {storeMessages: true, storeTools: true}).generateText`, not the AI SDK's own, and a live tick through it completes its diagnosis → wiring test with case rows.
+- SRE82: (owner decision 2026-10-26) the tick-span attribute builder maps an ok tick result to `{runId, env, mode, status, firings, diagnosed, verdicts, evidenceCheckFailures, evidenceCheckFailureIds, inputTokens, outputTokens, neurons, neuronsToday, neuronsDailyCap: 1500}` and a failed one to `{runId, env, mode, status: "failed", reason}`; every value is a string, number or boolean, none holds a secret or bundle text; a dry and a live tick each run inside one `sre-agent tick` span carrying those attributes, and an `off` tick opens none → unit and wiring tests with case rows.
+- SRE83: (owner decision 2026-10-26) `wrangler.development.jsonc` has `observability {enabled: true, head_sampling_rate: 1, traces {enabled: true}}`; `wrangler.production.jsonc` has no `traces` → config test with case rows.
+- SRE84: [deploy] after the Dev deploy, one live tick that diagnoses a firing appears in the Workers Observability Agents tab as agent `sre-agent` with a session replay holding the prompt with its bundle, each model step's output and the final diagnosis, a trace timeline with the `sre-agent tick` span and its attributes, and token usage; the tick's log line's "View trace" opens the same trace.
 
 ### Dev fault-injection drill: Behavior
 - SRE67: with `SRE_DRILL=on` on `development`, `POST /sre-agent/drill` with the manual token and `{job: "kip-pages", kind: "throw"}` answers 201 `{drillId, job, kind, runs: 2, armedAt, expiresAt}` and writes the drill record and the pointer under `internal/sre/v1/dev/drills/`; it answers 401 without the token, 400 for another job or kind, 409 while a drill is armed or fired-but-ungraded, 404 with `SRE_DRILL` unset, and 409 for a kind whose rule's playbook does not list the expected cause; `DELETE` removes the pointer and marks the record `cancelled` → worker test with the `sre-drill-worker.cases.ts` rows.
