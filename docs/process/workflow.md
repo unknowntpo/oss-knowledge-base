@@ -96,6 +96,19 @@ one. Adapted from Elon Musk's five-step engineering process.
 Ground every review in a worked example on real data (the spec's `Example`
 section); abstract descriptions hide which values actually exist.
 
+## Naming (stage 2, for every new name)
+
+Name a job, module, route, flag or package by the output it produces (its
+scope), not by the source it reads. A name is the human's main way to keep the
+scope in view when code arrives faster than it can be read (owner decision
+2026-10-26). The `kip-pages` job only extracts KIP authors and the `JIRA:`
+field from cwiki into `internal/kips/v1/`, but its name suggests that it
+indexes every KIP page and its details; `kip-authors` states the scope.
+
+- A spec or PR that proposes a new name uses `<thing>-<output>`.
+- When a name could suggest a broader scope than its output, the spec records
+  that in its decisions.
+
 ## Required assertion classes
 
 A spec is incomplete until it states, or explicitly marks not applicable:
