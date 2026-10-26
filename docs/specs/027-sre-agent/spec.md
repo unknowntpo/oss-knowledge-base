@@ -1,6 +1,6 @@
 # Spec 027: Read-only SRE triage agent
 
-Status: Partially implemented (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; [Amendment (1)](#amendment-1-triggered-diagnosis-2026-10-22) 2026-10-22: the agent diagnoses only after a deterministic rule fires; [Amendment (2)](#amendment-2-a-worker-job-on-the-ai-sdk-2026-10-22) 2026-10-22: an `sre-agent` job on the data publisher Worker, AI SDK with Workers AI, invariant playbooks; A2-1–A2-5 decided by owner 2026-10-22; [Dev fault-injection drill](#dev-fault-injection-drill-2026-10-22) added 2026-10-22; A2-9 slice 1 (the `packages/sre-agent` library core, L1/L2 tests) implemented; A2-9 slice 2 (the `sre-agent` cron job wired into the data publisher Worker, `/health.sreAgent`, the Spec 026 neuron term) implemented with `SRE_AGENT=off` on Dev and Prod; the drill (SRE67–SRE75, the `job.failures` playbook) implemented and Dev `SRE_AGENT=live` on Qwen3 30B without the `dry` week (owner decisions 2026-10-25), Prod `off`; see [Slice 1 notes](#slice-1-notes-2026-10-22), [Slice 2 notes](#slice-2-notes-2026-10-23) and [Drill slice notes](#drill-slice-notes-2026-10-25); the L3 eval (SRE59, SRE60) run three times 2026-10-25, with the owner's 4,096-token output cap and compact-JSON quote match from the second and third: the third run's scoreboard chooses Qwen3 30B (A2-1; 2 of 24 diagnoses pass), see [Eval notes](#eval-notes-2026-10-25); the evidence check also accepts JSON-pair quotes and the prompt asks for one field per evidence entry (SRE78, SRE79, owner decision 2026-10-26, [JSON-pair quote match](#owner-decision-2026-10-26-json-pair-quote-match)); Cloudflare Agent tracing on Dev (SRE80–SRE84, owner decision 2026-10-26, [Agent tracing on Dev](#agent-tracing-on-dev-owner-decision-2026-10-26)))
+Status: Partially implemented (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; [Amendment (1)](#amendment-1-triggered-diagnosis-2026-10-22) 2026-10-22: the agent diagnoses only after a deterministic rule fires; [Amendment (2)](#amendment-2-a-worker-job-on-the-ai-sdk-2026-10-22) 2026-10-22: an `sre-agent` job on the data publisher Worker, AI SDK with Workers AI, invariant playbooks; A2-1–A2-5 decided by owner 2026-10-22; [Dev fault-injection drill](#dev-fault-injection-drill-2026-10-22) added 2026-10-22; A2-9 slice 1 (the `packages/sre-agent` library core, L1/L2 tests) implemented; A2-9 slice 2 (the `sre-agent` cron job wired into the data publisher Worker, `/health.sreAgent`, the Spec 026 neuron term) implemented with `SRE_AGENT=off` on Dev and Prod; the drill (SRE67–SRE75, the `job.failures` playbook) implemented and Dev `SRE_AGENT=live` on Qwen3 30B without the `dry` week (owner decisions 2026-10-25), Prod `off`; see [Slice 1 notes](#slice-1-notes-2026-10-22), [Slice 2 notes](#slice-2-notes-2026-10-23) and [Drill slice notes](#drill-slice-notes-2026-10-25); the L3 eval (SRE59, SRE60) run three times 2026-10-25, with the owner's 4,096-token output cap and compact-JSON quote match from the second and third: the third run's scoreboard chooses Qwen3 30B (A2-1; 2 of 24 diagnoses pass), see [Eval notes](#eval-notes-2026-10-25); the evidence check also accepts JSON-pair quotes (SRE78, owner decision 2026-10-26, [JSON-pair quote match](#owner-decision-2026-10-26-json-pair-quote-match)); JSON evidence is cited by path, not copied text (SRE85–SRE89, owner decision 2026-10-26, [Path citation](#owner-decision-2026-10-26-cite-json-evidence-by-path); SRE79 withdrawn); Cloudflare Agent tracing on Dev (SRE80–SRE84, owner decision 2026-10-26, [Agent tracing on Dev](#agent-tracing-on-dev-owner-decision-2026-10-26)))
 Date: 2026-10-20 (amended 2026-10-22)
 Traceability: enforced
 Builds on: Spec 008 (R2 operations), Spec 010, 011, 018, 021 (freshness and stalls), Spec 014 (digest), Spec 019 amendment (7) (identity-links, kip-pages jobs), Spec 020 (feature map), Spec 026 and its dollar-budget amendment (cost guard), Spec 028 (observability signals, PR #108, not merged), Spec 029 (R2 retention)
@@ -379,9 +379,14 @@ with Amendment (1), it wins.
     and inside an array element too, holds every quoted key with a deeply
     equal value, in any order and as a subset of its keys (owner decision
     2026-10-26, [JSON-pair quote
-    match](#owner-decision-2026-10-26-json-pair-quote-match), SRE78); the
-    prompt and the schema ask for one such field per evidence entry
-    (SRE79);
+    match](#owner-decision-2026-10-26-json-pair-quote-match), SRE78).
+    Since the owner decision of 2026-10-26 ([Path
+    citation](#owner-decision-2026-10-26-cite-json-evidence-by-path)) an
+    entry cites a JSON item by `path` instead of a quote: it passes when
+    the path resolves in the item's parsed JSON, and the record keeps the
+    field it read verbatim (SRE85, SRE86); each entry gives exactly one of
+    `path` and `quote` (SRE87), and the prompt and the schema ask for
+    `path` for JSON items and `quote` only for text items (SRE89);
     `cause` must be a cause id of a firing rule's playbook or `unknown`;
     `runbook` must be an anchor that playbook lists. Any failure sets
     `verdict: "unverified"` and lists the failures; the record is still
@@ -1015,7 +1020,8 @@ was `unverified`: E3 quoted the `kipPages.lastRun` fields with a closing
 quoted a `Q-window` row with its fields in another order and without
 `runId`. Both held only true pairs of one object. The owner chose both:
 
-- **A. Prompt (SRE79).** `SYSTEM_PROMPT`, the closing line of
+- **A. Prompt (SRE79, withdrawn 2026-10-26 by SRE89, [Path
+  citation](#owner-decision-2026-10-26-cite-json-evidence-by-path)).** `SYSTEM_PROMPT`, the closing line of
   `renderPrompt` and the schema's `quote` description ask for one field per
   evidence entry, as `"key": value` copied verbatim (or a plain substring
   of a non-JSON item), never a whole object or row, no braces, no ellipsis.
@@ -1066,6 +1072,73 @@ entry or one run's fields in another order. Diagnoses passed are unchanged
 in the drill, so the drill's next run is the real test of A and B. Qwen's
 remaining quote failures are Python-style dicts (`{'id': …}`) and
 paraphrases, which B does not accept.
+
+#### Owner decision (2026-10-26): cite JSON evidence by path
+
+Dev drill run `sre-agent-2026-10-26T02-48-38-403Z` named the right cause
+and runbook and cited both required items, but its E1 quote `status:
+firing` (the item has `"status": "firing"`) failed the check, so the
+verdict was `unverified`. Earlier drills failed on whitespace, an invented
+`}` and reordered rows. Copying JSON inside a JSON string needs `\"`
+escapes, and the model drops or mangles them. The owner chose: cite a JSON
+item by path, not by copied text.
+
+- **Entry shape (SRE87).** An evidence entry is `{id, path}` or `{id,
+  quote}`: exactly one of the two. The output schema keeps both fields
+  optional (and accepts `null`), so a bad entry costs the verdict, never
+  the diagnosis record: both or neither give the failure
+  `evidence-needs-path-or-quote:<id>` and `unverified`. An empty string
+  beside the other field is read as absent (`{path: "status", quote: ""}`
+  is a path entry). A quote entry keeps the 2026-10-25 and SRE78 checks
+  unchanged, so recorded answers and the eval's golden answers still grade.
+- **Path syntax (SRE85, SRE86).** Keys joined by dots, array indexes in
+  brackets: `status`, `kipPages.lastRun.error`, `[0].status` (a SQL item
+  is a top-level array of rows, so the owner's `rows[0].status` is
+  `[0].status` there). A bare key holds no `.`, `[`, `]`, `"`, `'` or
+  whitespace; any other key is written as a bracketed JSON string,
+  `["a.b"]`, `["x y"].c`. An index is `[0]` or a number without a leading
+  zero. A dot never indexes an array, a bracketed index never names an
+  object key, and only an object's own keys count (`constructor`,
+  `__proto__`, `toString` find nothing). The path is resolved in the
+  cited item's text parsed as JSON; a non-JSON item (a playbook, a runbook
+  section, a CI log, an `unavailable: …` SQL answer, an item the 24 KB cap
+  truncated) has no paths.
+- **Failure (SRE86).** A path that does not parse or finds nothing gives
+  `path-not-in-item:<id>` and `unverified`; an unknown id stays
+  `unknown-evidence-id:<id>`.
+- **Record (SRE85).** The run record's `evidence` and the trajectory's new
+  `evidence` hold each entry as cited, `{id, path, quote}`, where `quote`
+  is the field the path read: `"<last key>": <JSON.stringify(value)>`, or
+  the value alone when the path ends in an index, so the owner still reads
+  the original. A path may point at an object or an array; it is recorded
+  as compact JSON (items are capped at 24 KB, so the record stays small).
+  An unresolved path records `quote: null`. The trajectory's `output`
+  keeps the model's answer as given.
+- **Grader (SRE88).** The drill grader counts a required `/health` field
+  as cited by a path entry when the value at that path in the cited item
+  is the field's value or holds it at any depth (`kipPages.lastRun.error`,
+  or `kipPages.lastRun` holding it), compared as parsed JSON; a quote entry
+  still counts when its text contains the value. A label requirement
+  (`Q-window`) counts any entry citing that item, path or quote. The L3
+  eval grader matches its patterns against the recorded field of a path
+  entry as it does against a quote.
+- **Prompt (SRE89, replaces SRE79).** `SYSTEM_PROMPT`, the closing line of
+  `renderPrompt` and the schema's `path` and `quote` descriptions ask for
+  exactly one of `path` or `quote` per entry, `path` for a JSON item with
+  the syntax above and examples, `quote` only for a non-JSON item as a
+  substring copied verbatim, no ellipsis; none asks to copy `"key": value`.
+  The bundle rendering is unchanged: each item already says whether it is
+  JSON by its text, and paths are short to write from it.
+
+Re-grade, no model calls: every recorded answer of the three committed
+scoreboards replayed through `checkEvidence` and the eval `grade()` on
+bundles rebuilt from the fixtures, before and after this change (a one-off
+script, not committed). The answers predate `path`, so every entry takes
+the quote path, and the results are identical: quotes passing 45 of 84,
+107 of 154 and 100 of 148 (tool-result items are not rebuilt, so these
+differ from the table above), evidence check ok 6, 17 and 23, diagnoses
+passed 1, 5 and 6. Only a Dev drill shows whether Qwen3 30B writes paths
+that resolve.
 
 ### Agent tracing on Dev (owner decision 2026-10-26)
 
@@ -1722,7 +1795,10 @@ L1, deterministic tick (`tick.cases.ts`):
 | SRE44 | cause and runbook | cause not in playbook / runbook anchor not in playbook / cause unknown | unverified / unverified / passes |
 | SRE78 | JSON pair quote | a pretty-printed JSON item (the drill's kipPages.lastRun; Q-window rows) quoted as one "key": value pair, several pairs, or a balanced {…} object: a subset of one object's pairs in any order, with runId left out of a row (drill E6), a nested object value with its keys reordered, a pair inside one array element, {"error": "cwiki.apache.org answered 503"} (drill E3 with balanced braces), and the whole row | passes (owner 2026-10-26) |
 | SRE78 | JSON pair quote rejected | an unbalanced or invented brace (drill E3: two pairs and a closing } the item has after more fields) / a value changed (answered 502, "1210" for 1210, a partial nested object) / an invented key / pairs from two rows (job of one, status of the other) / the object cited from another item / a duplicate key hiding a changed value / {"": ""} / a JSON pair against a non-JSON item | unverified (falls back to the 2026-10-25 text match, which also fails) / unverified / unverified / unverified / unverified / unverified / unverified / unverified |
-| SRE79 | one-field quote instruction | the system prompt, the rendered first prompt and the output schema's quote description | each asks for one field per evidence entry as "key": value copied verbatim (or a plain substring of a non-JSON item), never a whole object or row, no braces, no ellipsis |
+| SRE85 | path citation | a pretty-printed JSON item (the drill's kipPages.lastRun; Q-window rows as a top-level array) cited by path: kipPages.lastRun.error, kipPages.lastRun.r2.classA, kipPages.lastRun.r2 (an object), [0].status, [0] (a whole row), [1].error and [1]["error"] (null), keys holding a dot, a quote or a space as ["a.b"], ["[\"a.b\"]"] and ["x y"].c beside a.b; through a live tick, the drill's E1 field status | passes (owner 2026-10-26); the run record and trajectory hold {id, path, quote} with quote "<last key>": <JSON.stringify(value)>, or the value alone when the path ends in an index: "error": "cwiki.apache.org answered 503", "classA": 4, "r2": {"classA":4,"classB":2}, "status": "failed", the row's compact JSON, "error": null, "a.b": 1, "[\"a.b\"]": 3, "c": true, "b": 2, "status": "firing"; the drill's quote status: firing of the same field stays unverified |
+| SRE86 | path not in item | a missing key / an index past the end / an index on an object, a key on an array / a key through a scalar / an inherited key (constructor, __proto__, toString) / invalid syntax (empty, a.., .a, a., a[, a[01], a[-1], a["b], a b) / a path against a non-JSON item (playbook text) or a truncated item / an unknown id with a path | unverified, path-not-in-item:<id>, the record's quote null / unknown-evidence-id:<id> |
+| SRE87 | path or quote | an entry with both path and quote / with neither / with path and quote null / path and an empty quote, quote and an empty path / quote only (a JSON pair, SRE78) / path only | unverified evidence-needs-path-or-quote:<id> / the same / the same / read as path only and quote only, passing / passes as before / passes; the schema accepts all of them |
+| SRE89 | path instruction | the system prompt, the rendered first prompt and the output schema's path and quote descriptions | each asks for path for a JSON item and quote only for a non-JSON item, exactly one per entry; the prompt and path description give the syntax (dots, [n], ["key"]); the quote description asks for a plain substring copied verbatim, no ellipsis; none asks to copy "key": value |
 | SRE45 | output schema | record with every field / missing evidence / confidence "sure" | accepted / rejected / rejected |
 | SRE46 | write scope | keys internal/sre/v1/dev/runs/x.json / internal/sre/v1/prod/x / public/v2/current.json / identity-links last-run.json / public/x/internal/sre/v1/dev/y / a .. segment | written / refused before any R2 call (5 cases) |
 | SRE46 | forbidden requests | any path of a tick, dry and live | no request to /run, /*/run, /cost-guard/*, no non-GET, no fetch to the other env's host |
@@ -1801,6 +1877,7 @@ Dev fault-injection drill, core rows (`drill.cases.ts`, run by
 | SRE71 | health section refused | get_health_section sreAgent / sreAgent.lastDrill / kipPages.lastRun (control) | refusal result and sreAgent never read / refusal / the field as served |
 | SRE72 | grade pass | throw fired; the tick's diagnosis: cause upstream-unavailable, quotes kipPages.lastRun.error and cites Q-window, playbook anchor, explained | record graded pass, reasons []; pointer deleted; state.json lastDrill the summary |
 | SRE72 | grade fail | cause unknown / Q-window not cited / runbook roll-back / a quote not in its item (unverified) | fail: wrong-cause:unknown / missing-evidence:Q-window / runbook-mismatch:cloudflare-data-publisher.md#roll-back / verdict:unverified |
+| SRE88 | grade path evidence | throw fired; the diagnosis cites {E3, path kipPages.lastRun.error} and {E6, path [0].template}, explained / E3 path kipPages.lastRun (the object holding the error) / E3 path kipPages.lastRun.status only / E3 path kipPages.lastRun.nope (unverified) / the eval grader on kip-pages-two-failures with path-cited golden evidence, then E3 path to status | graded pass / pass / fail missing-evidence:kipPages.lastRun.error / fail missing-evidence:kipPages.lastRun.error, verdict:unverified / eval pass, then missing kipPages.lastRun.error |
 | SRE72 | no diagnosis | throw fired 23 h / 25 h before a tick with no kip-pages diagnosis; skip fired 47 h / 49 h before | nothing graded, pointer kept / fail no-diagnosis; same for skip at 48 h |
 | SRE72 | failure before the drill | throw fired; the tick diagnoses kip-pages job.failures whose since (21:00) is before armedAt (21:10) | nothing graded: record stays fired, result null; pointer kept |
 | SRE72 | failure at arming | throw fired; the tick diagnoses kip-pages job.failures whose since equals armedAt (21:00) | graded pass: a failure at the arming instant is the drill's |
@@ -1863,7 +1940,6 @@ by Amendment (1); SRE34 replaced it.
 - SRE41: given firings of 5 jobs, 3 are diagnosed and 2 recorded `notDiagnosed: "daily-cap"`, and a second tick the same UTC day diagnoses none; with `today.neurons` 1,000 a 500-neuron reservation runs and a 501-neuron one stops the diagnosis `inconclusive`, `reason: "budget"`; a reservation written before a model call that crashes is still counted on the next tick → L1 test with case rows.
 - SRE44: the evidence check passes a quote that occurs in the cited item once both have whitespace runs collapsed to one space and spaces beside JSON punctuation `:` `,` `{` `}` `[` `]` dropped (owner 2026-10-25: a one-line `"status": "failed", "error": "…"` matches the pretty-printed item and its compact JSON; letters, digits and other punctuation exact and in order; `...` or `…` elisions fail), a quote holding a letter or digit that neither starts nor ends inside a token of the item (a syntax-only quote or a token prefix such as `8190` of `81900` fails), and sets `unverified` with the failure listed for a quote absent from the cited item, present only in another item, an unknown evidence id, a cause not in the playbook, or a runbook anchor the playbook does not list; `cause: "unknown"` passes → L1 test with case rows.
 - SRE78: (owner decision 2026-10-26) given a pretty-printed JSON item, a quote written as JSON pairs (`"key": value`, several pairs, or a balanced `{…}` object) passes when one object of the item at any depth holds every quoted key with a deeply equal value, in any order and as a subset (the drill's E6 row without `runId`, E3 as `{"error": "cwiki.apache.org answered 503"}`); it is `unverified` for an unbalanced or invented brace that does not parse and is not in the text (E3 as quoted), a changed value or type, a partial nested object, an invented key, pairs from two rows, the object cited from another item, a duplicate key hiding a changed value, a quote without a letter or digit, or a JSON pair against a non-JSON item → L1 test with case rows.
-- SRE79: (owner decision 2026-10-26) `SYSTEM_PROMPT`, the rendered first prompt and the output schema's `quote` description each ask for one field per evidence entry as `"key": value` copied verbatim (or a plain substring of a non-JSON item), never a whole object or row, no braces, no ellipsis → L1 test with case rows.
 - SRE46: the R2 writer writes a key under `internal/sre/v1/<env>/` and refuses, before any R2 call, a key of the other environment, a `public/` key or another job's key; across dry and live ticks no request goes to `/run`, `/*/run` or `/cost-guard/*`, no request is non-GET, and nothing is fetched from the other environment's host → L1 test with case rows.
 - SRE47: given the `sre-agent` branch throwing at each of steps 0–7 on a tick, the publication cron in the same handler still schedules its run, and `/health.sreAgent.lastRun.status` is `failed` with a sanitized reason → L1 test with case rows.
 - SRE51: given a scripted call to a tool outside B30's list, no tool executes and the diagnosis ends `inconclusive`, `reason: "unknown-tool"` → L2 test with case rows.
@@ -1893,6 +1969,15 @@ by Amendment (1); SRE34 replaced it.
 - SRE82: (owner decision 2026-10-26) the tick-span attribute builder maps an ok tick result to `{runId, env, mode, status, firings, diagnosed, verdicts, evidenceCheckFailures, evidenceCheckFailureIds, inputTokens, outputTokens, neurons, neuronsToday, neuronsDailyCap: 1500}` and a failed one to `{runId, env, mode, status: "failed", reason}`; every value is a string, number or boolean, none holds a secret or bundle text; a dry and a live tick each run inside one `sre-agent tick` span carrying those attributes, and an `off` tick opens none → unit and wiring tests with case rows.
 - SRE83: (owner decision 2026-10-26) `wrangler.development.jsonc` has `observability {enabled: true, head_sampling_rate: 1, traces {enabled: true}}`; `wrangler.production.jsonc` has no `traces` → config test with case rows.
 - SRE84: [deploy] after the Dev deploy, one live tick that diagnoses a firing appears in the Workers Observability Agents tab as agent `sre-agent` with a session replay holding the prompt with its bundle, each model step's output and the final diagnosis, a trace timeline with the `sre-agent tick` span and its attributes, and token usage; the tick's log line's "View trace" opens the same trace.
+
+### Path citation: Behavior
+- SRE85: (owner decision 2026-10-26) given a JSON item, an entry `{id, path}` whose path (keys joined by dots, `[n]` indexes, `["key"]` for any key) resolves in the item's parsed JSON passes the evidence check, for a scalar, `null`, an object or an array value, a top-level array row and a bracketed key holding a dot, quote or space; the run record's and the trajectory's `evidence` hold `{id, path, quote}` with `quote` the verbatim field `"<last key>": <JSON.stringify(value)>` (the value alone when the path ends in an index); the drill's quote `status: firing` of the same field stays `unverified` (positive control) → L1 test with case rows.
+- SRE88: (owner decision 2026-10-26) the drill grader counts a required `/health` field as cited by a path entry whose value in the cited item is that field's value or holds it (a fired `throw` drill with `{E3, kipPages.lastRun.error}` and a path into Q-window grades `pass`, so does `kipPages.lastRun`; `kipPages.lastRun.status` fails `missing-evidence:kipPages.lastRun.error`); the L3 eval grader matches a path entry's recorded field against its patterns → L1 test with case rows.
+- SRE89: (owner decision 2026-10-26; replaces SRE79) `SYSTEM_PROMPT`, the rendered first prompt and the schema's `path` and `quote` descriptions ask for `path` for a JSON item and `quote` only for a non-JSON item, exactly one per entry; the prompt and the `path` description give the syntax with `kipPages.lastRun.error`, `[0]` and `["…"]`; the `quote` description asks for a substring copied verbatim, no ellipsis; none asks to copy `"key": value` → L1 test with case rows.
+
+### Path citation: Failure
+- SRE86: (owner decision 2026-10-26) a path entry is `unverified` with `path-not-in-item:<id>` and recorded with `quote: null` for a missing key, an index past the end, an index on an object or a key on an array, a key through a scalar, an inherited key (`constructor`, `__proto__`, `toString`), invalid syntax (empty, `a..b`, `.a`, `a.`, `a[`, `[01]`, `[-1]`, an unclosed `["…`, a space), a non-JSON item or an item the cap truncated; an unknown id stays `unknown-evidence-id:<id>` → L1 test with case rows.
+- SRE87: (owner decision 2026-10-26) an entry with both `path` and `quote`, or with neither (absent or `null`), is `unverified` with `evidence-needs-path-or-quote:<id>`, and the output schema accepts it so the record is kept; an empty string beside the other field is read as absent; a quote-only entry keeps SRE44 and SRE78 → L1 test with case rows.
 
 ### Dev fault-injection drill: Behavior
 - SRE67: with `SRE_DRILL=on` on `development`, `POST /sre-agent/drill` with the manual token and `{job: "kip-pages", kind: "throw"}` answers 201 `{drillId, job, kind, runs: 2, armedAt, expiresAt}` and writes the drill record and the pointer under `internal/sre/v1/dev/drills/`; it answers 401 without the token, 400 for another job or kind, 409 while a drill is armed or fired-but-ungraded, 404 with `SRE_DRILL` unset, and 409 for a kind whose rule's playbook does not list the expected cause; `DELETE` removes the pointer and marks the record `cancelled` → worker test with the `sre-drill-worker.cases.ts` rows.
@@ -1933,6 +2018,11 @@ by Amendment (1); SRE34 replaced it.
 
 SRE34 (`get_health` returns `/health` as served, no derived thresholds)
 stays and applies to `get_health_section`.
+
+SRE79 (the one-field `"key": value` quote instruction) was withdrawn on
+2026-10-26 by the [path citation
+decision](#owner-decision-2026-10-26-cite-json-evidence-by-path); SRE89
+replaces it.
 
 ## Non-goals (v1)
 

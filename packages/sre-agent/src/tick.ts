@@ -6,7 +6,7 @@
 import type { LanguageModel, generateText } from "ai";
 import { buildBundle, type Bundle, type EvidenceItem } from "./bundle";
 import type { DrillSummary } from "./drill";
-import type { EvidenceCheck } from "./evidence";
+import { citeEvidence, type CitedEvidence, type EvidenceCheck } from "./evidence";
 import { CI_JOB, collectFirings, parseFlag, readCiRelease } from "./firings";
 import { diagnoseBundle, renderPrompt, SYSTEM_PROMPT, type Diagnosis } from "./loop";
 import type { PlaybookLibrary } from "./playbook";
@@ -67,7 +67,8 @@ export interface DiagnosisRecord {
   readonly reason: Diagnosis["reason"];
   readonly cause: string | null;
   readonly confidence: string | null;
-  readonly evidence: { id: string; quote: string }[];
+  /** SRE85: each entry as cited, a path with the verbatim field it resolved to. */
+  readonly evidence: CitedEvidence[];
   readonly runbook: string | null;
   readonly ownerAction: string | null;
   readonly playbookMissing: boolean;
@@ -164,7 +165,8 @@ export async function runTick(deps: TickDeps): Promise<TickResult> {
     const trajectoryKey = sreKey(env, `trajectories/${date}/${runId}-${group.job}.json`);
     await store.put(trajectoryKey, JSON.stringify({
       runId, job: group.job, bundle: bundle.items, ...diagnosis.trajectory,
-      output: diagnosis.output, evidenceCheck: diagnosis.evidenceCheck, verdict: diagnosis.verdict, reason: diagnosis.reason,
+      output: diagnosis.output, evidence: diagnosis.output === null ? [] : citeEvidence(diagnosis.output.evidence, bundle.items),
+      evidenceCheck: diagnosis.evidenceCheck, verdict: diagnosis.verdict, reason: diagnosis.reason,
     }));
     for (const firing of group.firings) state.fingerprints[fingerprint(firing)] = { runId: firing.runId, diagnosedOn: date };
     items.set(group.job, bundle.items);
@@ -228,7 +230,7 @@ function record(env: Env, firings: readonly Firing[], bundle: Bundle, diagnosis:
     reason: diagnosis.reason,
     cause: output?.cause ?? null,
     confidence: output?.confidence ?? null,
-    evidence: output?.evidence ?? [],
+    evidence: output === null ? [] : citeEvidence(output.evidence, bundle.items),
     runbook: output?.runbook ?? null,
     ownerAction: output?.ownerAction ?? null,
     playbookMissing: bundle.playbookMissing.length > 0,
