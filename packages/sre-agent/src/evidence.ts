@@ -216,18 +216,38 @@ export function citeEvidence(evidence: readonly EvidenceEntry[], items: readonly
   });
 }
 
-/** Every value in a JSON value, itself first, at any depth. */
-function* valuesIn(value: unknown): Generator<unknown> {
-  yield value;
-  if (typeof value === "object" && value !== null) for (const child of Object.values(value)) yield* valuesIn(child);
+/**
+ * SRE96, SRE97 (owner decision 2026-10-26): the field at `path` in a JSON item and, when its value is an object or
+ * an array, each field directly in it (`"<key>": <value>`, the value alone for an array element); none deeper.
+ * Empty when the path does not resolve.
+ */
+export function citedFields(text: string, path: string): { readonly value: unknown; readonly quote: string }[] {
+  const found = resolvePath(text, path);
+  if (found === null) return [];
+  const parent = found.value;
+  if (typeof parent !== "object" || parent === null) return [found];
+  const children = Object.entries(parent).map(([key, value]) => ({
+    value,
+    quote: Array.isArray(parent) ? JSON.stringify(value) : `${JSON.stringify(key)}: ${JSON.stringify(value)}`,
+  }));
+  return [found, ...children];
 }
 
-/** SRE88: the value at `path` in a JSON item is `wanted`, or holds it at any depth. */
-export function pathHolds(text: string, path: string, wanted: unknown): boolean {
+/**
+ * SRE88, SRE96: a path citation in a JSON item names the required `field` (its keys from the root) and reads
+ * `wanted`: the path is that field, or the field's parent object whose own key `field.at(-1)` holds `wanted`. A value
+ * match under another key or at another path does not count.
+ */
+export function pathHolds(text: string, path: string, field: readonly string[], wanted: unknown): boolean {
+  const segments = parsePath(path);
+  if (wanted === undefined || segments === null || field.length === 0) return false;
   const found = resolvePath(text, path);
-  if (found === null || wanted === undefined) return false;
-  for (const value of valuesIn(found.value)) if (same(value, wanted)) return true;
-  return false;
+  if (found === null) return false;
+  const at = (keys: readonly string[]) => segments.length === keys.length && keys.every((key, index) => segments[index] === key);
+  if (at(field)) return same(found.value, wanted);
+  if (!at(field.slice(0, -1)) || !isObject(found.value)) return false;
+  const key = field.at(-1)!;
+  return Object.hasOwn(found.value, key) && same(found.value[key], wanted);
 }
 
 /**
