@@ -1,6 +1,6 @@
 # Spec 033: System map
 
-Status: Draft (owner decisions 2026-10-26: decisions 1–5 below; every untagged item is `[pending]` until its slice lands)
+Status: Accepted (slice 1 implemented: SM1–SM8, SM12–SM17, SM23; SM19 measured; slice 2 items SM9–SM11, SM18, SM20–SM22 pending; owner decisions 2026-10-26: decisions 1–5 below)
 Date: 2026-10-26
 Traceability: enforced
 Builds on: Spec 025 (docs site, the system flow `docs/site/flows/system.json`, DOC20), Spec 020 (feature-map site, the Deployed configuration parser), Spec 018 (`/health`), Spec 028 (signals)
@@ -204,27 +204,46 @@ Expected page:
 ## Acceptance
 
 ### Behavior
-- SM1: [pending] Given a `system.json` node gated by `SRE_AGENT` and a Deployed configuration whose `SRE_AGENT` row reads `live` on Dev and `` `off` `` on Prod → build → the node is live on Dev only and the system flow shows "Dev only". Evidence: unit test.
-- SM2: [pending] Given cells `unset`, `unset: off`, `none`, `off`, `` `off`; no cron ``, `no cron` → each is off; `dry-run`, `monitor`, `true`, `bge-m3@1` → each is on. Evidence: unit test (case file).
-- SM3: [pending] Given the repository → no `system.json` node has a `tag` of kind `dev` or `off` (kind `on` stays), and every gated node's badge equals rule 2's result; `j-rq` and `rq-trig` are off in both environments. Evidence: unit test on the repository (fails before the change: `j-rq` shown on Prod).
-- SM4: [pending] Given the Prod environment selected → the data flow and the list contain exactly the nodes live on Prod; the SRE agent group and its links are absent; the title counts the hidden nodes. Evidence: unit test on the rendered page (DOM).
-- SM5: [pending] Given a `components` entry `{ id: "kip-pages", status: "failed", reason }` and two nodes bound to `kip-pages` → both nodes show failed with the reason, and their group's summary is failed. Evidence: unit test.
-- SM6: [pending] Given a node with `runsOn: "manual"` → it carries the manual chip in both views, counts in the header's manual total, and its detail shows the risk note. Evidence: unit test.
-- SM7: [pending] Given a node of each kind → its links point to `https://dash.cloudflare.com/?to=/:account/…` for its Worker, gateway or bucket, and no link contains an account id. Evidence: unit test.
-- SM8: [pending] Given tag `v0.3.2` and the build commit → the changes list names the nodes added since the tag, each Deployed configuration cell change as old → new, and the merged PRs `(#N)` in `v0.3.2..HEAD`. Evidence: unit test on a fixture repository.
+- SM1: Given a `system.json` node gated by `SRE_AGENT` and a Deployed configuration whose `SRE_AGENT` row reads `live` on Dev and `` `off` `` on Prod → build → the node is live on Dev only and the system flow shows "Dev only". Evidence: unit test.
+- SM2: Given cells `unset`, `unset: off`, `none`, `off`, `` `off`; no cron ``, `no cron` → each is off; `dry-run`, `monitor`, `true`, `bge-m3@1` → each is on. Evidence: unit test (case file).
+
+<!-- test-plan:start scripts/test/system-map.cases.ts -->
+| id | cell | live | mode | why |
+| --- | --- | --- | --- | --- |
+| SM2 | unset | no | — | no value: off |
+| SM2 | unset: off | no | — | the default spelled out |
+| SM2 | none | no | — | a binding that is not bound |
+| SM2 | off | no | — | the flag's off value |
+| SM2 | `off`; no cron | no | — | backticks do not count (Prod `SRE_AGENT`) |
+| SM2 | no cron | no | — | "no " starts an off cell |
+| SM2 | unset; no cron (Prod unchanged until its own PR, O2) | no | — | explanations after the value do not matter |
+| SM2 | `dry-run`; `17 10 * * *` with its cron entry | yes | dry-run | a dry run is live, shown with its mode |
+| SM2 | `monitor` (Spec 026 rollout step 1) | yes | monitor | monitor is live, shown with its mode |
+| SM2 | `true` (Spec 016 slice 3 enable, 2026-10-13) | yes | — | a value is on |
+| SM2 | `bge-m3@1` (Spec 016 H52, 2026-10-12) | yes | — | a revision is on |
+| SM2 | bound (2026-10-13) | yes | — | a bound binding is on |
+| SM2 | Workers AI | yes | — | any other text is on |
+<!-- test-plan:end -->
+
+- SM3: Given the repository → no `system.json` node has a `tag` of kind `dev` or `off` (kind `on` stays), and every gated node's badge equals rule 2's result; `j-rq` and `rq-trig` are off in both environments. Evidence: unit test on the repository (fails before the change: `j-rq` shown on Prod).
+- SM4: Given the Prod environment selected → the data flow and the list contain exactly the nodes live on Prod; the SRE agent group and its links are absent; the title counts the hidden nodes. Evidence: unit test on the rendered page (DOM).
+- SM5: Given a `components` entry `{ id: "kip-pages", status: "failed", reason }` and two nodes bound to `kip-pages` → both nodes show failed with the reason, and their group's summary is failed. Evidence: unit test.
+- SM6: Given a node with `runsOn: "manual"` → it carries the manual chip in both views, counts in the header's manual total, and its detail shows the risk note. Evidence: unit test.
+- SM7: Given a node of each kind → its links point to `https://dash.cloudflare.com/?to=/:account/…` for its Worker, gateway or bucket, and no link contains an account id. Evidence: unit test.
+- SM8: Given tag `v0.3.2` and the build commit → the changes list names the nodes added since the tag, each Deployed configuration cell change as old → new, and the merged PRs `(#N)` in `v0.3.2..HEAD`. Evidence: unit test on a fixture repository.
 - SM9: [pending] Given Dev state with `kipPages.lastRun.status: "failed"` → `/health` `components` has `{ id: "kip-pages", status: "failed" }` with the run's error as reason. Evidence: Worker unit test.
 - SM10: [pending] Given every job's state → `components` has one entry per job that is on, with the status rules of Behavior 7, and none for a job that is off. Evidence: Worker unit test (case file).
 - SM11: [pending] Given `GET /health` → the response has `access-control-allow-origin: *`; `POST /run` and other routes do not. Evidence: Worker unit test.
 
-- SM23: [pending] Given a built page whose inline script names a URL other than the two `/health` URLs → `auditSite` reports it. Evidence: unit test.
+- SM23: Given a built page whose inline script names a URL other than the two `/health` URLs → `auditSite` reports it. Evidence: unit test.
 
 ### Failure and retry
-- SM12: [pending] Given a gate naming a row that does not exist → the docs build fails naming the node and the row. Evidence: unit test.
-- SM13: [pending] Given `/health` unreachable, a non-2xx answer, or invalid JSON → the map still renders from build data, every node shows unknown, and the header says `/health` could not be read and when it was tried. Evidence: unit test (DOM, stubbed fetch).
-- SM14: [pending] Given `/health` that has no `components` (a Worker deployed before rule 7, today's Prod) → nodes show n/a and the header says the Worker does not report components; nothing is guessed from other fields. Evidence: unit test.
-- SM15: [pending] Given a `components` id that no node binds → it is listed in the detail area as "not on the map" so drift is visible, and the test of SM3 fails for ids that the repository's Worker can emit but no node binds. Evidence: unit test.
-- SM16: [pending] Given a build with no `v*` tag reachable (a fork, a shallow clone) → the changes section says no release tag was found; the build does not fail. Evidence: unit test.
-- SM17: [pending] Given a fetch for Dev still pending when the reader switches to Prod → only the Prod answer is applied. Evidence: unit test (stubbed fetch).
+- SM12: Given a gate naming a row that does not exist → the docs build fails naming the node and the row. Evidence: unit test.
+- SM13: Given `/health` unreachable, a non-2xx answer, or invalid JSON → the map still renders from build data, every node shows unknown, and the header says `/health` could not be read and when it was tried. Evidence: unit test (DOM, stubbed fetch).
+- SM14: Given `/health` that has no `components` (a Worker deployed before rule 7, today's Prod) → nodes show n/a and the header says the Worker does not report components; nothing is guessed from other fields. Evidence: unit test.
+- SM15: Given a `components` id that no node binds → it is listed in the detail area as "not on the map" so drift is visible, and the test of SM3 fails for ids that the repository's Worker can emit but no node binds. Evidence: unit test.
+- SM16: Given a build with no `v*` tag reachable (a fork, a shallow clone) → the changes section says no release tag was found; the build does not fail. Evidence: unit test.
+- SM17: Given a fetch for Dev still pending when the reader switches to Prod → only the Prod answer is applied. Evidence: unit test (stubbed fetch).
 - SM18: [pending] Given a job whose state is missing or unreadable → its entry is `unknown` with a reason, and `/health` still answers 200. Evidence: Worker unit test.
 
 ### Budget
