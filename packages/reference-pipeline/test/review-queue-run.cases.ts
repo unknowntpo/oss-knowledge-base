@@ -38,6 +38,9 @@ export const testPlanRows = [
   { id: "Q57", rule: "cron", input: "constructed: DIGEST_CRON and REVIEW_QUEUE_CRON both 27 * * * * (misconfigured); it fires", expected: "digest" },
   { id: "Q58", rule: "manual run", input: "constructed: run with dryRun", expected: "counts returned; 0 R2 writes" },
   { id: "Q40", rule: "run record", input: "captured samples: a full run", expected: "last-run ok; github 7 requests; mail 17 thread + 34 email requests; roster 2 requests; counts noReviewer 310, waiting 61, approved 22, vote 5, discuss 9" },
-  { id: "Q40", rule: "run record", input: "constructed: GET /health with last-run.json in R2", expected: "reviewQueue is the last-run object" },
+  { id: "Q40", rule: "run record", input: "constructed: REVIEW_QUEUE_CRON 27 * * * * set; GET /health with last-run.json in R2", expected: "reviewQueue is the last-run object" },
   { id: "Q40", rule: "run record", input: "constructed: /health merge with no last-run object", expected: "reviewQueue null" },
+  { id: "Q59", rule: "health gate", input: "constructed: REVIEW_QUEUE_CRON unset; GET /health with last-run.json in R2", expected: "reviewQueue null; 0 R2 reads" },
+  { id: "Q59", rule: "health gate", input: "constructed: REVIEW_QUEUE_CRON blank; GET /health with last-run.json in R2", expected: "reviewQueue null; 0 R2 reads" },
+  { id: "Q59", rule: "health gate", input: "constructed: REVIEW_QUEUE_CRON unset; POST /review-queue/run without the bearer token", expected: "401 (the manual route stays enabled)" },
 ];
