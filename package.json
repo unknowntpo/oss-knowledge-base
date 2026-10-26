@@ -52,6 +52,7 @@
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",
+    "happy-dom": "20.14.6",
     "playwright": "^1.62.1",
     "typescript": "5.9.3"
   }
