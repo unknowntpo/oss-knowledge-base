@@ -1276,3 +1276,21 @@ the two `viewer/` items below.
   `translation.glossary`) to the Spec 014 review log.
 - **Layer:** test (a recorded week in the eval).
 - **Source:** Spec 014 owner decisions 2026-10-24 (D103–D108).
+
+### G103. System map: stand-in health bindings, short-value config diffs, an unverified gateway link
+- **Where:** `docs/site/flows/system.json` (`health`), `systemMapChanges`
+  and `nodeLinks` in `scripts/docs-site/system-map.ts` (Spec 033 slice 1).
+- **Why:** a node binds one `/health` component (Behavior 5), but the step
+  `j-people` stands for three jobs. It binds `kip-pages` (the spec's
+  Example); `identity-links` is bound to `r2-people` and `identity-backfill`
+  to `cron-people` so every id the Worker can emit is on the map (SM15).
+  The changes list compares each Deployed configuration cell by its short
+  value (text up to the first explanation), so prose-only edits to a cell are
+  not listed. The AI Gateway link uses
+  `?to=/:account/ai/ai-gateway/gateways/<id>/logs`, a path not confirmed in
+  Cloudflare's documentation (the Worker and R2 paths are).
+- **Fix:** split `j-people` into one step per job, or allow a list of
+  bindings in Spec 033 Behavior 5; open the gateway link once signed in and
+  correct the path if needed.
+- **Layer:** schema (flow fields) and the slice 2 verification.
+- **Source:** Spec 033 slice 1 implementation, 2026-10-26.

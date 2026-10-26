@@ -5,6 +5,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { z } from "zod";
 import {
   BUNDLE_MAX_BYTES,
   BudgetExceededError,
@@ -18,6 +19,7 @@ import {
   capItems,
   checkEvidence,
   checkPlaybooks,
+  citeEvidence,
   collectFirings,
   diagnosisOutputSchema,
   emptyState,
@@ -243,6 +245,32 @@ const scenarios: Record<string, () => Promise<void>> = {
     const run = await runTick(deps({ store: memoryStore({ [STATE]: JSON.stringify(full) }), model, health: devHealth({ rules: [missed()] }) }));
     expect(model.doGenerateCalls).toHaveLength(0);
     expect(run.runRecord!.diagnoses[0]).toMatchObject({ verdict: "inconclusive", reason: "budget" });
+  },
+
+  async "configured caps"() {
+    // Owner decision 2026-10-26: the Worker passes the caps; none passed keeps 3 and 1,500.
+    const jobs = ["publication", "digest", "identity-links", "kip-pages", "retention"];
+    const firings = () => devHealth({ rules: jobs.map((job) => missed(job)) });
+    const byDefault = await runTick(deps({ health: firings() }));
+    expect(byDefault.runRecord!.diagnosed).toBe(3);
+    const four = await runTick(deps({ maxDiagnosesPerDay: 4, health: firings() }));
+    expect(four.runRecord!.diagnoses.map((value) => value.job)).toEqual(jobs.slice(0, 4));
+    expect(four.runRecord!.notDiagnosed).toEqual([{ fingerprint: "dev:retention:job.missed:2026-10-21T04:07:00.000Z", reason: "daily-cap" }]);
+
+    // 1,499 neurons stops the diagnosis at the default cap (SRE41); a 3,000 cap lets it call the model.
+    const full: SreState = { ...emptyState("2026-10-22"), today: { date: "2026-10-22", diagnoses: 0, neurons: 1499 } };
+    const model = scripted(answer(VALID_OUTPUT));
+    const raised = await runTick(deps({ dailyNeuronCap: 3000, store: memoryStore({ [STATE]: JSON.stringify(full) }), model, health: devHealth({ rules: [missed()] }) }));
+    expect(model.doGenerateCalls).toHaveLength(1);
+    expect(raised.runRecord!.diagnoses[0]!.reason).not.toBe("budget");
+
+    const at = (neurons: number) => new NeuronLedger({ ...emptyState("2026-10-22"), today: { date: "2026-10-22", diagnoses: 0, neurons } }, async () => {}, 3000);
+    const fits = at(2500);
+    await fits.reserve(500);
+    expect(fits.state.today.neurons).toBe(3000);
+    const over = at(2500);
+    await expect(over.reserve(501)).rejects.toThrow("would pass 3000");
+    expect(over.state.today.neurons).toBe(2500);
   },
 
   async "crash after reservation"() {
@@ -574,19 +602,133 @@ const scenarios: Record<string, () => Promise<void>> = {
     };
   })(),
 
-  async "one-field quote instruction"() {
-    const rule = /one field/iu;
+  ...(() => {
+    // Owner decision 2026-10-26: JSON items are cited by path, the code records the verbatim field.
+    const lastRun = { ok: false, status: "failed", error: "cwiki.apache.org answered 503", r2: { classA: 4, classB: 2 } };
+    const rows = [{ job: "kip-pages", status: "failed", error: "cwiki.apache.org answered 503" }, { job: "publication", status: "ok", error: null }];
+    const bundle = {
+      items: [
+        item("E3", JSON.stringify({ kipPages: { lastRun } }, null, 2)),
+        item("E6", JSON.stringify(rows, null, 2), "sql"),
+        item("E7", "## Causes\n1. upstream-unavailable: the source answered 5xx", "playbook"),
+        item("E8", JSON.stringify({ "a.b": 1, "a": { b: 2 }, "[\"a.b\"]": 3, "x y": { c: true } }, null, 2)),
+        item("E9", capItems([item("E9", JSON.stringify({ big: "x".repeat(400) }, null, 2))], 200)[0]!.text),
+      ],
+      causes: new Set(["upstream-unavailable", "unknown"]), runbooks: new Set<string>(),
+    };
+    type Entry = { id: string; path?: string | null; quote?: string | null };
+    const check = (...evidence: Entry[]) => checkEvidence({ ...VALID_OUTPUT, cause: "upstream-unavailable", runbook: null, evidence }, bundle);
+    const cite = (...evidence: Entry[]) => citeEvidence(evidence, bundle.items);
+    const passes = { ok: true, failures: [] };
+    return {
+      async "path citation"() {
+        const cases: [string, string, string][] = [
+          ["E3", "kipPages.lastRun.error", "\"error\": \"cwiki.apache.org answered 503\""],
+          ["E3", "kipPages.lastRun.r2.classA", "\"classA\": 4"],
+          ["E3", "kipPages.lastRun.r2", "\"r2\": {\"classA\":4,\"classB\":2}"],
+          ["E6", "[0].status", "\"status\": \"failed\""],
+          ["E6", "[0]", "{\"job\":\"kip-pages\",\"status\":\"failed\",\"error\":\"cwiki.apache.org answered 503\"}"],
+          ["E6", "[1].error", "\"error\": null"],
+          ["E6", "[1][\"error\"]", "\"error\": null"],
+          ["E8", "[\"a.b\"]", "\"a.b\": 1"],
+          ["E8", "a.b", "\"b\": 2"],
+          ["E8", "[\"[\\\"a.b\\\"]\"]", "\"[\\\"a.b\\\"]\": 3"],
+          ["E8", "[\"x y\"].c", "\"c\": true"],
+        ];
+        for (const [id, path, quote] of cases) {
+          expect([path, check({ id, path })]).toEqual([path, passes]);
+          expect(cite({ id, path })).toEqual([{ id, path, quote }]);
+        }
+        // A quote entry is recorded as given.
+        expect(cite({ id: "E7", quote: "the source answered 5xx" })).toEqual([{ id: "E7", quote: "the source answered 5xx" }]);
+        // Through a live tick: the drill's E1 field "status" (the rule entry), recorded verbatim in the run record and trajectory.
+        const store = memoryStore();
+        const run = await runTick(deps({ store, model: scripted(answer({ ...VALID_OUTPUT, evidence: [{ id: "E1", path: "status" }] })), health: devHealth({ rules: [missed()] }) }));
+        const diagnosis = run.runRecord!.diagnoses[0]!;
+        expect(diagnosis).toMatchObject({ verdict: "explained", evidenceCheck: passes, evidence: [{ id: "E1", path: "status", quote: "\"status\": \"firing\"" }] });
+        expect(JSON.parse(store.objects.get(diagnosis.trajectoryKey)!).evidence).toEqual([{ id: "E1", path: "status", quote: "\"status\": \"firing\"" }]);
+        // Positive control: the 2026-10-26 drill's quote of the same field fails the quote check.
+        const quoted = await runTick(deps({ model: scripted(answer({ ...VALID_OUTPUT, evidence: [{ id: "E1", quote: "status: firing" }] })), health: devHealth({ rules: [missed()] }) }));
+        expect(quoted.runRecord!.diagnoses[0]!.verdict).toBe("unverified");
+      },
+
+      async "path not in item"() {
+        const fails = (id: string) => ({ ok: false, failures: [`path-not-in-item:${id}`] });
+        const missing = [
+          ["E3", "kipPages.lastRun.retries"], ["E6", "[2].status"], ["E3", "kipPages[0]"], ["E6", "status"], ["E6", "0.status"],
+          ["E3", "kipPages.lastRun.error.length"], ["E3", "constructor"], ["E3", "__proto__"], ["E3", "kipPages.toString"], ["E6", "[0].constructor"],
+          ["E3", ""], ["E3", "kipPages..lastRun"], ["E3", ".kipPages"], ["E3", "kipPages."], ["E3", "kipPages["], ["E6", "[01].status"],
+          ["E6", "[-1].status"], ["E8", "[\"a.b]"], ["E3", "kipPages lastRun"], ["E7", "Causes"], ["E9", "big"],
+        ] as const;
+        for (const [id, path] of missing) {
+          expect([path, check({ id, path })]).toEqual([path, fails(id)]);
+          expect(cite({ id, path })).toEqual([{ id, path, quote: null }]);
+        }
+        expect(check({ id: "E99", path: "status" })).toEqual({ ok: false, failures: ["unknown-evidence-id:E99"] });
+        // Positive controls: the nearest valid paths resolve.
+        for (const [id, path] of [["E3", "kipPages.lastRun"], ["E6", "[1].status"], ["E8", "[\"a.b\"]"]] as const) expect(check({ id, path })).toEqual(passes);
+      },
+
+      async "path or quote"() {
+        const fails = (id: string) => ({ ok: false, failures: [`evidence-needs-path-or-quote:${id}`] });
+        expect(check({ id: "E3", path: "kipPages.lastRun.error", quote: "\"error\": \"cwiki.apache.org answered 503\"" })).toEqual(fails("E3"));
+        expect(check({ id: "E3" })).toEqual(fails("E3"));
+        expect(check({ id: "E3", path: null, quote: null })).toEqual(fails("E3"));
+        expect(cite({ id: "E3" })).toEqual([{ id: "E3", quote: null }]);
+        // An empty string beside the other field is read as absent.
+        expect(check({ id: "E3", path: "kipPages.lastRun.error", quote: "" })).toEqual(passes);
+        expect(check({ id: "E7", path: " ", quote: "upstream-unavailable" })).toEqual(passes);
+        expect(cite({ id: "E3", path: "kipPages.lastRun.error", quote: "" })).toEqual([{ id: "E3", path: "kipPages.lastRun.error", quote: "\"error\": \"cwiki.apache.org answered 503\"" }]);
+        // Positive controls: one field each, the quote path unchanged (SRE78).
+        expect(check({ id: "E3", quote: "\"error\": \"cwiki.apache.org answered 503\"" })).toEqual(passes);
+        expect(check({ id: "E3", path: "kipPages.lastRun.error" })).toEqual(passes);
+        expect(check({ id: "E3", path: null, quote: "\"status\": \"failed\"" })).toEqual(passes);
+        // The schema accepts every shape, so a bad entry costs the verdict, never the record.
+        for (const entry of [{ id: "E3" }, { id: "E3", path: "a", quote: "b" }, { id: "E3", path: null, quote: null }, { id: "E3", path: "a" }]) {
+          expect(diagnosisOutputSchema.safeParse({ ...VALID_OUTPUT, evidence: [entry] }).success).toBe(true);
+        }
+      },
+    };
+  })(),
+
+  async "path instruction"() {
     const prompt = renderPrompt({ job: "kip-pages", items: [] } as unknown as Bundle);
-    const description = diagnosisOutputSchema.shape.evidence.element.shape.quote.description ?? "";
-    for (const text of [SYSTEM_PROMPT, prompt, description]) {
-      expect(text).toMatch(rule);
-      expect(text).toContain("\"key\": value");
+    const shape = diagnosisOutputSchema.shape.evidence.element.shape;
+    const path = shape.path.description ?? "";
+    const quote = shape.quote.description ?? "";
+    for (const text of [SYSTEM_PROMPT, prompt, path, quote]) {
+      expect(text).toMatch(/JSON item/u);
+      expect(text).toMatch(/non-JSON item/u);
+      expect(text).not.toContain("\"key\": value");
+    }
+    for (const text of [SYSTEM_PROMPT, prompt, path]) {
+      expect(text).toContain("[0]");
+      expect(text).toContain("[\"");
+      expect(text).toMatch(/kipPages\.lastRun\.error/u);
+    }
+    for (const text of [SYSTEM_PROMPT, prompt]) expect(text).toMatch(/exactly one of path or quote/u);
+    for (const text of [SYSTEM_PROMPT, quote]) {
       expect(text).toMatch(/verbatim/u);
-      expect(text).toMatch(/never a whole object or row/u);
-      expect(text).toMatch(/no braces/u);
       expect(text).toMatch(/no ellipsis/u);
     }
-    expect(SYSTEM_PROMPT).toMatch(/non-JSON item/u);
+  },
+
+  async "verdict definition"() {
+    const verdict = (z.toJSONSchema(diagnosisOutputSchema).properties!.verdict as { description?: string; enum?: string[] });
+    expect(verdict.enum).toEqual(["explained", "unexplained", "inconclusive"]);
+    for (const text of [SYSTEM_PROMPT, verdict.description ?? ""]) {
+      expect(text).toMatch(/verdict "explained": cause is a playbook cause id \(not "unknown"\) and evidence cites its distinguishing evidence, at any confidence\./u);
+      expect(text).toMatch(/verdict "inconclusive": only when cause is "unknown" because the bundle lacks the evidence that would decide it; name the missing fields in ownerAction\./u);
+      expect(text).toMatch(/verdict "unexplained": only when cause is "unknown" and the cited evidence rules out every playbook cause/u);
+    }
+  },
+
+  async "cause and confidence definition"() {
+    const properties = z.toJSONSchema(diagnosisOutputSchema).properties! as Record<string, { description?: string }>;
+    expect(properties.cause!.description).toMatch(/A playbook cause id makes the verdict "explained"; "unknown" makes it "inconclusive" or "unexplained"\./u);
+    for (const text of [SYSTEM_PROMPT, properties.confidence!.description ?? ""]) {
+      expect(text).toMatch(/never changes the verdict: a playbook cause at low confidence is still "explained"/u);
+    }
   },
 
   async "quote precision"() {

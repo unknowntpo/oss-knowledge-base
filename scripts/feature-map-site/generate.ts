@@ -112,10 +112,10 @@ const DEPLOYED = "Deployed configuration";
 const SCHEDULES = "Schedules";
 const ACCEPTANCE = "Acceptance IDs by spec";
 
-const sectionNamed = (sections: readonly Section[], title: string) =>
+export const sectionNamed = (sections: readonly Section[], title: string) =>
   sections.find((section) => section.title.toLowerCase() === title.toLowerCase());
 
-function tableOf(section: Section | undefined): Table | null {
+export function tableOf(section: Section | undefined): Table | null {
   const table = section?.blocks.find((block) => block.type === "table");
   return table === undefined || table.type !== "table" ? null : { headers: table.headers, rows: table.rows };
 }

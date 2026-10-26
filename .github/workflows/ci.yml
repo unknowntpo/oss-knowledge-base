@@ -35,6 +35,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Spec 033: the docs site's system map compares the newest v* tag with this commit,
+          # so the build needs the tags and the history since them (a shallow clone has neither).
+          fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: .bun-version

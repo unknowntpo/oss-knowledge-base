@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { LOCALES, type Flow, type FlowNode } from "../docs-site/generate";
+import { badgeOf, deployedRows } from "../docs-site/system-map";
 
 /**
  * Spec 025 DOC20: docs/site/flows/system.json is hand-written, so it drifts when a change forgets it.
@@ -12,7 +13,8 @@ import { LOCALES, type Flow, type FlowNode } from "../docs-site/generate";
  * A name counts when it appears in backticks in a step's details (lead or facts) in both locales,
  * so `SEARCH_QUERY` is not satisfied by `SEARCH_QUERY_GATE`. Badges: an item deployed only on Dev
  * must be named by a step tagged `dev` or under a fact keyed "Dev"; an item deployed on Prod by an
- * untagged step or under a fact keyed "Prod".
+ * untagged step or under a fact keyed "Prod". A step's badge is the one the docs site shows: computed
+ * from its `gate` rows of the Deployed configuration (Spec 033 Behavior 3).
  */
 const root = join(import.meta.dir, "..", "..");
 const read = (path: string) => Bun.file(join(root, path)).text();
@@ -96,6 +98,9 @@ function names(node: FlowNode, name: string, factKey?: string): boolean {
   });
 }
 
+const rows = deployedRows(await read("docs/feature-map.md"));
+const kindOf = (node: FlowNode) => badgeOf(node, rows)?.kind;
+
 /** The problems of `flow` against `items`: one line per missing item or wrong badge. */
 function systemFlowProblems(flow: Flow, items: readonly Item[]): string[] {
   const nodes = nodesOf(flow);
@@ -112,10 +117,10 @@ function systemFlowProblems(flow: Flow, items: readonly Item[]): string[] {
     }
     if (item.envs === undefined) continue;
     if (item.envs.has("prod")) {
-      if (!naming.some((node) => node.tag === undefined || names(node, item.name, "Prod"))) {
+      if (!naming.some((node) => kindOf(node) === undefined || names(node, item.name, "Prod"))) {
         problems.push(`${item.what} \`${item.name}\` is deployed on Prod but only named by Dev-tagged steps`);
       }
-    } else if (!naming.some((node) => node.tag?.kind === "dev" || names(node, item.name, "Dev"))) {
+    } else if (!naming.some((node) => kindOf(node) === "dev" || names(node, item.name, "Dev"))) {
       problems.push(`${item.what} \`${item.name}\` is Dev only but no step naming it is tagged Dev only`);
     }
   }
@@ -143,9 +148,9 @@ describe("system flow completeness", () => {
     expect(systemFlowProblems(removed as Flow, items)).toContain("data-publisher-worker Analytics Engine binding `SIGNALS` is not named in system.json");
     // A longer name does not count for a shorter one.
     expect(systemFlowProblems(flow, [{ name: "SEARCH_QUERY", what: "probe" }])).toEqual(["probe `SEARCH_QUERY` is not named in system.json"]);
-    // A Dev-only binding whose steps lose their tag is reported.
+    // A Dev-only binding whose steps lose their gate is reported.
     const untagged = clone();
-    for (const column of untagged.columns) for (const card of column.cards) for (const node of card.nodes) if (names(node as unknown as FlowNode, "COST_GUARD_STATE")) delete node.tag;
+    for (const column of untagged.columns) for (const card of column.cards) for (const node of card.nodes) if (names(node as unknown as FlowNode, "COST_GUARD_STATE")) delete node.gate;
     expect(systemFlowProblems(untagged as Flow, items)).toContain("data-publisher-worker Durable Object binding `COST_GUARD_STATE` is Dev only but no step naming it is tagged Dev only");
     // A Prod binding named only by Dev-tagged steps is reported.
     expect(systemFlowProblems(flow, [{ name: "SEARCH_VECTORS", what: "probe", envs: new Set<Env>(["dev", "prod"]) }])).toEqual(["probe `SEARCH_VECTORS` is deployed on Prod but only named by Dev-tagged steps"]);

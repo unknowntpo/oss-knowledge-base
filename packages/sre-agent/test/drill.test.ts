@@ -12,15 +12,19 @@ import {
   drillExpectations,
   drillRecordKey,
   gradeActiveDrill,
+  gradeDiagnosis,
   readOnlyTools,
   runTick,
   sreKey,
   type DiagnosisOutput,
+  type DiagnosisRecord,
   type DrillRecord,
   type Health,
   type PlaybookLibrary,
   type TickDeps,
 } from "../src";
+import { EVAL_CASES, type EvalCase } from "../scripts/eval/cases";
+import { evalLibrary, grade } from "../scripts/eval/harness";
 import { testPlanRows } from "./drill.cases";
 import { MODEL_ID, NOW, answer, devHealth, githubFake, memoryStore, promptTexts, rule, scripted, sqlFake, toolCall, type RecordingStore } from "./fixtures";
 
@@ -154,6 +158,88 @@ const scenarios: Record<string, () => Promise<void>> = {
       [{ ...GOLDEN, evidence: [GOLDEN.evidence[0]!, { id: "E6", quote: "jira is down" }] }, ["verdict:unverified"]],
     ];
     for (const [output, reasons] of cases) expect(await graded(output)).toMatchObject({ state: "graded", result: "fail", reasons });
+  },
+
+  async "grade path evidence"() {
+    // Owner decision 2026-10-26: required evidence cited by path counts when the cited value holds the field's value.
+    const path = (id: string, value: string) => ({ id, path: value });
+    const pathCited: DiagnosisOutput = { ...GOLDEN, evidence: [path("E3", "kipPages.lastRun.error"), path("E6", "[0].template")] };
+    expect(await graded(pathCited)).toMatchObject({ state: "graded", result: "pass", reasons: [] });
+    expect(await graded({ ...pathCited, evidence: [path("E3", "kipPages.lastRun"), path("E6", "[0].template")] })).toMatchObject({ result: "pass", reasons: [] });
+    expect(await graded({ ...pathCited, evidence: [path("E3", "kipPages.lastRun.status"), path("E6", "[0].template")] }))
+      .toMatchObject({ result: "fail", reasons: ["missing-evidence:kipPages.lastRun.error"] });
+    expect(await graded({ ...pathCited, evidence: [path("E3", "kipPages.lastRun.nope"), path("E6", "[0].template")] }))
+      .toMatchObject({ result: "fail", reasons: ["missing-evidence:kipPages.lastRun.error", "verdict:unverified"] });
+    // The eval grader reads the recorded field of a path citation like a quote.
+    const evalCase = EVAL_CASES.find((value) => value.scenario === "kip-pages-two-failures")!;
+    const firing = { env: evalCase.env, job: "kip-pages", ruleId: "job.failures", since: "2026-10-21T03:43:00.000Z", runId: "kip-pages-2026-10-22T03-43-00-000Z", entry: {} };
+    const querySignals = async (args: { template: keyof EvalCase["sql"] }) => evalCase.sql[args.template] ?? [];
+    const library = evalLibrary();
+    const bundle = await buildBundle({ env: evalCase.env, job: "kip-pages", firings: [firing], health: evalCase.health, querySignals, ci: evalCase.ci, library, secrets: [] });
+    const id = (label: string) => bundle.items.find((item) => item.label === label)!.id;
+    const golden = evalCase.golden!;
+    const output = (fieldPath: string): DiagnosisOutput => ({
+      verdict: golden.verdict, cause: golden.cause, confidence: golden.confidence, runbook: golden.runbook, ownerAction: golden.ownerAction,
+      evidence: [path(id("kip-pages /health fields"), fieldPath), path(id("Q-window"), "[0].status")],
+    });
+    expect(grade(evalCase, bundle, ["job.failures"], output("kipPages.lastRun.error"), library)).toMatchObject({ pass: true, missing: [] });
+    expect(grade(evalCase, bundle, ["job.failures"], output("kipPages.lastRun.status"), library)).toMatchObject({ pass: false, missing: ["kipPages.lastRun.error"] });
+  },
+
+  async "drill path scope"() {
+    // Owner decision 2026-10-26: the exact field or its immediate parent counts; an ancestor further up does not.
+    const cites = (e3: string): DiagnosisOutput => ({ ...GOLDEN, evidence: [{ id: "E3", path: e3 }, { id: "E6", path: "[0].template" }] });
+    expect(await graded(cites("kipPages.lastRun.error"))).toMatchObject({ result: "pass", reasons: [] });
+    expect(await graded(cites("kipPages.lastRun"))).toMatchObject({ result: "pass", reasons: [] });
+    // The root path resolves (B32 passes, no verdict reason) but no longer satisfies the requirement.
+    expect(await graded(cites("kipPages"))).toMatchObject({ result: "fail", reasons: ["missing-evidence:kipPages.lastRun.error"] });
+  },
+
+  async "drill path scope by key"() {
+    // A healthy-then-skipped kip-pages: lastGoodAt equals lastRun.at, so a value match under another key is easy.
+    const health = devHealth({ rules: [] });
+    const at = (health.kipPages as { lastRun: { at: string } }).lastRun.at;
+    expect((health.kipPages as { lastGoodAt: string }).lastGoodAt).toBe(at);
+    const items = [
+      { id: "E3", source: "health" as const, label: "kip-pages /health fields", text: JSON.stringify({ kipPages: { ...health.kipPages as object, other: { error: ERROR } } }, null, 2) },
+      { id: "E7", source: "sql" as const, label: "Q-history", text: "[]" },
+    ];
+    const skip = drillExpectations.skip;
+    const diagnosis = (e3: string) => ({
+      verdict: "explained", cause: skip.cause, runbook: skip.runbook, evidence: [{ id: "E3", path: e3, quote: null }, { id: "E7", quote: "[]" }],
+    }) as unknown as DiagnosisRecord;
+    const skipGrade = (e3: string) => gradeDiagnosis("skip", diagnosis(e3), items, health);
+    expect(skipGrade("kipPages.lastRun.at")).toEqual({ result: "pass", reasons: [] });
+    expect(skipGrade("kipPages.lastRun")).toEqual({ result: "pass", reasons: [] });
+    // The root holds lastGoodAt == lastRun.at directly: not the required key's parent, so it no longer counts.
+    expect(skipGrade("kipPages")).toEqual({ result: "fail", reasons: ["missing-evidence:kipPages.lastRun.at"] });
+    // A sibling key with the same value is not the required field.
+    expect(skipGrade("kipPages.lastGoodAt")).toEqual({ result: "fail", reasons: ["missing-evidence:kipPages.lastRun.at"] });
+    // throw: an object holding the error under the required key name but at another path does not count either.
+    const throwHealth = failingHealth();
+    const throwItems = [{ ...items[0]!, text: JSON.stringify({ kipPages: { ...throwHealth.kipPages as object, other: { error: ERROR } } }) }];
+    const throwGrade = (e3: string) => gradeDiagnosis("throw", { ...diagnosis(e3), cause: GOLDEN.cause, runbook: RUNBOOK, evidence: [{ id: "E3", path: e3, quote: null }] } as unknown as DiagnosisRecord, [...throwItems, { id: "E6", source: "sql", label: "Q-window", text: "[]" }], throwHealth);
+    expect(throwGrade("kipPages.lastRun")).toMatchObject({ reasons: ["missing-evidence:Q-window"] });
+    expect(throwGrade("kipPages.other")).toMatchObject({ reasons: ["missing-evidence:kipPages.lastRun.error", "missing-evidence:Q-window"] });
+  },
+
+  async "eval path scope"() {
+    const evalCase = EVAL_CASES.find((value) => value.scenario === "kip-pages-two-failures")!;
+    const firing = { env: evalCase.env, job: "kip-pages", ruleId: "job.failures", since: "2026-10-21T03:43:00.000Z", runId: "kip-pages-2026-10-22T03-43-00-000Z", entry: {} };
+    const querySignals = async (args: { template: keyof EvalCase["sql"] }) => evalCase.sql[args.template] ?? [];
+    const library = evalLibrary();
+    const bundle = await buildBundle({ env: evalCase.env, job: "kip-pages", firings: [firing], health: evalCase.health, querySignals, ci: evalCase.ci, library, secrets: [] });
+    const id = (label: string) => bundle.items.find((item) => item.label === label)!.id;
+    const golden = evalCase.golden!;
+    const output = (healthPath: string, windowPath = "[0].status"): DiagnosisOutput => ({
+      verdict: golden.verdict, cause: golden.cause, confidence: golden.confidence, runbook: golden.runbook, ownerAction: golden.ownerAction,
+      evidence: [{ id: id("kip-pages /health fields"), path: healthPath }, { id: id("Q-window"), path: windowPath }],
+    });
+    const graded = (value: DiagnosisOutput) => grade(evalCase, bundle, ["job.failures"], value, library);
+    expect(graded(output("kipPages.lastRun.error"))).toMatchObject({ pass: true, missing: [] });
+    expect(graded(output("kipPages.lastRun"))).toMatchObject({ pass: true, missing: [] });
+    expect(graded(output("kipPages"))).toMatchObject({ pass: false, fabricated: false, missing: ["kipPages.lastRun.error"] });
+    expect(graded(output("kipPages.lastRun.error", "[0]"))).toMatchObject({ pass: true, missing: [] });
   },
 
   async "no diagnosis"() {

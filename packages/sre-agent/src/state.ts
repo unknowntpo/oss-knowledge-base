@@ -1,12 +1,14 @@
 /**
  * Steps 0 and 2 of B26: `state.json`, fingerprint dedupe (A1 item 19) and the daily caps (B31):
  * ≤ 3 diagnoses, ≤ 12 steps each, ≤ 1,500 neurons a UTC day, reserved before each model call.
+ * The two daily caps are defaults: the Worker may pass others (owner decision 2026-10-26, SRE90).
  */
 import { V1_RULES } from "./firings";
 import type { DrillSummary } from "./drill";
 import type { LastRun } from "./tick";
 import type { Firing } from "./types";
 
+/** Default daily caps (B31); `TickDeps.maxDiagnosesPerDay` and `dailyNeuronCap` override them (SRE90). */
 export const MAX_DIAGNOSES_PER_DAY = 3;
 export const MAX_STEPS = 12;
 /** Per model call (B30, B31); 4,096 since the owner decision of 2026-10-25 (Spec 027 Eval notes): 1,024 ended GLM and Qwen answers at `length`. */
@@ -50,7 +52,7 @@ export interface Plan {
   readonly duplicates: string[];
 }
 
-export function planDiagnoses(firings: readonly Firing[], state: SreState, date: string): Plan {
+export function planDiagnoses(firings: readonly Firing[], state: SreState, date: string, maxDiagnosesPerDay = MAX_DIAGNOSES_PER_DAY): Plan {
   const notDiagnosed: Plan["notDiagnosed"] = [];
   const duplicates: string[] = [];
   const byJob = new Map<string, Firing[]>();
@@ -67,7 +69,7 @@ export function planDiagnoses(firings: readonly Firing[], state: SreState, date:
     }
     byJob.set(firing.job, [...(byJob.get(firing.job) ?? []), firing]);
   }
-  const room = Math.max(0, MAX_DIAGNOSES_PER_DAY - state.today.diagnoses);
+  const room = Math.max(0, maxDiagnosesPerDay - state.today.diagnoses);
   const groups = [...byJob].map(([job, value]) => ({ job, firings: value }));
   for (const group of groups.slice(room)) {
     for (const firing of group.firings) notDiagnosed.push({ fingerprint: fingerprint(firing), reason: "daily-cap" });
@@ -92,8 +94,8 @@ export function neuronsFor(modelId: string, inputTokens: number, outputTokens: n
 }
 
 export class BudgetExceededError extends Error {
-  constructor(readonly reservation: number, readonly today: number) {
-    super(`neuron reservation ${reservation.toFixed(1)} would pass ${DAILY_NEURON_CAP} (today ${today.toFixed(1)})`);
+  constructor(readonly reservation: number, readonly today: number, readonly cap = DAILY_NEURON_CAP) {
+    super(`neuron reservation ${reservation.toFixed(1)} would pass ${cap} (today ${today.toFixed(1)})`);
     this.name = "BudgetExceededError";
   }
 }
@@ -106,7 +108,7 @@ export class NeuronLedger {
   constructor(readonly state: SreState, private readonly persist: (state: SreState) => Promise<void>, private readonly cap = DAILY_NEURON_CAP) {}
 
   async reserve(neurons: number): Promise<void> {
-    if (this.state.today.neurons + neurons > this.cap) throw new BudgetExceededError(neurons, this.state.today.neurons);
+    if (this.state.today.neurons + neurons > this.cap) throw new BudgetExceededError(neurons, this.state.today.neurons, this.cap);
     this.state.today.neurons += neurons;
     await this.persist(this.state);
   }

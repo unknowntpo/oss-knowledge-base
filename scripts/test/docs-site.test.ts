@@ -45,6 +45,12 @@ function fixture(): { -readonly [K in keyof DocsInput]: DocsInput[K] } & { pages
     stylesCss: STYLES,
     exists: (path) => (FILES.has(path) ? "file" : DIRS.has(path) ? "dir" : null),
     values: { specs: "25" },
+    featureMap: "",
+    deployments: {
+      dev: { worker: "w-dev", bucket: "b-dev", gateways: [], vectorIndexes: [] },
+      prod: { worker: "w-prod", bucket: "b-prod", gateways: [], vectorIndexes: [] },
+    },
+    release: null,
   };
 }
 

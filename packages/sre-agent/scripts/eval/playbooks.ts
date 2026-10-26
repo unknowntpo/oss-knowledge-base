@@ -26,7 +26,8 @@ The rule fired; the harness put its entry first in the bundle.
 ## Judgment guidance
 
 - Quote only the bundle: every evidence quote is copied verbatim from the item it cites.
-- Pick the first cause whose distinguishing evidence is in the bundle; otherwise answer \`unknown\` (verdict \`inconclusive\`).
+- Pick the first cause whose distinguishing evidence is in the bundle (verdict \`explained\`); otherwise answer \`unknown\`.
+- With \`unknown\`, answer verdict \`inconclusive\` when the bundle lacks the evidence that would decide the cause (name the missing fields in \`ownerAction\`), and \`unexplained\` when the cited evidence rules out every listed cause.
 - A cause without a runbook link is a runbook gap: answer \`runbook: null\` and say so in \`ownerAction\`.
 `;
 

@@ -12,6 +12,8 @@ import {
   buildBundle,
   buildLibrary,
   checkEvidence,
+  citedFields,
+  citeEvidence,
   collectFirings,
   diagnoseBundle,
   emptyState,
@@ -21,6 +23,7 @@ import {
   USD_PER_NEURON,
   DAILY_NEURON_CAP,
   type Bundle,
+  type CitedEvidence,
   type DiagnosisOutput,
   type MarkdownFile,
   type PlaybookLibrary,
@@ -73,7 +76,8 @@ export interface CaseRun {
   readonly reason: string | null;
   readonly cause: string | null;
   readonly runbook: string | null;
-  readonly evidence: readonly { id: string; quote: string }[];
+  /** The model's evidence entries as answered (`quote`, or since 2026-10-26 `path`). */
+  readonly evidence: DiagnosisOutput["evidence"];
   readonly evidenceFailures: readonly string[];
   readonly tools: readonly string[];
   readonly steps: number;
@@ -115,10 +119,16 @@ export function grade(evalCase: EvalCase, bundle: Bundle, ruleIds: readonly stri
   if (expected === null) return { ...NOT_CALLED, pass: false, cause: false };
   if (output === null) return { cause: false, evidence: false, anchor: false, fabricated: false, pass: false, missing: expected.evidence.map((item) => item.name) };
   const check = checkEvidence(output, bundle);
-  const valid = output.evidence.filter((entry) => checkEvidence({ ...output, cause: "unknown", runbook: null, evidence: [entry] }, bundle).ok);
-  const label = (id: string) => bundle.items.find((item) => item.id === id)?.label;
+  // SRE88, SRE97: a path citation is graded like a quote by the verbatim field it resolved to, when that is a
+  // scalar, or by each scalar field directly in it; a field nested deeper does not count.
+  const cited = citeEvidence(output.evidence, bundle.items);
+  const valid = cited.filter((_, index) => checkEvidence({ ...output, cause: "unknown", runbook: null, evidence: [output.evidence[index]!] }, bundle).ok);
+  const item = (id: string) => bundle.items.find((value) => value.id === id);
+  const texts = (entry: CitedEvidence): string[] => entry.path === undefined
+    ? [entry.quote ?? ""]
+    : citedFields(item(entry.id)?.text ?? "", entry.path).filter((field) => typeof field.value !== "object" || field.value === null).map((field) => field.quote);
   const missing = expected.evidence
-    .filter((required) => !valid.some((entry) => required.pattern.test(entry.quote) && (required.label === undefined || label(entry.id) === required.label)))
+    .filter((required) => !valid.some((entry) => texts(entry).some((text) => required.pattern.test(text)) && (required.label === undefined || item(entry.id)?.label === required.label)))
     .map((required) => required.name);
   const causeAnchors = ruleIds.flatMap((ruleId) => parseCauses(library.playbooks[ruleId] ?? "")).filter((cause) => cause.id === expected.cause).flatMap((cause) => cause.anchors);
   const accepted: (string | null)[] = expected.runbook === null ? [null] : [expected.runbook, ...causeAnchors];

@@ -6,12 +6,12 @@
 import type { LanguageModel, generateText } from "ai";
 import { buildBundle, type Bundle, type EvidenceItem } from "./bundle";
 import type { DrillSummary } from "./drill";
-import type { EvidenceCheck } from "./evidence";
+import { citeEvidence, type CitedEvidence, type EvidenceCheck } from "./evidence";
 import { CI_JOB, collectFirings, parseFlag, readCiRelease } from "./firings";
 import { diagnoseBundle, renderPrompt, SYSTEM_PROMPT, type Diagnosis } from "./loop";
 import type { PlaybookLibrary } from "./playbook";
 import { PLAYBOOK_LIBRARY } from "./playbooks.generated";
-import { NeuronLedger, fingerprint, loadState, planDiagnoses, utcDate, type NotDiagnosedReason, type SreState } from "./state";
+import { DAILY_NEURON_CAP, MAX_DIAGNOSES_PER_DAY, NeuronLedger, fingerprint, loadState, planDiagnoses, utcDate, type NotDiagnosedReason, type SreState } from "./state";
 import { scopedStore, sreKey } from "./store";
 import type { CiRelease, Env, Firing, Health, Mode, QuerySignals, RawStore } from "./types";
 
@@ -38,6 +38,10 @@ export interface TickDeps {
   readonly library?: PlaybookLibrary;
   readonly toolTimeoutMs?: number;
   readonly ciTimeoutMs?: number;
+  /** SRE90: diagnoses per UTC day (B31); `MAX_DIAGNOSES_PER_DAY` (3) when absent. The Worker validates it. */
+  readonly maxDiagnosesPerDay?: number;
+  /** SRE90: neurons per UTC day (B31); `DAILY_NEURON_CAP` (1,500) when absent. The Worker validates it. */
+  readonly dailyNeuronCap?: number;
   /** Called as each step of B26 starts (0–7); a throw ends the tick like any other error (SRE47). */
   readonly onStep?: (step: number) => void;
   /**
@@ -67,7 +71,8 @@ export interface DiagnosisRecord {
   readonly reason: Diagnosis["reason"];
   readonly cause: string | null;
   readonly confidence: string | null;
-  readonly evidence: { id: string; quote: string }[];
+  /** SRE85: each entry as cited, a path with the verbatim field it resolved to. */
+  readonly evidence: CitedEvidence[];
   readonly runbook: string | null;
   readonly ownerAction: string | null;
   readonly playbookMissing: boolean;
@@ -133,7 +138,7 @@ export async function runTick(deps: TickDeps): Promise<TickResult> {
   const stateKey = sreKey(env, "state.json");
   const state: SreState = loadState(await store.get(stateKey), date);
   const persist = (value: SreState) => store.put(stateKey, JSON.stringify(value));
-  const ledger = new NeuronLedger(state, persist);
+  const ledger = new NeuronLedger(state, persist, deps.dailyNeuronCap ?? DAILY_NEURON_CAP);
   const secrets = deps.secrets ?? [];
   const library = deps.library ?? PLAYBOOK_LIBRARY;
 
@@ -143,7 +148,7 @@ export async function runTick(deps: TickDeps): Promise<TickResult> {
   const ci = await readCiRelease(env, deps.fetch, deps.ciTimeoutMs === undefined ? {} : { timeoutMs: deps.ciTimeoutMs });
   const { firings, signals } = collectFirings(env, health, ci);
   step(2);
-  const plan = planDiagnoses(firings, state, date);
+  const plan = planDiagnoses(firings, state, date, deps.maxDiagnosesPerDay ?? MAX_DIAGNOSES_PER_DAY);
   if (plan.groups.length === 0) step(3);
 
   // Steps 4–6 per job (step 3, no new firing, is the empty loop).
@@ -164,7 +169,8 @@ export async function runTick(deps: TickDeps): Promise<TickResult> {
     const trajectoryKey = sreKey(env, `trajectories/${date}/${runId}-${group.job}.json`);
     await store.put(trajectoryKey, JSON.stringify({
       runId, job: group.job, bundle: bundle.items, ...diagnosis.trajectory,
-      output: diagnosis.output, evidenceCheck: diagnosis.evidenceCheck, verdict: diagnosis.verdict, reason: diagnosis.reason,
+      output: diagnosis.output, evidence: diagnosis.output === null ? [] : citeEvidence(diagnosis.output.evidence, bundle.items),
+      evidenceCheck: diagnosis.evidenceCheck, verdict: diagnosis.verdict, reason: diagnosis.reason,
     }));
     for (const firing of group.firings) state.fingerprints[fingerprint(firing)] = { runId: firing.runId, diagnosedOn: date };
     items.set(group.job, bundle.items);
@@ -228,7 +234,7 @@ function record(env: Env, firings: readonly Firing[], bundle: Bundle, diagnosis:
     reason: diagnosis.reason,
     cause: output?.cause ?? null,
     confidence: output?.confidence ?? null,
-    evidence: output?.evidence ?? [],
+    evidence: output === null ? [] : citeEvidence(output.evidence, bundle.items),
     runbook: output?.runbook ?? null,
     ownerAction: output?.ownerAction ?? null,
     playbookMissing: bundle.playbookMissing.length > 0,

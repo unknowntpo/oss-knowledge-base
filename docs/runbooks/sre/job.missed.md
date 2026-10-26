@@ -74,9 +74,14 @@ no runbook.
     (for example no data points because Spec 028 was off).
   - `low`: two or more causes fit equally, or the cause rests on timing alone
     (a deploy near `since` without a failed run after it).
-- **Answer "unknown"** (verdict `inconclusive`, cause 6) when no cause has its
-  distinguishing evidence, and list exactly which fields would decide it.
-  "Unknown" with a precise gap is a correct answer; a guess is not.
+- **Answer "unknown"** (cause 6) when no cause has its distinguishing
+  evidence. Pick the verdict by why the cause is unknown:
+  - `inconclusive`: the bundle lacks the evidence that would decide it. List
+    exactly which fields would decide it in `ownerAction`.
+  - `unexplained`: the cited evidence rules out every cause 1–5. The firing is
+    real, but no listed cause fits.
+  "Unknown" with a precise gap is a correct answer; a guess is not. A cause
+  1–5 with its evidence cited is `explained`, at any confidence.
 - **Owner actions, never agent actions.** `ownerAction` may suggest a manual
   publication (`POST /run`), a breaker reset, a rollback or a deploy as text
   for the owner. The agent never performs or schedules any of them, and
@@ -121,7 +126,7 @@ the specs state; anything else is marked unknown in the fixture.
 
 | Field | Expected |
 | --- | --- |
-| `verdict` | `inconclusive` |
+| `verdict` | `inconclusive` (the bundle has no run records in the window, so the evidence that would decide the cause is missing) |
 | `cause` | Cause 6 with cause 5 as the leading suspect: two deploys (PR #20, #21) landed within 43 min before the last good run and no good run followed for about 49 h; the bundle has no failed-run record to confirm it. (Spec 009's `exceededMemory` above 5,000 events is a plausible mechanism, but it is not in the bundle unless the fixture adds it.) |
 | `confidence` | `low` |
 | `evidence` | the rule entry's `since` and `value`; `lastRun.completedAt` 2026-09-30T01:07Z; the CI runs for PR #20 and #21 with their times |

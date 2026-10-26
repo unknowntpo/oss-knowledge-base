@@ -8,7 +8,7 @@ import { MockLanguageModelV4 } from "ai/test";
 import { JOB_HEALTH_FIELDS, SRE_JOBS, type RunRecord } from "@oss-knowledge-base/sre-agent";
 import worker, { cronTarget, inAppSources, tickHealth } from "../src/index";
 import { SIGNAL_JOBS } from "../src/signals/profile";
-import { SRE_TICK_SPAN, sreAgentModel, sreAgentTick, tickSpanAttributes, tracedGenerateText, type SreAgentEnv, type SreAgentTickResult } from "../src/sre-agent/run";
+import { SRE_TICK_SPAN, sreAgentCaps, sreAgentModel, sreAgentTick, tickSpanAttributes, tracedGenerateText, type SreAgentEnv, type SreAgentTickResult } from "../src/sre-agent/run";
 import { testPlanRows } from "./sre-agent-worker.cases";
 import { recordedSpans } from "./support/cloudflare-workers";
 
@@ -454,6 +454,49 @@ const scenarios: Record<string, () => Promise<void>> = {
     const prod = await readConfig("wrangler.production.jsonc");
     expect(dev.observability).toEqual({ enabled: true, head_sampling_rate: 1, traces: { enabled: true } });
     expect(prod.observability).toEqual({ enabled: true, head_sampling_rate: 1 });
+  },
+
+  async "quota vars"() {
+    const defaults = { maxDiagnosesPerDay: 3, dailyNeuronCap: 1500 };
+    expect(sreAgentCaps({})).toEqual(defaults);
+    expect(sreAgentCaps({ SRE_AGENT_MAX_DIAGNOSES: "10", SRE_AGENT_DAILY_NEURONS: "3000" })).toEqual({ maxDiagnosesPerDay: 10, dailyNeuronCap: 3000 });
+    expect(sreAgentCaps({ SRE_AGENT_MAX_DIAGNOSES: " 10 ", SRE_AGENT_DAILY_NEURONS: " 3000 " })).toEqual({ maxDiagnosesPerDay: 10, dailyNeuronCap: 3000 });
+    for (const invalid of ["", " ", "0", "-1", "2.5", "1e3", "0x10", "10abc", "abc", "NaN", "Infinity", "9007199254740993"]) {
+      expect(sreAgentCaps({ SRE_AGENT_MAX_DIAGNOSES: invalid, SRE_AGENT_DAILY_NEURONS: "3000" })).toEqual({ maxDiagnosesPerDay: 3, dailyNeuronCap: 3000 });
+      expect(sreAgentCaps({ SRE_AGENT_MAX_DIAGNOSES: "10", SRE_AGENT_DAILY_NEURONS: invalid })).toEqual({ maxDiagnosesPerDay: 10, dailyNeuronCap: 1500 });
+    }
+  },
+
+  async "quota wiring"() {
+    const atCaps = (vars: Record<string, unknown>) => {
+      const worker = workerEnv({ SRE_AGENT: "live", OBSERVABILITY_SIGNALS: "on", ...vars });
+      worker.bucket.objects.set(STATE_KEY, JSON.stringify({ fingerprints: {}, today: { date: NOW.slice(0, 10), diagnoses: 3, neurons: 1499 } }));
+      return worker.env;
+    };
+    const spanCap = () => recordedSpans.filter((span) => span.name === SRE_TICK_SPAN).at(-1)!.attributes.neuronsDailyCap;
+    for (const vars of [{}, { SRE_AGENT_MAX_DIAGNOSES: "0", SRE_AGENT_DAILY_NEURONS: "Infinity" }]) {
+      recordedSpans.length = 0;
+      const held = await liveTick(atCaps(vars));
+      expect(held?.runRecord).toMatchObject({ diagnosed: 0, modelCalls: 0 });
+      const reasons = held!.runRecord!.notDiagnosed.map((value) => value.reason);
+      expect(reasons.length).toBeGreaterThan(0);
+      expect(reasons.filter((reason) => reason !== "daily-cap")).toEqual([]);
+      expect(spanCap()).toBe(1500);
+    }
+    recordedSpans.length = 0;
+    const raised = await liveTick(atCaps({ SRE_AGENT_MAX_DIAGNOSES: "10", SRE_AGENT_DAILY_NEURONS: "3000" }));
+    expect(raised?.runRecord).toMatchObject({ diagnosed: 1, modelCalls: 1 });
+    expect(raised!.runRecord!.diagnoses[0]!.reason).not.toBe("budget");
+    expect(spanCap()).toBe(3000);
+  },
+
+  async "quota config"() {
+    const dev = await readConfig("wrangler.development.jsonc");
+    const prod = await readConfig("wrangler.production.jsonc");
+    expect(dev.vars?.SRE_AGENT_MAX_DIAGNOSES).toBe("10");
+    expect(dev.vars?.SRE_AGENT_DAILY_NEURONS).toBe("3000");
+    expect(prod.vars?.SRE_AGENT_MAX_DIAGNOSES).toBeUndefined();
+    expect(prod.vars?.SRE_AGENT_DAILY_NEURONS).toBeUndefined();
   },
 };
 

@@ -2,13 +2,31 @@
 import { z } from "zod";
 import type { EvidenceItem } from "./bundle";
 
+/** SRE89: the path syntax, as the prompt and the schema describe it to the model. */
+export const PATH_SYNTAX =
+  "the path of one field inside that item: keys joined by dots, array indexes in brackets, for example kipPages.lastRun.error, status or [0].status (a SQL item is an array of rows); write a key holding a dot, bracket, quote or space as [\"the.key\"]. The code reads the value there, so never copy JSON text.";
+
+/** SRE94: what each verdict means, as the prompt and the schema define it to the model (owner decision 2026-10-26). */
+export const VERDICT_DEFINITION = [
+  "verdict \"explained\": cause is a playbook cause id (not \"unknown\") and evidence cites its distinguishing evidence, at any confidence.",
+  "verdict \"inconclusive\": only when cause is \"unknown\" because the bundle lacks the evidence that would decide it; name the missing fields in ownerAction.",
+  "verdict \"unexplained\": only when cause is \"unknown\" and the cited evidence rules out every playbook cause: the firing is real but no listed cause fits.",
+].join(" ");
+
+/** SRE95: confidence grades the cause and never sets the verdict. */
+export const CONFIDENCE_DEFINITION =
+  "How sure you are of the cause, by the playbook's confidence guidance. It never changes the verdict: a playbook cause at low confidence is still \"explained\".";
+
 export const diagnosisOutputSchema = z.object({
-  verdict: z.enum(["explained", "unexplained", "inconclusive"]),
-  cause: z.string().describe("A cause id from a firing rule's playbook, or \"unknown\""),
-  confidence: z.enum(["low", "medium", "high"]),
+  verdict: z.enum(["explained", "unexplained", "inconclusive"]).describe(VERDICT_DEFINITION),
+  cause: z.string().describe("A cause id from a firing rule's playbook, or \"unknown\". A playbook cause id makes the verdict \"explained\"; \"unknown\" makes it \"inconclusive\" or \"unexplained\"."),
+  confidence: z.enum(["low", "medium", "high"]).describe(CONFIDENCE_DEFINITION),
+  // SRE87: exactly one of `path` and `quote`; the evidence check, not the schema, enforces it, so a bad entry
+  // makes the verdict `unverified` and the rest of the diagnosis is kept.
   evidence: z.array(z.object({
     id: z.string().describe("The id of a bundle item, E1…En"),
-    quote: z.string().describe("One field of that item, as \"key\": value copied verbatim (or a plain substring of a non-JSON item); never a whole object or row, no braces, no ellipsis"),
+    path: z.string().nullish().describe(`For a JSON item: ${PATH_SYNTAX} Leave quote out. Never for a non-JSON item.`),
+    quote: z.string().nullish().describe("Only for a non-JSON item (a playbook, runbook or log text): a plain substring copied verbatim, no ellipsis. Leave path out. Never for a JSON item: cite it by path."),
   })),
   runbook: z.string().nullable().describe("A runbook anchor the playbook lists, as <file>.md#<anchor>"),
   ownerAction: z.string().nullable().describe("Text for the owner; no tool can perform it"),
@@ -105,21 +123,154 @@ function quotedIn(quote: string, text: string): boolean {
   return WORD.test(wanted) && (pairsIn(quote, text) || occursWhole(normalize(text), wanted));
 }
 
+type Segment = string | number;
+
 /**
- * Each quote occurs in the item it cites, letters, digits and punctuation verbatim and in order, whitespace
- * insignificant (`normalize`; owner decisions 2026-10-25), or as JSON pairs of one object of it (`pairsIn`; owner
- * decision 2026-10-26); the cause is a playbook
- * cause id or `unknown`; the runbook is an anchor the playbook lists. Code only, no model.
+ * SRE85, SRE86: a path as `PATH_SYNTAX` describes it, or null when it is not one. A segment is `.name` (`name`
+ * first) for an object key, `[n]` for an array index (`0` or no leading zero), or `["key"]`, a JSON string, for
+ * any key. A bare name holds no `.`, `[`, `]`, `"`, `'` or whitespace.
+ */
+export function parsePath(path: string): Segment[] | null {
+  const segments: Segment[] = [];
+  let at = 0;
+  while (at < path.length) {
+    if (path[at] === "[") {
+      const index = /^\[(0|[1-9]\d*)\]/u.exec(path.slice(at));
+      if (index !== null) {
+        segments.push(Number(index[1]));
+        at += index[0].length;
+        continue;
+      }
+      const key = /^\["(?:[^"\\]|\\.)*"\]/u.exec(path.slice(at));
+      const parsed = key === null ? undefined : parseJson(key[0].slice(1, -1));
+      if (typeof parsed !== "string") return null;
+      segments.push(parsed);
+      at += key![0].length;
+      continue;
+    }
+    if (segments.length > 0) {
+      if (path[at] !== ".") return null;
+      at += 1;
+    }
+    const name = /^[^.[\]"'\s]+/u.exec(path.slice(at));
+    if (name === null) return null;
+    segments.push(name[0]);
+    at += name[0].length;
+  }
+  return segments.length === 0 ? null : segments;
+}
+
+/**
+ * SRE85, SRE86: the value at `path` in a JSON item and the verbatim field it was read from, `"<key>": <value>`
+ * (the value alone when the path ends in an index), the value as compact JSON; null when the item is not JSON,
+ * the path is not one, or nothing is there. Own keys only, so `constructor` or `__proto__` find nothing.
+ */
+export function resolvePath(text: string, path: string): { readonly value: unknown; readonly quote: string } | null {
+  const segments = parsePath(path);
+  if (segments === null) return null;
+  let node = parseJson(text);
+  if (node === undefined) return null;
+  for (const segment of segments) {
+    if (typeof segment === "number" ? !Array.isArray(node) || segment >= node.length : !isObject(node) || !Object.hasOwn(node, segment)) return null;
+    node = typeof segment === "number" ? (node as unknown[])[segment] : (node as JsonObject)[segment];
+  }
+  const last = segments.at(-1)!;
+  const value = JSON.stringify(node);
+  return { value: node, quote: typeof last === "number" ? value : `${JSON.stringify(last)}: ${value}` };
+}
+
+/** One evidence entry as recorded: `quote` is the model's quote, or the field a path resolved to (null when none). */
+export interface CitedEvidence {
+  readonly id: string;
+  readonly path?: string;
+  readonly quote: string | null;
+}
+
+type EvidenceEntry = DiagnosisOutput["evidence"][number];
+
+const given = (text: string | null | undefined) => (text === null || text === undefined ? null : text);
+
+/**
+ * SRE87: the one field an entry cites, `path` or `quote`, or null when it gives both or neither. An empty string
+ * beside the other field is read as absent.
+ */
+function citation(entry: EvidenceEntry): { readonly path: string } | { readonly quote: string } | null {
+  let path = given(entry.path);
+  let quote = given(entry.quote);
+  if (path !== null && quote !== null) {
+    if (quote.trim() === "" && path.trim() !== "") quote = null;
+    else if (path.trim() === "" && quote.trim() !== "") path = null;
+  }
+  if ((path === null) === (quote === null)) return null;
+  return path !== null ? { path } : { quote: quote! };
+}
+
+/** SRE85: the evidence as the run record and trajectory keep it, each path resolved to its verbatim field. */
+export function citeEvidence(evidence: readonly EvidenceEntry[], items: readonly EvidenceItem[]): CitedEvidence[] {
+  return evidence.map((entry) => {
+    const cited = citation(entry);
+    if (cited === null) return { id: entry.id, quote: null };
+    if ("quote" in cited) return { id: entry.id, quote: cited.quote };
+    const text = items.find((item) => item.id === entry.id)?.text;
+    return { id: entry.id, path: cited.path, quote: text === undefined ? null : resolvePath(text, cited.path)?.quote ?? null };
+  });
+}
+
+/**
+ * SRE96, SRE97 (owner decision 2026-10-26): the field at `path` in a JSON item and, when its value is an object or
+ * an array, each field directly in it (`"<key>": <value>`, the value alone for an array element); none deeper.
+ * Empty when the path does not resolve.
+ */
+export function citedFields(text: string, path: string): { readonly value: unknown; readonly quote: string }[] {
+  const found = resolvePath(text, path);
+  if (found === null) return [];
+  const parent = found.value;
+  if (typeof parent !== "object" || parent === null) return [found];
+  const children = Object.entries(parent).map(([key, value]) => ({
+    value,
+    quote: Array.isArray(parent) ? JSON.stringify(value) : `${JSON.stringify(key)}: ${JSON.stringify(value)}`,
+  }));
+  return [found, ...children];
+}
+
+/**
+ * SRE88, SRE96: a path citation in a JSON item names the required `field` (its keys from the root) and reads
+ * `wanted`: the path is that field, or the field's parent object whose own key `field.at(-1)` holds `wanted`. A value
+ * match under another key or at another path does not count.
+ */
+export function pathHolds(text: string, path: string, field: readonly string[], wanted: unknown): boolean {
+  const segments = parsePath(path);
+  if (wanted === undefined || segments === null || field.length === 0) return false;
+  const found = resolvePath(text, path);
+  if (found === null) return false;
+  const at = (keys: readonly string[]) => segments.length === keys.length && keys.every((key, index) => segments[index] === key);
+  if (at(field)) return same(found.value, wanted);
+  if (!at(field.slice(0, -1)) || !isObject(found.value)) return false;
+  const key = field.at(-1)!;
+  return Object.hasOwn(found.value, key) && same(found.value[key], wanted);
+}
+
+/**
+ * Each entry cites one field of the item it names (SRE87): a path that resolves in the item's JSON (SRE85, SRE86;
+ * owner decision 2026-10-26), or a quote that occurs in the item, letters, digits and punctuation verbatim and in
+ * order, whitespace insignificant (`normalize`; owner decisions 2026-10-25), or as JSON pairs of one object of it
+ * (`pairsIn`; owner decision 2026-10-26); the cause is a playbook cause id or `unknown`; the runbook is an anchor
+ * the playbook lists. Code only, no model.
  */
 export function checkEvidence(
   output: DiagnosisOutput,
   bundle: { readonly items: readonly EvidenceItem[]; readonly causes: ReadonlySet<string>; readonly runbooks: ReadonlySet<string> },
 ): EvidenceCheck {
   const failures: string[] = [];
-  for (const { id, quote } of output.evidence) {
+  for (const entry of output.evidence) {
+    const { id } = entry;
     const item = bundle.items.find((value) => value.id === id);
+    const cited = citation(entry);
     if (item === undefined) failures.push(`unknown-evidence-id:${id}`);
-    else if (!quotedIn(quote, item.text)) failures.push(`quote-not-in-item:${id}`);
+    else if (cited === null) failures.push(`evidence-needs-path-or-quote:${id}`);
+    else if ("path" in cited) {
+      if (resolvePath(item.text, cited.path) === null) failures.push(`path-not-in-item:${id}`);
+    } else if (!quotedIn(cited.quote, item.text)) failures.push(`quote-not-in-item:${id}`);
   }
   if (!bundle.causes.has(output.cause)) failures.push(`cause-not-in-playbook:${output.cause}`);
   if (output.runbook !== null && !bundle.runbooks.has(output.runbook)) failures.push(`runbook-not-in-playbook:${output.runbook}`);
