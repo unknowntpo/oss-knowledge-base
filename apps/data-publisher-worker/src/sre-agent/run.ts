@@ -10,7 +10,7 @@ import * as workers from "cloudflare:workers";
 import { createAI } from "agents/models/ai-sdk";
 import { wrapAISDK } from "agents/observability/ai";
 import {
-  activeDrillSummary, DAILY_NEURON_CAP, gradeActiveDrill, loadState, parseFlag, recordFailedTick, runTick, sreKey, sreRunId, utcDate,
+  activeDrillSummary, DAILY_NEURON_CAP, gradeActiveDrill, MAX_DIAGNOSES_PER_DAY, loadState, parseFlag, recordFailedTick, runTick, sreKey, sreRunId, utcDate,
   type Env as SreEnv, type Health, type LastRun, type Mode, type TickDeps, type QuerySignals, type RawStore, type RunRecord, type SqlArgs,
 } from "@oss-knowledge-base/sre-agent";
 import { errorText, sanitizeErrorMessage } from "../search-embedding/sanitize";
@@ -29,6 +29,10 @@ export interface SreAgentEnv {
   readonly SRE_AGENT_MODEL?: string;
   /** G100: the AI Gateway id the agent's model calls go through (Dev `osskb-sre-dev`); unset uses the account default. */
   readonly SRE_AGENT_GATEWAY?: string;
+  /** SRE91: diagnoses per UTC day, a positive integer (Dev `10`); unset or invalid is 3. */
+  readonly SRE_AGENT_MAX_DIAGNOSES?: string;
+  /** SRE91: neurons per UTC day, a positive integer (Dev `3000`); unset or invalid is 1,500. */
+  readonly SRE_AGENT_DAILY_NEURONS?: string;
   /** Spec 027 drill (B38): `on` only on Dev; see `drill.ts`. */
   readonly SRE_DRILL?: string;
   readonly AI?: unknown;
@@ -50,6 +54,22 @@ export const sreEnv = (environment: "development" | "production"): SreEnv => (en
 /** A2-3: a tick belongs to the job when its cron is one of `SRE_AGENT_CRON`'s expressions, whatever the flag. */
 export function sreAgentCron(cron: string, configured: string | undefined): boolean {
   return (configured ?? "").split(";").map((value) => value.trim()).filter((value) => value !== "").includes(cron);
+}
+
+/** SRE91: a positive safe integer in decimal digits, else the default: an invalid value never lifts a cap. */
+function positiveInteger(value: unknown, fallback: number): number {
+  const text = typeof value === "string" ? value.trim() : typeof value === "number" ? String(value) : "";
+  if (!/^[1-9][0-9]*$/u.test(text)) return fallback;
+  const parsed = Number(text);
+  return Number.isSafeInteger(parsed) ? parsed : fallback;
+}
+
+/** SRE91 (owner decision 2026-10-26): the daily caps from the Worker vars; Prod sets neither, so 3 and 1,500. */
+export function sreAgentCaps(env: Pick<SreAgentEnv, "SRE_AGENT_MAX_DIAGNOSES" | "SRE_AGENT_DAILY_NEURONS">) {
+  return {
+    maxDiagnosesPerDay: positiveInteger(env.SRE_AGENT_MAX_DIAGNOSES, MAX_DIAGNOSES_PER_DAY),
+    dailyNeuronCap: positiveInteger(env.SRE_AGENT_DAILY_NEURONS, DAILY_NEURON_CAP),
+  };
 }
 
 /** SRE57: the core takes a `LanguageModel`; the Worker builds it in one line from the `AI` binding. */
@@ -134,7 +154,7 @@ type SpanValue = string | number | boolean;
  * SRE82: the tick span's attributes, a pure function of the tick's result. Counts, ids and verdicts
  * only: no secret, no bundle text (the session replay carries content).
  */
-export function tickSpanAttributes(input: { readonly env: SreEnv; readonly mode: Exclude<Mode, "off">; readonly result: SreAgentTickResult }): Record<string, SpanValue> {
+export function tickSpanAttributes(input: { readonly env: SreEnv; readonly mode: Exclude<Mode, "off">; readonly result: SreAgentTickResult; readonly neuronsDailyCap?: number }): Record<string, SpanValue> {
   const { result } = input;
   const base = { runId: result.runId, env: input.env, mode: input.mode, status: result.status };
   const record = result.runRecord;
@@ -153,7 +173,7 @@ export function tickSpanAttributes(input: { readonly env: SreEnv; readonly mode:
     outputTokens: sum((value) => value.outputTokens),
     neurons: record.neurons,
     ...(result.neuronsToday === undefined ? {} : { neuronsToday: result.neuronsToday }),
-    neuronsDailyCap: DAILY_NEURON_CAP,
+    neuronsDailyCap: input.neuronsDailyCap ?? DAILY_NEURON_CAP,
   };
 }
 
@@ -200,13 +220,15 @@ export async function sreAgentTick(env: SreAgentEnv, deps: SreAgentTickDeps): Pr
   const mode = flag.mode;
   // SRE82: the whole tick, model calls included, inside one span; its attributes once the result is known.
   return enterTickSpan(async (span) => {
-    const result = await tick(env, deps, mode);
-    for (const [key, value] of Object.entries(tickSpanAttributes({ env: sreEnv(env.PUBLICATION_ENVIRONMENT), mode, result }))) span.setAttribute(key, value);
+    const caps = sreAgentCaps(env);
+    const result = await tick(env, deps, mode, caps);
+    const attributes = tickSpanAttributes({ env: sreEnv(env.PUBLICATION_ENVIRONMENT), mode, result, neuronsDailyCap: caps.dailyNeuronCap });
+    for (const [key, value] of Object.entries(attributes)) span.setAttribute(key, value);
     return result;
   });
 }
 
-async function tick(env: SreAgentEnv, deps: SreAgentTickDeps, mode: Exclude<Mode, "off">): Promise<SreAgentTickResult> {
+async function tick(env: SreAgentEnv, deps: SreAgentTickDeps, mode: Exclude<Mode, "off">, caps: ReturnType<typeof sreAgentCaps>): Promise<SreAgentTickResult> {
   const runId = sreRunId(deps.now);
   const started = Date.now();
   const store = r2Store(env.OSS_KB_BUCKET);
@@ -227,6 +249,7 @@ async function tick(env: SreAgentEnv, deps: SreAgentTickDeps, mode: Exclude<Mode
       ...(model === undefined ? {} : { model }),
       modelId: env.SRE_AGENT_MODEL?.trim() ?? "",
       secrets: secretsOf(env),
+      ...caps,
       ...(deps.onStep === undefined ? {} : { onStep: deps.onStep }),
       // B42: the drill grader, only while the drill is on; its failure never fails the tick.
       ...(drillEnabled(env) ? { afterRun: (input) => gradeDrill(store, input, deps.now, runId) } : {}),

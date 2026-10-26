@@ -1,6 +1,6 @@
 # Spec 027: Read-only SRE triage agent
 
-Status: Partially implemented (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; [Amendment (1)](#amendment-1-triggered-diagnosis-2026-10-22) 2026-10-22: the agent diagnoses only after a deterministic rule fires; [Amendment (2)](#amendment-2-a-worker-job-on-the-ai-sdk-2026-10-22) 2026-10-22: an `sre-agent` job on the data publisher Worker, AI SDK with Workers AI, invariant playbooks; A2-1–A2-5 decided by owner 2026-10-22; [Dev fault-injection drill](#dev-fault-injection-drill-2026-10-22) added 2026-10-22; A2-9 slice 1 (the `packages/sre-agent` library core, L1/L2 tests) implemented; A2-9 slice 2 (the `sre-agent` cron job wired into the data publisher Worker, `/health.sreAgent`, the Spec 026 neuron term) implemented with `SRE_AGENT=off` on Dev and Prod; the drill (SRE67–SRE75, the `job.failures` playbook) implemented and Dev `SRE_AGENT=live` on Qwen3 30B without the `dry` week (owner decisions 2026-10-25), Prod `off`; see [Slice 1 notes](#slice-1-notes-2026-10-22), [Slice 2 notes](#slice-2-notes-2026-10-23) and [Drill slice notes](#drill-slice-notes-2026-10-25); the L3 eval (SRE59, SRE60) run three times 2026-10-25, with the owner's 4,096-token output cap and compact-JSON quote match from the second and third: the third run's scoreboard chooses Qwen3 30B (A2-1; 2 of 24 diagnoses pass), see [Eval notes](#eval-notes-2026-10-25); the evidence check also accepts JSON-pair quotes (SRE78, owner decision 2026-10-26, [JSON-pair quote match](#owner-decision-2026-10-26-json-pair-quote-match)); JSON evidence is cited by path, not copied text (SRE85–SRE89, owner decision 2026-10-26, [Path citation](#owner-decision-2026-10-26-cite-json-evidence-by-path); SRE79 withdrawn); Cloudflare Agent tracing on Dev (SRE80–SRE84, owner decision 2026-10-26, [Agent tracing on Dev](#agent-tracing-on-dev-owner-decision-2026-10-26)))
+Status: Partially implemented (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; [Amendment (1)](#amendment-1-triggered-diagnosis-2026-10-22) 2026-10-22: the agent diagnoses only after a deterministic rule fires; [Amendment (2)](#amendment-2-a-worker-job-on-the-ai-sdk-2026-10-22) 2026-10-22: an `sre-agent` job on the data publisher Worker, AI SDK with Workers AI, invariant playbooks; A2-1–A2-5 decided by owner 2026-10-22; [Dev fault-injection drill](#dev-fault-injection-drill-2026-10-22) added 2026-10-22; A2-9 slice 1 (the `packages/sre-agent` library core, L1/L2 tests) implemented; A2-9 slice 2 (the `sre-agent` cron job wired into the data publisher Worker, `/health.sreAgent`, the Spec 026 neuron term) implemented with `SRE_AGENT=off` on Dev and Prod; the drill (SRE67–SRE75, the `job.failures` playbook) implemented and Dev `SRE_AGENT=live` on Qwen3 30B without the `dry` week (owner decisions 2026-10-25), Prod `off`; see [Slice 1 notes](#slice-1-notes-2026-10-22), [Slice 2 notes](#slice-2-notes-2026-10-23) and [Drill slice notes](#drill-slice-notes-2026-10-25); the L3 eval (SRE59, SRE60) run three times 2026-10-25, with the owner's 4,096-token output cap and compact-JSON quote match from the second and third: the third run's scoreboard chooses Qwen3 30B (A2-1; 2 of 24 diagnoses pass), see [Eval notes](#eval-notes-2026-10-25); the evidence check also accepts JSON-pair quotes (SRE78, owner decision 2026-10-26, [JSON-pair quote match](#owner-decision-2026-10-26-json-pair-quote-match)); JSON evidence is cited by path, not copied text (SRE85–SRE89, owner decision 2026-10-26, [Path citation](#owner-decision-2026-10-26-cite-json-evidence-by-path); SRE79 withdrawn); Cloudflare Agent tracing on Dev (SRE80–SRE84, owner decision 2026-10-26, [Agent tracing on Dev](#agent-tracing-on-dev-owner-decision-2026-10-26)); the daily caps are Worker vars, Dev 10 diagnoses and 3,000 neurons a day, Prod unchanged (SRE90–SRE93, owner decision 2026-10-26, [Dev diagnosis quota](#dev-diagnosis-quota-owner-decision-2026-10-26)))
 Date: 2026-10-20 (amended 2026-10-22)
 Traceability: enforced
 Builds on: Spec 008 (R2 operations), Spec 010, 011, 018, 021 (freshness and stalls), Spec 014 (digest), Spec 019 amendment (7) (identity-links, kip-pages jobs), Spec 020 (feature map), Spec 026 and its dollar-budget amendment (cost guard), Spec 028 (observability signals, PR #108, not merged), Spec 029 (R2 retention)
@@ -1177,7 +1177,7 @@ line's "View trace" opens the same trace. Dev only.
   diagnoses instead) and
   `evidenceCheckFailureIds` (`<job>:<failure>`, comma-joined, at most 1,024
   characters), `inputTokens`, `outputTokens`, `neurons`, `neuronsToday` and
-  `neuronsDailyCap` (1,500). No secret and no bundle text in attributes;
+  `neuronsDailyCap` (the configured cap, 1,500 by default; SRE92). No secret and no bundle text in attributes;
   the replay carries content. Where `tracing` is missing (bun tests), the
   tick runs without a span.
 - **Cost and retention.** Agent traces follow Workers Observability
@@ -1189,6 +1189,41 @@ line's "View trace" opens the same trace. Dev only.
   truncate long messages, tool arguments and results in the replay. A
   trace is a debugging aid, not a lossless record: the R2 trajectory (B33)
   stays the record of a run.
+
+### Dev diagnosis quota (owner decision 2026-10-26)
+
+While the agent is being developed on Dev, three diagnoses a day run out
+after one drill and a real firing, and the 1,500-neuron cap stops a fourth
+worst-case diagnosis. The owner raised Dev's daily quota; Prod keeps B31's
+caps.
+
+- **Vars (SRE91).** The Worker reads `SRE_AGENT_MAX_DIAGNOSES` (diagnoses
+  per UTC day) and `SRE_AGENT_DAILY_NEURONS` (neurons per UTC day) in
+  `sreAgentCaps` (`apps/data-publisher-worker/src/sre-agent/run.ts`). A
+  value counts only when, trimmed, it is a positive decimal integer of
+  digits only and a safe integer. Unset, blank, `0`, negative, fractional,
+  exponent, hex, `NaN`, `Infinity` or trailing text gives that var's
+  default: 3 and 1,500. An invalid value never removes a cap.
+- **Library (SRE90).** `runTick` takes `maxDiagnosesPerDay` and
+  `dailyNeuronCap` in its deps and passes them to `planDiagnoses` and
+  `NeuronLedger`; absent, they are `MAX_DIAGNOSES_PER_DAY` (3) and
+  `DAILY_NEURON_CAP` (1,500). `BudgetExceededError` names the cap in force.
+  Steps per diagnosis (12) and output tokens per step (4,096) are unchanged.
+- **Wiring (SRE92).** `sreAgentTick` passes the parsed caps to `runTick`,
+  and the `sre-agent tick` span's `neuronsDailyCap` is the cap in force.
+  `POST /sre-agent/run` ticks under the same caps.
+- **Config (SRE93).** `wrangler.development.jsonc` sets
+  `SRE_AGENT_MAX_DIAGNOSES` `"10"` and `SRE_AGENT_DAILY_NEURONS` `"3000"`.
+  `wrangler.production.jsonc` sets neither.
+- **Cost.** The neuron cap still bounds the day: at most 3,000 neurons, or
+  about 5 worst-case Qwen3 30B diagnoses (576 each, A2-6). That is $0.033 a
+  day ($1.00 a month) if every neuron were billed. With Spec 026's other
+  in-app caps (digest 5,000, embedding 2,500, queries 1,000) Dev's four caps
+  sum to 11,500, so a day where all four reach their caps passes the
+  10,000 free neurons by at most 1,500: $0.0165 a day, $0.50 a month. Dev's
+  cost guard is `monitor`, so it records that day and refuses nothing.
+  R2 operations grow with diagnoses: +1 Class A per diagnosis (trajectory)
+  and +1 per model call (reservation), within Spec 026's Class A budget.
 
 ### Drill slice notes (2026-10-25)
 
@@ -1781,6 +1816,7 @@ L1, deterministic tick (`tick.cases.ts`):
 | SRE41 | neuron cap boundary | today.neurons 1,000 and next reservation 500 / 501 | step runs / diagnosis stops inconclusive budget |
 | SRE41 | crash after reservation | state written with reservation, model call throws, process ends | next tick counts the reservation in today.neurons |
 | SRE41 | new UTC day | state.json of 2026-10-21 at the caps (3 diagnoses, 1,500 neurons); a tick on 2026-10-22 with a new firing | today resets to 2026-10-22; the firing is diagnosed |
+| SRE90 | configured caps | firings of 5 jobs with no caps passed / maxDiagnosesPerDay 4; today.neurons 1,499 with dailyNeuronCap 3,000; a ledger at 2,500 of 3,000 reserving 500 / 501 | 3 diagnosed / 4 diagnosed, 1 notDiagnosed daily-cap; the diagnosis calls the model (no budget stop); fits / BudgetExceededError naming 3000, today unchanged |
 | SRE42 | no new firing | 0 firings / 1 new firing | run record healthy, modelCalls 0 / 1 diagnosis |
 | SRE42 | group by job | job.missed and publication.freshness firing for publication | 1 bundle, 1 diagnosis, 2 fingerprints recorded |
 | SRE43 | bundle per job | a firing for each job of A2 | exactly A2's /health fields, firing entries, costGuard, Q-run and Q-history (Q-window for cost guard, job.failures), playbook and its runbook sections, ids E1..En |
@@ -1829,6 +1865,9 @@ the wiring slice, run by `apps/data-publisher-worker/test/sre-agent-worker.test.
 | SRE82 | tick span attributes | an ok live tick result with two diagnoses (one evidence check failing twice) and neurons today 412.5 / a failed tick result | {runId, env, mode, status ok, firings, diagnosed, verdicts joined, evidenceCheckFailures 2, evidenceCheckFailureIds <job>:<failure> joined, inputTokens, outputTokens, neurons, neuronsToday, neuronsDailyCap 1500} / {runId, env, mode, status failed, reason}; scalar values only; failure ids capped at 1,024 characters |
 | SRE82 | tick span | an off, a dry and a live sre-agent tick (live with a secret in the bundle's source) | no span / one ended sre-agent tick span each, with the builder's attributes for that result; no attribute holds the secret or bundle text |
 | SRE83 | tracing config | wrangler.development.jsonc / wrangler.production.jsonc | observability {enabled: true, head_sampling_rate: 1, traces {enabled: true}} / observability {enabled: true, head_sampling_rate: 1} with no traces |
+| SRE91 | quota vars | SRE_AGENT_MAX_DIAGNOSES and SRE_AGENT_DAILY_NEURONS unset / "10" and "3000" (also with spaces) / each of "", "0", "-1", "2.5", "1e3", "0x10", "10abc", "abc", "NaN", "Infinity", a number past 2^53 | {maxDiagnosesPerDay 3, dailyNeuronCap 1500} / {10, 3000} / the default for that var only, never unlimited |
+| SRE92 | quota wiring | state.json today at 3 diagnoses and 1,499 neurons, a live tick with a publication firing: vars unset / SRE_AGENT_MAX_DIAGNOSES 10 and SRE_AGENT_DAILY_NEURONS 3000 / "0" and "Infinity" | 0 diagnosed, every firing notDiagnosed daily-cap, 0 model calls, span neuronsDailyCap 1500 / 1 diagnosed, 1 model call, span neuronsDailyCap 3000 / as unset |
+| SRE93 | quota config | wrangler.development.jsonc / wrangler.production.jsonc | SRE_AGENT_MAX_DIAGNOSES "10", SRE_AGENT_DAILY_NEURONS "3000" (owner decision 2026-10-26) / neither var |
 <!-- test-plan:end -->
 
 L2, AI SDK loop with `MockLanguageModelV4` (`loop.cases.ts`):
@@ -1978,6 +2017,12 @@ by Amendment (1); SRE34 replaced it.
 ### Path citation: Failure
 - SRE86: (owner decision 2026-10-26) a path entry is `unverified` with `path-not-in-item:<id>` and recorded with `quote: null` for a missing key, an index past the end, an index on an object or a key on an array, a key through a scalar, an inherited key (`constructor`, `__proto__`, `toString`), invalid syntax (empty, `a..b`, `.a`, `a.`, `a[`, `[01]`, `[-1]`, an unclosed `["…`, a space), a non-JSON item or an item the cap truncated; an unknown id stays `unknown-evidence-id:<id>` → L1 test with case rows.
 - SRE87: (owner decision 2026-10-26) an entry with both `path` and `quote`, or with neither (absent or `null`), is `unverified` with `evidence-needs-path-or-quote:<id>`, and the output schema accepts it so the record is kept; an empty string beside the other field is read as absent; a quote-only entry keeps SRE44 and SRE78 → L1 test with case rows.
+
+### Dev diagnosis quota: Budget
+- SRE90: (owner decision 2026-10-26) `runTick` with no caps in its deps diagnoses 3 of 5 jobs' firings; with `maxDiagnosesPerDay: 4` it diagnoses 4 and records the fifth `notDiagnosed: "daily-cap"`; with `dailyNeuronCap: 3000` and `today.neurons` 1,499 the diagnosis calls the model; a ledger of cap 3,000 at 2,500 neurons accepts a 500-neuron reservation and refuses a 501-neuron one with a `BudgetExceededError` naming 3000, leaving `today.neurons` unchanged → L1 test with case rows.
+- SRE91: (owner decision 2026-10-26) `sreAgentCaps` maps unset vars to `{maxDiagnosesPerDay: 3, dailyNeuronCap: 1500}` and `"10"`, `"3000"` (with or without surrounding spaces) to `{10, 3000}`; each of `""`, `" "`, `"0"`, `"-1"`, `"2.5"`, `"1e3"`, `"0x10"`, `"10abc"`, `"abc"`, `"NaN"`, `"Infinity"` and an integer past 2^53 gives the default for that var only → wiring test with case rows.
+- SRE92: (owner decision 2026-10-26) with `state.json` at 3 diagnoses and 1,499 neurons today, a live Worker tick with a firing diagnoses nothing (every firing `daily-cap`, 0 model calls, span `neuronsDailyCap` 1500) when the vars are unset or `"0"` and `"Infinity"`, and diagnoses it with one model call (span `neuronsDailyCap` 3000) with `SRE_AGENT_MAX_DIAGNOSES` `"10"` and `SRE_AGENT_DAILY_NEURONS` `"3000"` → wiring test with case rows.
+- SRE93: (owner decision 2026-10-26) `wrangler.development.jsonc` has `SRE_AGENT_MAX_DIAGNOSES` `"10"` and `SRE_AGENT_DAILY_NEURONS` `"3000"`; `wrangler.production.jsonc` has neither → config test with case rows.
 
 ### Dev fault-injection drill: Behavior
 - SRE67: with `SRE_DRILL=on` on `development`, `POST /sre-agent/drill` with the manual token and `{job: "kip-pages", kind: "throw"}` answers 201 `{drillId, job, kind, runs: 2, armedAt, expiresAt}` and writes the drill record and the pointer under `internal/sre/v1/dev/drills/`; it answers 401 without the token, 400 for another job or kind, 409 while a drill is armed or fired-but-ungraded, 404 with `SRE_DRILL` unset, and 409 for a kind whose rule's playbook does not list the expected cause; `DELETE` removes the pointer and marks the record `cancelled` → worker test with the `sre-drill-worker.cases.ts` rows.

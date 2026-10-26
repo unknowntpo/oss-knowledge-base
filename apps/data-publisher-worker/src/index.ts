@@ -158,6 +158,9 @@ interface Env {
   readonly SRE_AGENT_MODEL?: string;
   /** Spec 027 G100: the dedicated AI Gateway for the agent's model calls; Dev `osskb-sre-dev`, Prod unset. */
   readonly SRE_AGENT_GATEWAY?: string;
+  /** Spec 027 SRE91: the agent's daily caps, positive integers; Dev `10` and `3000`, Prod unset (3 and 1,500). */
+  readonly SRE_AGENT_MAX_DIAGNOSES?: string;
+  readonly SRE_AGENT_DAILY_NEURONS?: string;
   /**
    * Spec 027 drill (B38): `on` only in `wrangler.development.jsonc`. With `PUBLICATION_ENVIRONMENT`
    * `development` it enables `POST`/`DELETE /sre-agent/drill` and the fault in the `kip-pages` job.

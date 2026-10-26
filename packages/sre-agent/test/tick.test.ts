@@ -246,6 +246,32 @@ const scenarios: Record<string, () => Promise<void>> = {
     expect(run.runRecord!.diagnoses[0]).toMatchObject({ verdict: "inconclusive", reason: "budget" });
   },
 
+  async "configured caps"() {
+    // Owner decision 2026-10-26: the Worker passes the caps; none passed keeps 3 and 1,500.
+    const jobs = ["publication", "digest", "identity-links", "kip-pages", "retention"];
+    const firings = () => devHealth({ rules: jobs.map((job) => missed(job)) });
+    const byDefault = await runTick(deps({ health: firings() }));
+    expect(byDefault.runRecord!.diagnosed).toBe(3);
+    const four = await runTick(deps({ maxDiagnosesPerDay: 4, health: firings() }));
+    expect(four.runRecord!.diagnoses.map((value) => value.job)).toEqual(jobs.slice(0, 4));
+    expect(four.runRecord!.notDiagnosed).toEqual([{ fingerprint: "dev:retention:job.missed:2026-10-21T04:07:00.000Z", reason: "daily-cap" }]);
+
+    // 1,499 neurons stops the diagnosis at the default cap (SRE41); a 3,000 cap lets it call the model.
+    const full: SreState = { ...emptyState("2026-10-22"), today: { date: "2026-10-22", diagnoses: 0, neurons: 1499 } };
+    const model = scripted(answer(VALID_OUTPUT));
+    const raised = await runTick(deps({ dailyNeuronCap: 3000, store: memoryStore({ [STATE]: JSON.stringify(full) }), model, health: devHealth({ rules: [missed()] }) }));
+    expect(model.doGenerateCalls).toHaveLength(1);
+    expect(raised.runRecord!.diagnoses[0]!.reason).not.toBe("budget");
+
+    const at = (neurons: number) => new NeuronLedger({ ...emptyState("2026-10-22"), today: { date: "2026-10-22", diagnoses: 0, neurons } }, async () => {}, 3000);
+    const fits = at(2500);
+    await fits.reserve(500);
+    expect(fits.state.today.neurons).toBe(3000);
+    const over = at(2500);
+    await expect(over.reserve(501)).rejects.toThrow("would pass 3000");
+    expect(over.state.today.neurons).toBe(2500);
+  },
+
   async "crash after reservation"() {
     const store = memoryStore();
     let called!: () => void;
