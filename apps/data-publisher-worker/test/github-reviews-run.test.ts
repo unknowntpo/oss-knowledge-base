@@ -959,7 +959,7 @@ describe("Spec 022 flag in the Worker", () => {
     const off = environment(undefined);
     const health = await worker.fetch(new Request("https://data.example/health"), off.env as never);
     const text = await health.text();
-    expect(text).toBe(JSON.stringify({ environment: "development", running: false, digest: { running: false }, reviewQueue: null, searchEmbedding: JSON.parse(text).searchEmbedding, searchQuery: JSON.parse(text).searchQuery, sreAgent: { mode: "off" } }));
+    expect(text).toBe(JSON.stringify({ environment: "development", running: false, digest: { running: false }, reviewQueue: null, searchEmbedding: JSON.parse(text).searchEmbedding, searchQuery: JSON.parse(text).searchQuery, sreAgent: { mode: "off" }, components: JSON.parse(text).components }));
     expect(text).not.toContain("githubReviews");
     // Spec 015 Q59: without REVIEW_QUEUE_CRON the review queue's last-run.json is not read either.
     expect(off.operations).toEqual([]);

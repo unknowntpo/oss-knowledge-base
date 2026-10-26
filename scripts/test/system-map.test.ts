@@ -6,7 +6,8 @@ import { join } from "node:path";
 import { Window } from "happy-dom";
 import { readRelease, readRepository } from "../docs-site/build";
 import { auditSite, buildDocsSite, DocsError, LOCALES, type DocsInput, type Flow, type FlowNode } from "../docs-site/generate";
-import { badgeOf, cellIsOff, cellMode, deployedRows, HEALTH_COMPONENT_IDS, HEALTH_URLS, nodeStages, type MapData } from "../docs-site/system-map";
+import { badgeOf, cellIsOff, cellMode, deployedRows, HEALTH_COMPONENT_IDS, HEALTH_URLS, healthIds, nodeStages, type MapData } from "../docs-site/system-map";
+import { COMPONENT_IDS } from "../../apps/data-publisher-worker/src/signals/profile";
 import { testPlanRows } from "./system-map.cases";
 
 /** Spec 033 slice 1: gates, badges, and the system map page built from repository data. */
@@ -135,8 +136,25 @@ describe("Spec 033 system map, slice 1", () => {
   });
 
   test("SM15: every /health component id the Worker can emit is bound by at least one system.json node", () => {
-    const bound = new Set(nodesOf(system(repo())).map((node) => node.health).filter((id) => id !== undefined));
+    const bound = new Set(nodesOf(system(repo())).flatMap((node) => healthIds(node)));
+    // The list is the Worker's own (apps/data-publisher-worker/src/signals/profile.ts), not a copy.
+    expect(HEALTH_COMPONENT_IDS).toBe(COMPONENT_IDS);
+    expect(HEALTH_COMPONENT_IDS.length).toBe(12);
     expect(HEALTH_COMPONENT_IDS.filter((id) => !bound.has(id))).toEqual([]);
+  });
+
+  test("SM15: a health binding naming an id the Worker cannot emit, an empty list or a repeated id fails the build; a list of ids is accepted", () => {
+    const withBinding = (health: unknown) => {
+      const input = repo();
+      const flow = clone(system(input)) as unknown as { columns: { cards: { nodes: Record<string, unknown>[] }[] }[] };
+      flow.columns.flatMap((column) => column.cards.flatMap((card) => card.nodes)).find((candidate) => candidate.id === "j-people")!.health = health;
+      input.flows = { ...input.flows, system: flow };
+      return problemsOf(() => buildDocsSite(input)).filter((problem) => problem.includes("j-people") && problem.includes("health must be"));
+    };
+    for (const bad of ["kip-page", ["kip-pages", "nope"], [], ["kip-pages", "kip-pages"], 7]) expect([bad, withBinding(bad).length]).toEqual([bad, 1]);
+    // Positive control: one id and a list of distinct ids both build.
+    expect(withBinding("kip-pages")).toEqual([]);
+    expect(withBinding(["identity-links", "kip-pages", "identity-backfill"])).toEqual([]);
   });
 
   test("SM12: a gate naming a row that does not exist fails the docs build, naming the node and the row", () => {
@@ -174,10 +192,10 @@ describe("Spec 033 system map, slice 1", () => {
     expect(map.calls).toEqual([HEALTH_URLS.dev, HEALTH_URLS.prod]);
   });
 
-  test("SM5: a failed kip-pages component marks both nodes bound to it failed with the reason, and their group's summary failed", async () => {
+  test("SM5: a failed kip-pages component marks every node bound to it failed with the reason, and their group's summary failed", async () => {
     const html = site().get("en/system-map.html")!;
-    const bound = dataOf(html).nodes.filter((node) => node.health === "kip-pages" && node.stage.dev.live);
-    expect(bound.map((node) => node.id).sort()).toEqual(["j-people", "src-asf"]);
+    const bound = dataOf(html).nodes.filter((node) => node.health.includes("kip-pages") && node.stage.dev.live);
+    expect(bound.map((node) => node.id).sort()).toEqual(["cron-people", "j-people", "src-asf"]);
     const reason = "cwiki.apache.org answered 503";
     const map = await mount(html, () => json({ components: [
       { id: "publication", status: "ok", at: "2026-10-25T22:19:42.397Z" },
@@ -188,13 +206,32 @@ describe("Spec 033 system map, slice 1", () => {
       expect(map.doc.querySelector(`.smap-card[data-card="${node.card}"]`)!.getAttribute("data-status")).toBe("failed");
       await map.click(`.smap-node[data-id="${node.id}"]`);
       expect(map.doc.querySelector('.smap-detail [data-field="status"]')!.textContent).toContain("failed");
-      expect(map.doc.querySelector('.smap-detail [data-field="reason"]')!.textContent).toBe(reason);
+      // A node bound to several components names the one the reason is from.
+      expect(map.doc.querySelector('.smap-detail [data-field="reason"]')!.textContent).toBe(node.health.length > 1 ? `kip-pages: ${reason}` : reason);
     }
     // An ok binding stays ok; the header counts the failures.
     expect(map.doc.querySelector('.smap-node[data-id="p-commit"]')!.getAttribute("data-status")).toBe("ok");
-    expect(map.doc.querySelector('.smap-overall [data-count="failed"]')!.textContent).toBe("2");
+    expect(map.doc.querySelector('.smap-overall [data-count="failed"]')!.textContent).toBe("3");
     await map.click('[data-view="list"]');
-    expect(map.ids('.smap-list tr.row[data-status="failed"]').sort()).toEqual(["j-people", "src-asf"]);
+    expect(map.ids('.smap-list tr.row[data-status="failed"]').sort()).toEqual(["cron-people", "j-people", "src-asf"]);
+  });
+
+  test("SM5: a node bound to several components (j-people) shows the worst of them; a missing one counts as unknown", async () => {
+    const html = site().get("en/system-map.html")!;
+    expect(dataOf(html).nodes.find((node) => node.id === "j-people")!.health).toEqual(["identity-links", "kip-pages", "identity-backfill"]);
+    const at = "2026-10-26T02:17:53.919Z";
+    const statusWith = async (components: readonly Record<string, string>[]) => {
+      const map = await mount(html, () => json({ components }));
+      await map.click('.smap-node[data-id="j-people"]');
+      return [map.doc.querySelector('.smap-node[data-id="j-people"]')!.getAttribute("data-status"), map.doc.querySelector('.smap-detail [data-field="reason"]')?.textContent ?? null];
+    };
+    const ok = (id: string) => ({ id, status: "ok", at });
+    expect(await statusWith([ok("identity-links"), ok("kip-pages"), ok("identity-backfill")])).toEqual(["ok", null]);
+    expect(await statusWith([ok("identity-links"), ok("kip-pages"), { id: "identity-backfill", status: "warn", at, reason: "late: no run for 25.0 h" }]))
+      .toEqual(["warn", "identity-backfill: late: no run for 25.0 h"]);
+    expect(await statusWith([{ id: "identity-links", status: "stale", at, reason: "no run for 28.0 h" }, ok("kip-pages"), { id: "identity-backfill", status: "warn", at, reason: "late" }]))
+      .toEqual(["stale", "identity-links: no run for 28.0 h"]);
+    expect(await statusWith([ok("identity-links"), ok("kip-pages")])).toEqual(["unknown", null]);
   });
 
   test("SM6: a manual node carries the manual chip in both views, counts in the header's manual total, and its detail shows the risk note", async () => {

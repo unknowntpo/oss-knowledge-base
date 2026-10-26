@@ -36,6 +36,7 @@ import { PUBLICATION_RUN_KEY, publicationRunMarker, signalingPipelineState, sour
 import { signalsFor } from "./signals/env";
 import { runLog, type AnalyticsSql, type RunContext, type SignalsSink } from "./signals/recorder";
 import { signalsHealth } from "./signals/rules";
+import { healthComponents } from "./signals/components";
 import { drillRoute, kipPagesJob } from "./sre-agent/drill";
 import { sreAgentCron, sreAgentHealth, sreAgentNeuronsToday, sreAgentTick } from "./sre-agent/run";
 import { requestRetention, RETENTION_PENDING_KEY, RETENTION_REPORT_KEY, retentionAlarm, retentionHealth } from "./retention/job";
@@ -344,6 +345,13 @@ export function digestModel(env: Pick<Env, "DIGEST_MODEL" | "DIGEST_GATEWAY_ID" 
   return env.DIGEST_MODEL === "workers-ai" && env.AI !== undefined && gateway !== "" ? new WorkersAiModel(env.AI, gateway) : undefined;
 }
 
+/** Spec 033 Behavior 8: `GET /health` only, so the docs site's system map can read it from its own origin. */
+function withHealthCors(response: Response): Response {
+  const served = new Response(response.body, response);
+  served.headers.set("access-control-allow-origin", "*");
+  return served;
+}
+
 /** Spec 014 D95: every JSON body the Worker and its objects serve goes through the error redaction. */
 function json(body: unknown, init?: ResponseInit): Response {
   return Response.json(redactRecord(body), init);
@@ -526,9 +534,12 @@ export default {
     const digest = env.DIGEST_RUN.get(env.DIGEST_RUN.idFromName(DIGEST_OBJECT_NAME));
     if (request.method === "GET" && url.pathname === "/health") {
       const health = await servedHealth(env);
-      if (health instanceof Response) return health;
+      if (health instanceof Response) return withHealthCors(health);
       // Spec 027 B25, B33: the sre-agent job's own field, after every other job's (no read while off).
-      return json({ ...health, sreAgent: await sreAgentHealth(env, new Date()) });
+      const body = { ...health, sreAgent: await sreAgentHealth(env, new Date()) };
+      // Spec 033 Behavior 7: judged from the body just built (no read of its own, SM20); not in the sre-agent tick's body.
+      const components = healthComponents(body, Date.now(), { digest: env.DIGEST_ENABLED === "true", embedding: searchEmbeddingObject(env) !== undefined });
+      return withHealthCors(json({ ...body, components }));
     }
     if (request.method === "POST" && url.pathname === "/search-embedding/run") {
       if (!authorized(request, env)) return new Response("Unauthorized", { status: 401 });
