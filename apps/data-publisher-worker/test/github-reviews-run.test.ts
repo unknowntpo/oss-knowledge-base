@@ -961,7 +961,8 @@ describe("Spec 022 flag in the Worker", () => {
     const text = await health.text();
     expect(text).toBe(JSON.stringify({ environment: "development", running: false, digest: { running: false }, reviewQueue: null, searchEmbedding: JSON.parse(text).searchEmbedding, searchQuery: JSON.parse(text).searchQuery, sreAgent: { mode: "off" }, components: JSON.parse(text).components }));
     expect(text).not.toContain("githubReviews");
-    expect(off.operations).toEqual(["get public/review-queue/v1/apache-kafka/last-run.json"]);
+    // Spec 015 Q59: without REVIEW_QUEUE_CRON the review queue's last-run.json is not read either.
+    expect(off.operations).toEqual([]);
 
     const unauthorized = await worker.fetch(new Request("https://data.example/github-reviews/run", { method: "POST" }), off.env as never);
     expect(unauthorized.status).toBe(401);

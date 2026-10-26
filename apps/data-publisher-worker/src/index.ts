@@ -54,7 +54,11 @@ interface Env {
   readonly DIGEST_RUN: DurableObjectNamespace;
   /** Spec 014: the digest's cron expression (Dev `47 22 * * *`, D86). Unset on Prod, so no cron starts a digest there. */
   readonly DIGEST_CRON?: string;
-  /** Spec 015: the review queue's cron expression. Unset until a Dev dry run is measured. */
+  /**
+   * Spec 015: the review queue's cron expression. Unset until a Dev dry run is measured. Unset or
+   * blank: no cron runs the job and `/health` reads no `last-run.json` (`reviewQueue` null, Q59);
+   * `POST /review-queue/run` still runs it.
+   */
   readonly REVIEW_QUEUE_CRON?: string;
   /** "true" enables the digest (Dev); unset on Prod until its gateway exists. */
   readonly DIGEST_ENABLED?: string;
@@ -355,7 +359,8 @@ function json(body: unknown, init?: ResponseInit): Response {
 
 /**
  * `/health`: the publisher's body, unchanged, plus `digest` (null when the digest object fails),
- * `reviewQueue`, the review queue's `last-run.json` (null before the first run or on a read error),
+ * `reviewQueue`, the review queue's `last-run.json` (null before the first run, on a read error, or
+ * while `REVIEW_QUEUE_CRON` is unset),
  * `searchEmbedding` (null when the embedding object does not answer), and `searchQuery` (the query
  * gate; null when it does not answer), and, only while `GITHUB_REVIEWS` is set, `githubReviews` (the
  * review ingestion's `last-run.json`; null before the first run or on a read error) and
@@ -380,6 +385,11 @@ export function mergeHealth(publisher: unknown, digest: unknown, reviewQueue: un
     // Spec 026 CG11: present only while `COST_GUARD` is set.
     ...(costGuard === undefined ? {} : { costGuard }),
   });
+}
+
+/** Spec 015 Q59: the review queue is scheduled when `REVIEW_QUEUE_CRON` is not blank (as `cronTarget` reads it). */
+export function reviewQueueScheduled(env: Pick<Env, "REVIEW_QUEUE_CRON">): boolean {
+  return (env.REVIEW_QUEUE_CRON?.trim() ?? "") !== "";
 }
 
 function reviewQueueRun(env: Env, dryRun: boolean) {
@@ -658,9 +668,13 @@ async function servedHealth(env: Env): Promise<Response | Record<string, unknown
   const digestHealth = await digest.fetch("https://digest.internal/status")
     .then((response) => (response.ok ? response.json() : null))
     .catch(() => null);
-  const reviewQueue = await env.OSS_KB_BUCKET.get(reviewQueueLastRunKey(KAFKA_REVIEW_PROFILE.projectId))
-    .then((object) => (object === null ? null : object.json()))
-    .catch(() => null);
+  // Spec 015 Q59: no R2 read while no cron runs the job; a missing key fails the `r2_get` span and
+  // marks a healthy trace as an error. The field stays, null, so readers keep one shape.
+  const reviewQueue = reviewQueueScheduled(env)
+    ? await env.OSS_KB_BUCKET.get(reviewQueueLastRunKey(KAFKA_REVIEW_PROFILE.projectId))
+      .then((object) => (object === null ? null : object.json()))
+      .catch(() => null)
+    : null;
   const embedding = searchEmbeddingObject(env);
   const searchEmbedding = embedding === undefined
     ? unboundSearchEmbeddingHealth(env.SEARCH_EMBEDDING, new Date())
