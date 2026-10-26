@@ -71,6 +71,28 @@ export interface DiagnoseInput {
   readonly ledger: NeuronLedger;
   readonly tools: ToolDeps;
   readonly toolTimeoutMs?: number;
+  /** SRE80: the tick's `runId`, carried as the call's conversation id. */
+  readonly runId?: string;
+  /**
+   * SRE80, SRE81: the `generateText` that runs the loop; the AI SDK's own by default. The Worker
+   * injects the traced one (`agents/observability/ai`), so this package never imports `cloudflare:workers`.
+   */
+  readonly generateText?: typeof generateText;
+}
+
+/** SRE80: the agent name Cloudflare Agent tracing shows (`gen_ai.agent.name`). */
+export const SRE_AGENT_NAME = "sre-agent";
+
+/**
+ * SRE80: agent identity through AI SDK v7's native telemetry fields. `functionId` names the agent,
+ * `agentId` and `conversationId` identify the environment's agent and the run, and `runId`, `env`
+ * and `job` are marked for the trace. Only these non-secret scalars.
+ */
+export function agentTelemetry(input: { readonly env: Env; readonly job: string; readonly runId: string }) {
+  return {
+    telemetry: { functionId: SRE_AGENT_NAME, includeRuntimeContext: { runId: true, env: true, job: true } },
+    runtimeContext: { agentId: `${SRE_AGENT_NAME}-${input.env}`, conversationId: input.runId, runId: input.runId, env: input.env, job: input.job },
+  };
 }
 
 export const SYSTEM_PROMPT = [
@@ -199,8 +221,10 @@ export async function diagnoseBundle(input: DiagnoseInput): Promise<Diagnosis> {
   const prompt = renderPrompt(bundle);
   let output: DiagnosisOutput | null = null;
   let reason: FailureReason | null = null;
+  const generate = input.generateText ?? generateText;
   try {
-    const result = await generateText({
+    const result = await generate({
+      ...(input.runId === undefined ? {} : agentTelemetry({ env: input.tools.env, job: bundle.job, runId: input.runId })),
       model,
       system: SYSTEM_PROMPT,
       prompt,

@@ -23,7 +23,8 @@ describe("Workers Logs", () => {
   test("Dev and Prod Worker configurations enable observability at 100% head sampling", async () => {
     for (const name of ["wrangler.development.jsonc", "wrangler.production.jsonc"]) {
       const config = JSON.parse(await read(name)) as { observability?: unknown };
-      expect(config.observability).toEqual({ enabled: true, head_sampling_rate: 1 });
+      // Dev also enables traces (Spec 027 SRE83, pinned in sre-agent-worker.test.ts).
+      expect(config.observability).toMatchObject({ enabled: true, head_sampling_rate: 1 });
     }
   });
 
