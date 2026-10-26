@@ -11,7 +11,7 @@
  */
 import { escapeHtml, parseMarkdown, renderInline, type Block, type ListItem } from "../feature-map-site/markdown";
 import { mountSystemMap } from "./system-map-client";
-import { badgeOf, deployedRows, HEALTH_URLS, MAP_CSS, mapFieldProblems, nodeStages, renderSystemMap, type DeployedRow, type Deployments, type Release, type RunsOn } from "./system-map";
+import { badgeOf, deployedRows, HEALTH_URLS, MAP_CSS, mapFieldProblems, nodeStages, renderSystemMap, type DeployedRows, type Deployments, type Release, type RunsOn } from "./system-map";
 
 export const LOCALES = ["en", "zh-Hant"] as const;
 export type Locale = (typeof LOCALES)[number];
@@ -230,7 +230,7 @@ export interface DocsInput {
 interface Context {
   readonly input: DocsInput;
   readonly flows: ReadonlyMap<string, Flow>;
-  readonly rows: ReadonlyMap<string, DeployedRow>;
+  readonly rows: DeployedRows;
 }
 
 interface Rendered {
@@ -690,13 +690,17 @@ export function auditSite(files: ReadonlyMap<string, string>): string[] {
     // Spec 033 Behavior 15: an executable inline script may name only the two publisher /health URLs,
     // which are then not a Worker hostname advertised; anywhere else they still are.
     const allowed = Object.values(HEALTH_URLS);
+    // A drift check on the generated output, not a security boundary: it catches a page script that
+    // starts calling something new, in a script body or an inline event handler.
+    const urls = (code: string) => [...code.matchAll(/(?:https?:)?\/\/[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+[^\s"'`)\\<>]*/gu)].map((match) => match[0]).filter((url) => !allowed.includes(url));
     const advertised = content.replace(/<script\b([^>]*)>([\s\S]*?)<\/script>/gu, (whole, attributes: string, body: string) => {
       if (/\ssrc=/u.test(attributes) || /\stype="application\/json"/u.test(attributes)) return whole;
-      for (const match of body.matchAll(/https?:\/\/[^\s"'`)\\<>]+/gu)) {
-        if (!allowed.includes(match[0])) problems.push(`${path}: an inline script names a URL other than the publisher /health: ${match[0]}`);
-      }
+      for (const url of urls(body)) problems.push(`${path}: an inline script names a URL other than the publisher /health: ${url}`);
       return allowed.reduce((text, url) => text.replaceAll(url, ""), whole);
     });
+    for (const match of content.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gu, "").matchAll(/<[a-z][^>]*?\son[a-z]+="([^"]*)"/giu)) {
+      for (const url of urls(match[1]!.replaceAll("&#39;", "'").replaceAll("&quot;", '"'))) problems.push(`${path}: an inline event handler names a URL other than the publisher /health: ${url}`);
+    }
     for (const [what, pattern] of UNADVERTISED) {
       const match = pattern.exec(advertised);
       if (match !== null) problems.push(`${path}: advertises ${what}: ${match[0]}`);

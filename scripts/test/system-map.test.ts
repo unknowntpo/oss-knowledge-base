@@ -66,7 +66,7 @@ const dataOf = (html: string) => JSON.parse(/<script type="application\/json" cl
 describe("Spec 033 system map, slice 1", () => {
   test.each(testPlanRows)("$id: Deployed configuration cell $cell → live $live, mode $mode", (row) => {
     expect(cellIsOff(row.cell)).toBe(!row.live);
-    const stages = nodeStages({ id: "probe", gate: ["X"] }, new Map([["X", { label: "`X`", names: ["X"], dev: row.cell, prod: "unset" }]]));
+    const stages = nodeStages({ id: "probe", gate: ["X"] }, new Map([["X", [{ label: "`X`", names: ["X"], dev: row.cell, prod: "unset" }]]]));
     expect(stages.dev.live).toBe(row.live);
     expect(stages.dev.mode ?? "—").toBe(row.mode);
     expect(cellMode(row.cell) ?? "—").toBe(row.mode);
@@ -77,8 +77,8 @@ describe("Spec 033 system map, slice 1", () => {
     const rows = deployedRows(input.featureMap);
     const node = nodesOf(system(input)).find((candidate) => candidate.id === "sre-diag")!;
     expect(node.gate).toEqual(["SRE_AGENT"]);
-    expect(rows.get("SRE_AGENT")!.dev.startsWith("`live`")).toBe(true);
-    expect(rows.get("SRE_AGENT")!.prod.startsWith("`off`")).toBe(true);
+    expect(rows.get("SRE_AGENT")![0]!.dev.startsWith("`live`")).toBe(true);
+    expect(rows.get("SRE_AGENT")![0]!.prod.startsWith("`off`")).toBe(true);
     expect(nodeStages(node, rows)).toEqual({ dev: { live: true, mode: null }, prod: { live: false, mode: null } });
     const files = site(input);
     expect(badgeInHtml(files.get("en/overview.html")!, "sre-diag")).toEqual(["dev", "Dev only"]);
@@ -94,7 +94,7 @@ describe("Spec 033 system map, slice 1", () => {
     expect(badgeOf(node, deployedRows(none.featureMap))?.kind).toBe("off");
   });
 
-  test("SM3: no system.json node keeps a dev or off hand tag, every badge follows its gates, and j-rq and rq-trig are off everywhere", () => {
+  test("SM3: no system.json node keeps a dev or off hand tag, every badge follows its gates, rq-trig is off everywhere, and j-rq is live everywhere and manual", () => {
     const input = repo();
     const rows = deployedRows(input.featureMap);
     const nodes = nodesOf(system(input));
@@ -105,11 +105,33 @@ describe("Spec 033 system map, slice 1", () => {
       const expected = stages.dev.live && !stages.prod.live ? ["dev", "Dev only"] : !stages.dev.live && !stages.prod.live ? ["off", "Off"] : node.tag === undefined ? undefined : [node.tag.kind, node.tag.text.en];
       expect([node.id, badgeInHtml(html, node.id)]).toEqual([node.id, expected]);
     }
-    for (const id of ["j-rq", "rq-trig"]) {
-      const node = nodes.find((candidate) => candidate.id === id)!;
-      expect([id, nodeStages(node, rows).dev.live, nodeStages(node, rows).prod.live]).toEqual([id, false, false]);
-      expect(badgeInHtml(html, id)?.[0]).toBe("off");
-    }
+    const trigger = nodes.find((candidate) => candidate.id === "rq-trig")!;
+    expect([nodeStages(trigger, rows).dev.live, nodeStages(trigger, rows).prod.live]).toEqual([false, false]);
+    expect(badgeInHtml(html, "rq-trig")?.[0]).toBe("off");
+    // Owner decision 2026-10-26: the review-queue job runs on a token-authenticated request in both environments.
+    const job = nodes.find((candidate) => candidate.id === "j-rq")!;
+    expect([job.gate, job.runsOn, nodeStages(job, rows).dev.live, nodeStages(job, rows).prod.live]).toEqual([undefined, "manual", true, true]);
+    expect(badgeInHtml(html, "j-rq")).toBeUndefined();
+    // No workflow runs verify:health; a person runs it.
+    expect(nodes.find((candidate) => candidate.id === "verify")!.runsOn).toBe("manual");
+  });
+
+  test("SM3: a gated node with a hand tag of any kind, kind on included, fails the build", () => {
+    const input = repo();
+    const flow = clone(system(input)) as unknown as { columns: { cards: { nodes: Record<string, unknown>[] }[] }[] };
+    const node = flow.columns.flatMap((column) => column.cards.flatMap((card) => card.nodes)).find((candidate) => candidate.id === "sre-diag")!;
+    node.tag = { kind: "on", text: { en: "On", "zh-Hant": "開" } };
+    input.flows = { ...input.flows, system: flow };
+    expect(problemsOf(() => buildDocsSite(input)).some((problem) => problem.includes("node sre-diag") && problem.includes("a gated node has no hand tag"))).toBe(true);
+  });
+
+  test("SM12: a gate name found in more than one Deployed configuration row fails the build, naming the rows", () => {
+    const input = repo();
+    const flow = clone(system(input)) as unknown as { columns: { cards: { nodes: Record<string, unknown>[] }[] }[] };
+    flow.columns[0]!.cards[0]!.nodes[0]!.gate = ["SEARCH_QUERY_GATE"];
+    input.flows = { ...input.flows, system: flow };
+    const problems = problemsOf(() => buildDocsSite(input));
+    expect(problems.some((problem) => problem.includes("node cron-pub") && problem.includes("SEARCH_QUERY_GATE") && problem.includes("more than one row") && problem.includes("Pages binding"))).toBe(true);
   });
 
   test("SM15: every /health component id the Worker can emit is bound by at least one system.json node", () => {
@@ -178,10 +200,10 @@ describe("Spec 033 system map, slice 1", () => {
   test("SM6: a manual node carries the manual chip in both views, counts in the header's manual total, and its detail shows the risk note", async () => {
     const html = site().get("en/system-map.html")!;
     const manual = dataOf(html).nodes.filter((node) => node.runsOn === "manual" && node.stage.dev.live).map((node) => node.id).sort();
-    expect(manual).toEqual(["manual", "sre-drill"]);
+    expect(manual).toEqual(["j-rq", "manual", "sre-drill", "verify"]);
     const map = await mount(html, () => json({ components: [] }));
     expect(map.ids('.smap-node:has([data-chip="manual"])').sort()).toEqual(manual);
-    expect(map.doc.querySelector('.smap-overall [data-count="manual"]')!.textContent).toBe("2");
+    expect(map.doc.querySelector('.smap-overall [data-count="manual"]')!.textContent).toBe("4");
     await map.click('.smap-node[data-id="sre-drill"]');
     expect(map.doc.querySelector('.smap-detail [data-risk="manual"]')).not.toBeNull();
     await map.click('.smap-node[data-id="p-commit"]');
@@ -190,7 +212,7 @@ describe("Spec 033 system map, slice 1", () => {
     expect(map.ids('.smap-list tr.row:has([data-chip="manual"])').sort()).toEqual(manual);
     expect(map.ids('.smap-list tr.grp[data-group="manual"] ~ tr.row').length).toBeGreaterThan(0);
     await map.click('[data-env="prod"]');
-    expect(map.doc.querySelector('.smap-overall [data-count="manual"]')!.textContent).toBe("1");
+    expect(map.doc.querySelector('.smap-overall [data-count="manual"]')!.textContent).toBe("3");
   });
 
   test("SM7: links point to the Cloudflare dashboard in the ?to=/:account/ form for the Worker, gateway or bucket, and no link contains an account id", () => {
@@ -202,7 +224,8 @@ describe("Spec 033 system map, slice 1", () => {
       expect(urls("p-commit", "prod")).toEqual(["https://dash.cloudflare.com/?to=/:account/workers/services/view/oss-knowledge-base-data-prod/production/observability/logs"]);
       expect(urls("sre-diag", "dev")).toContain("https://dash.cloudflare.com/?to=/:account/ai/ai-gateway/gateways/osskb-sre-dev/logs");
       expect(urls("r2-feed", "prod")).toContain("https://dash.cloudflare.com/?to=/:account/r2/default/buckets/oss-knowledge-base-prod");
-      expect(urls("verify", "dev")).toEqual(["https://github.com/unknowntpo/oss-knowledge-base/actions"]);
+      expect(urls("src-ci", "dev")).toEqual(["https://github.com/unknowntpo/oss-knowledge-base/actions"]);
+      expect(urls("verify", "dev")).toEqual([]);
       for (const link of data.nodes.flatMap((candidate) => [...candidate.links.dev, ...candidate.links.prod])) {
         expect(link.url).toMatch(/^https:\/\/(dash\.cloudflare\.com\/\?to=\/:account\/|github\.com\/unknowntpo\/oss-knowledge-base\/)/u);
         expect(link.url).not.toMatch(/[0-9a-f]{32}/u);
@@ -325,6 +348,13 @@ describe("Spec 033 system map, slice 1", () => {
     expect(page).toContain(HEALTH_URLS.prod);
     files.set("en/system-map.html", page.replace("</body>", '<script>fetch("https://example.com/collect")</script></body>'));
     expect(auditSite(files)).toContain("en/system-map.html: an inline script names a URL other than the publisher /health: https://example.com/collect");
+    // A protocol-relative URL in a script, and a URL in an inline event handler, are reported too.
+    files.set("en/system-map.html", page.replace("</body>", '<script>fetch("//example.com/beacon")</script></body>'));
+    expect(auditSite(files)).toContain("en/system-map.html: an inline script names a URL other than the publisher /health: //example.com/beacon");
+    files.set("en/system-map.html", page.replace("</main>", `<button onclick="fetch('https://example.com/x')">x</button><img alt="" src="" onerror="fetch('//example.com/y')"></main>`));
+    const handlers = auditSite(files);
+    expect(handlers).toContain("en/system-map.html: an inline event handler names a URL other than the publisher /health: https://example.com/x");
+    expect(handlers).toContain("en/system-map.html: an inline event handler names a URL other than the publisher /health: //example.com/y");
     // The two /health URLs outside a script are still a Worker hostname advertised (Spec 025 DOC7).
     files.set("en/system-map.html", page.replace("</main>", `<p>${HEALTH_URLS.dev}</p></main>`));
     expect(auditSite(files).some((problem) => problem.includes("advertises a Worker hostname"))).toBe(true);

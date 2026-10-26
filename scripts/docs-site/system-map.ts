@@ -43,9 +43,12 @@ export interface DeployedRow {
   readonly prod: string;
 }
 
+/** The rows each backticked first-column name appears in; a name in more than one row is ambiguous as a gate. */
+export type DeployedRows = ReadonlyMap<string, readonly DeployedRow[]>;
+
 /** Rows of the Deployed configuration table, keyed by every backticked name of their first column. */
-export function deployedRows(featureMap: string): ReadonlyMap<string, DeployedRow> {
-  const result = new Map<string, DeployedRow>();
+export function deployedRows(featureMap: string): DeployedRows {
+  const result = new Map<string, DeployedRow[]>();
   const table = tableOf(sectionNamed(parseMarkdown(featureMap), "Deployed configuration"));
   if (table === null) return result;
   const column = (name: string) => table.headers.findIndex((header) => plainText(header).trim().toLowerCase() === name);
@@ -55,7 +58,7 @@ export function deployedRows(featureMap: string): ReadonlyMap<string, DeployedRo
     const label = cells[0] ?? "";
     const names = [...label.matchAll(/`([^`]+)`/gu)].map((match) => match[1]!);
     const row = { label, names, dev: cells[dev] ?? "", prod: cells[prod] ?? "" };
-    for (const name of names) if (!result.has(name)) result.set(name, row);
+    for (const name of names) result.set(name, [...(result.get(name) ?? []), row]);
   }
   return result;
 }
@@ -80,13 +83,14 @@ export interface Stage {
 export type Stages = Readonly<Record<Env, Stage>>;
 
 /** Behavior 2: live in an environment when every gate row's cell is on; ungated nodes are live in both. Unknown rows are reported. */
-export function nodeStages(node: Pick<FlowNode, "id" | "gate">, rows: ReadonlyMap<string, DeployedRow>, problem: (message: string) => void = () => undefined): Stages {
+export function nodeStages(node: Pick<FlowNode, "id" | "gate">, rows: DeployedRows, problem: (message: string) => void = () => undefined): Stages {
   const gate = node.gate ?? [];
   const found: DeployedRow[] = [];
   for (const name of gate) {
-    const row = rows.get(name);
-    if (row === undefined) problem(`node ${node.id}: gate ${JSON.stringify(name)} names no row of the Deployed configuration in docs/feature-map.md`);
-    else found.push(row);
+    const matches = rows.get(name) ?? [];
+    if (matches.length === 0) problem(`node ${node.id}: gate ${JSON.stringify(name)} names no row of the Deployed configuration in docs/feature-map.md`);
+    else if (matches.length > 1) problem(`node ${node.id}: gate ${JSON.stringify(name)} is named by more than one row of the Deployed configuration: ${matches.map((row) => plainText(row.label).trim()).join(" | ")}`);
+    found.push(...matches.slice(0, 1));
   }
   const stage = (env: Env): Stage => {
     const cells = found.map((row) => row[env]);
@@ -101,9 +105,9 @@ const BADGES: Readonly<Record<"dev" | "off", Text>> = {
   off: { en: "Off", "zh-Hant": "未啟用" },
 };
 
-/** Behavior 3: the badge of a node in the system flow. A hand tag stays (kind `on`, and every tag of flows without gates). */
-export function badgeOf(node: FlowNode, rows: ReadonlyMap<string, DeployedRow>): FlowNode["tag"] {
-  if (node.tag !== undefined || node.gate === undefined) return node.tag;
+/** Behavior 3: the badge of a node in the system flow: from its gates, or its hand tag when it has no gate. */
+export function badgeOf(node: FlowNode, rows: DeployedRows): FlowNode["tag"] {
+  if (node.gate === undefined) return node.tag;
   const stages = nodeStages(node, rows);
   if (stages.dev.live && !stages.prod.live) return { kind: "dev", text: BADGES.dev };
   if (!stages.dev.live && !stages.prod.live) return { kind: "off", text: BADGES.off };
@@ -115,7 +119,7 @@ export function mapFieldProblems(node: Record<string, unknown>, at: (message: st
   if (node.gate !== undefined) {
     if (!Array.isArray(node.gate) || node.gate.length === 0 || node.gate.some((name) => typeof name !== "string" || name.trim() === "")) at("gate must be a non-empty array of Deployed configuration row names");
     const tag = node.tag as { kind?: unknown } | undefined;
-    if (tag !== undefined && (tag.kind === "dev" || tag.kind === "off")) at(`a gated node has no hand tag of kind ${String(tag.kind)} (Spec 033 Behavior 1)`);
+    if (tag !== undefined) at(`a gated node has no hand tag (found kind ${String(tag.kind)}); its badge comes from the gate (Spec 033 Behavior 1, 3)`);
   }
   if (node.runsOn !== undefined && !(RUNS_ON as readonly unknown[]).includes(node.runsOn)) at(`runsOn must be one of ${RUNS_ON.join(", ")}`);
   if (node.health !== undefined && !(HEALTH_COMPONENT_IDS as readonly unknown[]).includes(node.health)) at(`health must be one of ${HEALTH_COMPONENT_IDS.join(", ")}`);
@@ -175,7 +179,7 @@ export interface MapContext {
   readonly locale: Locale;
   readonly repository: string;
   readonly commit: { readonly sha: string; readonly date: string };
-  readonly rows: ReadonlyMap<string, DeployedRow>;
+  readonly rows: DeployedRows;
   readonly deployments: Deployments;
   readonly release: Release | null;
   /** Inline Markdown → HTML with the page's link rules. */
@@ -288,12 +292,10 @@ export function systemMapChanges(flow: Flow, context: MapContext): MapChange[] {
   if (release.featureMap !== null) {
     const old = deployedRows(release.featureMap);
     const label = (row: DeployedRow) => row.names[0] ?? plainText(row.label).trim();
-    const seen = new Set<DeployedRow>();
     const envName: Record<Env, string> = { dev: "Dev", prod: "Prod" };
-    for (const row of context.rows.values()) {
-      if (seen.has(row)) continue;
-      seen.add(row);
-      const was = row.names.map((name) => old.get(name)).find((found) => found !== undefined);
+    for (const row of new Set([...context.rows.values()].flat())) {
+      const candidates = row.names.flatMap((name) => old.get(name) ?? []);
+      const was = candidates.find((candidate) => candidate.label === row.label) ?? candidates[0];
       if (was === undefined) {
         changes.push({ op: "flag", html: `${code(label(row))} ${zh ? "新增" : "added"}: Dev ${code(shortCell(row.dev))} · Prod ${code(shortCell(row.prod))}` });
         continue;
