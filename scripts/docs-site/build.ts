@@ -3,8 +3,9 @@
  *
  *   build.ts [--out dist/docs-site] [--repo-dir .] [--repository unknowntpo/oss-knowledge-base]
  *
- * Reads docs/site/<locale>/*.md, docs/site/flows/*.json and apps/web/styles.css from the repository,
- * stamps the HEAD commit, writes the site to --out (replacing it), audits the output and exits 1
+ * Reads docs/site/<locale>/*.md, docs/site/flows/*.json, apps/web/styles.css, docs/feature-map.md and the
+ * wrangler configs from the repository, stamps the HEAD commit and the newest `v*` tag reachable from it
+ * (Spec 033: the system map's changes), writes the site to --out (replacing it), audits the output and exits 1
  * on any problem. Prints one line per file and the total size (the Budget item reads it).
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -12,6 +13,7 @@ import { execFileSync } from "node:child_process";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { auditSite, buildDocsSite, DocsError, LOCALES, type DocsInput, type Locale } from "./generate";
+import type { Deployment, Deployments, Env, Release } from "./system-map";
 
 function args(argv: readonly string[]): Map<string, string> {
   const out = new Map<string, string>();
@@ -65,6 +67,75 @@ export function readRepository(repoDir: string, repository: string): DocsInput {
       return statSync(full).isDirectory() ? "dir" : "file";
     },
     values: { specs: String(specs.length), enforcedSpecs: String(enforced.length) },
+    featureMap: read("docs/feature-map.md"),
+    deployments: readDeployments(repoDir),
+    release: readRelease(repoDir),
+  };
+}
+
+const CONFIGS: Readonly<Record<Env, readonly string[]>> = {
+  dev: ["apps/data-publisher-worker/wrangler.development.jsonc", "apps/web/wrangler.development.jsonc"],
+  prod: ["apps/data-publisher-worker/wrangler.production.jsonc", "apps/web/wrangler.production.jsonc"],
+};
+
+/** Spec 033: the publisher Worker, its bucket, and the AI Gateways and Vectorize indexes each environment deploys. */
+export function readDeployments(repoDir: string): Deployments {
+  const one = (env: Env): Deployment => {
+    const configs = CONFIGS[env].map((path) => JSON.parse(readFileSync(join(repoDir, path), "utf8")) as {
+      readonly name: string;
+      readonly vars?: Readonly<Record<string, string>>;
+      readonly r2_buckets?: readonly { readonly bucket_name: string }[];
+      readonly vectorize?: readonly { readonly index_name: string }[];
+    });
+    const publisher = configs[0]!;
+    return {
+      worker: publisher.name,
+      bucket: publisher.r2_buckets?.[0]?.bucket_name ?? "",
+      gateways: [...new Set(configs.flatMap((config) => Object.entries(config.vars ?? {}).filter(([name, value]) => /GATEWAY/u.test(name) && value.trim() !== "").map(([, value]) => value)))].sort(),
+      vectorIndexes: configs.flatMap((config) => (config.vectorize ?? []).map((index) => index.index_name)),
+    };
+  };
+  return { dev: one("dev"), prod: one("prod") };
+}
+
+/**
+ * Spec 033 Behavior 14: the newest `v*` tag reachable from HEAD, the commits and merged pull requests
+ * since it, and the two files the changes compare. Null when no tag is reachable (a fork, a shallow clone).
+ */
+export function readRelease(repoDir: string): Release | null {
+  const git = (...command: string[]) => execFileSync("git", ["-C", repoDir, ...command], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  let tag: string;
+  try {
+    tag = git("describe", "--tags", "--abbrev=0", "--match", "v*", "HEAD").trim();
+  } catch {
+    return null;
+  }
+  const show = (path: string) => {
+    try {
+      return git("show", `${tag}:${path}`);
+    } catch {
+      return null;
+    }
+  };
+  const flowText = show("docs/site/flows/system.json");
+  let flow: unknown = null;
+  try {
+    flow = flowText === null ? null : JSON.parse(flowText);
+  } catch {
+    flow = null;
+  }
+  const pulls = new Map<number, string>();
+  for (const subject of git("log", "--format=%s", `${tag}..HEAD`).split("\n")) {
+    const match = /^(.*?)\s*\(#(\d+)\)$/u.exec(subject.trim());
+    if (match !== null && !pulls.has(Number(match[2]))) pulls.set(Number(match[2]), match[1]!);
+  }
+  return {
+    tag,
+    date: new Date(git("log", "-1", "--format=%cI", tag).trim()).toISOString(),
+    distance: Number(git("rev-list", "--count", `${tag}..HEAD`).trim()),
+    pulls: [...pulls].map(([number, subject]) => ({ number, subject })),
+    flow,
+    featureMap: show("docs/feature-map.md"),
   };
 }
 

@@ -1,6 +1,6 @@
 # Spec 033: System map
 
-Status: Draft (owner decisions 2026-10-26: decisions 1–5 below; every untagged item is `[pending]` until its slice lands)
+Status: Accepted (slice 1 implemented: SM1–SM8, SM12–SM17, SM23; SM19 measured; slice 2 items SM9–SM11, SM18, SM20–SM22 pending; owner decisions 2026-10-26: decisions 1–5 below)
 Date: 2026-10-26
 Traceability: enforced
 Builds on: Spec 025 (docs site, the system flow `docs/site/flows/system.json`, DOC20), Spec 020 (feature-map site, the Deployed configuration parser), Spec 018 (`/health`), Spec 028 (signals)
@@ -90,6 +90,7 @@ Input rows (abridged):
 | `cost` Cost guard | `COST_GUARD` | `monitor` | `unset: off` |
 | `j-ret` R2 retention | `R2_RETENTION` | `dry-run` | `unset` |
 | `rq-trig` Review queue trigger | `REVIEW_QUEUE_CRON` | `unset` | `unset` |
+| `j-rq` Review queue job | none; `runsOn: manual` (owner decision 2026-10-26: `POST /review-queue/run` with a token, both environments) | — | — |
 | `j-people` identity links, KIP authors | `IDENTITY_LINKS`, … | on | unset |
 
 `/health` (Dev) → `components` (abridged):
@@ -103,14 +104,17 @@ Input rows (abridged):
 ]
 ```
 
-Expected page:
+Expected page. Counts and the changes list are as built from the slice 1
+branch after the verifier's round-2 fixes (parent commit `ea2809b`,
+2026-10-26), against tag `v0.3.2`; the statuses assume the `/health` above
+(slice 2):
 
 | View | Shows |
 | --- | --- |
-| Prod, data flow | 26 live components; no SRE agent group, no Workers AI group; `rq-trig` and `j-rq` absent; title "26 live components (36 not live, not shown)" |
-| Dev, data flow | 60 components; `j-people` red (failed, reason from `kip-pages`); `cost` amber (warn); `sre-drill` and `manual` carry "manual ⚠" |
-| Dev, list | groups Failed (1+), Warn, Manual risk (2), OK, No status |
-| Changes | "+ SRE agent group (Spec 027, #151)", "`SRE_AGENT` Dev off → live; Prod off", "`R2_RETENTION` Dev unset → dry-run", PR list from `v0.3.2..main` |
+| Prod, data flow | 26 live components; no SRE agent group, no Workers AI group; `rq-trig` absent, `j-rq` present with "manual ⚠"; title "26 live components (36 not live, not shown)" |
+| Dev, data flow | 60 components (`rq-trig` and `access` not live); `j-people` red (failed, reason from `kip-pages`); `cost` yellow (warn); `manual`, `j-rq`, `verify` and `sre-drill` carry "manual ⚠" |
+| Dev, list | groups Failed (2: `j-people`, `src-asf`), Warn, Manual (4), OK, No status |
+| Changes | nodes added since `v0.3.2` per group, among them "New group SRE agent: Collect firings, Diagnose, Record the run, Fault drill" and "New group Workers AI"; new manual steps Manual triggers, Review queue, Fault drill; "`SRE_AGENT` Dev off → live", "`PROJECT_TREND` added", "`Cloudflare Access` added" (`R2_RETENTION` was already `dry-run` at `v0.3.2`, so it is not listed); PRs #141–#158 from `v0.3.2..HEAD` |
 | Any component, Cloudflare link | Worker logs of `oss-knowledge-base-data-dev` (or `-prod`) in the Cloudflare dashboard |
 
 ## Behavior
@@ -118,13 +122,18 @@ Expected page:
 1. **Gate.** A `system.json` node that is not live everywhere names the
    Deployed configuration row(s) that gate it: `"gate": ["SRE_AGENT"]`. A row
    is named by any of its backticked names in the first column. The hand
-   `tag` of kind `dev` or `off` is removed. Needed by: decision 1.
+   `tag` of kind `dev` or `off` is removed, and a gated node carries no hand
+   `tag` of any kind (its badge comes from the gate); an ungated node may keep
+   a tag of kind `on`. Needed by: decision 1.
 2. **Live rule.** A gated node is live in an environment when every named row's
    cell for that environment is on. A cell is off when its text, without
    backticks, starts with `unset`, `none`, `off` or `no `; anything else is on
    (`dry-run` and `monitor` are on, shown with the mode as a chip). An
-   ungated node is live in both. A gate that names no existing row fails the
-   docs build. Needed by: decision 1. Reuses `parseMarkdown` and `plainText`
+   ungated node is live in both. A gate that names no existing row, or a name
+   that more than one row carries (such as `SEARCH_QUERY_GATE`, a Worker and a
+   Pages row), fails the docs build naming the rows. A row shared by several
+   names (`DIGEST_ENABLED`, `DIGEST_MODEL`, `DIGEST_GATEWAY_ID`) is decided by
+   the row's leading value: one cell per environment for all its names. Needed by: decision 1. Reuses `parseMarkdown` and `plainText`
    (`scripts/feature-map-site/markdown.ts`) and the section and table helpers
    of `scripts/feature-map-site/generate.ts` (`sectionNamed`, `tableOf`,
    exported for this); `offOnProd()` stays spec-keyed.
@@ -195,8 +204,11 @@ Expected page:
     risk item; and the merged pull requests in `<tag>..HEAD` (subjects ending
     in `(#N)`). Needed by: decision 3.
 15. **Only `/health` at view time.** The page's script fetches only the two
-    publisher `/health` URLs. `auditSite` checks inline scripts for any other
-    URL (today it blanks inline script bodies before scanning). Needed by:
+    publisher `/health` URLs. `auditSite` checks inline scripts and inline
+    event-handler attributes (`on*="…"`) for any other URL, absolute or
+    protocol-relative (`//host/…`). This is a drift check on generated output,
+    not a security boundary: it catches a page script that starts calling
+    something new, not a determined author hiding a URL. Needed by:
     the docs site stays static apart from this read.
 16. **Determinism.** The build output depends only on the commit and its tags
     (no clock, no network), like the rest of the docs site (DOC11).
@@ -204,27 +216,46 @@ Expected page:
 ## Acceptance
 
 ### Behavior
-- SM1: [pending] Given a `system.json` node gated by `SRE_AGENT` and a Deployed configuration whose `SRE_AGENT` row reads `live` on Dev and `` `off` `` on Prod → build → the node is live on Dev only and the system flow shows "Dev only". Evidence: unit test.
-- SM2: [pending] Given cells `unset`, `unset: off`, `none`, `off`, `` `off`; no cron ``, `no cron` → each is off; `dry-run`, `monitor`, `true`, `bge-m3@1` → each is on. Evidence: unit test (case file).
-- SM3: [pending] Given the repository → no `system.json` node has a `tag` of kind `dev` or `off` (kind `on` stays), and every gated node's badge equals rule 2's result; `j-rq` and `rq-trig` are off in both environments. Evidence: unit test on the repository (fails before the change: `j-rq` shown on Prod).
-- SM4: [pending] Given the Prod environment selected → the data flow and the list contain exactly the nodes live on Prod; the SRE agent group and its links are absent; the title counts the hidden nodes. Evidence: unit test on the rendered page (DOM).
-- SM5: [pending] Given a `components` entry `{ id: "kip-pages", status: "failed", reason }` and two nodes bound to `kip-pages` → both nodes show failed with the reason, and their group's summary is failed. Evidence: unit test.
-- SM6: [pending] Given a node with `runsOn: "manual"` → it carries the manual chip in both views, counts in the header's manual total, and its detail shows the risk note. Evidence: unit test.
-- SM7: [pending] Given a node of each kind → its links point to `https://dash.cloudflare.com/?to=/:account/…` for its Worker, gateway or bucket, and no link contains an account id. Evidence: unit test.
-- SM8: [pending] Given tag `v0.3.2` and the build commit → the changes list names the nodes added since the tag, each Deployed configuration cell change as old → new, and the merged PRs `(#N)` in `v0.3.2..HEAD`. Evidence: unit test on a fixture repository.
+- SM1: Given a `system.json` node gated by `SRE_AGENT` and a Deployed configuration whose `SRE_AGENT` row reads `live` on Dev and `` `off` `` on Prod → build → the node is live on Dev only and the system flow shows "Dev only". Evidence: unit test.
+- SM2: Given cells `unset`, `unset: off`, `none`, `off`, `` `off`; no cron ``, `no cron` → each is off; `dry-run`, `monitor`, `true`, `bge-m3@1` → each is on. Evidence: unit test (case file).
+
+<!-- test-plan:start scripts/test/system-map.cases.ts -->
+| id | cell | live | mode | why |
+| --- | --- | --- | --- | --- |
+| SM2 | unset | no | — | no value: off |
+| SM2 | unset: off | no | — | the default spelled out |
+| SM2 | none | no | — | a binding that is not bound |
+| SM2 | off | no | — | the flag's off value |
+| SM2 | `off`; no cron | no | — | backticks do not count (Prod `SRE_AGENT`) |
+| SM2 | no cron | no | — | "no " starts an off cell |
+| SM2 | unset; no cron (Prod unchanged until its own PR, O2) | no | — | explanations after the value do not matter |
+| SM2 | `dry-run`; `17 10 * * *` with its cron entry | yes | dry-run | a dry run is live, shown with its mode |
+| SM2 | `monitor` (Spec 026 rollout step 1) | yes | monitor | monitor is live, shown with its mode |
+| SM2 | `true` (Spec 016 slice 3 enable, 2026-10-13) | yes | — | a value is on |
+| SM2 | `bge-m3@1` (Spec 016 H52, 2026-10-12) | yes | — | a revision is on |
+| SM2 | bound (2026-10-13) | yes | — | a bound binding is on |
+| SM2 | Workers AI | yes | — | any other text is on |
+<!-- test-plan:end -->
+
+- SM3: Given the repository → no `system.json` node has a `tag` of kind `dev` or `off`, no gated node has a hand `tag` of any kind (the build fails), and every gated node's badge equals rule 2's result; `rq-trig` is off in both environments, and `j-rq` is live in both and `runsOn: manual` (owner decision 2026-10-26). Evidence: unit test on the repository (before the change hand tags decided both badges; now `REVIEW_QUEUE_CRON` decides `rq-trig`).
+- SM4: Given the Prod environment selected → the data flow and the list contain exactly the nodes live on Prod; the SRE agent group and its links are absent; the title counts the hidden nodes. Evidence: unit test on the rendered page (DOM).
+- SM5: Given a `components` entry `{ id: "kip-pages", status: "failed", reason }` and two nodes bound to `kip-pages` → both nodes show failed with the reason, and their group's summary is failed. Evidence: unit test.
+- SM6: Given a node with `runsOn: "manual"` → it carries the manual chip in both views, counts in the header's manual total, and its detail shows the risk note. Evidence: unit test.
+- SM7: Given a node of each kind → its links point to `https://dash.cloudflare.com/?to=/:account/…` for its Worker, gateway or bucket, and no link contains an account id. Evidence: unit test.
+- SM8: Given tag `v0.3.2` and the build commit → the changes list names the nodes added since the tag, each Deployed configuration cell change as old → new, and the merged PRs `(#N)` in `v0.3.2..HEAD`. Evidence: unit test on a fixture repository.
 - SM9: [pending] Given Dev state with `kipPages.lastRun.status: "failed"` → `/health` `components` has `{ id: "kip-pages", status: "failed" }` with the run's error as reason. Evidence: Worker unit test.
 - SM10: [pending] Given every job's state → `components` has one entry per job that is on, with the status rules of Behavior 7, and none for a job that is off. Evidence: Worker unit test (case file).
 - SM11: [pending] Given `GET /health` → the response has `access-control-allow-origin: *`; `POST /run` and other routes do not. Evidence: Worker unit test.
 
-- SM23: [pending] Given a built page whose inline script names a URL other than the two `/health` URLs → `auditSite` reports it. Evidence: unit test.
+- SM23: Given a built page whose inline script or inline event handler names a URL other than the two `/health` URLs, absolute or protocol-relative → `auditSite` reports it. Evidence: unit test.
 
 ### Failure and retry
-- SM12: [pending] Given a gate naming a row that does not exist → the docs build fails naming the node and the row. Evidence: unit test.
-- SM13: [pending] Given `/health` unreachable, a non-2xx answer, or invalid JSON → the map still renders from build data, every node shows unknown, and the header says `/health` could not be read and when it was tried. Evidence: unit test (DOM, stubbed fetch).
-- SM14: [pending] Given `/health` that has no `components` (a Worker deployed before rule 7, today's Prod) → nodes show n/a and the header says the Worker does not report components; nothing is guessed from other fields. Evidence: unit test.
-- SM15: [pending] Given a `components` id that no node binds → it is listed in the detail area as "not on the map" so drift is visible, and the test of SM3 fails for ids that the repository's Worker can emit but no node binds. Evidence: unit test.
-- SM16: [pending] Given a build with no `v*` tag reachable (a fork, a shallow clone) → the changes section says no release tag was found; the build does not fail. Evidence: unit test.
-- SM17: [pending] Given a fetch for Dev still pending when the reader switches to Prod → only the Prod answer is applied. Evidence: unit test (stubbed fetch).
+- SM12: Given a gate naming a row that does not exist, or a name that more than one row carries → the docs build fails naming the node and the row(s). Evidence: unit test.
+- SM13: Given `/health` unreachable, a non-2xx answer, or invalid JSON → the map still renders from build data, every node shows unknown, and the header says `/health` could not be read and when it was tried. Evidence: unit test (DOM, stubbed fetch).
+- SM14: Given `/health` that has no `components` (a Worker deployed before rule 7, today's Prod) → nodes show n/a and the header says the Worker does not report components; nothing is guessed from other fields. Evidence: unit test.
+- SM15: Given a `components` id that no node binds → it is listed in the detail area as "not on the map" so drift is visible, and the test of SM3 fails for ids that the repository's Worker can emit but no node binds. Evidence: unit test.
+- SM16: Given a build with no `v*` tag reachable (a fork, a shallow clone) → the changes section says no release tag was found; the build does not fail. Evidence: unit test.
+- SM17: Given a fetch for Dev still pending when the reader switches to Prod → only the Prod answer is applied. Evidence: unit test (stubbed fetch).
 - SM18: [pending] Given a job whose state is missing or unreadable → its entry is `unknown` with a reason, and `/health` still answers 200. Evidence: Worker unit test.
 
 ### Budget

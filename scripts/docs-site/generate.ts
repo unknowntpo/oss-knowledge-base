@@ -4,15 +4,18 @@
  * tokens (apps/web/styles.css) into static files; `auditSite` checks the output (links, external
  * resources, secrets, locale parity). It reads no clock, no environment and no network.
  *
- * Markdown is the subset scripts/feature-map-site/markdown.ts parses, plus three conventions:
+ * Markdown is the subset scripts/feature-map-site/markdown.ts parses, plus four conventions:
  * `## Title {#id}` (a locale-independent anchor, required on level-2 headings), a paragraph that is
- * only `{{flow:<id>}}` (an interactive flow), and `{{value:<name>}}` (a value derived from the repository).
+ * only `{{flow:<id>}}` (an interactive flow), a paragraph that is only `{{map:<id>}}` (the Spec 033
+ * system map of a flow), and `{{value:<name>}}` (a value derived from the repository).
  */
 import { escapeHtml, parseMarkdown, renderInline, type Block, type ListItem } from "../feature-map-site/markdown";
+import { mountSystemMap } from "./system-map-client";
+import { badgeOf, deployedRows, HEALTH_URLS, MAP_CSS, mapFieldProblems, nodeStages, renderSystemMap, type DeployedRows, type Deployments, type Release, type RunsOn } from "./system-map";
 
 export const LOCALES = ["en", "zh-Hant"] as const;
 export type Locale = (typeof LOCALES)[number];
-export const PAGES = ["index", "overview", "search", "digest", "process"] as const;
+export const PAGES = ["index", "overview", "system-map", "search", "digest", "process"] as const;
 export type PageId = (typeof PAGES)[number];
 export type Text = Readonly<Record<Locale, string>>;
 
@@ -30,7 +33,7 @@ export class DocsError extends Error {
 const UI = {
   en: {
     site: "OSS Knowledge Base · Docs",
-    nav: { index: "Home", overview: "System", search: "Search", digest: "Digest", process: "Process & cost" },
+    nav: { index: "Home", overview: "System", "system-map": "System map", search: "Search", digest: "Digest", process: "Process & cost" },
     self: "EN",
     other: "中文",
     otherTitle: "閱讀繁體中文版",
@@ -48,7 +51,7 @@ const UI = {
   },
   "zh-Hant": {
     site: "OSS Knowledge Base · 文件",
-    nav: { index: "首頁", overview: "系統", search: "搜尋", digest: "週報", process: "流程與成本" },
+    nav: { index: "首頁", overview: "系統", "system-map": "系統地圖", search: "搜尋", digest: "週報", process: "流程與成本" },
     self: "中文",
     other: "EN",
     otherTitle: "Read in English",
@@ -77,6 +80,12 @@ export interface FlowNode {
   readonly title: Text;
   readonly meta?: Text;
   readonly tag?: { readonly kind: "on" | "off" | "dev"; readonly text: Text };
+  /** Spec 033: the Deployed configuration rows that gate the node (Behavior 1); the badge follows them. */
+  readonly gate?: readonly string[];
+  /** Spec 033 Behavior 4: where it runs when not on Cloudflare. */
+  readonly runsOn?: Exclude<RunsOn, "cloudflare">;
+  /** Spec 033 Behavior 5: the `/health` `components` id it shows. */
+  readonly health?: string;
   readonly lead: Text;
   readonly facts?: readonly { readonly k: Text; readonly v: Text }[];
   readonly sources: readonly string[];
@@ -154,6 +163,7 @@ export function flowProblems(name: string, raw: unknown): string[] {
           if (!isObject(node.tag) || !["on", "off", "dev"].includes(node.tag.kind as string)) at(`${where}.tag`, "kind must be on, off or dev");
           else text(node.tag.text, `${where}.tag.text`);
         }
+        mapFieldProblems(node, (message) => at(where, message));
         for (const [f, fact] of (Array.isArray(node.facts) ? node.facts : []).entries()) {
           if (!isObject(fact)) at(`${where}.facts[${f}]`, "must be an object");
           else {
@@ -208,6 +218,19 @@ export interface DocsInput {
   /** Whether a repository path exists: "file", "dir", or null. */
   readonly exists: (path: string) => "file" | "dir" | null;
   readonly values: Readonly<Record<string, string>>;
+  /** docs/feature-map.md, whose Deployed configuration gates flow nodes (Spec 033). */
+  readonly featureMap: string;
+  /** The publisher's Worker, bucket, AI Gateways and Vectorize indexes per environment (the wrangler configs). */
+  readonly deployments: Deployments;
+  /** The newest `v*` tag reachable from the commit, read from git by build.ts; null when there is none. */
+  readonly release: Release | null;
+}
+
+/** What rendering a page needs besides its Markdown. */
+interface Context {
+  readonly input: DocsInput;
+  readonly flows: ReadonlyMap<string, Flow>;
+  readonly rows: DeployedRows;
 }
 
 interface Rendered {
@@ -236,14 +259,19 @@ export function buildDocsSite(input: DocsInput): Map<string, string> {
     problems.push(...found);
     if (found.length === 0) flows.set(name, raw as Flow);
   }
+  const rows = deployedRows(input.featureMap);
+  for (const [name, flow] of flows) {
+    for (const node of flow.columns.flatMap((column) => column.cards.flatMap((card) => card.nodes))) nodeStages(node, rows, (problem) => problems.push(`flow ${name}: ${problem}`));
+  }
   if (problems.length > 0) throw new DocsError(problems);
 
+  const context: Context = { input, flows, rows };
   const tokens = productTokens(input.stylesCss);
   const files = new Map<string, string>();
   for (const locale of LOCALES) {
     for (const page of PAGES) {
       const where = `docs/site/${locale}/${page}.md`;
-      const rendered = renderPage(input, flows, locale, input.pages[locale]![page]!, (problem) => problems.push(`${where}: ${problem}`));
+      const rendered = renderPage(context, locale, input.pages[locale]![page]!, (problem) => problems.push(`${where}: ${problem}`));
       files.set(`${locale}/${pageFile(page)}`, pageHtml(input, tokens, locale, page, rendered));
     }
   }
@@ -261,7 +289,8 @@ export function buildDocsSite(input: DocsInput): Map<string, string> {
   return files;
 }
 
-function renderPage(input: DocsInput, flows: ReadonlyMap<string, Flow>, locale: Locale, source: string, problem: (message: string) => void): Rendered {
+function renderPage(context: Context, locale: Locale, source: string, problem: (message: string) => void): Rendered {
+  const { input } = context;
   const markdown = source.replace(/\{\{value:([a-zA-Z0-9-]+)\}\}/gu, (whole, name: string) => {
     const value = input.values[name];
     if (value === undefined) {
@@ -282,7 +311,7 @@ function renderPage(input: DocsInput, flows: ReadonlyMap<string, Flow>, locale: 
   if (ledeBlock?.type !== "paragraph") problem("the title must be followed by a lede paragraph");
   const toc: { id: string; title: string }[] = [];
   const ids = new Set<string>();
-  let body = introBlocks.map((block) => renderBlock(block, inline, flows, locale, input, problem)).join("\n");
+  let body = introBlocks.map((block) => renderBlock(block, inline, context, locale, problem)).join("\n");
   for (const section of sections.slice(1)) {
     if (section.level === 1) problem(`a second level-1 heading: ${section.title}`);
     const explicit = /\s*\{#([a-z0-9][a-z0-9-]*)\}\s*$/u.exec(section.title);
@@ -294,7 +323,7 @@ function renderPage(input: DocsInput, flows: ReadonlyMap<string, Flow>, locale: 
     if (section.level === 2) toc.push({ id, title: inline(title) });
     const level = Math.min(Math.max(section.level, 2), 4);
     body += `\n<h${level} id="${escapeHtml(id)}">${inline(title)}<a class="anchor" href="#${escapeHtml(id)}" aria-hidden="true" tabindex="-1">#</a></h${level}>\n`;
-    body += section.blocks.map((block) => renderBlock(block, inline, flows, locale, input, problem)).join("\n");
+    body += section.blocks.map((block) => renderBlock(block, inline, context, locale, problem)).join("\n");
   }
   return {
     title: first.title,
@@ -314,7 +343,7 @@ function linkResolver(input: DocsInput, problem: (message: string) => void): (ur
     }
     if (url.startsWith("#")) return url;
     const [path, fragment] = url.split("#", 2) as [string, string | undefined];
-    const page = /^([a-z]+)\.html$/u.exec(path);
+    const page = /^([a-z][a-z-]*)\.html$/u.exec(path);
     if (page !== null && (PAGES as readonly string[]).includes(page[1]!)) return url;
     const repoPath = path.replace(/^\.?\//u, "").replace(/\/$/u, "");
     if (repoPath === "" || repoPath.split("/").includes("..")) {
@@ -333,17 +362,19 @@ function linkResolver(input: DocsInput, problem: (message: string) => void): (ur
 const githubUrl = (input: Pick<DocsInput, "repository" | "commit">, path: string, kind: "file" | "dir") =>
   `https://github.com/${input.repository}/${kind === "dir" ? "tree" : "blob"}/${input.commit.sha}/${path}`;
 
-function renderBlock(block: Block, inline: (text: string) => string, flows: ReadonlyMap<string, Flow>, locale: Locale, input: DocsInput, problem: (message: string) => void): string {
+function renderBlock(block: Block, inline: (text: string) => string, context: Context, locale: Locale, problem: (message: string) => void): string {
+  const { input, flows } = context;
   switch (block.type) {
     case "paragraph": {
-      const flow = /^\{\{flow:([a-z0-9-]+)\}\}$/u.exec(block.text.trim());
+      const flow = /^\{\{(flow|map):([a-z0-9-]+)\}\}$/u.exec(block.text.trim());
       if (flow !== null) {
-        const found = flows.get(flow[1]!);
+        const found = flows.get(flow[2]!);
         if (found === undefined) {
-          problem(`unknown flow ${flow[1]}`);
+          problem(`unknown flow ${flow[2]}`);
           return "";
         }
-        return renderFlow(found, locale, input, problem);
+        if (flow[1] === "flow") return renderFlow(found, locale, context, problem);
+        return renderSystemMap(found, { locale, repository: input.repository, commit: input.commit, rows: context.rows, deployments: input.deployments, release: input.release, inline });
       }
       if (block.text.includes("{{")) problem(`unknown directive in: ${block.text.slice(0, 60)}`);
       return `<p>${inline(block.text)}</p>`;
@@ -378,7 +409,12 @@ function renderList(items: readonly ListItem[], inline: (text: string) => string
   return html;
 }
 
-function renderFlow(flow: Flow, locale: Locale, input: DocsInput, problem: (message: string) => void): string {
+function renderFlow(flow: Flow, locale: Locale, context: Context, problem: (message: string) => void): string {
+  const { input } = context;
+  const badge = (node: FlowNode) => {
+    const tag = badgeOf(node, context.rows);
+    return tag === undefined ? "" : `<span class="tag tag-${tag.kind}">${escapeHtml(t(tag.text))}</span>`;
+  };
   const t = (text: Text) => text[locale];
   const resolve = linkResolver(input, problem);
   const inline = (text: string) => renderInline(text, resolve);
@@ -386,10 +422,10 @@ function renderFlow(flow: Flow, locale: Locale, input: DocsInput, problem: (mess
   const nodeId = (node: string) => `${flow.id}-${node}`;
   const columns = flow.columns.map((column) => `<div class="flow-col"><p class="flow-col-title">${escapeHtml(t(column.title))}</p>${
     column.cards.map((card) => `<div class="flow-card" id="${cardId(card.id)}"><div class="flow-card-h">${escapeHtml(t(card.title))}${card.count === undefined ? "" : ` <span class="count">${escapeHtml(card.count)}</span>`}</div>${
-      card.nodes.map((node) => `<a class="flow-node" href="#${nodeId(node.id)}" data-node="${nodeId(node.id)}"><span class="ic ic-${node.kind}" aria-hidden="true">${escapeHtml(node.icon)}</span><span class="nm"><b>${escapeHtml(t(node.title))}</b>${node.meta === undefined ? "" : `<small>${escapeHtml(t(node.meta))}</small>`}</span>${node.tag === undefined ? "" : `<span class="tag tag-${node.tag.kind}">${escapeHtml(t(node.tag.text))}</span>`}</a>`).join("")
+      card.nodes.map((node) => `<a class="flow-node" href="#${nodeId(node.id)}" data-node="${nodeId(node.id)}"><span class="ic ic-${node.kind}" aria-hidden="true">${escapeHtml(node.icon)}</span><span class="nm"><b>${escapeHtml(t(node.title))}</b>${node.meta === undefined ? "" : `<small>${escapeHtml(t(node.meta))}</small>`}</span>${badge(node)}</a>`).join("")
     }</div>`).join("")
   }</div>`).join("");
-  const details = flow.columns.flatMap((column) => column.cards.flatMap((card) => card.nodes)).map((node) => `<section class="flow-detail" id="${nodeId(node.id)}" tabindex="-1"><h3>${escapeHtml(t(node.title))}${node.tag === undefined ? "" : ` <span class="tag tag-${node.tag.kind}">${escapeHtml(t(node.tag.text))}</span>`}</h3><p class="lead">${inline(t(node.lead))}</p>${
+  const details = flow.columns.flatMap((column) => column.cards.flatMap((card) => card.nodes)).map((node) => `<section class="flow-detail" id="${nodeId(node.id)}" tabindex="-1"><h3>${escapeHtml(t(node.title))}${badge(node) === "" ? "" : ` ${badge(node)}`}</h3><p class="lead">${inline(t(node.lead))}</p>${
     node.facts === undefined || node.facts.length === 0 ? "" : `<dl class="kv">${node.facts.map((fact) => `<dt>${inline(t(fact.k))}</dt><dd>${inline(t(fact.v))}</dd>`).join("")}</dl>`
   }<p class="flow-src">${UI[locale].flowSources}: ${node.sources.map((source) => {
     const target = resolve(source);
@@ -447,7 +483,8 @@ function pageHtml(input: DocsInput, tokens: { light: string; dark: string }, loc
   const nav = PAGES.map((p) => `<a href="${pageFile(p)}"${p === page ? ' aria-current="page"' : ""}>${ui.nav[p]}</a>`).join("");
   const toc = rendered.toc.length === 0 ? "" : `<nav class="toc" aria-label="${ui.toc}"><p>${ui.toc}</p>${rendered.toc.map((entry) => `<a href="#${entry.id}">${entry.title}</a>`).join("")}</nav>`;
   const resolve = linkResolver(input, () => undefined);
-  return `${head(tokens, locale, title, plain(rendered.lede), alternates)}
+  const map = rendered.body.includes('<section class="smap"');
+  return `${head(tokens, locale, title, plain(rendered.lede), alternates + (map ? `<style>${MAP_CSS}</style>\n` : ""))}
 <body>
 <a class="skip" href="#content">${ui.skip}</a>
 <header class="top"><div class="top-in">
@@ -455,7 +492,7 @@ function pageHtml(input: DocsInput, tokens: { light: string; dark: string }, loc
 <nav class="nav" aria-label="${ui.site}">${nav}</nav>
 <div class="tools"><nav class="langs" aria-label="${ui.language}"><span class="lang-cur" aria-current="true" lang="${locale}">${ui.self}</span><a class="locale" href="../${other}/${pageFile(page)}" hreflang="${other}" lang="${other}" title="${ui.otherTitle}" data-locale="${other}">${ui.other}</a></nav><button class="theme" type="button" onclick="__docsTheme()" aria-label="${ui.theme}" title="${ui.theme}"><span aria-hidden="true">◐</span></button></div>
 </div></header>
-<div class="layout">
+<div class="layout${map ? " wide" : ""}">
 ${toc}
 <main id="content">
 <h1>${renderInline(rendered.title, resolve)}</h1>
@@ -464,7 +501,7 @@ ${rendered.body}
 </main>
 </div>
 <footer class="foot"><p>${ui.built} <a href="https://github.com/${input.repository}/commit/${input.commit.sha}"><code>${short(input.commit.sha)}</code></a> (${input.commit.date.slice(0, 10)}) ${ui.of} <a href="https://github.com/${input.repository}">${input.repository}</a>. ${ui.sources}</p></footer>
-<script>${PAGE_SCRIPT}</script>
+<script>${PAGE_SCRIPT}</script>${map ? `\n<script>${MAP_SCRIPT}</script>` : ""}
 </body>
 </html>
 `;
@@ -501,6 +538,9 @@ fig.querySelectorAll('.flow-node').forEach(function(n){n.addEventListener('click
 function all(){figs.forEach(draw)}addEventListener('resize',all);(document.fonts?document.fonts.ready:Promise.resolve()).then(all);all();
 var loc=document.querySelector('a.locale');if(loc)loc.addEventListener('click',function(){try{localStorage.setItem('osskb-docs.locale',loc.dataset.locale)}catch(e){}if(location.hash)loc.href=loc.getAttribute('href').split('#')[0]+location.hash});
 })();`;
+
+/** Spec 033: mounts each system map; the two /health URLs are the only URLs any inline script names (Behavior 15). */
+const MAP_SCRIPT = `(function(){var mountSystemMap=${mountSystemMap.toString()};document.querySelectorAll("section.smap").forEach(function(r){mountSystemMap(window,r,${JSON.stringify(HEALTH_URLS)})})})();`;
 
 const CSS = `
 :root{--wa-fuji:#8a7cc0;--wa-fuji-t:rgba(138,124,192,.12);--wa-seiji:#4f9a82;--wa-seiji-t:rgba(79,154,130,.12);--wa-wasure:#4f8fbf;--wa-wasure-t:rgba(79,143,191,.12);--wa-koke:#7d8048;--wa-koke-t:rgba(125,128,72,.14);--wa-beni:#b0485a;--wa-beni-t:rgba(176,72,90,.10);--wa-ai:#3a53b0;--wa-ai-t:rgba(58,83,176,.10)}
@@ -647,8 +687,22 @@ export function auditSite(files: ReadonlyMap<string, string>): string[] {
       const match = pattern.exec(content);
       if (match !== null) problems.push(`${path}: contains ${what}: ${match[0].slice(0, 12)}…`);
     }
+    // Spec 033 Behavior 15: an executable inline script may name only the two publisher /health URLs,
+    // which are then not a Worker hostname advertised; anywhere else they still are.
+    const allowed = Object.values(HEALTH_URLS);
+    // A drift check on the generated output, not a security boundary: it catches a page script that
+    // starts calling something new, in a script body or an inline event handler.
+    const urls = (code: string) => [...code.matchAll(/(?:https?:)?\/\/[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+[^\s"'`)\\<>]*/gu)].map((match) => match[0]).filter((url) => !allowed.includes(url));
+    const advertised = content.replace(/<script\b([^>]*)>([\s\S]*?)<\/script>/gu, (whole, attributes: string, body: string) => {
+      if (/\ssrc=/u.test(attributes) || /\stype="application\/json"/u.test(attributes)) return whole;
+      for (const url of urls(body)) problems.push(`${path}: an inline script names a URL other than the publisher /health: ${url}`);
+      return allowed.reduce((text, url) => text.replaceAll(url, ""), whole);
+    });
+    for (const match of content.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gu, "").matchAll(/<[a-z][^>]*?\son[a-z]+="([^"]*)"/giu)) {
+      for (const url of urls(match[1]!.replaceAll("&#39;", "'").replaceAll("&quot;", '"'))) problems.push(`${path}: an inline event handler names a URL other than the publisher /health: ${url}`);
+    }
     for (const [what, pattern] of UNADVERTISED) {
-      const match = pattern.exec(content);
+      const match = pattern.exec(advertised);
       if (match !== null) problems.push(`${path}: advertises ${what}: ${match[0]}`);
     }
     if (!path.endsWith(".html")) continue;
