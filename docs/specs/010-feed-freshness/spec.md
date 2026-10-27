@@ -82,6 +82,14 @@ Generated from `apps/web/test/freshness.cases.ts` by `bun run docs:test-plan`;
 the unit tests run exactly these rows. Edit the case file, not this table.
 `now` is the browser clock; `—` means no freshness label.
 
+Scope: `apps/web/test/freshness.test.ts` runs every row as a unit test of
+`feedFreshness()` and `freshnessText()` in `apps/web/src/freshness.ts` (no
+page, no network). Two Playwright E2E tests take only F2 texts from the case
+file: `apps/web/e2e/feed-freshness.spec.ts` checks F3 on the `/kafka/threads`
+freshness pill (`.demo-pill`) on desktop, and
+`apps/web/e2e/stall-visibility.spec.ts` checks the same pill on narrow screens
+(Spec 011).
+
 <!-- test-plan:start apps/web/test/freshness.cases.ts -->
 | id | generatedAt | now | en | zh | stale |
 | --- | --- | --- | --- | --- | --- |
