@@ -1,6 +1,6 @@
 # Spec 033: System map
 
-Status: Implemented (slice 1: SM1–SM8, SM12–SM17, SM23, SM19 measured; slice 2: SM9–SM11, SM18, SM20 measured; SM21–SM22 [deploy], checked on Dev after the merge deploys (SM22 on 2026-10-26, from the Spec 027 drill); owner decisions 2026-10-26: decisions 1–5 below, and slice 2: `components` and the CORS header of `GET /health`)
+Status: Partially implemented (slice 1: SM1–SM8, SM12–SM17, SM23, SM19 measured; slice 2: SM9–SM11, SM18, SM20 measured; SM21–SM22 [deploy], checked on Dev after the merge deploys (SM22 on 2026-10-26, from the Spec 027 drill); owner decisions 2026-10-26: decisions 1–5 below, and slice 2: `components` and the CORS header of `GET /health`; slice 3 planned: decision 5 amended 2026-10-27, the map moves to a private site, SM24–SM27 [pending]/[deploy])
 Date: 2026-10-26
 Traceability: enforced
 Builds on: Spec 025 (docs site, the system flow `docs/site/flows/system.json`, DOC20), Spec 020 (feature-map site, the Deployed configuration parser), Spec 018 (`/health`), Spec 028 (signals)
@@ -16,7 +16,8 @@ runs on my laptop, and what changed since the release" means reading all four.
 
 Readers: the owner first; later teammates who join and need the same picture.
 
-Observable outcome: one page on the docs site, the **system map**, that shows
+Observable outcome: one page, the **system map** (on the docs site until slice 3,
+then on its own private site, decision 5), that shows
 for a chosen environment (Dev or Prod):
 
 - every component that is live in that environment, laid out as the data flow
@@ -51,6 +52,13 @@ Design: mockup v3, https://claude.ai/artifact/KZtmqD687Xpy79PNUJVTVd
 5. **A new page on the docs site, public.** Same audience rule as the rest of
    the docs site; it shows nothing that `/health` and the repository do not
    already publish.
+   Amended 2026-10-27: **a separate private site.** The map is the owner's
+   working view; the docs site is for other readers. The map moves to its own
+   Cloudflare Pages project, `oss-knowledge-base-ops`, whose whole domain sits
+   behind Cloudflare Access: only the owner's email may sign in, with a
+   one-time PIN. The docs site stays public and no longer carries the map or
+   links to it. Residual exposure, accepted: the repository and `/health` stay
+   public, so Access hides the assembled view, not the data behind it.
 
 ## Evidence
 
@@ -231,6 +239,30 @@ branch after the verifier's round-2 fixes (parent commit `ea2809b`,
     the docs site stays static apart from this read.
 16. **Determinism.** The build output depends only on the commit and its tags
     (no clock, no network), like the rest of the docs site (DOC11).
+17. **Two sites from one build.** The docs build writes the public site
+    (`dist/docs-site`) and the ops site (`dist/ops-site`). The ops site holds
+    the system map pages (en, zh-Hant) and the assets they load, and no other
+    docs page. The public site holds no system map page, no `{{map:system}}`
+    output, and no link to the map (navigation, `index.md` "Read next",
+    `process.md` Observability). `auditSite` (rule 15) checks both outputs.
+    Needed by: decision 5 (amended).
+18. **Ops deploy.** A CI job `deploy-ops`, like `deploy-docs` (Spec 025),
+    deploys `dist/ops-site` to the Pages project `oss-knowledge-base-ops` on a
+    push to `main` only. If the project is missing it skips with a notice; it
+    never creates the project. Pull requests deploy nothing.
+19. **Access on the production domain.** The owner creates the project and its
+    Access setup in the dashboard (an account setting, not in a wrangler
+    file). Pages' **Enable access policy** alone protects only the deployment
+    URLs (`<hash>.oss-knowledge-base-ops.pages.dev`), not
+    `oss-knowledge-base-ops.pages.dev` itself (Cloudflare Pages docs,
+    "Preview deployments" and "Known issues: Enable Access on your
+    `*.pages.dev` domain"). The setup therefore follows the Known issues
+    steps: enable the policy, edit its application to drop the `*` subdomain
+    so it guards the production domain, then enable the policy again so a
+    second application guards `*.oss-knowledge-base-ops.pages.dev`. Both
+    applications allow only the owner's email. The Deployed configuration
+    gets a row `Cloudflare Access (ops site)`. The CORS header of `GET /health`
+    (rule 8) already allows the new origin.
 
 ## Acceptance
 
@@ -321,6 +353,12 @@ branch after the verifier's round-2 fixes (parent commit `ea2809b`,
 - SM22: [deploy] When a job fails on Dev (the Spec 027 fault drill), the map shows it failed on the next page load, with the same reason as `/health`.
   Checked on Dev on 2026-10-26: the Spec 027 drill `throw-20261026T0929Z` (graded `pass`) failed the kip-pages runs `kip-pages-2026-10-26T09-29-59-338Z` and `kip-pages-2026-10-26T09-35-02-078Z`; `/health` `components` gave `kip-pages` `failed`, "cwiki.apache.org answered 503" (cwiki itself answered 302, so the drill caused it), and the Dev map loaded at 13:16 UTC showed the kip-pages steps failed with the same reason.
 
+### Private ops site (slice 3)
+- SM24: [pending] Given a docs build → `dist/ops-site` has the system map page in en and zh-Hant and no other docs page; `dist/docs-site` has no system map page, no `{{map:system}}` output and no `href` to a system map page; `auditSite` passes on both. Evidence: unit test.
+- SM25: [deploy] After the first `main` push with slice 3, the `deploy-ops` job deploys to `oss-knowledge-base-ops` (or skips with a notice while the project is missing), and the docs site's old map URL `/zh-Hant/system-map` answers 404.
+- SM26: [deploy] Without an Access session, `https://oss-knowledge-base-ops.pages.dev/zh-Hant/system-map` and one `<hash>.oss-knowledge-base-ops.pages.dev` deployment URL answer a redirect to the Access sign-in page, never the map (checked with `curl -sI`).
+- SM27: [deploy] After the owner signs in with a one-time PIN, the ops map reads Dev's and Prod's `/health` as before (SM21 on the new origin).
+
 ## Slices
 
 1. **Gates and the page from build data** (SM1–SM8, SM12–SM17, SM19, SM23): rule 1–6,
@@ -329,12 +367,17 @@ branch after the verifier's round-2 fixes (parent commit `ea2809b`,
 2. **`/health` components and CORS** (SM9–SM11, SM18, SM20–SM22): rules 7–9.
    Merged off is not possible for an additive field; it ships on Dev with the
    next `main` deploy and on Prod with the next release tag (owner approval).
+3. **Private ops site** (SM24–SM27): rules 17–19, decision 5 as amended.
+   Order: the owner creates the Pages project and both Access applications
+   first (rule 19), then the slice merges, so the map is never served on a
+   public ops domain. Starts after PR #174 (docs site SRE agent page) merges,
+   because both change `scripts/docs-site/generate.ts` and the docs pages.
 
 ## Non-goals
 
 - Metrics, charts or logs copied from Cloudflare.
 - Alerts or notifications (owner: stalls must show in the UI; no push).
 - Per-viewer state ("since last visit").
-- Access control for the page (decision 5); revisit if `/health` stops being public.
+- Access control for `/health` or the repository (decision 5, amended): both stay public.
 - Components outside this repository's deployments (GitHub itself, Apache
   services) beyond what `system.json` already names as sources.
