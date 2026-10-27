@@ -69,7 +69,7 @@ R2 依兩種請求類別計費：**Class A**（寫入與列出，每月 100 萬�
 - **產品中的新鮮度：** 每個畫面都顯示資料多舊；超過 24 小時 30 分為逾時，超過 27 小時為過期（[Spec 021](docs/specs/021-publication-overdue/spec.md)）。發布卡住時每個讀者都看得到，不需要推播通知。
 - **`bun run verify:health`** 以唯讀方式比對 `/health` 與網站實際提供的資料，可對 Dev 或 Prod 執行（[scripts/verify/health.ts](scripts/verify/health.ts)）。
 - **訊號與規則**（Dev）：每次 job 執行寫入一個以 `runId` 為鍵的 Workers Analytics Engine 資料點。固定規則根據這些資料點與 `/health` 判斷，在 `/health.signals` 給每項檢查 `ok`、`warn`、`firing` 或 `unknown` 狀態，例如 `job.missed` 與 `job.failures`（[Spec 028](docs/specs/028-observability-signals/spec.md)）。
-- **`/health` 的元件狀態**（Dev；Prod 隨下一個 release tag）：每個 job 與每個來源一個狀態，`ok`、`warn`、`failed`、`stale` 或 `unknown`。[系統地圖](system-map.html)會畫出它們（[Spec 033](docs/specs/033-system-map/spec.md)）。
+- **`/health` 的元件狀態**（Dev；Prod 隨下一個 release tag）：每個 job 與每個來源一個狀態，`ok`、`warn`、`failed`、`stale` 或 `unknown`（[Spec 033](docs/specs/033-system-map/spec.md)）。
 - **[SRE agent](sre-agent.html)**（Dev）：規則觸發會啟動模型診斷，引用的證據由程式檢查。Cloudflare Agent tracing 為負責人記錄每次 run。
 - **Workers Logs**（錯誤訊息經過遮蔽）：Dev 已開啟；`v0.3.2` 起 Prod 也開啟。
 

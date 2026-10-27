@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Window } from "happy-dom";
 import { readRelease, readRepository } from "../docs-site/build";
-import { auditSite, buildDocsSite, DocsError, LOCALES, type DocsInput, type Flow, type FlowNode } from "../docs-site/generate";
+import { auditSite, buildDocsSite, DocsError, LOCALES, PUBLIC_PAGES, type DocsInput, type Flow, type FlowNode } from "../docs-site/generate";
 import { badgeOf, cellIsOff, cellMode, deployedRows, HEALTH_COMPONENT_IDS, HEALTH_URLS, healthIds, nodeStages, type MapData } from "../docs-site/system-map";
 import { COMPONENT_IDS } from "../../apps/data-publisher-worker/src/signals/profile";
 import { testPlanRows } from "./system-map.cases";
@@ -395,5 +395,17 @@ describe("Spec 033 system map, slice 1", () => {
     // The two /health URLs outside a script are still a Worker hostname advertised (Spec 025 DOC7).
     files.set("en/system-map.html", page.replace("</main>", `<p>${HEALTH_URLS.dev}</p></main>`));
     expect(auditSite(files).some((problem) => problem.includes("advertises a Worker hostname"))).toBe(true);
+  });
+
+  test("the public docs build (rule 17, decision 5 as amended) has no map page, no map output and no link to the map", () => {
+    const files = buildDocsSite(repo(), PUBLIC_PAGES);
+    expect(auditSite(files)).toEqual([]);
+    for (const locale of LOCALES) expect(files.has(`${locale}/system-map.html`)).toBe(false);
+    for (const [path, content] of files) {
+      expect(content, path).not.toContain("system-map.html");
+      expect(content, path).not.toContain('class="smap"');
+      expect(content, path).not.toContain("mountSystemMap");
+    }
+    expect(JSON.parse(files.get("build.json")!).pages).not.toContain("system-map");
   });
 });

@@ -17,6 +17,11 @@ export const LOCALES = ["en", "zh-Hant"] as const;
 export type Locale = (typeof LOCALES)[number];
 export const PAGES = ["index", "overview", "system-map", "search", "digest", "sre-agent", "process"] as const;
 export type PageId = (typeof PAGES)[number];
+/**
+ * Spec 033 decision 5 (amended 2026-10-27): the public docs site carries no system map page. `docs:build`
+ * builds these pages; the map page is built only when asked for (tests, and the private ops site of slice 3).
+ */
+export const PUBLIC_PAGES = PAGES.filter((page) => page !== "system-map");
 export type Text = Readonly<Record<Locale, string>>;
 
 export const PROJECT_NAME = "oss-knowledge-base-docs";
@@ -243,7 +248,7 @@ interface Rendered {
 const pageFile = (page: PageId) => `${page}.html`;
 const short = (sha: string) => sha.slice(0, 7);
 
-export function buildDocsSite(input: DocsInput): Map<string, string> {
+export function buildDocsSite(input: DocsInput, pages: readonly PageId[] = PAGES): Map<string, string> {
   const problems: string[] = [];
   for (const locale of LOCALES) {
     for (const name of Object.keys(input.pages[locale] ?? {})) {
@@ -269,10 +274,10 @@ export function buildDocsSite(input: DocsInput): Map<string, string> {
   const tokens = productTokens(input.stylesCss);
   const files = new Map<string, string>();
   for (const locale of LOCALES) {
-    for (const page of PAGES) {
+    for (const page of pages) {
       const where = `docs/site/${locale}/${page}.md`;
       const rendered = renderPage(context, locale, input.pages[locale]![page]!, (problem) => problems.push(`${where}: ${problem}`));
-      files.set(`${locale}/${pageFile(page)}`, pageHtml(input, tokens, locale, page, rendered));
+      files.set(`${locale}/${pageFile(page)}`, pageHtml(input, tokens, locale, page, rendered, pages));
     }
   }
   if (problems.length > 0) throw new DocsError(problems);
@@ -284,7 +289,7 @@ export function buildDocsSite(input: DocsInput): Map<string, string> {
     commit: input.commit.sha,
     commitDate: input.commit.date,
     locales: LOCALES,
-    pages: PAGES,
+    pages,
   }, null, 2)}\n`);
   return files;
 }
@@ -474,13 +479,13 @@ ${extra}<style>:root{${tokens.light}}:root[data-theme="dark"]{${tokens.dark}}@me
 </head>`;
 }
 
-function pageHtml(input: DocsInput, tokens: { light: string; dark: string }, locale: Locale, page: PageId, rendered: Rendered): string {
+function pageHtml(input: DocsInput, tokens: { light: string; dark: string }, locale: Locale, page: PageId, rendered: Rendered, pages: readonly PageId[]): string {
   const ui = UI[locale];
   const other = locale === "en" ? "zh-Hant" : "en";
   const plain = (text: string) => text.replace(/\[([^\]]*)\]\([^)]*\)/gu, "$1").replace(/\*\*|`/gu, "");
   const title = page === "index" ? ui.site : `${plain(rendered.title)} · ${ui.site}`;
   const alternates = LOCALES.map((l) => `<link rel="alternate" hreflang="${l}" href="${SITE_URL}/${l}/${pageFile(page)}">`).join("\n") + "\n";
-  const nav = PAGES.map((p) => `<a href="${pageFile(p)}"${p === page ? ' aria-current="page"' : ""}>${ui.nav[p]}</a>`).join("");
+  const nav = pages.map((p) => `<a href="${pageFile(p)}"${p === page ? ' aria-current="page"' : ""}>${ui.nav[p]}</a>`).join("");
   const toc = rendered.toc.length === 0 ? "" : `<nav class="toc" aria-label="${ui.toc}"><p>${ui.toc}</p>${rendered.toc.map((entry) => `<a href="#${entry.id}">${entry.title}</a>`).join("")}</nav>`;
   const resolve = linkResolver(input, () => undefined);
   const map = rendered.body.includes('<section class="smap"');
@@ -759,7 +764,8 @@ export function parityProblems(files: ReadonlyMap<string, string>): string[] {
     flows: [...html.matchAll(/<figure class="flow" id="([^"]+)"/gu)].map((match) => match[1]!).join(","),
     sources: [...new Set([...html.matchAll(/href="https:\/\/github\.com\/[^/]+\/[^/]+\/(?:blob|tree)\/[0-9a-f]+\/([^"#]+)/gu)].map((match) => match[1]!))].sort().join(","),
   });
-  for (const page of PAGES) {
+  // A page left out of the build (the system map on the public site) is in neither locale.
+  for (const page of PAGES.filter((p) => LOCALES.some((locale) => files.has(`${locale}/${pageFile(p)}`)))) {
     const [en, zh] = LOCALES.map((locale) => files.get(`${locale}/${pageFile(page)}`));
     if (en === undefined || zh === undefined) {
       problems.push(`${page}: missing in ${en === undefined ? "en" : "zh-Hant"}`);
