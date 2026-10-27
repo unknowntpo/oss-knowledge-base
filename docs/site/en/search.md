@@ -72,7 +72,7 @@ Embedding happens at two moments, with the same model:
 | Moment | Text that is embedded | Result |
 | --- | --- | --- |
 | Publish time | each chunk's `title + "\n" + text`: the title plus an excerpt of about 280 characters (`title-text@1`) | the vector is stored in Vectorize |
-| Query time | the user's query | Vectorize returns the nearest chunks: 50 per project, 100 in total |
+| Query time | the user's query | Vectorize returns the nearest chunks: 50 per project, so 100 for the two projects on Dev |
 
 `bge-m3@1` is one fixed profile: model `@cf/baai/bge-m3`, modelRevision 1, 1,024 dimensions, and the text assembly rule `title-text@1`. A change to any part re-embeds every chunk. Vectors of different revisions are never compared ([Spec 016](docs/specs/016-semantic-search/spec.md)).
 
@@ -92,7 +92,7 @@ What Dev measurements showed (2026-10-13, [docs/architecture/search-algorithm.md
 | --- | --- |
 | No usable absolute similarity threshold | relevant candidates 0.466–0.658, irrelevant 0.383–0.620 (AUC 0.736) |
 | The gap above the same query's semantic #20 separates better | a gap of at least 0.05 keeps 15 of 19 relevant and 3 of 73 irrelevant candidates (AUC 0.871) |
-| Chinese queries do not score lower | best-candidate median 0.582, other queries 0.592 |
+| Chinese queries do not score lower | median best-candidate similarity 0.582 for Chinese queries, 0.592 for other queries |
 | Semantic rank does not mean similar | the semantic #9 for `transaction manager` is DataFusion's `Push down topk through join` |
 | The biggest limit is the short embedded text | the owner's query `consumer network thread request manager` expects 3 threads; 2 are not among the 100 semantic candidates, and their titles and excerpts never say `network thread` |
 
