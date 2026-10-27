@@ -69,7 +69,7 @@ Committed `measure:*` commands reproduce these numbers offline (see the root [pa
 - **Freshness in the product:** every view shows how old the data is; late after 24 h 30 min, stale after 27 h ([Spec 021](docs/specs/021-publication-overdue/spec.md)). A stall is visible to every reader without push alerts.
 - **`bun run verify:health`** compares `/health` with what the site serves, for Dev or Prod, read-only ([scripts/verify/health.ts](scripts/verify/health.ts)).
 - **Signals and rules** (Dev): every job run writes one Workers Analytics Engine data point keyed by its `runId`. Fixed rules over those points and `/health` give each check the status `ok`, `warn`, `firing` or `unknown` in `/health.signals`, for example `job.missed` and `job.failures` ([Spec 028](docs/specs/028-observability-signals/spec.md)).
-- **Components in `/health`** (Dev; Prod with the next release tag): one status per job and per source, `ok`, `warn`, `failed`, `stale` or `unknown`. The [system map](system-map.html) draws them ([Spec 033](docs/specs/033-system-map/spec.md)).
+- **Components in `/health`** (Dev; Prod with the next release tag): one status per job and per source, `ok`, `warn`, `failed`, `stale` or `unknown` ([Spec 033](docs/specs/033-system-map/spec.md)).
 - **[SRE agent](sre-agent.html)** (Dev): a firing rule starts a model diagnosis whose cited evidence code checks. Cloudflare Agent tracing records each run for the owner.
 - **Workers Logs** with redacted error text: on Dev and, since `v0.3.2`, on Prod.
 

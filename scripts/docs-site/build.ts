@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, wri
 import { execFileSync } from "node:child_process";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { auditSite, buildDocsSite, DocsError, LOCALES, type DocsInput, type Locale } from "./generate";
+import { auditSite, buildDocsSite, DocsError, LOCALES, PUBLIC_PAGES, type DocsInput, type Locale } from "./generate";
 import type { Deployment, Deployments, Env, Release } from "./system-map";
 
 function args(argv: readonly string[]): Map<string, string> {
@@ -146,7 +146,7 @@ if (process.argv[1] !== undefined && resolve(process.argv[1]) === self) {
   const out = resolve(options.get("out") ?? join(repoDir, "dist/docs-site"));
   const started = performance.now();
   try {
-    const files = buildDocsSite(readRepository(repoDir, options.get("repository") ?? "unknowntpo/oss-knowledge-base"));
+    const files = buildDocsSite(readRepository(repoDir, options.get("repository") ?? "unknowntpo/oss-knowledge-base"), PUBLIC_PAGES);
     const problems = auditSite(files);
     if (problems.length > 0) throw new DocsError(problems);
     rmSync(out, { recursive: true, force: true });

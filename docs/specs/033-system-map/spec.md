@@ -1,6 +1,6 @@
 # Spec 033: System map
 
-Status: Partially implemented (slice 1: SM1–SM8, SM12–SM17, SM23, SM19 measured; slice 2: SM9–SM11, SM18, SM20 measured; SM21–SM22 [deploy], checked on Dev after the merge deploys (SM22 on 2026-10-26, from the Spec 027 drill); owner decisions 2026-10-26: decisions 1–5 below, and slice 2: `components` and the CORS header of `GET /health`; slice 3 planned: decision 5 amended 2026-10-27, the map moves to a private site, SM24–SM27 [pending]/[deploy])
+Status: Partially implemented (slice 1: SM1–SM8, SM12–SM17, SM23, SM19 measured; slice 2: SM9–SM11, SM18, SM20 measured; SM21–SM22 [deploy], checked on Dev after the merge deploys (SM22 on 2026-10-26, from the Spec 027 drill); owner decisions 2026-10-26: decisions 1–5 below, and slice 2: `components` and the CORS header of `GET /health`; slice 3 planned: decision 5 amended 2026-10-27, the map moves to a private site, SM24–SM27 [pending]/[deploy]; the public half of rule 17 landed first, before `v0.3.3`: `docs:build` builds `PUBLIC_PAGES`, without the map page and its links, tested by name in `scripts/test/system-map.test.ts`; SM24 stays pending until `dist/ops-site` exists)
 Date: 2026-10-26
 Traceability: enforced
 Builds on: Spec 025 (docs site, the system flow `docs/site/flows/system.json`, DOC20), Spec 020 (feature-map site, the Deployed configuration parser), Spec 018 (`/health`), Spec 028 (signals)
