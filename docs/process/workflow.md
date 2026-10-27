@@ -142,7 +142,7 @@ test file that reads the case file, and what that file exercises — for a unit
 test, the functions or module it calls; for an E2E test, the page and the
 behavior it checks. Without it a reader cannot tell whether the rows test one
 function or the whole page (owner decision 2026-10-27; Spec 010 is the worked
-example).
+example). No gate checks this paragraph yet; review it with the spec.
 
 `bun run check:traceability` fails when an acceptance ID in a spec marked
 `Traceability: enforced` has no test whose name contains it. Items verified
