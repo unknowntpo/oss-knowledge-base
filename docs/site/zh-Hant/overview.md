@@ -12,7 +12,7 @@
 2. **處理。** [apps/data-publisher-worker/src/pipeline.ts](apps/data-publisher-worker/src/pipeline.ts) 的 `runDataPublication` 用確定性的規則整理 thread（發布流程中不使用語言模型），寫出 Feed release，並建立搜尋索引。
 3. **儲存。** R2 存放不可變的 release 與內容定址的詳細物件；只有小小的 `current.json` 指標會變，而且最後才寫。所以讀者看到的一定是一份完整的 release，回復也只要改指標（[Spec 006](docs/specs/006-environment-isolated-r2-publication/spec.md)、[Spec 008](docs/specs/008-content-addressed-details/spec.md)）。
 4. **應用。** Pages Functions 讀 R2、回傳快取 30 秒的 JSON，由 Vue 網站呈現。部署程式碼不會發布資料：資料只來自 Worker（[docs/operations/release.md](docs/operations/release.md)）。
-5. **可觀測性。** 每個 job 都在公開的 `/health` 回報上一次 run。Dev 上每次 run 還會寫一個 Workers Analytics Engine 資料點，依這些資料點評估的規則會標出漏跑或失敗的 job；成本守門員記錄本月至今的成本；SRE agent 每天兩次用 Workers AI 模型診斷新觸發的規則，並把推理過程存進 R2 給負責人看（[Spec 027](docs/specs/027-sre-agent/spec.md)、[Spec 028](docs/specs/028-observability-signals/spec.md)）。
+5. **可觀測性。** 每個 job 都在公開的 `/health` 回報上一次 run。Dev 上每次 run 還會寫一個 Workers Analytics Engine 資料點，依這些資料點評估的規則會標出漏跑或失敗的 job；成本守門員記錄本月至今的成本。規則觸發就會啟動診斷：[SRE agent](sre-agent.html) 每天兩次請 Workers AI 模型找出原因，程式檢查每一個引用的證據，結果與推理過程存進 R2 給負責人看（[Spec 027](docs/specs/027-sre-agent/spec.md)、[Spec 028](docs/specs/028-observability-signals/spec.md)）。
 
 ## Dev 與 Prod {#environments}
 
@@ -27,6 +27,7 @@
 | 每週週報 | 開（22:47 UTC） | 關 |
 | 語意混合搜尋 | 開（`SEARCH_SEMANTIC=rrf-group@2`） | 關 |
 | 貢獻者頁面、review 收集 | 開 | 關 |
+| 可觀測性規則、SRE agent | 開（SRE agent 在 UTC 00:30 與 11:00） | 關 |
 
 每個只在 Dev 的功能都是一個在 Prod 未設定的開關，列在 [docs/feature-map.md](docs/feature-map.md#deployed-configuration)。新行為合併時開關是關的，再用另一個小變更逐一環境開啟；要回復時改設定即可，不必 revert（[docs/process/workflow.md](docs/process/workflow.md)）。
 
@@ -36,4 +37,4 @@
 - **先規則，後模型。** thread 整理與編號抽取都是確定性的 TypeScript（[ADR-0006](docs/architecture/decisions/0006-use-typescript-reference-materializer-before-flink.md)）；語言模型只在發布之後用於週報與語意搜尋，而且各有每日預算。
 - **資料過期要看得見。** Dev 曾經約 49 小時沒有發布卻沒人發現（[Spec 011](docs/specs/011-stall-visibility/spec.md)）。現在每個畫面都顯示資料多舊：超過 24 小時 30 分標為逾時，超過 27 小時標為過期（[apps/web/src/freshness.ts](apps/web/src/freshness.ts)）。
 
-> 截至 2026-10-20。流程圖中的執行數字來自公開的 `/health` 端點；設定值來自各步驟連結的 wrangler 檔案。
+> 截至 2026-10-27。流程圖中的執行數字來自公開的 `/health` 端點；設定值來自各步驟連結的 wrangler 檔案。
