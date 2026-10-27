@@ -36,7 +36,7 @@ Acceptance IDs are the join key from spec to test to pull request to runtime che
 | Push to `main` | after every job passes: Dev Pages and the Dev publisher, then end-to-end tests against the deployed Dev site |
 | Tag `vX.Y.Z` reachable from `main` | Prod Pages and the Prod publisher, from the exact verified build |
 
-Tags are never moved or reused; a rollback redeploys an earlier tag ([docs/operations/release.md](docs/operations/release.md)). `v0.3.0` failed CI and deployed nothing; `v0.3.1` (2026-10-19) is the first Prod release with live daily data. A generated status board of every spec is published on every push ([Spec 020](docs/specs/020-feature-map-site/spec.md)).
+Tags are never moved or reused; a rollback redeploys an earlier tag ([docs/operations/release.md](docs/operations/release.md)). `v0.3.0` failed CI and deployed nothing; `v0.3.1` (2026-10-19) is the first Prod release with live daily data; `v0.3.2` (2026-10-24) adds Workers Logs and ships newer code with every new flag off. A generated status board of every spec is published on every push ([Spec 020](docs/specs/020-feature-map-site/spec.md)).
 
 ## The R2 Class A incident {#incident}
 
@@ -55,7 +55,7 @@ The account is on the Workers Paid plan; the design keeps each meter inside the 
 
 | Meter | Included | Budgeted use |
 | --- | --- | --- |
-| Workers AI neurons | 10,000 a day | digest 5,000 + embedding job 2,500 + search queries 1,000 = 8,500, leaving 1,500 |
+| Workers AI neurons | 10,000 a day | digest 5,000 + embedding job 2,500 + search queries 1,000 + Dev SRE agent 3,000 = 11,500; a day where every cap is reached passes the included amount by at most 1,500 neurons ($0.0165) |
 | R2 Class A | 1 million a month | about 19 thousand a month for Dev and Prod together |
 | R2 Class B | 10 million a month | about 0.26 million a month |
 | R2 storage | 10 GB | already exceeded on Dev (13.3 GB, 2026-10-19), tracked in [docs/gardening.md](docs/gardening.md) |
@@ -68,6 +68,9 @@ Committed `measure:*` commands reproduce these numbers offline (see the root [pa
 - **`/health`** on each publisher: the last run's outcome per source, objects written, R2 requests, search index size, and today's AI spend against its cap. It never returns credentials.
 - **Freshness in the product:** every view shows how old the data is; late after 24 h 30 min, stale after 27 h ([Spec 021](docs/specs/021-publication-overdue/spec.md)). A stall is visible to every reader without push alerts.
 - **`bun run verify:health`** compares `/health` with what the site serves, for Dev or Prod, read-only ([scripts/verify/health.ts](scripts/verify/health.ts)).
-- **Workers Logs** with redacted error text: on the Dev data Worker now; Prod gets them with the next tag (`v0.3.2`).
+- **Signals and rules** (Dev): every job run writes one Workers Analytics Engine data point keyed by its `runId`. Fixed rules over those points and `/health` give each check the status `ok`, `warn`, `firing` or `unknown` in `/health.signals`, for example `job.missed` and `job.failures` ([Spec 028](docs/specs/028-observability-signals/spec.md)).
+- **Components in `/health`** (Dev; Prod with the next release tag): one status per job and per source, `ok`, `warn`, `failed`, `stale` or `unknown`. The [system map](system-map.html) draws them ([Spec 033](docs/specs/033-system-map/spec.md)).
+- **[SRE agent](sre-agent.html)** (Dev): a firing rule starts a model diagnosis whose cited evidence code checks. Cloudflare Agent tracing records each run for the owner.
+- **Workers Logs** with redacted error text: on Dev and, since `v0.3.2`, on Prod.
 
-> As of 2026-10-20 at the commit in the footer. Billing figures come from Spec 008 and the runbook; run figures from the public `/health` endpoints.
+> As of 2026-10-27 at the commit in the footer. Billing figures come from Spec 008 and the runbook; run figures from the public `/health` endpoints.
