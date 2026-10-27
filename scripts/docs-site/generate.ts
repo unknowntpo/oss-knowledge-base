@@ -15,7 +15,7 @@ import { badgeOf, deployedRows, HEALTH_URLS, MAP_CSS, mapFieldProblems, nodeStag
 
 export const LOCALES = ["en", "zh-Hant"] as const;
 export type Locale = (typeof LOCALES)[number];
-export const PAGES = ["index", "overview", "system-map", "search", "digest", "process"] as const;
+export const PAGES = ["index", "overview", "system-map", "search", "digest", "sre-agent", "process"] as const;
 export type PageId = (typeof PAGES)[number];
 export type Text = Readonly<Record<Locale, string>>;
 
@@ -33,7 +33,7 @@ export class DocsError extends Error {
 const UI = {
   en: {
     site: "OSS Knowledge Base · Docs",
-    nav: { index: "Home", overview: "System", "system-map": "System map", search: "Search", digest: "Digest", process: "Process & cost" },
+    nav: { index: "Home", overview: "System", "system-map": "System map", search: "Search", digest: "Digest", "sre-agent": "SRE agent", process: "Process & cost" },
     self: "EN",
     other: "中文",
     otherTitle: "閱讀繁體中文版",
@@ -51,7 +51,7 @@ const UI = {
   },
   "zh-Hant": {
     site: "OSS Knowledge Base · 文件",
-    nav: { index: "首頁", overview: "系統", "system-map": "系統地圖", search: "搜尋", digest: "週報", process: "流程與成本" },
+    nav: { index: "首頁", overview: "系統", "system-map": "系統地圖", search: "搜尋", digest: "週報", "sre-agent": "SRE agent", process: "流程與成本" },
     self: "中文",
     other: "EN",
     otherTitle: "Read in English",
@@ -508,7 +508,7 @@ ${rendered.body}
 }
 
 function rootHtml(tokens: { light: string; dark: string }): string {
-  return `${head(tokens, null, "OSS Knowledge Base · Docs", "Documentation of the OSS Knowledge Base: system, search, digest, process and cost.",
+  return `${head(tokens, null, "OSS Knowledge Base · Docs", "Documentation of the OSS Knowledge Base: system, search, digest, SRE agent, process and cost.",
     `<script>(function(){var l="en";try{var s=localStorage.getItem("osskb-docs.locale");if(s==="en"||s==="zh-Hant")l=s;else{var n=(navigator.languages||[navigator.language||""]).join(",").toLowerCase();if(/zh-(tw|hant|hk|mo)/.test(n))l="zh-Hant"}}catch(e){}location.replace(l+"/index.html")})();</script>
 <noscript><meta http-equiv="refresh" content="0; url=en/index.html"></noscript>
 `)}

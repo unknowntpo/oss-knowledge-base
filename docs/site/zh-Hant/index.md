@@ -9,7 +9,7 @@
 | 項目 | 內容 |
 | --- | --- |
 | 社群 | Apache Kafka（GitHub、Jira、dev@ 郵件列表）與 Apache DataFusion（GitHub） |
-| 線上網站 | Prod [oss-knowledge-base.pages.dev](https://oss-knowledge-base.pages.dev/)（版本 `v0.3.1`，2026-10-19）與 Dev [oss-knowledge-base-dev.pages.dev](https://oss-knowledge-base-dev.pages.dev/)（每次 push 到 `main`） |
+| 線上網站 | Prod [oss-knowledge-base.pages.dev](https://oss-knowledge-base.pages.dev/)（版本 `v0.3.2`，2026-10-24）與 Dev [oss-knowledge-base-dev.pages.dev](https://oss-knowledge-base-dev.pages.dev/)（每次 push 到 `main`） |
 | 執行環境 | Cloudflare：每個環境一個排程 Worker 寫入 R2 物件儲存；Pages 提供 Vue 網站與唯讀 API |
 | 開發方式 | {{value:specs}} 份書面規格，其中 {{value:enforcedSpecs}} 份的驗收項目由機器檢查；每個變更都經過獨立的 AI 驗證 |
 
@@ -21,15 +21,17 @@
 | --- | --- |
 | [系統與資料流](overview.html) | 四個階段（收集 → 處理 → 儲存 → 應用）的可點選流程圖，以及 Dev 與 Prod 的差異 |
 | [搜尋](search.html) | 帶編號正規化的 BM25 排序（`KIP770` = `KIP-770`）、真實語料評估，以及在 Dev 上的語意混合搜尋 |
+| [系統地圖](system-map.html) | Dev 或 Prod 上每個上線中的元件、它在 `/health` 的狀態，以及 Prod release tag 之後的變更 |
 | [週報](digest.html) | 一週動態如何變成雙語摘要：分類、摘要、驗證、翻譯，以及上 Prod 前的品質門檻 |
+| [SRE agent](sre-agent.html) | 規則觸發後如何啟動模型診斷、程式如何拒絕捏造的證據、故障注入演練，以及實測的評估結果 |
 | [流程與成本](process.html) | 規格驅動開發、先失敗的測試、CI/CD 與發版、R2 成本事件、預算與可觀測性 |
 
 ## 現況速覽 {#status}
 
-截至 2026-10-20（來源：[docs/feature-map.md](docs/feature-map.md#environments)、[docs/operations/release.md](docs/operations/release.md)）：
+截至 2026-10-27（來源：[docs/feature-map.md](docs/feature-map.md#environments)、[docs/operations/release.md](docs/operations/release.md)）：
 
-- **Prod 與 Dev 都有：** 每天從 GitHub、Jira、dev@ 發布；關鍵字搜尋 `bm25-reference@3`；thread 列表與詳細頁；資料新鮮度標示。
-- **只在 Dev：** 每週主題週報、語意混合搜尋、貢獻者頁面與 review 收集。每項都有自己的開關，在 Prod 為關閉。
+- **Prod 與 Dev 都有：** 每天從 GitHub、Jira、dev@ 發布；關鍵字搜尋 `bm25-reference@3`；thread 列表與詳細頁；資料新鮮度標示；Workers Logs。Prod 執行版本 `v0.3.2`（2026-10-24）。
+- **只在 Dev：** 每週主題週報、語意混合搜尋、貢獻者頁面與 review 收集、KIP 作者頁面、成本守門員、保留期清理（試跑）、可觀測性訊號與規則，以及 [SRE agent](sre-agent.html)。每項都有自己的開關，在 Prod 為關閉。提供[系統地圖](system-map.html)狀態的 `/health` 元件，會隨下一個 release tag 上 Prod。
 - **Prod 的下一步：** 週報要先在人工標註的一週資料上通過品質門檻，才會上 Prod（見[週報](digest.html#gate)）。
 
 > 本站的數字來自頁尾所示 commit 的版本庫內容，或來自標明時間讀取的公開 `/health` 端點；每個數字都連到出處。
