@@ -24,7 +24,7 @@ export type DrillKind = (typeof DRILL_KINDS)[number];
 const HOUR = 3_600_000;
 /** B39: `throw` faults 2 runs (`job.failures` fires on 2 consecutive failures), `skip` 1. */
 export const DRILL_RUNS: Readonly<Record<DrillKind, number>> = { throw: 2, skip: 1 };
-/** B39: an armed pointer older than this is deleted unapplied. */
+/** B39: an armed drill older than this expires unapplied; the idle pointer replaces its pointer (SRE98). */
 export const DRILL_EXPIRES_MS = 48 * HOUR;
 /** B42: a fired drill with no matching diagnosis this long after its last faulted run fails `no-diagnosis`. */
 export const DRILL_GRADE_WAIT_MS: Readonly<Record<DrillKind, number>> = { throw: 24 * HOUR, skip: 48 * HOUR };

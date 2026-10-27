@@ -60,7 +60,7 @@ no runbook.
 | 3 | `cost-guard-paused` | The cost guard paused the job (`enforce` mode) | `costGuard.mode: "enforce"`, `breaker.tripped: true`, `breaker.trippedAt` at or before `since`. Under `monitor` nothing is paused, so this cause does not apply | [Cost guard: read `/health`](../cloudflare-data-publisher.md#read-health), [Reset the breaker](../cloudflare-data-publisher.md#reset-the-breaker) |
 | 4 | `upstream-failure` | Upstream failure (GitHub or Jira rate limit or outage) made every run fail early | Runs exist but each ended `ok: false` with short `durationMs`; `sources.<key>.ok: false` and an old `lastSuccessAt`. This normally fires `job.failures` too | [Follow-up runs](../cloudflare-data-publisher.md#follow-up-runs-spec-018), [Failure and rollback](../cloudflare-data-publisher.md#failure-and-rollback) |
 | 5 | `deploy-broke-job` | A deploy broke the job | A deploy (CI `deploy-development` or `deploy-production`) between the last good run and `since`, and no good run after it | [Roll back](../cloudflare-data-publisher.md#roll-back) |
-| 6 | `unknown` | Unknown | None of the above is supported by the bundle | Say so and list the missing evidence |
+| 6 | `unknown` | Unknown | No cause 1–5 has its distinguishing evidence: the bundle lacks it (verdict `inconclusive`), or the cited evidence rules out every cause 1–5 (verdict `unexplained`) | Say so; for `inconclusive`, list the missing evidence |
 
 ## Judgment guidance
 
