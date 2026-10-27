@@ -53,7 +53,7 @@ Spec 017 在一份 Dev release（2026-10-12）的快照上比較第 2 與第 3 �
 
 | 部分 | 選擇 | 原因 |
 | --- | --- | --- |
-| 向量模型 | `@cf/baai/bge-m3`，1,024 維，`bge-m3@1` | 支援多語（中文查詢），發布與查詢使用同一個模型 |
+| 向量模型 | `@cf/baai/bge-m3`，1,024 維，`bge-m3@1` | 支援多語（中文查詢），發布與查詢使用同一個模型（[運作方式](#bge-m3)） |
 | 單位 | 與 BM25 相同的段落 | 只有一套切段規則，每段一個指紋 |
 | 儲存 | Cloudflare Vectorize，cosine，每個專案一個 namespace，放在可替換的介面後面 | 託管的向量資料庫不能變成對外契約（[Spec 005](docs/specs/005-evidence-search/spec.md)） |
 | 融合 | `rrf-group@2`：倒數排名融合，k = 60，以 thread 為單位 | 見下方 |
@@ -62,6 +62,61 @@ Spec 017 在一份 Dev release（2026-10-12）的快照上比較第 2 與第 3 �
 **倒數排名融合（RRF）** 把每份排名的 1 / (k + 名次) 相加。單純的 RRF（`rrf-group@1`）會傷害關鍵字的精確命中：只出現在一份清單的 thread 最多得到 1/61 ≈ 0.0164，同時出現在兩份清單的至少有 0.0153，所以弱的語意結果擠掉了正確的關鍵字結果（Dev 上「transaction manager」從第 1–2 名掉到第 20–21 名）。第 2 版讓段落包含所有查詢詞、排在前面的關鍵字 thread 保留原本的名次；順序是精確命中、這些 thread，其餘再依 RRF 排序（[Spec 016](docs/specs/016-semantic-search/spec.md)）。
 
 重播 57 列已標註資料（`bun run eval:search-fusion`）：關鍵字達標 34 列；`rrf-group@1` 30 列，且有 10 列比關鍵字差；`rrf-group@2` 39 列，沒有任何一列變差。編號、數字與符號查詢完全不做向量化。`rrf-group@3` 在 15 個新查詢上與 @2 打平後就停止調整融合；下一個要改的是被向量化的文字，而不是融合方式。
+
+### bge-m3 怎麼找到意思相近的段落 {#bge-m3}
+
+bge-m3 把一段文字轉成 1,024 個數字，稱為**向量**。意思相近的文字，向量的方向也相近。**cosine 相似度**衡量兩個向量的方向有多接近：1 代表方向相同，0 代表無關。
+
+向量化發生在兩個時間點，兩者使用同一個模型：
+
+| 時間點 | 被向量化的文字 | 結果 |
+| --- | --- | --- |
+| 發布時 | 每個段落的 `title + "\n" + text`，也就是標題加上約 280 字元的摘錄（`title-text@1`） | 向量存進 Vectorize |
+| 查詢時 | 使用者的查詢 | Vectorize 回傳最相近的段落：每個專案 50 段，Dev 有兩個專案，共 100 段 |
+
+下圖用 `raft leader election` 這個查詢說明兩邊的向量從哪裡來。段落文字、向量和 cosine 都是虛構的示意；`…` 省略了中間的 1,018 個數字。
+
+```
+發布時：每個段落各算一次，存進 Vectorize
+  段落 1  "KRaft uses Raft to elect the active controller ..."  --bge-m3-->  [ 0.12, -0.03, …,  0.07]
+  段落 2  "The metadata log is replicated to a quorum of ..."   --bge-m3-->  [ 0.10, -0.01, …,  0.05]
+  段落 3  "Push down topk through join ..."                     --bge-m3-->  [-0.08,  0.14, …, -0.02]
+  …
+
+查詢時：每次查詢算一次
+  查詢    "raft leader election"                               --bge-m3-->  [ 0.11, -0.02, …,  0.06]
+
+Vectorize：在同一個向量空間裡比方向（cosine），回傳最接近的段落
+  段落 1  0.66  <- 最接近
+  段落 2  0.60
+  段落 3  0.40
+```
+
+兩邊必須用同一個模型。每一維代表什麼是模型自己學出來的，換一個模型，數字的意義就不同，cosine 也就沒有意義。
+
+`bge-m3@1` 是一組固定的設定：模型 `@cf/baai/bge-m3`、modelRevision 1、1,024 維、組合文字的規則 `title-text@1`。任何一項改變，所有段落都要重新向量化。不同版本的向量從不互相比較（[Spec 016](docs/specs/016-semantic-search/spec.md)）。
+
+示意範例：下表的向量是虛構的 3 維數字，只用來說明；真正的向量有 1,024 維。
+
+| 文字 | 向量（虛構） | 與查詢的 cosine |
+| --- | --- | --- |
+| 查詢 `exactly-once delivery` | [0.9, 0.1, 0.0] | 1 |
+| 段落 A `idempotent producer avoids duplicates` | [0.8, 0.2, 0.1] | 0.98 |
+| 段落 B `Push down topk through join` | [0.1, 0.1, 0.9] | 0.12 |
+
+段落 A 與查詢沒有任何共同的字，所以 BM25 找不到它。它的向量方向接近查詢，所以語意檢索找得到。段落 B 的方向差很遠，排在後面。
+
+Dev 上的實際量測（2026-10-13，[docs/architecture/search-algorithm.md](docs/architecture/search-algorithm.md)）：
+
+| 發現 | 證據 |
+| --- | --- |
+| 相似度沒有可用的絕對門檻 | 相關候選 0.466–0.658，不相關候選 0.383–0.620（AUC 0.736） |
+| 與同一查詢語意第 20 名的差距比較能分辨 | 差距至少 0.05 時，保留 19 個相關候選中的 15 個、73 個不相關候選中的 3 個（AUC 0.871） |
+| 中文查詢的相似度沒有比較低 | 中文查詢最佳候選相似度的中位數 0.582，其他查詢 0.592 |
+| 語意名次不代表相似 | `transaction manager` 的語意第 9 名是 DataFusion 的 `Push down topk through join` |
+| 最大的限制是被向量化的文字太短 | 負責人的查詢 `consumer network thread request manager` 預期 3 個 thread，其中 2 個不在 100 個語意候選內；它們的標題與摘錄都沒有 `network thread` |
+
+**AUC** 是隨機取一個相關候選與一個不相關候選時，相關候選分數較高的機率：0.5 等於亂猜，1 代表完全分開。
 
 ### 查詢預算 {#budget}
 
