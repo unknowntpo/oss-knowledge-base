@@ -1470,7 +1470,15 @@ about 20 words a sentence, each term defined at first use.
 - **Cost.** The fixed part of the first call (system prompt, the instruction
   lines of the first message and the output JSON Schema) grows from 4,267 to
   about 5,440 characters (≈ 1,070 to ≈ 1,360 tokens at 4 characters a
-  token); the system context is ≈ 263 of it.
+  token); the system context is ≈ 263 of it. Measured on Qwen3 30B, the
+  mean input of a diagnosis grew from 3,896 to 4,524 tokens.
+- **Eval (SRE59, one run approved by the owner).** Qwen3 30B only, 5 runs
+  a case, the third run's settings:
+  [scoreboard-2026-10-27](eval/scoreboard-2026-10-27.md). 7 of 25
+  diagnoses pass (the third run: 2 of 24); cause 72% (63%), evidence 40%
+  (25%), fabrication 36% (63%); 58.3 neurons a diagnosis (62.3); 1,458
+  neurons, $0.016 in total. The most frequent failure (8 of 25) is the
+  string `"null"` as `runbook`, which B32 rejects; the third run had it too.
 
 ## Dev fault-injection drill (2026-10-22)
 
