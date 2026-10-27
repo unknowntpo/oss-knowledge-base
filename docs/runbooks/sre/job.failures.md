@@ -24,7 +24,7 @@ row means the next scheduled run will likely fail too.
 
 ## Evidence the agent gets
 
-The harness builds this bundle before the first model call. Quote only from it.
+The harness builds this bundle before the first model call. Cite only from it.
 
 | Evidence | Where it comes from |
 | --- | --- |
