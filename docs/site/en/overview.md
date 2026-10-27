@@ -12,7 +12,7 @@ Once a day a scheduled Worker collects community activity, turns it into threads
 2. **Processing.** `runDataPublication` in [apps/data-publisher-worker/src/pipeline.ts](apps/data-publisher-worker/src/pipeline.ts) materializes threads with deterministic rules (no language model in the publication path), writes the Feed release, and builds the search index.
 3. **Storage.** R2 holds immutable releases and content-addressed detail objects; only small `current.json` pointers change, and they are written last. A reader therefore sees one complete release, and rollback is a pointer change ([Spec 006](docs/specs/006-environment-isolated-r2-publication/spec.md), [Spec 008](docs/specs/008-content-addressed-details/spec.md)).
 4. **Application.** Pages Functions read R2 and return JSON with a 30-second cache; the Vue app renders it. Code deploys never publish data: data comes only from the Worker ([docs/operations/release.md](docs/operations/release.md)).
-5. **Observability.** Every job reports its last run in the public `/health`. On Dev each run also writes a Workers Analytics Engine data point, rules over those points mark a missed or failing job, the cost guard records the month-to-date cost, and twice a day the SRE agent diagnoses new firing rules with a Workers AI model and stores its reasoning in R2 for the owner ([Spec 027](docs/specs/027-sre-agent/spec.md), [Spec 028](docs/specs/028-observability-signals/spec.md)).
+5. **Observability.** Every job reports its last run in the public `/health`. On Dev each run also writes a Workers Analytics Engine data point, rules over those points mark a missed or failing job, and the cost guard records the month-to-date cost. A firing rule starts a diagnosis: twice a day the [SRE agent](sre-agent.html) asks a Workers AI model for the cause, code checks every cited piece of evidence, and the result and its reasoning go to R2 for the owner ([Spec 027](docs/specs/027-sre-agent/spec.md), [Spec 028](docs/specs/028-observability-signals/spec.md)).
 
 ## Dev and Prod {#environments}
 
@@ -27,6 +27,7 @@ The two environments are fully isolated: separate Workers, Durable Objects, R2 b
 | Weekly digest | on (22:47 UTC) | off |
 | Semantic hybrid search | on (`SEARCH_SEMANTIC=rrf-group@2`) | off |
 | Contributor profiles, review ingestion | on | off |
+| Observability rules, SRE agent | on (SRE agent at 00:30 and 11:00 UTC) | off |
 
 Every Dev-only feature is a flag that is unset on Prod, listed in [docs/feature-map.md](docs/feature-map.md#deployed-configuration). New behaviour is merged with its flag off, then enabled per environment in a separate small change, so a rollback is a configuration change rather than a revert ([docs/process/workflow.md](docs/process/workflow.md)).
 
@@ -36,4 +37,4 @@ Every Dev-only feature is a flag that is unset on Prod, listed in [docs/feature-
 - **Rules before models.** Thread materialization and identifier extraction are deterministic TypeScript ([ADR-0006](docs/architecture/decisions/0006-use-typescript-reference-materializer-before-flink.md)); language models are used only after publication, for the digest and semantic search, each with its own daily budget.
 - **Visible staleness.** Dev once published nothing for about 49 hours without anyone noticing ([Spec 011](docs/specs/011-stall-visibility/spec.md)). Every view now shows the data's age: late after 24 h 30 min, stale after 27 h ([apps/web/src/freshness.ts](apps/web/src/freshness.ts)).
 
-> As of 2026-10-20. Live run numbers in the diagram come from the public `/health` endpoints; the configuration comes from the wrangler files linked in each step.
+> As of 2026-10-27. Live run numbers in the diagram come from the public `/health` endpoints; the configuration comes from the wrangler files linked in each step.
