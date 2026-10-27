@@ -24,7 +24,7 @@ row means the next scheduled run will likely fail too.
 
 ## Evidence the agent gets
 
-The harness builds this bundle before the first model call. Quote only from it.
+The harness builds this bundle before the first model call. Cite only from it.
 
 | Evidence | Where it comes from |
 | --- | --- |
@@ -54,8 +54,9 @@ no runbook.
 
 ## Judgment guidance
 
-- **Quote only the bundle.** Every item in `evidence` is a verbatim quote of a
-  field in the bundle; a deterministic check rejects any other quote.
+- **Cite only the bundle.** Every entry in `evidence` cites one field of an
+  item: a path for a JSON item, a quote (an exact substring) for a text item. A
+  deterministic check rejects any other citation.
 - **Name the host and the status.** For causes 1 and 2, quote the job's
   `lastRun.error` (it carries the host and the HTTP status) and the
   `Q-window` result that shows whether other jobs ran normally.

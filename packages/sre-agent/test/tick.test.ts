@@ -11,11 +11,14 @@ import {
   BudgetExceededError,
   DAILY_NEURON_CAP,
   JOB_HEALTH_FIELDS,
+  OUTPUT_FIELD_RULES,
+  SYSTEM_CONTEXT,
   SYSTEM_PROMPT,
   NeuronLedger,
   PLAYBOOK_LIBRARY,
   WriteScopeError,
   buildBundle,
+  buildLibrary,
   capItems,
   checkEvidence,
   checkPlaybooks,
@@ -696,39 +699,89 @@ const scenarios: Record<string, () => Promise<void>> = {
     const shape = diagnosisOutputSchema.shape.evidence.element.shape;
     const path = shape.path.description ?? "";
     const quote = shape.quote.description ?? "";
-    for (const text of [SYSTEM_PROMPT, prompt, path, quote]) {
-      expect(text).toMatch(/JSON item/u);
-      expect(text).toMatch(/non-JSON item/u);
-      expect(text).not.toContain("\"key\": value");
+    for (const text of [SYSTEM_PROMPT, prompt]) {
+      expect(text).toMatch(/For a JSON item, give path\./u);
+      expect(text).toMatch(/For a text item, give quote\./u);
+      expect(text).toMatch(/exactly one of path or quote/u);
     }
+    expect(path).toMatch(/For a JSON item, give path\./u);
+    expect(quote).toMatch(/For a text item, give quote\./u);
+    for (const text of [SYSTEM_PROMPT, prompt, path, quote]) expect(text).not.toContain("\"key\": value");
     for (const text of [SYSTEM_PROMPT, prompt, path]) {
       expect(text).toContain("[0]");
       expect(text).toContain("[\"");
       expect(text).toMatch(/kipPages\.lastRun\.error/u);
     }
-    for (const text of [SYSTEM_PROMPT, prompt]) expect(text).toMatch(/exactly one of path or quote/u);
     for (const text of [SYSTEM_PROMPT, quote]) {
-      expect(text).toMatch(/verbatim/u);
-      expect(text).toMatch(/no ellipsis/u);
+      expect(text).toMatch(/exact substring of the text item/u);
+      expect(text).toContain("Do not use \"...\"");
     }
   },
 
   async "verdict definition"() {
-    const verdict = (z.toJSONSchema(diagnosisOutputSchema).properties!.verdict as { description?: string; enum?: string[] });
+    const properties = z.toJSONSchema(diagnosisOutputSchema).properties! as Record<string, { description?: string; enum?: string[] }>;
+    const verdict = properties.verdict!;
     expect(verdict.enum).toEqual(["explained", "unexplained", "inconclusive"]);
     for (const text of [SYSTEM_PROMPT, verdict.description ?? ""]) {
-      expect(text).toMatch(/verdict "explained": cause is a playbook cause id \(not "unknown"\) and evidence cites its distinguishing evidence, at any confidence\./u);
-      expect(text).toMatch(/verdict "inconclusive": only when cause is "unknown" because the bundle lacks the evidence that would decide it; name the missing fields in ownerAction\./u);
-      expect(text).toMatch(/verdict "unexplained": only when cause is "unknown" and the cited evidence rules out every playbook cause/u);
+      expect(text).toContain("Write \"explained\" when cause is a cause id.");
+      expect(text).toContain("Write \"inconclusive\" when cause is \"unknown\" and the bundle lacks the evidence that decides it.");
+      expect(text).toContain("Write \"unexplained\" when cause is \"unknown\" and the cited evidence rules out every cause.");
     }
+    for (const text of [SYSTEM_PROMPT, properties.ownerAction!.description ?? ""]) expect(text).toContain("For \"inconclusive\", name the missing fields.");
   },
 
   async "cause and confidence definition"() {
     const properties = z.toJSONSchema(diagnosisOutputSchema).properties! as Record<string, { description?: string }>;
-    expect(properties.cause!.description).toMatch(/A playbook cause id makes the verdict "explained"; "unknown" makes it "inconclusive" or "unexplained"\./u);
-    for (const text of [SYSTEM_PROMPT, properties.confidence!.description ?? ""]) {
-      expect(text).toMatch(/never changes the verdict: a playbook cause at low confidence is still "explained"/u);
+    for (const text of [SYSTEM_PROMPT, properties.cause!.description ?? ""]) {
+      expect(text).toContain("Check the causes in the table order.");
+      expect(text).toMatch(/Choose the first cause whose distinguishing evidence \(the table column\) is in the bundle\./u);
+      expect(text).toContain("If no cause qualifies, write \"unknown\".");
     }
+    for (const text of [SYSTEM_PROMPT, properties.confidence!.description ?? ""]) {
+      expect(text).toContain("Confidence never changes the verdict.");
+      expect(text).toContain("A cause id at low confidence is still \"explained\".");
+    }
+  },
+
+  async "system context"() {
+    const body = readFileSync(join(repo, "docs/runbooks/sre/system.md"), "utf8").trim();
+    expect(body.startsWith("# System\n")).toBe(true);
+    expect(SYSTEM_CONTEXT).toBe(body);
+    expect(SYSTEM_PROMPT.startsWith(`${body}\n\n# Role\n`)).toBe(true);
+    // The system file is bundled beside the playbooks, never as one (B35's format does not apply to it).
+    const files = readDir("docs/runbooks/sre");
+    expect(files.map((file) => file.path)).toContain("docs/runbooks/sre/system.md");
+    expect(Object.keys(PLAYBOOK_LIBRARY.playbooks)).not.toContain("system");
+    expect(Object.keys(buildLibrary(files, readDir("docs/runbooks")).playbooks)).not.toContain("system");
+    // Facts stay tied to the code: every job that writes its own data point, and the agent.
+    const profile = readFileSync(join(repo, "apps/data-publisher-worker/src/signals/profile.ts"), "utf8");
+    const jobs = [...(/SIGNAL_JOBS = \[([^\]]+)\]/u.exec(profile)![1]!.matchAll(/"([\w-]+)"/gu))].map((match) => match[1]!);
+    expect(jobs.length).toBeGreaterThan(5);
+    for (const job of [...jobs, "sre-agent"]) expect(body).toContain(job);
+    expect(Math.ceil(body.length / 4)).toBeLessThanOrEqual(270);
+    expect(longSentences(body)).toEqual([]);
+  },
+
+  async "prompt in STE"() {
+    const schema = z.toJSONSchema(diagnosisOutputSchema) as { properties: Record<string, { description?: string; items?: { properties: Record<string, { description?: string }> } }> };
+    const fields = Object.keys(diagnosisOutputSchema.shape);
+    expect(fields).toEqual(["cause", "verdict", "confidence", "evidence", "runbook", "ownerAction"]);
+    expect(Object.keys(OUTPUT_FIELD_RULES)).toEqual(fields);
+    expect([...SYSTEM_PROMPT.matchAll(/^# (\S+)$/gmu)].map((match) => match[1])).toEqual(["System", "Role", "Input", ...fields]);
+    for (const field of fields) expect(SYSTEM_PROMPT).toContain(`# ${field}\n${OUTPUT_FIELD_RULES[field as keyof typeof OUTPUT_FIELD_RULES]}`);
+    // One source: each schema description is the rule text of its prompt section.
+    const entry = schema.properties.evidence!.items!.properties;
+    expect(OUTPUT_FIELD_RULES.evidence).toBe([schema.properties.evidence!.description, entry.path!.description, entry.quote!.description].join(" "));
+    for (const field of ["cause", "verdict", "confidence", "runbook", "ownerAction"] as const) expect(schema.properties[field]!.description).toBe(OUTPUT_FIELD_RULES[field]);
+    expect(OUTPUT_FIELD_RULES.verdict).not.toContain("ownerAction");
+    // One term per concept: item (E1…En), entry (an evidence element), text item, cause id.
+    const prompt = renderPrompt({ job: "kip-pages", items: [] } as unknown as Bundle);
+    const texts = [SYSTEM_PROMPT, prompt, JSON.stringify(schema)];
+    for (const banned of ["bundle item", "evidence entry", "listed cause", "playbook cause", "non-JSON", "evidence bundle", "verbatim", "ellipsis"]) {
+      for (const text of texts) expect(text.toLowerCase()).not.toContain(banned.toLowerCase());
+    }
+    expect(longSentences(SYSTEM_PROMPT)).toEqual([]);
+    expect(longSentences(prompt)).toEqual([]);
   },
 
   async "quote precision"() {
@@ -893,6 +946,11 @@ function expectedFields(job: string, health: Health): unknown {
 function playbook(causeRows: string): string {
   return ["# Invariant playbook: `x`", "", "## Statement", "", "s", "", "## Why", "", "w", "", "## Evidence the agent gets", "", "e", "", "## Hard check", "", "h", "",
     "## Causes, in order", "", "| # | Cause id | Cause | Distinguishing evidence | Runbook |", "| --- | --- | --- | --- | --- |", causeRows, "", "## Judgment guidance", "", "j", ""].join("\n");
+}
+
+/** STE: sentences (split at a full stop, a colon or a line end) of more than 20 words. */
+function longSentences(text: string): string[] {
+  return text.split(/(?<=[.:])\s+|\n+/u).filter((sentence) => sentence.split(/\s+/u).filter(Boolean).length > 20);
 }
 
 function readDir(dir: string): { path: string; text: string }[] {

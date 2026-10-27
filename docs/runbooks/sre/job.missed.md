@@ -30,7 +30,7 @@ stall is visible, not pushed; this playbook explains a stall once it fires.
 
 ## Evidence the agent gets
 
-The harness builds this bundle before the first model call. Quote only from it.
+The harness builds this bundle before the first model call. Cite only from it.
 
 | Evidence | Where it comes from |
 | --- | --- |
@@ -64,9 +64,10 @@ no runbook.
 
 ## Judgment guidance
 
-- **Quote only the bundle.** Every item in `evidence` is a verbatim quote of a
-  field in the bundle. A deterministic check rejects a diagnosis whose quote is
-  not there (fabrication).
+- **Cite only the bundle.** Every entry in `evidence` cites one field of an
+  item: a path for a JSON item, a quote (an exact substring) for a text item. A
+  deterministic check rejects a diagnosis whose path or quote is not there
+  (fabrication).
 - **Confidence.**
   - `high`: one cause's distinguishing evidence is present and nothing in the
     bundle contradicts it.
@@ -79,7 +80,7 @@ no runbook.
   - `inconclusive`: the bundle lacks the evidence that would decide it. List
     exactly which fields would decide it in `ownerAction`.
   - `unexplained`: the cited evidence rules out every cause 1–5. The firing is
-    real, but no listed cause fits.
+    real, but no cause in the table fits.
   "Unknown" with a precise gap is a correct answer; a guess is not. A cause
   1–5 with its evidence cited is `explained`, at any confidence.
 - **Owner actions, never agent actions.** `ownerAction` may suggest a manual

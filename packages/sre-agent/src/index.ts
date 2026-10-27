@@ -9,4 +9,4 @@ export * from "./store";
 export * from "./loop";
 export * from "./tick";
 export * from "./drill";
-export { PLAYBOOK_LIBRARY } from "./playbooks.generated";
+export { PLAYBOOK_LIBRARY, SYSTEM_CONTEXT } from "./playbooks.generated";
