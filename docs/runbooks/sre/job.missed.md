@@ -64,9 +64,10 @@ no runbook.
 
 ## Judgment guidance
 
-- **Quote only the bundle.** Every item in `evidence` is a verbatim quote of a
-  field in the bundle. A deterministic check rejects a diagnosis whose quote is
-  not there (fabrication).
+- **Cite only the bundle.** Every entry in `evidence` cites one field of an
+  item: a path for a JSON item, a quote (an exact substring) for a text item. A
+  deterministic check rejects a diagnosis whose path or quote is not there
+  (fabrication).
 - **Confidence.**
   - `high`: one cause's distinguishing evidence is present and nothing in the
     bundle contradicts it.

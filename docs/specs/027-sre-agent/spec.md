@@ -1475,7 +1475,7 @@ about 20 words a sentence, each term defined at first use.
 - **Eval (SRE59, one run approved by the owner).** Qwen3 30B only, 5 runs
   a case, the third run's settings:
   [scoreboard-2026-10-27](eval/scoreboard-2026-10-27.md). 7 of 25
-  diagnoses pass (the third run: 2 of 24); cause 72% (63%), evidence 40%
+  diagnoses pass (the third run: 2 of 24; the same 7 cases × 5 runs, one `tag-ci-failure` run missing there); cause 72% (63%), evidence 40%
   (25%), fabrication 36% (63%); 58.3 neurons a diagnosis (62.3); 1,458
   neurons, $0.016 in total. The most frequent failure (8 of 25) is the
   string `"null"` as `runbook`, which B32 rejects; the third run had it too.
