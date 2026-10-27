@@ -30,7 +30,7 @@
 模型只能引用證據包裡的內容。[evidence.ts](packages/sre-agent/src/evidence.ts) 的 `checkEvidence` 只用程式，不用模型：
 
 - JSON 項目用 `path` 引用，例如 `kipPages.lastRun.error`。path 必須能在該項目解析後的 JSON 中找到。
-- 文字項目用 `quote` 引用。quote 必須是該項目的完整子字串。空白不計；省略號會失敗。
+- 文字項目用 `quote` 引用。quote 必須出現在該項目中，或符合其中某個物件的鍵值對。空白不計；省略號會失敗。
 - 不存在的項目 id 會失敗。playbook 沒有的 cause 會失敗。playbook 沒列出的 runbook 錨點會失敗。
 
 檢查失敗時，verdict 改為 `unverified`。答案其餘部分保留給負責人閱讀。

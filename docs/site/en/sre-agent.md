@@ -30,7 +30,7 @@ A **playbook** is the runbook page for one rule. It lists the possible causes in
 The model may cite only what is in the bundle. `checkEvidence` in [evidence.ts](packages/sre-agent/src/evidence.ts) is code only, with no model:
 
 - A JSON item is cited by `path`, for example `kipPages.lastRun.error`. The path must resolve in the item's parsed JSON.
-- A text item is cited by `quote`. The quote must be an exact substring of the item. Whitespace does not count; an ellipsis fails.
+- A text item is cited by `quote`. The quote must occur in the item, or match the key–value pairs of one object in it. Whitespace does not count; an ellipsis fails.
 - An unknown item id fails. A cause that is not in the playbook fails. A runbook anchor that the playbook does not list fails.
 
 A failed check changes the verdict to `unverified`. The rest of the answer is kept for the owner to read.
