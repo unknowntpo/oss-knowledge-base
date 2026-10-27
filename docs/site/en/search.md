@@ -74,6 +74,26 @@ Embedding happens at two moments, with the same model:
 | Publish time | each chunk's `title + "\n" + text`: the title plus an excerpt of about 280 characters (`title-text@1`) | the vector is stored in Vectorize |
 | Query time | the user's query | Vectorize returns the nearest chunks: 50 per project, so 100 for the two projects on Dev |
 
+The diagram below follows the query `raft leader election` to show where each side's vectors come from. The chunk texts, vectors and cosines are made up for illustration; `…` stands for the 1,018 numbers in between.
+
+```
+Publish time: once per chunk, stored in Vectorize
+  chunk 1  "KRaft uses Raft to elect the active controller ..."  --bge-m3-->  [ 0.12, -0.03, …,  0.07]
+  chunk 2  "The metadata log is replicated to a quorum of ..."   --bge-m3-->  [ 0.10, -0.01, …,  0.05]
+  chunk 3  "Push down topk through join ..."                     --bge-m3-->  [-0.08,  0.14, …, -0.02]
+  …
+
+Query time: once per query
+  query    "raft leader election"                               --bge-m3-->  [ 0.11, -0.02, …,  0.06]
+
+Vectorize: compare directions (cosine) in the same vector space, return the nearest chunks
+  chunk 1  0.66  <- nearest
+  chunk 2  0.60
+  chunk 3  0.40
+```
+
+Both sides must use the same model. What each dimension means is learned by the model; with a different model the numbers mean something else, and the cosine is meaningless.
+
 `bge-m3@1` is one fixed profile: model `@cf/baai/bge-m3`, modelRevision 1, 1,024 dimensions, and the text assembly rule `title-text@1`. A change to any part re-embeds every chunk. Vectors of different revisions are never compared ([Spec 016](docs/specs/016-semantic-search/spec.md)).
 
 Illustrative example: the vectors below are made-up 3-dimension numbers for explanation only; real vectors have 1,024 dimensions.

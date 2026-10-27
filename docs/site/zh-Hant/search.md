@@ -74,6 +74,26 @@ bge-m3 把一段文字轉成 1,024 個數字，稱為**向量**。意思相近�
 | 發布時 | 每個段落的 `title + "\n" + text`，也就是標題加上約 280 字元的摘錄（`title-text@1`） | 向量存進 Vectorize |
 | 查詢時 | 使用者的查詢 | Vectorize 回傳最相近的段落：每個專案 50 段，Dev 有兩個專案，共 100 段 |
 
+下圖用 `raft leader election` 這個查詢說明兩邊的向量從哪裡來。段落文字、向量和 cosine 都是虛構的示意；`…` 省略了中間的 1,018 個數字。
+
+```
+發布時：每個段落各算一次，存進 Vectorize
+  段落 1  "KRaft uses Raft to elect the active controller ..."  --bge-m3-->  [ 0.12, -0.03, …,  0.07]
+  段落 2  "The metadata log is replicated to a quorum of ..."   --bge-m3-->  [ 0.10, -0.01, …,  0.05]
+  段落 3  "Push down topk through join ..."                     --bge-m3-->  [-0.08,  0.14, …, -0.02]
+  …
+
+查詢時：每次查詢算一次
+  查詢    "raft leader election"                               --bge-m3-->  [ 0.11, -0.02, …,  0.06]
+
+Vectorize：在同一個向量空間裡比方向（cosine），回傳最接近的段落
+  段落 1  0.66  <- 最接近
+  段落 2  0.60
+  段落 3  0.40
+```
+
+兩邊必須用同一個模型。每一維代表什麼是模型自己學出來的，換一個模型，數字的意義就不同，cosine 也就沒有意義。
+
 `bge-m3@1` 是一組固定的設定：模型 `@cf/baai/bge-m3`、modelRevision 1、1,024 維、組合文字的規則 `title-text@1`。任何一項改變，所有段落都要重新向量化。不同版本的向量從不互相比較（[Spec 016](docs/specs/016-semantic-search/spec.md)）。
 
 示意範例：下表的向量是虛構的 3 維數字，只用來說明；真正的向量有 1,024 維。
