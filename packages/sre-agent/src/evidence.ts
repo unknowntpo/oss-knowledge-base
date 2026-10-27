@@ -2,34 +2,84 @@
 import { z } from "zod";
 import type { EvidenceItem } from "./bundle";
 
-/** SRE89: the path syntax, as the prompt and the schema describe it to the model. */
-export const PATH_SYNTAX =
-  "the path of one field inside that item: keys joined by dots, array indexes in brackets, for example kipPages.lastRun.error, status or [0].status (a SQL item is an array of rows); write a key holding a dot, bracket, quote or space as [\"the.key\"]. The code reads the value there, so never copy JSON text.";
+/*
+ * SRE100 (owner decision 2026-10-27): the rules of each output field in ASD-STE100 style (one term per concept, one
+ * instruction per sentence, imperative, at most 20 words a sentence). Each text is both a `SYSTEM_PROMPT` section and
+ * the schema description of its field, so the model reads one wording. Terms: an item is one of E1…En in the bundle;
+ * a JSON item holds JSON and a text item holds other text; an entry is one element of `evidence`; a cause id is an id
+ * in the cause table of the firing rule's playbook.
+ */
 
-/** SRE94: what each verdict means, as the prompt and the schema define it to the model (owner decision 2026-10-26). */
+/** SRE95, SRE100: the cause rule; the order matches the playbooks' "Causes, in order" (first match wins). */
+export const CAUSE_DEFINITION = [
+  "Use the cause table of the firing rule's playbook.",
+  "Check the causes in the table order.",
+  "Choose the first cause whose distinguishing evidence (the table column) is in the bundle.",
+  "Write its cause id (the table's Cause id column).",
+  "If no cause qualifies, write \"unknown\".",
+].join(" ");
+
+/** SRE94: what each verdict means, from the cause (owner decision 2026-10-26; STE wording 2026-10-27). */
 export const VERDICT_DEFINITION = [
-  "verdict \"explained\": cause is a playbook cause id (not \"unknown\") and evidence cites its distinguishing evidence, at any confidence.",
-  "verdict \"inconclusive\": only when cause is \"unknown\" because the bundle lacks the evidence that would decide it; name the missing fields in ownerAction.",
-  "verdict \"unexplained\": only when cause is \"unknown\" and the cited evidence rules out every playbook cause: the firing is real but no listed cause fits.",
+  "Write \"explained\" when cause is a cause id.",
+  "Write \"inconclusive\" when cause is \"unknown\" and the bundle lacks the evidence that decides it.",
+  "Write \"unexplained\" when cause is \"unknown\" and the cited evidence rules out every cause.",
 ].join(" ");
 
 /** SRE95: confidence grades the cause and never sets the verdict. */
-export const CONFIDENCE_DEFINITION =
-  "How sure you are of the cause, by the playbook's confidence guidance. It never changes the verdict: a playbook cause at low confidence is still \"explained\".";
+export const CONFIDENCE_DEFINITION = [
+  "Grade the cause as low, medium or high by the playbook's confidence guidance.",
+  "Confidence never changes the verdict.",
+  "A cause id at low confidence is still \"explained\".",
+].join(" ");
 
+/** SRE87, SRE100: one field per entry, cited by exactly one of path and quote. */
+export const ENTRY_DEFINITION = "Write one entry per cited field. In each entry, give the item id and exactly one of path or quote.";
+
+/** SRE89: the path syntax, as the prompt and the schema describe it to the model. */
+export const PATH_SYNTAX = [
+  "For a JSON item, give path.",
+  "Write a path as keys joined by dots.",
+  "Write an array index as [n].",
+  "A SQL item is an array of rows.",
+  "Examples: kipPages.lastRun.error, [0].status.",
+  "Write a key that holds a dot, bracket, quote or space as [\"the.key\"].",
+  "Do not copy JSON text.",
+  "The code reads the value at the path.",
+].join(" ");
+
+/** SRE89: a quote is an exact substring of a text item. */
+export const QUOTE_DEFINITION = "For a text item, give quote. Write a quote as an exact substring of the text item. Do not use \"...\" or \"…\".";
+
+export const RUNBOOK_DEFINITION = "Write one anchor from the playbook, as <file>.md#<anchor>. If none applies, write null.";
+
+/** SRE94: the missing fields of an `inconclusive` diagnosis go here. */
+export const OWNER_ACTION_DEFINITION = "Write the next step for the owner. No tool can do it. For \"inconclusive\", name the missing fields.";
+
+/** SRE100: one prompt section per output field, in the schema's order. */
+export const OUTPUT_FIELD_RULES = {
+  cause: CAUSE_DEFINITION,
+  verdict: VERDICT_DEFINITION,
+  confidence: CONFIDENCE_DEFINITION,
+  evidence: [ENTRY_DEFINITION, PATH_SYNTAX, QUOTE_DEFINITION].join(" "),
+  runbook: RUNBOOK_DEFINITION,
+  ownerAction: OWNER_ACTION_DEFINITION,
+} as const;
+
+/** The model writes the fields in this order: the cause first, since the verdict follows from it (SRE100). */
 export const diagnosisOutputSchema = z.object({
+  cause: z.string().describe(CAUSE_DEFINITION),
   verdict: z.enum(["explained", "unexplained", "inconclusive"]).describe(VERDICT_DEFINITION),
-  cause: z.string().describe("A cause id from a firing rule's playbook, or \"unknown\". A playbook cause id makes the verdict \"explained\"; \"unknown\" makes it \"inconclusive\" or \"unexplained\"."),
   confidence: z.enum(["low", "medium", "high"]).describe(CONFIDENCE_DEFINITION),
   // SRE87: exactly one of `path` and `quote`; the evidence check, not the schema, enforces it, so a bad entry
   // makes the verdict `unverified` and the rest of the diagnosis is kept.
   evidence: z.array(z.object({
-    id: z.string().describe("The id of a bundle item, E1…En"),
-    path: z.string().nullish().describe(`For a JSON item: ${PATH_SYNTAX} Leave quote out. Never for a non-JSON item.`),
-    quote: z.string().nullish().describe("Only for a non-JSON item (a playbook, runbook or log text): a plain substring copied verbatim, no ellipsis. Leave path out. Never for a JSON item: cite it by path."),
-  })),
-  runbook: z.string().nullable().describe("A runbook anchor the playbook lists, as <file>.md#<anchor>"),
-  ownerAction: z.string().nullable().describe("Text for the owner; no tool can perform it"),
+    id: z.string().describe("The item id, E1…En."),
+    path: z.string().nullish().describe(PATH_SYNTAX),
+    quote: z.string().nullish().describe(QUOTE_DEFINITION),
+  })).describe(ENTRY_DEFINITION),
+  runbook: z.string().nullable().describe(RUNBOOK_DEFINITION),
+  ownerAction: z.string().nullable().describe(OWNER_ACTION_DEFINITION),
 });
 
 export type DiagnosisOutput = z.infer<typeof diagnosisOutputSchema>;
