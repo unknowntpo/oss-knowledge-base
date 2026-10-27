@@ -53,7 +53,7 @@ No query got worse. Ablation: the geometric sum alone passes 15, the phrase bonu
 
 | Part | Choice | Why |
 | --- | --- | --- |
-| Embeddings | `@cf/baai/bge-m3`, 1,024 dimensions, `bge-m3@1` | multilingual (Chinese queries), same model at publish and query time |
+| Embeddings | `@cf/baai/bge-m3`, 1,024 dimensions, `bge-m3@1` | multilingual (Chinese queries), same model at publish and query time ([how it works](#bge-m3)) |
 | Unit | the same chunks BM25 indexes | one chunking policy, one fingerprint per chunk |
 | Store | Cloudflare Vectorize, cosine, one namespace per project, behind a replaceable interface | a managed vector database must not become the public contract ([Spec 005](docs/specs/005-evidence-search/spec.md)) |
 | Fusion | `rrf-group@2`: reciprocal rank fusion, k = 60, grouped by thread | see below |
@@ -62,6 +62,41 @@ No query got worse. Ablation: the geometric sum alone passes 15, the phrase bonu
 **Reciprocal rank fusion (RRF)** adds 1 / (k + rank) from each ranked list. Plain RRF (`rrf-group@1`) hurt exact lexical hits: a thread found by only one list scores at most 1/61 ≈ 0.0164, while one found by both scores at least 0.0153, so weak semantic matches displaced correct lexical ones (on Dev, "transaction manager" moved from ranks 1–2 to 20–21). Revision 2 keeps leading lexical threads whose passage holds every query word in their lexical places; order is exact matches, then those threads, then the rest by RRF ([Spec 016](docs/specs/016-semantic-search/spec.md)).
 
 Replay of 57 labelled rows (`bun run eval:search-fusion`): lexical meets 34, `rrf-group@1` 30 with 10 rows worse than lexical, `rrf-group@2` 39 with none worse. Identifier, number and symbol queries skip the embedding entirely. Tuning stopped after `rrf-group@3` tied @2 on 15 fresh queries; the next lever is the text that is embedded, not the fusion.
+
+### How bge-m3 finds passages with similar meaning {#bge-m3}
+
+bge-m3 turns a piece of text into 1,024 numbers, called a **vector**. Texts with similar meaning get vectors that point in similar directions. **Cosine similarity** measures how close two directions are: 1 is the same direction, 0 is unrelated.
+
+Embedding happens at two moments, with the same model:
+
+| Moment | Text that is embedded | Result |
+| --- | --- | --- |
+| Publish time | each chunk's `title + "\n" + text`: the title plus an excerpt of about 280 characters (`title-text@1`) | the vector is stored in Vectorize |
+| Query time | the user's query | Vectorize returns the nearest chunks: 50 per project, 100 in total |
+
+`bge-m3@1` is one fixed profile: model `@cf/baai/bge-m3`, modelRevision 1, 1,024 dimensions, and the text assembly rule `title-text@1`. A change to any part re-embeds every chunk. Vectors of different revisions are never compared ([Spec 016](docs/specs/016-semantic-search/spec.md)).
+
+Illustrative example: the vectors below are made-up 3-dimension numbers for explanation only; real vectors have 1,024 dimensions.
+
+| Text | Vector (made up) | Cosine with the query |
+| --- | --- | --- |
+| query `exactly-once delivery` | [0.9, 0.1, 0.0] | 1 |
+| chunk A `idempotent producer avoids duplicates` | [0.8, 0.2, 0.1] | 0.98 |
+| chunk B `Push down topk through join` | [0.1, 0.1, 0.9] | 0.12 |
+
+Chunk A shares no word with the query, so BM25 misses it. Its vector points close to the query's, so semantic retrieval finds it. Chunk B points far away and ranks low.
+
+What Dev measurements showed (2026-10-13, [docs/architecture/search-algorithm.md](docs/architecture/search-algorithm.md)):
+
+| Finding | Evidence |
+| --- | --- |
+| No usable absolute similarity threshold | relevant candidates 0.466–0.658, irrelevant 0.383–0.620 (AUC 0.736) |
+| The gap above the same query's semantic #20 separates better | a gap of at least 0.05 keeps 15 of 19 relevant and 3 of 73 irrelevant candidates (AUC 0.871) |
+| Chinese queries do not score lower | best-candidate median 0.582, other queries 0.592 |
+| Semantic rank does not mean similar | the semantic #9 for `transaction manager` is DataFusion's `Push down topk through join` |
+| The biggest limit is the short embedded text | the owner's query `consumer network thread request manager` expects 3 threads; 2 are not among the 100 semantic candidates, and their titles and excerpts never say `network thread` |
+
+**AUC** is the chance that a random relevant candidate scores higher than a random irrelevant one: 0.5 is a coin flip, 1 is perfect separation.
 
 ### Query budget {#budget}
 
