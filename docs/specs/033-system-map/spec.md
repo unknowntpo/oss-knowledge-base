@@ -1,6 +1,6 @@
 # Spec 033: System map
 
-Status: Implemented (slice 1: SM1–SM8, SM12–SM17, SM23, SM19 measured; slice 2: SM9–SM11, SM18, SM20 measured; SM21–SM22 [deploy], checked on Dev after the merge deploys; owner decisions 2026-10-26: decisions 1–5 below, and slice 2: `components` and the CORS header of `GET /health`)
+Status: Implemented (slice 1: SM1–SM8, SM12–SM17, SM23, SM19 measured; slice 2: SM9–SM11, SM18, SM20 measured; SM21–SM22 [deploy], checked on Dev after the merge deploys (SM22 on 2026-10-26, from the Spec 027 drill); owner decisions 2026-10-26: decisions 1–5 below, and slice 2: `components` and the CORS header of `GET /health`)
 Date: 2026-10-26
 Traceability: enforced
 Builds on: Spec 025 (docs site, the system flow `docs/site/flows/system.json`, DOC20), Spec 020 (feature-map site, the Deployed configuration parser), Spec 018 (`/health`), Spec 028 (signals)
@@ -319,6 +319,7 @@ branch after the verifier's round-2 fixes (parent commit `ea2809b`,
 ### Observability
 - SM21: [deploy] After deployment, the Dev page shows the live `/health` read time and at least one component per job that Dev runs, and the Prod page shows Prod's 26 (± changes) live components.
 - SM22: [deploy] When a job fails on Dev (the Spec 027 fault drill), the map shows it failed on the next page load, with the same reason as `/health`.
+  Checked on Dev on 2026-10-26: the Spec 027 drill `throw-20261026T0929Z` (graded `pass`) failed the kip-pages runs `kip-pages-2026-10-26T09-29-59-338Z` and `kip-pages-2026-10-26T09-35-02-078Z`; `/health` `components` gave `kip-pages` `failed`, "cwiki.apache.org answered 503" (cwiki itself answered 302, so the drill caused it), and the Dev map loaded at 13:16 UTC showed the kip-pages steps failed with the same reason.
 
 ## Slices
 
