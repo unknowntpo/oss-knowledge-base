@@ -315,6 +315,7 @@ branch after the verifier's round-2 fixes (parent commit `ea2809b`,
 ### Budget
 - SM19: [measure] The built page, both locales, stays under 300 KB each uncompressed (limit chosen against the current overview page; measured value in the PR; command `bun run docs:build` then `wc -c`).
 - SM20: [measure] A page view costs one `GET /health` per environment shown, and `/health` performs no R2 operation for `components` (Workers requests only; measured with the Worker's request log over 10 page loads).
+  Measured on Dev on 2026-10-27 09:12–09:14 UTC with Workers Logs (Observability, last hour grouped by trigger and message): 10 loads of the zh-Hant page made 10 `GET /health` and nothing else reached the Worker in that hour. Each load fetched `/health` once (browser resource timing: 1). The 10 requests made 80 `r2_get` (8 per request) and no R2 write; these are the body's existing record reads, since `healthComponents` takes the built body and makes no I/O.
 
 ### Observability
 - SM21: [deploy] After deployment, the Dev page shows the live `/health` read time and at least one component per job that Dev runs, and the Prod page shows Prod's 26 (± changes) live components.
