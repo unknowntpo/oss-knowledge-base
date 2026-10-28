@@ -1,6 +1,6 @@
 # Spec 014: Kafka topic digest
 
-Status: Implemented (slices 1–3 and 2b–2e: #33, #35, #36, #40, #43, #44, #68; accepted 2026-10-08; D95 error redaction 2026-10-19; D96 English sentence cache 2026-10-19; D97–D102 status wording and translation gate 2026-10-20; D103–D108 importance rubric v2, D34 hit rule, glossary v2 2026-10-24); the digest runs on Dev only (`DIGEST_ENABLED`, cron 22:47 UTC), off on Prod
+Status: Implemented (slices 1–3 and 2b–2e: #33, #35, #36, #40, #43, #44, #68; accepted 2026-10-08; D95 error redaction 2026-10-19; D96 English sentence cache 2026-10-19; D97–D102 status wording and translation gate 2026-10-20; D103–D108 importance rubric v2, D34 hit rule, glossary v2 2026-10-24; D109–D114 Prod as an experimental feature, amendment 2026-10-28); the digest runs on Dev (`DIGEST_ENABLED`, cron 22:47 UTC); on Prod it is staged off (D113) until its enable PR; every digest page shows the experimental label (D109–D112) until D34 and D102 pass
 Date: 2026-10-06 (amended 2026-10-08 after design review)
 Traceability: enforced
 Builds on: Spec 002, Spec 005, Spec 008 (ADR-0013), Spec 010, Spec 011, Spec 012 (ADR-0014), Spec 013
@@ -1276,6 +1276,9 @@ accepted.
      (sliding window, beta), authentication on, and retries off.
    - The caps were approved: Dev 4,500 and Prod 5,000.
    - The Prod gateway does not exist yet, so the Prod digest stays off.
+   - 2026-10-28: the owner decided to ship the digest to Prod as an
+     experimental feature; the Prod list is in
+     [What the owner must set up before the enable PR](#what-the-owner-must-set-up-before-the-enable-pr).
 7. **Preconditions for slice 2's Dev checks.**
    - D35 needs gateway `osskb-digest-dev` (step 2), plus a temporary test
      gateway limited to 1 request/min.
@@ -1896,12 +1899,13 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   `DIGEST_CRON`, and `DIGEST_CRON` never exists without its entry.
   - Dev has the `ai` binding and `osskb-digest-dev`; its digest cron is
     D86's (none before slice 2e).
-  - Prod has no `ai` binding and no digest variables.
+  - Prod's digest settings are D113's (staged, `DIGEST_ENABLED` unset;
+    no `ai` binding and no digest variables before 2026-10-28).
 - D86: the Dev deploy config has exactly two crons: the publisher's
   `7 22 * * *` and `47 22 * * *`, which equals `DIGEST_CRON`.
   - A `47 22 * * *` tick starts the digest and no publication; a
     `7 22 * * *` tick starts a publication and no digest.
-  - Prod has no `DIGEST_CRON` and only its publisher cron.
+  - Prod's digest cron is D113's (none before 2026-10-28).
 - D87: the digest alarm also defers while the publisher's alarm will still
   start a run (`scheduled: true` in its status): a run that is due, or a
   follow-up that is waiting (Spec 018). D59's bound holds: 15 min, at most
@@ -2351,6 +2355,38 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   proposed" into 將提出 or drops "backport" (Dev 2026-10-23 #20 and #2);
   "would be proposed" → 將提出 and a translation keeping "backport" pass.
 
+### Experimental label and Prod staging (amendment 2026-10-28)
+- D109: This week (before the headline), the Proposals tab and a topic
+  page show the digest's experimental label: the badge "Experimental ·
+  Early access" and the note "AI-written summaries, still being evaluated.
+  The Chinese version is machine-translated and still being checked." in
+  en; 「實驗中・搶先體驗」 and 「摘要由 AI 撰寫，品質仍在評估中；中文為機器翻譯，仍在校對。」
+  in zh-Hant.
+- D110: the label renders only for a feature listed in
+  `apps/web/src/experimental.ts`; the list holds `digest` alone; an id not
+  in the list (including an inherited key such as `toString`) renders
+  nothing; every placed `<ExperimentalLabel>` names a listed feature and
+  every listed feature is placed. All threads, a thread's Detail and a
+  community without a digest show no label.
+- D111: the label is `role="note"` with the badge text as its accessible
+  name; the badge and the note are DOM text in both locales, and no CSS
+  `content` draws text.
+- D112: the badge is a 藤 pill with a translucent fill (alpha < 0.5) and a
+  1px outline on all four sides. In light and dark, its text is ≥ 4.5:1 on
+  the fill over the card, page and sunken surfaces, and its outline ≥ 3:1
+  on them. No colour of it is orange, no side has its own border, and no
+  rule sets `opacity`. Under a dark OS the browser draws the dark tokens.
+- D113: Prod stages the digest off. `wrangler.production.jsonc` has the
+  `ai` binding, `DIGEST_MODEL=workers-ai`,
+  `DIGEST_GATEWAY_ID=osskb-digest-prod`, `DIGEST_CRON=17 23 * * *` with its
+  `triggers.crons` entry, and no `DIGEST_ENABLED`. A digest tick with
+  `DIGEST_ENABLED` not `true` sends no request to `DigestRun` and does not
+  throw; with `true` the same tick starts the digest.
+- D114: [deploy] after the enable PR's release tag: Prod
+  `/health.digest` shows `enabled: true` and `today.cap` 5,000; after the
+  first 23:17 UTC run, `lastRun.ok` is true and `limited` false, and Prod
+  `/kafka/` shows the digest with the label in en and zh-Hant.
+
 ## Slices
 
 Each slice is its own PR. A slice's tests are named with the IDs it covers.
@@ -2527,6 +2563,153 @@ is the dry run of decision 5, on a UTC day with no other digest run.
   each known from one day.
 - Nothing retries a `limited` scheduled run the same day; the next day's
   run replaces it.
+
+## Prod as an experimental feature (amendment 2026-10-28)
+
+### Owner decision
+
+The owner decided on 2026-10-28 to ship the digest to Prod now, in en and
+zh-Hant, and to improve it later. Users must see that the feature is still
+in development (owner's words: 「這種還在使用實驗中的功能可以加實驗中的 flag
+或是什麼的，這樣使用者就知道這個還在開發中、搶先體驗。中英都上。」).
+
+- **The Prod gate did not pass.** The last measurement (Dev week
+  2026-10-16..23, labels `golden-2026-10-23 rubric@2-claude`, see the Review
+  log) gave D102 `status-drift` 1, `omission` 2, `term-error` 6 against the
+  thresholds 0, 0 and ≤ 2: fail. D34 passed (26/30 = 0.87; 27/30 after
+  D105). The prompt changes D103 and D106 have no real-model measurement
+  yet.
+- **The gate does not change.** D34 and D102 are no longer the condition to
+  show the digest on Prod. They are the condition to remove the
+  experimental label: the PR that records both as passing on a labeled week
+  deletes `digest` from `apps/web/src/experimental.ts`.
+- **One label for every feature.** The label is a registry plus one
+  component (D109–D112), not a digest-only notice. Another feature (for
+  example Prod semantic search) adds one registry entry, one i18n note per
+  locale and one `<ExperimentalLabel feature="…">` placement; see
+  `docs/feature-map.md`, "Experimental label".
+
+### The experimental label
+
+- `apps/web/src/experimental.ts` lists each experimental feature with the
+  i18n key of its note and the gate that removes it.
+- `ExperimentalLabel.vue` renders a 藤 (wisteria) pill
+  「實驗中・搶先體驗」 / "Experimental · Early access" and one line of note,
+  as a `role="note"` named by the badge text. It renders nothing for an id
+  not in the list.
+- Colours follow the owner's taste: a Japanese traditional colour, a
+  translucent light fill with a fine same-hue outline, no orange, no
+  one-sided stripe, light and dark tokens (`--text-experimental`,
+  `--surface-experimental`, `--border-experimental`;
+  `docs/product/design-system.md`, "Experimental label").
+- The digest places it before the headline on This week, on the Proposals
+  tab and on topic pages. With no digest (404) the page shows the
+  no-digest notice and no label.
+
+### Prod configuration
+
+The merge PR stages everything except the flag, so the merge and its
+release tag change nothing at runtime (D113). The enable PR adds one line,
+`DIGEST_ENABLED: "true"`.
+
+| Setting | Dev | Prod after the merge PR | Prod after the enable PR |
+| --- | --- | --- | --- |
+| `ai` binding | `AI` | `AI` | `AI` |
+| `DIGEST_MODEL` | `workers-ai` | `workers-ai` | `workers-ai` |
+| `DIGEST_GATEWAY_ID` | `osskb-digest-dev` | `osskb-digest-prod` | `osskb-digest-prod` |
+| `DIGEST_CRON` and its `triggers.crons` entry | `47 22 * * *` | `17 23 * * *` | `17 23 * * *` |
+| `DIGEST_ENABLED` | `true` | unset: the tick does nothing, `POST /digest/run` answers 403 | `true` |
+| Daily cap (`DAILY_CAP.prod`) | 5,000 | 5,000 | 5,000 |
+
+- **Time: `17 23 * * *` (23:17 UTC, 07:17 Asia/Taipei).** D86's rule on
+  Prod: 40 minutes after the Prod publisher's 22:37 tick, which covers its
+  catch-up runs. It is outside the busy window 21:50–23:05 UTC (Dev
+  publication 22:07, Prod publication 22:37, Dev digest 22:47) and uses no
+  taken minute (`:05`, `:07`, `:27`, `:37`, `:47`, `:57`).
+- **Known difference from Dev.** D59's four deferrals (60 minutes) can move
+  a Prod run past 00:00 UTC. That run's spend then counts in the next UTC
+  day's ledger, and the next day's 23:17 run shares that day's 5,000 cap.
+  The cap still holds; a second run that day can end `limited`.
+- **Why the scheduled handler changes.** Without the D113 guard, a staged
+  cron would call `DigestRun`, get 403, and log a failed scheduling every
+  day.
+- **The Prod gateway.** Dev runs through `osskb-digest-dev`, so Prod runs
+  through its own gateway, `osskb-digest-prod`, for its own logs, rate limit
+  and spend limit (the setup list item 2 named it on 2026-10-08; it exists
+  in the account since before 2026-10-28, with 0 requests).
+
+### Cost worst case (Workers AI neurons)
+
+The account's Workers AI allowance is 10,000 neurons a day, shared by every
+job on Dev and Prod. Workers Paid bills each neuron above it at $0.011 per
+1,000 instead of refusing.
+
+| Daily cap | Neurons |
+| --- | --- |
+| Dev digest (calibrated ledger, D91) | 5,000 |
+| Prod digest (new, same cap) | 5,000 |
+| Dev embedding job (Spec 016) | 2,500 |
+| Dev query gate (Spec 016) | 1,000 |
+| Dev SRE agent (`SRE_AGENT_DAILY_NEURONS`, Spec 027) | 3,000 |
+| Prod embedding job (Spec 016 Prod rollout step (b), #181) | 2,500 |
+| Prod query gate (Spec 016 Prod rollout step (b), #181) | 1,000 |
+| **Sum of the caps** | **20,000** |
+
+- **Worst case with this change and Prod semantic search on:** 20,000 −
+  10,000 = 10,000 billed neurons a day = $0.11 a day, $3.41 a month (31
+  days).
+- **Before Prod search's step (b)** (no Prod embedding job or query gate):
+  16,500 a day, 6,500 billed = $0.072 a day, $2.22 a month.
+- **The Prod digest alone** can add at most 5,000 a day = $0.055 a day,
+  $1.71 a month, when every other job already used the allowance.
+- **Paths that can overshoot a cap.** (1) The ledger's 1.28 calibration
+  comes from one day (Schedule on Dev, "Not covered"); a real ratio of 1.5
+  would let a 5,000 ledger cost about 5,860. (2) Dry runs count toward the
+  same cap, so they cannot add more. (3) A deferred run after 00:00 UTC
+  spends from the next day's cap (above). No path spends more than the cap
+  per UTC day except (1).
+- **Expected day:** one Prod run is about 2,200 calibrated neurons steady
+  and about 2,950 cold (D98's 2,835 plus D103's rubric). With the Dev
+  digest at about the same, two digests use about half the allowance on a
+  normal day.
+- **Second ceilings.** The Prod gateway's rate limit (60 requests an hour;
+  a run makes at most 50, D71) and a spend limit. A $2 a month spend limit
+  does not bind under the cap: 5,000 × 31 = 155,000 neurons = $1.71.
+- **Not covered by the cost guard.** `COST_GUARD` is unset on Prod. The Dev
+  cost guard (`monitor`) reads the account's month-to-date cost, so Prod
+  spend is visible there; it does not stop the Prod digest.
+- **R2:** 2–4 Class A writes a run (the locale pair and the pointer), about
+  120 a month, against 1 million included.
+
+### What the owner must set up before the enable PR
+
+Agents do not create these. The merge PR needs none of them.
+
+1. **Check AI Gateway `osskb-digest-prod`.** It already exists in the
+   account (seen in the dashboard on 2026-10-28, 0 requests); nobody needs
+   to create it. Check that its settings equal the Dev gateway's: logs on,
+   cache off, rate limit 60 requests an hour (fixed window), spend limit $2
+   a month, authentication on, retries off. Agents did not read them.
+2. **Check the Prod CI token.** The Prod data Worker deploys with the `ai`
+   binding for the first time at the first release tag after #181 (Spec 016
+   step (a)) and this PR. The
+   `production` environment's `CLOUDFLARE_API_TOKEN` may need the Workers AI
+   permission (setup list item 4). If `deploy:production` fails with an
+   authorization error, add it and rerun the job.
+3. **Approve the cost.** The Prod digest's 5,000 cap and the worst case
+   above (D91 recorded the caps; this adds a second digest on the account).
+4. **Nothing else.** No new secret (`MANUAL_TRIGGER_TOKEN` already exists
+   on Prod), no new Durable Object migration (`DigestRun` is `v2`), no new
+   R2 bucket.
+
+### Open questions
+
+1. A rollback of the job does not hide a published digest: Prod `/api/digest`
+   keeps serving the pointer `public/digest/v1/apache-kafka/current.json`
+   until it is deleted. Should a Pages variable hide the digest instead, so
+   a rollback needs no R2 write?
+2. `bun run measure:search-query-budget` and `DAILY_NEURON_BUDGET` count one
+   digest cap only. Should they count both digests and the SRE agent?
 
 ## Planned feature-map and gardening updates (in the implementation PR)
 

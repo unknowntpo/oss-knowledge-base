@@ -6,6 +6,7 @@ import { useI18n } from "../../i18n";
 import {
   aiLabel, digestCounts, digestFreshness, lagNotes, windowLabel, type ServedDigest,
 } from "../../digest-view";
+import ExperimentalLabel from "../ExperimentalLabel.vue";
 import CiteChips from "./CiteChips.vue";
 import DigestSentence from "./DigestSentence.vue";
 import ProjectTrend from "./ProjectTrend.vue";
@@ -41,6 +42,7 @@ const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ b
           {{ t(freshness.key, { n: freshness.n }) }}
         </span>
       </p>
+      <ExperimentalLabel feature="digest" />
       <h1 class="digest-headline">
         <template v-if="digest.headline !== null">
           <DigestSentence :sentence="digest.headline" :digest="digest" :feed-ids="feedIds" tag="span" />

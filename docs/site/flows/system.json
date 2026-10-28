@@ -32,11 +32,20 @@
               "lead": { "en": "A run that hit a source's per-run cap runs again 5 minutes later (at most 5 times); a failed run is retried after 10, 30 and 60 minutes. One trigger causes at most 9 publications.", "zh-Hant": "某個來源達到單次上限的 run，5 分鐘後再跑一次（最多 5 次）；失敗的 run 在 10、30、60 分鐘後重試。一次觸發最多造成 9 次發布。" },
               "sources": ["apps/data-publisher-worker/src/run-schedule.ts", "docs/specs/018-daily-publication/spec.md"] },
             { "id": "cron-digest", "icon": "⏱", "kind": "web",
-              "gate": ["DIGEST_CRON"], "health": "digest",
+              "gate": ["DIGEST_CRON", "DIGEST_ENABLED"], "health": "digest",
               "title": { "en": "Digest cron", "zh-Hant": "週報 cron" },
               "meta": { "en": "47 22 * * *", "zh-Hant": "47 22 * * *" },
               "lead": { "en": "The `digest` target at `47 22 * * *`, forty minutes after the Dev publication: the weekly digest reads the snapshot that was just published. If a publication is still running it waits 15 minutes, at most 4 times.", "zh-Hant": "`digest` target（`47 22 * * *`），在 Dev 發布後 40 分鐘：週報讀取剛發布的快照。若發布還在跑，就延後 15 分鐘，最多 4 次。" },
               "sources": ["docs/specs/014-topic-digest/spec.md", "docs/runbooks/cloudflare-data-publisher.md"] },
+            { "id": "cron-digest-prod", "icon": "⏱", "kind": "web",
+              "gate": ["DIGEST_CRON", "DIGEST_ENABLED"],
+              "title": { "en": "Prod digest cron (staged off)", "zh-Hant": "Prod 週報 cron（已設定、未啟用）" },
+              "meta": { "en": "17 23 * * *", "zh-Hant": "17 23 * * *" },
+              "lead": { "en": "Prod's `digest` entry `17 23 * * *`, forty minutes after the Prod publication at 22:37, through the `AI` binding and gateway `osskb-digest-prod`, both deployed on Prod. Until Prod sets `DIGEST_ENABLED` the tick does nothing (Spec 014 D113); the owner decided on 2026-10-28 to ship the digest there as an experimental feature.", "zh-Hant": "Prod 的 `digest` 項目 `17 23 * * *`，在 Prod 22:37 發布後 40 分鐘，經過 `AI` binding 與 gateway `osskb-digest-prod`，兩者都已部署在 Prod。Prod 設定 `DIGEST_ENABLED` 之前，這個 tick 不做任何事（Spec 014 D113）；擁有者在 2026-10-28 決定以實驗功能把週報上 Prod。" },
+              "facts": [
+                { "k": { "en": "Prod", "zh-Hant": "Prod" }, "v": { "en": "`17 23 * * *` is deployed but idle until `DIGEST_ENABLED` is set (Spec 014 D113)", "zh-Hant": "`17 23 * * *` 已部署，但 `DIGEST_ENABLED` 設定前閒置（Spec 014 D113）" } }
+              ],
+              "sources": ["docs/specs/014-topic-digest/spec.md", "apps/data-publisher-worker/wrangler.production.jsonc"] },
             { "id": "cron-people", "icon": "⏱", "kind": "web",
               "gate": ["IDENTITY_LINKS"], "health": ["identity-links", "kip-pages", "identity-backfill"],
               "title": { "en": "Contributor job crons", "zh-Hant": "貢獻者相關 job 的 cron" },
@@ -223,9 +232,9 @@
               "gate": ["AI", "SEARCH_EMBEDDING"],
               "title": { "en": "Workers AI binding", "zh-Hant": "Workers AI binding" },
               "meta": { "en": "bge-m3 · Clef · Llama · Qwen3", "zh-Hant": "bge-m3 · Clef · Llama · Qwen3" },
-              "lead": { "en": "The Worker's `AI` binding. Prod has it since the Spec 016 Prod rollout step (a), but no model runs on Prod while `SEARCH_EMBEDDING` is unset. Every call goes through an AI Gateway, and the neurons it spends are charged to a daily ledger first.", "zh-Hant": "Worker 的 `AI` binding。Prod 自 Spec 016 Prod rollout 步驟 (a) 起也有，但 `SEARCH_EMBEDDING` 未設定時 Prod 不跑任何模型。每次呼叫都經過 AI Gateway，花掉的 neurons 會先記入每日帳本。" },
+              "lead": { "en": "The Worker's `AI` binding. Prod has it since the Spec 016 Prod rollout step (a), also for the staged digest (Spec 014 D113), but no model runs on Prod while `SEARCH_EMBEDDING` and `DIGEST_ENABLED` are unset. Every call goes through an AI Gateway, and the neurons it spends are charged to a daily ledger first.", "zh-Hant": "Worker 的 `AI` binding。Prod 自 Spec 016 Prod rollout 步驟 (a) 起也有，也供尚未啟用的週報使用（Spec 014 D113），但 `SEARCH_EMBEDDING` 與 `DIGEST_ENABLED` 未設定時 Prod 不跑任何模型。每次呼叫都經過 AI Gateway，花掉的 neurons 會先記入每日帳本。" },
               "facts": [
-                { "k": { "en": "Prod", "zh-Hant": "Prod" }, "v": { "en": "`AI` is bound but idle until `SEARCH_EMBEDDING` is set (Spec 016 Prod rollout step (b))", "zh-Hant": "`AI` 已綁定，但 `SEARCH_EMBEDDING` 設定前閒置（Spec 016 Prod rollout 步驟 (b)）" } }
+                { "k": { "en": "Prod", "zh-Hant": "Prod" }, "v": { "en": "`AI` is bound but idle until `SEARCH_EMBEDDING` is set (Spec 016 Prod rollout step (b)) or `DIGEST_ENABLED` is set (Spec 014 D113)", "zh-Hant": "`AI` 已綁定，但 `SEARCH_EMBEDDING`（Spec 016 Prod rollout 步驟 (b)）或 `DIGEST_ENABLED`（Spec 014 D113）設定前閒置" } }
               ],
               "sources": ["apps/data-publisher-worker/wrangler.development.jsonc", "apps/data-publisher-worker/src/digest/workers-ai.ts"] },
             { "id": "ai-gw", "icon": "GW", "kind": "ai",
@@ -235,7 +244,7 @@
               "lead": { "en": "Separate gateways keep each job's requests, cache and limits apart.", "zh-Hant": "分開的 gateway 讓各 job 的請求、快取與限制互不干擾。" },
               "facts": [
                 { "k": { "en": "Dev", "zh-Hant": "Dev" }, "v": { "en": "`osskb-search-dev`: the embedding job and the query gate; `osskb-digest-dev`: 60 requests an hour, $2 a month; `osskb-sre-dev`: Qwen3 30B diagnoses", "zh-Hant": "`osskb-search-dev`：向量 job 與查詢閘門；`osskb-digest-dev`：每小時 60 次、每月 2 美元；`osskb-sre-dev`：Qwen3 30B 診斷" } },
-                { "k": { "en": "Prod", "zh-Hant": "Prod" }, "v": { "en": "`osskb-search-prod`: the embedding job and the query gate, used once `SEARCH_EMBEDDING` is set (Spec 016 Prod rollout)", "zh-Hant": "`osskb-search-prod`：向量 job 與查詢閘門，`SEARCH_EMBEDDING` 設定後才使用（Spec 016 Prod rollout）" } }
+                { "k": { "en": "Prod", "zh-Hant": "Prod" }, "v": { "en": "`osskb-search-prod`: the embedding job and the query gate, used once `SEARCH_EMBEDDING` is set (Spec 016 Prod rollout); `osskb-digest-prod`: the digest, used once `DIGEST_ENABLED` is set (Spec 014 D113)", "zh-Hant": "`osskb-search-prod`：向量 job 與查詢閘門，`SEARCH_EMBEDDING` 設定後才使用（Spec 016 Prod rollout）；`osskb-digest-prod`：週報，`DIGEST_ENABLED` 設定後才使用（Spec 014 D113）" } }
               ],
               "sources": ["apps/data-publisher-worker/wrangler.development.jsonc", "docs/feature-map.md"] }
           ]

@@ -114,3 +114,69 @@ test("D62: the top-bar search hands its query to All threads", async ({ page }) 
   await expect(page.locator(".search-card").first()).toBeVisible();
 });
 
+
+// Spec 014 D109–D112: the experimental label (apps/web/src/experimental.ts) in the browser.
+const LABEL = { en: "Experimental · Early access", "zh-Hant": "實驗中・搶先體驗" } as const;
+
+test("D109: This week, the Proposals tab and a topic page show the digest's experimental label in en and zh-Hant", async ({ page }) => {
+  await open(page, "/kafka/");
+  const note = page.getByRole("note", { name: LABEL.en });
+  await expect(note).toHaveCount(1);
+  await expect(note).toContainText("machine-translated");
+  await page.locator(".topic-card-title a").first().click();
+  await expect(page.locator("#view-topic-page .experimental-label")).toHaveCount(1);
+  await page.goto("/kafka/proposals");
+  await expect(page.locator("#view-proposals").getByRole("note", { name: LABEL.en })).toBeVisible();
+  await page.locator(".locale-control select").selectOption("zh-Hant");
+  await expect(page.locator("#view-proposals").getByRole("note", { name: LABEL["zh-Hant"] })).toBeVisible();
+  await page.locator(".top-tab").first().click();
+  await expect(page.locator("#digest")).toBeVisible();
+  const zh = page.getByRole("note", { name: LABEL["zh-Hant"] });
+  await expect(zh).toBeVisible();
+  await expect(zh.locator(".experimental-badge")).toHaveText(LABEL["zh-Hant"]);
+  await expect(zh).toContainText("中文為機器翻譯");
+  await noHorizontalOverflow(page);
+});
+
+test("D110: All threads, a thread's detail and a community without a digest show no experimental label", async ({ page }) => {
+  await open(page, "/kafka/threads");
+  await expect(page.locator(".card").first()).toBeVisible();
+  await expect(page.locator(".experimental-label")).toHaveCount(0);
+  await page.locator(".card").first().click();
+  await expect(page).toHaveURL(/\/feed\//u);
+  await expect(page.locator(".experimental-label")).toHaveCount(0);
+  await page.goto("/datafusion/");
+  await expect(page.locator(".no-digest-notice")).toBeVisible();
+  await expect(page.locator(".experimental-label")).toHaveCount(0);
+  // Positive control: the digest page of the same session has one.
+  await page.goto("/kafka/");
+  await expect(page.locator(".experimental-label")).toHaveCount(1);
+});
+
+test("D111: the label is a note whose accessible name is the badge text, with the note text readable", async ({ page }) => {
+  await open(page, "/kafka/");
+  const note = page.locator(".experimental-label");
+  await expect(note).toHaveAttribute("role", "note");
+  await expect(note).toHaveAccessibleName(LABEL.en);
+  await expect(note.locator(".experimental-badge")).toHaveText(LABEL.en);
+  await expect(note.locator(".experimental-note")).toBeVisible();
+});
+
+test("D112: the badge uses the light tokens, and the dark ones under a dark OS, with a 1px outline on every side", async ({ page }) => {
+  const styles = async () => page.locator(".experimental-badge").evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      color: style.color,
+      background: style.backgroundColor,
+      borders: [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth],
+      outline: [style.borderTopColor, style.borderRightColor, style.borderBottomColor, style.borderLeftColor],
+    };
+  });
+  await open(page, "/kafka/");
+  const outline = Array(4).fill("rgb(139, 129, 195)");
+  expect(await styles()).toEqual({ color: "rgb(87, 76, 150)", background: "rgba(139, 129, 195, 0.12)", borders: ["1px", "1px", "1px", "1px"], outline });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  expect(await styles()).toEqual({ color: "rgb(189, 181, 238)", background: "rgba(139, 129, 195, 0.18)", borders: ["1px", "1px", "1px", "1px"], outline });
+});

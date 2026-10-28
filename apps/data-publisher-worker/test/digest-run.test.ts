@@ -1483,21 +1483,16 @@ describe("Spec 014 slice 2 named tests", () => {
     }
     expect(dev.ai?.binding).toBe("AI");
     expect(dev.vars).toMatchObject({ DIGEST_ENABLED: "true", DIGEST_MODEL: "workers-ai", DIGEST_GATEWAY_ID: "osskb-digest-dev" });
-    // Spec 016 Prod rollout step (a) (H94) binds `AI` on Prod for search; the digest stays off there
-    // because none of its variables is set, and without `DIGEST_MODEL` no model is built.
+    // Prod binds `AI` for search (Spec 016 H94) and the staged digest; its digest settings are D113's,
+    // with DIGEST_ENABLED unset.
     expect(prod.ai).toEqual({ binding: "AI" });
     expect(prod.vars?.DIGEST_ENABLED).toBeUndefined();
-    expect(prod.vars?.DIGEST_MODEL).toBeUndefined();
-    expect(prod.vars?.DIGEST_GATEWAY_ID).toBeUndefined();
   });
 
-  test("D86: Dev has the publisher's cron and the digest's 47 22 * * *, kept apart from the other jobs; Prod has no digest cron", async () => {
+  test("D86: Dev has the publisher's cron and the digest's 47 22 * * *, kept apart from the other jobs", async () => {
     const dev = await deployConfig("development");
-    const prod = await deployConfig("production");
     expect(dev.triggers?.crons).toEqual(["7 22 * * *", "47 22 * * *", "17 2 * * *", "43 3 * * *", "30 0 * * *", "0 11 * * *", "17 10 * * *", "23 1 * * *"]);
     expect(dev.vars?.DIGEST_CRON).toBe("47 22 * * *");
-    expect(prod.triggers?.crons).toEqual(["37 22 * * *"]);
-    expect(prod.vars?.DIGEST_CRON).toBeUndefined();
     const [minute, hour] = dev.vars!.DIGEST_CRON!.split(" ").map(Number) as [number, number];
     // The same UTC day as the publication, 40 minutes after its tick, and at most 4 deferrals from midnight.
     expect(hour * 60 + minute - (22 * 60 + 7)).toBe(40);
@@ -1536,6 +1531,43 @@ describe("Spec 014 slice 2 named tests", () => {
     expect(publication).toContain("publisher POST https://pipeline.internal/run");
     expect(publication.some((line) => line.startsWith("outbound ") || line.startsWith("bucket "))).toBe(true);
     expect(publication.filter((line) => line.startsWith("digest "))).toEqual([]);
+  });
+
+  test("D113: Prod stages the digest off: AI binding, osskb-digest-prod, cron 17 23 * * * (40 min after its publisher), DIGEST_ENABLED unset", async () => {
+    const prod = await deployConfig("production");
+    expect(prod.ai?.binding).toBe("AI");
+    expect(prod.vars).toMatchObject({ DIGEST_MODEL: "workers-ai", DIGEST_GATEWAY_ID: "osskb-digest-prod", DIGEST_CRON: "17 23 * * *" });
+    expect(prod.vars?.DIGEST_ENABLED).toBeUndefined();
+    expect(prod.triggers?.crons).toEqual(["37 22 * * *", "17 23 * * *"]);
+    const [minute, hour] = prod.vars!.DIGEST_CRON!.split(" ").map(Number) as [number, number];
+    // D86's rule on Prod: 40 minutes after the Prod publisher's 22:37 tick, outside 21:50–23:05 UTC.
+    expect(hour * 60 + minute - (22 * 60 + 37)).toBe(40);
+    expect(hour * 60 + minute).toBeGreaterThan(23 * 60 + 5);
+    expect([5, 7, 27, 37, 47, 57]).not.toContain(minute);
+    expect(cronTarget("17 23 * * *", prod.vars?.DIGEST_CRON)).toBe("digest");
+    expect(cronTarget("37 22 * * *", prod.vars?.DIGEST_CRON)).toBe("publisher");
+  });
+
+  test("D113: with DIGEST_ENABLED unset the digest tick does nothing: no Durable Object request, no publication, no throw", async () => {
+    const prod = await deployConfig("production");
+    const tick = async (vars: Record<string, string>) => {
+      const log: string[] = [];
+      const stub = (name: string) => ({
+        idFromName: (id: string) => id,
+        get: () => ({ fetch: async (url: string, init?: RequestInit) => { log.push(`${name} ${init?.method ?? "GET"} ${url}`); return Response.json({ ok: false, disabled: true }, { status: 403 }); } }),
+      });
+      const env = { ...vars, PIPELINE_STATE: stub("publisher"), DIGEST_RUN: stub("digest") };
+      const pending: Promise<unknown>[] = [];
+      await worker.scheduled({ cron: "17 23 * * *", scheduledTime: NOW.getTime() } as never, env as never, { waitUntil: (promise: Promise<unknown>) => { pending.push(promise); } } as never);
+      const settled = await Promise.allSettled(pending);
+      return { log, rejected: settled.filter((result) => result.status === "rejected").length };
+    };
+    expect(await tick(prod.vars!)).toEqual({ log: [], rejected: 0 });
+    // Only "true" enables it: "false", or any other value, is off too.
+    expect(await tick({ ...prod.vars!, DIGEST_ENABLED: "false" })).toEqual({ log: [], rejected: 0 });
+    expect(await tick({ ...prod.vars!, DIGEST_ENABLED: "TRUE" })).toEqual({ log: [], rejected: 0 });
+    // Positive control: the enable PR's one change, DIGEST_ENABLED=true, makes the same tick start the digest.
+    expect((await tick({ ...prod.vars!, DIGEST_ENABLED: "true" })).log).toEqual(["digest POST https://digest.internal/run"]);
   });
 
   test("D91: the daily cap is 5,000 calibrated neurons on Dev and Prod, and the three caps leave 1,500 of the 10,000 included", async () => {

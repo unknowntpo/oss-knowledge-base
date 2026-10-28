@@ -46,6 +46,7 @@ function environment(options: Options = {}) {
     MANUAL_TRIGGER_TOKEN: "manual-under-test",
     KIP_PAGES_CRON: KIP_CRON,
     DIGEST_CRON: "47 22 * * *",
+    DIGEST_ENABLED: "true",
     PIPELINE_STATE: object("publication", { environment: "development", running: false }),
     DIGEST_RUN: object("digest", { running: false }),
     OSS_KB_BUCKET: {

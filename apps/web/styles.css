@@ -88,6 +88,10 @@
   --surface-state-neutral: #efeef2;
   --text-state-danger: #b8432a;        /* errors */
   --surface-state-danger: #fbece8;
+  /* Experimental label (Spec 014 D109–D112): 藤 wisteria, translucent fill, fine outline on all sides */
+  --text-experimental: #574c96;        /* 6.45:1 on its fill over a card, 5.89:1 over the page */
+  --surface-experimental: rgba(139, 129, 195, 0.12);
+  --border-experimental: #8b81c3;      /* 3.48:1 on a card, 3.17:1 on the page */
   /* 作者頭像（Spec 023 DS1；舊版 viewer 的 AVATAR_PALETTE，第 5 色加深到白字 4.86:1） */
   --avatar-1: #3a53b0;
   --avatar-2: #2b7a5b;
@@ -198,6 +202,9 @@
   --surface-state-neutral: #2a2930;
   --text-state-danger: #f0a1a1;
   --surface-state-danger: #3a2226;
+  --text-experimental: #bdb5ee;
+  --surface-experimental: rgba(139, 129, 195, 0.18);
+  --border-experimental: #8b81c3;
   --avatar-1: #8c9be8;
   --avatar-2: #7ebea5;
   --avatar-3: #e0a0b0;
@@ -1665,6 +1672,31 @@ a.card, a.related-item { color: inherit; text-decoration: none; }
 }
 
 .digest-freshness.is-stale { border-color: var(--border-state-warning); color: var(--text-state-warning); background: var(--surface-state-warning); }
+
+/* Spec 014 D109–D112: the experimental label of any feature in src/experimental.ts. Small and calm:
+ * a pill with a translucent 藤 fill and a 1px outline on all four sides, then a one-line note. */
+.experimental-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-4) var(--space-8);
+  margin: 0 0 var(--space-12);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.experimental-badge {
+  padding: 0 var(--space-8);
+  border: 1px solid var(--border-experimental);
+  border-radius: var(--radius-pill);
+  background: var(--surface-experimental);
+  color: var(--text-experimental);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
 
 .digest-headline {
   margin: 0 0 var(--space-16);
