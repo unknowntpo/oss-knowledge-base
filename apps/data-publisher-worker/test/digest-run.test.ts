@@ -1483,7 +1483,9 @@ describe("Spec 014 slice 2 named tests", () => {
     }
     expect(dev.ai?.binding).toBe("AI");
     expect(dev.vars).toMatchObject({ DIGEST_ENABLED: "true", DIGEST_MODEL: "workers-ai", DIGEST_GATEWAY_ID: "osskb-digest-dev" });
-    // Prod's digest settings are D113's: staged, with DIGEST_ENABLED unset.
+    // Prod binds `AI` for search (Spec 016 H94) and the staged digest; its digest settings are D113's,
+    // with DIGEST_ENABLED unset.
+    expect(prod.ai).toEqual({ binding: "AI" });
     expect(prod.vars?.DIGEST_ENABLED).toBeUndefined();
   });
 
@@ -1561,6 +1563,9 @@ describe("Spec 014 slice 2 named tests", () => {
       return { log, rejected: settled.filter((result) => result.status === "rejected").length };
     };
     expect(await tick(prod.vars!)).toEqual({ log: [], rejected: 0 });
+    // Only "true" enables it: "false", or any other value, is off too.
+    expect(await tick({ ...prod.vars!, DIGEST_ENABLED: "false" })).toEqual({ log: [], rejected: 0 });
+    expect(await tick({ ...prod.vars!, DIGEST_ENABLED: "TRUE" })).toEqual({ log: [], rejected: 0 });
     // Positive control: the enable PR's one change, DIGEST_ENABLED=true, makes the same tick start the digest.
     expect((await tick({ ...prod.vars!, DIGEST_ENABLED: "true" })).log).toEqual(["digest POST https://digest.internal/run"]);
   });

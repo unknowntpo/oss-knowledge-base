@@ -178,11 +178,11 @@ describe("Spec 033 system map, slice 1", () => {
     expect(prodLive.length).toBeLessThan(devLive.length);
     const map = await mount(html, () => json({ status: "ok" }));
     expect(map.ids(".smap-node").sort()).toEqual(devLive);
-    expect(map.doc.querySelector('.smap-card[data-card="sre"]')).not.toBeNull();
+    expect(map.doc.querySelector('.smap-card[data-card="sre"]') !== null).toBe(true);
     await map.click('[data-env="prod"]');
     expect(map.ids(".smap-node").sort()).toEqual(prodLive);
-    expect(map.doc.querySelector('.smap-card[data-card="sre"]')).toBeNull();
-    expect(map.doc.querySelector('.smap-card[data-card="ai"]')).toBeNull();
+    expect(map.doc.querySelector('.smap-card[data-card="sre"]') === null).toBe(true);
+    expect(map.doc.querySelector('.smap-card[data-card="ai"]') === null).toBe(true);
     const links = [...map.doc.querySelectorAll(".smap-wires path[data-link]")].map((path) => path.getAttribute("data-link")!);
     expect(links.length).toBeGreaterThan(5);
     expect(links.filter((link) => link.split(" ").some((card) => card === "sre" || card === "ai"))).toEqual([]);
@@ -242,9 +242,9 @@ describe("Spec 033 system map, slice 1", () => {
     expect(map.ids('.smap-node:has([data-chip="manual"])').sort()).toEqual(manual);
     expect(map.doc.querySelector('.smap-overall [data-count="manual"]')!.textContent).toBe("4");
     await map.click('.smap-node[data-id="sre-drill"]');
-    expect(map.doc.querySelector('.smap-detail [data-risk="manual"]')).not.toBeNull();
+    expect(map.doc.querySelector('.smap-detail [data-risk="manual"]') !== null).toBe(true);
     await map.click('.smap-node[data-id="p-commit"]');
-    expect(map.doc.querySelector('.smap-detail [data-risk="manual"]')).toBeNull();
+    expect(map.doc.querySelector('.smap-detail [data-risk="manual"]') === null).toBe(true);
     await map.click('[data-view="list"]');
     expect(map.ids('.smap-list tr.row:has([data-chip="manual"])').sort()).toEqual(manual);
     expect(map.ids('.smap-list tr.grp[data-group="manual"] ~ tr.row').length).toBeGreaterThan(0);

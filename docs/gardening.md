@@ -1302,10 +1302,26 @@ the two `viewer/` items below.
   `DIGEST_ENABLED` stops new runs, but Prod This week keeps showing the last
   published digest until someone deletes the pointer on Prod R2. The budget
   sums one digest cap, the embedding job and one query gate (8,500), while
-  the account's caps now sum 17,500 (two digests, the SRE agent, two query
-  gates).
+  the account's caps now sum 20,000 (two digests, two embedding jobs, two
+  query gates, the SRE agent) once Prod search's step (b) is on.
 - **Fix:** decide whether a Pages variable hides the digest without an R2
   write; make the budget list every daily cap per environment.
 - **Layer:** test (a config row for the Pages variable; the budget's sum in
   D91's test).
 - **Source:** Spec 014 amendment 2026-10-28, open questions 1 and 2.
+
+### G105. System map: a gate is all-of, so a node shared by two flags shows only one
+- **Where:** `nodeStages` in `scripts/docs-site/system-map.ts`;
+  `ai-bind` and `ai-gw` in `docs/site/flows/system.json`.
+- **Why:** a node is live only when every gate row is on. The `AI` binding
+  and the AI Gateways serve both search (`SEARCH_EMBEDDING`) and the digest
+  (`DIGEST_ENABLED`), but a gate cannot say "either". They follow search,
+  which is enabled on Prod first; the Prod digest's cron, binding and
+  gateway are named in `Prod` facts of Dev-tagged steps instead
+  (`cron-digest-prod`, `ai-gw`). When only the digest is on, the Prod map
+  shows no AI card.
+- **Fix:** add an any-of gate (for example `gateAny`) to the flow schema,
+  `nodeStages` and DOC20, then gate `ai-bind` and `ai-gw` on
+  `SEARCH_EMBEDDING` or `DIGEST_ENABLED`.
+- **Layer:** test (SM4 and DOC20 rows for an any-of node).
+- **Source:** merge of #181 and #182, 2026-10-28.

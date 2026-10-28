@@ -2651,13 +2651,15 @@ job on Dev and Prod. Workers Paid bills each neuron above it at $0.011 per
 | Dev embedding job (Spec 016) | 2,500 |
 | Dev query gate (Spec 016) | 1,000 |
 | Dev SRE agent (`SRE_AGENT_DAILY_NEURONS`, Spec 027) | 3,000 |
-| Prod query gate (upcoming Prod semantic search) | 1,000 |
-| **Sum of the caps** | **17,500** |
+| Prod embedding job (Spec 016 Prod rollout step (b), #181) | 2,500 |
+| Prod query gate (Spec 016 Prod rollout step (b), #181) | 1,000 |
+| **Sum of the caps** | **20,000** |
 
-- **Worst case with this change:** 17,500 − 10,000 = 7,500 billed neurons a
-  day = $0.083 a day, $2.56 a month (31 days).
-- **If Prod semantic search also runs an embedding job with the Dev cap**
-  (2,500): 20,000 a day, 10,000 billed = $0.11 a day, $3.41 a month.
+- **Worst case with this change and Prod semantic search on:** 20,000 −
+  10,000 = 10,000 billed neurons a day = $0.11 a day, $3.41 a month (31
+  days).
+- **Before Prod search's step (b)** (no Prod embedding job or query gate):
+  16,500 a day, 6,500 billed = $0.072 a day, $2.22 a month.
 - **The Prod digest alone** can add at most 5,000 a day = $0.055 a day,
   $1.71 a month, when every other job already used the allowance.
 - **Paths that can overshoot a cap.** (1) The ledger's 1.28 calibration
@@ -2689,7 +2691,8 @@ Agents do not create these. The merge PR needs none of them.
    cache off, rate limit 60 requests an hour (fixed window), spend limit $2
    a month, authentication on, retries off. Agents did not read them.
 2. **Check the Prod CI token.** The Prod data Worker deploys with the `ai`
-   binding for the first time at the merge PR's release tag. The
+   binding for the first time at the first release tag after #181 (Spec 016
+   step (a)) and this PR. The
    `production` environment's `CLOUDFLARE_API_TOKEN` may need the Workers AI
    permission (setup list item 4). If `deploy:production` fails with an
    authorization error, add it and rerun the job.

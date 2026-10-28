@@ -38,10 +38,13 @@
               "lead": { "en": "The `digest` target at `47 22 * * *`, forty minutes after the Dev publication: the weekly digest reads the snapshot that was just published. If a publication is still running it waits 15 minutes, at most 4 times.", "zh-Hant": "`digest` target（`47 22 * * *`），在 Dev 發布後 40 分鐘：週報讀取剛發布的快照。若發布還在跑，就延後 15 分鐘，最多 4 次。" },
               "sources": ["docs/specs/014-topic-digest/spec.md", "docs/runbooks/cloudflare-data-publisher.md"] },
             { "id": "cron-digest-prod", "icon": "⏱", "kind": "web",
-              "gate": ["DIGEST_CRON"],
+              "gate": ["DIGEST_CRON", "DIGEST_ENABLED"],
               "title": { "en": "Prod digest cron (staged off)", "zh-Hant": "Prod 週報 cron（已設定、未啟用）" },
               "meta": { "en": "17 23 * * *", "zh-Hant": "17 23 * * *" },
               "lead": { "en": "Prod's `digest` entry `17 23 * * *`, forty minutes after the Prod publication at 22:37, through the `AI` binding and gateway `osskb-digest-prod`, both deployed on Prod. Until Prod sets `DIGEST_ENABLED` the tick does nothing (Spec 014 D113); the owner decided on 2026-10-28 to ship the digest there as an experimental feature.", "zh-Hant": "Prod 的 `digest` 項目 `17 23 * * *`，在 Prod 22:37 發布後 40 分鐘，經過 `AI` binding 與 gateway `osskb-digest-prod`，兩者都已部署在 Prod。Prod 設定 `DIGEST_ENABLED` 之前，這個 tick 不做任何事（Spec 014 D113）；擁有者在 2026-10-28 決定以實驗功能把週報上 Prod。" },
+              "facts": [
+                { "k": { "en": "Prod", "zh-Hant": "Prod" }, "v": { "en": "`17 23 * * *` is deployed but idle until `DIGEST_ENABLED` is set (Spec 014 D113)", "zh-Hant": "`17 23 * * *` 已部署，但 `DIGEST_ENABLED` 設定前閒置（Spec 014 D113）" } }
+              ],
               "sources": ["docs/specs/014-topic-digest/spec.md", "apps/data-publisher-worker/wrangler.production.jsonc"] },
             { "id": "cron-people", "icon": "⏱", "kind": "web",
               "gate": ["IDENTITY_LINKS"], "health": ["identity-links", "kip-pages", "identity-backfill"],
@@ -226,20 +229,22 @@
           "id": "ai", "title": { "en": "Workers AI", "zh-Hant": "Workers AI" }, "count": "Dev",
           "nodes": [
             { "id": "ai-bind", "icon": "AI", "kind": "ai",
-              "gate": ["AI", "DIGEST_ENABLED"],
+              "gate": ["AI", "SEARCH_EMBEDDING"],
               "title": { "en": "Workers AI binding", "zh-Hant": "Workers AI binding" },
               "meta": { "en": "bge-m3 · Clef · Llama · Qwen3", "zh-Hant": "bge-m3 · Clef · Llama · Qwen3" },
-              "lead": { "en": "The Worker's `AI` binding. Prod has it for the staged digest (Spec 014 D113), but no model runs on Prod while `DIGEST_ENABLED`, `SEARCH_EMBEDDING` and `SRE_AGENT` are off there. Every call goes through an AI Gateway, and the neurons it spends are charged to a daily ledger first.", "zh-Hant": "Worker 的 `AI` binding。Prod 也已為尚未啟用的週報綁定（Spec 014 D113），但在 Prod 的 `DIGEST_ENABLED`、`SEARCH_EMBEDDING`、`SRE_AGENT` 都關閉時，Prod 不跑任何模型。每次呼叫都經過 AI Gateway，花掉的 neurons 會先記入每日帳本。" },
+              "lead": { "en": "The Worker's `AI` binding. Prod has it since the Spec 016 Prod rollout step (a), also for the staged digest (Spec 014 D113), but no model runs on Prod while `SEARCH_EMBEDDING` and `DIGEST_ENABLED` are unset. Every call goes through an AI Gateway, and the neurons it spends are charged to a daily ledger first.", "zh-Hant": "Worker 的 `AI` binding。Prod 自 Spec 016 Prod rollout 步驟 (a) 起也有，也供尚未啟用的週報使用（Spec 014 D113），但 `SEARCH_EMBEDDING` 與 `DIGEST_ENABLED` 未設定時 Prod 不跑任何模型。每次呼叫都經過 AI Gateway，花掉的 neurons 會先記入每日帳本。" },
+              "facts": [
+                { "k": { "en": "Prod", "zh-Hant": "Prod" }, "v": { "en": "`AI` is bound but idle until `SEARCH_EMBEDDING` is set (Spec 016 Prod rollout step (b)) or `DIGEST_ENABLED` is set (Spec 014 D113)", "zh-Hant": "`AI` 已綁定，但 `SEARCH_EMBEDDING`（Spec 016 Prod rollout 步驟 (b)）或 `DIGEST_ENABLED`（Spec 014 D113）設定前閒置" } }
+              ],
               "sources": ["apps/data-publisher-worker/wrangler.development.jsonc", "apps/data-publisher-worker/src/digest/workers-ai.ts"] },
             { "id": "ai-gw", "icon": "GW", "kind": "ai",
-              "gate": ["SEARCH_GATEWAY_ID"],
+              "gate": ["SEARCH_GATEWAY_ID", "SEARCH_EMBEDDING"],
               "title": { "en": "AI Gateways", "zh-Hant": "AI Gateway" },
               "meta": { "en": "one per job family", "zh-Hant": "每類 job 一個" },
               "lead": { "en": "Separate gateways keep each job's requests, cache and limits apart.", "zh-Hant": "分開的 gateway 讓各 job 的請求、快取與限制互不干擾。" },
               "facts": [
-                { "k": { "en": "Search", "zh-Hant": "搜尋" }, "v": { "en": "`osskb-search-dev`: the embedding job and the query gate", "zh-Hant": "`osskb-search-dev`：向量 job 與查詢閘門" } },
-                { "k": { "en": "Digest", "zh-Hant": "週報" }, "v": { "en": "`osskb-digest-dev`: 60 requests an hour, $2 a month; Prod `osskb-digest-prod` (exists, unused until the Prod digest is enabled)", "zh-Hant": "`osskb-digest-dev`：每小時 60 次、每月 2 美元；Prod 為 `osskb-digest-prod`（已建立，Prod 週報啟用前不會使用）" } },
-                { "k": { "en": "SRE agent", "zh-Hant": "SRE agent" }, "v": { "en": "`osskb-sre-dev`: Qwen3 30B diagnoses", "zh-Hant": "`osskb-sre-dev`：Qwen3 30B 診斷" } }
+                { "k": { "en": "Dev", "zh-Hant": "Dev" }, "v": { "en": "`osskb-search-dev`: the embedding job and the query gate; `osskb-digest-dev`: 60 requests an hour, $2 a month; `osskb-sre-dev`: Qwen3 30B diagnoses", "zh-Hant": "`osskb-search-dev`：向量 job 與查詢閘門；`osskb-digest-dev`：每小時 60 次、每月 2 美元；`osskb-sre-dev`：Qwen3 30B 診斷" } },
+                { "k": { "en": "Prod", "zh-Hant": "Prod" }, "v": { "en": "`osskb-search-prod`: the embedding job and the query gate, used once `SEARCH_EMBEDDING` is set (Spec 016 Prod rollout); `osskb-digest-prod`: the digest, used once `DIGEST_ENABLED` is set (Spec 014 D113)", "zh-Hant": "`osskb-search-prod`：向量 job 與查詢閘門，`SEARCH_EMBEDDING` 設定後才使用（Spec 016 Prod rollout）；`osskb-digest-prod`：週報，`DIGEST_ENABLED` 設定後才使用（Spec 014 D113）" } }
               ],
               "sources": ["apps/data-publisher-worker/wrangler.development.jsonc", "docs/feature-map.md"] }
           ]
@@ -331,6 +336,9 @@
               "title": { "en": "Search query gate", "zh-Hant": "搜尋查詢閘門" },
               "meta": { "en": "SEARCH_QUERY_GATE · 1,000 neurons a day", "zh-Hant": "SEARCH_QUERY_GATE · 每天 1,000 neurons" },
               "lead": { "en": "`SEARCH_QUERY_GATE` is a Durable Object ledger that every semantic query must pass, so a public search box cannot overspend. Over budget means lexical results only. Pages reaches it through its own binding to the Dev Worker's class.", "zh-Hant": "`SEARCH_QUERY_GATE` 是每個語意查詢都要經過的 Durable Object 帳本，讓公開搜尋框不會超支；超過預算就只回傳關鍵字結果。Pages 透過自己的 binding 連到 Dev Worker 的這個 class。" },
+              "facts": [
+                { "k": { "en": "Prod", "zh-Hant": "Prod" }, "v": { "en": "`SEARCH_QUERY_GATE` is bound on the Prod Worker and off while `SEARCH_EMBEDDING` is unset; Pages binds it in Spec 016 Prod rollout step (c)", "zh-Hant": "`SEARCH_QUERY_GATE` 已綁定在 Prod Worker，`SEARCH_EMBEDDING` 未設定時關閉；Pages 在 Spec 016 Prod rollout 步驟 (c) 才綁定" } }
+              ],
               "sources": ["packages/semantic-vectorize/src/query-gate.ts", "apps/web/wrangler.development.jsonc"] },
             { "id": "do-cost", "icon": "DO", "kind": "rule",
               "gate": ["COST_GUARD_STATE"], "health": "cost-guard",
@@ -341,8 +349,12 @@
             { "id": "vec", "icon": "V", "kind": "r2",
               "gate": ["SEARCH_VECTORS"],
               "title": { "en": "Vectorize index", "zh-Hant": "Vectorize 向量索引" },
-              "meta": { "en": "osskb-search-dev · cosine", "zh-Hant": "osskb-search-dev · cosine" },
-              "lead": { "en": "The `SEARCH_VECTORS` binding to index `osskb-search-dev`, one namespace per project: Cloudflare's vector database, behind a replaceable interface so it is never the public contract.", "zh-Hant": "`SEARCH_VECTORS` binding，指向索引 `osskb-search-dev`，每個專案一個 namespace：Cloudflare 的向量資料庫，放在可替換的介面後面，不成為對外契約。" },
+              "meta": { "en": "one index per environment · cosine", "zh-Hant": "每個環境一個索引 · cosine" },
+              "lead": { "en": "The `SEARCH_VECTORS` binding, one namespace per project: Cloudflare's vector database, behind a replaceable interface so it is never the public contract.", "zh-Hant": "`SEARCH_VECTORS` binding，每個專案一個 namespace：Cloudflare 的向量資料庫，放在可替換的介面後面，不成為對外契約。" },
+              "facts": [
+                { "k": { "en": "Dev", "zh-Hant": "Dev" }, "v": { "en": "`osskb-search-dev`", "zh-Hant": "`osskb-search-dev`" } },
+                { "k": { "en": "Prod", "zh-Hant": "Prod" }, "v": { "en": "`osskb-search-prod`, empty until `SEARCH_EMBEDDING` is set", "zh-Hant": "`osskb-search-prod`，`SEARCH_EMBEDDING` 設定前是空的" } }
+              ],
               "sources": ["packages/semantic-vectorize/src/vector-index.ts"] }
           ]
         }
