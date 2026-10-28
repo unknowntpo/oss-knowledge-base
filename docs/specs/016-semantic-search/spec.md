@@ -1629,7 +1629,7 @@ resources. Nothing is shared with Dev:
 | Resource | Dev | Prod |
 | --- | --- | --- |
 | Vectorize index (1,024 dimensions, cosine, no metadata index; one namespace per project, created by the writes) | `osskb-search-dev` | `osskb-search-prod`, created with wrangler 2026-10-28 01:13 UTC |
-| AI Gateway | `osskb-search-dev` | `osskb-search-prod`, to be created by the owner in the dashboard (wrangler 4.148 has no AI Gateway command, and the wrangler login has no AI Gateway scope) |
+| AI Gateway | `osskb-search-dev` | `osskb-search-prod`, created by the owner in the dashboard 2026-10-28 (wrangler 4.148 has no AI Gateway command) |
 | Worker binding `SEARCH_VECTORS`, `AI`, var `SEARCH_GATEWAY_ID` | bound | bound by step (a) |
 | Durable Objects `SearchEmbeddingRun`, `SearchQueryGate` | migrations `v3`, `v4` | migrations `v3`, `v4` of the Prod Worker, step (a) |
 | `SEARCH_EMBEDDING`, `SEARCH_SHARD_ROOTS` | `bge-m3@1`, `true` | unset until step (b) |
@@ -1639,16 +1639,17 @@ Prod's migration history is its own: `v1` and `v2` are deployed, and this
 rollout adds `v3` and `v4`. The Spec 026 Prod enable therefore uses `v5`
 for `CostGuard`, the same tag as on Dev.
 
-The gateway `osskb-search-prod` gets the settings of `osskb-search-dev`.
-The caps are the same numbers on Prod, so the limits are not scaled:
+The gateway `osskb-search-prod` has the settings of `osskb-search-dev`
+(created by the owner 2026-10-28). The caps are the same numbers on Prod,
+so the limits are not scaled:
 
 - Rate limit 600 requests an hour, fixed window.
-- Spend limit $2 per 30 days.
+- Spend limit $2 a month, sliding window.
 - Authentication on, logs on, cache off, retries off.
 - Workers AI billing: Standard.
 
-Create it before step (b). A model call through a gateway id that does not
-exist is not tested; do not rely on it being created on first use.
+A model call through a gateway id that does not exist is not tested; step
+(b) checks that the gateway exists first.
 
 The steps follow "Separate merge from enable" (`docs/process/workflow.md`).
 Prod deploys only from a `v*` tag reachable from `main`
@@ -1690,12 +1691,17 @@ Prod Worker does not export yet would meet a missing class.
   neurons, 4 runs. Record the numbers in Results. If the estimate is above
   2,500 neurons, the backfill spans two UTC days (the daily cap stops it
   and it continues at 00:05 UTC); above 7,500, stop and re-plan.
+- Stop, and do not start step (b), when: the Worker step of
+  `deploy-production` failed (for example the token permissions above);
+  `/health` shows a `configError` in `searchEmbedding` or `searchQuery`; or
+  `searchEmbedding.enabled` or `searchQuery.enabled` is `true`.
 - Rollback: revert the PR and tag. The classes stay deployed (removing
   them needs a `deleted_classes` migration); the index stays empty.
 
 **(b) Embed (PR "Prod: SEARCH_EMBEDDING=bge-m3@1").** Preconditions: step
-(a) deployed and checked; gateway `osskb-search-prod` exists with the
-settings above.
+(a) deployed and checked with no stop condition; gateway
+`osskb-search-prod` exists with the settings above (it does since
+2026-10-28; check it in the dashboard before the tag).
 
 - The PR sets `"SEARCH_EMBEDDING": "bge-m3@1"` and `"SEARCH_SHARD_ROOTS":
   "true"` in `wrangler.production.jsonc`, changes the H94 pin to those
@@ -1727,19 +1733,29 @@ settings above.
   `lastRun.failureKind` is `vector-store` on two runs in a row;
   `model-limit` repeats while `today.estimatedNeurons` is far below its cap
   (the platform or the gateway refuses); the Dev digest or Dev embedding
-  reports a neuron refusal on the same UTC day; or the gateway spend
-  approaches $2. Stored vectors stay and are only stale.
+  reports a neuron refusal on the same UTC day; the gateway spend
+  approaches $2; `POST /search-embedding/run` answers 409 repeatedly; or
+  `scheduled` stays `true` while `embedded` does not rise. Stored vectors
+  stay and are only stale.
+- Never use `?reset=1` on Prod during the rollout: it forgets the
+  embedding state, and the next runs embed every chunk again.
 
 **(c) Hybrid search (PR "Prod: SEARCH_SEMANTIC=rrf-group@2").**
 Preconditions: `/health` `lastRun.search.shardRoots` is `true` and
 `searchEmbedding.lastRun.pending` is 0.
 
+- The PR changes only Pages configuration and its tests: no Worker class,
+  binding or migration, because Pages deploys before the Worker in
+  `deploy-production`.
 - The PR sets in `apps/web/wrangler.production.jsonc` `"vars": {
   "SEARCH_SEMANTIC": "rrf-group@2" }` and `"durable_objects": {
   "bindings": [{ "name": "SEARCH_QUERY_GATE", "class_name":
   "SearchQueryGate", "script_name": "oss-knowledge-base-data-prod" }] }`,
   changes the Prod half of the web `H66` test to pin them, and updates the
   feature map, the runbook and this Status.
+- Before the tag, check that `apps/web/wrangler.production.jsonc` binds
+  `SEARCH_QUERY_GATE` with `script_name` `oss-knowledge-base-data-prod`
+  (not the Dev Worker).
 - Experimental label: the owner wants experimental features marked for
   readers ("實驗中 / 搶先體驗"). The reusable label is being added for the
   digest in a separate change (branch `feat/prod-digest-experimental`).

@@ -845,7 +845,7 @@ or re-run a publication. The vectors are read only by the query gate (below), on
 | | Development | Production |
 | --- | --- | --- |
 | Vectorize index (1,024 dimensions, cosine) | `osskb-search-dev` | `osskb-search-prod` (created 2026-10-28; bound by Spec 016 Prod rollout step (a)) |
-| AI Gateway | `osskb-search-dev` (600 requests an hour, spend limit, authenticated) | `osskb-search-prod` (same settings; the owner creates it in the dashboard before step (b)) |
+| AI Gateway | `osskb-search-dev` (600 requests an hour, spend limit, authenticated) | `osskb-search-prod` (same settings; created by the owner in the dashboard 2026-10-28) |
 | `SEARCH_EMBEDDING` | `bge-m3@1` (on since Spec 016 H52, 2026-10-12) | unset (off) until Spec 016 Prod rollout step (b) |
 
 Preconditions before the Worker is deployed with this binding (the merge of
