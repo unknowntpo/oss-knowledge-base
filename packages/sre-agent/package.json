@@ -16,6 +16,8 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@ai-sdk/anthropic": "4.0.79",
+    "@ai-sdk/openai-compatible": "3.0.68",
     "@cloudflare/workers-types": "^5.20260820.1",
     "@types/bun": "^1.4.0",
     "agents": "0.27.0",

@@ -1480,6 +1480,46 @@ about 20 words a sentence, each term defined at first use.
   neurons, $0.016 in total. The most frequent failure (8 of 25) is the
   string `"null"` as `runbook`, which B32 rejects; the third run had it too.
 
+### Eval providers (owner decision 2026-10-28)
+
+Qwen3 30B passes 7 of 25 diagnoses. The scoreboard does not show whether
+the model is too weak, or whether the bundle, the playbooks or the graders
+are wrong. The owner chose to run the same cases against a stronger model
+through local API keys first, debug there, and carry the result back to
+the Worker. Only the local L3 eval changes; the Worker, `diagnoseBundle`
+and the production caps do not.
+
+- **Providers (SRE101).** `--provider` selects the model backend:
+  `workers-ai` (the default, as before), `anthropic` (`@ai-sdk/anthropic`)
+  or `openai-compatible` (`@ai-sdk/openai-compatible`, for example a
+  new-api gateway). Both packages are pinned devDependencies of
+  `packages/sre-agent`. Keys come only from the environment:
+  `ANTHROPIC_API_KEY`, `OPENAI_COMPATIBLE_BASE_URL` and
+  `OPENAI_COMPATIBLE_API_KEY`. The script never reads the Keychain, never
+  prints a key, and stops before any model call when a variable is missing.
+  `--stub` needs no key.
+- **Dollar cap instead of the neuron cap (SRE102).** For a paid provider
+  the neuron ledger does not bound a diagnosis, because the neuron rates
+  are Workers AI rates. A USD price per million input and output tokens
+  bounds it instead: listed for `claude-sonnet-5-5` ($2 / $10),
+  `claude-haiku-5-5` ($0.10 / $0.50) and `claude-opus-5-5` ($4 / $20),
+  or given with `--usd-per-mtok <in>,<out>`. A model with no price is
+  refused. Before each model call the eval reserves the prompt estimate
+  (3 characters a token) plus 4,096 output tokens at that price; a call
+  that would pass `--max-usd-per-diagnosis` (default $0.10) fails the
+  diagnosis with reason `budget`. The cost meter checks the whole run
+  against `--budget-usd` with that cap as the worst diagnosis. Each run's
+  `costUsd` is its tokens at the price, and the scoreboard sums it.
+- **Effort (SRE103).** Claude spends thinking tokens inside the same
+  4,096-token output cap. `--effort low|medium|high` (default `low`) sets
+  the Anthropic provider option `effort` on every call, so the answer
+  fits the production output cap.
+- **The comparison (SRE104).** `claude-sonnet-5-5` with `--runs 3` and
+  `claude-haiku-5-5` with `--runs 5`, at most $0.80 in total (owner
+  approval 2026-10-28). If the strong model passes most diagnoses, the
+  gap is model capacity (a model and cost choice). If it fails the same
+  cases, the bundle, a playbook or a grader is wrong.
+
 ## Dev fault-injection drill (2026-10-22)
 
 Owner intent (2026-10-22): a deterministic experiment where the owner
@@ -2085,6 +2125,20 @@ B28, two controls with no model call):
 | SRE60 | grader control M15 | dev-stall-2026-10-02 | control | golden answer with runbook cloudflare-data-publisher.md#follow-up-runs-spec-018 (the anchor alarm-stuck lists) | as row 1 | alarm-stuck | as golden | anchor true; passes |
 <!-- test-plan:end -->
 
+Eval providers (`eval-providers.cases.ts`, run by
+`packages/sre-agent/test/eval-providers.test.ts`):
+
+<!-- test-plan:start packages/sre-agent/test/eval-providers.cases.ts -->
+| id | case | given | expected |
+| --- | --- | --- | --- |
+| SRE101 | provider option | no --provider / --provider anthropic / --provider openai-compatible / --provider openrouter | workers-ai / anthropic / openai-compatible / error naming the allowed values |
+| SRE101 | keys from the environment | anthropic with no ANTHROPIC_API_KEY / openai-compatible with no OPENAI_COMPATIBLE_BASE_URL / with no OPENAI_COMPATIBLE_API_KEY / each set to a fake value / --stub with none set | error naming ANTHROPIC_API_KEY / OPENAI_COMPATIBLE_BASE_URL / OPENAI_COMPATIBLE_API_KEY, no error holds the fake value; a model whose modelId is the --model id; no error |
+| SRE102 | price required | claude-sonnet-5-5 / claude-haiku-5-5 with no flag; an unlisted model with no flag / with --usd-per-mtok 1,4 / with --usd-per-mtok 1 | $2 / $10 and $0.10 / $0.50 per million tokens; error naming --usd-per-mtok / $1 / $4 / error |
+| SRE102 | USD cap per diagnosis | a mock model calling a tool on every step at 20,000 input and 1,000 output tokens, priced $2 / $10, cap $0.10, under an unlisted model id whose neuron rates would pass 1,500 on the second call | reason budget after the call that would pass $0.10, not on the second call; costUsd at most $0.10; costUsd equals the tokens at the price |
+| SRE102 | meter and scoreboard in USD | a meter with budget $0.80 and worst diagnosis $0.10, then $0.65 spent; a scoreboard of runs with costUsd 0.03 and 0.02 and one Workers AI run of 100 neurons | can start, then cannot; model cost 0.05 + 100 × 0.011 / 1000 |
+| SRE103 | anthropic effort | --provider anthropic with no --effort / --effort medium / a call with providerOptions anthropic.sendReasoning false; a workers-ai run | every call's providerOptions.anthropic.effort low / medium / effort medium and sendReasoning false kept; no anthropic provider option |
+<!-- test-plan:end -->
+
 Dev fault-injection drill, core rows (`drill.cases.ts`, run by
 `packages/sre-agent/test/drill.test.ts`):
 
@@ -2221,6 +2275,12 @@ by Amendment (1); SRE34 replaced it.
 ### System prompt in STE: Behavior
 - SRE99: (owner decision 2026-10-27) `SYSTEM_PROMPT` starts with the text of `docs/runbooks/sre/system.md`, followed by the `Role` section; `SYSTEM_CONTEXT` in `playbooks.generated.ts` equals that text and the library holds no `system` playbook; the text names every job in `SIGNAL_JOBS` (`apps/data-publisher-worker/src/signals/profile.ts`) and `sre-agent`, is at most 270 tokens (characters / 4) and has no sentence over 20 words → L1 test with case rows.
 - SRE100: (owner decision 2026-10-27) `SYSTEM_PROMPT` has the sections `System`, `Role`, `Input`, then `cause`, `verdict`, `confidence`, `evidence`, `runbook`, `ownerAction` in the order of the schema's fields; each field section equals that field's description in `z.toJSONSchema(diagnosisOutputSchema)` (for `evidence`, the entry, `path` and `quote` descriptions joined); neither the prompt, the first message nor the JSON Schema contains "bundle item", "evidence entry", "listed cause", "playbook cause", "non-JSON", "evidence bundle", "verbatim" or "ellipsis"; no sentence of the prompt or the first message has more than 20 words; the `verdict` description holds no `ownerAction` instruction → L1 test with case rows.
+
+### Eval providers: Behavior
+- SRE101: (owner decision 2026-10-28) the eval's options default `--provider` to `workers-ai` and accept `anthropic` and `openai-compatible`; another value is an error; `anthropic` without `ANTHROPIC_API_KEY`, and `openai-compatible` without `OPENAI_COMPATIBLE_BASE_URL` or `OPENAI_COMPATIBLE_API_KEY`, is an error naming the variable and holding no key value, before any model call; with them set the provider returns a model whose `modelId` is the `--model` id; `--stub` needs no variable → L1 test with case rows.
+- SRE102: (owner decision 2026-10-28) a paid model needs a USD price, listed or from `--usd-per-mtok`, else the eval refuses it; with a price, a diagnosis whose next call's reservation (prompt estimate plus 4,096 output tokens) would pass `--max-usd-per-diagnosis` fails with reason `budget`, and the 1,500-neuron ledger does not stop it first; a run's `costUsd` is input tokens × input price plus output tokens × output price; the cost meter refuses to start a diagnosis when spent plus the worst diagnosis would pass the budget; the scoreboard's cost is the sum of the runs' `costUsd`, and neurons × $0.011 per 1,000 for a run without one → L1 test with case rows.
+- SRE103: (owner decision 2026-10-28) with `--provider anthropic` every model call carries the provider option `anthropic.effort` set to `--effort` (default `low`) and keeps the other provider options; a Workers AI call carries none → L1 test with case rows.
+- SRE104: [measure] `bun run --cwd packages/sre-agent eval -- --provider anthropic --model claude-sonnet-5-5 --runs 3` and the same with `--model claude-haiku-5-5 --runs 5` spend at most $0.80 together; the scoreboard is committed under `docs/specs/027-sre-agent/eval/` and compared with [scoreboard-2026-10-27](eval/scoreboard-2026-10-27.md).
 
 ### Dev fault-injection drill: Behavior
 - SRE67: with `SRE_DRILL=on` on `development`, `POST /sre-agent/drill` with the manual token and `{job: "kip-pages", kind: "throw"}` answers 201 `{drillId, job, kind, runs: 2, armedAt, expiresAt}` and writes the drill record and the pointer under `internal/sre/v1/dev/drills/`; it answers 401 without the token, 400 for another job or kind, 409 while a drill is armed or fired-but-ungraded, 404 with `SRE_DRILL` unset, and 409 for a kind whose rule's playbook does not list the expected cause; `DELETE` writes the idle pointer (SRE98) and marks the record `cancelled` → worker test with the `sre-drill-worker.cases.ts` rows.
