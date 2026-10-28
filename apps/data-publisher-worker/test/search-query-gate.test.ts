@@ -240,7 +240,7 @@ describe("Spec 016 query gate object and /health", () => {
     expect(development.vars).toMatchObject({ SEARCH_EMBEDDING: "bge-m3@1", SEARCH_GATEWAY_ID: "osskb-search-dev" });
   });
 
-  test("H94: the production publisher binds its own index, gateway, AI and both search objects (migrations v3, v4) with the embedding and shard-root flags off", async () => {
+  test("H94: the production publisher binds its own index, gateway, AI and both search objects (migrations v3, v4); step (b) sets the embedding flag to bge-m3@1 and shard roots on", async () => {
     const read = async (environment: string) => JSON.parse(await Bun.file(new URL(`../wrangler.${environment}.jsonc`, import.meta.url)).text()) as {
       readonly vars: Readonly<Record<string, string>>;
       readonly ai?: { readonly binding: string };
@@ -272,14 +272,15 @@ describe("Spec 016 query gate object and /health", () => {
     const migrated = production.migrations.flatMap((migration) => migration.new_sqlite_classes);
     expect([...migrated].sort()).toEqual(production.durable_objects.bindings.map((binding) => binding.class_name).sort());
     for (const name of migrated) expect(typeof (entry as Record<string, unknown>)[name]).toBe("function");
-    // Merging changes nothing at runtime: no embedding flag (so no job run and the gate is off),
-    // no shard roots (so the manifest is unchanged).
-    expect(Object.hasOwn(production.vars, "SEARCH_EMBEDDING")).toBe(false);
-    expect(Object.hasOwn(production.vars, "SEARCH_SHARD_ROOTS")).toBe(false);
-    expect(resolveSearchShardRoots(production.vars.SEARCH_SHARD_ROOTS)).toBe(false);
+    // Spec 016 Prod rollout step (b): the embedding job and the gate are on with Prod's own gateway
+    // (not the digest's), and each release declares shard roots. Pages is not bound until step (c).
+    expect(production.vars.SEARCH_EMBEDDING).toBe("bge-m3@1");
+    expect(production.vars.SEARCH_SHARD_ROOTS).toBe("true");
+    expect(resolveSearchShardRoots(production.vars.SEARCH_SHARD_ROOTS)).toBe(true);
     const deps = { flag: production.vars.SEARCH_EMBEDDING, gatewayId: production.vars.SEARCH_GATEWAY_ID, digestGatewayId: production.vars.DIGEST_GATEWAY_ID, ai: new FakeAi(), index: new FakeVectorIndex(DIMENSIONS) };
-    expect(searchQueryGateConfig(deps)).toEqual({ state: "off" });
-    // The flag alone turns it on: everything else it needs is bound.
-    expect(searchQueryGateConfig({ ...deps, flag: "bge-m3@1" }).state).toBe("on");
+    expect(production.vars.SEARCH_GATEWAY_ID).not.toBe(production.vars.DIGEST_GATEWAY_ID);
+    expect(searchQueryGateConfig(deps)).toMatchObject({ state: "on", profile: { key: "bge-m3@1" } });
+    // The flag alone turns it off again (rollback: revert this one value).
+    expect(searchQueryGateConfig({ ...deps, flag: "" })).toEqual({ state: "off" });
   });
 });

@@ -18,6 +18,8 @@
     "GITHUB_INITIAL_LOOKBACK_DAYS": "30",
     "SRE_AGENT": "off",
     "SEARCH_GATEWAY_ID": "osskb-search-prod",
+    "SEARCH_EMBEDDING": "bge-m3@1",
+    "SEARCH_SHARD_ROOTS": "true",
     "DIGEST_MODEL": "workers-ai",
     "DIGEST_GATEWAY_ID": "osskb-digest-prod",
     "DIGEST_CRON": "17 23 * * *"
