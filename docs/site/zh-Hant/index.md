@@ -9,7 +9,7 @@
 | 項目 | 內容 |
 | --- | --- |
 | 社群 | Apache Kafka（GitHub、Jira、dev@ 郵件列表）與 Apache DataFusion（GitHub） |
-| 線上網站 | Prod [oss-knowledge-base.pages.dev](https://oss-knowledge-base.pages.dev/)（版本 `v0.3.2`，2026-10-24）與 Dev [oss-knowledge-base-dev.pages.dev](https://oss-knowledge-base-dev.pages.dev/)（每次 push 到 `main`） |
+| 線上網站 | Prod [oss-knowledge-base.pages.dev](https://oss-knowledge-base.pages.dev/)（版本 `v0.3.3`，2026-10-28）與 Dev [oss-knowledge-base-dev.pages.dev](https://oss-knowledge-base-dev.pages.dev/)（每次 push 到 `main`） |
 | 執行環境 | Cloudflare：每個環境一個排程 Worker 寫入 R2 物件儲存；Pages 提供 Vue 網站與唯讀 API |
 | 開發方式 | {{value:specs}} 份書面規格，其中 {{value:enforcedSpecs}} 份的驗收項目由機器檢查；每個變更都經過獨立的 AI 驗證 |
 
@@ -29,8 +29,8 @@
 
 截至 2026-10-27（來源：[docs/feature-map.md](docs/feature-map.md#environments)、[docs/operations/release.md](docs/operations/release.md)）：
 
-- **Prod 與 Dev 都有：** 每天從 GitHub、Jira、dev@ 發布；關鍵字搜尋 `bm25-reference@3`；thread 列表與詳細頁；資料新鮮度標示；Workers Logs。Prod 執行版本 `v0.3.2`（2026-10-24）。
-- **只在 Dev：** 每週主題週報、語意混合搜尋、貢獻者頁面與 review 收集、KIP 作者頁面、成本守門員、保留期清理（試跑）、可觀測性訊號與規則，以及 [SRE agent](sre-agent.html)。每項都有自己的開關，在 Prod 為關閉。`/health` 的各元件狀態會隨下一個 release tag 上 Prod。
+- **Prod 與 Dev 都有：** 每天從 GitHub、Jira、dev@ 發布；關鍵字搜尋 `bm25-reference@3`；路徑網址；`/health` 的各元件狀態；thread 列表與詳細頁；資料新鮮度標示；Workers Logs。Prod 執行版本 `v0.3.3`（2026-10-28）。
+- **只在 Dev：** 每週主題週報、語意混合搜尋、貢獻者頁面與 review 收集、KIP 作者頁面、成本守門員、保留期清理（試跑）、可觀測性訊號與規則，以及 [SRE agent](sre-agent.html)。每項都有自己的開關，在 Prod 為關閉。
 - **Prod 的下一步：** 週報要先在人工標註的一週資料上通過品質門檻，才會上 Prod（見[週報](digest.html#gate)）。
 
 > 本站的數字來自頁尾所示 commit 的版本庫內容，或來自標明時間讀取的公開 `/health` 端點；每個數字都連到出處。

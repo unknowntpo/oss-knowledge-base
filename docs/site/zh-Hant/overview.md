@@ -21,7 +21,7 @@
 | 項目 | Dev | Prod |
 | --- | --- | --- |
 | 網站 | [oss-knowledge-base-dev.pages.dev](https://oss-knowledge-base-dev.pages.dev/) | [oss-knowledge-base.pages.dev](https://oss-knowledge-base.pages.dev/) |
-| 部署方式 | 每次 push 到 `main`、所有 CI 工作通過後部署，接著對已部署的網站跑端對端測試 | 從 `main` 可達的 `v*` tag（目前 `v0.3.2`，2026-10-24） |
+| 部署方式 | 每次 push 到 `main`、所有 CI 工作通過後部署，接著對已部署的網站跑端對端測試 | 從 `main` 可達的 `v*` tag（目前 `v0.3.3`，2026-10-28） |
 | 發布 cron | 22:07 UTC | 22:37 UTC |
 | 關鍵字搜尋 `bm25-reference@3` | 開 | 開 |
 | 每週週報 | 開（22:47 UTC） | 關 |

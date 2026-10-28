@@ -97,6 +97,8 @@ Production promotions and public browser smoke tests:
 | `v0.2.0` | `308d3fa` | [run 33351078887](https://github.com/unknowntpo/oss-knowledge-base/actions/runs/33351078887) | passed 2026-09-01 |
 | `v0.3.0` | `987162a` | CI failed (Spec 020 B27 test) | nothing deployed |
 | `v0.3.1` | `71b8f99` | [release](https://github.com/unknowntpo/oss-knowledge-base/releases/tag/v0.3.1) | deployed 2026-10-19 about 10:08 UTC |
+| `v0.3.2` | `cdaf0f8` | released without a GitHub release | deployed 2026-10-24 |
+| `v0.3.3` | `4ca88ac` | [release](https://github.com/unknowntpo/oss-knowledge-base/releases/tag/v0.3.3), [run 40610621654](https://github.com/unknowntpo/oss-knowledge-base/actions/runs/40610621654) | deployed 2026-10-28 about 00:49 UTC |
 
 For `v0.2.0`, both public sites were readable after promotion. Production
 Search returned query-scoped project facets for `Kafka Streams` (DataFusion 1,
@@ -182,14 +184,37 @@ Prod gains Workers Logs; everything else ships dormant, with its flag off on Pro
 - Spec 029: R2 release retention, dry run only. Dormant: `R2_RETENTION` unset, no cron; the code has no delete path.
 ```
 
+## v0.3.3: path URLs and `/health` components
+
+Owner-approved scope (2026-10-27): ship what does not touch people data or
+raise a legal question; the system map leaves the public docs site first
+(#178). No Prod config change. Tagged `v0.3.3` on `4ca88ac` and deployed to
+Prod 2026-10-28 about 00:49 UTC. After the deploy, Prod `/health` answered
+`components` (`publication`, `source:github`, `source:mail`, `source:jira`,
+all `ok`) and `access-control-allow-origin: *`. Release notes
+(https://github.com/unknowntpo/oss-knowledge-base/releases/tag/v0.3.3):
+
+```markdown
+Prod gains path URLs and per-component `/health`; everything else ships dormant, with its flag off on Prod. No Prod config change: no new binding, flag, cron, secret or Durable Object migration (still `v1`, `v2`).
+
+- Spec 032: path URLs (`/kafka/...`) instead of hash routes; old `#/...` links redirect (#150).
+- Spec 033 slice 2: `GET /health` gains `components` (one status per job and per source) and `access-control-allow-origin: *` (#167). `/health` skips the review queue's `last-run.json` read while `REVIEW_QUEUE_CRON` is unset (Spec 015 Q59, #168).
+- Spec 030: project activity trend on This week. Dormant: `PROJECT_TREND` is off on Prod (#141, #145, #149).
+- Spec 014: importance rubric v2, D34 hit rule, glossary v2 (D103–D108). Dormant: the digest is off on Prod (#146).
+- Spec 019 amendment (8): identity backfill precision gate. Dormant (#148).
+- Spec 027: SRE agent drill routes, evidence citations by JSON path, verdict definition, configurable daily quota, system context prompt, Cloudflare Agent tracing on Dev. Dormant: `SRE_AGENT=off` on Prod (#151–#157, #161–#165, #169–#171).
+- The system map is no longer on the public docs site (Spec 033 decision 5, amended; #175, #178).
+```
+
 ## Release command
 
 After the selected commit is merged and green on `main` (for the first Prod
 release, `v0.3.1`, it was after the runbook's steps 2 and 3):
 
 ```bash
-VERSION=v0.3.2
-git tag -a "$VERSION" -m "Release $VERSION"
+VERSION=v0.3.3
+SHA=<full commit sha on main>
+git tag -a "$VERSION" -m "Release $VERSION" "$SHA"
 git push origin "$VERSION"
 ```
 

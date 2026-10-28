@@ -122,4 +122,4 @@ Dev 上的實際量測（2026-10-13，[docs/architecture/search-algorithm.md](do
 
 公開的搜尋框不能讓人刷爆費用。每個語意查詢都要經過一個 Durable Object 帳本；選它是因為硬上限需要單一、強一致的計數器（最終一致的儲存可能超用）。每個 UTC 日上限：1,000 neurons、1,000 次索引查詢；每小時：100 次模型呼叫；查詢最長 500 字元；結果快取一小時（[query-gate.ts](packages/semantic-vectorize/src/query-gate.ts)）。**neuron** 是 Workers AI 的計費單位；帳號每天含 10,000，與週報、向量化工作共用（見[流程與成本](process.html#budgets)）。超過預算時，搜尋只回傳關鍵字結果。
 
-> Prod 搜尋只有關鍵字（`v0.3.1` 起為 `bm25-reference@3`，2026-10-19；Prod 自 2026-10-24 起執行 `v0.3.2`）。Spec 016 與 017 有部分標註由實作者完成，尚待負責人確認；設計筆記目前仍標示為「討論中」。
+> Prod 搜尋只有關鍵字（`v0.3.1` 起為 `bm25-reference@3`，2026-10-19；Prod 自 2026-10-28 起執行 `v0.3.3`）。Spec 016 與 017 有部分標註由實作者完成，尚待負責人確認；設計筆記目前仍標示為「討論中」。

@@ -21,7 +21,7 @@ The two environments are fully isolated: separate Workers, Durable Objects, R2 b
 | Aspect | Dev | Prod |
 | --- | --- | --- |
 | Web app | [oss-knowledge-base-dev.pages.dev](https://oss-knowledge-base-dev.pages.dev/) | [oss-knowledge-base.pages.dev](https://oss-knowledge-base.pages.dev/) |
-| Deployed by | every push to `main`, after all CI jobs pass, then checked by deployed end-to-end tests | a `v*` tag reachable from `main` (current `v0.3.2`, 2026-10-24) |
+| Deployed by | every push to `main`, after all CI jobs pass, then checked by deployed end-to-end tests | a `v*` tag reachable from `main` (current `v0.3.3`, 2026-10-28) |
 | Publication cron | 22:07 UTC | 22:37 UTC |
 | Lexical search `bm25-reference@3` | on | on |
 | Weekly digest | on (22:47 UTC) | off |
