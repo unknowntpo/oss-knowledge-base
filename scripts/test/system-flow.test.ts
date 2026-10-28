@@ -153,6 +153,6 @@ describe("system flow completeness", () => {
     for (const column of untagged.columns) for (const card of column.cards) for (const node of card.nodes) if (names(node as unknown as FlowNode, "COST_GUARD_STATE")) delete node.gate;
     expect(systemFlowProblems(untagged as Flow, items)).toContain("data-publisher-worker Durable Object binding `COST_GUARD_STATE` is Dev only but no step naming it is tagged Dev only");
     // A Prod binding named only by Dev-tagged steps is reported.
-    expect(systemFlowProblems(flow, [{ name: "SEARCH_VECTORS", what: "probe", envs: new Set<Env>(["dev", "prod"]) }])).toEqual(["probe `SEARCH_VECTORS` is deployed on Prod but only named by Dev-tagged steps"]);
+    expect(systemFlowProblems(flow, [{ name: "COST_GUARD_STATE", what: "probe", envs: new Set<Env>(["dev", "prod"]) }])).toEqual(["probe `COST_GUARD_STATE` is deployed on Prod but only named by Dev-tagged steps"]);
   });
 });

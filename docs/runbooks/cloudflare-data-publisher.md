@@ -844,9 +844,9 @@ or re-run a publication. The vectors are read only by the query gate (below), on
 
 | | Development | Production |
 | --- | --- | --- |
-| Vectorize index (1,024 dimensions, cosine) | `osskb-search-dev` | none |
-| AI Gateway | `osskb-search-dev` (600 requests an hour, spend limit, authenticated) | none |
-| `SEARCH_EMBEDDING` | `bge-m3@1` (on since Spec 016 H52, 2026-10-12) | unset (off) |
+| Vectorize index (1,024 dimensions, cosine) | `osskb-search-dev` | `osskb-search-prod` (created 2026-10-28; bound by Spec 016 Prod rollout step (a)) |
+| AI Gateway | `osskb-search-dev` (600 requests an hour, spend limit, authenticated) | `osskb-search-prod` (same settings; the owner creates it in the dashboard before step (b)) |
+| `SEARCH_EMBEDDING` | `bge-m3@1` (on since Spec 016 H52, 2026-10-12) | unset (off) until Spec 016 Prod rollout step (b) |
 
 Preconditions before the Worker is deployed with this binding (the merge of
 Spec 016 slice 2b deploys Dev):
@@ -1010,7 +1010,7 @@ Roll back: revert that PR. The next Pages deploy answers with
 
 ## Hybrid search at query time (Spec 016 slice 3)
 
-Enabled on Dev since 2026-10-13, in two steps: the Worker (shard roots, the gate) and then Pages (the flag and the binding). Prod has none of it. With it on, `/api/search`
+Enabled on Dev since 2026-10-13, in two steps: the Worker (shard roots, the gate) and then Pages (the flag and the binding). Prod: the gate is bound and off since Spec 016 Prod rollout step (a); steps (b) and (c) in Spec 016 "Prod rollout" turn it on. With it on, `/api/search`
 fuses lexical results with semantic candidates; whenever semantic retrieval
 is missing it answers lexically and says why.
 

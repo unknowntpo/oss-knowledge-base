@@ -1,6 +1,6 @@
 # Spec 016: Semantic candidates and hybrid fusion for Search
 
-Status: Partially implemented: slices 1, 2a, 2b and 3 implemented and on Dev (#45–#59; owner's approvals of 2026-10-12 and 2026-10-13, named below): embeddings `SEARCH_EMBEDDING=bge-m3@1`, the query gate and shard roots, hybrid search `SEARCH_SEMANTIC=rrf-group@2`; `rrf-group@3` implemented and kept off (decision of 2026-10-13); slice 4 (H33, rerank) pending; Prod has no flag
+Status: Partially implemented: slices 1, 2a, 2b and 3 implemented and on Dev (#45–#59; owner's approvals of 2026-10-12 and 2026-10-13, named below): embeddings `SEARCH_EMBEDDING=bge-m3@1`, the query gate and shard roots, hybrid search `SEARCH_SEMANTIC=rrf-group@2`; `rrf-group@3` implemented and kept off (decision of 2026-10-13); slice 4 (H33, rerank) pending; Prod rollout approved 2026-10-28 ("Prod rollout" under "Contract changes and rollout"): Prod index `osskb-search-prod` created, step (a) binds it with every flag off, steps (b) and (c) not started
 Date: 2026-10-13
 Traceability: enforced
 Builds on: Spec 005 (Phases 2 and 3, LLM boundary), Spec 013 (lexical shards, `bm25-reference@1`), Spec 014 (community profile `proposal`), Spec 015 (profile blocks, ADR-0016)
@@ -239,6 +239,8 @@ project, and the separate gateway. These were left to the implementer:
 16. **Deployed configuration.** Dev gets the Vectorize binding, the
     `SearchEmbeddingRun` object (migration `v3`), and `SEARCH_GATEWAY_ID`.
     Prod gets nothing, not even the inert object binding the digest has.
+    Amended 2026-10-28: Prod gets its own index, gateway and both objects,
+    flags off ("Prod rollout").
 17. **Small ones.** `truncate_inputs: true` on the model call; the gateway
     cache is skipped when publishing; non-positive similarities are not
     candidates (as in the in-memory retriever); `reset=1` and a dry run with
@@ -1568,7 +1570,8 @@ class and the caps as shipped on 2026-10-13.
    release without shard roots is `uncovered` until the next publication
    (`POST /run` to have it now).
 6. **Prod** gets none of this until it has an index, a gateway, and the
-   embedding flag (open question 16).
+   embedding flag (open question 16). Since 2026-10-28: see "Prod rollout"
+   below.
 
 7. **Switch Dev to `rrf-group@2` (done 2026-10-13, a separate PR after
    PR #57 was verified and deployed; H79).** No precondition beyond this change being deployed: the
@@ -1608,6 +1611,205 @@ class and the caps as shipped on 2026-10-13.
    change, rollback by reverting it; then `bun run measure:search-hybrid`
    must show no Spec 017 or guard regression and no row worse than under
    `rrf-group@2` at its bound.
+
+### Prod rollout (amendment 2026-10-28)
+
+**Owner decision (2026-10-28).** Ship hybrid search to Prod now and
+optimise later. Do not wait for the Spec 026 dollar-budget amendment
+(CG22, CG24, CG26, CG27). Reason: the semantic path has its own hard caps.
+The query gate allows 1,000 neurons and 1,000 index queries per UTC day,
+100 model calls an hour, queries of at most 500 characters, and a 1-hour
+match cache. The embedding job allows 2,500 estimated neurons and 400 calls
+per UTC day, and 3,000 chunks and 80 calls per run. This amendment answers
+open question 16.
+
+Prod gets the same code, caps and enable sequence as Dev, with its own
+resources. Nothing is shared with Dev:
+
+| Resource | Dev | Prod |
+| --- | --- | --- |
+| Vectorize index (1,024 dimensions, cosine, no metadata index; one namespace per project, created by the writes) | `osskb-search-dev` | `osskb-search-prod`, created with wrangler 2026-10-28 01:13 UTC |
+| AI Gateway | `osskb-search-dev` | `osskb-search-prod`, to be created by the owner in the dashboard (wrangler 4.148 has no AI Gateway command, and the wrangler login has no AI Gateway scope) |
+| Worker binding `SEARCH_VECTORS`, `AI`, var `SEARCH_GATEWAY_ID` | bound | bound by step (a) |
+| Durable Objects `SearchEmbeddingRun`, `SearchQueryGate` | migrations `v3`, `v4` | migrations `v3`, `v4` of the Prod Worker, step (a) |
+| `SEARCH_EMBEDDING`, `SEARCH_SHARD_ROOTS` | `bge-m3@1`, `true` | unset until step (b) |
+| Pages `SEARCH_SEMANTIC`, Pages binding `SEARCH_QUERY_GATE` | `rrf-group@2`, → `oss-knowledge-base-data-dev` | unset until step (c), then → `oss-knowledge-base-data-prod` |
+
+Prod's migration history is its own: `v1` and `v2` are deployed, and this
+rollout adds `v3` and `v4`. The Spec 026 Prod enable therefore uses `v5`
+for `CostGuard`, the same tag as on Dev.
+
+The gateway `osskb-search-prod` gets the settings of `osskb-search-dev`.
+The caps are the same numbers on Prod, so the limits are not scaled:
+
+- Rate limit 600 requests an hour, fixed window.
+- Spend limit $2 per 30 days.
+- Authentication on, logs on, cache off, retries off.
+- Workers AI billing: Standard.
+
+Create it before step (b). A model call through a gateway id that does not
+exist is not tested; do not rely on it being created on first use.
+
+The steps follow "Separate merge from enable" (`docs/process/workflow.md`).
+Prod deploys only from a `v*` tag reachable from `main`
+(`docs/operations/release.md`). The owner confirms each tag. Avoid these
+UTC windows for tags and manual triggers: the Prod publication at 22:37;
+the Dev windows 21:50–23:05, 01:20–01:30, 02:05–02:30, 03:30–03:55 and
+10:10–10:30.
+
+**(a) Bind, all flags off (PR "Prod search bindings, flags off").**
+`apps/data-publisher-worker/wrangler.production.jsonc` gains `ai`, the
+`vectorize` binding `SEARCH_VECTORS` → `osskb-search-prod`,
+`SEARCH_GATEWAY_ID=osskb-search-prod`, the objects `SEARCH_EMBEDDING_RUN`
+and `SEARCH_QUERY_GATE`, and the migrations `v3` and `v4`. H94 pins this.
+`apps/web/wrangler.production.jsonc` is not touched: Pages deploys before
+the Worker in `deploy-production`, so a Pages binding to a class that the
+Prod Worker does not export yet would meet a missing class.
+
+- Precondition: index `osskb-search-prod` exists (done).
+- Unverified: whether the `production` environment's `CLOUDFLARE_API_TOKEN`
+  may deploy a Worker with a Vectorize binding, an `ai` binding and new
+  migrations. The Dev token can. If the Worker step of `deploy-production`
+  fails with an authorization error, Pages is already deployed from the
+  same commit (no Pages change in this PR) and the Prod Worker stays on the
+  previous release; add Vectorize Edit and Workers AI permissions to that
+  token and re-run the job.
+- After the tag deploys (H95), through public endpoints:
+  - `/health` `searchEmbedding.enabled` is `false`, no `configError`,
+    `lastRun` `null`, `today` zero.
+  - `/health` `searchQuery.enabled` is `false`, no `configError`, `today`
+    zero.
+  - After the next publication: `lastRun.ok` is `true` and
+    `lastRun.search.shardRoots` is absent or `false`.
+  - `/api/search` `retrieval` holds exactly `indexRevision`,
+    `lexicalRevision`, `generatedAt`, `stale`.
+- Then the dry run, which calls no model and no index: `POST
+  /search-embedding/run?dryRun=1&profile=bge-m3@1` with the bearer token.
+  Expected near the Prod release of 2026-10-28 (`lastRun.search.chunkCount`
+  9,338): about 9,340 chunks, about 190 calls, about 1,550 estimated
+  neurons, 4 runs. Record the numbers in Results. If the estimate is above
+  2,500 neurons, the backfill spans two UTC days (the daily cap stops it
+  and it continues at 00:05 UTC); above 7,500, stop and re-plan.
+- Rollback: revert the PR and tag. The classes stay deployed (removing
+  them needs a `deleted_classes` migration); the index stays empty.
+
+**(b) Embed (PR "Prod: SEARCH_EMBEDDING=bge-m3@1").** Preconditions: step
+(a) deployed and checked; gateway `osskb-search-prod` exists with the
+settings above.
+
+- The PR sets `"SEARCH_EMBEDDING": "bge-m3@1"` and `"SEARCH_SHARD_ROOTS":
+  "true"` in `wrangler.production.jsonc`, changes the H94 pin to those
+  values, and updates the feature map, the runbook table and this Status.
+- Tag between 04:00 and 05:30 UTC. Right after the deploy, trigger the
+  backfill: `POST /search-embedding/run` with the bearer token (202). Four
+  runs of at most 3,000 chunks each continue hourly, so the backfill ends
+  before the 10:10 Dev window and before the 22:37 Prod publication. Do not
+  leave the first run to the 22:37 publication: it would fall in a Dev
+  window and spend the same UTC day's neurons as the Dev digest (22:47).
+- Expected `/health` (H96):
+  - Right after the deploy: `searchEmbedding.enabled` `true`, no
+    `configError`, `semanticRevision`
+    `@cf/baai/bge-m3@1:1024:title-text@1`; `searchQuery.enabled` `true`,
+    no `configError`, `today` zero (no Pages binding, so no query reaches
+    it).
+  - After each run: `lastRun.ok` `true`; `embedded` up by at most 3,000;
+    `limited` `true` and `scheduled` `true` until the last run; `pending`
+    falling; `today.calls` ≤ 400 and `today.estimatedNeurons` ≤ 2,500.
+  - At the end: `pending` 0 (or equal to `quarantined`), `lastError`
+    `null`; `wrangler vectorize info osskb-search-prod` shows a
+    `vectorCount` near `lastRun.chunks`.
+  - Gateway `osskb-search-prod` shows the calls; `osskb-search-dev` does
+    not change.
+  - After the next publication (22:37): `lastRun.ok` `true`,
+    `lastRun.search.shardRoots` `true`; the embedding run after it embeds
+    only new chunks.
+- Stop and roll back (revert the PR, tag) when: a `configError` appears;
+  `lastRun.failureKind` is `vector-store` on two runs in a row;
+  `model-limit` repeats while `today.estimatedNeurons` is far below its cap
+  (the platform or the gateway refuses); the Dev digest or Dev embedding
+  reports a neuron refusal on the same UTC day; or the gateway spend
+  approaches $2. Stored vectors stay and are only stale.
+
+**(c) Hybrid search (PR "Prod: SEARCH_SEMANTIC=rrf-group@2").**
+Preconditions: `/health` `lastRun.search.shardRoots` is `true` and
+`searchEmbedding.lastRun.pending` is 0.
+
+- The PR sets in `apps/web/wrangler.production.jsonc` `"vars": {
+  "SEARCH_SEMANTIC": "rrf-group@2" }` and `"durable_objects": {
+  "bindings": [{ "name": "SEARCH_QUERY_GATE", "class_name":
+  "SearchQueryGate", "script_name": "oss-knowledge-base-data-prod" }] }`,
+  changes the Prod half of the web `H66` test to pin them, and updates the
+  feature map, the runbook and this Status.
+- Experimental label: the owner wants experimental features marked for
+  readers ("實驗中 / 搶先體驗"). The reusable label is being added for the
+  digest in a separate change (branch `feat/prod-digest-experimental`).
+  Search uses that label; it does not get a second label system. Whether
+  step (c) waits for it is the owner's choice (follow-up, gardening).
+- After the tag deploys (H97), on `https://oss-knowledge-base.pages.dev`:
+  - `GET /api/search?q=交易逾時` has `retrieval.fusionRevision`
+    `rrf-group@2` and `retrieval.semantic.status` `ok` (ask up to four
+    times, 2 s apart); the same query again says `cached: true`.
+  - `q=KIP770` is `skipped` (`identifier-query`); `&semantic=off` is
+    `disabled` with the lexical fields.
+  - `/health` `searchQuery.today` counts the calls; `lastError` `null`.
+  - Then `bun run measure:search-hybrid -- --base
+    https://oss-knowledge-base.pages.dev --out <file>`: at most 48 model
+    calls and 96 index queries; no Spec 017 or guard row worse than
+    lexical-only.
+- Revert when: `timedOutShare` is above about 0.3;
+  `searchQuery.lastError.kind` is `model` or `vector-store` on the first
+  queries; or `searchQuery.pausedUntil` is set repeatedly. `over-budget`
+  alone is the cap working, not a reason. Rollback: revert the PR and tag;
+  `/api/search` is the lexical reader again, byte for byte.
+
+**Cost worst case (H98).** Prices: Workers AI $0.011 per 1,000 neurons
+over 10,000 a day; Vectorize (Workers Paid) 50 M queried dimensions and
+10 M stored dimensions a month included, then $0.01 per million queried
+and $0.05 per 100 million stored (Cloudflare pricing page, read
+2026-10-28). Vectorize queried dimensions are (stored vectors + queries) ×
+1,024.
+
+Workers AI, neurons per UTC day, every cap spent (account-wide):
+
+| Ledger | Cap as counted | What it can cost |
+| --- | --- | --- |
+| Dev digest | 5,000 | 6,400 (× 1.28) |
+| Dev SRE agent | 3,000 | 3,000 (its own estimate; not calibrated, unverified) |
+| Dev embedding | 2,500 (calibrated) | 2,500 |
+| Dev query gate | 1,000 | 1,000 (at most 550 real) |
+| Prod embedding | 2,500 (calibrated) | 2,500 |
+| Prod query gate | 1,000 | 1,000 (at most 550 real) |
+| Total | | 16,400 against 10,000 included |
+
+- Account worst case: 6,400 neurons over, $0.070 a day, $2.18 a month of
+  31 days. Dev alone can already reach 12,900 (2,900 over); Prod adds at
+  most 3,500 a day: $0.039 a day, $1.19 a month.
+- The gateway spend limit ($2 per 30 days) bounds Prod's search calls too.
+- Expected on Prod: the backfill about 1,550 neurons once; then about 240
+  a day for new chunks (the Dev steady state) and about 20 for queries.
+
+Vectorize, per month of 31 days (account-wide; Dev counted from `wrangler
+vectorize info` on 2026-10-28: 10,883 vectors):
+
+| | Dev | Prod (9,338 chunks) | Total | Over the included | Cost |
+| --- | --- | --- | --- | --- | --- |
+| Stored dimensions | 11,144,192 | 9,562,112 | 20,706,304 | 10,706,304 | $0.005 |
+| Queried dimensions, both gates at 1,000 a day | 42,888,192 | 41,306,112 | 84,194,304 | 34,194,304 | $0.34 |
+
+- Account worst case: about $0.35 a month. With ordinary query volume both
+  stay near the stored totals (about 21 M queried): $0.005.
+- AI Gateway: $0 (core features are free). Log storage is unverified: an
+  account whose first gateway is from 2026-09-24 or later stores gateway
+  logs in Workers Logs (20 M events a month included); Prod adds at most
+  about 2,800 a day.
+- Durable Objects: a few thousand requests a month and at most about
+  150 MB of gate cache, inside the included 1 M requests and 5 GB.
+
+Every cost path above has a cap counted before the call (the gate's ledger,
+the embedding job's ledger, the gateway's rate and spend limits). The
+account worst case with Prod is about $2.53 a month, inside the $5 overage
+budget (Spec 026). Unverified: the SRE agent's estimate against billed
+neurons, and the gateway log regime.
 
 ## Test plan
 
@@ -2564,6 +2766,31 @@ Items tagged `[pending]` belong to slice 4.
 - H91: [measure] one fusion of a captured query at `rrf-group@3` → `bun run
   eval:search-fusion --time` (Results: 34 to 35 µs against 24 at the other
   revisions); a switch makes no model call and no index query (H87).
+
+### Prod rollout (2026-10-28)
+- H94: the Prod publisher configuration binds `AI`, `SEARCH_VECTORS` →
+  `osskb-search-prod`, `SEARCH_GATEWAY_ID=osskb-search-prod` (not Dev's),
+  `SEARCH_EMBEDDING_RUN` and `SEARCH_QUERY_GATE` with migrations `v3` and
+  `v4` (each bound class migrated once and exported), and leaves
+  `SEARCH_EMBEDDING` and `SEARCH_SHARD_ROOTS` unset, so the gate is off;
+  the flag alone would turn it on → evidence: `search-query-gate.test.ts`.
+- H95: [deploy] after the step (a) tag, Prod `/health` has
+  `searchEmbedding.enabled` and `searchQuery.enabled` `false` with no
+  `configError`, the next publication is `ok` without shard roots,
+  `/api/search` is unchanged, and the dry run reports chunks, calls,
+  neurons and runs (Prod rollout, step (a)).
+- H96: [deploy] after the step (b) tag and trigger, the backfill ends with
+  `pending` 0 within the daily caps, the index holds about one vector per
+  chunk, and the next publication has shard roots (step (b)).
+- H97: [deploy] after the step (c) tag, Prod `/api/search` fuses at
+  `rrf-group@2`, identifier and `semantic=off` queries answer as on Dev,
+  and `measure:search-hybrid --base https://oss-knowledge-base.pages.dev`
+  shows no Spec 017 or guard regression (step (c)).
+- H98: [measure] the account-wide worst case per day and per month with
+  Prod: Workers AI caps against the included 10,000 neurons, Vectorize
+  stored and queried dimensions against the included 10 M and 50 M →
+  `bun run measure:search-query-budget -- --chunks <Prod chunkCount>` for
+  each environment and the "Cost worst case" tables (Prod rollout).
 
 ### Behavior (later slices)
 - H33: [pending] given the labelled queries and the real model,
@@ -3776,9 +4003,13 @@ Raised by slice 2b:
     as the other alternatives were. The first capture could not: the
     response did not hold the value. Before: only non-positive scores are dropped; a real
     threshold needs slice 4's numbers.
-16. **Prod.** When Prod goes live it needs its own index, gateway, binding,
-    migration, and the same enable sequence; none of it exists, and nothing
-    is added before the Prod launch (owner's answer e).
+16. **Prod.** Answered 2026-10-28 (owner decision, "Prod rollout" under
+    "Contract changes and rollout"): Prod gets its own index
+    `osskb-search-prod`, gateway `osskb-search-prod`, bindings and
+    migrations `v3`, `v4`, and the same enable sequence. Earlier text: when
+    Prod goes live it needs its own index, gateway, binding, migration, and
+    the same enable sequence; none of it exists, and nothing is added
+    before the Prod launch (owner's answer e).
 
 Raised by slice 3:
 
