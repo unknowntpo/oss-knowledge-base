@@ -59,3 +59,12 @@ export function searchCountText({ exact, shown, total }: SearchCount, t: Transla
     ? t(`results.search.${form}`, variables)
     : t(`results.search.exactThen.${form}`, { ...variables, exact: lead });
 }
+
+/**
+ * Spec 016 H99: a response fused with semantic candidates carries `retrieval.fusionRevision`; only
+ * then does the result list show the search experimental label. A lexical answer (flag unset,
+ * `semantic=off`, or any degraded response without fusion) shows none.
+ */
+export function searchIsExperimental(response: { readonly retrieval: { readonly fusionRevision?: string } } | undefined): boolean {
+  return typeof response?.retrieval.fusionRevision === "string" && response.retrieval.fusionRevision !== "";
+}

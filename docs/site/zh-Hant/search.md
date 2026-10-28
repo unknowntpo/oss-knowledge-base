@@ -10,7 +10,7 @@
 
 ## 兩個階段 {#shape}
 
-先用便宜的方式在全部語料中檢索；只有在相關結果仍排得太後面時，才考慮加上較昂貴的重排序。目前 Prod 只跑 BM25；Dev 加上語意檢索與排名融合；重排序尚未實作（[docs/architecture/search-algorithm.md](docs/architecture/search-algorithm.md)、[Spec 005](docs/specs/005-evidence-search/spec.md)）。
+先用便宜的方式在全部語料中檢索；只有在相關結果仍排得太後面時，才考慮加上較昂貴的重排序。Dev 與 Prod（`v0.3.5` 之後的版本起）在 BM25 之外加上語意檢索與排名融合（Prod 上標示「實驗中・搶先體驗」）；重排序尚未實作（[docs/architecture/search-algorithm.md](docs/architecture/search-algorithm.md)、[Spec 005](docs/specs/005-evidence-search/spec.md)）。
 
 **BM25** 是標準的關鍵字排序公式：一個詞在整個語料中越少見（逆文件頻率，IDF）、在短段落中出現越多次，分數越高，但增幅遞減。
 
@@ -122,4 +122,4 @@ Dev 上的實際量測（2026-10-13，[docs/architecture/search-algorithm.md](do
 
 公開的搜尋框不能讓人刷爆費用。每個語意查詢都要經過一個 Durable Object 帳本；選它是因為硬上限需要單一、強一致的計數器（最終一致的儲存可能超用）。每個 UTC 日上限：1,000 neurons、1,000 次索引查詢；每小時：100 次模型呼叫；查詢最長 500 字元；結果快取一小時（[query-gate.ts](packages/semantic-vectorize/src/query-gate.ts)）。**neuron** 是 Workers AI 的計費單位；帳號每天含 10,000，與週報、向量化工作共用（見[流程與成本](process.html#budgets)）。超過預算時，搜尋只回傳關鍵字結果。
 
-> Prod 搜尋只有關鍵字（`v0.3.1` 起為 `bm25-reference@3`，2026-10-19；Prod 自 2026-10-28 起執行 `v0.3.3`）。Spec 016 與 017 有部分標註由實作者完成，尚待負責人確認；設計筆記目前仍標示為「討論中」。
+> Prod 搜尋在 `v0.3.5` 之後的版本前只有關鍵字（`v0.3.1` 起為 `bm25-reference@3`，2026-10-19）；該版本開啟混合搜尋（`rrf-group@2`，Spec 016 Prod rollout 步驟 (c)），向量已於 2026-10-28 建好。Spec 016 與 017 有部分標註由實作者完成，尚待負責人確認；設計筆記目前仍標示為「討論中」。

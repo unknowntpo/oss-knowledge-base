@@ -351,7 +351,7 @@ describe("Spec 016 hybrid search: the flag, the binding, and `semantic=off`", ()
       .toEqual({ status: "over-budget", retryAfterMs: 9 });
   });
 
-  test("H66: the development Pages configuration sets the flag and binds the data Worker's gate; production and local do neither", async () => {
+  test("H66: the development Pages configuration sets the flag and binds the data Worker's gate; production does the same against the Prod Worker (Spec 016 Prod rollout step (c)); local does neither", async () => {
     const read = async (name: string) => JSON.parse(await Bun.file(new URL(`../${name}`, import.meta.url)).text()) as Record<string, unknown> & { readonly name: string };
     const development = await read("wrangler.development.jsonc");
     expect(Object.keys(development).sort()).toEqual(["$schema", "compatibility_date", "durable_objects", "name", "pages_build_output_dir", "r2_buckets", "vars"]);
@@ -373,14 +373,31 @@ describe("Spec 016 hybrid search: the flag, the binding, and `semantic=off`", ()
     expect(options).toMatchObject({ off: false });
     expect(options !== undefined && "gate" in options).toBe(true);
 
-    for (const name of ["wrangler.jsonc", "wrangler.production.jsonc"]) {
-      const config = await read(name);
-      // Local E2E serves Spec 019 profiles (`vars.PEOPLE_PROFILES` only); Prod has no vars.
-      const local = name === "wrangler.jsonc";
-      expect(Object.keys(config).sort()).toEqual(["$schema", "compatibility_date", "name", "pages_build_output_dir", "r2_buckets", ...(local ? ["vars"] : [])]);
-      if (local) expect(config.vars).toEqual({ PEOPLE_PROFILES: "true" });
-      expect(JSON.stringify(config)).not.toMatch(/SEARCH_SEMANTIC|SEARCH_QUERY_GATE|SearchQueryGate/u);
-    }
+    // Spec 016 Prod rollout step (c): Prod mirrors Dev's search flag and binding, against the Prod
+    // Worker, which exports and migrates the class since step (a) (`v4`).
+    const production = await read("wrangler.production.jsonc");
+    expect(Object.keys(production).sort()).toEqual(["$schema", "compatibility_date", "durable_objects", "name", "pages_build_output_dir", "r2_buckets", "vars"]);
+    expect(production.vars).toEqual({ SEARCH_SEMANTIC: "rrf-group@2" });
+    expect(production.durable_objects).toEqual({ bindings: [{ name: "SEARCH_QUERY_GATE", class_name: "SearchQueryGate", script_name: "oss-knowledge-base-data-prod" }] });
+    const prodWorker = JSON.parse(await Bun.file(new URL("../../data-publisher-worker/wrangler.production.jsonc", import.meta.url)).text()) as {
+      readonly name: string;
+      readonly vars: Readonly<Record<string, string>>;
+      readonly migrations: readonly { readonly new_sqlite_classes: readonly string[] }[];
+    };
+    expect(prodWorker.name).toBe("oss-knowledge-base-data-prod");
+    expect(prodWorker.migrations.flatMap((migration) => migration.new_sqlite_classes)).toContain("SearchQueryGate");
+    expect(prodWorker.vars.SEARCH_EMBEDDING).toBe("bge-m3@1");
+    const prodOptions = semanticSearchOptions(
+      { SEARCH_SEMANTIC: (production.vars as { SEARCH_SEMANTIC: string }).SEARCH_SEMANTIC, SEARCH_QUERY_GATE: namespaceOf(untouchableGate) },
+      new URL("https://prod.example/api/search?q=txn"),
+    );
+    expect(prodOptions).toMatchObject({ off: false });
+
+    // Local E2E serves Spec 019 profiles (`vars.PEOPLE_PROFILES` only) and no semantic search.
+    const local = await read("wrangler.jsonc");
+    expect(Object.keys(local).sort()).toEqual(["$schema", "compatibility_date", "name", "pages_build_output_dir", "r2_buckets", "vars"]);
+    expect(local.vars).toEqual({ PEOPLE_PROFILES: "true" });
+    expect(JSON.stringify(local)).not.toMatch(/SEARCH_SEMANTIC|SEARCH_QUERY_GATE|SearchQueryGate/u);
   });
 });
 

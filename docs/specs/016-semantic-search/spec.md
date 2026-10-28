@@ -1,6 +1,6 @@
 # Spec 016: Semantic candidates and hybrid fusion for Search
 
-Status: Partially implemented: slices 1, 2a, 2b and 3 implemented and on Dev (#45–#59; owner's approvals of 2026-10-12 and 2026-10-13, named below): embeddings `SEARCH_EMBEDDING=bge-m3@1`, the query gate and shard roots, hybrid search `SEARCH_SEMANTIC=rrf-group@2`; `rrf-group@3` implemented and kept off (decision of 2026-10-13); slice 4 (H33, rerank) pending; Prod rollout approved 2026-10-28 ("Prod rollout" under "Contract changes and rollout"): Prod index and gateway `osskb-search-prod` created; step (a) deployed with `v0.3.4` (2026-10-28 03:00 UTC, `/health` both `enabled: false`, no `configError`); step (b) sets `SEARCH_EMBEDDING=bge-m3@1` and `SEARCH_SHARD_ROOTS=true` on Prod (live from its tag); step (c) not started
+Status: Partially implemented: slices 1, 2a, 2b and 3 implemented and on Dev (#45–#59; owner's approvals of 2026-10-12 and 2026-10-13, named below): embeddings `SEARCH_EMBEDDING=bge-m3@1`, the query gate and shard roots, hybrid search `SEARCH_SEMANTIC=rrf-group@2`; `rrf-group@3` implemented and kept off (decision of 2026-10-13); slice 4 (H33, rerank) pending; Prod rollout approved 2026-10-28 ("Prod rollout" under "Contract changes and rollout"): Prod index and gateway `osskb-search-prod` created; step (a) deployed with `v0.3.4` (2026-10-28 03:00 UTC, `/health` both `enabled: false`, no `configError`); step (b) deployed with `v0.3.5` (2026-10-28 04:10 UTC; backfill done 07:19 UTC: 9,338 embedded, pending 0, 1,588 estimated neurons, 187 calls, no failure); step (c) sets Pages `SEARCH_SEMANTIC=rrf-group@2` and the gate binding to `oss-knowledge-base-data-prod`, with the search experimental label (H99), live from its tag
 Date: 2026-10-13
 Traceability: enforced
 Builds on: Spec 005 (Phases 2 and 3, LLM boundary), Spec 013 (lexical shards, `bm25-reference@1`), Spec 014 (community profile `proposal`), Spec 015 (profile blocks, ADR-0016)
@@ -1756,11 +1756,14 @@ Preconditions: `/health` `lastRun.search.shardRoots` is `true` and
 - Before the tag, check that `apps/web/wrangler.production.jsonc` binds
   `SEARCH_QUERY_GATE` with `script_name` `oss-knowledge-base-data-prod`
   (not the Dev Worker).
-- Experimental label: the owner wants experimental features marked for
-  readers ("實驗中 / 搶先體驗"). The reusable label is being added for the
-  digest in a separate change (branch `feat/prod-digest-experimental`).
-  Search uses that label; it does not get a second label system. Whether
-  step (c) waits for it is the owner's choice (follow-up, gardening).
+- Experimental label (H99): the owner wants experimental features marked
+  for readers ("實驗中・搶先體驗"). Search reuses the label of Spec 014
+  D109–D112: the registry entry `search` in `apps/web/src/experimental.ts`
+  with the note `experimental.note.search` in both locales, placed once in
+  the search view above the count line. It shows only when the answer is
+  fused (`retrieval.fusionRevision` is set), so a lexical or degraded answer
+  carries none. It is one list-level label, not a per-result badge (Spec 005
+  S16). The entry is deleted when slice 4 (H33) decides the ranking on Prod.
 - After the tag deploys (H97), on `https://oss-knowledge-base.pages.dev`:
   - `GET /api/search?q=交易逾時` has `retrieval.fusionRevision`
     `rrf-group@2` and `retrieval.semantic.status` `ok` (ask up to four
@@ -2808,6 +2811,11 @@ Items tagged `[pending]` belong to slice 4.
   stored and queried dimensions against the included 10 M and 50 M →
   `bun run measure:search-query-budget -- --chunks <Prod chunkCount>` for
   each environment and the "Cost worst case" tables (Prod rollout).
+- H99: given a fused search answer, the search view shows the shared
+  experimental label (badge 「實驗中・搶先體驗」 / "Experimental · Early
+  access" and the search note) in both locales above the count line, once
+  for the list; a lexical, degraded or missing answer shows none, and no
+  result card carries it → evidence: `experimental-label.test.ts`.
 
 ### Behavior (later slices)
 - H33: [pending] given the labelled queries and the real model,

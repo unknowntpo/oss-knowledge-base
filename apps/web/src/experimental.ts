@@ -15,6 +15,8 @@ export interface ExperimentalFeature {
 export const EXPERIMENTAL_FEATURES: Readonly<Record<string, ExperimentalFeature>> = {
   // Owner decision 2026-10-28: on Prod before D102 passed (drift 1, omission 2, term 6 on the Dev 2026-10-23 week).
   digest: { note: "experimental.note.digest", until: "Spec 014 D34 and D102 pass on a labeled week" },
+  // Spec 016 H99 (owner decision 2026-10-28): hybrid search on Prod, shipped to optimise later.
+  search: { note: "experimental.note.search", until: "Spec 016 slice 4 (H33) decides the ranking on Prod" },
 };
 
 /** The entry for `id`, or undefined when the feature is not experimental (inherited keys never match). */

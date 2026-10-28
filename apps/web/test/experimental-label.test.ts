@@ -78,10 +78,11 @@ describe("Spec 014 experimental label", () => {
     expect(topic.indexOf("experimental-label")).toBeLessThan(topic.indexOf('class="topic-page-title"'));
   });
 
-  test("D110: the label renders only for a feature in the registry; the registry holds the digest alone", async () => {
-    expect(Object.keys(experimental.EXPERIMENTAL_FEATURES)).toEqual(["digest"]);
+  test("D110: the label renders only for a feature in the registry; the registry holds the digest and search (Spec 016 H99)", async () => {
+    expect(Object.keys(experimental.EXPERIMENTAL_FEATURES)).toEqual(["digest", "search"]);
     expect(experimental.experimentalFeature("digest")?.note).toBe("experimental.note.digest");
-    for (const id of ["people", "search", "toString", "__proto__", ""]) {
+    expect(experimental.experimentalFeature("search")?.note).toBe("experimental.note.search");
+    for (const id of ["people", "toString", "__proto__", ""]) {
       expect(experimental.experimentalFeature(id)).toBeUndefined();
       const html = await render(components.ExperimentalLabel, { feature: id });
       expect(html).not.toContain("experimental");
@@ -166,5 +167,38 @@ describe("Spec 014 experimental label colours", () => {
     expect(badge).toContain("color: var(--text-experimental)");
     expect(clean).not.toMatch(/\.experimental-[\w-]+[^{]*\{[^}]*border-(left|right|top|bottom)\s*:/u);
     expect(clean).not.toMatch(/\.experimental-[\w-]+[^{]*\{[^}]*opacity\s*:/u);
+  });
+});
+
+const SEARCH_NOTE = {
+  en: "Results are also found and ranked by meaning (AI embeddings); the ranking is still being tuned.",
+  "zh-Hant": "結果也依語意相似度（AI 向量）找出與排序，排序仍在調校。",
+} as const;
+
+describe("Spec 016 search experimental label", () => {
+  test.each(["en", "zh-Hant"] as const)("H99: the search label shows the shared badge and the search note in %s", async (locale) => {
+    const found = labels(await render(components.ExperimentalLabel, { feature: "search" }, locale));
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain('data-experimental="search"');
+    expect(found[0]).toContain(`<span class="experimental-badge">${BADGE[locale]}</span>`);
+    expect(found[0]).toContain(`<span class="experimental-note">${SEARCH_NOTE[locale]}</span>`);
+  });
+
+  test("H99: only a fused response is experimental; a lexical, degraded or missing response is not", async () => {
+    const { searchIsExperimental } = await import("../src/search-results");
+    expect(searchIsExperimental({ retrieval: { fusionRevision: "rrf-group@2" } })).toBe(true);
+    for (const response of [undefined, { retrieval: {} }, { retrieval: { fusionRevision: "" } }]) {
+      expect(searchIsExperimental(response as never)).toBe(false);
+    }
+  });
+
+  test("H99: the search view shows the label above the count line, only for a fused answer to a query", async () => {
+    const source = await Bun.file(join(import.meta.dir, "..", "src", "views", "FeedView.vue")).text();
+    const label = '<ExperimentalLabel v-if="query && !searchLoading && searchIsExperimental(searchResponse)" feature="search" />';
+    expect(source).toContain(label);
+    expect(source.indexOf(label)).toBeLessThan(source.indexOf('<p class="results-count"'));
+    // One list-level label, never a per-card badge (Spec 005 S16).
+    const card = await Bun.file(join(import.meta.dir, "..", "src", "components", "SearchResultCard.vue")).text();
+    expect(card.includes("ExperimentalLabel")).toBe(false);
   });
 });
