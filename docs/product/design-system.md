@@ -151,6 +151,21 @@ only the state sets colours. An unknown key is neutral.
 | --- | --- | --- | --- | --- |
 | `--border-state-warning` | `#c9965a` | `#8a7a45` | Border of an outlined warning (the digest's stale line) | decorative |
 
+## Experimental label
+
+One label for every feature that is live but has not passed its quality gate
+(Spec 014 D109–D112): `components/ExperimentalLabel.vue` renders a pill
+「實驗中・搶先體驗」 / "Experimental · Early access" and a one-line note, only
+for a feature listed in `apps/web/src/experimental.ts`. It is not a status
+badge (rule 8): it marks a feature, not an item. 藤 wisteria, a translucent
+fill and a 1px outline on all four sides; no stripe, no orange.
+
+| Token | Light | Dark | Role | Measured |
+| --- | --- | --- | --- | --- |
+| `--text-experimental` | `#574c96` | `#bdb5ee` | Badge text | light 6.45 on its fill over a card, 5.89 over the page; dark 6.63 / 7.24 |
+| `--surface-experimental` | `rgba(139, 129, 195, 0.12)` | `rgba(139, 129, 195, 0.18)` | Badge fill (藤 `#8b81c3`, translucent) | — |
+| `--border-experimental` | `#8b81c3` | `#8b81c3` | Badge outline (3:1 non-text) | light 3.48 on a card, 3.17 on the page; dark 4.64 / 5.08 |
+
 ## Avatars
 
 Initials are `--text-on-accent`: white in light, ink `#16161a` on pastel

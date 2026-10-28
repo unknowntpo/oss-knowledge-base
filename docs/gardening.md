@@ -1292,3 +1292,20 @@ the two `viewer/` items below.
   slice 2 allows a list of ids, Behavior 5.)
 - **Layer:** the slice 2 deploy check (SM21).
 - **Source:** Spec 033 slice 1 implementation, 2026-10-26; shrunk in slice 2.
+
+### G104. Prod digest: a rollback cannot hide a published digest; the neuron budget counts one digest
+- **Where:** `apps/web/functions/api/digest.ts` (`/api/digest` serves the
+  pointer `public/digest/v1/<projectId>/current.json` with no switch);
+  `DAILY_NEURON_BUDGET` in `packages/reference-pipeline/src/digest/estimate.ts`
+  and `bun run measure:search-query-budget`.
+- **Why:** with the Prod digest (Spec 014 amendment 2026-10-28), unsetting
+  `DIGEST_ENABLED` stops new runs, but Prod This week keeps showing the last
+  published digest until someone deletes the pointer on Prod R2. The budget
+  sums one digest cap, the embedding job and one query gate (8,500), while
+  the account's caps now sum 17,500 (two digests, the SRE agent, two query
+  gates).
+- **Fix:** decide whether a Pages variable hides the digest without an R2
+  write; make the budget list every daily cap per environment.
+- **Layer:** test (a config row for the Pages variable; the budget's sum in
+  D91's test).
+- **Source:** Spec 014 amendment 2026-10-28, open questions 1 and 2.

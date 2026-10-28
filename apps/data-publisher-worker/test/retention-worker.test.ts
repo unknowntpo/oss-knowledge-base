@@ -71,6 +71,7 @@ function world(options: Options = {}) {
     GITHUB_SOURCE_TOKEN: "github_pat_test",
     MANUAL_TRIGGER_TOKEN: TOKEN,
     DIGEST_CRON,
+    DIGEST_ENABLED: "true",
     RETENTION_CRON,
     OSS_KB_BUCKET: bucket,
     DIGEST_RUN: stub("digest", async () => Response.json({ running: false }, { status: 202 })),

@@ -495,6 +495,8 @@ export default {
       return;
     }
     if (target === "digest") {
+      // Spec 014 D113: a staged config (cron set, flag unset) ticks without asking the object, which would answer 403.
+      if (env.DIGEST_ENABLED !== "true") return;
       const digest = env.DIGEST_RUN.get(env.DIGEST_RUN.idFromName(DIGEST_OBJECT_NAME));
       context.waitUntil(digest.fetch("https://digest.internal/run", { method: "POST" }).then(async (response) => {
         if (!response.ok && response.status !== 409) throw new Error(`Scheduling the digest failed: ${await response.text()}`);

@@ -5,6 +5,7 @@ import type { DigestProfile, TopicCard } from "@oss-knowledge-base/reference-pip
 
 import { useI18n } from "../../i18n";
 import { citeTarget, filterCounts, filterThreads, type ServedDigest, type ThreadFilter } from "../../digest-view";
+import ExperimentalLabel from "../ExperimentalLabel.vue";
 import DigestSentence from "./DigestSentence.vue";
 
 const props = defineProps<{
@@ -28,6 +29,7 @@ const date = (at: string | undefined) => (at === undefined ? "" : at.slice(0, 10
       <span aria-hidden="true">/</span>
       <span>{{ t("topic.breadcrumb") }}</span>
     </nav>
+    <ExperimentalLabel feature="digest" />
     <h1 class="topic-page-title">{{ t(`taxonomy.${profile.projectId}.${card.topic}`) }}</h1>
     <div v-if="card.status === 'generated'" class="topic-summary">
       <DigestSentence v-for="(sentence, index) in card.sentences" :key="index" :sentence="sentence" :digest="digest" :feed-ids="feedIds" />

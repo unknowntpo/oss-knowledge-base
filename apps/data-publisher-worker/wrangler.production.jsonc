@@ -16,10 +16,16 @@
     "PUBLICATION_ENVIRONMENT": "production",
     "SEARCH_LEXICAL_REVISION": "bm25-reference@3",
     "GITHUB_INITIAL_LOOKBACK_DAYS": "30",
-    "SRE_AGENT": "off"
+    "SRE_AGENT": "off",
+    "DIGEST_MODEL": "workers-ai",
+    "DIGEST_GATEWAY_ID": "osskb-digest-prod",
+    "DIGEST_CRON": "17 23 * * *"
+  },
+  "ai": {
+    "binding": "AI"
   },
   "triggers": {
-    "crons": ["37 22 * * *"]
+    "crons": ["37 22 * * *", "17 23 * * *"]
   },
   "r2_buckets": [
     {
