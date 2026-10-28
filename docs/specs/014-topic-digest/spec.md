@@ -1,6 +1,6 @@
 # Spec 014: Kafka topic digest
 
-Status: Implemented (slices 1–3 and 2b–2e: #33, #35, #36, #40, #43, #44, #68; accepted 2026-10-08; D95 error redaction 2026-10-19; D96 English sentence cache 2026-10-19; D97–D102 status wording and translation gate 2026-10-20; D103–D108 importance rubric v2, D34 hit rule, glossary v2 2026-10-24; D109–D114 Prod as an experimental feature, amendment 2026-10-28); the digest runs on Dev (`DIGEST_ENABLED`, cron 22:47 UTC); on Prod the enable PR (2026-10-28) sets `DIGEST_ENABLED=true`, live from the tag after `v0.3.5` (cron 23:17 UTC, D113); every digest page shows the experimental label (D109–D112) until D34 and D102 pass
+Status: Implemented (slices 1–3 and 2b–2e: #33, #35, #36, #40, #43, #44, #68; accepted 2026-10-08; D95 error redaction 2026-10-19; D96 English sentence cache 2026-10-19; D97–D102 status wording and translation gate 2026-10-20; D103–D108 importance rubric v2, D34 hit rule, glossary v2 2026-10-24; D109–D114 Prod as an experimental feature, amendment 2026-10-28); the digest runs on Dev (`DIGEST_ENABLED`, cron 22:47 UTC); on Prod the enable PR (#184, 2026-10-28) sets `DIGEST_ENABLED=true`, live from the tag after `v0.3.5` (cron 23:17 UTC, D113); every digest page shows the experimental label (D109–D112) until D34 and D102 pass
 Date: 2026-10-06 (amended 2026-10-08 after design review)
 Traceability: enforced
 Builds on: Spec 002, Spec 005, Spec 008 (ADR-0013), Spec 010, Spec 011, Spec 012 (ADR-0014), Spec 013
@@ -2612,7 +2612,7 @@ in development (owner's words: 「這種還在使用實驗中的功能可以加�
 
 The merge PR stages everything except the flag, so the merge and its
 release tag change nothing at runtime (D113). The enable PR adds one line,
-`DIGEST_ENABLED: "true"` (2026-10-28; live from the tag after `v0.3.5`, first
+`DIGEST_ENABLED: "true"` (#184, 2026-10-28; live from the tag after `v0.3.5`, first
 Prod run at 23:17 UTC).
 
 | Setting | Dev | Prod after the merge PR | Prod after the enable PR |
