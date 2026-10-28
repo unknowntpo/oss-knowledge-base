@@ -222,8 +222,11 @@ shows the stale warning 27 hours after the last good publication.
 Dev runs the digest once a day at 22:47 UTC (`DIGEST_CRON` and the second
 `triggers.crons` entry, `47 22 * * *`), 40 minutes after the publication.
 Its alarm waits 15 minutes at a time, at most 4 times, while the publisher
-runs or a follow-up is waiting, so the latest start is 23:47 UTC. Prod has
-no digest.
+runs or a follow-up is waiting, so the latest start is 23:47 UTC. Prod
+runs it at 23:17 UTC (`17 23 * * *`, 40 minutes after the Prod publication
+at 22:37) through the gateway `osskb-digest-prod`, under the same 5,000
+neuron cap, since the Spec 014 enable PR (`DIGEST_ENABLED=true`, live from
+the tag after `v0.3.5`; Spec 014 D113, D114).
 
 Limits a run works under:
 
@@ -316,7 +319,9 @@ The deploy sets the cron, so the next 22:47 UTC tick publishes.
 Remove `DIGEST_CRON` and the `47 22 * * *` entry of `triggers.crons`
 together (test `D86`) and deploy; `POST /digest/run` still works. The
 published digest stays; deleting `public/digest/v1/apache-kafka/current.json`
-returns the page to the no-digest notice.
+returns the page to the no-digest notice. On Prod, revert the Spec 014
+enable PR (`DIGEST_ENABLED=true`) and push a new tag: the 23:17 UTC tick then
+does nothing (D113).
 
 ## R2 operations and cost
 

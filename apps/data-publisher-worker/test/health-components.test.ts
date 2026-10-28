@@ -112,7 +112,7 @@ describe("Spec 033 Behavior 7: /health components, served", () => {
     });
   });
 
-  test("SM10: a job that is off is not listed (Prod: SRE_AGENT, COST_GUARD, DIGEST_ENABLED, IDENTITY_LINKS, KIP_PAGES unset)", async () => {
+  test("SM10: a job that is off is not listed (Prod: SRE_AGENT, COST_GUARD, IDENTITY_LINKS, KIP_PAGES unset; DIGEST_ENABLED unset here too)", async () => {
     const { env } = devEnv({ SRE_AGENT: undefined, COST_GUARD: undefined, DIGEST_ENABLED: undefined, IDENTITY_LINKS: undefined, KIP_PAGES: undefined,
       DIGEST_RUN: jsonObject({ enabled: false, running: false, lastRun: null }) });
     const { body } = await health(env);

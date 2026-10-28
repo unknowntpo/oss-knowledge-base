@@ -1,6 +1,6 @@
 # Spec 014: Kafka topic digest
 
-Status: Implemented (slices 1–3 and 2b–2e: #33, #35, #36, #40, #43, #44, #68; accepted 2026-10-08; D95 error redaction 2026-10-19; D96 English sentence cache 2026-10-19; D97–D102 status wording and translation gate 2026-10-20; D103–D108 importance rubric v2, D34 hit rule, glossary v2 2026-10-24; D109–D114 Prod as an experimental feature, amendment 2026-10-28); the digest runs on Dev (`DIGEST_ENABLED`, cron 22:47 UTC); on Prod it is staged off (D113) until its enable PR; every digest page shows the experimental label (D109–D112) until D34 and D102 pass
+Status: Implemented (slices 1–3 and 2b–2e: #33, #35, #36, #40, #43, #44, #68; accepted 2026-10-08; D95 error redaction 2026-10-19; D96 English sentence cache 2026-10-19; D97–D102 status wording and translation gate 2026-10-20; D103–D108 importance rubric v2, D34 hit rule, glossary v2 2026-10-24; D109–D114 Prod as an experimental feature, amendment 2026-10-28); the digest runs on Dev (`DIGEST_ENABLED`, cron 22:47 UTC); on Prod the enable PR (2026-10-28) sets `DIGEST_ENABLED=true`, live from the tag after `v0.3.5` (cron 23:17 UTC, D113); every digest page shows the experimental label (D109–D112) until D34 and D102 pass
 Date: 2026-10-06 (amended 2026-10-08 after design review)
 Traceability: enforced
 Builds on: Spec 002, Spec 005, Spec 008 (ADR-0013), Spec 010, Spec 011, Spec 012 (ADR-0014), Spec 013
@@ -1893,14 +1893,15 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
     whole batch rules features (truncation fail-safe);
   - the request names the model `clef-flash`;
   - the cache is keyed by the Clef input.
-- D64: with `DIGEST_ENABLED` unset (Prod), `POST /digest/run` returns 403
+- D64: with `DIGEST_ENABLED` unset (Prod before its enable PR), `POST /digest/run` returns 403
   `{disabled: true}` and an alarm runs nothing; Dev returns 202.
 - D65: in the deploy config, every cron is the publisher's or
   `DIGEST_CRON`, and `DIGEST_CRON` never exists without its entry.
   - Dev has the `ai` binding and `osskb-digest-dev`; its digest cron is
     D86's (none before slice 2e).
-  - Prod's digest settings are D113's (staged, `DIGEST_ENABLED` unset;
-    no `ai` binding and no digest variables before 2026-10-28).
+  - Prod's digest settings are D113's (`DIGEST_ENABLED=true` since the
+    enable PR; staged with it unset before; no `ai` binding and no digest
+    variables before 2026-10-28).
 - D86: the Dev deploy config has exactly two crons: the publisher's
   `7 22 * * *` and `47 22 * * *`, which equals `DIGEST_CRON`.
   - A `47 22 * * *` tick starts the digest and no publication; a
@@ -2376,10 +2377,11 @@ moved to Spec 015) and D52 (stored counts; counts are now computed only).
   the fill over the card, page and sunken surfaces, and its outline ≥ 3:1
   on them. No colour of it is orange, no side has its own border, and no
   rule sets `opacity`. Under a dark OS the browser draws the dark tokens.
-- D113: Prod stages the digest off. `wrangler.production.jsonc` has the
+- D113: Prod's digest config. `wrangler.production.jsonc` has the
   `ai` binding, `DIGEST_MODEL=workers-ai`,
   `DIGEST_GATEWAY_ID=osskb-digest-prod`, `DIGEST_CRON=17 23 * * *` with its
-  `triggers.crons` entry, and no `DIGEST_ENABLED`. A digest tick with
+  `triggers.crons` entry, and `DIGEST_ENABLED=true` since the enable PR
+  (the merge PR staged it unset). A digest tick with
   `DIGEST_ENABLED` not `true` sends no request to `DigestRun` and does not
   throw; with `true` the same tick starts the digest.
 - D114: [deploy] after the enable PR's release tag: Prod
@@ -2610,7 +2612,8 @@ in development (owner's words: 「這種還在使用實驗中的功能可以加�
 
 The merge PR stages everything except the flag, so the merge and its
 release tag change nothing at runtime (D113). The enable PR adds one line,
-`DIGEST_ENABLED: "true"`.
+`DIGEST_ENABLED: "true"` (2026-10-28; live from the tag after `v0.3.5`, first
+Prod run at 23:17 UTC).
 
 | Setting | Dev | Prod after the merge PR | Prod after the enable PR |
 | --- | --- | --- | --- |
