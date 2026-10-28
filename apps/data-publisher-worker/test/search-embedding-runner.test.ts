@@ -106,7 +106,7 @@ describe("Spec 016 embedding object", () => {
     expect(h.storage.writes).toEqual([]);
   });
 
-  test("H45: the deployed configurations bind the index, the object and the search gateway on Dev only; Dev sets the flag to bge-m3@1 and Prod does not", async () => {
+  test("H45: the development configuration binds the index, the object and the search gateway and sets the flag to bge-m3@1 (Prod: H94)", async () => {
     const config = async (environment: string) => JSON.parse(await Bun.file(new URL(`../wrangler.${environment}.jsonc`, import.meta.url)).text()) as {
       readonly vars: Readonly<Record<string, string>>;
       readonly vectorize?: readonly { readonly binding: string; readonly index_name: string }[];
@@ -115,14 +115,11 @@ describe("Spec 016 embedding object", () => {
       readonly migrations: readonly { readonly tag: string; readonly new_sqlite_classes: readonly string[] }[];
     };
     const development = await config("development");
-    const production = await config("production");
 
     const configured = ({ vars }: typeof development) => searchEmbeddingConfig({ flag: vars.SEARCH_EMBEDDING, gatewayId: vars.SEARCH_GATEWAY_ID, digestGatewayId: vars.DIGEST_GATEWAY_ID, ai: new FakeAi(), index: new FakeVectorIndex(DIMENSIONS) });
-    // Spec 016 H52: Dev embeds with bge-m3@1 (enabled 2026-10-12); Prod has no flag.
+    // Spec 016 H52: Dev embeds with bge-m3@1 (enabled 2026-10-12). Prod is pinned by H94.
     expect(development.vars.SEARCH_EMBEDDING).toBe("bge-m3@1");
     expect(configured(development)).toMatchObject({ state: "on", profile: { key: "bge-m3@1", semanticRevision: SEMANTIC_REVISION } });
-    expect(Object.hasOwn(production.vars, "SEARCH_EMBEDDING")).toBe(false);
-    expect(configured(production)).toEqual({ state: "off" });
     expect(development.vars.SEARCH_GATEWAY_ID).toBe("osskb-search-dev");
     expect(development.vars.SEARCH_GATEWAY_ID).not.toBe(development.vars.DIGEST_GATEWAY_ID);
     expect(development.vectorize).toEqual([{ binding: "SEARCH_VECTORS", index_name: "osskb-search-dev" }]);
@@ -131,11 +128,6 @@ describe("Spec 016 embedding object", () => {
     expect(development.migrations).toContainEqual({ tag: "v3", new_sqlite_classes: ["SearchEmbeddingRun"] });
     // The flag, and nothing else, is what turns Dev on: without it the same configuration is off.
     expect(configured({ ...development, vars: { ...development.vars, SEARCH_EMBEDDING: "" } })).toEqual({ state: "off" });
-
-    // Prod sets SEARCH_LEXICAL_REVISION (first Prod release) and nothing of the embedding path.
-    expect(JSON.stringify(production)).not.toMatch(/SEARCH_(?!LEXICAL_REVISION")|vectorize|SearchEmbedding|"ai"/u);
-    expect(production.durable_objects.bindings.map((binding) => binding.name)).toEqual(["PIPELINE_STATE", "DIGEST_RUN"]);
-    expect(production.migrations.map((migration) => migration.tag)).toEqual(["v1", "v2"]);
   });
 
   test("H45: the publisher triggers one embedding run after a successful publication, and has no trigger without the flag or the object", async () => {

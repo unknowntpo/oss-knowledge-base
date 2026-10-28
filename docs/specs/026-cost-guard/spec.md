@@ -690,9 +690,13 @@ migration. Owner creates the token after review.
    `COST_GUARD=monitor`. Put the secret, run the dry check (CG19), watch one week of daily checks.
 2. **Dev enforce** (PR): `COST_GUARD=enforce` after `/health` shows the
    breaker closed; check that a forced trip (reset afterwards) refuses as CG7.
-3. **Prod** (release): same as 1, then 2, with migration `v3` and the
-   Prod secret. On Prod the neuron and Vectorize metrics are unavailable
-   (no `AI`, no index); R2 is account-wide and therefore covered by either.
+3. **Prod** (release): same as 1, then 2, with migration `v5` and the
+   Prod secret (amended 2026-10-28: the Spec 016 Prod rollout takes the
+   Prod tags `v3` and `v4`, so `CostGuard` gets `v5`, as on Dev). On Prod
+   the neuron and Vectorize metrics were unavailable (no `AI`, no index);
+   since the Spec 016 Prod rollout step (a) both are bound, so the Prod
+   in-app sources can report them. R2 is account-wide and therefore covered
+   by either.
 
 Stop and roll back (`COST_GUARD` unset) if the check errors on two
 consecutive days or the breaker opens on a metric the dashboard does not

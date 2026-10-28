@@ -214,7 +214,7 @@ describe("Spec 016 query gate object and /health", () => {
     expect(asked).toBe(0);
   });
 
-  test("H66: the development publisher sets the shard-root flag, binds the gate, and migrates every bound class once (the gate in v4); production has none of them", async () => {
+  test("H66: the development publisher sets the shard-root flag, binds the gate, and migrates every bound class once (the gate in v4) (Prod: H94)", async () => {
     const read = async (environment: string) => JSON.parse(await Bun.file(new URL(`../wrangler.${environment}.jsonc`, import.meta.url)).text()) as {
       readonly vars: Readonly<Record<string, string>>;
       readonly durable_objects: { readonly bindings: readonly { readonly name: string; readonly class_name: string }[] };
@@ -238,12 +238,48 @@ describe("Spec 016 query gate object and /health", () => {
     for (const name of migrated) expect(typeof (entry as Record<string, unknown>)[name]).toBe("function");
     // The gate is on only with the embedding profile, its gateway, the AI binding, and the index: all Dev's.
     expect(development.vars).toMatchObject({ SEARCH_EMBEDDING: "bge-m3@1", SEARCH_GATEWAY_ID: "osskb-search-dev" });
+  });
 
+  test("H94: the production publisher binds its own index, gateway, AI and both search objects (migrations v3, v4) with the embedding and shard-root flags off", async () => {
+    const read = async (environment: string) => JSON.parse(await Bun.file(new URL(`../wrangler.${environment}.jsonc`, import.meta.url)).text()) as {
+      readonly vars: Readonly<Record<string, string>>;
+      readonly ai?: { readonly binding: string };
+      readonly vectorize?: readonly { readonly binding: string; readonly index_name: string }[];
+      readonly durable_objects: { readonly bindings: readonly { readonly name: string; readonly class_name: string }[] };
+      readonly migrations: readonly { readonly tag: string; readonly new_sqlite_classes: readonly string[] }[];
+    };
     const production = await read("production");
+    const development = await read("development");
+    // Spec 016 Prod rollout, step (a): Prod's own resources, never Dev's.
+    expect(production.ai).toEqual({ binding: "AI" });
+    expect(production.vectorize).toEqual([{ binding: "SEARCH_VECTORS", index_name: "osskb-search-prod" }]);
+    expect(production.vars.SEARCH_GATEWAY_ID).toBe("osskb-search-prod");
+    expect(production.vars.SEARCH_GATEWAY_ID).not.toBe(development.vars.SEARCH_GATEWAY_ID);
+    expect(production.vectorize?.[0]?.index_name).not.toBe(development.vectorize?.[0]?.index_name);
+    expect(production.durable_objects.bindings).toEqual([
+      { name: "PIPELINE_STATE", class_name: "PipelineState" },
+      { name: "DIGEST_RUN", class_name: "DigestRun" },
+      { name: "SEARCH_EMBEDDING_RUN", class_name: "SearchEmbeddingRun" },
+      { name: "SEARCH_QUERY_GATE", class_name: "SearchQueryGate" },
+    ]);
+    // Prod's migration history is its own: v1, v2 shipped; v3, v4 are new and never renumbered.
+    expect(production.migrations).toEqual([
+      { tag: "v1", new_sqlite_classes: ["PipelineState"] },
+      { tag: "v2", new_sqlite_classes: ["DigestRun"] },
+      { tag: "v3", new_sqlite_classes: ["SearchEmbeddingRun"] },
+      { tag: "v4", new_sqlite_classes: ["SearchQueryGate"] },
+    ]);
+    const migrated = production.migrations.flatMap((migration) => migration.new_sqlite_classes);
+    expect([...migrated].sort()).toEqual(production.durable_objects.bindings.map((binding) => binding.class_name).sort());
+    for (const name of migrated) expect(typeof (entry as Record<string, unknown>)[name]).toBe("function");
+    // Merging changes nothing at runtime: no embedding flag (so no job run and the gate is off),
+    // no shard roots (so the manifest is unchanged).
+    expect(Object.hasOwn(production.vars, "SEARCH_EMBEDDING")).toBe(false);
     expect(Object.hasOwn(production.vars, "SEARCH_SHARD_ROOTS")).toBe(false);
     expect(resolveSearchShardRoots(production.vars.SEARCH_SHARD_ROOTS)).toBe(false);
-    expect(production.durable_objects.bindings.map((binding) => binding.class_name)).toEqual(["PipelineState", "DigestRun"]);
-    expect(production.migrations.map((migration) => migration.tag)).toEqual(["v1", "v2"]);
-    expect(JSON.stringify(production)).not.toContain("SearchQueryGate");
+    const deps = { flag: production.vars.SEARCH_EMBEDDING, gatewayId: production.vars.SEARCH_GATEWAY_ID, digestGatewayId: production.vars.DIGEST_GATEWAY_ID, ai: new FakeAi(), index: new FakeVectorIndex(DIMENSIONS) };
+    expect(searchQueryGateConfig(deps)).toEqual({ state: "off" });
+    // The flag alone turns it on: everything else it needs is bound.
+    expect(searchQueryGateConfig({ ...deps, flag: "bge-m3@1" }).state).toBe("on");
   });
 });
