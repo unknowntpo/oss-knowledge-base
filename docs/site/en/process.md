@@ -36,7 +36,7 @@ Acceptance IDs are the join key from spec to test to pull request to runtime che
 | Push to `main` | after every job passes: Dev Pages and the Dev publisher, then end-to-end tests against the deployed Dev site |
 | Tag `vX.Y.Z` reachable from `main` | Prod Pages and the Prod publisher, from the exact verified build |
 
-Tags are never moved or reused; a rollback redeploys an earlier tag ([docs/operations/release.md](docs/operations/release.md)). `v0.3.0` failed CI and deployed nothing; `v0.3.1` (2026-10-19) is the first Prod release with live daily data; `v0.3.2` (2026-10-24) adds Workers Logs and ships newer code with every new flag off. A generated status board of every spec is published on every push ([Spec 020](docs/specs/020-feature-map-site/spec.md)).
+Tags are never moved or reused; a rollback redeploys an earlier tag ([docs/operations/release.md](docs/operations/release.md)). `v0.3.0` failed CI and deployed nothing; `v0.3.1` (2026-10-19) is the first Prod release with live daily data; `v0.3.2` (2026-10-24) adds Workers Logs and ships newer code with every new flag off; `v0.3.3` (2026-10-28) adds path URLs and per-component status in `/health`. A generated status board of every spec is published on every push ([Spec 020](docs/specs/020-feature-map-site/spec.md)).
 
 ## The R2 Class A incident {#incident}
 
@@ -69,7 +69,7 @@ Committed `measure:*` commands reproduce these numbers offline (see the root [pa
 - **Freshness in the product:** every view shows how old the data is; late after 24 h 30 min, stale after 27 h ([Spec 021](docs/specs/021-publication-overdue/spec.md)). A stall is visible to every reader without push alerts.
 - **`bun run verify:health`** compares `/health` with what the site serves, for Dev or Prod, read-only ([scripts/verify/health.ts](scripts/verify/health.ts)).
 - **Signals and rules** (Dev): every job run writes one Workers Analytics Engine data point keyed by its `runId`. Fixed rules over those points and `/health` give each check the status `ok`, `warn`, `firing` or `unknown` in `/health.signals`, for example `job.missed` and `job.failures` ([Spec 028](docs/specs/028-observability-signals/spec.md)).
-- **Components in `/health`** (Dev; Prod with the next release tag): one status per job and per source, `ok`, `warn`, `failed`, `stale` or `unknown` ([Spec 033](docs/specs/033-system-map/spec.md)).
+- **Components in `/health`** (Dev and Prod, Prod since `v0.3.3`): one status per job and per source, `ok`, `warn`, `failed`, `stale` or `unknown` ([Spec 033](docs/specs/033-system-map/spec.md)).
 - **[SRE agent](sre-agent.html)** (Dev): a firing rule starts a model diagnosis whose cited evidence code checks. Cloudflare Agent tracing records each run for the owner.
 - **Workers Logs** with redacted error text: on Dev and, since `v0.3.2`, on Prod.
 

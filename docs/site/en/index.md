@@ -9,7 +9,7 @@ The product collects public community activity once a day, turns it into threads
 | Fact | Value |
 | --- | --- |
 | Communities | Apache Kafka (GitHub, Jira, the dev@ mailing list) and Apache DataFusion (GitHub) |
-| Live sites | Prod [oss-knowledge-base.pages.dev](https://oss-knowledge-base.pages.dev/) (release `v0.3.2`, 2026-10-24) and Dev [oss-knowledge-base-dev.pages.dev](https://oss-knowledge-base-dev.pages.dev/) (every push to `main`) |
+| Live sites | Prod [oss-knowledge-base.pages.dev](https://oss-knowledge-base.pages.dev/) (release `v0.3.3`, 2026-10-28) and Dev [oss-knowledge-base-dev.pages.dev](https://oss-knowledge-base-dev.pages.dev/) (every push to `main`) |
 | Runs on | Cloudflare: one scheduled Worker per environment writes to R2 object storage; Pages serves the Vue app and its read-only API |
 | Built with | {{value:specs}} written specifications, {{value:enforcedSpecs}} of them with machine-checked acceptance items; independent AI verification of every change |
 
@@ -29,8 +29,8 @@ Jargon used throughout: **R2** is Cloudflare's object storage (billed per reques
 
 As of 2026-10-27 (sources: [docs/feature-map.md](docs/feature-map.md#environments), [docs/operations/release.md](docs/operations/release.md)):
 
-- **On Prod and Dev:** daily publication from GitHub, Jira and dev@; lexical search `bm25-reference@3`; thread list and detail; the data-freshness indicator; Workers Logs. Prod runs release `v0.3.2` (2026-10-24).
-- **Dev only:** the weekly topic digest, semantic hybrid search, contributor profiles and review ingestion, the KIP author pages, the cost guard, retention (dry run), the observability signals and rules, and the [SRE agent](sre-agent.html). Each sits behind its own flag and is off on Prod. The per-component status in `/health` reaches Prod with the next release tag.
+- **On Prod and Dev:** daily publication from GitHub, Jira and dev@; lexical search `bm25-reference@3`; path URLs; per-component status in `/health`; thread list and detail; the data-freshness indicator; Workers Logs. Prod runs release `v0.3.3` (2026-10-28).
+- **Dev only:** the weekly topic digest, semantic hybrid search, contributor profiles and review ingestion, the KIP author pages, the cost guard, retention (dry run), the observability signals and rules, and the [SRE agent](sre-agent.html). Each sits behind its own flag and is off on Prod.
 - **Next for Prod:** the digest goes to Prod only after its quality gate passes on a human-labelled week ([digest](digest.html#gate)).
 
 > Numbers on these pages come from the repository at the commit in the footer, or from the public `/health` endpoint at a stated time. Each one links to where it comes from.
