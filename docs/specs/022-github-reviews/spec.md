@@ -990,6 +990,8 @@ Prod stays off: `GITHUB_REVIEWS` is unset on the Prod data Worker (deployed sinc
   past 10 tests a day of 1,203 listed items (RV9).
 - GitHub's terms for storing reviewer logins: Spec 019 decision 8 covers it;
   this spec stores logins the Feed already stores for authors.
+  Decision 8 is resolved by Spec 019 amendment (9) (2026-10-28); this spec's
+  behaviour does not change.
 
 ## Non-goals
 

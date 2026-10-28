@@ -1,6 +1,6 @@
 # Spec 019: Contributor profile
 
-Status: Partially implemented (accepted 2026-10-14, all nine owner decisions recorded; amended 2026-10-15): slice 1 is Spec 022; slices 2a, 2b, 3 and amendments (4) and (5) implemented (#74–#78, #81) and on Dev only (`PEOPLE_PROFILES=true`, `PEOPLE_ACTIVITY=log@1`), off on Prod; amendment (7) slices A–C (the identity-link job, the `kip-pages` job W93, W97–W100, W102, W105, W107, W108, W110, and the profile's KIPs section W74, W75, W80, W83, W87, W94–W96, W109, W111) implemented (#113–#117) and enabled on Dev by rollout steps 2 and 4 (`IDENTITY_LINKS=corroborated@1`, `KIP_PAGES=authors@1` with their crons, `PEOPLE_KIPS=true`; 2026-10-21), off on Prod (step 5, a separate owner approval); W90, W92, W106 are checked by the operator sequence after the Dev deploy; the rest of slices 4–7 not implemented; amendment (8) (2026-10-23, the identity-link backfill, W113–W131; five owner decisions recorded 2026-10-23, a sixth 2026-10-24) implemented and merged off (W113–W127, W130 by tests; W128, W129 measured; `IDENTITY_BACKFILL`, `IDENTITY_BACKFILL_CRON` and `IDENTITY_LINKS_BACKFILL` unset on Dev and Prod, rollout step 1); Dev runs the backfill (step 2, 2026-10-23); precision gate step 5 amended 2026-10-24 (owner decision 6) and `IDENTITY_LINKS_BACKFILL=read` set on Dev by the enable PR (steps 4 and 5), unset on Prod; W131 is checked after the Dev deploy
+Status: Partially implemented (accepted 2026-10-14, all nine owner decisions recorded; amended 2026-10-15): slice 1 is Spec 022; slices 2a, 2b, 3 and amendments (4) and (5) implemented (#74–#78, #81) and on Dev only (`PEOPLE_PROFILES=true`, `PEOPLE_ACTIVITY=log@1`), off on Prod; amendment (7) slices A–C (the identity-link job, the `kip-pages` job W93, W97–W100, W102, W105, W107, W108, W110, and the profile's KIPs section W74, W75, W80, W83, W87, W94–W96, W109, W111) implemented (#113–#117) and enabled on Dev by rollout steps 2 and 4 (`IDENTITY_LINKS=corroborated@1`, `KIP_PAGES=authors@1` with their crons, `PEOPLE_KIPS=true`; 2026-10-21), off on Prod (step 5, a separate owner approval); W90, W92, W106 are checked by the operator sequence after the Dev deploy; the rest of slices 4–7 not implemented; amendment (8) (2026-10-23, the identity-link backfill, W113–W131; five owner decisions recorded 2026-10-23, a sixth 2026-10-24) implemented and merged off (W113–W127, W130 by tests; W128, W129 measured; `IDENTITY_BACKFILL`, `IDENTITY_BACKFILL_CRON` and `IDENTITY_LINKS_BACKFILL` unset on Dev and Prod, rollout step 1); Dev runs the backfill (step 2, 2026-10-23); precision gate step 5 amended 2026-10-24 (owner decision 6) and `IDENTITY_LINKS_BACKFILL=read` set on Dev by the enable PR (steps 4 and 5), unset on Prod; W131 is checked after the Dev deploy; amendment (9) (2026-10-28, decision 8 resolved by the owner: Prod shows profiles with `declared` links only, after the privacy safeguards W132–W143; `corroborated` links, Jira account keys and the slice 7 list stay off Prod; no Cloudflare Access) specified only, nothing implemented
 Date: 2026-10-13 (decisions recorded 2026-10-14; amendment and decision 10 2026-10-15)
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 008 (content-addressed objects), Spec 009 (bounded memory), Spec 012 (dev@ and Jira), Spec 014 (digest profiles), Spec 015 (governance profile and ASF roster), Spec 016/017 (search, "exact matches first"), Spec 018 (daily publication)
@@ -26,6 +26,10 @@ Builds on: Spec 004 (GitHub connector), Spec 008 (content-addressed objects), Sp
 > (implemented, merged off) adds a small `identity-backfill` job that fills the
 > identity-link window's 12 months, one month a day, into its own internal
 > store; profile counts do not change.
+> [Amendment (9)](#amendment-2026-10-28-9-decision-8-terms-and-privacy-for-prod)
+> (specified only) resolves decision 8: Prod shows profiles with `declared`
+> links only, after a privacy notice, an LIA, a private removal channel, a
+> purge of derived data, crawler rules, no bulk export and private caching.
 > Items of later slices stay `[pending]`.
 
 ## Intent
@@ -575,13 +579,19 @@ P-h, P-i and P-j.
 | P-b | Counts with context | Every count states its period and definition and links to the records |
 | P-c | No email addresses | None stored, none shown. Today's pipeline already drops them; an acceptance item keeps it so. No hash of an address either: a hash of a guessable address is reversible |
 | P-d | "How this is computed" on every page | Sources, period, what is missing, the basis of every identity link |
-| P-e | Removal and correction | A person (or anyone, for a wrong link) opens an issue in this repository or writes to the owner. Suppression is honoured at the next daily publication: the identity gets no page and no person result, and is left out of "Works with". Threads keep showing the author as upstream does. The suppression list stores a salted hash of the identity key, not the name |
+| P-e | Removal and correction | *Amended by (9): a private email channel, a one-month answer, a Prod patch release, and P-n's purge.* A person (or anyone, for a wrong link) opens an issue in this repository or writes to the owner. Suppression is honoured at the next daily publication: the identity gets no page and no person result, and is left out of "Works with". Threads keep showing the author as upstream does. The suppression list stores a salted hash of the identity key, not the name |
 | P-f | No inactivity shaming | Say "Data covers … to …" and "Most recent activity in this data: <date>". Never "inactive", "last seen", "gone" |
-| P-g | Dev only | Decided (3): Dev only, not on Prod. Going beyond Dev needs the terms check of decision 8 first |
-| P-h | Not indexable | `/api/people/*` answers with `X-Robots-Tag: noindex`; pages are hash routes, which crawlers do not treat as separate pages |
+| P-g | Dev only | Decided (3): Dev only, not on Prod. Going beyond Dev needs the terms check of decision 8 first. *Amended by (9): decision 8 resolved (option (c)); Prod shows profiles with `declared` links only, after W132–W143 hold, by a separate enable PR (W144 after its release); what Dev shows is open question 1 of (9)* |
+| P-h | Not indexable | `/api/people/*` answers with `X-Robots-Tag: noindex`; pages are hash routes, which crawlers do not treat as separate pages. *Amended by (9): since Spec 032 pages are path URLs; `/robots.txt` disallows them and `_headers` sends `noindex` (W137)* |
 | P-i | Bots are not people | Identities on the profile's bot list get no page |
 | P-j | Scope of people | Decided (2): everyone who appears, bots excluded |
 | P-k | No derived attributes | No employer, location, time zone, hours-of-day chart |
+| P-l | Privacy notice | Amendment (9): `/privacy` states the data, sources, purpose, legal basis, retention and how to object; every profile links to it (W135) |
+| P-m | LIA (legitimate interest assessment) | Amendment (9): `docs/privacy/contributor-profiles-lia.md`, linked from the notice (W136) |
+| P-n | Removal deletes derived data | Amendment (9): the `suppression-purge` job deletes the identity's rows from every internal store (W139–W141) |
+| P-o | No bulk export | Amendment (9): no Prod endpoint lists people independent of one identity or one query; the slice 7 list stays off Prod (W134) |
+| P-p | Private caching | Amendment (9): `/api/people*` 200s are `private, max-age=300` (W138) |
+| P-q | Link bases on Prod | Amendment (9): Prod's identity-link job runs `declared@1`; no `corroborated` or `roster` edge and no Jira account key on Prod (W132, W133) |
 
 Terms and law: **not checked yet.** This spec does not read, and so does not
 cite, the GitHub Terms of Service or Acceptable Use Policies (their rules on
@@ -589,6 +599,10 @@ using API data about users), the ASF privacy policy, the Pony Mail archive
 terms, or data-protection law (the GDPR applies to public personal data too).
 Decision 8 (2026-10-14): they must be checked before anything goes beyond
 Dev. Until then the feature exists on Dev only.
+
+*Superseded by [amendment (9)](#amendment-2026-10-28-9-decision-8-terms-and-privacy-for-prod), 2026-10-28: the owner's research
+note (not legal advice) covers these sources, and decision 8 resolves to
+option (c).*
 
 ## Simplification review
 
@@ -1719,6 +1733,8 @@ The five questions this amendment first left open, decided by the owner:
    of its own.
 5. **Jira account keys on Prod** are folded into decision 8 (terms and
    privacy check), still open. Names read from KIP pages join it.
+   *Resolved by [amendment (9)](#amendment-2026-10-28-9-decision-8-terms-and-privacy-for-prod): Jira account keys stay off Prod;
+   the KIPs section stays off Prod (its open question 4).*
 
 ### KIP authors: several per KIP (revision, 2026-10-21)
 
@@ -1967,7 +1983,8 @@ The owner accepted every recommendation of this revision:
    in resolution 2). Low priority: KIP-1371 already reaches
    `github:unknowntpo` through its assignee (W111).
 2. **Decision 8** (terms and privacy) before Prod, now also covering author
-   names read from KIP pages and KIP issues' assignee keys.
+   names read from KIP pages and KIP issues' assignee keys. *Resolved by
+   [amendment (9)](#amendment-2026-10-28-9-decision-8-terms-and-privacy-for-prod).*
 
 ## Amendment 2026-10-23 (8): the identity-link backfill
 
@@ -2428,6 +2445,196 @@ Owner decision of 2026-10-24 (after the Dev reading above):
    name oracle cannot match a committer listed under a different name, so
    the link W131 expects could never pass).
 
+## Amendment 2026-10-28 (9): decision 8, terms and privacy for Prod
+
+Specified only; nothing is implemented. Every item is `[pending]`, `[measure]`
+or `[deploy]`. Prod keeps W25 (no `/api/people`) until a separate
+owner-approved Prod enable PR, after W132–W143 hold; W144 is checked after
+its release.
+
+**Conclusion.** Decision 8 resolves to option (c). Prod shows contributor
+profiles whose cross-source links have the `declared` basis only.
+`corroborated` links, Jira account keys and the sortable contributor list
+(slice 7) stay off Prod. Cloudflare Access is not the answer for people
+features. Prod gets seven safeguards first: a privacy notice, a legitimate
+interest assessment, a private removal channel, a purge of derived data on
+removal, crawler rules for path URLs, no bulk export, and private caching.
+
+### Owner decisions (2026-10-28)
+
+Recorded as the owner stated them:
+
+1. People features WILL be shared (e.g. shown in job interviews), so the
+   GDPR Art. 2(2)(c) / Taiwan PDPA Art. 51 personal-or-household exemption
+   does not apply, and Cloudflare Access is NOT used as the compliance
+   answer. No Access for people features.
+2. Decision 8 resolves to option (c): Prod shows profiles with `declared`
+   identity links only (links the person published themselves).
+   `corroborated` links, Jira account keys and the sortable contributor list
+   (slice 7) do not go to Prod.
+
+GDPR is the EU General Data Protection Regulation. PDPA is Taiwan's Personal
+Data Protection Act. An LIA (legitimate interest assessment) is the written
+three-part test (purpose, necessity, balancing) for the GDPR Art. 6(1)(f)
+legal basis.
+
+### The owner's research note (2026-10-27/28)
+
+This is the owner's research, not legal advice, and no lawyer reviewed it.
+The spec cites it as a note, not as legal fact.
+
+| Source | What the note found |
+| --- | --- |
+| GitHub Terms of Service and Acceptable Use Policies §7–8 | They do not forbid this use. They require: use personal information only for the purpose the users authorised; protect it; honour deletion and do-not-contact requests. No spam, no selling to recruiters |
+| ASF privacy policy | Mailing lists are public and the archives are permanent. The policy sets no restriction on third parties |
+| GDPR, Taiwan PDPA | Both bind this site. The basis is legitimate interest (GDPR Art. 6(1)(f)); PDPA Art. 19 allows publicly disclosed data |
+| Dev | Dev is publicly reachable, so "Dev only" is not a privacy safeguard |
+| LFX Insights (Linux Foundation) | It shows per-project contributor leaderboards publicly. It has no public per-person page |
+
+This note replaces "Terms and law: not checked yet" in
+[Privacy and ethics](#privacy-and-ethics).
+
+### What goes to Prod, what stays out
+
+| Item | Prod | Why |
+| --- | --- | --- |
+| Profile page and `/api/people/:project/:id` (reviews, activity log counts, areas, "Works with") | **yes**, after the safeguards | Decision (c) |
+| Person results in Search (`/api/people/:project?q=`, at most 3) | **yes** | One query, at most 3 identities: not a bulk export (P-o) |
+| Cross-source links with basis `declared` (the profile's `identityLinks`, including the committers page pairs) | **yes** | Decision (c) |
+| Links with basis `corroborated` | no | Decision (c) |
+| Links with basis `roster` | no | Decision (c) names `declared` only. Open question 3 |
+| Jira account keys (`jira-account:<key>`, for example `JIRAUSER305187`) | no | Decision (c) |
+| The KIPs section (`PEOPLE_KIPS`) | no | Its line 2 joins through Jira account keys. Open question 4 |
+| The sortable contributor list (slice 7, W30–W33) | no | Decision (c); a bulk list of people (P-o) |
+| Cloudflare Access in front of people features | no | Owner decision 1 |
+
+### Rules (P-l to P-q, and changes to P-e, P-g, P-h)
+
+The [Privacy and ethics](#privacy-and-ethics) table holds the rules. This
+amendment adds:
+
+- **P-l Privacy notice.** The web app serves one notice page at `/privacy`.
+  It states: what is collected, the sources, the purpose, the legal basis
+  (legitimate interest), the retention of each internal store, and how to
+  object or ask for removal. Every profile links to it (W135). The route is
+  registered before `/:projectKey/`; no project key may be `privacy`.
+- **P-m LIA.** A one-page LIA is committed at
+  `docs/privacy/contributor-profiles-lia.md` (the file does not exist yet).
+  It records the purpose test, the necessity test, the balancing test and
+  the safeguards by rule ID. The notice links to it (W136).
+- **P-n Removal deletes derived data.** A removal deletes the person's rows
+  from every internal store, not only hides the page (W139–W141). The
+  `suppression-purge` job does it (below).
+- **P-o No bulk export.** No endpoint on Prod returns people independent of
+  one person or one query. Search answers at most 3 identities. The slice 7
+  list stays off Prod (W134).
+- **P-p Private caching.** `/api/people*` answers a 200 with `cache-control:
+  private, max-age=300`, so no shared cache keeps a copy after a removal
+  (W138). Today `apps/web/functions/_shared/people.ts` sends
+  `PEOPLE_CACHE_CONTROL = "public, max-age=300, stale-while-revalidate=600"`
+  (verified 2026-10-28). `/api/activity` (Spec 030) imports the same constant
+  and keeps `public`: it holds project counts, not people.
+- **P-q Link bases on Prod.** On Prod the identity-link job runs as
+  `IDENTITY_LINKS=declared@1`. It writes `declared` edges only. It computes
+  no `corroborated` or `roster` edge, so Prod stores no Jira account key in
+  the link table (W132, W133).
+
+It changes:
+
+- **P-e Removal and correction.** Two channels: a public issue in this
+  repository, or a private email to the address the notice names (open
+  question 5). The owner answers within one month (the research note: GDPR
+  Art. 12(3)). On Dev the removal holds at the next daily publication. On
+  Prod the suppression list is compiled into the code
+  (`PEOPLE_SUPPRESSED`, `packages/reference-pipeline/src/people/index.ts`),
+  and Prod deploys only on a `v*` tag. So a removal on Prod needs a patch
+  release. The owner ships it within 7 days of the request (open question 6).
+- **P-g Visibility.** Dev and Prod. Prod shows the items in the table above,
+  after W132–W143 hold, by a separate owner-approved enable PR. Dev keeps
+  what it shows today until the owner decides open question 1.
+- **P-h Not indexable.** Since Spec 032 a profile is a path URL
+  (`/kafka/people/github%3Am1a2st`), so the hash-route argument no longer
+  holds. `/robots.txt` disallows `/*/people/` and `/api/people`, and the
+  Pages `_headers` file sends `X-Robots-Tag: noindex` on `/*/people/*`.
+  `/api/people*` keeps `X-Robots-Tag: noindex` (W24, W137). A disallowed URL
+  can still appear in an index as a bare link; that is accepted.
+
+### The `suppression-purge` job (P-n)
+
+| | |
+| --- | --- |
+| Responsibility | One: rewrite the internal stores without the rows of each suppressed identity. It reads no upstream API |
+| Trigger | Its own cron entry `53 4 * * *` (04:53 UTC; clear of the publications, the digest, the identity-link, `identity-backfill` and `kip-pages` jobs, and retention) in each publisher Worker, behind `SUPPRESSION_PURGE=rows@1`. A run whose suppression list digest equals the last good run's writes nothing |
+| Stores | `internal/people/v1/<projectId>/<YYYY-MM>.json` and `.summary.json`; `internal/github-reviews/v1/<projectId>/<YYYY-MM>.json`; `internal/identity/v1/<projectId>/links.json`; `internal/identity/v1/<projectId>/backfill/<YYYY-MM>.json`; `internal/kips/v1/<projectId>/authors.json` |
+| Rule | A row whose actor is the identity is deleted. Where the identity is a counterpart (for example the author of a pull request someone reviewed), the key becomes the fixed value `suppressed`, so other people's counts do not change. A Jira name suppresses its account key too (as `identity-links.ts` does) |
+| Not changed | Feed releases and thread records: they show the author as upstream does (P-e) |
+| Failure | Read-time suppression (W12, W40) hides the identity whether or not the purge ran. The next day's run repeats a failed run; a rewrite of an already purged object writes nothing |
+| Status | `/health` `suppressionPurge` while the flag is set (W143) |
+
+Spec 030's project counts drop by the purged rows. That is accepted.
+
+### Simplification review (amendment 9)
+
+| Item | Who needs it, why | Kept? |
+| --- | --- | --- |
+| Cloudflare Access for people features | — | **deleted** by owner decision 1 |
+| A reader filter `PEOPLE_LINK_BASES` in Pages | — | **deleted** for Prod: the job writes only `declared` edges there. It comes back only with option (a) of open question 1 |
+| Upstream-deletion sync | Owner request | **not specified**: the data does not allow it (open question 2) |
+| A self-service removal form | — | **deleted** (decision 9 stands): it needs requester authentication |
+| Hiding without deleting | — | **deleted**: the owner asked for deletion of derived data |
+| The purge as a step of the publication | — | **deleted**: one job, one responsibility (`suppression-purge`) |
+| Notice, LIA, private channel, robots rules, private caching, no bulk export | Owner, 2026-10-28; the research note | kept |
+
+### Open questions for the owner
+
+1. **What Dev shows.** Dev is public and the owner chose no Access, so
+   `corroborated` links and Jira account keys on Dev are published today.
+   - (a) Dev also shows `declared` links only. `corroborated` edges stay in
+     the internal link table and are used only for matching (KIP lines,
+     precision checks). This needs the reader filter `PEOPLE_LINK_BASES=declared`
+     in Pages (deleted above for Prod).
+   - (b) Accept that Dev shows them.
+
+   **Recommendation: (a).** Decision (c) rests on the person's own
+   publication. A public Dev page that shows a join the person did not
+   publish breaks the same rule, and "Dev only" is not a safeguard. Option
+   (a) keeps the precision work and its evidence. It costs one filter and a
+   test.
+2. **Upstream deletion.** The stores keep the GitHub login, the Jira display
+   name and the dev@ From name as read. No source sends a deletion signal:
+   a deleted GitHub account appears as `ghost` only in new reads; a renamed
+   login also answers 404; Jira and the ASF archives keep the records. Options:
+   (a) the notice says removal is by request only (P-e); (b) a weekly job
+   checks each stored GitHub login (`GET /users/<login>`, about 440 Kafka
+   logins a week) and treats a 404 as a removal, renames included.
+   Recommendation: (a) now; revisit if a request shows the need.
+3. **`roster` links and the committers page.** The owner's words are
+   "links the person published themselves". The committers page is
+   published by the project, and `roster` links come from the ASF roster.
+   This amendment keeps committers page pairs (they are `declared` entries
+   today) and drops `roster`. The owner confirms or changes both.
+4. **The KIPs section on Prod.** It stays off. It could come back with
+   lines 1 and 3 only (KIP page author, discussion starter) and no Jira
+   account key.
+5. **The private address.** Which email address the notice names. A
+   dedicated alias is recommended; this spec does not publish one.
+6. **Removal on Prod without a release.** Move the suppression list from
+   the code to an internal R2 object the owner writes with a command, so a
+   removal does not need a Prod release. Recommended before many requests
+   arrive; not needed for the first enable.
+7. **Jira account keys stored on Prod.** PR #110 (open) records the activity
+   log on Prod, including the Jira assignee key (internal). Decision (c) keeps
+   keys off the pages. Data minimisation suggests Prod does not store them
+   either. Recommendation: drop the key on Prod in #110 or its follow-up.
+
+### Flags and order (amendment 9)
+
+| Step | Change | Expected |
+| --- | --- | --- |
+| 1 | Merge this spec | No runtime change |
+| 2 | Implementation PR: P-l, P-m, P-n, P-o, P-p, P-q and P-h's files, every flag unset on Prod | W132–W141 and W143 tests green, W142 measured; W25 still holds on Prod |
+| 3 | Prod enable PR (owner approval): `PEOPLE_PROFILES=true`, `IDENTITY_LINKS=declared@1` with its cron, `SUPPRESSION_PURGE=rows@1` with its cron; `PEOPLE_KIPS` unset; then a `v*` release | W144 |
+
 ## Test plan
 
 Slice 2a: rows built from Spec 022's recorded GraphQL responses for Kafka
@@ -2788,6 +2995,14 @@ Each item: precondition → action → observable result → evidence. All are
 - W117: given the recorded 2026-10-23 sample (five logins, their 81 keys' assignees, and the 108 keys of the four paired accounts with the pull requests naming them), the rule links `m1a2st` ↔ JIRAUSER305187 (22), `harmadasg` ↔ JIRAUSER306203 (20), `unknowntpo` ↔ JIRAUSER306218 (10), `dybyte` ↔ JIRAUSER312871 (9) and refuses `m1a2st` ↔ Chia-Ping Tsai (5) and ↔ Gergely Harmadás (3) by dominance; `chia7712` gets no corroborated link → case rows.
 - W118: given `POST /identity-links/run?dryRun=1&backfill=1[&blind=1]` with `IDENTITY_LINKS_BACKFILL` unset, the run reads the store, reports the precision counts and writes nothing → Worker test.
 - W119: given backfill objects in R2, `/api/people/:project/:id` responses and the Pages reader's R2 reads are identical to those without them; no Pages Function reads `internal/identity/v1/*/backfill/` → API test with a counting bucket.
+- W132: [pending] (amendment (9), P-q) given `IDENTITY_LINKS=declared@1` and facts that support a `corroborated` GitHub ↔ Jira edge and a `roster` edge, the identity-link job writes `links.json` with `declared` edges only, holds no `jira-account:` id, and still applies removals and suppression (W72); a `declared` A–B edge and a `corroborated` B–C fact do not join C; positive control: `corroborated@1` on the same facts writes the `corroborated` edge → run test.
+- W133: [pending] (amendment (9), P-q) given the Prod configuration and a link table written by `declared@1`, no `/api/people*` response contains `jira-account:`, a Jira account key, a basis other than `declared`, or a `kips` field; positive control: the Dev configuration with a `corroborated@1` table shows the `corroborated` link → configuration test and API test over the fixture.
+- W134: [pending] (amendment (9), P-o) given the Prod configuration, the slice 7 list route answers 404, `/api/people/:project?q=` answers at most 3 identities and ignores any page, offset or limit parameter, and no other `/api/people*` route lists people independent of one identity or one query → API test.
+- W135: [pending] (amendment (9), P-l, P-e) `/privacy` renders the notice with sections for the data collected, the sources, the purpose, the legal basis (legitimate interest), the retention of each internal store, and how to object (a public issue and the private email address); every profile page holds `a[data-privacy-notice]` to `/privacy`; `/privacy` is not read as a project key → E2E test.
+- W136: [pending] (amendment (9), P-m) `docs/privacy/contributor-profiles-lia.md` exists with the headings Purpose, Necessity, Balancing and Safeguards, the Safeguards name P-c, P-e, P-h and P-l to P-q, and the notice links to the file → docs test.
+- W137: [pending] (amendment (9), P-h) the built Pages output serves `/robots.txt` with `Disallow: /*/people/` and `Disallow: /api/people`, and its `_headers` file sets `X-Robots-Tag: noindex` for `/*/people/*`; W24 still holds for `/api/people*` → build-output test.
+- W138: [pending] (amendment (9), P-p) every 200 from `/api/people`, `/api/people/:project` and `/api/people/:project/:id` carries `cache-control: private, max-age=300`; a 4xx or 5xx stays `no-store`; `/api/activity` still carries `public, max-age=300, stale-while-revalidate=600` → API test over each endpoint.
+- W139: [pending] (amendment (9), P-n) given a suppressed identity X that is the actor of rows and the counterpart of other rows in each store the `suppression-purge` job names, one run rewrites each object that holds X: rows with X as actor are gone, X as counterpart reads `suppressed`, and every other identity's counts are unchanged; a suppressed Jira name removes its account key too; positive control: the same stores without the suppression are not rewritten → run test.
 
 ### Failure and retry
 
@@ -2829,6 +3044,8 @@ Each item: precondition → action → observable result → evidence. All are
 - W125: given `IDENTITY_BACKFILL` unset, its cron entry and `POST /identity-backfill/run` do nothing (the route answers 404), make no upstream request and no R2 call, and `/health` has no `identityBackfill`; any value but `prs@1` records a config failure and touches no other job → Worker test.
 - W126: given the route without the token it answers 401; within 60 minutes of the last run it answers 409 `{ok: false, skipped: "too-soon"}` and sends no request → Worker test.
 - W127: given `IDENTITY_LINKS_BACKFILL` turned from `read` to unset, the next identity-link run writes the table computed without the store → run test.
+- W140: [pending] (amendment (9), P-n) given the `suppression-purge` job fails on an R2 write in the middle of a run, the profile and search for X still answer as suppressed (W12, W40), the run record is `failed`, and the next run finishes the purge; a run on purged stores, or with the same suppression list digest as the last good run, writes no object → run test.
+- W141: [pending] (amendment (9)) given `SUPPRESSION_PURGE` unset, its cron entry and the job do nothing, make no R2 call, and `/health` has no `suppressionPurge` field; given `IDENTITY_LINKS` with a value other than `corroborated@1` or `declared@1`, the identity-link run fails and writes no table (fail closed, never another mode) → Worker test.
 
 ### Budget
 
@@ -2849,6 +3066,7 @@ Each item: precondition → action → observable result → evidence. All are
 - W112: [measure] `measure:kip-pages -- --agreement` reports, from public data, the `JIRA:` field classes over all KIP pages and, for pages with one issue, assignee unset, assignee = creator, assignee in the author line, assignee = starter (exact, other written form, other script, different), and the KIPs whose assignee has a corroborated GitHub link; the 2026-10-21 reading is 1,160 / 45 / 138 / 8 / 20, then 17 unset, 180 of 219, 12 of 12, 126 / 24 / 16 / 30 of 196, and 33 KIPs for 13 people.
 - W128: [measure] one `identity-backfill` run sends at most 5 GitHub GraphQL search requests and 4 ASF Jira requests, sequential, at least 3 s apart, with the project's `User-Agent`, and makes at most 2 Class B and 2 Class A R2 requests on every path (1 Class A on a failure, 0 when `complete` or before `retryAfter`); the 2026-10-23 volumes give 35 search and about 25 Jira requests and about 22 Class A for the 11 months (command `measure:identity-backfill -- --month <YYYY-MM>`, one month, read-only upstream, in-memory bucket).
 - W129: [measure] one identity-link run with `IDENTITY_LINKS_BACKFILL=read` and 11 finished months reads at most 17 objects (Class B) and writes at most 2 (Class A), keeps one month parsed at a time, and reports peak heap and duration (`measure:identity-links -- --backfill`).
+- W142: [measure] (amendment (9)) one `suppression-purge` run for one Kafka identity reads and writes at most one object per store object that holds it (at most 50 Class A and 50 Class B), and a run with an unchanged list digest makes 1 Class B read and 0 Class A writes, measured with `measure:people`.
 
 ### Observability
 
@@ -2865,6 +3083,8 @@ Each item: precondition → action → observable result → evidence. All are
 - W106: [deploy] on Dev after step 4, `/health` `kipPages.lastRun.ok` is true on two consecutive days, and the profile of `mail:viktor somogyi-vass` lists KIP-1165 as "author (KIP page)" with "also started the discussion" and nine author names in page order (or, if KIP-1165 left the coverage, the note says so).
 - W130: `/health` `identityBackfill` is `{revision, lastRun {ok, status (ok, complete, failed, limited, over-budget), at, durationMs, month, prs, keyedPrs, keys, assigned, requests {github, jira}, retryAfter?, bytesWritten, r2 {classA, classB}, error?}, months {done, next, remaining}, from, until}` while `IDENTITY_BACKFILL` is set, read from `backfill-last-run.json` at 1 Class B per `/health` request; error text is redacted as other jobs' → unit test on the field.
 - W131: [deploy] on Dev, after rollout step 2 of amendment (8), `identityBackfill.months.remaining` falls by one a day with `lastRun.ok` true and no `limited` status, until `complete`; after step 5, `identityLinks.lastRun.inputs.backfill.months` holds the finished months and the profile of `github:m1a2st` shows `jira-account:JIRAUSER305187` "Ken Huang" as corroborated with at least 3 keys as evidence.
+- W143: [pending] (amendment (9)) `/health` `suppressionPurge` is `{revision, lastRun {ok, status (ok, unchanged, failed), at, durationMs, identities, objectsRewritten}}` while `SUPPRESSION_PURGE` is set, and the Spec 028 job list includes `suppression-purge` → Worker test.
+- W144: [deploy] (amendment (9)) on Prod, after the enable PR's release: a profile response carries `cache-control: private, max-age=300` and `X-Robots-Tag: noindex`; `/robots.txt` disallows `/*/people/` and `/api/people`; `/privacy` answers 200 and links the LIA; `github:m1a2st` (linked to `JIRAUSER305187` as `corroborated` on Dev) shows no Jira account; `identityLinks.lastRun` names `declared@1`; `suppressionPurge.lastRun.ok` is true.
 
 ## Success criteria
 
@@ -2886,12 +3106,12 @@ record.
 | --- | --- | --- | --- | --- |
 | 1 | Which uses | **U1** (understand a person) and **U2** (track one's own trajectory). **U3** ("most active in an area") deferred: it is ranking-like. *Revised by decision 10 (2026-10-15)* | Sections and slices serve U1 and U2; no list of people in any order | U3 needs people sorted by activity, which conflicts with "no ranking" |
 | 2 | Scope | **Everyone who appears, bots excluded** | P-j; W12 | Committers only: about 73 Kafka pages instead of about 440 identities a month; useless for U2 and for new contributors; DataFusion has no roster |
-| 3 | Visibility | **Dev only, `noindex`, not on Prod** | P-g, P-h; W24, W25 | Private behind access control: an auth setup, and the page could not be linked from threads |
+| 3 | Visibility | **Dev only, `noindex`, not on Prod.** *Revised by amendment (9) (2026-10-28): Prod shows profiles with `declared` links only, after W132–W143 hold (W144 after the release); `corroborated` links, Jira account keys, the KIPs section and the slice 7 list stay off Prod; no Cloudflare Access for people features* | P-g, P-h; W24, W25; W132–W144 | Private behind access control: an auth setup, and the page could not be linked from threads |
 | 4 | Horizon | **12 months for all activity.** Reviews come from Spec 022's store (its 12-month backfill is a separate PR); dev@, Jira and GitHub comments need their own 12-month backfill | Behavior 3; slices 5 and 6; W18, W21, W26. Slice 6's cost is unmeasured and is the next measurement | No backfill (35 days, a year to become a trajectory); option C (all-time KIP threads, 11 years of Pony Mail); option D (a searchable year: breaks G10, G59, H67) |
 | 5 | Identity | **Strict.** Link only declared or roster-backed identities; otherwise "possibly the same person". No fuzzy matching, no email | Identity resolution rule; W14–W16; W13 (no address anywhere) | Merging equal display names, or an ASF id equal to a GitHub login: fewer split profiles (37 and 14 pairs today), with a real chance of a wrong merge |
 | 6 | Areas | **GitHub labels (minus process labels) and KIP numbers first; Jira components later.** No file paths (decided); they are not available anyway, because Spec 022 counts inline comments without storing them | Behavior 6; W4; "Later" slice | Jira components now (one more Jira field); digest topics (12 coarse, Kafka-tuned) |
 | 7 | Reviews before or after the first page | **Reviews first** ("先補") | Slice 1 is Spec 022; no "reviews are not counted yet" note | Page first: under-states a reviewer by about 3.6 times (`chia7712`: 46 pull requests commented, 168 reviewed upstream) |
-| 8 | Terms and policy | **GitHub Terms of Service, the ASF privacy policy and the GDPR must be checked before anything goes beyond Dev** | Privacy section, P-g (Dev only); W25 | Skipping it risks having to take the feature down |
+| 8 | Terms and policy | **GitHub Terms of Service, the ASF privacy policy and the GDPR must be checked before anything goes beyond Dev.** *Resolved 2026-10-28 by amendment (9), option (c): the owner's research note (not legal advice); legal basis legitimate interest; Prod shows `declared` links only, with P-l to P-q* | Privacy section, P-g; W25; W132–W144 | Skipping it risks having to take the feature down |
 | 9 | Removal | **By issue or email; removed at the next daily publication** | P-e; W12 | A self-service form needs authentication of the requester |
 | 10 | Contributor list (2026-10-15) | **Per-project list, sortable by separate metric columns** (reviews given, PRs authored/merged, comments, Jira, dev@, last active), no composite score, bots excluded, Dev only; built after the profile | Slice 7; W30–W33; revises decision 1 (U3 in this form) and P-a | A single activity score or rank (rejected again); no list at all (the owner wants it) |
 | 11 | KIP authorship and corroborated links (2026-10-21) | **"Authored" = started the earliest `[DISCUSS] KIP-n` thread on dev@, within the recorded range; a third link basis `corroborated` (GitHub ↔ Jira on ≥ 3 `KAFKA-n`, Jira ↔ dev@ on ≥ 2 `KIP-n`, provisional until a precision check); linking is its own job; profiles read its table behind a flag, Dev first. Revised the same day (owner): a KIP can have several authors; the KIP page's author line (read by its own `kip-pages` job) comes first, "started the discussion" second; the assignee of the issue the KIP page's `JIRA:` field names is line 2 ("assigned the KIP's Jira issue"), read by the same job; dominance 3 and edge B at 2 accepted; the committers page's 68 pairs become `declared` links** | Amendment (7); W66–W112; revises precision rule 2, decision 5, identity rule 2 | Page creator or editors as authors; Confluence usernames as identities; dev@ starter only (KIP-1165 would list one of nine authors); linking as a step of the publication or of the activity append; similarity or model-based matching |
@@ -2914,7 +3134,8 @@ record.
   follows from it).
 - The live ASF roster: the Spec 015 sample of 2026-10-08 was used; Whimsy was
   not read.
-- All terms of service and law (section Privacy).
+- All terms of service and law (section Privacy). *Amendment (9): the
+  owner's research note of 2026-10-27/28 covers them; no lawyer reviewed it.*
 - The month estimates for when each limit breaks are linear extrapolations
   from one 35-day release.
 - Amendment (7): who wrote the 98 % of KIP pages without an author line
