@@ -220,13 +220,16 @@
           "id": "ai", "title": { "en": "Workers AI", "zh-Hant": "Workers AI" }, "count": "Dev",
           "nodes": [
             { "id": "ai-bind", "icon": "AI", "kind": "ai",
-              "gate": ["AI"],
+              "gate": ["AI", "SEARCH_EMBEDDING"],
               "title": { "en": "Workers AI binding", "zh-Hant": "Workers AI binding" },
               "meta": { "en": "bge-m3 · Clef · Llama · Qwen3", "zh-Hant": "bge-m3 · Clef · Llama · Qwen3" },
               "lead": { "en": "The Worker's `AI` binding. Prod has it since the Spec 016 Prod rollout step (a), but no model runs on Prod while `SEARCH_EMBEDDING` is unset. Every call goes through an AI Gateway, and the neurons it spends are charged to a daily ledger first.", "zh-Hant": "Worker 的 `AI` binding。Prod 自 Spec 016 Prod rollout 步驟 (a) 起也有，但 `SEARCH_EMBEDDING` 未設定時 Prod 不跑任何模型。每次呼叫都經過 AI Gateway，花掉的 neurons 會先記入每日帳本。" },
+              "facts": [
+                { "k": { "en": "Prod", "zh-Hant": "Prod" }, "v": { "en": "`AI` is bound but idle until `SEARCH_EMBEDDING` is set (Spec 016 Prod rollout step (b))", "zh-Hant": "`AI` 已綁定，但 `SEARCH_EMBEDDING` 設定前閒置（Spec 016 Prod rollout 步驟 (b)）" } }
+              ],
               "sources": ["apps/data-publisher-worker/wrangler.development.jsonc", "apps/data-publisher-worker/src/digest/workers-ai.ts"] },
             { "id": "ai-gw", "icon": "GW", "kind": "ai",
-              "gate": ["SEARCH_GATEWAY_ID"],
+              "gate": ["SEARCH_GATEWAY_ID", "SEARCH_EMBEDDING"],
               "title": { "en": "AI Gateways", "zh-Hant": "AI Gateway" },
               "meta": { "en": "one per job family", "zh-Hant": "每類 job 一個" },
               "lead": { "en": "Separate gateways keep each job's requests, cache and limits apart.", "zh-Hant": "分開的 gateway 讓各 job 的請求、快取與限制互不干擾。" },
