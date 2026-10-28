@@ -205,7 +205,7 @@ const scenarios: Record<string, () => Promise<void>> = {
     expect(prod.vars?.SRE_AGENT).toBe("off");
     expect(prod.vars?.SRE_AGENT_CRON).toBeUndefined();
     expect(prod.vars?.SRE_AGENT_GATEWAY).toBeUndefined();
-    // No sre-agent entry; the second entry is the staged Prod digest tick (Spec 014 D113).
+    // No sre-agent entry; the second entry is the Prod digest tick (Spec 014 D113).
     expect(prod.triggers?.crons).toEqual(["37 22 * * *", "17 23 * * *"]);
   },
 

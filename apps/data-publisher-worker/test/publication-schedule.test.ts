@@ -61,7 +61,7 @@ describe("Spec 018 daily publication schedule", () => {
     // Dev's other entries are the digest's (Spec 014 D86) and the Spec 019 amendment (7) jobs'; none is a publication.
     const target = (cron: string) => cronTarget(cron, "47 22 * * *", undefined, "17 2 * * *", "43 3 * * *", "30 0 * * *;0 11 * * *", "17 10 * * *", "23 1 * * *");
     expect((await crons("development")).filter((cron) => target(cron) === "publisher")).toEqual(["7 22 * * *"]);
-    // Prod's second entry is the staged digest tick (Spec 014 D113), not a publication.
+    // Prod's second entry is the digest tick (Spec 014 D113), not a publication.
     expect(await crons("production")).toEqual(["37 22 * * *", "17 23 * * *"]);
     expect((await crons("production")).filter((cron) => cronTarget(cron, "17 23 * * *") === "publisher")).toEqual(["37 22 * * *"]);
   });
