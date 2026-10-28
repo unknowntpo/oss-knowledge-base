@@ -1,6 +1,6 @@
 # Spec 016: Semantic candidates and hybrid fusion for Search
 
-Status: Partially implemented: slices 1, 2a, 2b and 3 implemented and on Dev (#45–#59; owner's approvals of 2026-10-12 and 2026-10-13, named below): embeddings `SEARCH_EMBEDDING=bge-m3@1`, the query gate and shard roots, hybrid search `SEARCH_SEMANTIC=rrf-group@2`; `rrf-group@3` implemented and kept off (decision of 2026-10-13); slice 4 (H33, rerank) pending; Prod rollout approved 2026-10-28 ("Prod rollout" under "Contract changes and rollout"): Prod index `osskb-search-prod` created, step (a) binds it with every flag off, steps (b) and (c) not started
+Status: Partially implemented: slices 1, 2a, 2b and 3 implemented and on Dev (#45–#59; owner's approvals of 2026-10-12 and 2026-10-13, named below): embeddings `SEARCH_EMBEDDING=bge-m3@1`, the query gate and shard roots, hybrid search `SEARCH_SEMANTIC=rrf-group@2`; `rrf-group@3` implemented and kept off (decision of 2026-10-13); slice 4 (H33, rerank) pending; Prod rollout approved 2026-10-28 ("Prod rollout" under "Contract changes and rollout"): Prod index and gateway `osskb-search-prod` created; step (a) deployed with `v0.3.4` (2026-10-28 03:00 UTC, `/health` both `enabled: false`, no `configError`); step (b) sets `SEARCH_EMBEDDING=bge-m3@1` and `SEARCH_SHARD_ROOTS=true` on Prod (live from its tag); step (c) not started
 Date: 2026-10-13
 Traceability: enforced
 Builds on: Spec 005 (Phases 2 and 3, LLM boundary), Spec 013 (lexical shards, `bm25-reference@1`), Spec 014 (community profile `proposal`), Spec 015 (profile blocks, ADR-0016)
@@ -2787,9 +2787,10 @@ Items tagged `[pending]` belong to slice 4.
 - H94: the Prod publisher configuration binds `AI`, `SEARCH_VECTORS` →
   `osskb-search-prod`, `SEARCH_GATEWAY_ID=osskb-search-prod` (not Dev's),
   `SEARCH_EMBEDDING_RUN` and `SEARCH_QUERY_GATE` with migrations `v3` and
-  `v4` (each bound class migrated once and exported), and leaves
-  `SEARCH_EMBEDDING` and `SEARCH_SHARD_ROOTS` unset, so the gate is off;
-  the flag alone would turn it on → evidence: `search-query-gate.test.ts`.
+  `v4` (each bound class migrated once and exported). Step (a) left
+  `SEARCH_EMBEDDING` and `SEARCH_SHARD_ROOTS` unset; since step (b) they
+  are `bge-m3@1` and `true`, the gate is on with Prod's own gateway, and
+  the flag alone turns it off again → evidence: `search-query-gate.test.ts`.
 - H95: [deploy] after the step (a) tag, Prod `/health` has
   `searchEmbedding.enabled` and `searchQuery.enabled` `false` with no
   `configError`, the next publication is `ok` without shard roots,

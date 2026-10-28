@@ -182,10 +182,11 @@ describe("Spec 033 system map, slice 1", () => {
     await map.click('[data-env="prod"]');
     expect(map.ids(".smap-node").sort()).toEqual(prodLive);
     expect(map.doc.querySelector('.smap-card[data-card="sre"]') === null).toBe(true);
-    expect(map.doc.querySelector('.smap-card[data-card="ai"]') === null).toBe(true);
+    // Spec 016 Prod rollout step (b): `SEARCH_EMBEDDING` is set on Prod, so the Workers AI card is live there.
+    expect(map.doc.querySelector('.smap-card[data-card="ai"]') !== null).toBe(true);
     const links = [...map.doc.querySelectorAll(".smap-wires path[data-link]")].map((path) => path.getAttribute("data-link")!);
     expect(links.length).toBeGreaterThan(5);
-    expect(links.filter((link) => link.split(" ").some((card) => card === "sre" || card === "ai"))).toEqual([]);
+    expect(links.filter((link) => link.split(" ").some((card) => card === "sre"))).toEqual([]);
     expect(map.doc.querySelector(".smap-title")!.textContent).toBe(`Data flow · Prod · ${prodLive.length} live components (${nodes.length - prodLive.length} not live, not shown)`);
     await map.click('[data-view="list"]');
     expect(map.ids(".smap-list tr.row").sort()).toEqual(prodLive);
