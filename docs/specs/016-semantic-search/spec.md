@@ -1761,8 +1761,10 @@ Preconditions: `/health` `lastRun.search.shardRoots` is `true` and
   D109–D112: the registry entry `search` in `apps/web/src/experimental.ts`
   with the note `experimental.note.search` in both locales, placed once in
   the search view above the count line. It shows only when the answer is
-  fused (`retrieval.fusionRevision` is set), so a lexical or degraded answer
-  carries none. It is one list-level label, not a per-result badge (Spec 005
+  fused, that is `retrieval.semantic.status` is `ok`; `fusionRevision` alone
+  is not enough, because every non-ok fallback carries it too. A lexical or
+  degraded answer (`disabled`, `skipped`, `uncovered`, `over-budget`,
+  `timed-out`, `failed`) carries none. It is one list-level label, not a per-result badge (Spec 005
   S16). The entry is deleted when slice 4 (H33) decides the ranking on Prod.
 - After the tag deploys (H97), on `https://oss-knowledge-base.pages.dev`:
   - `GET /api/search?q=交易逾時` has `retrieval.fusionRevision`
@@ -2811,11 +2813,13 @@ Items tagged `[pending]` belong to slice 4.
   stored and queried dimensions against the included 10 M and 50 M →
   `bun run measure:search-query-budget -- --chunks <Prod chunkCount>` for
   each environment and the "Cost worst case" tables (Prod rollout).
-- H99: given a fused search answer, the search view shows the shared
-  experimental label (badge 「實驗中・搶先體驗」 / "Experimental · Early
-  access" and the search note) in both locales above the count line, once
-  for the list; a lexical, degraded or missing answer shows none, and no
-  result card carries it → evidence: `experimental-label.test.ts`.
+- H99: given a fused search answer (`retrieval.semantic.status` `ok`), the
+  search view shows the shared experimental label (badge 「實驗中・搶先體驗」
+  / "Experimental · Early access" and the search note) in both locales
+  above the count line, once for the list; a lexical answer, a missing one,
+  or one whose semantic status is anything but `ok` (even with
+  `fusionRevision` set) shows none, and no result card carries it →
+  evidence: `experimental-label.test.ts`.
 
 ### Behavior (later slices)
 - H33: [pending] given the labelled queries and the real model,

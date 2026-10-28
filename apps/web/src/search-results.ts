@@ -61,10 +61,11 @@ export function searchCountText({ exact, shown, total }: SearchCount, t: Transla
 }
 
 /**
- * Spec 016 H99: a response fused with semantic candidates carries `retrieval.fusionRevision`; only
- * then does the result list show the search experimental label. A lexical answer (flag unset,
- * `semantic=off`, or any degraded response without fusion) shows none.
+ * Spec 016 H99: only an answer fused with semantic candidates shows the search experimental label,
+ * that is `retrieval.semantic.status === "ok"`. `fusionRevision` alone is not enough: the reader
+ * sets it on every non-ok fallback too (`disabled`, `skipped`, `uncovered`, `over-budget`,
+ * `timed-out`, `failed`), and those answer lexically. A lexical answer without `semantic` shows none.
  */
-export function searchIsExperimental(response: { readonly retrieval: { readonly fusionRevision?: string } } | undefined): boolean {
-  return typeof response?.retrieval.fusionRevision === "string" && response.retrieval.fusionRevision !== "";
+export function searchIsExperimental(response: { readonly retrieval: { readonly semantic?: { readonly status: string } } } | undefined): boolean {
+  return response?.retrieval.semantic?.status === "ok";
 }

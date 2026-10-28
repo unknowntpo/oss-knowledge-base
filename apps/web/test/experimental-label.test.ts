@@ -184,10 +184,17 @@ describe("Spec 016 search experimental label", () => {
     expect(found[0]).toContain(`<span class="experimental-note">${SEARCH_NOTE[locale]}</span>`);
   });
 
-  test("H99: only a fused response is experimental; a lexical, degraded or missing response is not", async () => {
+  test("H99: only a fused response (semantic status ok) is experimental; a lexical, degraded or missing response is not", async () => {
     const { searchIsExperimental } = await import("../src/search-results");
-    expect(searchIsExperimental({ retrieval: { fusionRevision: "rrf-group@2" } })).toBe(true);
-    for (const response of [undefined, { retrieval: {} }, { retrieval: { fusionRevision: "" } }]) {
+    const fused = { retrieval: { fusionRevision: "rrf-group@2", semantic: { status: "ok", candidates: 12, cached: false } } };
+    expect(searchIsExperimental(fused as never)).toBe(true);
+    // The projection sets `fusionRevision` on every non-ok fallback too (search-projection.ts), so the
+    // revision alone does not mean fused: each such status answers lexically and shows no label.
+    for (const status of ["disabled", "uncovered", "skipped", "timed-out", "over-budget", "failed"]) {
+      const degraded = { retrieval: { fusionRevision: "rrf-group@2", semantic: { status, ...(status === "skipped" ? { reason: "identifier-query" } : {}) } } };
+      expect({ status, shown: searchIsExperimental(degraded as never) }).toEqual({ status, shown: false });
+    }
+    for (const response of [undefined, { retrieval: {} }, { retrieval: { fusionRevision: "rrf-group@2" } }]) {
       expect(searchIsExperimental(response as never)).toBe(false);
     }
   });
