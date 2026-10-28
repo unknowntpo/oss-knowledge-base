@@ -39,7 +39,7 @@ Dev 環境每天把過去七天的 Kafka 動態整理成一份簡短的雙語摘
 - **黃金資料集：** 版本庫中的一份標註檔；目前只有 2026-10-08 檢視時找到的 5 個反例，還沒有重要 thread 的標註（[topic-digest-labels.v0.json](packages/reference-pipeline/test/fixtures/topic-digest-labels.v0.json)）。
 - **評估：** `bun run digest -- eval`（離線，不連網）依原因統計保留與丟棄的句子、每個已標註錯誤是否被擋下，以及召回率；`bun run digest -- measure` 在一次執行可能超過 neuron、呼叫數或讀取次數上限時失敗（[scripts/digest.ts](packages/reference-pipeline/scripts/digest.ts)、[eval.ts](packages/reference-pipeline/src/digest/eval.ts)）。
 
-截至 2026-10-28：門檻尚未通過（2026-10-23 的 Dev 週量到 `status-drift` 1、`omission` 2、`term-error` 6）。擁有者決定仍然把週報中英文一起上 Prod，並標示「實驗中・搶先體驗」，附註中文為機器翻譯、仍在校對。門檻改為決定何時拿掉這個標示（[Spec 014](docs/specs/014-topic-digest/spec.md)，D109–D114）。在啟用的 PR 之前，Prod 的週報設定已就位，但 `DIGEST_ENABLED` 仍未設定（[docs/feature-map.md](docs/feature-map.md#deployed-configuration)）。
+截至 2026-10-28：門檻尚未通過（2026-10-23 的 Dev 週量到 `status-drift` 1、`omission` 2、`term-error` 6）。擁有者決定仍然把週報中英文一起上 Prod，並標示「實驗中・搶先體驗」，附註中文為機器翻譯、仍在校對。門檻改為決定何時拿掉這個標示（[Spec 014](docs/specs/014-topic-digest/spec.md)，D109–D114）。Spec 014 的啟用 PR 在 Prod 設定 `DIGEST_ENABLED=true`；從 `v0.3.5` 之後的 tag 起，Prod 週報每天 23:17 UTC 執行（[docs/feature-map.md](docs/feature-map.md#deployed-configuration)）。
 
 ## 已知限制 {#limits}
 

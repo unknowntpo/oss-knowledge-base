@@ -104,7 +104,7 @@ describe("Cloudflare data publication", () => {
     expect(production.name).toBe("oss-knowledge-base-data-prod");
     expect(production.vars.PUBLICATION_ENVIRONMENT).toBe("production");
     expect(production.r2_buckets[0]?.bucket_name).toBe("oss-knowledge-base-prod");
-    // The second entry is the staged Prod digest tick (Spec 014 D113).
+    // The second entry is the Prod digest tick (Spec 014 D113).
     expect(production.triggers.crons).toEqual(["37 22 * * *", "17 23 * * *"]);
     expect(development.name).not.toBe(production.name);
     expect(development.r2_buckets[0]?.bucket_name).not.toBe(production.r2_buckets[0]?.bucket_name);

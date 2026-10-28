@@ -33,17 +33,20 @@
               "sources": ["apps/data-publisher-worker/src/run-schedule.ts", "docs/specs/018-daily-publication/spec.md"] },
             { "id": "cron-digest", "icon": "⏱", "kind": "web",
               "gate": ["DIGEST_CRON", "DIGEST_ENABLED"], "health": "digest",
-              "title": { "en": "Digest cron", "zh-Hant": "週報 cron" },
+              "title": { "en": "Dev digest cron", "zh-Hant": "Dev 週報 cron" },
               "meta": { "en": "47 22 * * *", "zh-Hant": "47 22 * * *" },
               "lead": { "en": "The `digest` target at `47 22 * * *`, forty minutes after the Dev publication: the weekly digest reads the snapshot that was just published. If a publication is still running it waits 15 minutes, at most 4 times.", "zh-Hant": "`digest` target（`47 22 * * *`），在 Dev 發布後 40 分鐘：週報讀取剛發布的快照。若發布還在跑，就延後 15 分鐘，最多 4 次。" },
+              "facts": [
+                { "k": { "en": "Dev", "zh-Hant": "Dev" }, "v": { "en": "`47 22 * * *`; Prod has its own entry `17 23 * * *`", "zh-Hant": "`47 22 * * *`；Prod 另有自己的項目 `17 23 * * *`" } }
+              ],
               "sources": ["docs/specs/014-topic-digest/spec.md", "docs/runbooks/cloudflare-data-publisher.md"] },
             { "id": "cron-digest-prod", "icon": "⏱", "kind": "web",
               "gate": ["DIGEST_CRON", "DIGEST_ENABLED"],
-              "title": { "en": "Prod digest cron (staged off)", "zh-Hant": "Prod 週報 cron（已設定、未啟用）" },
+              "title": { "en": "Prod digest cron", "zh-Hant": "Prod 週報 cron" },
               "meta": { "en": "17 23 * * *", "zh-Hant": "17 23 * * *" },
-              "lead": { "en": "Prod's `digest` entry `17 23 * * *`, forty minutes after the Prod publication at 22:37, through the `AI` binding and gateway `osskb-digest-prod`, both deployed on Prod. Until Prod sets `DIGEST_ENABLED` the tick does nothing (Spec 014 D113); the owner decided on 2026-10-28 to ship the digest there as an experimental feature.", "zh-Hant": "Prod 的 `digest` 項目 `17 23 * * *`，在 Prod 22:37 發布後 40 分鐘，經過 `AI` binding 與 gateway `osskb-digest-prod`，兩者都已部署在 Prod。Prod 設定 `DIGEST_ENABLED` 之前，這個 tick 不做任何事（Spec 014 D113）；擁有者在 2026-10-28 決定以實驗功能把週報上 Prod。" },
+              "lead": { "en": "Prod's `digest` entry `17 23 * * *`, forty minutes after the Prod publication at 22:37, through the `AI` binding and gateway `osskb-digest-prod`, both deployed on Prod. With `DIGEST_ENABLED=true` (Spec 014 D113) the tick starts the digest; the owner decided on 2026-10-28 to ship the digest there as an experimental feature.", "zh-Hant": "Prod 的 `digest` 項目 `17 23 * * *`，在 Prod 22:37 發布後 40 分鐘，經過 `AI` binding 與 gateway `osskb-digest-prod`，兩者都已部署在 Prod。`DIGEST_ENABLED=true` 時（Spec 014 D113），這個 tick 會啟動週報；擁有者在 2026-10-28 決定以實驗功能把週報上 Prod。" },
               "facts": [
-                { "k": { "en": "Prod", "zh-Hant": "Prod" }, "v": { "en": "`17 23 * * *` is deployed but idle until `DIGEST_ENABLED` is set (Spec 014 D113)", "zh-Hant": "`17 23 * * *` 已部署，但 `DIGEST_ENABLED` 設定前閒置（Spec 014 D113）" } }
+                { "k": { "en": "Prod", "zh-Hant": "Prod" }, "v": { "en": "`17 23 * * *` starts the digest once a day; `DIGEST_ENABLED=true` (Spec 014 D113)", "zh-Hant": "`17 23 * * *` 每天啟動一次週報；`DIGEST_ENABLED=true`（Spec 014 D113）" } }
               ],
               "sources": ["docs/specs/014-topic-digest/spec.md", "apps/data-publisher-worker/wrangler.production.jsonc"] },
             { "id": "cron-people", "icon": "⏱", "kind": "web",
@@ -198,7 +201,7 @@
               "gate": ["DIGEST_ENABLED"], "health": "digest",
               "title": { "en": "Weekly topic digest", "zh-Hant": "每週主題週報" },
               "meta": { "en": "Clef → Llama → rules → Qwen", "zh-Hant": "Clef → Llama → 規則 → Qwen" },
-              "lead": { "en": "Runs in the `DIGEST_RUN` Durable Object: classifies, summarises, validates and translates the last 7 days. `DIGEST_RUN` is bound on Prod too but the digest is off there. See [Weekly digest](digest.html).", "zh-Hant": "在 `DIGEST_RUN` Durable Object 中執行：分類、摘要、驗證並翻譯過去 7 天的動態。Prod 也綁了 `DIGEST_RUN`，但週報在 Prod 是關閉的。詳見[週報](digest.html)。" },
+              "lead": { "en": "Runs in the `DIGEST_RUN` Durable Object: classifies, summarises, validates and translates the last 7 days. `DIGEST_RUN` is bound on Prod too, where the cron `17 23 * * *` starts it. See [Weekly digest](digest.html).", "zh-Hant": "在 `DIGEST_RUN` Durable Object 中執行：分類、摘要、驗證並翻譯過去 7 天的動態。Prod 也綁了 `DIGEST_RUN`，由 cron `17 23 * * *` 啟動。詳見[週報](digest.html)。" },
               "sources": ["apps/data-publisher-worker/src/digest/run.ts"] },
             { "id": "j-reviews", "icon": "GH", "kind": "rule",
               "gate": ["GITHUB_REVIEWS"],
@@ -232,9 +235,9 @@
               "gate": ["AI", "SEARCH_EMBEDDING"],
               "title": { "en": "Workers AI binding", "zh-Hant": "Workers AI binding" },
               "meta": { "en": "bge-m3 · Clef · Llama · Qwen3", "zh-Hant": "bge-m3 · Clef · Llama · Qwen3" },
-              "lead": { "en": "The Worker's `AI` binding. Prod has it since the Spec 016 Prod rollout step (a), also for the staged digest (Spec 014 D113), and since step (b) it runs `@cf/baai/bge-m3` for search; the digest model runs only once `DIGEST_ENABLED` is set. Every call goes through an AI Gateway, and the neurons it spends are charged to a daily ledger first.", "zh-Hant": "Worker 的 `AI` binding。Prod 自 Spec 016 Prod rollout 步驟 (a) 起也有，也供尚未啟用的週報使用（Spec 014 D113）；自步驟 (b) 起為搜尋執行 `@cf/baai/bge-m3`，週報模型要等 `DIGEST_ENABLED` 設定後才執行。每次呼叫都經過 AI Gateway，花掉的 neurons 會先記入每日帳本。" },
+              "lead": { "en": "The Worker's `AI` binding. Prod has it since the Spec 016 Prod rollout step (a), also for the digest (Spec 014 D113), and since step (b) it runs `@cf/baai/bge-m3` for search; the digest models run with `DIGEST_ENABLED=true`. Every call goes through an AI Gateway, and the neurons it spends are charged to a daily ledger first.", "zh-Hant": "Worker 的 `AI` binding。Prod 自 Spec 016 Prod rollout 步驟 (a) 起也有，也供週報使用（Spec 014 D113）；自步驟 (b) 起為搜尋執行 `@cf/baai/bge-m3`，週報模型在 `DIGEST_ENABLED=true` 時執行。每次呼叫都經過 AI Gateway，花掉的 neurons 會先記入每日帳本。" },
               "facts": [
-                { "k": { "en": "Prod", "zh-Hant": "Prod" }, "v": { "en": "`AI` runs `@cf/baai/bge-m3` for search since Spec 016 Prod rollout step (b); the digest uses it once `DIGEST_ENABLED` is set (Spec 014 D113)", "zh-Hant": "`AI` 自 Spec 016 Prod rollout 步驟 (b) 起為搜尋執行 `@cf/baai/bge-m3`；週報要等 `DIGEST_ENABLED` 設定後才使用（Spec 014 D113）" } }
+                { "k": { "en": "Prod", "zh-Hant": "Prod" }, "v": { "en": "`AI` runs `@cf/baai/bge-m3` for search since Spec 016 Prod rollout step (b); the digest uses it with `DIGEST_ENABLED=true` (Spec 014 D113)", "zh-Hant": "`AI` 自 Spec 016 Prod rollout 步驟 (b) 起為搜尋執行 `@cf/baai/bge-m3`；週報在 `DIGEST_ENABLED=true` 時使用（Spec 014 D113）" } }
               ],
               "sources": ["apps/data-publisher-worker/wrangler.development.jsonc", "apps/data-publisher-worker/src/digest/workers-ai.ts"] },
             { "id": "ai-gw", "icon": "GW", "kind": "ai",
@@ -244,7 +247,7 @@
               "lead": { "en": "Separate gateways keep each job's requests, cache and limits apart.", "zh-Hant": "分開的 gateway 讓各 job 的請求、快取與限制互不干擾。" },
               "facts": [
                 { "k": { "en": "Dev", "zh-Hant": "Dev" }, "v": { "en": "`osskb-search-dev`: the embedding job and the query gate; `osskb-digest-dev`: 60 requests an hour, $2 a month; `osskb-sre-dev`: Qwen3 30B diagnoses", "zh-Hant": "`osskb-search-dev`：向量 job 與查詢閘門；`osskb-digest-dev`：每小時 60 次、每月 2 美元；`osskb-sre-dev`：Qwen3 30B 診斷" } },
-                { "k": { "en": "Prod", "zh-Hant": "Prod" }, "v": { "en": "`osskb-search-prod`: the embedding job and the query gate, since Spec 016 Prod rollout step (b); `osskb-digest-prod`: the digest, used once `DIGEST_ENABLED` is set (Spec 014 D113)", "zh-Hant": "`osskb-search-prod`：向量 job 與查詢閘門，自 Spec 016 Prod rollout 步驟 (b) 起使用；`osskb-digest-prod`：週報，`DIGEST_ENABLED` 設定後才使用（Spec 014 D113）" } }
+                { "k": { "en": "Prod", "zh-Hant": "Prod" }, "v": { "en": "`osskb-search-prod`: the embedding job and the query gate, since Spec 016 Prod rollout step (b); `osskb-digest-prod`: the digest, with `DIGEST_ENABLED=true` (Spec 014 D113)", "zh-Hant": "`osskb-search-prod`：向量 job 與查詢閘門，自 Spec 016 Prod rollout 步驟 (b) 起使用；`osskb-digest-prod`：週報，`DIGEST_ENABLED=true` 時使用（Spec 014 D113）" } }
               ],
               "sources": ["apps/data-publisher-worker/wrangler.development.jsonc", "docs/feature-map.md"] }
           ]
@@ -322,8 +325,8 @@
             { "id": "do-digest", "icon": "DO", "kind": "rule",
               "health": "digest",
               "title": { "en": "DigestRun", "zh-Hant": "DigestRun" },
-              "meta": { "en": "DIGEST_RUN · idle on Prod", "zh-Hant": "DIGEST_RUN · Prod 閒置" },
-              "lead": { "en": "`DIGEST_RUN` runs the digest and its neuron ledger. Bound in both environments; the digest is off on Prod.", "zh-Hant": "`DIGEST_RUN` 執行週報與它的 neurons 帳本。兩個環境都有綁定；週報在 Prod 是關閉的。" },
+              "meta": { "en": "DIGEST_RUN", "zh-Hant": "DIGEST_RUN" },
+              "lead": { "en": "`DIGEST_RUN` runs the digest and its neuron ledger. Bound and running in both environments.", "zh-Hant": "`DIGEST_RUN` 執行週報與它的 neurons 帳本。兩個環境都有綁定並執行。" },
               "sources": ["apps/data-publisher-worker/src/digest/runner.ts"] },
             { "id": "do-emb", "icon": "DO", "kind": "rule",
               "gate": ["SEARCH_EMBEDDING_RUN"], "health": "embedding",
