@@ -59,3 +59,13 @@ export function searchCountText({ exact, shown, total }: SearchCount, t: Transla
     ? t(`results.search.${form}`, variables)
     : t(`results.search.exactThen.${form}`, { ...variables, exact: lead });
 }
+
+/**
+ * Spec 016 H99: only an answer fused with semantic candidates shows the search experimental label,
+ * that is `retrieval.semantic.status === "ok"`. `fusionRevision` alone is not enough: the reader
+ * sets it on every non-ok fallback too (`disabled`, `skipped`, `uncovered`, `over-budget`,
+ * `timed-out`, `failed`), and those answer lexically. A lexical answer without `semantic` shows none.
+ */
+export function searchIsExperimental(response: { readonly retrieval: { readonly semantic?: { readonly status: string } } } | undefined): boolean {
+  return response?.retrieval.semantic?.status === "ok";
+}

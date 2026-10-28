@@ -338,9 +338,9 @@
               "gate": ["SEARCH_EMBEDDING"],
               "title": { "en": "Search query gate", "zh-Hant": "搜尋查詢閘門" },
               "meta": { "en": "SEARCH_QUERY_GATE · 1,000 neurons a day", "zh-Hant": "SEARCH_QUERY_GATE · 每天 1,000 neurons" },
-              "lead": { "en": "`SEARCH_QUERY_GATE` is a Durable Object ledger that every semantic query must pass, so a public search box cannot overspend. Over budget means lexical results only. Pages reaches it through its own binding to the Dev Worker's class.", "zh-Hant": "`SEARCH_QUERY_GATE` 是每個語意查詢都要經過的 Durable Object 帳本，讓公開搜尋框不會超支；超過預算就只回傳關鍵字結果。Pages 透過自己的 binding 連到 Dev Worker 的這個 class。" },
+              "lead": { "en": "`SEARCH_QUERY_GATE` is a Durable Object ledger that every semantic query must pass, so a public search box cannot overspend. Over budget means lexical results only. Pages reaches it through its own binding to the class of the same environment's data Worker.", "zh-Hant": "`SEARCH_QUERY_GATE` 是每個語意查詢都要經過的 Durable Object 帳本，讓公開搜尋框不會超支；超過預算就只回傳關鍵字結果。Pages 透過自己的 binding 連到同一環境 data Worker 的這個 class。" },
               "facts": [
-                { "k": { "en": "Prod", "zh-Hant": "Prod" }, "v": { "en": "`SEARCH_QUERY_GATE` is enabled on the Prod Worker since Spec 016 Prod rollout step (b), with no visitor reaching it; Pages binds it in step (c)", "zh-Hant": "`SEARCH_QUERY_GATE` 自 Spec 016 Prod rollout 步驟 (b) 起在 Prod Worker 啟用，但沒有訪客能用到；Pages 在步驟 (c) 才綁定" } }
+                { "k": { "en": "Prod", "zh-Hant": "Prod" }, "v": { "en": "`SEARCH_QUERY_GATE` is enabled on the Prod Worker since Spec 016 Prod rollout step (b); Pages reaches it since step (c)", "zh-Hant": "`SEARCH_QUERY_GATE` 自 Spec 016 Prod rollout 步驟 (b) 起在 Prod Worker 啟用；Pages 自步驟 (c) 起連到它" } }
               ],
               "sources": ["packages/semantic-vectorize/src/query-gate.ts", "apps/web/wrangler.development.jsonc"] },
             { "id": "do-cost", "icon": "DO", "kind": "rule",
@@ -388,7 +388,7 @@
               "gate": ["SEARCH_SEMANTIC"],
               "title": { "en": "Semantic branch", "zh-Hant": "語意分支" },
               "meta": { "en": "rrf-group@2", "zh-Hant": "rrf-group@2" },
-              "lead": { "en": "The Pages binding `SEARCH_QUERY_GATE` reaches the Dev Worker's gate, which embeds the query and asks Vectorize; the results are fused with BM25 by thread.", "zh-Hant": "Pages 的 binding `SEARCH_QUERY_GATE` 連到 Dev Worker 的閘門，閘門把查詢轉成向量再問 Vectorize；結果與 BM25 依 thread 融合。" },
+              "lead": { "en": "The Pages binding `SEARCH_QUERY_GATE` reaches the gate of the same environment's data Worker, which embeds the query and asks Vectorize; the results are fused with BM25 by thread. A fused answer shows the experimental label.", "zh-Hant": "Pages 的 binding `SEARCH_QUERY_GATE` 連到同一環境 data Worker 的閘門，閘門把查詢轉成向量再問 Vectorize；結果與 BM25 依 thread 融合。融合後的結果會顯示「實驗中」標籤。" },
               "sources": ["apps/web/functions/_shared/semantic-gate.ts", "docs/specs/016-semantic-search/spec.md"] },
             { "id": "api-digest", "icon": "/", "kind": "web",
               "gate": ["DIGEST_ENABLED"],

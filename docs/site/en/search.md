@@ -10,7 +10,7 @@ Select a step for its numbers and sources. Each stage is explained in the sectio
 
 ## Two stages {#shape}
 
-Cheap retrieval over the whole corpus comes first; a costlier reranking stage is planned only if relevant results still rank too low. Today Prod runs BM25 only; Dev adds semantic retrieval and rank fusion; no reranker is built ([docs/architecture/search-algorithm.md](docs/architecture/search-algorithm.md), [Spec 005](docs/specs/005-evidence-search/spec.md)).
+Cheap retrieval over the whole corpus comes first; a costlier reranking stage is planned only if relevant results still rank too low. Dev and, from the release after `v0.3.5`, Prod add semantic retrieval and rank fusion to BM25 (on Prod marked "Experimental · Early access"); no reranker is built ([docs/architecture/search-algorithm.md](docs/architecture/search-algorithm.md), [Spec 005](docs/specs/005-evidence-search/spec.md)).
 
 **BM25** is the standard keyword-ranking formula: a term scores higher when it is rare in the corpus (inverse document frequency, IDF) and frequent in a short passage, with diminishing returns.
 
@@ -122,4 +122,4 @@ What Dev measurements showed (2026-10-13, [docs/architecture/search-algorithm.md
 
 A public search box must not be able to overspend. Every semantic query passes a Durable Object ledger, chosen because a hard cap needs one strongly consistent counter (eventually consistent storage could overshoot). Limits per UTC day: 1,000 neurons and 1,000 index queries; per hour: 100 model calls; queries up to 500 characters; results cached for one hour ([query-gate.ts](packages/semantic-vectorize/src/query-gate.ts)). A **neuron** is Workers AI's billing unit; the account includes 10,000 a day, shared with the digest and embedding jobs (see [Process & cost](process.html#budgets)). Over budget, search answers lexically.
 
-> Prod search is lexical only (`bm25-reference@3` since `v0.3.1`, 2026-10-19; Prod runs `v0.3.3` since 2026-10-28). Several Spec 016 and 017 labels were made by the implementer and await the owner's confirmation; the design notes are still marked "under discussion".
+> Prod search is lexical (`bm25-reference@3` since `v0.3.1`, 2026-10-19) until the release after `v0.3.5`, which turns on hybrid search (`rrf-group@2`, Spec 016 Prod rollout step (c)); its vectors were embedded on 2026-10-28. Several Spec 016 and 017 labels were made by the implementer and await the owner's confirmation; the design notes are still marked "under discussion".

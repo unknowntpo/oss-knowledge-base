@@ -1015,7 +1015,7 @@ Roll back: revert that PR. The next Pages deploy answers with
 
 ## Hybrid search at query time (Spec 016 slice 3)
 
-Enabled on Dev since 2026-10-13, in two steps: the Worker (shard roots, the gate) and then Pages (the flag and the binding). Prod: the gate is bound since Spec 016 Prod rollout step (a) and on (Worker only, no Pages binding) since step (b); step (c) in Spec 016 "Prod rollout" turns hybrid search on. With it on, `/api/search`
+Enabled on Dev since 2026-10-13, in two steps: the Worker (shard roots, the gate) and then Pages (the flag and the binding). Prod: the gate is bound since Spec 016 Prod rollout step (a), on since step (b), and reached by Pages since step (c) (`script_name` `oss-knowledge-base-data-prod`). With it on, `/api/search`
 fuses lexical results with semantic candidates; whenever semantic retrieval
 is missing it answers lexically and says why.
 
@@ -1023,7 +1023,7 @@ is missing it answers lexically and says why.
 | --- | --- | --- |
 | Shard roots in the Search manifest | publisher | Worker var `SEARCH_SHARD_ROOTS=true` |
 | Query gate (`SearchQueryGate`, one Durable Object: ledger and caches) | data Worker | class migration `v4`; Worker binding `SEARCH_QUERY_GATE` (for `/health`) |
-| Hybrid search in `/api/search` | Pages Function | Pages var `SEARCH_SEMANTIC=rrf-group@2` (the value names the fusion revision; see "Switch the fusion revision"); Pages Durable Object binding `SEARCH_QUERY_GATE` → `SearchQueryGate` of `oss-knowledge-base-data-dev` |
+| Hybrid search in `/api/search` | Pages Function | Pages var `SEARCH_SEMANTIC=rrf-group@2` (the value names the fusion revision; see "Switch the fusion revision"); Pages Durable Object binding `SEARCH_QUERY_GATE` → `SearchQueryGate` of `oss-knowledge-base-data-dev` (Dev) and `oss-knowledge-base-data-prod` (Prod, since Spec 016 Prod rollout step (c)) |
 
 The gate uses the embedding job's profile, gateway (`osskb-search-dev`), and
 index. It has no public route. Nothing is created by hand: no index, gateway,

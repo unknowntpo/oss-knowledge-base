@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 
+import ExperimentalLabel from "../components/ExperimentalLabel.vue";
 import FeedCard from "../components/FeedCard.vue";
 import PersonResultCard from "../components/PersonResultCard.vue";
 import SearchResultCard from "../components/SearchResultCard.vue";
@@ -8,7 +9,7 @@ import { fetchEvidenceSearch, fetchPeopleSearch } from "../api";
 import { useI18n } from "../i18n";
 import { usePeopleEnabled } from "../people";
 import { mergePersonResults, personQueryKey, personSearchProjects, type PersonResult } from "../person-search";
-import { otherResultsStart, searchCount, searchCountText } from "../search-results";
+import { otherResultsStart, searchCount, searchCountText, searchIsExperimental } from "../search-results";
 import { useFeedStore } from "../store";
 import type { FeedIndexEntry, SearchResponseV1 } from "../types";
 
@@ -306,6 +307,7 @@ function reset() {
           <PersonResultCard v-for="person in personResults" :key="`${person.projectKey}/${person.id}`" :person="person" />
         </section>
         <h3 v-if="query && personResults.length" class="results-divider threads-divider">{{ t("search.threads") }}</h3>
+        <ExperimentalLabel v-if="query && !searchLoading && searchIsExperimental(searchResponse)" feature="search" />
         <p class="results-count" aria-live="polite">
           {{ query ? searchCountLine : `${visibleEntries.length} entries` }}
         </p>
