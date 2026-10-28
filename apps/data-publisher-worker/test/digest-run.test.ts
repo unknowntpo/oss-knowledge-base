@@ -1483,9 +1483,12 @@ describe("Spec 014 slice 2 named tests", () => {
     }
     expect(dev.ai?.binding).toBe("AI");
     expect(dev.vars).toMatchObject({ DIGEST_ENABLED: "true", DIGEST_MODEL: "workers-ai", DIGEST_GATEWAY_ID: "osskb-digest-dev" });
-    expect(prod.ai).toBeUndefined();
+    // Spec 016 Prod rollout step (a) (H94) binds `AI` on Prod for search; the digest stays off there
+    // because none of its variables is set, and without `DIGEST_MODEL` no model is built.
+    expect(prod.ai).toEqual({ binding: "AI" });
     expect(prod.vars?.DIGEST_ENABLED).toBeUndefined();
     expect(prod.vars?.DIGEST_MODEL).toBeUndefined();
+    expect(prod.vars?.DIGEST_GATEWAY_ID).toBeUndefined();
   });
 
   test("D86: Dev has the publisher's cron and the digest's 47 22 * * *, kept apart from the other jobs; Prod has no digest cron", async () => {
