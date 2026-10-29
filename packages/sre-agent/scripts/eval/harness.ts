@@ -8,7 +8,9 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { MockLanguageModelV4 } from "ai/test";
 import { wrapLanguageModel, type LanguageModel } from "ai";
+import type { UsdPrice } from "./providers";
 import {
+  BudgetExceededError,
   buildBundle,
   buildLibrary,
   checkEvidence,
@@ -22,6 +24,7 @@ import {
   planDiagnoses,
   USD_PER_NEURON,
   DAILY_NEURON_CAP,
+  MAX_OUTPUT_TOKENS,
   type Bundle,
   type CitedEvidence,
   type DiagnosisOutput,
@@ -88,6 +91,8 @@ export interface CaseRun {
   readonly neurons: number;
   /** Neurons Workers AI reported in `usage.neurons`, summed; null when no call reported it. */
   readonly neuronsReported: number | null;
+  /** SRE102: a paid run's tokens at its USD price; absent for Workers AI (neurons × $0.011 per 1,000). */
+  readonly costUsd?: number;
   readonly latencyMs: number;
   /** The last step's text and finish reason (first 2,000 characters), to read a malformed answer. */
   readonly finalText?: string;
@@ -101,7 +106,11 @@ export interface RunCaseInput {
   readonly library: PlaybookLibrary;
   readonly model: (bundle: Bundle) => Model;
   readonly run: number;
+  /** SRE102: a paid model's price and per-diagnosis USD cap, which replace the neuron ledger's cap. */
+  readonly pricing?: { readonly price: UsdPrice; readonly maxUsdPerDiagnosis: number };
 }
+
+const usdFor = (price: UsdPrice, input: number, output: number) => (input * price.input + output * price.output) / 1_000_000;
 
 /** `get_ci_run` against the fixture's recorded runs; nothing else answers. */
 function ciFetch(runs: EvalCase["ciRuns"]): typeof fetch {
@@ -163,20 +172,29 @@ export async function runCase(input: RunCaseInput): Promise<CaseRun> {
     ...(evalCase.logTail === undefined ? {} : { logTail: evalCase.logTail }),
   });
   let reported = null as number | null;
+  let usd = 0;
+  const pricing = input.pricing;
   const model = wrapLanguageModel({
     model: input.model(bundle),
     middleware: {
       specificationVersion: "v4",
-      wrapGenerate: async ({ doGenerate }) => {
+      wrapGenerate: async ({ doGenerate, params }) => {
+        if (pricing !== undefined) {
+          // The loop's own reservation: the prompt at 3 characters a token plus the full output cap.
+          const reservation = usdFor(pricing.price, Math.ceil(JSON.stringify(params.prompt).length / 3), MAX_OUTPUT_TOKENS);
+          if (usd + reservation > pricing.maxUsdPerDiagnosis) throw new BudgetExceededError(reservation, usd, pricing.maxUsdPerDiagnosis);
+        }
         const result = await doGenerate();
+        if (pricing !== undefined) usd += usdFor(pricing.price, result.usage.inputTokens.total ?? 0, result.usage.outputTokens.total ?? 0);
         const neurons = (result.usage.raw as { neurons?: unknown } | undefined)?.neurons;
         if (typeof neurons === "number") reported = (reported ?? 0) + neurons;
         return result;
       },
     },
   });
-  // A fresh UTC day per diagnosis: the production cap (B31) bounds one diagnosis, as on a quiet day.
-  const ledger = new NeuronLedger(emptyState(date), async () => undefined, DAILY_NEURON_CAP);
+  // A fresh UTC day per diagnosis: the production cap (B31) bounds one diagnosis, as on a quiet day. Neuron
+  // rates are Workers AI rates, so a paid model is bounded by its USD cap instead (SRE102).
+  const ledger = new NeuronLedger(emptyState(date), async () => undefined, pricing === undefined ? DAILY_NEURON_CAP : Number.POSITIVE_INFINITY);
   const started = performance.now();
   const diagnosis = await diagnoseBundle({
     model, modelId, bundle, ledger,
@@ -200,6 +218,7 @@ export async function runCase(input: RunCaseInput): Promise<CaseRun> {
     outputTokens: diagnosis.outputTokens,
     neurons: diagnosis.neurons,
     neuronsReported: reported,
+    ...(pricing === undefined ? {} : { costUsd: usd }),
     latencyMs,
     finalText: diagnosis.trajectory.steps.at(-1)?.text.slice(0, 2000) ?? "",
     finishReason: diagnosis.trajectory.steps.at(-1)?.finishReason ?? "none",
@@ -257,27 +276,26 @@ export function goldenModel(evalCase: EvalCase, bundle: Bundle, mutate: GoldenMu
   });
 }
 
-/** Spend across the whole eval, checked before each diagnosis against the worst one (the 1,500-neuron cap). */
+/**
+ * Spend across the whole eval in USD, checked before each diagnosis against the worst one: the 1,500-neuron
+ * cap on Workers AI, `--max-usd-per-diagnosis` on a paid provider (SRE102).
+ */
 export class CostMeter {
-  readonly budgetNeurons: number;
-  spentNeurons = 0;
+  spentUsd = 0;
 
-  constructor(readonly budgetUsd: number) {
-    this.budgetNeurons = Math.floor(budgetUsd / USD_PER_NEURON + 1e-6);
-  }
+  constructor(readonly budgetUsd: number, readonly worstDiagnosisUsd = DAILY_NEURON_CAP * USD_PER_NEURON) {}
 
   canStart(): boolean {
-    return this.spentNeurons + DAILY_NEURON_CAP <= this.budgetNeurons;
+    return this.spentUsd + this.worstDiagnosisUsd <= this.budgetUsd + 1e-9;
   }
 
-  add(neurons: number): void {
-    this.spentNeurons += neurons;
-  }
-
-  get spentUsd(): number {
-    return this.spentNeurons * USD_PER_NEURON;
+  add(usd: number): void {
+    this.spentUsd += usd;
   }
 }
+
+/** A run's cost: its USD when paid, else its neurons at $0.011 per 1,000. */
+export const runCostUsd = (run: CaseRun) => run.costUsd ?? spent(run) * USD_PER_NEURON;
 
 export interface ModelScore {
   readonly modelId: string;
@@ -355,12 +373,12 @@ export function scoreboard(runs: readonly CaseRun[], meta: { budgetUsd: number; 
       neuronsPerDiagnosis: called.length === 0 ? 0 : neurons / called.length,
       latencyMsMean: called.length === 0 ? 0 : called.reduce((total, run) => total + run.latencyMs, 0) / called.length,
       latencyMsP50: median(called.map((run) => run.latencyMs)),
-      costUsd: neurons * USD_PER_NEURON,
+      costUsd: mine.reduce((total, run) => total + runCostUsd(run), 0),
       byCase,
     };
   });
   const neurons = models.reduce((total, model) => total + model.neurons, 0);
-  return { budgetUsd: meta.budgetUsd, models, neurons, costUsd: neurons * USD_PER_NEURON, ...(meta.aborted === undefined ? {} : { aborted: meta.aborted }) };
+  return { budgetUsd: meta.budgetUsd, models, neurons, costUsd: models.reduce((total, model) => total + model.costUsd, 0), ...(meta.aborted === undefined ? {} : { aborted: meta.aborted }) };
 }
 
 /** Highest pass rate, then lowest fabrication rate, then fewest neurons per diagnosis. */
@@ -378,7 +396,8 @@ export function renderScoreboard(board: Scoreboard, meta: { date?: string; comma
     "Generated by `bun run --cwd packages/sre-agent eval`; programmatic graders, no LLM judge. A run passes when the",
     "cause id, every required evidence item (quoted and passing the evidence check) and the runbook anchor are right;",
     "a row with trigger `none` passes when no model call is made. Neurons are those Workers AI reported per call",
-    "(`usage.neurons`), cost at $0.011 per 1,000 neurons as if all were billed.",
+    "(`usage.neurons`), cost at $0.011 per 1,000 neurons as if all were billed. A paid model's cost is its tokens at",
+    "its USD price (SRE102); its neurons are Workers AI rates, an estimate only.",
     ...(meta.command === undefined ? [] : ["", `Command: \`${meta.command}\``]),
     ...(board.aborted === undefined ? [] : ["", `**Aborted:** ${board.aborted}`]),
     "",

@@ -138,10 +138,10 @@ describe("Spec 027 L3 harness: scoreboard and cost meter", () => {
   });
 
   test("eval harness: the cost meter refuses a diagnosis that could pass the budget (1,500 neurons each at most)", () => {
-    const meter = new CostMeter(0.02); // 1,818 neurons
-    expect(meter.budgetNeurons).toBe(1818);
+    const meter = new CostMeter(0.02); // 1,818 neurons; the worst diagnosis is 1,500 neurons, $0.0165
+    expect(meter.worstDiagnosisUsd).toBeCloseTo(1500 * 0.011 / 1000);
     expect(meter.canStart()).toBe(true);
-    meter.add(400);
+    meter.add(400 * 0.011 / 1000);
     expect(meter.canStart()).toBe(false);
     expect(meter.spentUsd).toBeCloseTo(400 * 0.011 / 1000);
   });
