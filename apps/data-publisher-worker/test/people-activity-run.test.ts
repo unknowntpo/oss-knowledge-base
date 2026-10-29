@@ -144,10 +144,10 @@ describe("Spec 019 slice 2b: the activity log's append", () => {
     expect(off.state.phases).not.toContain("appending-activity");
   });
 
-  test("W25 (publisher): PEOPLE_ACTIVITY is log@1 on Dev only (the enable PR); Prod leaves it unset", () => {
+  test("W25 (publisher): PEOPLE_ACTIVITY is log@1 on Dev (the enable PR) and on Prod (owner decision 2026-10-29)", () => {
     const vars = (name: string) => (JSON.parse(readFileSync(join(import.meta.dir, "..", name), "utf8")) as { vars?: Record<string, string> }).vars ?? {};
     expect(vars("wrangler.development.jsonc").PEOPLE_ACTIVITY).toBe("log@1");
-    expect(vars("wrangler.production.jsonc").PEOPLE_ACTIVITY).toBeUndefined();
+    expect(vars("wrangler.production.jsonc").PEOPLE_ACTIVITY).toBe("log@1");
   });
 
   test("W25 (publisher): the alarm passes no activityLog while PEOPLE_ACTIVITY is unset or blank; set, it passes one", () => {

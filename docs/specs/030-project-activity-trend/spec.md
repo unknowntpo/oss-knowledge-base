@@ -1,6 +1,6 @@
 # Spec 030: Project activity trend on This week
 
-Status: Partially implemented (owner decisions 2026-10-24, [Owner decisions](#owner-decisions)); slice 1 built behind `PROJECT_TREND` (PR #141); on Dev only: the owner approved the Dev enable on 2026-10-24 ([Rollout](#rollout)); PT16 runs after that deploy; Prod needs a separate owner approval; [amendment (1)](#amendment-2026-10-25-1-years-on-the-compact-axis) (2026-10-25) adds years to the compact axis
+Status: Partially implemented (owner decisions 2026-10-24, [Owner decisions](#owner-decisions)); slice 1 built behind `PROJECT_TREND` (PR #141); on Dev only: the owner approved the Dev enable on 2026-10-24 ([Rollout](#rollout)); PT16 runs after that deploy; the Prod enable was approved on 2026-10-29 (decision 8) for its own PR, after the first Prod run confirms both stores; [amendment (1)](#amendment-2026-10-25-1-years-on-the-compact-axis) (2026-10-25) adds years to the compact axis
 Date: 2026-10-24
 Traceability: enforced
 Builds on: Spec 014 (This week layout, Behavior 27, the "Counts" design decision), Spec 019 (the profile's "活動趨勢" chart, amendment (5), W56–W65; the activity log; W10, W18, W29), Spec 022 (review month objects), Spec 023 (data tokens DS4–DS6), Spec 024 (dark theme DM4–DM8), Spec 026 (cost guard)
@@ -320,9 +320,15 @@ Decided by the owner on 2026-10-24, each as the draft recommended.
 6. **A new public endpoint `GET /api/activity?projectId=`** behind the new
    flag `PROJECT_TREND`, `noindex`, cached 5 minutes (option a). Approved for
    Dev only; the owner approved the Dev enable on 2026-10-24 ([Rollout](#rollout)).
-   Prod needs a separate owner approval later. Rejected: a `trend`
+   The owner approved the Prod enable on 2026-10-29 (decision 8). Rejected: a `trend`
    field in `/api/digest` (b), a field in `/api/people` (c).
 7. **Count unit: events** (option a), not distinct active people (b).
+8. **Prod enable (2026-10-29): approved.** `PROJECT_TREND=true` in
+   `apps/web/wrangler.production.jsonc` makes `/api/activity` a new public
+   URL on Prod. It ships as its own PR, after the first Prod run with Spec
+   022 decision 6 and Spec 019 decision 12 confirms both stores (Prod
+   `/health` has `githubReviews` and `lastRun.activity`, neither with an
+   error). The PR that enables the two stores on Prod does not set it.
 
 ## Amendment 2026-10-25 (1): years on the compact axis
 
@@ -345,7 +351,7 @@ text the existing chart label style.
 | 1 | Merge PR #141: the endpoint, the header and the card; `PROJECT_TREND` unset everywhere | Nothing changes at runtime (PT3) |
 | 2 | Dev Pages: `PROJECT_TREND=true` in `apps/web/wrangler.development.jsonc` (owner approved 2026-10-24; the Dev enable PR) | After the push to `main` deploys Dev, a 200 from `/api/digest?projectId=apache-kafka` carries `x-project-trend: on`, `/api/activity?projectId=apache-kafka` answers 200 `osskb.project-activity.v1`, and `/#/kafka/` shows `.project-trend` under the stats |
 | 3 | PT16 on Dev: `bun run verify:ui --target dev`; replace the Example's estimates with Dev's counts | Captures at 375 and 1280 px, card and expanded view, both themes |
-| 4 | Prod: a separate owner approval, after the stores and the digest run there (Non-goals) | — |
+| 4 | Prod: approved 2026-10-29 (decision 8). The stores go first: `GITHUB_REVIEWS=metadata@2` and `PEOPLE_ACTIVITY=log@1` on the Prod data Worker, seeded from a copy of Dev's objects (Spec 022 decision 6, Spec 019 decision 12). Then a separate PR sets `PROJECT_TREND=true` in `apps/web/wrangler.production.jsonc`, after the first Prod run shows both stores in `/health` without error | As step 2, on https://oss-knowledge-base.pages.dev after the tag that carries the PR |
 
 Stop and roll back (remove the var, push to `main`) if This week renders
 differently with the card absent, `/api/activity` answers 5xx, or the

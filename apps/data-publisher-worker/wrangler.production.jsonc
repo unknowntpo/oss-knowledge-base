@@ -23,7 +23,9 @@
     "DIGEST_ENABLED": "true",
     "DIGEST_MODEL": "workers-ai",
     "DIGEST_GATEWAY_ID": "osskb-digest-prod",
-    "DIGEST_CRON": "17 23 * * *"
+    "DIGEST_CRON": "17 23 * * *",
+    "GITHUB_REVIEWS": "metadata@2",
+    "PEOPLE_ACTIVITY": "log@1"
   },
   "ai": {
     "binding": "AI"

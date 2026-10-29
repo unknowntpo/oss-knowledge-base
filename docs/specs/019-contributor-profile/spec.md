@@ -1,6 +1,6 @@
 # Spec 019: Contributor profile
 
-Status: Partially implemented (accepted 2026-10-14, all nine owner decisions recorded; amended 2026-10-15): slice 1 is Spec 022; slices 2a, 2b, 3 and amendments (4) and (5) implemented (#74–#78, #81) and on Dev only (`PEOPLE_PROFILES=true`, `PEOPLE_ACTIVITY=log@1`), off on Prod; amendment (7) slices A–C (the identity-link job, the `kip-pages` job W93, W97–W100, W102, W105, W107, W108, W110, and the profile's KIPs section W74, W75, W80, W83, W87, W94–W96, W109, W111) implemented (#113–#117) and enabled on Dev by rollout steps 2 and 4 (`IDENTITY_LINKS=corroborated@1`, `KIP_PAGES=authors@1` with their crons, `PEOPLE_KIPS=true`; 2026-10-21), off on Prod (step 5, a separate owner approval); W90, W92, W106 are checked by the operator sequence after the Dev deploy; the rest of slices 4–7 not implemented; amendment (8) (2026-10-23, the identity-link backfill, W113–W131; five owner decisions recorded 2026-10-23, a sixth 2026-10-24) implemented and merged off (W113–W127, W130 by tests; W128, W129 measured; `IDENTITY_BACKFILL`, `IDENTITY_BACKFILL_CRON` and `IDENTITY_LINKS_BACKFILL` unset on Dev and Prod, rollout step 1); Dev runs the backfill (step 2, 2026-10-23); precision gate step 5 amended 2026-10-24 (owner decision 6) and `IDENTITY_LINKS_BACKFILL=read` set on Dev by the enable PR (steps 4 and 5), unset on Prod; W131 is checked after the Dev deploy
+Status: Partially implemented (accepted 2026-10-14, all nine owner decisions recorded; amended 2026-10-15): slice 1 is Spec 022; slices 2a, 2b, 3 and amendments (4) and (5) implemented (#74–#78, #81) and on Dev (`PEOPLE_PROFILES=true`, `PEOPLE_ACTIVITY=log@1`); on Prod only the activity log's append, `PEOPLE_ACTIVITY=log@1`, by decision 12 (2026-10-29; live from the first Prod tag after `v0.3.6`, seeded from a copy of Dev's log), while `PEOPLE_PROFILES` stays off on Prod; amendment (7) slices A–C (the identity-link job, the `kip-pages` job W93, W97–W100, W102, W105, W107, W108, W110, and the profile's KIPs section W74, W75, W80, W83, W87, W94–W96, W109, W111) implemented (#113–#117) and enabled on Dev by rollout steps 2 and 4 (`IDENTITY_LINKS=corroborated@1`, `KIP_PAGES=authors@1` with their crons, `PEOPLE_KIPS=true`; 2026-10-21), off on Prod (step 5, a separate owner approval); W90, W92, W106 are checked by the operator sequence after the Dev deploy; the rest of slices 4–7 not implemented; amendment (8) (2026-10-23, the identity-link backfill, W113–W131; five owner decisions recorded 2026-10-23, a sixth 2026-10-24) implemented and merged off (W113–W127, W130 by tests; W128, W129 measured; `IDENTITY_BACKFILL`, `IDENTITY_BACKFILL_CRON` and `IDENTITY_LINKS_BACKFILL` unset on Dev and Prod, rollout step 1); Dev runs the backfill (step 2, 2026-10-23); precision gate step 5 amended 2026-10-24 (owner decision 6) and `IDENTITY_LINKS_BACKFILL=read` set on Dev by the enable PR (steps 4 and 5), unset on Prod; W131 is checked after the Dev deploy
 Date: 2026-10-13 (decisions recorded 2026-10-14; amendment and decision 10 2026-10-15)
 Traceability: enforced
 Builds on: Spec 004 (GitHub connector), Spec 008 (content-addressed objects), Spec 009 (bounded memory), Spec 012 (dev@ and Jira), Spec 014 (digest profiles), Spec 015 (governance profile and ASF roster), Spec 016/017 (search, "exact matches first"), Spec 018 (daily publication)
@@ -577,7 +577,7 @@ P-h, P-i and P-j.
 | P-d | "How this is computed" on every page | Sources, period, what is missing, the basis of every identity link |
 | P-e | Removal and correction | A person (or anyone, for a wrong link) opens an issue in this repository or writes to the owner. Suppression is honoured at the next daily publication: the identity gets no page and no person result, and is left out of "Works with". Threads keep showing the author as upstream does. The suppression list stores a salted hash of the identity key, not the name |
 | P-f | No inactivity shaming | Say "Data covers … to …" and "Most recent activity in this data: <date>". Never "inactive", "last seen", "gone" |
-| P-g | Dev only | Decided (3): Dev only, not on Prod. Going beyond Dev needs the terms check of decision 8 first |
+| P-g | Dev only | Decided (3): Dev only, not on Prod. Going beyond Dev needs the terms check of decision 8 first. Since 2026-10-29 (decision 12) storage on Prod is allowed; showing person-level data on Prod still needs the check |
 | P-h | Not indexable | `/api/people/*` answers with `X-Robots-Tag: noindex`; pages are hash routes, which crawlers do not treat as separate pages |
 | P-i | Bots are not people | Identities on the profile's bot list get no page |
 | P-j | Scope of people | Decided (2): everyone who appears, bots excluded |
@@ -588,7 +588,11 @@ cite, the GitHub Terms of Service or Acceptable Use Policies (their rules on
 using API data about users), the ASF privacy policy, the Pony Mail archive
 terms, or data-protection law (the GDPR applies to public personal data too).
 Decision 8 (2026-10-14): they must be checked before anything goes beyond
-Dev. Until then the feature exists on Dev only.
+Dev. Until then the feature exists on Dev only. Owner reading (2026-10-29, decision 12):
+the check gates what Prod shows, not what Prod stores. Prod may store the
+activity log in its private bucket, the same data Dev already stores. Any
+person-level data on Prod (the profile page, `/api/people`) still needs the
+check first. Aggregated counts with no person data (Spec 030 trend) do not.
 
 ## Simplification review
 
@@ -2878,9 +2882,9 @@ Each item: precondition → action → observable result → evidence. All are
 
 ## Decisions made
 
-Decisions 1–9 by the owner, 2026-10-14; decision 10 on 2026-10-15. Each
-matches the draft's recommendation; the rejected alternative is kept for the
-record.
+Decisions 1–9 by the owner, 2026-10-14; decision 10 on 2026-10-15; decision
+12 on 2026-10-29. Each matches the draft's recommendation; the rejected
+alternative is kept for the record.
 
 | # | Decision | Decided | Consequence in this spec | Rejected alternative |
 | --- | --- | --- | --- | --- |
@@ -2891,10 +2895,11 @@ record.
 | 5 | Identity | **Strict.** Link only declared or roster-backed identities; otherwise "possibly the same person". No fuzzy matching, no email | Identity resolution rule; W14–W16; W13 (no address anywhere) | Merging equal display names, or an ASF id equal to a GitHub login: fewer split profiles (37 and 14 pairs today), with a real chance of a wrong merge |
 | 6 | Areas | **GitHub labels (minus process labels) and KIP numbers first; Jira components later.** No file paths (decided); they are not available anyway, because Spec 022 counts inline comments without storing them | Behavior 6; W4; "Later" slice | Jira components now (one more Jira field); digest topics (12 coarse, Kafka-tuned) |
 | 7 | Reviews before or after the first page | **Reviews first** ("先補") | Slice 1 is Spec 022; no "reviews are not counted yet" note | Page first: under-states a reviewer by about 3.6 times (`chia7712`: 46 pull requests commented, 168 reviewed upstream) |
-| 8 | Terms and policy | **GitHub Terms of Service, the ASF privacy policy and the GDPR must be checked before anything goes beyond Dev** | Privacy section, P-g (Dev only); W25 | Skipping it risks having to take the feature down |
+| 8 | Terms and policy | **GitHub Terms of Service, the ASF privacy policy and the GDPR must be checked before anything goes beyond Dev** | Privacy section, P-g (Dev only); W25 | Skipping it risks having to take the feature down. Owner reading 2026-10-29 (decision 12): the check gates person-level data shown on Prod, not storage in the Prod bucket |
 | 9 | Removal | **By issue or email; removed at the next daily publication** | P-e; W12 | A self-service form needs authentication of the requester |
 | 10 | Contributor list (2026-10-15) | **Per-project list, sortable by separate metric columns** (reviews given, PRs authored/merged, comments, Jira, dev@, last active), no composite score, bots excluded, Dev only; built after the profile | Slice 7; W30–W33; revises decision 1 (U3 in this form) and P-a | A single activity score or rank (rejected again); no list at all (the owner wants it) |
 | 11 | KIP authorship and corroborated links (2026-10-21) | **"Authored" = started the earliest `[DISCUSS] KIP-n` thread on dev@, within the recorded range; a third link basis `corroborated` (GitHub ↔ Jira on ≥ 3 `KAFKA-n`, Jira ↔ dev@ on ≥ 2 `KIP-n`, provisional until a precision check); linking is its own job; profiles read its table behind a flag, Dev first. Revised the same day (owner): a KIP can have several authors; the KIP page's author line (read by its own `kip-pages` job) comes first, "started the discussion" second; the assignee of the issue the KIP page's `JIRA:` field names is line 2 ("assigned the KIP's Jira issue"), read by the same job; dominance 3 and edge B at 2 accepted; the committers page's 68 pairs become `declared` links** | Amendment (7); W66–W112; revises precision rule 2, decision 5, identity rule 2 | Page creator or editors as authors; Confluence usernames as identities; dev@ starter only (KIP-1165 would list one of nine authors); linking as a step of the publication or of the activity append; similarity or model-based matching |
+| 12 | Activity log on Prod (2026-10-29) | **`PEOPLE_ACTIVITY=log@1` on the Prod data Worker (with Spec 022's `GITHUB_REVIEWS=metadata@2`, decision 6 there); identity data (person ids and display names in the log) accepted in the Prod bucket; Prod Pages serves none of it (`PEOPLE_PROFILES`, `PEOPLE_KIPS` and `PROJECT_TREND` unset on Prod). Before the Worker is deployed the owner seeds Prod with a one-time copy of Dev's `internal/people/v1/<projectId>/` objects: month and summary objects (2026-09, 2026-10) first, `state.json` last, outside 21:50–23:05 UTC; Prod's first run (22:37 UTC) appends onto them (rows merge by id, W2)** | Revises decision 3 for storage only: the page, `/api/people` and W25 stay Dev only. Decision 8's check still gates anything Prod Pages would show. Steps and stop lines: runbook "Prod enable: review ingestion and activity log" | Keep Prod off: Spec 030's trend could not run on Prod, and a later enable would start the log 35 days before its first run |
 
 ## Could not be verified
 
