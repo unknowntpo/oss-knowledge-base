@@ -1159,6 +1159,10 @@ secret, and both ride the publisher's `37 22 * * *` tick (no new cron, Durable
 Object or migration). The Prod token's GraphQL access is not yet proven
 (Spec 022, Could not be verified); step 4 checks it.
 
+Prod has no cost guard (`COST_GUARD` and `COST_GUARD_STATE` are unset), so
+nothing pauses these stores automatically. The Class A stop line below is
+checked by hand.
+
 ### Order
 
 1. Merge the PR that adds the two vars. CI deploys only Dev; Prod is
@@ -1250,10 +1254,12 @@ put() { wrangler r2 object put "$PROD_BUCKET/$1" --remote --file "$(file_of "$1"
 
 echo "Copy $DEV_BUCKET -> $PROD_BUCKET: ${#MONTH_KEYS[@]} month keys, ${#BACKFILL_KEYS[@]} backfill, ${#STATE_KEYS[@]} state"
 
-# 1. Download. A missing month is reported and skipped; a missing backfill or state stops before any write.
+# 1. Download. A missing review month is reported and skipped; a missing activity month, a missing backfill or state stops before any write.
 COPY_MONTHS=() MISSING=()
 for key in "${MONTH_KEYS[@]}"; do
-  if get "$key"; then COPY_MONTHS+=("$key"); else MISSING+=("$key"); echo "missing or unreadable on Dev (skipped): $key"; fi
+  if get "$key"; then COPY_MONTHS+=("$key")
+  elif [[ "$key" == internal/people/* ]]; then echo "Cannot read $DEV_BUCKET/$key (the activity state lists it); nothing was written to Prod" >&2; exit 1
+  else MISSING+=("$key"); echo "missing or unreadable on Dev (skipped): $key"; fi
 done
 for key in "${BACKFILL_KEYS[@]}" "${STATE_KEYS[@]}"; do
   get "$key" || { echo "Cannot read $DEV_BUCKET/$key; nothing was written to Prod" >&2; exit 1; }
