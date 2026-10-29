@@ -1,0 +1,1081 @@
+{
+  "date": "2026-10-29",
+  "command": "bun run --cwd packages/sre-agent eval -- --provider anthropic --model claude-sonnet-5-5 --runs 3 --budget-usd 0.7 --max-usd-per-diagnosis 0.1 --effort low",
+  "stub": false,
+  "scoreboard": {
+    "budgetUsd": 0.7,
+    "models": [
+      {
+        "modelId": "claude-sonnet-5-5",
+        "runs": 21,
+        "diagnoses": 15,
+        "passed": 18,
+        "passRate": 0.8571428571428571,
+        "causeCorrect": 12,
+        "evidenceOk": 14,
+        "anchorOk": 13,
+        "fabricated": 1,
+        "fabricationRate": 0.06666666666666667,
+        "failures": {},
+        "noCallRuns": 6,
+        "noCallPassed": 6,
+        "neurons": 4096.875647999999,
+        "neuronsPerDiagnosis": 273.12504319999994,
+        "latencyMsMean": 3816,
+        "latencyMsP50": 3461,
+        "costUsd": 0.279852,
+        "byCase": {
+          "dev-stall-2026-10-02": {
+            "runs": 3,
+            "passed": 0,
+            "causes": {
+              "unknown": 3
+            }
+          },
+          "kip-pages-two-failures": {
+            "runs": 3,
+            "passed": 3,
+            "causes": {
+              "upstream-unavailable": 3
+            }
+          },
+          "r2-class-a-spike-2026-10-13": {
+            "runs": 3,
+            "passed": 3,
+            "causes": {
+              "conditional-put-on-existing": 3
+            }
+          },
+          "dev-cost-guard-trip-2026-10-21": {
+            "runs": 3,
+            "passed": 3,
+            "causes": {
+              "month-to-date-past-incident": 3
+            }
+          },
+          "tag-ci-failure-v0.3.0": {
+            "runs": 3,
+            "passed": 3,
+            "causes": {
+              "non-hermetic-test": 3
+            }
+          },
+          "healthy-day-2026-10-20": {
+            "runs": 3,
+            "passed": 3,
+            "causes": {
+              "(no call)": 3
+            }
+          },
+          "digest-en-zh-cache-pollution": {
+            "runs": 3,
+            "passed": 3,
+            "causes": {
+              "(no call)": 3
+            }
+          }
+        }
+      }
+    ],
+    "neurons": 4096.875647999999,
+    "costUsd": 0.279852
+  },
+  "winner": "claude-sonnet-5-5",
+  "runs": [
+    {
+      "scenario": "dev-stall-2026-10-02",
+      "modelId": "claude-sonnet-5-5",
+      "run": 1,
+      "firings": 2,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": "cloudflare-data-publisher.md#health-and-manual-run",
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "since"
+        },
+        {
+          "id": "E1",
+          "path": "value"
+        },
+        {
+          "id": "E4",
+          "path": "lastRun.completedAt"
+        },
+        {
+          "id": "E4",
+          "path": "running"
+        },
+        {
+          "id": "E4",
+          "path": "scheduled"
+        },
+        {
+          "id": "E3",
+          "path": "costGuard"
+        },
+        {
+          "id": "E5",
+          "quote": "no publication point after 2026-09-30T01:07Z"
+        }
+      ],
+      "evidenceFailures": [
+        "path-not-in-item:E3"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 11085,
+      "outputTokens": 435,
+      "neurons": 384.7049549999999,
+      "neuronsReported": null,
+      "costUsd": 0.02652,
+      "latencyMs": 7363,
+      "finalText": "{\"cause\":\"unknown\",\"verdict\":\"inconclusive\",\"confidence\":\"low\",\"evidence\":[{\"id\":\"E1\",\"path\":\"since\"},{\"id\":\"E1\",\"path\":\"value\"},{\"id\":\"E4\",\"path\":\"lastRun.completedAt\"},{\"id\":\"E4\",\"path\":\"running\"},{\"id\":\"E4\",\"path\":\"scheduled\"},{\"id\":\"E3\",\"path\":\"costGuard\"},{\"id\":\"E5\",\"quote\":\"no publication point after 2026-09-30T01:07Z\"}],\"runbook\":\"cloudflare-data-publisher.md#health-and-manual-run\",\"ownerAction\":\"Missing fields: `followUp` (and an explicit `scheduled` boolean) from the publication /health, the deployed cron configuration and flag, and GitHub Actions CI/deploy runs around 2026-10-01T04:07Z. `costGuard` is null, so cause 3 can't be checked. Without these, `cron-not-fired` can't be confirmed. `scheduled` is an overdue reconstructed timestamp, not false. `deploy-broke-job` can't be confirmed either. Check the cron trigger and publication flag in the deployed Worker and any deploys since 2026-09-30 01:07 UTC. Then publish manually (`POST /run`) and watch /health until `running` is false.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "dev-stall-2026-10-02",
+      "modelId": "claude-sonnet-5-5",
+      "run": 2,
+      "firings": 2,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "since"
+        },
+        {
+          "id": "E1",
+          "path": "value"
+        },
+        {
+          "id": "E4",
+          "path": "lastRun.completedAt"
+        },
+        {
+          "id": "E4",
+          "path": "scheduled"
+        },
+        {
+          "id": "E4",
+          "path": "running"
+        },
+        {
+          "id": "E5",
+          "quote": "no publication point after 2026-09-30T01:07Z"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 11085,
+      "outputTokens": 350,
+      "neurons": 367.2965300000001,
+      "neuronsReported": null,
+      "costUsd": 0.02567,
+      "latencyMs": 3814,
+      "finalText": "{\"cause\":\"unknown\",\"verdict\":\"inconclusive\",\"confidence\":\"low\",\"evidence\":[{\"id\":\"E1\",\"path\":\"since\"},{\"id\":\"E1\",\"path\":\"value\"},{\"id\":\"E4\",\"path\":\"lastRun.completedAt\"},{\"id\":\"E4\",\"path\":\"scheduled\"},{\"id\":\"E4\",\"path\":\"running\"},{\"id\":\"E5\",\"quote\":\"no publication point after 2026-09-30T01:07Z\"}],\"runbook\":null,\"ownerAction\":\"The bundle cannot decide between causes. These fields are missing: the followUp field, which would separate cron-not-fired from alarm-stuck (E4 shows scheduled as an overdue reconstructed time, not false); the deployed cron and flag configuration; the costGuard (it is null, so cause 3 cannot be checked); and the GitHub Actions deploy runs near since (2026-10-01T04:07Z). Please supply these. Meanwhile, check whether the cron entry is in the deployed config, then publish manually with POST /run and watch /health until running is false.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": true,
+        "anchor": false,
+        "fabricated": false,
+        "missing": [],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "dev-stall-2026-10-02",
+      "modelId": "claude-sonnet-5-5",
+      "run": 3,
+      "firings": 2,
+      "called": true,
+      "verdict": "inconclusive",
+      "reason": null,
+      "cause": "unknown",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "since"
+        },
+        {
+          "id": "E1",
+          "path": "value"
+        },
+        {
+          "id": "E4",
+          "path": "lastRun.completedAt"
+        },
+        {
+          "id": "E4",
+          "path": "scheduled"
+        },
+        {
+          "id": "E4",
+          "path": "running"
+        },
+        {
+          "id": "E5",
+          "quote": "no publication point after 2026-09-30T01:07Z"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 11085,
+      "outputTokens": 395,
+      "neurons": 376.51275499999997,
+      "neuronsReported": null,
+      "costUsd": 0.02612,
+      "latencyMs": 3667,
+      "finalText": "{\"cause\":\"unknown\",\"verdict\":\"inconclusive\",\"confidence\":\"low\",\"evidence\":[{\"id\":\"E1\",\"path\":\"since\"},{\"id\":\"E1\",\"path\":\"value\"},{\"id\":\"E4\",\"path\":\"lastRun.completedAt\"},{\"id\":\"E4\",\"path\":\"scheduled\"},{\"id\":\"E4\",\"path\":\"running\"},{\"id\":\"E5\",\"quote\":\"no publication point after 2026-09-30T01:07Z\"}],\"runbook\":null,\"ownerAction\":\"The bundle cannot decide between causes. For cause 1 (cron-not-fired) it lacks the followUp value, a scheduled value of false (E4 shows an overdue, reconstructed schedule), and the deployed cron and flag configuration. For cause 5 (deploy-broke-job) it lacks the GitHub Actions deploy runs on main and v* tags within 24 h of since. The costGuard field is null, so cause 3 can't be checked. Check the deployed cron trigger and flag configuration. Check for a deploy after 2026-09-30 01:07 UTC. If the cron is missing or a deploy broke the job, restore the cron or roll back. Then publish manually with POST /run.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": false,
+        "evidence": true,
+        "anchor": false,
+        "fabricated": false,
+        "missing": [],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "kip-pages-two-failures",
+      "modelId": "claude-sonnet-5-5",
+      "run": 1,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "upstream-unavailable",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E3",
+          "path": "kipPages.lastRun.error"
+        },
+        {
+          "id": "E3",
+          "path": "kipPages.lastRun.durationMs"
+        },
+        {
+          "id": "E5",
+          "path": "[1].error"
+        },
+        {
+          "id": "E6",
+          "path": "[0].status"
+        },
+        {
+          "id": "E2",
+          "path": "mode"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 6622,
+      "outputTokens": 260,
+      "neurons": 229.84479599999997,
+      "neuronsReported": null,
+      "costUsd": 0.015844,
+      "latencyMs": 3766,
+      "finalText": "{\"cause\":\"upstream-unavailable\",\"verdict\":\"explained\",\"confidence\":\"high\",\"evidence\":[{\"id\":\"E3\",\"path\":\"kipPages.lastRun.error\"},{\"id\":\"E3\",\"path\":\"kipPages.lastRun.durationMs\"},{\"id\":\"E5\",\"path\":\"[1].error\"},{\"id\":\"E6\",\"path\":\"[0].status\"},{\"id\":\"E2\",\"path\":\"mode\"}],\"runbook\":null,\"ownerAction\":\"This cause has no runbook, so it is a runbook gap. Check Jira availability, because kip-pages failed with jira 503 on 2026-10-21 and 2026-10-22. If the 503s continue, add retry or backoff and write a runbook for upstream-unavailable. The job last succeeded on 2026-10-20.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "kip-pages-two-failures",
+      "modelId": "claude-sonnet-5-5",
+      "run": 2,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "upstream-unavailable",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E3",
+          "path": "kipPages.lastRun.error"
+        },
+        {
+          "id": "E3",
+          "path": "kipPages.lastRun.durationMs"
+        },
+        {
+          "id": "E2",
+          "path": "mode"
+        },
+        {
+          "id": "E5",
+          "path": "[1].error"
+        },
+        {
+          "id": "E6",
+          "path": "[0].status"
+        },
+        {
+          "id": "E6",
+          "path": "[1].status"
+        },
+        {
+          "id": "E6",
+          "path": "[3].status"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 6622,
+      "outputTokens": 283,
+      "neurons": 234.55531099999996,
+      "neuronsReported": null,
+      "costUsd": 0.016074,
+      "latencyMs": 3461,
+      "finalText": "{\"cause\":\"upstream-unavailable\",\"verdict\":\"explained\",\"confidence\":\"high\",\"evidence\":[{\"id\":\"E3\",\"path\":\"kipPages.lastRun.error\"},{\"id\":\"E3\",\"path\":\"kipPages.lastRun.durationMs\"},{\"id\":\"E2\",\"path\":\"mode\"},{\"id\":\"E5\",\"path\":\"[1].error\"},{\"id\":\"E6\",\"path\":\"[0].status\"},{\"id\":\"E6\",\"path\":\"[1].status\"},{\"id\":\"E6\",\"path\":\"[3].status\"}],\"runbook\":null,\"ownerAction\":\"This is a runbook gap: the playbook has no runbook link for upstream-unavailable. Check Jira availability, because kip-pages has failed with jira 503 on two consecutive runs. Add a runbook for upstream 5xx and rate-limit failures. The job should recover when Jira does.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "kip-pages-two-failures",
+      "modelId": "claude-sonnet-5-5",
+      "run": 3,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "upstream-unavailable",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E3",
+          "path": "kipPages.lastRun.error"
+        },
+        {
+          "id": "E3",
+          "path": "kipPages.lastRun.durationMs"
+        },
+        {
+          "id": "E5",
+          "path": "[1].error"
+        },
+        {
+          "id": "E6",
+          "path": "[0].status"
+        },
+        {
+          "id": "E2",
+          "path": "mode"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 6622,
+      "outputTokens": 254,
+      "neurons": 228.61596599999996,
+      "neuronsReported": null,
+      "costUsd": 0.015784,
+      "latencyMs": 2684,
+      "finalText": "{\"cause\":\"upstream-unavailable\",\"verdict\":\"explained\",\"confidence\":\"high\",\"evidence\":[{\"id\":\"E3\",\"path\":\"kipPages.lastRun.error\"},{\"id\":\"E3\",\"path\":\"kipPages.lastRun.durationMs\"},{\"id\":\"E5\",\"path\":\"[1].error\"},{\"id\":\"E6\",\"path\":\"[0].status\"},{\"id\":\"E2\",\"path\":\"mode\"}],\"runbook\":null,\"ownerAction\":\"This is a runbook gap: the playbook has no runbook for upstream-unavailable. Check Jira availability, because kip-pages got a Jira 503 on two consecutive runs. Wait for Jira to recover, or watch the next 03:43 run. Then add a runbook for upstream 5xx failures.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "r2-class-a-spike-2026-10-13",
+      "modelId": "claude-sonnet-5-5",
+      "run": 1,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "conditional-put-on-existing",
+      "runbook": "cloudflare-data-publisher.md#r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "value"
+        },
+        {
+          "id": "E3",
+          "path": "lastRun.r2.classA"
+        },
+        {
+          "id": "E3",
+          "path": "lastRun.copiedObjectCount"
+        },
+        {
+          "id": "E3",
+          "path": "lastRun.reusedObjectCount"
+        },
+        {
+          "id": "E5",
+          "path": "[1].r2ClassA"
+        },
+        {
+          "id": "E5",
+          "path": "[2].r2ClassA"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 7393,
+      "outputTokens": 584,
+      "neurons": 316.762644,
+      "neuronsReported": null,
+      "costUsd": 0.020626,
+      "latencyMs": 4719,
+      "finalText": "{\"cause\":\"conditional-put-on-existing\",\"verdict\":\"explained\",\"confidence\":\"high\",\"evidence\":[{\"id\":\"E1\",\"path\":\"value\"},{\"id\":\"E3\",\"path\":\"lastRun.r2.classA\"},{\"id\":\"E3\",\"path\":\"lastRun.copiedObjectCount\"},{\"id\":\"E3\",\"path\":\"lastRun.reusedObjectCount\"},{\"id\":\"E5\",\"path\":\"[1].r2ClassA\"},{\"id\":\"E5\",\"path\":\"[2].r2ClassA\"}],\"runbook\":\"cloudflare-data-publisher.md#r2-operations-and-cost\",\"ownerAction\":\"Find what the publication writes that already exists. About 8,150 conditional puts hit existing keys each run, so Class A is about copied + reused (8190) instead of copied + 3 (38). Change the publisher to skip puts for objects it already reused, for example by checking the key before the put. Then confirm that r2.classA drops back to copiedObjectCount + 3 on the next runs.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "r2-class-a-spike-2026-10-13",
+      "modelId": "claude-sonnet-5-5",
+      "run": 2,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "conditional-put-on-existing",
+      "runbook": "cloudflare-data-publisher.md#r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E3",
+          "path": "lastRun.r2.classA"
+        },
+        {
+          "id": "E3",
+          "path": "lastRun.copiedObjectCount"
+        },
+        {
+          "id": "E3",
+          "path": "lastRun.reusedObjectCount"
+        },
+        {
+          "id": "E5",
+          "path": "[0].r2ClassA"
+        },
+        {
+          "id": "E5",
+          "path": "[1].r2ClassA"
+        },
+        {
+          "id": "E5",
+          "path": "[2].r2ClassA"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 7393,
+      "outputTokens": 329,
+      "neurons": 264.537369,
+      "neuronsReported": null,
+      "costUsd": 0.018076,
+      "latencyMs": 2842,
+      "finalText": "{\"cause\":\"conditional-put-on-existing\",\"verdict\":\"explained\",\"confidence\":\"high\",\"evidence\":[{\"id\":\"E3\",\"path\":\"lastRun.r2.classA\"},{\"id\":\"E3\",\"path\":\"lastRun.copiedObjectCount\"},{\"id\":\"E3\",\"path\":\"lastRun.reusedObjectCount\"},{\"id\":\"E5\",\"path\":\"[0].r2ClassA\"},{\"id\":\"E5\",\"path\":\"[1].r2ClassA\"},{\"id\":\"E5\",\"path\":\"[2].r2ClassA\"}],\"runbook\":\"cloudflare-data-publisher.md#r2-operations-and-cost\",\"ownerAction\":\"Find what writes objects that already exist. Each run sends a conditional put (if-none-match) for the 8,150 reused objects, and each put bills a Class A operation. Skip the put for keys that are known to exist, or check existence in a cheaper way. Then check that r2.classA drops to copiedObjectCount + 3 on the next run.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "r2-class-a-spike-2026-10-13",
+      "modelId": "claude-sonnet-5-5",
+      "run": 3,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "conditional-put-on-existing",
+      "runbook": "cloudflare-data-publisher.md#r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E3",
+          "path": "lastRun.r2.classA"
+        },
+        {
+          "id": "E3",
+          "path": "lastRun.copiedObjectCount"
+        },
+        {
+          "id": "E3",
+          "path": "lastRun.reusedObjectCount"
+        },
+        {
+          "id": "E5",
+          "path": "[0].r2ClassA"
+        },
+        {
+          "id": "E5",
+          "path": "[1].r2ClassA"
+        },
+        {
+          "id": "E5",
+          "path": "[2].r2ClassA"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 7393,
+      "outputTokens": 304,
+      "neurons": 259.417244,
+      "neuronsReported": null,
+      "costUsd": 0.017826,
+      "latencyMs": 2569,
+      "finalText": "{\"cause\":\"conditional-put-on-existing\",\"verdict\":\"explained\",\"confidence\":\"high\",\"evidence\":[{\"id\":\"E3\",\"path\":\"lastRun.r2.classA\"},{\"id\":\"E3\",\"path\":\"lastRun.copiedObjectCount\"},{\"id\":\"E3\",\"path\":\"lastRun.reusedObjectCount\"},{\"id\":\"E5\",\"path\":\"[0].r2ClassA\"},{\"id\":\"E5\",\"path\":\"[1].r2ClassA\"},{\"id\":\"E5\",\"path\":\"[2].r2ClassA\"}],\"runbook\":\"cloudflare-data-publisher.md#r2-operations-and-cost\",\"ownerAction\":\"Find what writes objects that already exist (conditional puts with if-none-match on existing keys) and stop it, so each run only writes new objects. This matches the 2026-10-13 incident in the runbook. Record the run's r2.conditionalMisses once it is available.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "dev-cost-guard-trip-2026-10-21",
+      "modelId": "claude-sonnet-5-5",
+      "run": 1,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "month-to-date-past-incident",
+      "runbook": "cloudflare-data-publisher.md#reset-the-breaker",
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "value"
+        },
+        {
+          "id": "E1",
+          "path": "threshold"
+        },
+        {
+          "id": "E4",
+          "path": "[0].r2ClassA"
+        },
+        {
+          "id": "E4",
+          "path": "[0].copiedObjectCount"
+        },
+        {
+          "id": "E4",
+          "path": "[1].r2ClassA"
+        },
+        {
+          "id": "E2",
+          "path": "mode"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 7672,
+      "outputTokens": 359,
+      "neurons": 278.121891,
+      "neuronsReported": null,
+      "costUsd": 0.018934,
+      "latencyMs": 3253,
+      "finalText": "{\"cause\":\"month-to-date-past-incident\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E1\",\"path\":\"value\"},{\"id\":\"E1\",\"path\":\"threshold\"},{\"id\":\"E4\",\"path\":\"[0].r2ClassA\"},{\"id\":\"E4\",\"path\":\"[0].copiedObjectCount\"},{\"id\":\"E4\",\"path\":\"[1].r2ClassA\"},{\"id\":\"E2\",\"path\":\"mode\"}],\"runbook\":\"cloudflare-data-publisher.md#reset-the-breaker\",\"ownerAction\":\"The month-to-date R2 Class A count (2,064,777) is far above the threshold, but the latest publication run is normal (1,092 = 1,089 copied + 3). Find the earlier incident that drove the count up, for example a run with many conditional misses like the 2026-10-13 incident. Fix that cause. Then reset the breaker with POST /cost-guard/reset. If the metric is still over the threshold, the breaker will trip again. In that case keep COST_GUARD=monitor until the month renews.\\n\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "dev-cost-guard-trip-2026-10-21",
+      "modelId": "claude-sonnet-5-5",
+      "run": 2,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "month-to-date-past-incident",
+      "runbook": "cloudflare-data-publisher.md#reset-the-breaker",
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "value"
+        },
+        {
+          "id": "E1",
+          "path": "threshold"
+        },
+        {
+          "id": "E4",
+          "path": "[0].r2ClassA"
+        },
+        {
+          "id": "E4",
+          "path": "[0].copiedObjectCount"
+        },
+        {
+          "id": "E4",
+          "path": "[1].r2ClassA"
+        },
+        {
+          "id": "E2",
+          "path": "mode"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 7672,
+      "outputTokens": 352,
+      "neurons": 276.688256,
+      "neuronsReported": null,
+      "costUsd": 0.018864,
+      "latencyMs": 3131,
+      "finalText": "{\"cause\":\"month-to-date-past-incident\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E1\",\"path\":\"value\"},{\"id\":\"E1\",\"path\":\"threshold\"},{\"id\":\"E4\",\"path\":\"[0].r2ClassA\"},{\"id\":\"E4\",\"path\":\"[0].copiedObjectCount\"},{\"id\":\"E4\",\"path\":\"[1].r2ClassA\"},{\"id\":\"E2\",\"path\":\"mode\"}],\"runbook\":\"cloudflare-data-publisher.md#reset-the-breaker\",\"ownerAction\":\"The month-to-date R2 Class A count (2,064,777) is far above the threshold, but the latest publication run is normal: 1092 = 1089 + 3. Find the earlier incident this month that wrote the excess. Check for failed conditional puts, as in the 2026-10-13 incident. Fix that cause. Then reset the breaker by hand with POST /cost-guard/reset, or leave COST_GUARD=monitor until the month renews. The guard is already in monitor mode.\\n\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "dev-cost-guard-trip-2026-10-21",
+      "modelId": "claude-sonnet-5-5",
+      "run": 3,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "month-to-date-past-incident",
+      "runbook": "cloudflare-data-publisher.md#reset-the-breaker",
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "value"
+        },
+        {
+          "id": "E1",
+          "path": "threshold"
+        },
+        {
+          "id": "E4",
+          "path": "[0].r2ClassA"
+        },
+        {
+          "id": "E4",
+          "path": "[0].copiedObjectCount"
+        },
+        {
+          "id": "E4",
+          "path": "[1].r2ClassA"
+        },
+        {
+          "id": "E2",
+          "path": "mode"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 7672,
+      "outputTokens": 471,
+      "neurons": 301.06005099999993,
+      "neuronsReported": null,
+      "costUsd": 0.020054,
+      "latencyMs": 4452,
+      "finalText": "{\"cause\":\"month-to-date-past-incident\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E1\",\"path\":\"value\"},{\"id\":\"E1\",\"path\":\"threshold\"},{\"id\":\"E4\",\"path\":\"[0].r2ClassA\"},{\"id\":\"E4\",\"path\":\"[0].copiedObjectCount\"},{\"id\":\"E4\",\"path\":\"[1].r2ClassA\"},{\"id\":\"E2\",\"path\":\"mode\"}],\"runbook\":\"cloudflare-data-publisher.md#reset-the-breaker\",\"ownerAction\":\"Month-to-date R2 Class A (2,064,777) is far over the 800,000 threshold, but the latest publication run used 1092 Class A against copiedObjectCount 1089 + 3 = 1092, which is normal. The digest used 4. Find the earlier incident that built up the month-to-date total, for example by checking Q-history for earlier publication runs with excess Class A or high conditionalMisses. Fix that cause, then reset the breaker with POST /cost-guard/reset. The guard is in monitor mode, so it is not blocking jobs now.He bundle has no earlier runs, so the incident itself is not confirmed.}</parameter>Hmm</invoke>Sorry</invoke>I need to produce valid JSON only.</invoke>Here is the corrected output.</invoke>{\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "tag-ci-failure-v0.3.0",
+      "modelId": "claude-sonnet-5-5",
+      "run": 1,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "non-hermetic-test",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "conclusion"
+        },
+        {
+          "id": "E2",
+          "quote": "failed job: Unit tests"
+        },
+        {
+          "id": "E2",
+          "quote": "const production = repositoryProduction(); // the newest local v* tag"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 5350,
+      "outputTokens": 241,
+      "neurons": 192.03180499999996,
+      "neuronsReported": null,
+      "costUsd": 0.01311,
+      "latencyMs": 5541,
+      "finalText": "{\"cause\":\"non-hermetic-test\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E1\",\"path\":\"conclusion\"},{\"id\":\"E2\",\"quote\":\"failed job: Unit tests\"},{\"id\":\"E2\",\"quote\":\"const production = repositoryProduction(); // the newest local v* tag\"}],\"runbook\":null,\"ownerAction\":\"This cause has no runbook, so it is a runbook gap. Make the B27 test in scripts/test/feature-map-site.test.ts hermetic. It should not read the newest local v* tag, so use a fixed fixture instead. Then re-run CI on the tag, or cut a patch tag. Add a runbook for non-hermetic-test.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "tag-ci-failure-v0.3.0",
+      "modelId": "claude-sonnet-5-5",
+      "run": 2,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "non-hermetic-test",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "conclusion"
+        },
+        {
+          "id": "E2",
+          "quote": "failed job: Unit tests"
+        },
+        {
+          "id": "E2",
+          "quote": "const production = repositoryProduction(); // the newest local v* tag"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 5350,
+      "outputTokens": 235,
+      "neurons": 190.80297499999995,
+      "neuronsReported": null,
+      "costUsd": 0.01305,
+      "latencyMs": 2795,
+      "finalText": "{\"cause\":\"non-hermetic-test\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E1\",\"path\":\"conclusion\"},{\"id\":\"E2\",\"quote\":\"failed job: Unit tests\"},{\"id\":\"E2\",\"quote\":\"const production = repositoryProduction(); // the newest local v* tag\"}],\"runbook\":null,\"ownerAction\":\"This cause has no runbook, so it is a runbook gap. Make the B27 test in scripts/test/feature-map-site.test.ts hermetic: it reads the newest local v* tag, so it should use a fixed fixture instead. Then fix forward with a patch tag. Also add a runbook for non-hermetic-test.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "tag-ci-failure-v0.3.0",
+      "modelId": "claude-sonnet-5-5",
+      "run": 3,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "non-hermetic-test",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "conclusion"
+        },
+        {
+          "id": "E2",
+          "quote": "failed job: Unit tests"
+        },
+        {
+          "id": "E2",
+          "quote": "const production = repositoryProduction(); // the newest local v* tag"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 5350,
+      "outputTokens": 260,
+      "neurons": 195.92309999999998,
+      "neuronsReported": null,
+      "costUsd": 0.0133,
+      "latencyMs": 3183,
+      "finalText": "{\"cause\":\"non-hermetic-test\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E1\",\"path\":\"conclusion\"},{\"id\":\"E2\",\"quote\":\"failed job: Unit tests\"},{\"id\":\"E2\",\"quote\":\"const production = repositoryProduction(); // the newest local v* tag\"}],\"runbook\":null,\"ownerAction\":\"This cause has no runbook, so it is a runbook gap. Make the B27 test in scripts/test/feature-map-site.test.ts hermetic. It currently reads the newest local v* tag through repositoryProduction(). Pin the tag or inject it as a fixture, then re-run CI for v0.3.0 or fix forward with a patch tag. Add a runbook for non-hermetic-test.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "healthy-day-2026-10-20",
+      "modelId": "claude-sonnet-5-5",
+      "run": 1,
+      "firings": 0,
+      "called": false,
+      "verdict": null,
+      "reason": null,
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 0,
+      "modelCalls": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "neurons": 0,
+      "neuronsReported": 0,
+      "latencyMs": 0,
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "pass": true,
+        "missing": []
+      }
+    },
+    {
+      "scenario": "healthy-day-2026-10-20",
+      "modelId": "claude-sonnet-5-5",
+      "run": 2,
+      "firings": 0,
+      "called": false,
+      "verdict": null,
+      "reason": null,
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 0,
+      "modelCalls": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "neurons": 0,
+      "neuronsReported": 0,
+      "latencyMs": 0,
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "pass": true,
+        "missing": []
+      }
+    },
+    {
+      "scenario": "healthy-day-2026-10-20",
+      "modelId": "claude-sonnet-5-5",
+      "run": 3,
+      "firings": 0,
+      "called": false,
+      "verdict": null,
+      "reason": null,
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 0,
+      "modelCalls": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "neurons": 0,
+      "neuronsReported": 0,
+      "latencyMs": 0,
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "pass": true,
+        "missing": []
+      }
+    },
+    {
+      "scenario": "digest-en-zh-cache-pollution",
+      "modelId": "claude-sonnet-5-5",
+      "run": 1,
+      "firings": 0,
+      "called": false,
+      "verdict": null,
+      "reason": null,
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 0,
+      "modelCalls": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "neurons": 0,
+      "neuronsReported": 0,
+      "latencyMs": 0,
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "pass": true,
+        "missing": []
+      }
+    },
+    {
+      "scenario": "digest-en-zh-cache-pollution",
+      "modelId": "claude-sonnet-5-5",
+      "run": 2,
+      "firings": 0,
+      "called": false,
+      "verdict": null,
+      "reason": null,
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 0,
+      "modelCalls": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "neurons": 0,
+      "neuronsReported": 0,
+      "latencyMs": 0,
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "pass": true,
+        "missing": []
+      }
+    },
+    {
+      "scenario": "digest-en-zh-cache-pollution",
+      "modelId": "claude-sonnet-5-5",
+      "run": 3,
+      "firings": 0,
+      "called": false,
+      "verdict": null,
+      "reason": null,
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 0,
+      "modelCalls": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "neurons": 0,
+      "neuronsReported": 0,
+      "latencyMs": 0,
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "pass": true,
+        "missing": []
+      }
+    }
+  ]
+}
