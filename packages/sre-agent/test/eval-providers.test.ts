@@ -23,16 +23,22 @@ const scenarios: Record<string, () => Promise<void>> = {
   },
 
   "keys from the environment": async () => {
-    expect(() => paidModel("anthropic", "claude-sonnet-5-5", {})).toThrow(/ANTHROPIC_API_KEY/u);
-    expect(() => paidModel("openai-compatible", "m", { OPENAI_COMPATIBLE_API_KEY: FAKE })).toThrow(/OPENAI_COMPATIBLE_BASE_URL/u);
-    let message = "";
-    try {
-      paidModel("openai-compatible", "m", { OPENAI_COMPATIBLE_BASE_URL: "https://gateway.test/v1" });
-    } catch (error) {
-      message = String(error);
-    }
-    expect(message).toMatch(/OPENAI_COMPATIBLE_API_KEY/u);
-    expect(message).not.toContain(FAKE);
+    const failure = (provider: "anthropic" | "openai-compatible", env: Record<string, string>) => {
+      try {
+        paidModel(provider, "m", env);
+      } catch (error) {
+        return String(error);
+      }
+      return "";
+    };
+    // Each env holds the fake key next to the missing variable, so a message that echoed the env would leak it.
+    const missingKey = failure("anthropic", { OPENAI_COMPATIBLE_API_KEY: FAKE });
+    const missingUrl = failure("openai-compatible", { OPENAI_COMPATIBLE_API_KEY: FAKE });
+    const missingApiKey = failure("openai-compatible", { OPENAI_COMPATIBLE_BASE_URL: "https://gateway.test/v1", ANTHROPIC_API_KEY: FAKE });
+    expect(missingKey).toMatch(/ANTHROPIC_API_KEY/u);
+    expect(missingUrl).toMatch(/OPENAI_COMPATIBLE_BASE_URL/u);
+    expect(missingApiKey).toMatch(/OPENAI_COMPATIBLE_API_KEY/u);
+    for (const message of [missingKey, missingUrl, missingApiKey]) expect(message).not.toContain(FAKE);
     expect(paidModel("anthropic", "claude-sonnet-5-5", { ANTHROPIC_API_KEY: FAKE }).modelId).toBe("claude-sonnet-5-5");
     expect(paidModel("openai-compatible", "qwen-max", { OPENAI_COMPATIBLE_BASE_URL: "https://gateway.test/v1", OPENAI_COMPATIBLE_API_KEY: FAKE }).modelId).toBe("qwen-max");
     // --stub builds no paid model, so it needs no key.
