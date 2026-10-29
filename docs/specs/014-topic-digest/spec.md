@@ -1596,6 +1596,8 @@ synthetic; the others use values captured from Dev.
 | D107 | glossary check | constructed: "The benchmark numbers would improve by 10% (KAFKA-1, open)." translated as "基準數據將改善 10% (KAFKA-1, 仍在進行)。" | not flagged (數據 is flagged only for data or metadata) |
 | D107 | glossary check | constructed: "Topics would be created on demand (KAFKA-1, open)." translated as "Topic 將依需求創建 (KAFKA-1, 仍在進行)。" | flagged: 創建 → 建立 |
 | D107 | glossary check | constructed: "The project was founded in 2011." translated as "專案於 2011 年創建。" | not flagged (創建 is flagged only for create) |
+| D107 | glossary check | constructed: "Satellite imagery tiles would be cached (KAFKA-1, open)." translated as "衛星鏡像圖塊將被快取 (KAFKA-1, 仍在進行)。" | not flagged (imagery is not the word image) |
+| D107 | glossary check | constructed: "The metadatabase schema would change (KAFKA-1, open)." translated as "元數據庫結構將變更 (KAFKA-1, 仍在進行)。" | not flagged (metadatabase is not the word data or metadata) |
 | D108 | translate status | Dev 2026-10-23 #20: "Per-client-id remote fetch metrics are proposed (KAFKA-PR-23463, open)." translated as "將提出針對每個客戶端 ID 的遠端 Fetch 指標（KAFKA-PR-23463，仍在進行）" | English text kept, label Not translated (proposed: 已提出 missing; found 將提出) |
 | D108 | translate status | Dev 2026-10-23 #2: "The fix for KAFKA-21302 is proposed to be backported (KAFKA-PR-23855, open)." translated as "修正 KAFKA-21302 已提出 (KAFKA-PR-23855, 仍在進行)。" | English text kept, label Not translated (backport: backport missing; found none) |
 | D108 | translate status | constructed: "The fix for KAFKA-1 is proposed to be backported (KAFKA-PR-1, open)." translated as "KAFKA-1 的修正已提出 backport (KAFKA-PR-1, 仍在進行)。" | translated |
