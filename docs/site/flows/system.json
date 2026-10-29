@@ -21,7 +21,7 @@
               "facts": [
                 { "k": { "en": "Dev", "zh-Hant": "Dev" }, "v": { "en": "`7 22 * * *` (06:07 Asia/Taipei)", "zh-Hant": "`7 22 * * *`（台北時間 06:07）" } },
                 { "k": { "en": "Prod", "zh-Hant": "Prod" }, "v": { "en": "`37 22 * * *`, the only cron on Prod", "zh-Hant": "`37 22 * * *`，Prod 唯一的 cron" } },
-                { "k": { "en": "Rides the tick (Dev)", "zh-Hant": "同一個 tick（Dev）" }, "v": { "en": "Review ingestion `github-reviews` and the daily cost check `cost-guard` start on this tick, outside the publication, so neither can fail it.", "zh-Hant": "review 收集 `github-reviews` 與每日成本檢查 `cost-guard` 也在這個 tick 啟動，但在發布之外執行，失敗不會影響發布。" } },
+                { "k": { "en": "Rides the tick (Dev)", "zh-Hant": "同一個 tick（Dev）" }, "v": { "en": "Review ingestion `github-reviews` (also on Prod from the first tag after `v0.3.6`, owner decision 2026-10-29) and the daily cost check `cost-guard` start on this tick, outside the publication, so neither can fail it.", "zh-Hant": "review 收集 `github-reviews`（2026-10-29 owner 決定，`v0.3.6` 之後的第一個 tag 起 Prod 也會執行）與每日成本檢查 `cost-guard` 也在這個 tick 啟動，但在發布之外執行，失敗不會影響發布。" } },
                 { "k": { "en": "Trade-off", "zh-Hant": "取捨" }, "v": { "en": "Data can be up to about 24 hours old; a token-protected manual trigger publishes sooner.", "zh-Hant": "資料最多約 24 小時舊；要更早發布只能用需要 token 的手動觸發。" } }
               ],
               "sources": ["apps/data-publisher-worker/src/index.ts", "apps/data-publisher-worker/wrangler.development.jsonc", "apps/data-publisher-worker/wrangler.production.jsonc", "docs/specs/018-daily-publication/spec.md"] },

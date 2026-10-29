@@ -1143,12 +1143,179 @@ where it is not bound.
   migration.
 - To compare without deploying, add `&semantic=off` to a request.
 
+## Prod enable: review ingestion and activity log (2026-10-29)
+
+Owner decisions of 2026-10-29: the Prod data Worker sets
+`GITHUB_REVIEWS=metadata@2` (Spec 022 decision 6) and `PEOPLE_ACTIVITY=log@1`
+(Spec 019 decision 12). Identity data (person ids and display names) is
+accepted in the Prod bucket; Prod Pages serves none of it (`PEOPLE_PROFILES`
+and `PROJECT_TREND` stay unset). `PROJECT_TREND` on Prod (Spec 030 decision
+8, the new public URL `/api/activity`) is a separate, later PR, after the
+first Prod run confirms both stores.
+
+Nothing else is needed on Prod: both stores use the Prod bucket binding
+`OSS_KB_BUCKET`, the review run uses the existing `GITHUB_SOURCE_TOKEN`
+secret, and both ride the publisher's `37 22 * * *` tick (no new cron, Durable
+Object or migration). The Prod token's GraphQL access is not yet proven
+(Spec 022, Could not be verified); step 4 checks it.
+
+### Order
+
+1. Merge the PR that adds the two vars. CI deploys only Dev; Prod is
+   unchanged until a tag.
+2. Seed the Prod bucket from Dev (owner, once), with the script below.
+   Run it before step 3 and outside 21:50–23:05 UTC. Data from Dev's run
+   of 2026-10-28 22:07 UTC is fine. About 40 objects: 40 Class B reads on
+   Dev, about 40 Class A writes on Prod.
+3. Tag a release (owner approval; the first tag after `v0.3.6`). CI deploys
+   the Prod Worker with both vars. Do not deploy during 21:50–23:05 UTC.
+4. Before 22:37 UTC, dry-run the review ingestion against Prod (reads GitHub,
+   writes nothing):
+   `curl -sS -X POST -H "Authorization: Bearer $MANUAL_TRIGGER_TOKEN" 'https://oss-knowledge-base-data-prod.unknowntpo.workers.dev/github-reviews/run?dryRun=1' | jq '{ok, projects: (.projects | map_values({ok, cursor, coverageFrom, failureKind}))}'`.
+   Expect `ok: true` for both projects, `cursor` near the copied Dev cursor
+   and `coverageFrom` `2025-10-14T00:00:00.000Z`. `failureKind: auth` means
+   the Prod token may not call GraphQL: remove the var (Roll back).
+5. Prod's first run, 22:37 UTC, continues from the copied cursors.
+
+### Copy Dev to Prod (owner)
+
+Run from the repository root after `bunx wrangler login`. It reads the bucket
+names from `apps/data-publisher-worker/wrangler.{development,production}.jsonc`,
+downloads every key to a temporary directory, then writes month and summary
+objects, then `backfill.json`, then each `state.json` last. A month key that
+Dev does not have (for example a month without DataFusion reviews) is
+reported and skipped; a missing `backfill.json` or `state.json` stops the
+script before any write. It never copies
+`internal/github-reviews/v1/{last-run,backfill-last-run,refresh-last-run}.json`
+and refuses to run during 21:50–23:05 UTC. Change the month variables if the
+copy happens after 2026-10 ends.
+
+```bash
+#!/usr/bin/env bash
+# One-time seed of the Prod bucket from Dev's review store (Spec 022) and activity log (Spec 019).
+# Owner decision 4, 2026-10-29. Run from the repository root, logged in with `wrangler login`.
+# Run it BEFORE the Prod Worker with GITHUB_REVIEWS and PEOPLE_ACTIVITY is deployed, and never
+# during 21:50-23:05 UTC (Dev publishes at 22:07, Prod at 22:37).
+#
+# Order: every object is downloaded first; then month and summary objects are written, then each
+# backfill.json, then each state.json last. internal/github-reviews/v1/{last-run,backfill-last-run,
+# refresh-last-run}.json are never copied.
+set -euo pipefail
+
+PROJECTS=(apache-kafka apache-datafusion)
+REVIEWS_FROM=2025-10   # first review month (Dev coverageFrom 2025-10-14)
+REVIEWS_TO=2026-10
+ACTIVITY_FROM=2026-09  # Dev activity earliestMonth
+ACTIVITY_TO=2026-10
+
+WORKER_DIR=apps/data-publisher-worker
+bucket_of() { sed -n 's/.*"bucket_name": *"\([^"]*\)".*/\1/p' "$1" | head -n 1; }
+DEV_BUCKET=$(bucket_of "$WORKER_DIR/wrangler.development.jsonc")
+PROD_BUCKET=$(bucket_of "$WORKER_DIR/wrangler.production.jsonc")
+[[ -n "$DEV_BUCKET" && -n "$PROD_BUCKET" && "$DEV_BUCKET" != "$PROD_BUCKET" ]] || { echo "Cannot read two different bucket names" >&2; exit 1; }
+
+now=$((10#$(date -u +%H%M)))
+if (( now >= 2150 && now <= 2305 )); then
+  echo "Refusing: $(date -u +%H:%M) UTC is inside 21:50-23:05 UTC (Dev and Prod run windows)" >&2
+  exit 1
+fi
+
+months() { # months FROM TO -> YYYY-MM per line, inclusive
+  local y=${1%-*} m=$((10#${1#*-})) end_y=${2%-*} end_m=$((10#${2#*-}))
+  while (( y < end_y || (y == end_y && m <= end_m) )); do
+    printf '%04d-%02d\n' "$y" "$m"
+    (( m == 12 )) && { m=1; y=$((y + 1)); } || m=$((m + 1))
+  done
+}
+
+wrangler() { (cd "$WORKER_DIR" && bunx wrangler "$@"); }
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+
+MONTH_KEYS=() BACKFILL_KEYS=() STATE_KEYS=()
+for project in "${PROJECTS[@]}"; do
+  for month in $(months "$REVIEWS_FROM" "$REVIEWS_TO"); do
+    MONTH_KEYS+=("internal/github-reviews/v1/$project/$month.json")
+  done
+  for month in $(months "$ACTIVITY_FROM" "$ACTIVITY_TO"); do
+    MONTH_KEYS+=("internal/people/v1/$project/$month.json" "internal/people/v1/$project/$month.summary.json")
+  done
+  BACKFILL_KEYS+=("internal/github-reviews/v1/$project/backfill.json")
+  STATE_KEYS+=("internal/github-reviews/v1/$project/state.json" "internal/people/v1/$project/state.json")
+done
+
+file_of() { echo "$TMP/${1//\//_}"; }
+get() { wrangler r2 object get "$DEV_BUCKET/$1" --remote --file "$(file_of "$1")" >/dev/null 2>&1; }
+put() { wrangler r2 object put "$PROD_BUCKET/$1" --remote --file "$(file_of "$1")" --content-type application/json >/dev/null; }
+
+echo "Copy $DEV_BUCKET -> $PROD_BUCKET: ${#MONTH_KEYS[@]} month keys, ${#BACKFILL_KEYS[@]} backfill, ${#STATE_KEYS[@]} state"
+
+# 1. Download. A missing month is reported and skipped; a missing backfill or state stops before any write.
+COPY_MONTHS=() MISSING=()
+for key in "${MONTH_KEYS[@]}"; do
+  if get "$key"; then COPY_MONTHS+=("$key"); else MISSING+=("$key"); echo "missing or unreadable on Dev (skipped): $key"; fi
+done
+for key in "${BACKFILL_KEYS[@]}" "${STATE_KEYS[@]}"; do
+  get "$key" || { echo "Cannot read $DEV_BUCKET/$key; nothing was written to Prod" >&2; exit 1; }
+done
+
+# 2. Write months and summaries, 3. backfill.json, 4. state.json last.
+written=0
+for key in ${COPY_MONTHS[@]+"${COPY_MONTHS[@]}"} "${BACKFILL_KEYS[@]}" "${STATE_KEYS[@]}"; do
+  put "$key"
+  written=$((written + 1))
+  echo "put $PROD_BUCKET/$key"
+done
+
+echo "Done: $written objects written (${#COPY_MONTHS[@]} month/summary, ${#BACKFILL_KEYS[@]} backfill, ${#STATE_KEYS[@]} state), ${#MISSING[@]} month keys missing or unreadable on Dev"
+```
+
+Expected last line: `Done: 40 objects written (34 month/summary, 2 backfill,
+4 state), 0 month keys missing or unreadable on Dev` (fewer month objects if a
+project has no reviews in some month).
+
+### Verify after the first Prod run
+
+```sh
+W=https://oss-knowledge-base-data-prod.unknowntpo.workers.dev
+curl -sS $W/health | jq '{lastRun: (.lastRun | {ok, completedAt, activity}), githubReviews: (.githubReviews | {ok, completedAt, projects: (.projects | map_values({ok, cursor, coverageFrom, added, monthsWritten, failureKind, error}))})}'
+```
+
+| Field | Expected |
+| --- | --- |
+| `lastRun.ok` | `true`, `completedAt` near 22:37 UTC; the publication unchanged |
+| `githubReviews` | present, `ok: true`; each project `ok: true`, `coverageFrom` `2025-10-14T00:00:00.000Z`, `cursor` after the copied one, `monthsWritten` 1–2 |
+| `lastRun.activity` | present, `ok: true`, `revision: "log@1"`, `earliestMonth` 2026-09 for both projects, `coverageFrom` the copied value, `monthsWritten` at most 4, `r2.classA` at most 50 |
+
+### Stop lines
+
+Roll back if any of these holds:
+
+- Prod `/health` has no `githubReviews` or no `lastRun.activity` after the
+  first run.
+- `githubReviews` or any project in it, or `lastRun.activity`, reports
+  `ok: false`, a `failureKind` or an `error` (these stores have no
+  `lastError` field; `error` is theirs).
+- R2 Class A from these stores is above 60 a day: `lastRun.activity.r2.classA`
+  plus the review writes (each project's `monthsWritten` + 1 cursor, plus 1
+  run record). The steady state is about 13 a day.
+- `lastRun.ok` turns `false` after the deploy.
+
+### Roll back
+
+Remove `GITHUB_REVIEWS` and `PEOPLE_ACTIVITY` from
+`apps/data-publisher-worker/wrangler.production.jsonc` and merge. Prod changes
+only with a new tag, which needs the owner's approval. The copied and
+appended objects stay under `internal/` and nothing on Prod Pages reads them;
+deleting them is the owner's step.
+
 ## Contributor activity log (Spec 019 slice 2b)
 
 `PEOPLE_ACTIVITY=log@1` makes each publication append the records its state
 holds to `internal/people/v1/<projectId>/` (month objects, their summaries,
 `state.json`) before the state is compacted. On for Dev (`log@1`, the enable
-PR of 2026-10-15); off on Prod. Unset: no R2 request, no `appending-activity` phase, no
+PR of 2026-10-15). In the Prod config since 2026-10-29 (Spec 019 decision
+12), live from the first Prod tag after `v0.3.6`: see [Prod enable](#prod-enable-review-ingestion-and-activity-log-2026-10-29). Unset: no R2 request, no `appending-activity` phase, no
 `lastRun.activity`. Format, identity rules and cost: [Spec 019 amendment
 (2)](../specs/019-contributor-profile/spec.md#amendment-2026-10-15-2-slice-2b-the-activity-log).
 
@@ -1333,8 +1500,10 @@ Class A).
 ## GitHub review ingestion (Spec 022)
 
 On for Dev (`GITHUB_REVIEWS=metadata@1` since 2026-10-14, `metadata@2` since 2026-10-15, Spec 022
-decision 3); off on Prod, where the Worker sends no request for it and
-`/health` has no `githubReviews` field. The first Dev tick after the deploy
+decision 3). In the Prod config since 2026-10-29 (Spec 022 decision 6), live
+from the first Prod tag after `v0.3.6`: see [Prod
+enable](#prod-enable-review-ingestion-and-activity-log-2026-10-29). Until that
+tag Prod sends no request for it and `/health` has no `githubReviews` field. The first Dev tick after the deploy
 reads one day back and stores `coverageFrom` there (RV26). The steps, the
 dry run that checks the token first, and the expected values are in
 [Spec 022, Enabling on Dev](../specs/022-github-reviews/spec.md#enabling-on-dev).
