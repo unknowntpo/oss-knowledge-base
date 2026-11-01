@@ -1,6 +1,6 @@
 # Spec 030: Project activity trend on This week
 
-Status: Partially implemented (owner decisions 2026-10-24, [Owner decisions](#owner-decisions)); slice 1 built behind `PROJECT_TREND` (PR #141); on Dev only: the owner approved the Dev enable on 2026-10-24 ([Rollout](#rollout)); PT16 runs after that deploy; the Prod enable was approved on 2026-10-29 (decision 8) for its own PR, after the first Prod run confirms both stores; [amendment (1)](#amendment-2026-10-25-1-years-on-the-compact-axis) (2026-10-25) adds years to the compact axis
+Status: Partially implemented (owner decisions 2026-10-24, [Owner decisions](#owner-decisions)); slice 1 built behind `PROJECT_TREND` (PR #141); on Dev since the owner approved the Dev enable on 2026-10-24 ([Rollout](#rollout)); PT16 runs after that deploy; the Prod enable was approved on 2026-10-29 (decision 8) and is set in the Prod config after the `v0.3.7` runs of 2026-10-30 and 2026-10-31 confirmed both stores (live from the next Prod tag); [amendment (1)](#amendment-2026-10-25-1-years-on-the-compact-axis) (2026-10-25) adds years to the compact axis
 Date: 2026-10-24
 Traceability: enforced
 Builds on: Spec 014 (This week layout, Behavior 27, the "Counts" design decision), Spec 019 (the profile's "活動趨勢" chart, amendment (5), W56–W65; the activity log; W10, W18, W29), Spec 022 (review month objects), Spec 023 (data tokens DS4–DS6), Spec 024 (dark theme DM4–DM8), Spec 026 (cost guard)
