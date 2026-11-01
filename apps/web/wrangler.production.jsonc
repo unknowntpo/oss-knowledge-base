@@ -4,7 +4,8 @@
   "compatibility_date": "2026-08-21",
   "pages_build_output_dir": "dist",
   "vars": {
-    "SEARCH_SEMANTIC": "rrf-group@2"
+    "SEARCH_SEMANTIC": "rrf-group@2",
+    "PROJECT_TREND": "true"
   },
   "r2_buckets": [
     {

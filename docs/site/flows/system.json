@@ -399,7 +399,7 @@
             { "id": "api-people", "icon": "/", "kind": "web",
               "gate": ["PEOPLE_PROFILES"],
               "title": { "en": "People and activity", "zh-Hant": "人員與活動" },
-              "lead": { "en": "`/api/people`, `/api/people/:project` and `/api/people/:project/:id` (`PEOPLE_PROFILES`), and `/api/activity` for the project trend (`PROJECT_TREND`). Unset on Prod, so they answer 404 there.", "zh-Hant": "`/api/people`、`/api/people/:project` 與 `/api/people/:project/:id`（`PEOPLE_PROFILES`），以及專案趨勢用的 `/api/activity`（`PROJECT_TREND`）。Prod 沒設，所以在 Prod 回 404。" },
+              "lead": { "en": "`/api/people`, `/api/people/:project` and `/api/people/:project/:id` (`PEOPLE_PROFILES`), and `/api/activity` for the project trend (`PROJECT_TREND`). `PEOPLE_PROFILES` is unset on Prod, so the people URLs answer 404 there; `PROJECT_TREND` is on in both environments.", "zh-Hant": "`/api/people`、`/api/people/:project` 與 `/api/people/:project/:id`（`PEOPLE_PROFILES`），以及專案趨勢用的 `/api/activity`（`PROJECT_TREND`）。Prod 沒設 `PEOPLE_PROFILES`，所以人員網址在 Prod 回 404；`PROJECT_TREND` 在兩個環境都開啟。" },
               "sources": ["apps/web/functions/api/people/index.ts", "apps/web/functions/api/activity.ts", "docs/specs/030-project-activity-trend/spec.md"] }
           ]
         },

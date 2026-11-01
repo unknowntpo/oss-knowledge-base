@@ -1151,7 +1151,7 @@ Owner decisions of 2026-10-29: the Prod data Worker sets
 accepted in the Prod bucket; Prod Pages serves none of it (`PEOPLE_PROFILES`
 and `PROJECT_TREND` stay unset). `PROJECT_TREND` on Prod (Spec 030 decision
 8, the new public URL `/api/activity`) is a separate, later PR, after the
-first Prod run confirms both stores.
+first Prod run confirms both stores: see [Prod Pages: project trend](#prod-pages-project-trend-spec-030-decision-8).
 
 Nothing else is needed on Prod: both stores use the Prod bucket binding
 `OSS_KB_BUCKET`, the review run uses the existing `GITHUB_SOURCE_TOKEN`
@@ -1187,9 +1187,10 @@ Run from the repository root after `bunx wrangler login`. It reads the bucket
 names from `apps/data-publisher-worker/wrangler.{development,production}.jsonc`,
 downloads every key to a temporary directory, then writes month and summary
 objects, then `backfill.json`, then each `state.json` last. A month key that
-Dev does not have (for example a month without DataFusion reviews) is
-reported and skipped; a missing `backfill.json` or `state.json` stops the
-script before any write. It never copies
+Dev does not have is handled by store: a missing review month (for example a
+month without DataFusion reviews) is reported and skipped; a missing activity
+month or summary (the activity `state.json` lists every month), a missing
+`backfill.json` or a missing `state.json` stops the script before any write. It never copies
 `internal/github-reviews/v1/{last-run,backfill-last-run,refresh-last-run}.json`
 and refuses to run during 21:50–23:05 UTC. Change the month variables if the
 copy happens after 2026-10 ends.
@@ -1313,7 +1314,33 @@ Remove `GITHUB_REVIEWS` and `PEOPLE_ACTIVITY` from
 `apps/data-publisher-worker/wrangler.production.jsonc` and merge. Prod changes
 only with a new tag, which needs the owner's approval. The copied and
 appended objects stay under `internal/` and nothing on Prod Pages reads them;
-deleting them is the owner's step.
+deleting them is the owner's step. If `PROJECT_TREND` is already on Prod, remove
+it first (next section): `/api/activity` reads the activity log.
+
+### Prod Pages: project trend (Spec 030 decision 8)
+
+The first Prod runs with both stores (`v0.3.7`, 22:37 UTC on 2026-10-30 and
+2026-10-31) reported `githubReviews.ok` and `lastRun.activity.ok` with no
+`error` or `failureKind`; on 2026-10-31 the stores wrote 8 activity Class A
+plus 2 review months. `PROJECT_TREND=true` is then set in
+`apps/web/wrangler.production.jsonc`, live from the next Prod tag. It adds the
+public URL `GET /api/activity?projectId=` (`noindex`, cached 5 minutes, Kafka
+only) and the This week card. It reads only the activity log's objects; no
+person id or name is in its answer.
+
+After the tag:
+
+```sh
+P=https://oss-knowledge-base.pages.dev
+curl -sSI "$P/api/digest?projectId=apache-kafka&locale=en" | grep -i x-project-trend   # x-project-trend: on
+curl -sS "$P/api/activity?projectId=apache-kafka" | jq '{schema, until, months: (.months | length)}'   # osskb.project-activity.v1, 12
+```
+
+Then open `$P/kafka/`: This week shows `.project-trend` under the stats.
+Roll back (remove the var, new tag with owner approval) if This week renders
+differently with the card absent, `/api/activity` answers 5xx, or the digest
+answer changes beyond the header. The flag reads nothing while unset, so
+rollback needs no data change.
 
 ## Contributor activity log (Spec 019 slice 2b)
 

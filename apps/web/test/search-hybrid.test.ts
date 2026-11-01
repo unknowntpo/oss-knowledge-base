@@ -377,7 +377,8 @@ describe("Spec 016 hybrid search: the flag, the binding, and `semantic=off`", ()
     // Worker, which exports and migrates the class since step (a) (`v4`).
     const production = await read("wrangler.production.jsonc");
     expect(Object.keys(production).sort()).toEqual(["$schema", "compatibility_date", "durable_objects", "name", "pages_build_output_dir", "r2_buckets", "vars"]);
-    expect(production.vars).toEqual({ SEARCH_SEMANTIC: "rrf-group@2" });
+    // `PROJECT_TREND` is Spec 030 decision 8 (project-trend.test.ts PT3); no other Prod Pages var.
+    expect(production.vars).toEqual({ SEARCH_SEMANTIC: "rrf-group@2", PROJECT_TREND: "true" });
     expect(production.durable_objects).toEqual({ bindings: [{ name: "SEARCH_QUERY_GATE", class_name: "SearchQueryGate", script_name: "oss-knowledge-base-data-prod" }] });
     const prodWorker = JSON.parse(await Bun.file(new URL("../../data-publisher-worker/wrangler.production.jsonc", import.meta.url)).text()) as {
       readonly name: string;
