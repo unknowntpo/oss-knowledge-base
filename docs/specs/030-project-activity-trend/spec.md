@@ -1,6 +1,6 @@
 # Spec 030: Project activity trend on This week
 
-Status: Partially implemented (owner decisions 2026-10-24, [Owner decisions](#owner-decisions)); slice 1 built behind `PROJECT_TREND` (PR #141); on Dev since the owner approved the Dev enable on 2026-10-24 ([Rollout](#rollout)); PT16 runs after that deploy; the Prod enable was approved on 2026-10-29 (decision 8) and is set in the Prod config after the `v0.3.7` runs of 2026-10-30 and 2026-10-31 confirmed both stores (live from the next Prod tag); [amendment (1)](#amendment-2026-10-25-1-years-on-the-compact-axis) (2026-10-25) adds years to the compact axis
+Status: Partially implemented (owner decisions 2026-10-24, [Owner decisions](#owner-decisions)); slice 1 built behind `PROJECT_TREND` (PR #141); on Dev since the owner approved the Dev enable on 2026-10-24 ([Rollout](#rollout)); PT16 runs after that deploy; the Prod enable was approved on 2026-10-29 (decision 8) and is set in the Prod config after the `v0.3.7` runs of 2026-10-30 and 2026-10-31 confirmed both stores (live since `v0.3.8`, 2026-11-01); [amendment (1)](#amendment-2026-10-25-1-years-on-the-compact-axis) (2026-10-25) adds years to the compact axis
 Date: 2026-10-24
 Traceability: enforced
 Builds on: Spec 014 (This week layout, Behavior 27, the "Counts" design decision), Spec 019 (the profile's "活動趨勢" chart, amendment (5), W56–W65; the activity log; W10, W18, W29), Spec 022 (review month objects), Spec 023 (data tokens DS4–DS6), Spec 024 (dark theme DM4–DM8), Spec 026 (cost guard)
@@ -353,7 +353,7 @@ text the existing chart label style.
 | 3 | PT16 on Dev: `bun run verify:ui --target dev`; replace the Example's estimates with Dev's counts | Captures at 375 and 1280 px, card and expanded view, both themes |
 | 4 | Prod: approved 2026-10-29 (decision 8). The stores go first: `GITHUB_REVIEWS=metadata@2` and `PEOPLE_ACTIVITY=log@1` on the Prod data Worker, seeded from a copy of Dev's objects (Spec 022 decision 6, Spec 019 decision 12). Then a separate PR sets `PROJECT_TREND=true` in `apps/web/wrangler.production.jsonc`, after the first Prod run shows both stores in `/health` without error | As step 2, on https://oss-knowledge-base.pages.dev after the tag that carries the PR |
 
-Stop and roll back (remove the var, push to `main`) if This week renders
+Stop and roll back (remove the var; a push to `main` changes Dev, Prod needs a new tag with owner approval) if This week renders
 differently with the card absent, `/api/activity` answers 5xx, or the
 digest answer changes beyond the header. The flag reads nothing while unset,
 so rollback needs no data change.
