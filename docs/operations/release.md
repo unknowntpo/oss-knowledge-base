@@ -206,6 +206,36 @@ Prod gains path URLs and per-component `/health`; everything else ships dormant,
 - The system map is no longer on the public docs site (Spec 033 decision 5, amended; #175, #178).
 ```
 
+## v0.3.4–v0.3.8: Prod rollout of search, digest, reviews and trend
+
+Each tag ships one owner-approved Prod config step. Flags reach Prod only with
+a tag; a merge to `main` deploys Dev only. Every release run below ended with
+`Deploy production: success`.
+
+| Tag | Commit | Tagged (UTC) | Run | What Prod gains |
+| --- | --- | --- | --- | --- |
+| `v0.3.4` | `a8ccb05` | 2026-10-28 02:53 | [40623553180](https://github.com/unknowntpo/oss-knowledge-base/actions/runs/40623553180) | Search bindings with every flag off (Spec 016 Prod rollout step (a), #181). Digest experimental label, digest staged off (Spec 014 D109–D114, #182) |
+| `v0.3.5` | `11271c9` | 2026-10-28 04:00 | [40629846356](https://github.com/unknowntpo/oss-knowledge-base/actions/runs/40629846356) | `SEARCH_EMBEDDING=bge-m3@1` and `SEARCH_SHARD_ROOTS=true` (step (b), #183) |
+| `v0.3.6` | `5893563` | 2026-10-28 11:00 | [40676552411](https://github.com/unknowntpo/oss-knowledge-base/actions/runs/40676552411) | `DIGEST_ENABLED=true` (#184). `SEARCH_SEMANTIC=rrf-group@2` with the experimental label (step (c), #185) |
+| `v0.3.7` | `5f9b361` | 2026-10-30 00:46 | [40981807329](https://github.com/unknowntpo/oss-knowledge-base/actions/runs/40981807329) | `GITHUB_REVIEWS=metadata@2` and `PEOPLE_ACTIVITY=log@1` (Spec 022 decision 6, Spec 019 decision 12, #187), seeded by the owner's Dev→Prod copy (40 objects, 0 missing). Also carries the Spec 027 eval providers (#186), which change nothing on Prod |
+| `v0.3.8` | `d80f305` | 2026-11-01 14:36 | [41317077508](https://github.com/unknowntpo/oss-knowledge-base/actions/runs/41317077508) | `PROJECT_TREND=true`: public `GET /api/activity` and the This week card (Spec 030 decision 8, #188) |
+
+Evidence on Prod:
+
+- `v0.3.6`: semantic search and the first digest ran. Uncached searches
+  sometimes timed out at about 2 s and answered from keyword search; this is the
+  designed fallback, so no rollback.
+- `v0.3.7`: the dry run answered `ok: true` for both projects. The 22:37 UTC run
+  of 2026-10-31 reported `githubReviews.ok` and `lastRun.activity.ok` with no
+  `error` or `failureKind`.
+- `v0.3.8`: `/api/digest` carries `x-project-trend: on` on a GET (a HEAD does not
+  show it), `/api/activity?projectId=apache-kafka` answers 200 with 12 months and
+  no person data, `/kafka/` shows `.project-trend`, and `/api/people` still
+  answers 404.
+
+Prod Pages still serves no person-level data: `PEOPLE_PROFILES` and
+`PEOPLE_KIPS` stay unset (Spec 019 decision 8 needs the terms check first).
+
 ## Release command
 
 After the selected commit is merged and green on `main` (for the first Prod

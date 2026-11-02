@@ -1149,7 +1149,7 @@ Owner decisions of 2026-10-29: the Prod data Worker sets
 `GITHUB_REVIEWS=metadata@2` (Spec 022 decision 6) and `PEOPLE_ACTIVITY=log@1`
 (Spec 019 decision 12). Identity data (person ids and display names) is
 accepted in the Prod bucket; Prod Pages serves none of it (`PEOPLE_PROFILES`
-and `PROJECT_TREND` stay unset). `PROJECT_TREND` on Prod (Spec 030 decision
+stays unset; `PROJECT_TREND` stayed unset until `v0.3.8` and its answer has no person data). `PROJECT_TREND` on Prod (Spec 030 decision
 8, the new public URL `/api/activity`) is a separate, later PR, after the
 first Prod run confirms both stores: see [Prod Pages: project trend](#prod-pages-project-trend-spec-030-decision-8).
 
@@ -1323,7 +1323,7 @@ The first Prod runs with both stores (`v0.3.7`, 22:37 UTC on 2026-10-30 and
 2026-10-31) reported `githubReviews.ok` and `lastRun.activity.ok` with no
 `error` or `failureKind`; on 2026-10-31 the stores wrote 8 activity Class A
 plus 2 review months. `PROJECT_TREND=true` is then set in
-`apps/web/wrangler.production.jsonc`, live from the next Prod tag. It adds the
+`apps/web/wrangler.production.jsonc`, live since `v0.3.8` (2026-11-01). It adds the
 public URL `GET /api/activity?projectId=` (`noindex`, cached 5 minutes, Kafka
 only) and the This week card. It reads only the activity log's objects; no
 person id or name is in its answer.
@@ -1348,7 +1348,7 @@ rollback needs no data change.
 holds to `internal/people/v1/<projectId>/` (month objects, their summaries,
 `state.json`) before the state is compacted. On for Dev (`log@1`, the enable
 PR of 2026-10-15). In the Prod config since 2026-10-29 (Spec 019 decision
-12), live from the first Prod tag after `v0.3.6`: see [Prod enable](#prod-enable-review-ingestion-and-activity-log-2026-10-29). Unset: no R2 request, no `appending-activity` phase, no
+12), live since `v0.3.7`: see [Prod enable](#prod-enable-review-ingestion-and-activity-log-2026-10-29). Unset: no R2 request, no `appending-activity` phase, no
 `lastRun.activity`. Format, identity rules and cost: [Spec 019 amendment
 (2)](../specs/019-contributor-profile/spec.md#amendment-2026-10-15-2-slice-2b-the-activity-log).
 
@@ -1534,9 +1534,8 @@ Class A).
 
 On for Dev (`GITHUB_REVIEWS=metadata@1` since 2026-10-14, `metadata@2` since 2026-10-15, Spec 022
 decision 3). In the Prod config since 2026-10-29 (Spec 022 decision 6), live
-from the first Prod tag after `v0.3.6`: see [Prod
-enable](#prod-enable-review-ingestion-and-activity-log-2026-10-29). Until that
-tag Prod sends no request for it and `/health` has no `githubReviews` field. The first Dev tick after the deploy
+since `v0.3.7`: see [Prod
+enable](#prod-enable-review-ingestion-and-activity-log-2026-10-29). The first Dev tick after the deploy
 reads one day back and stores `coverageFrom` there (RV26). The steps, the
 dry run that checks the token first, and the expected values are in
 [Spec 022, Enabling on Dev](../specs/022-github-reviews/spec.md#enabling-on-dev).
