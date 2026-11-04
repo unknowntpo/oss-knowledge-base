@@ -302,6 +302,7 @@ jobs:
           configured="$(bunx wrangler secret list -c wrangler.production.jsonc)"
           grep -q 'GITHUB_SOURCE_TOKEN' <<<"$configured"
           grep -q 'MANUAL_TRIGGER_TOKEN' <<<"$configured"
+          grep -q 'CF_ANALYTICS_TOKEN' <<<"$configured"
       - name: Deploy the verified artifact to production
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

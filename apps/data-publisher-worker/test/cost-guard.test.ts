@@ -134,6 +134,23 @@ describe("Spec 026 cost guard", () => {
     expect(nextBreaker({ tripped: false }, metricsAt({ r2ClassA: 1 }), TICK)).toEqual({ tripped: false });
   });
 
+  test("CG38: Prod runs the guard in monitor with its own object at migration v5, the same account as Dev, and no token in the file", async () => {
+    type Config = { vars: Record<string, string>; durable_objects: { bindings: { name: string; class_name: string }[] }; migrations: { tag: string; new_sqlite_classes: string[] }[] };
+    const read = async (environment: string) => {
+      const text = await Bun.file(new URL(`../wrangler.${environment}.jsonc`, import.meta.url)).text();
+      return { text, config: JSON.parse(text.replace(/^\s*\/\/.*$/gmu, "")) as Config };
+    };
+    const { text, config: prod } = await read("production");
+    const { config: dev } = await read("development");
+    expect(prod.vars.COST_GUARD).toBe("monitor");
+    expect(resolveCostGuardMode(prod.vars.COST_GUARD)).toBe("monitor");
+    expect(prod.vars.CF_ACCOUNT_ID).toBe(dev.vars.CF_ACCOUNT_ID!);
+    expect(prod.durable_objects.bindings).toContainEqual({ name: "COST_GUARD_STATE", class_name: "CostGuard" });
+    expect(prod.migrations.at(-1)).toEqual({ tag: "v5", new_sqlite_classes: ["CostGuard"] });
+    expect(prod.migrations.map((migration) => migration.tag)).toEqual(["v1", "v2", "v3", "v4", "v5"]);
+    expect(text).not.toContain("CF_ANALYTICS_TOKEN");
+  });
+
   test("CG23: the guard's bucket follows PUBLICATION_ENVIRONMENT and matches each wrangler file's OSS_KB_BUCKET", async () => {
     for (const environment of ["development", "production"] as const) {
       const text = await Bun.file(new URL(`../wrangler.${environment}.jsonc`, import.meta.url)).text();

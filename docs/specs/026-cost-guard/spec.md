@@ -1,6 +1,6 @@
 # Spec 026: Account-wide cost guard and circuit breaker
 
-Status: Partially implemented: CG1–CG20 implemented (#105, 2026-10-20; owner decisions 2026-10-20; no web change); rollout step 1 (Dev monitor: `COST_GUARD=monitor`, `COST_GUARD_STATE`, migration `v5`, `CF_ACCOUNT_ID`) in the Dev monitor enable PR, 2026-10-21; CG19 waits for the first successful check; `COST_GUARD` unset on Prod; amended 2026-10-21 (owner decisions: a $5-a-month dollar budget; its open decisions resolved the same day: 7-day projection, own-bucket spike, UTC month, provisional spike threshold, warn on projection); CG21 and CG35 implemented (owner decision 2026-10-23: the per-metric projection uses the 7-day rate now, before the budget; dollars per metric in `/health`; no spike); CG23, CG25, CG30, CG31 and CG36 implemented (owner decision 2026-10-23: the own-bucket 24-hour Class A spike before the budget; the monthly Class A trip of Behavior 6 stays until the budget slice); CG22, CG24, CG26–CG29, CG32–CG34, CG37 not implemented
+Status: Partially implemented: CG1–CG20 implemented (#105, 2026-10-20; owner decisions 2026-10-20; no web change); rollout step 1 (Dev monitor: `COST_GUARD=monitor`, `COST_GUARD_STATE`, migration `v5`, `CF_ACCOUNT_ID`) in the Dev monitor enable PR, 2026-10-21; CG19 waits for the first successful check; Prod `monitor` set in the Prod config (owner decision 2026-11-04, [Amendment 2026-11-04](#amendment-2026-11-04-prod-monitor-before-dev-enforce); CG38; live from the next Prod tag; CG39 runs after it); amended 2026-10-21 (owner decisions: a $5-a-month dollar budget; its open decisions resolved the same day: 7-day projection, own-bucket spike, UTC month, provisional spike threshold, warn on projection); CG21 and CG35 implemented (owner decision 2026-10-23: the per-metric projection uses the 7-day rate now, before the budget; dollars per metric in `/health`; no spike); CG23, CG25, CG30, CG31 and CG36 implemented (owner decision 2026-10-23: the own-bucket 24-hour Class A spike before the budget; the monthly Class A trip of Behavior 6 stays until the budget slice); CG22, CG24, CG26–CG29, CG32–CG34, CG37 not implemented
 Date: 2026-10-20
 Traceability: enforced
 Builds on: Spec 008 (R2 operations), Spec 010, 021 (a paused publication shows as a stall), Spec 014 (digest neuron ledger), Spec 016 (embedding ledger, query gate), Spec 018 (daily publication)
@@ -324,6 +324,33 @@ Unchanged steps (Rollout below). The implementing slice ships under the
 current `COST_GUARD=monitor` on Dev (no new binding, secret, variable or
 migration); its dry check (CG33) comes before Dev `enforce`. The runbook's
 cost-guard section is updated in that slice.
+
+## Amendment 2026-11-04: Prod monitor before Dev enforce
+
+Owner decision, 2026-11-04 (core: cost). Prod gets `COST_GUARD=monitor` now,
+before Dev `enforce` and before the dollar budget is built. This changes the
+order of Rollout step 3: Prod's monitor half comes first, and `enforce` on
+either environment waits for the budget.
+
+Why `enforce` waits: the code still trips each metric at 80 %. Dev `/health`,
+2026-11-02 22:07 UTC (real): R2 Class A 2,300 (0.23 %), but R2 storage 15.48 GB
+(154.78 % of 10 GB, `tripped`) at $0.08 a month of overage. R2 metrics are
+account-wide, so Prod's first real check opens its breaker on storage, as
+Dev's is open. Under `monitor` that only records; under `enforce` the digest,
+the embeddings and the semantic queries would refuse over $0.08. The budget
+(CG22, CG24, CG26–CG29, CG34) removes that trip.
+
+Expected on Prod after the tag: `costGuard.mode` `monitor`, `status`
+`tripped`, `breaker.metrics` with `r2StorageBytes`, and `components` entry
+`cost-guard` at `warn`. This is the known storage trip, not an incident.
+Nothing is refused (`costGuardDecisionFor` answers no refusal unless the mode
+is `enforce`). What Prod gains: a daily account cost record and its own-bucket
+24-hour Class A count (CG23, CG37) in `/health`. No web change.
+
+The tag deploy requires `CF_ANALYTICS_TOKEN` on the Prod Worker, as it requires
+the other two runtime secrets, so a tag without it fails before anything
+deploys. Rollback: unset `COST_GUARD` (a new Prod tag); the secret and the
+object stay.
 
 ## Example
 
@@ -649,6 +676,8 @@ removed the web part on 2026-10-20 (Simplification review, Delete).
 #### Budget
 - CG32: [measure] after the implementing slice, a real check is still one GraphQL request and one Durable Object write, with no R2 operation; measured by `bun test test/cost-guard.test.ts -t CG32` (in `apps/data-publisher-worker`), which counts the calls.
 
+- CG38: `wrangler.production.jsonc` sets `COST_GUARD` to `monitor`, `CF_ACCOUNT_ID` to Dev's account, binds `COST_GUARD_STATE` to `CostGuard` with migration `v5` as the last tag, and contains no `CF_ANALYTICS_TOKEN` value; the Prod tag deploy's secret check names `CF_ANALYTICS_TOKEN`.
+- CG39: [deploy] after the first Prod tag with CG38, `POST /cost-guard/check?dryRun=1` on Prod answers `ok: true`, and after the next 22:37 UTC tick `/health` `costGuard.mode` is `monitor`, `checkedAt` is that tick's time and `lastError` is null.
 - CG37: [measure] the spike threshold (Decision 12): after the implementing slice, the first real per-bucket checks on Dev and Prod show `r2ClassASpike.last24h` on a publication day at or under 5,000 (a tenth of 50,000); measured by `POST /cost-guard/check?dryRun=1` on each environment and recorded in the PR that enables `enforce`, which keeps or changes the 50,000.
 #### Observability
 - CG33: [deploy] after the implementing slice, on Dev under `monitor`, `POST /cost-guard/check?dryRun=1` shows the R2 dollars within $0.10 of the dashboard's billable usage this month and the 24-hour Class A within 5 % of the per-bucket R2 metrics; the owner reads `budget` and `r2ClassASpike` before `enforce`.

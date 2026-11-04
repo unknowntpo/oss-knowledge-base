@@ -261,13 +261,15 @@ describe("Spec 016 query gate object and /health", () => {
       { name: "DIGEST_RUN", class_name: "DigestRun" },
       { name: "SEARCH_EMBEDDING_RUN", class_name: "SearchEmbeddingRun" },
       { name: "SEARCH_QUERY_GATE", class_name: "SearchQueryGate" },
+      { name: "COST_GUARD_STATE", class_name: "CostGuard" },
     ]);
-    // Prod's migration history is its own: v1, v2 shipped; v3, v4 are new and never renumbered.
+    // Prod's migration history is its own: v1, v2 shipped; v3, v4 are new and never renumbered; v5 is Spec 026's.
     expect(production.migrations).toEqual([
       { tag: "v1", new_sqlite_classes: ["PipelineState"] },
       { tag: "v2", new_sqlite_classes: ["DigestRun"] },
       { tag: "v3", new_sqlite_classes: ["SearchEmbeddingRun"] },
       { tag: "v4", new_sqlite_classes: ["SearchQueryGate"] },
+      { tag: "v5", new_sqlite_classes: ["CostGuard"] },
     ]);
     const migrated = production.migrations.flatMap((migration) => migration.new_sqlite_classes);
     expect([...migrated].sort()).toEqual(production.durable_objects.bindings.map((binding) => binding.class_name).sort());

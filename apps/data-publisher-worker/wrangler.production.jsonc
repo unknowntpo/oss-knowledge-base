@@ -25,7 +25,9 @@
     "DIGEST_GATEWAY_ID": "osskb-digest-prod",
     "DIGEST_CRON": "17 23 * * *",
     "GITHUB_REVIEWS": "metadata@2",
-    "PEOPLE_ACTIVITY": "log@1"
+    "PEOPLE_ACTIVITY": "log@1",
+    "COST_GUARD": "monitor",
+    "CF_ACCOUNT_ID": "2ef5fb1cf4a7bfd3de423dd10c2b2191"
   },
   "ai": {
     "binding": "AI"
@@ -62,6 +64,10 @@
       {
         "name": "SEARCH_QUERY_GATE",
         "class_name": "SearchQueryGate"
+      },
+      {
+        "name": "COST_GUARD_STATE",
+        "class_name": "CostGuard"
       }
     ]
   },
@@ -81,6 +87,10 @@
     {
       "tag": "v4",
       "new_sqlite_classes": ["SearchQueryGate"]
+    },
+    {
+      "tag": "v5",
+      "new_sqlite_classes": ["CostGuard"]
     }
   ]
 }

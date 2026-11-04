@@ -13,7 +13,7 @@ test("deploy-production requires the Prod Worker secrets before the Pages and Wo
   const check = index("Require provisioned production runtime secrets");
   expect(check).toBeGreaterThan(-1);
   expect(steps[check]!.run).toContain("wrangler secret list -c wrangler.production.jsonc");
-  for (const name of ["GITHUB_SOURCE_TOKEN", "MANUAL_TRIGGER_TOKEN"]) expect(steps[check]!.run).toContain(name);
+  for (const name of ["GITHUB_SOURCE_TOKEN", "MANUAL_TRIGGER_TOKEN", "CF_ANALYTICS_TOKEN"]) expect(steps[check]!.run).toContain(name);
   const deploys = steps.flatMap((step, n) => (/deploy/iu.test(step.run ?? "") && /wrangler pages deploy|deploy-pages|deploy:production/u.test(step.run ?? "") ? [n] : []));
   expect(deploys.length).toBe(2);
   for (const n of deploys) expect(check).toBeLessThan(n);
