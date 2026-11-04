@@ -150,9 +150,9 @@ describe("system flow completeness", () => {
     expect(systemFlowProblems(flow, [{ name: "SEARCH_QUERY", what: "probe" }])).toEqual(["probe `SEARCH_QUERY` is not named in system.json"]);
     // A Dev-only binding whose steps lose their gate is reported.
     const untagged = clone();
-    for (const column of untagged.columns) for (const card of column.cards) for (const node of card.nodes) if (names(node as unknown as FlowNode, "COST_GUARD_STATE")) delete node.gate;
-    expect(systemFlowProblems(untagged as Flow, items)).toContain("data-publisher-worker Durable Object binding `COST_GUARD_STATE` is Dev only but no step naming it is tagged Dev only");
+    for (const column of untagged.columns) for (const card of column.cards) for (const node of card.nodes) if (names(node as unknown as FlowNode, "SIGNALS")) delete node.gate;
+    expect(systemFlowProblems(untagged as Flow, items)).toContain("data-publisher-worker Analytics Engine binding `SIGNALS` is Dev only but no step naming it is tagged Dev only");
     // A Prod binding named only by Dev-tagged steps is reported.
-    expect(systemFlowProblems(flow, [{ name: "COST_GUARD_STATE", what: "probe", envs: new Set<Env>(["dev", "prod"]) }])).toEqual(["probe `COST_GUARD_STATE` is deployed on Prod but only named by Dev-tagged steps"]);
+    expect(systemFlowProblems(flow, [{ name: "SIGNALS", what: "probe", envs: new Set<Env>(["dev", "prod"]) }])).toEqual(["probe `SIGNALS` is deployed on Prod but only named by Dev-tagged steps"]);
   });
 });

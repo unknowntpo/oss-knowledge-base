@@ -391,8 +391,8 @@ about 28 thousand and 6.0 million. Act when:
 
 Account-wide cost monitoring and a circuit breaker
 ([spec](../specs/026-cost-guard/spec.md)). Dev: `monitor` since the Dev
-monitor enable PR (2026-10-21). Prod: off (`COST_GUARD` unset, no
-`COST_GUARD_STATE` binding, no token). The check rides
+monitor enable PR (2026-10-21). Prod: `monitor` in the Prod config from the
+first Prod tag after `v0.3.8` (section "Enable `monitor` on Prod"). The check rides
 the publisher tick once a day, reads R2 operations and storage for the whole
 account over the GraphQL Analytics API, and adds Vectorize and Workers AI
 estimates from this Worker's own ledgers. It writes one Durable Object key
@@ -410,6 +410,7 @@ and makes no R2 request.
 ```sh
 cd apps/data-publisher-worker
 bunx wrangler secret put CF_ANALYTICS_TOKEN -c wrangler.development.jsonc
+# Prod: the same command with -c wrangler.production.jsonc
 ```
 
 The account id is not secret: the enable PR sets `CF_ACCOUNT_ID` as a var.
@@ -437,6 +438,38 @@ stopped is therefore not projected for the rest of the month: on
 `overageUsd` and `projectedOverageUsd` are each metric's dollars over its
 allowance at list price; nothing trips on them yet.
 
+### Enable `monitor` on Prod (Spec 026 Amendment 2026-11-04)
+
+The Prod config carries `COST_GUARD=monitor`, `CF_ACCOUNT_ID`, the
+`COST_GUARD_STATE` binding and migration `v5`. `main` deploys only Dev; Prod
+changes with a tag.
+
+1. Create a new token and put it on the Prod Worker (section "Create the
+   token"). The secret needs no deploy, and the running Prod code does not read
+   it yet. The tag deploy stops before deploying if the secret is missing.
+2. Check the secret by name:
+
+   ```sh
+   cd apps/data-publisher-worker
+   bunx wrangler secret list -c wrangler.production.jsonc | grep CF_ANALYTICS_TOKEN
+   ```
+
+3. Tag the release (owner's decision). Avoid the Prod publication at 22:37 UTC
+   and the Prod digest at 23:17 UTC.
+4. Run the dry check against
+   `https://oss-knowledge-base-data-prod.unknowntpo.workers.dev`, with the Prod
+   manual trigger token. Expect `ok: true` (CG39). A dry run writes nothing.
+5. After the next 22:37 UTC tick, read `/health` as in "Read `/health`".
+
+Expect `status: tripped` with `r2StorageBytes` in `breaker.metrics`, and the
+`components` entry `cost-guard` at `warn`. R2 storage is account-wide and over
+the 80 % rule, at about $0.08 a month. Under `monitor` this refuses nothing, so
+do not reset the breaker for it. Do not set `enforce` on either environment
+until the dollar budget (CG22) is built.
+
+Rollback: unset `COST_GUARD` in the Prod config and tag a release. A rollback
+of the `v5` migration is not needed: an unused object costs nothing.
+
 ### The R2 Class A spike (CG23)
 
 The same request also counts this environment's own bucket over the last
@@ -459,7 +492,7 @@ curl -sS -X POST -H "authorization: Bearer $MANUAL_TRIGGER_TOKEN" "$DEV/cost-gua
 never trips then). A tripped spike opens the breaker with `metric:
 "r2ClassA"`, `value` the 24-hour count, `threshold` 50,000 and `bucket`;
 under `enforce` that pauses the publication and the review ingestion of
-that environment only. Under `monitor` (Dev today) it only records. The
+that environment only. Under `monitor` (Dev and Prod) it only records. The
 monthly Class A trip at 80 % of 1 million also still trips `r2ClassA` until
 the budget slice replaces it.
 
@@ -496,7 +529,7 @@ curl -sS "$DEV/health" | jq '.costGuard | {mode, status, reason, checkedAt, brea
 | `unconfigured` | `reason` names the missing token, account id or binding | fix the configuration |
 
 `scope: "account"` metrics (R2) cover both environments; `scope: "worker"`
-ones only this Worker (Prod has no `AI` or index, so they are `unavailable`).
+ones only this Worker (Prod's own `AI` and index since the Spec 016 Prod rollout).
 
 ### Reset the breaker
 
@@ -1159,7 +1192,7 @@ secret, and both ride the publisher's `37 22 * * *` tick (no new cron, Durable
 Object or migration). The Prod token's GraphQL access is not yet proven
 (Spec 022, Could not be verified); step 4 checks it.
 
-Prod has no cost guard (`COST_GUARD` and `COST_GUARD_STATE` are unset), so
+The Prod cost guard runs in `monitor` (it records and refuses nothing), so
 nothing pauses these stores automatically. The Class A stop line below is
 checked by hand.
 
