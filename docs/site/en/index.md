@@ -31,6 +31,6 @@ As of 2026-11-05 (sources: [docs/feature-map.md](docs/feature-map.md#environment
 
 - **On Prod and Dev:** daily publication from GitHub, Jira and dev@; lexical search `bm25-reference@3`; path URLs; per-component status in `/health`; thread list and detail; the data-freshness indicator; Workers Logs; the weekly topic digest; semantic hybrid search; review ingestion; the project trend; the cost guard in `monitor`. Prod runs release `v0.3.9` (2026-11-05).
 - **Dev only:** contributor profiles, the KIP author pages, retention (dry run), the observability signals and rules, and the [SRE agent](sre-agent.html). Each sits behind its own flag and is off on Prod.
-- **Next for Prod:** the digest goes to Prod only after its quality gate passes on a human-labelled week ([digest](digest.html#gate)).
+- **Experimental on Prod:** the digest and semantic search carry an experimental label. The digest shipped before its quality gate passed on a human-labelled week ([digest](digest.html#gate)).
 
 > Numbers on these pages come from the repository at the commit in the footer, or from the public `/health` endpoint at a stated time. Each one links to where it comes from.

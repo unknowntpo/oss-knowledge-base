@@ -31,6 +31,6 @@
 
 - **Prod 與 Dev 都有：** 每天從 GitHub、Jira、dev@ 發布；關鍵字搜尋 `bm25-reference@3`；路徑網址；`/health` 的各元件狀態；thread 列表與詳細頁；資料新鮮度標示；Workers Logs；每週主題週報；語意混合搜尋；review 收集；專案趨勢；`monitor` 模式的成本守門員。Prod 執行版本 `v0.3.9`（2026-11-05）。
 - **只在 Dev：** 貢獻者頁面、KIP 作者頁面、保留期清理（試跑）、可觀測性訊號與規則，以及 [SRE agent](sre-agent.html)。每項都有自己的開關，在 Prod 為關閉。
-- **Prod 的下一步：** 週報要先在人工標註的一週資料上通過品質門檻，才會上 Prod（見[週報](digest.html#gate)）。
+- **Prod 上的實驗功能：** 週報與語意搜尋都標示為實驗功能。週報在通過人工標註一週資料的品質門檻之前就已上線（見[週報](digest.html#gate)）。
 
 > 本站的數字來自頁尾所示 commit 的版本庫內容，或來自標明時間讀取的公開 `/health` 端點；每個數字都連到出處。
