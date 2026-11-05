@@ -106,7 +106,7 @@ export function embeddingSignalRun(
   };
 }
 
-/** The cost guard: no R2 call (`r2Counted` 0); the budget fields are 0 until Spec 026's amendment lands. */
+/** The cost guard: no R2 call (`r2Counted` 0). */
 export function costGuardSignalRun(
   check: {
     readonly ok: boolean;

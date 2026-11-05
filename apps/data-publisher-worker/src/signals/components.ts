@@ -99,10 +99,10 @@ export function healthComponents(health: Record_, now: number, flags: ComponentF
   if ("costGuard" in health) {
     const guard = object(health.costGuard);
     const status = text(guard?.status);
-    const tripped = Object.entries(object(guard?.metrics) ?? {})
-      .filter(([, metric]) => object(metric)?.status === status)
-      .map(([name, metric]) => `${name} ${object(metric)?.percent ?? "?"}%`);
-    const degraded = status === "tripped" || status === "warn" ? `${status}: ${tripped.join(", ") || "see costGuard"}`
+    const budget = object(guard?.budget);
+    const detail = status === "tripped" ? text(object(guard?.breaker)?.reason) ?? (budget === undefined ? undefined : `budget $${budget.overageUsd} spent`)
+      : budget === undefined ? undefined : `budget $${budget.overageUsd} spent, $${budget.projectedOverageUsd} projected of $5`;
+    const degraded = status === "tripped" || status === "warn" ? `${status}: ${detail ?? "see costGuard"}`
       : status === "unconfigured" ? `unconfigured: ${text(guard?.reason) ?? "see costGuard"}` : undefined;
     components.push(judge("cost-guard", validTime(guard?.checkedAt), {
       missing: guard === undefined ? "the cost guard did not answer" : undefined, degraded, missed: missedOf.get("cost-guard"),

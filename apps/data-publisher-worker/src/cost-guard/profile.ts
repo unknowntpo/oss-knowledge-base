@@ -13,13 +13,11 @@ export type CostMetricKey =
 
 export interface CostMetricProfile {
   /** Included in Workers Paid for one `period`. */
-  readonly allowance: number;
+  readonly included: number;
   /** The UTC period the allowance renews over. */
   readonly period: "month" | "day";
   /** A counter accumulates over its period and is projected; a gauge is a level and is not. */
   readonly kind: "counter" | "gauge";
-  /** Whether reaching the trip threshold opens the breaker (Behavior 6: stored dimensions only warn). */
-  readonly trips: boolean;
   /** `account`: every bucket of the account; `worker`: only what this Worker's own ledgers see. */
   readonly scope: "account" | "worker";
   readonly source: "graphql" | "in-app";
@@ -29,27 +27,23 @@ export interface CostMetricProfile {
 
 /** https://developers.cloudflare.com/r2/pricing/, /vectorize/platform/pricing/, /workers-ai/platform/pricing/ */
 export const COST_METRICS: Readonly<Record<CostMetricKey, CostMetricProfile>> = {
-  r2ClassA: { allowance: 1_000_000, period: "month", kind: "counter", trips: true, scope: "account", source: "graphql", priceUsd: 4.5 / 1_000_000 },
-  r2ClassB: { allowance: 10_000_000, period: "month", kind: "counter", trips: true, scope: "account", source: "graphql", priceUsd: 0.36 / 1_000_000 },
+  r2ClassA: { included: 1_000_000, period: "month", kind: "counter", scope: "account", source: "graphql", priceUsd: 4.5 / 1_000_000 },
+  r2ClassB: { included: 10_000_000, period: "month", kind: "counter", scope: "account", source: "graphql", priceUsd: 0.36 / 1_000_000 },
   // 10 GB-month, read as 10 × 10⁹ bytes (the smaller reading of GB).
-  r2StorageBytes: { allowance: 10_000_000_000, period: "month", kind: "gauge", trips: true, scope: "account", source: "graphql", priceUsd: 0.015 / 1_000_000_000 },
-  // Overage is $0.05 per 100 million dimensions: worth a warning, never a pause.
-  vectorizeStoredDimensions: { allowance: 10_000_000, period: "month", kind: "gauge", trips: false, scope: "worker", source: "in-app", priceUsd: 0.05 / 100_000_000 },
-  vectorizeQueriedDimensions: { allowance: 50_000_000, period: "month", kind: "counter", trips: true, scope: "worker", source: "in-app", priceUsd: 0.01 / 1_000_000 },
-  workersAiNeurons: { allowance: 10_000, period: "day", kind: "counter", trips: true, scope: "worker", source: "in-app", priceUsd: 0.011 / 1_000 },
+  r2StorageBytes: { included: 10_000_000_000, period: "month", kind: "gauge", scope: "account", source: "graphql", priceUsd: 0.015 / 1_000_000_000 },
+  vectorizeStoredDimensions: { included: 10_000_000, period: "month", kind: "gauge", scope: "worker", source: "in-app", priceUsd: 0.05 / 100_000_000 },
+  vectorizeQueriedDimensions: { included: 50_000_000, period: "month", kind: "counter", scope: "worker", source: "in-app", priceUsd: 0.01 / 1_000_000 },
+  workersAiNeurons: { included: 10_000, period: "day", kind: "counter", scope: "worker", source: "in-app", priceUsd: 0.011 / 1_000 },
 };
 
 export const COST_METRIC_KEYS = Object.keys(COST_METRICS) as readonly CostMetricKey[];
 
-/** Behavior 5–6. */
-export const COST_GUARD_THRESHOLDS = {
-  warnPercent: 60,
-  tripPercent: 80,
-  /** A projection trips only when it is over this. */
-  projectedTripPercent: 100,
-  /** Neurons (a daily counter): today is not extrapolated before this fraction of the day has passed. */
-  minElapsedForProjection: 0.25,
-} as const;
+/** Behavior 6a (Decision 5): the owner's monthly overage budget, in US dollars. */
+export const COST_GUARD_BUDGET_USD = 5;
+/** Budget status thresholds, as a percent of the budget: spent or projected warns; spent trips; projected over `projectedTrip` trips. */
+export const COST_GUARD_BUDGET_PERCENT = { warn: 60, trip: 80, projectedTrip: 100 } as const;
+/** Neurons (a daily counter): today is not extrapolated before this fraction of the day has passed. */
+export const COST_GUARD_MIN_DAY_ELAPSED = 0.25;
 
 /**
  * CG35 (Decision 9): a month counter projects by its average over at most this many complete UTC

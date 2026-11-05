@@ -391,8 +391,10 @@ about 28 thousand and 6.0 million. Act when:
 
 Account-wide cost monitoring and a circuit breaker
 ([spec](../specs/026-cost-guard/spec.md)). Dev: `monitor` since the Dev
-monitor enable PR (2026-10-21). Prod: `monitor` in the Prod config from the
-`v0.3.9` (section "Enable `monitor` on Prod"). The check rides
+monitor enable PR (2026-10-21). Prod: `monitor` since `v0.3.9` (section "Enable
+`monitor` on Prod"). The check judges the month's overage in dollars against the
+owner's $5 budget (`budget`); Prod runs the older per-metric rules until its next
+tag. The check rides
 the publisher tick once a day, reads R2 operations and storage for the whole
 account over the GraphQL Analytics API, and adds Vectorize and Workers AI
 estimates from this Worker's own ledgers. It writes one Durable Object key
@@ -425,18 +427,31 @@ breaker state is read only from `/health`; the web app shows nothing for it. Aft
 DEV=https://oss-knowledge-base-data-dev.unknowntpo.workers.dev
 # Evaluate now; writes nothing, opens nothing.
 curl -sS -X POST -H "authorization: Bearer $MANUAL_TRIGGER_TOKEN" "$DEV/cost-guard/check?dryRun=1" \
-  | jq '{ok, status, metrics: (.metrics | map_values({value, percent, projectedPercent, rateDays, overageUsd, projectedOverageUsd, status})), unclassifiedActions, lastError}'
+  | jq '{ok, status, budget, metrics: (.metrics | map_values({value, rateDays, overageUsd, projectedOverageUsd, status})), unclassifiedActions, lastError}'
 ```
 
-`projectedPercent` of R2 Class A and B and of queried dimensions is month to
-date plus the average of the 7 complete UTC days before today times the
-remaining days of the month (`rateDays` says how many days it used; 0 means
-no history, and the projection equals month to date). A burst that has
-stopped is therefore not projected for the rest of the month: on
-2026-10-21 Class A showed 211.52 %, where month to date ÷ days elapsed gave
-318 %. Neurons still project today's value over the elapsed day.
-`overageUsd` and `projectedOverageUsd` are each metric's dollars over its
-allowance at list price; nothing trips on them yet.
+`overageUsd` is each metric's dollars over its allowance at list price;
+`budget` sums them. `projectedOverageUsd` of R2 Class A and B and of queried
+dimensions prices month to date plus the average of the 7 complete UTC days
+before today times the remaining days of the month (`rateDays` says how many days
+it used; 0 means no history, and the projection equals month to date). A burst
+that has stopped is therefore not projected for the rest of the month. Neurons
+project today's value over the elapsed day; storage and stored dimensions project
+as themselves.
+
+`budget.status` is `tripped` at $4 spent or more than $5 projected, and `warn` at
+$3 spent or projected. A metric that could not be read counts $0 and is listed in
+`budget.missing`, so a failed GraphQL read cannot trip the budget.
+
+### After the budget slice reaches an environment (once on each)
+
+A breaker opened by the old per-metric rules, such as on `r2StorageBytes`, stays
+open: a deploy or a check never closes it (CG40). Until the next check `/health`
+shows `budget: null`. After that check:
+
+1. Read `budget` and `r2ClassASpike` with the dry check above.
+2. If `budget.status` is `ok` and `r2ClassASpike.status` is `ok`, reset the breaker
+   (section "Reset the breaker"). The owner runs this reset, or authorizes it.
 
 ### Enable `monitor` on Prod (Spec 026 Amendment 2026-11-04)
 
@@ -461,11 +476,11 @@ changes with a tag.
    manual trigger token. Expect `ok: true` (CG39). A dry run writes nothing.
 5. After the next 22:37 UTC tick, read `/health` as in "Read `/health`".
 
-Expect `status: tripped` with `r2StorageBytes` in `breaker.metrics`, and the
-`components` entry `cost-guard` at `warn`. R2 storage is account-wide and over
-the 80 % rule, at about $0.08 a month. Under `monitor` this refuses nothing, so
-do not reset the breaker for it. Do not set `enforce` on either environment
-until the dollar budget (CG22) is built.
+Under `v0.3.9` expect `status: tripped` with `r2StorageBytes` in `breaker.metrics`,
+and the `components` entry `cost-guard` at `warn`. R2 storage is account-wide and
+over the old 80 % rule, at about $0.08 a month. Under `monitor` this refuses
+nothing. Follow "After the budget slice reaches an environment" once a tag brings
+the budget to Prod. Do not set `enforce` on an environment before that.
 
 Rollback: unset `COST_GUARD` in the Prod config and tag a release. A rollback
 of the `v5` migration is not needed: an unused object costs nothing.
@@ -492,9 +507,7 @@ curl -sS -X POST -H "authorization: Bearer $MANUAL_TRIGGER_TOKEN" "$DEV/cost-gua
 never trips then). A tripped spike opens the breaker with `metric:
 "r2ClassA"`, `value` the 24-hour count, `threshold` 50,000 and `bucket`;
 under `enforce` that pauses the publication and the review ingestion of
-that environment only. Under `monitor` (Dev and Prod) it only records. The
-monthly Class A trip at 80 % of 1 million also still trips `r2ClassA` until
-the budget slice replaces it.
+that environment only. Under `monitor` (Dev and Prod) it only records.
 
 If it trips: open R2 → the bucket → Metrics, find the operation that
 grows (for the 10-13 incident, failed conditional `PutObject`), and compare
@@ -517,15 +530,15 @@ permissions in the dashboard, or create a new one and put it again with
 ### Read `/health`
 
 ```sh
-curl -sS "$DEV/health" | jq '.costGuard | {mode, status, reason, checkedAt, breaker, lastError, r2ClassASpike, metrics: (.metrics | map_values("\(.percent)% \(.status)"))}'
+curl -sS "$DEV/health" | jq '.costGuard | {mode, status, reason, checkedAt, breaker, lastError, budget, r2ClassASpike, metrics: (.metrics | map_values("$\(.overageUsd) \(.status)"))}'
 ```
 
 | `status` | Meaning | Do |
 | --- | --- | --- |
 | `pending` | configured, no check yet | wait for the next tick, or run the dry check |
-| `ok` | every metric under 60 % | nothing |
-| `warn` | a metric at 60 % or more (Vectorize stored dimensions only ever warns) | look at the metric |
-| `tripped` | the breaker is open (`breaker.reason`, `breaker.metrics`), or a dry run's spike trips | under `enforce`: digest, embeddings and semantic queries refuse; publication pauses only if `breaker.metrics` has `r2ClassA` |
+| `ok` | the budget is under 60 % spent and projected | nothing |
+| `warn` | the budget is at 60 % ($3) or more, spent or projected | look at which metric's `overageUsd` grows |
+| `tripped` | the breaker is open (`breaker.reason`, `breaker.metrics`), or the budget or the spike trips | under `enforce`: digest, embeddings and semantic queries refuse; publication pauses only if `breaker.metrics` has `r2ClassA` |
 | `unconfigured` | `reason` names the missing token, account id or binding | fix the configuration |
 
 `scope: "account"` metrics (R2) cover both environments; `scope: "worker"`
@@ -543,7 +556,7 @@ curl -sS -X POST -H "authorization: Bearer $MANUAL_TRIGGER_TOKEN" "$DEV/cost-gua
 Before resetting, find and fix the cause (for R2 Class A: compare
 `lastRun.r2.classA` with `copiedObjectCount + 3 + putRetries +
 conditionalMisses`, section above). If the
-metric is still over its threshold, the next check opens the breaker again;
+budget is still over its threshold, the next check opens the breaker again;
 to keep working until the month renews, set `COST_GUARD=monitor` instead.
 
 ### Turn off

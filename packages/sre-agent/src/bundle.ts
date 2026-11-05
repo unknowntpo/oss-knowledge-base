@@ -47,7 +47,7 @@ export const JOB_HEALTH_FIELDS: Readonly<Record<SreJob, Fields>> = {
   "kip-pages": [["kipPages", [["lastRun", ["ok", "status", "at", "durationMs", "requests", "jiraRequests", "r2", "error"]], "lastGoodAt"]]],
   "identity-backfill": [["identityBackfill", [["lastRun", ["ok", "status", "at", "durationMs", "month", "requests", "retryAfter", "r2", "error"]], "months"]]],
   retention: [["retention", ["mode", "status", "reason", ["lastRun", ["runId", "deleted", "remaining", "elapsedMs", "r2", "failureKind"]]]]],
-  // costGuard is in every bundle already; `budget` arrives with Spec 026 CG27.
+  // costGuard, with its `budget` (Spec 026 CG27), is in every bundle already.
   [COST_GUARD_JOB]: ["budget"],
 };
 

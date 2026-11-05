@@ -1,8 +1,6 @@
 /**
  * Spec 026 amendment 2026-10-21 (dollar budget), CG22 and CG34: the budget's status from the
- * summed overage, with the R2 Class A spike rule (CG23, implemented in
- * test/cost-guard-spike.cases.ts) as an input. Planned slice: no test runs these rows yet (the
- * spec's marker is `[pending]`); the implementing slice adds `test.each(testPlanRows)`.
+ * summed overage, with the R2 Class A spike rule (CG23, test/cost-guard-spike.cases.ts) as an input.
  *
  * Budget $5 a month. `percent` = overageUsd / 5 × 100, `projectedPercent` likewise, floored to
  * 0.01 for display; comparisons use exact values. Trips: `budget` when percent ≥ 80 or
