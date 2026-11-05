@@ -5,9 +5,9 @@
  */
 import { errorText, sanitizeErrorMessage } from "@oss-knowledge-base/semantic-vectorize";
 
-import { evaluateMetric, evaluateSpike, nextBreaker, worstStatus, type Breaker, type CostMetricKey, type MetricEvaluation, type SpikeEvaluation } from "./evaluate";
+import { evaluateBudget, evaluateMetric, evaluateSpike, exactOverage, nextBreaker, type Breaker, type BudgetEvaluation, type CostMetricKey, type MetricEvaluation, type RecentCount, type SpikeEvaluation } from "./evaluate";
 import { fetchR2Usage, type GraphqlFetch } from "./graphql";
-import { COST_GUARD_BUCKETS } from "./profile";
+import { COST_GUARD_BUCKETS, COST_METRIC_KEYS } from "./profile";
 import { costGuardSignalRun, runIdFor } from "../signals/point";
 import { runLog, type JobSignals, type RunContext } from "../signals/recorder";
 import type { TrendResult } from "../signals/rules";
@@ -23,8 +23,8 @@ export function resolveCostGuardMode(flag: string | undefined): CostGuardMode {
 }
 
 /**
- * Behavior 9, 9a: what a guarded feature does. Only `enforce` refuses; only an R2 Class A trip (the
- * monthly level, or the own-bucket spike of CG23) pauses publication.
+ * Behavior 9a: what a guarded feature does. Only `enforce` refuses; only `r2ClassA` (the own-bucket
+ * spike of CG23) pauses publication; a budget trip leaves it running.
  */
 export function costGuardDecision(mode: CostGuardMode, breaker: Breaker): { readonly refuse: boolean; readonly pausePublication: boolean } {
   if (mode !== "enforce" || !breaker.tripped) return { refuse: false, pausePublication: false };
@@ -67,6 +67,8 @@ export interface CostGuardError { readonly message: string; readonly at: string 
 
 interface StoredState {
   readonly checkedAt: string | null;
+  /** Behavior 6a of the last real check; null before one, and in a state stored before the budget slice (CG40). */
+  readonly budget: BudgetEvaluation | null;
   readonly metrics: Partial<Record<CostMetricKey, MetricEvaluation>>;
   /** The last real check's own-bucket spike (CG23); null before one. */
   readonly r2ClassASpike: SpikeEvaluation | null;
@@ -83,6 +85,7 @@ export interface CostGuardHealth {
   readonly status: CostGuardStatus;
   readonly reason: string | null;
   readonly checkedAt: string | null;
+  readonly budget: BudgetEvaluation | null;
   readonly metrics: Partial<Record<CostMetricKey, MetricEvaluation>>;
   /** Behavior 13a `r2ClassASpike {last24h, threshold, bucket, status}`; null before the first check. */
   readonly r2ClassASpike: SpikeEvaluation | null;
@@ -94,12 +97,12 @@ export interface CostGuardHealth {
   readonly trends?: TrendResult;
 }
 
-/** Behavior 13: the worst metric status, or `tripped` when the own-bucket spike trips (CG23). */
-const checkStatus = (metrics: Partial<Record<CostMetricKey, MetricEvaluation>>, spike: SpikeEvaluation | null) =>
-  spike?.status === "tripped" ? "tripped" : worstStatus(metrics);
+/** Behavior 13a: the budget's status, or `tripped` when the own-bucket spike trips (CG23). */
+const checkStatus = (budget: BudgetEvaluation, spike: SpikeEvaluation | null) =>
+  spike?.status === "tripped" ? "tripped" : budget.status;
 
 const STATE = "state";
-const EMPTY: StoredState = { checkedAt: null, metrics: {}, r2ClassASpike: null, breaker: { tripped: false }, lastResetAt: null, lastError: null };
+const EMPTY: StoredState = { checkedAt: null, budget: null, metrics: {}, r2ClassASpike: null, breaker: { tripped: false }, lastResetAt: null, lastError: null };
 
 /** `/health` `costGuard` where the object is not bound: the same keys, unconfigured (Behavior 13). */
 export function unboundCostGuardHealth(flag: string | undefined, reason: string): CostGuardHealth {
@@ -139,26 +142,31 @@ export class CostGuardRunner {
       });
     const neurons = await this.deps.inApp.neuronsToday().catch(() => null);
     const vectorize = await this.deps.inApp.vectorize(month).catch(() => null);
-    const metrics: Record<CostMetricKey, MetricEvaluation> = {
-      // CG35: R2 counters project by the account's 7 complete days; queried dimensions have no per-day read yet (rateDays 0).
-      r2ClassA: evaluateMetric("r2ClassA", r2?.classA ?? null, now, r2 === null ? null : { count: r2.recent.classA, days: r2.recent.days }),
-      r2ClassB: evaluateMetric("r2ClassB", r2?.classB ?? null, now, r2 === null ? null : { count: r2.recent.classB, days: r2.recent.days }),
-      r2StorageBytes: evaluateMetric("r2StorageBytes", r2?.storageBytes ?? null, now),
-      vectorizeStoredDimensions: evaluateMetric("vectorizeStoredDimensions", vectorize?.storedDimensions ?? null, now),
-      vectorizeQueriedDimensions: evaluateMetric("vectorizeQueriedDimensions", vectorize?.queriedDimensions ?? null, now),
-      workersAiNeurons: evaluateMetric("workersAiNeurons", neurons, now),
+    // CG35: R2 counters project by the account's 7 complete days; queried dimensions have no per-day read yet (rateDays 0, G101).
+    const read: Record<CostMetricKey, { readonly value: number | null; readonly recent: RecentCount | null }> = {
+      r2ClassA: { value: r2?.classA ?? null, recent: r2 === null ? null : { count: r2.recent.classA, days: r2.recent.days } },
+      r2ClassB: { value: r2?.classB ?? null, recent: r2 === null ? null : { count: r2.recent.classB, days: r2.recent.days } },
+      r2StorageBytes: { value: r2?.storageBytes ?? null, recent: null },
+      vectorizeStoredDimensions: { value: vectorize?.storedDimensions ?? null, recent: null },
+      vectorizeQueriedDimensions: { value: vectorize?.queriedDimensions ?? null, recent: null },
+      workersAiNeurons: { value: neurons, recent: null },
     };
+    const perMetric = <T>(each: (key: CostMetricKey) => T) => Object.fromEntries(COST_METRIC_KEYS.map((key) => [key, each(key)])) as Record<CostMetricKey, T>;
+    const metrics = perMetric((key) => evaluateMetric(key, read[key].value, now, read[key].recent));
+    const budget = evaluateBudget(perMetric((key) => exactOverage(key, read[key].value, read[key].recent, now)));
     // CG23: the guard's own bucket over the last 24 hours; unavailable with the rest of R2.
     const r2ClassASpike = evaluateSpike(r2?.spike.classA ?? null, bucket);
+    const overageUsd = Object.fromEntries(COST_METRIC_KEYS.flatMap((key) => (metrics[key].overageUsd === null ? [] : [[key, metrics[key].overageUsd]]))) as Partial<Record<CostMetricKey, number>>;
     const previous = await this.state();
-    const breaker = nextBreaker(previous.breaker, metrics, now, r2ClassASpike);
-    const status = breaker.tripped ? "tripped" : checkStatus(metrics, r2ClassASpike);
+    const breaker = nextBreaker(previous.breaker, { budget, spike: r2ClassASpike, overageUsd }, now);
+    const status = breaker.tripped ? "tripped" : checkStatus(budget, r2ClassASpike);
     const result = {
       ok: lastError === null,
       dryRun: options.dryRun,
       mode: this.mode,
-      status: options.dryRun ? checkStatus(metrics, r2ClassASpike) : status,
+      status: options.dryRun ? checkStatus(budget, r2ClassASpike) : status,
       checkedAt: now.toISOString(),
+      budget,
       metrics,
       r2ClassASpike,
       ...(r2 !== null && r2.unclassifiedActions.length > 0 ? { unclassifiedActions: r2.unclassifiedActions } : {}),
@@ -169,11 +177,11 @@ export class CostGuardRunner {
     if (!options.dryRun) {
       const signals = context === undefined ? {} : {
         runId: context.runId,
-        trends: await this.deps.signals!.finish(costGuardSignalRun({ ok: result.ok, status, breaker, ...(r2ClassASpike.last24h === null ? {} : { r2ClassASpike: { last24h: r2ClassASpike.last24h } }) }, { runId: context.runId, startedAtMs: now.getTime(), finishedAtMs: this.deps.now().getTime() })),
+        trends: await this.deps.signals!.finish(costGuardSignalRun({ ok: result.ok, status, breaker, budget, ...(r2ClassASpike.last24h === null ? {} : { r2ClassASpike: { last24h: r2ClassASpike.last24h } }) }, { runId: context.runId, startedAtMs: now.getTime(), finishedAtMs: this.deps.now().getTime() })),
       };
       // A check made with signals off drops an earlier run's id and result rather than serve them stale.
       const { runId: _runId, trends: _trends, ...kept } = previous;
-      await this.deps.storage.put(STATE, { ...kept, checkedAt: now.toISOString(), metrics, r2ClassASpike, breaker, lastError, ...signals } satisfies StoredState);
+      await this.deps.storage.put(STATE, { ...kept, checkedAt: now.toISOString(), budget, metrics, r2ClassASpike, breaker, lastError, ...signals } satisfies StoredState);
     }
     return result;
   }
@@ -193,16 +201,16 @@ export class CostGuardRunner {
     return costGuardDecision(this.mode, await this.breaker());
   }
 
-  /** Behavior 13. */
+  /** Behavior 13a. A state stored before the budget slice has no `budget`: it reads as no check yet, and its old metrics are not served (CG40). */
   async health(): Promise<CostGuardHealth> {
     const state = await this.state();
     const reason = this.missing() ?? null;
     const status: CostGuardStatus = state.breaker.tripped ? "tripped"
       : reason !== null ? "unconfigured"
-      : state.checkedAt === null ? "pending"
-      : checkStatus(state.metrics, state.r2ClassASpike);
+      : state.budget === null ? "pending"
+      : checkStatus(state.budget, state.r2ClassASpike);
     return {
-      mode: this.mode, status, reason, checkedAt: state.checkedAt, metrics: state.metrics, r2ClassASpike: state.r2ClassASpike, breaker: state.breaker, lastResetAt: state.lastResetAt, lastError: state.lastError,
+      mode: this.mode, status, reason, checkedAt: state.checkedAt, budget: state.budget, metrics: state.budget === null ? {} : state.metrics, r2ClassASpike: state.r2ClassASpike, breaker: state.breaker, lastResetAt: state.lastResetAt, lastError: state.lastError,
       ...(state.runId === undefined ? {} : { runId: state.runId }),
       ...(state.trends === undefined ? {} : { trends: state.trends }),
     };

@@ -8,10 +8,11 @@ import { KAFKA_DIGEST_PROFILE } from "@oss-knowledge-base/reference-pipeline";
 
 import r2Usage from "./fixtures/cost-guard/graphql-r2-usage.json";
 import { testPlanRows } from "./cost-guard.cases";
+import { testPlanRows as budgetRows } from "./cost-guard-budget.cases";
 import { testPlanRows as dollarRows } from "./cost-guard-dollars.cases";
 import { testPlanRows as spikeRows } from "./cost-guard-spike.cases";
 import worker, { costGuardDecisionFor, SearchQueryGate } from "../src/index";
-import { evaluateMetric, evaluateSpike, metricOverage, nextBreaker, type Breaker, type CostMetricKey, type MetricEvaluation } from "../src/cost-guard/evaluate";
+import { evaluateBudget, evaluateMetric, evaluateSpike, metricOverage, nextBreaker, type Breaker, type BudgetEvaluation, type CostMetricKey, type MetricEvaluation } from "../src/cost-guard/evaluate";
 import { COST_GUARD_BUCKETS, COST_GUARD_OBJECT_NAME, COST_GUARD_SPIKE_CLASS_A, COST_METRICS } from "../src/cost-guard/profile";
 import { GRAPHQL_ENDPOINT, parseR2Usage, r2UsageRequest } from "../src/cost-guard/graphql";
 import { CostGuardRunner, costGuardDecision, resolveCostGuardMode, type CostGuardRunnerDeps } from "../src/cost-guard/guard";
@@ -75,11 +76,24 @@ function accountAnswer(lastDay: Record<string, number>) {
   return { buckets, fetch };
 }
 
-/** Every metric at `value`% of its allowance (or unavailable when null). */
-function metricsAt(percents: Partial<Record<CostMetricKey, number | null>>): Partial<Record<CostMetricKey, MetricEvaluation>> {
-  return Object.fromEntries(Object.entries(percents).map(([key, percent]) => [key,
-    evaluateMetric(key as CostMetricKey, percent === null ? null : (COST_METRICS[key as CostMetricKey].allowance * percent!) / 100, new Date("2026-10-31T22:07:00Z"))]));
+/** One GraphQL answer with the given account numbers (CG24, CG26, CG29). */
+function usage(input: { readonly classA?: number; readonly classB?: number; readonly recentA?: number; readonly recentB?: number; readonly spike?: number; readonly storageBytes?: number }) {
+  const row = (requests: number, actionType: string) => ({ sum: { requests }, dimensions: { actionType } });
+  return Response.json({ data: { viewer: { accounts: [{
+    operations: [row(input.classA ?? 0, "PutObject"), row(input.classB ?? 0, "GetObject")],
+    recent: [row(input.recentA ?? 0, "PutObject"), row(input.recentB ?? 0, "GetObject")],
+    spike: [row(input.spike ?? 976, "PutObject")],
+    storage: input.storageBytes === undefined ? [] : [{ max: { payloadSize: input.storageBytes, metadataSize: 0 }, dimensions: { bucketName: DEV_BUCKET, datetime: "2026-10-21T01:00:00Z" } }],
+  }] } } });
 }
+
+/** A budget of `spent` dollars now and `projected` at the month's end, on one metric. */
+const budgetAt = (spent: number, projected: number = spent): BudgetEvaluation => evaluateBudget({ r2ClassA: { now: spent, projected } });
+const OVERAGE = { r2ClassA: 4.5 };
+/** $4.50 of Class A this month: over the $4 trip. */
+const OVER_BUDGET = () => usage({ classA: 2_000_000 });
+const CALM = () => usage({ classA: 10 });
+const NO_IN_APP = { neuronsToday: async () => 10, vectorize: async () => null };
 
 describe("Spec 026 cost guard", () => {
   const realFetch = globalThis.fetch;
@@ -89,11 +103,19 @@ describe("Spec 026 cost guard", () => {
 
   test.each([...testPlanRows])("$id: $case", (row) => {
     const evaluation = evaluateMetric(row.metric, row.value, new Date(row.now), row.days === null ? null : { count: row.recent!, days: row.days });
-    expect({ percent: evaluation.percent, projectedPercent: evaluation.projectedPercent, status: evaluation.status })
-      .toEqual({ percent: row.percent, projectedPercent: row.projectedPercent, status: row.status });
-    expect(evaluation.allowance).toBe(COST_METRICS[row.metric].allowance);
-    // A month counter reports the days its rate used; gauges, neurons and unread values report null.
-    expect(evaluation.rateDays).toBe(row.days);
+    expect({ status: evaluation.status, rateDays: evaluation.rateDays, included: evaluation.included })
+      .toEqual({ status: row.status, rateDays: row.rateDays, included: COST_METRICS[row.metric].included });
+    expect(evaluation).not.toHaveProperty("percent");
+    expect(evaluation).not.toHaveProperty("projectedPercent");
+  });
+
+  test.each([...budgetRows])("$id: $case (budget)", (row) => {
+    const budget = budgetAt(row.overageUsd, row.projectedOverageUsd);
+    expect({ overageUsd: budget.overageUsd, projectedOverageUsd: budget.projectedOverageUsd, percent: budget.percent, projectedPercent: budget.projectedPercent, status: budget.status })
+      .toEqual({ overageUsd: row.overageUsd, projectedOverageUsd: row.projectedOverageUsd, percent: row.percent, projectedPercent: row.projectedPercent, status: row.status });
+    expect(budget.limitUsd).toBe(5);
+    const breaker = nextBreaker({ tripped: false }, { budget, spike: evaluateSpike(row.classA24h, DEV_BUCKET), overageUsd: OVERAGE }, TICK);
+    expect(breaker.tripped ? breaker.metrics.join(", ") : null).toBe(row.trips);
   });
 
   test.each([...dollarRows])("$id: $case (dollars)", (row) => {
@@ -109,8 +131,8 @@ describe("Spec 026 cost guard", () => {
   test.each([...spikeRows])("$id: $case (spike)", (row) => {
     const spike = evaluateSpike(row.classA24h, DEV_BUCKET);
     expect(spike).toEqual({ last24h: row.classA24h, threshold: 50_000, bucket: DEV_BUCKET, status: row.status });
-    // Whatever the dollars: every other metric, R2 Class A month to date included, is far under its threshold.
-    const breaker = nextBreaker({ tripped: false }, metricsAt({ r2ClassA: 0, r2ClassB: 1, workersAiNeurons: 1 }), TICK, spike);
+    // Whatever the dollars: nothing is spent.
+    const breaker = nextBreaker({ tripped: false }, { budget: budgetAt(0), spike, overageUsd: {} }, TICK);
     expect(breaker.tripped ? breaker.metrics.join(", ") : null).toBe(row.trips);
     if (breaker.tripped) {
       expect(breaker).toEqual({
@@ -120,18 +142,21 @@ describe("Spec 026 cost guard", () => {
     }
   });
 
-  test("CG23: the spike opens a closed breaker ahead of another trip, is added to an open one, and the threshold is 50,000", () => {
+  test("CG23: the spike opens a closed breaker ahead of a budget trip, is added to an open one, and the threshold is 50,000", () => {
     expect(COST_GUARD_SPIKE_CLASS_A).toBe(50_000);
     const spike = evaluateSpike(195_600, PROD_BUCKET);
-    // With neurons also tripped, the breaker names the spike (the trip that pauses the publication) and lists both.
-    const both = nextBreaker({ tripped: false }, metricsAt({ r2ClassA: 1, workersAiNeurons: 95 }), TICK, spike);
-    expect(both).toMatchObject({ tripped: true, metric: "r2ClassA", value: 195_600, threshold: 50_000, bucket: PROD_BUCKET, metrics: ["r2ClassA", "workersAiNeurons"] });
+    const calm = evaluateSpike(976, PROD_BUCKET);
+    // With the budget also tripped, the breaker names the spike (the trip that pauses the publication) and lists both.
+    const both = nextBreaker({ tripped: false }, { budget: budgetAt(4.5), spike, overageUsd: OVERAGE }, TICK);
+    expect(both).toMatchObject({ tripped: true, metric: "r2ClassA", value: 195_600, threshold: 50_000, bucket: PROD_BUCKET, metrics: ["budget", "r2ClassA"], overageUsd: OVERAGE });
+    // A spike alone records no dollars.
+    expect(nextBreaker({ tripped: false }, { budget: budgetAt(0), spike, overageUsd: {} }, TICK)).not.toHaveProperty("overageUsd");
     // An open breaker gains r2ClassA from a later spike and keeps the rest.
-    const neurons = nextBreaker({ tripped: false }, metricsAt({ workersAiNeurons: 95 }), TICK, evaluateSpike(976, PROD_BUCKET));
-    expect(neurons).toMatchObject({ tripped: true, metric: "workersAiNeurons", metrics: ["workersAiNeurons"] });
-    expect(nextBreaker(neurons, metricsAt({ workersAiNeurons: 1 }), TICK, spike)).toEqual({ ...neurons, metrics: ["r2ClassA", "workersAiNeurons"] } as Breaker);
-    // Positive control: without the spike argument the same calm metrics leave it closed.
-    expect(nextBreaker({ tripped: false }, metricsAt({ r2ClassA: 1 }), TICK)).toEqual({ tripped: false });
+    const budget = nextBreaker({ tripped: false }, { budget: budgetAt(4.5), spike: calm, overageUsd: OVERAGE }, TICK);
+    expect(budget).toMatchObject({ tripped: true, metric: "budget", metrics: ["budget"] });
+    expect(nextBreaker(budget, { budget: budgetAt(1), spike, overageUsd: {} }, TICK)).toEqual({ ...budget, metrics: ["budget", "r2ClassA"] } as Breaker);
+    // Positive control: a calm budget and spike leave it closed.
+    expect(nextBreaker({ tripped: false }, { budget: budgetAt(1), spike: calm, overageUsd: {} }, TICK)).toEqual({ tripped: false });
   });
 
   test("CG38: Prod runs the guard in monitor with its own object at migration v5, the same account as Dev, and no token in the file", async () => {
@@ -259,11 +284,11 @@ describe("Spec 026 cost guard", () => {
     const { runner, network } = guard();
     const result = await runner.check({ dryRun: true }) as { metrics: Record<CostMetricKey, MetricEvaluation> };
     expect(network.calls).toHaveLength(1);
-    expect(result.metrics.r2ClassA).toMatchObject({ value: 15_007, percent: 1.5, projectedPercent: 1.94, rateDays: 7, overageUsd: 0, projectedOverageUsd: 0 });
-    expect(result.metrics.r2ClassB).toMatchObject({ value: 170_000, rateDays: 7, projectedPercent: 2.8 });
+    expect(result.metrics.r2ClassA).toMatchObject({ value: 15_007, rateDays: 7, overageUsd: 0, projectedOverageUsd: 0 });
+    expect(result.metrics.r2ClassB).toMatchObject({ value: 170_000, rateDays: 7 });
     // Queried dimensions have no per-day history in this slice: they project as month to date.
-    expect(result.metrics.vectorizeQueriedDimensions).toMatchObject({ percent: 20.48, projectedPercent: 20.48, rateDays: 0 });
-    expect(result.metrics.r2StorageBytes).toMatchObject({ projectedPercent: null, rateDays: null });
+    expect(result.metrics.vectorizeQueriedDimensions).toMatchObject({ rateDays: 0, overageUsd: 0, projectedOverageUsd: 0 });
+    expect(result.metrics.r2StorageBytes).toMatchObject({ rateDays: null });
   });
 
   test("CG1: COST_GUARD unset, blank or off is off; monitor and enforce are modes; anything else is invalid", () => {
@@ -344,48 +369,155 @@ describe("Spec 026 cost guard", () => {
     expect(body.query).not.toContain(TOKEN);
   });
 
-  test("CG5: a tripped metric opens a closed breaker; later trips are added; a calm check leaves it open", () => {
+  test("CG5: a budget trip opens a closed breaker; a later spike is added; a calm check leaves it open", () => {
     const closed: Breaker = { tripped: false };
     const at = new Date("2026-10-20T22:07:00.000Z");
-    expect(nextBreaker(closed, metricsAt({ r2ClassA: 10, workersAiNeurons: 70 }), at)).toEqual(closed);
-    const open = nextBreaker(closed, metricsAt({ r2ClassA: 85, vectorizeQueriedDimensions: 90, workersAiNeurons: 70 }), at);
+    const calm = evaluateSpike(976, DEV_BUCKET);
+    expect(nextBreaker(closed, { budget: budgetAt(3.9999, 5), spike: calm, overageUsd: {} }, at)).toEqual(closed);
+    const open = nextBreaker(closed, { budget: budgetAt(4.8408, 5.077), spike: calm, overageUsd: { r2ClassA: 4.7822, r2StorageBytes: 0.0585 } }, at);
     expect(open).toEqual({
       tripped: true,
-      reason: "vectorizeQueriedDimensions at 90% of 50000000 (trips at 80%)",
-      metric: "vectorizeQueriedDimensions",
-      value: 45_000_000,
-      threshold: 40_000_000,
+      reason: "budget: $4.8408 spent this UTC month (trips at $4)",
+      metric: "budget",
+      value: 4.8408,
+      threshold: 4,
+      overageUsd: { r2ClassA: 4.7822, r2StorageBytes: 0.0585 },
       trippedAt: "2026-10-20T22:07:00.000Z",
-      metrics: ["r2ClassA", "vectorizeQueriedDimensions"],
+      metrics: ["budget"],
     });
-    const later = nextBreaker(open, metricsAt({ workersAiNeurons: 95, r2ClassA: 81 }), new Date("2026-10-21T22:07:00.000Z"));
-    expect(later).toEqual({ ...open, metrics: ["r2ClassA", "vectorizeQueriedDimensions", "workersAiNeurons"] } as Breaker);
-    expect(nextBreaker(later, metricsAt({ r2ClassA: 1 }), new Date("2026-11-01T22:07:00.000Z"))).toEqual(later);
-    // A projection trip names the allowance as its threshold.
-    const projected = nextBreaker(closed, { r2ClassA: evaluateMetric("r2ClassA", 300_000, new Date("2026-10-08T00:00:00Z"), { count: 210_000, days: 7 }) }, at);
-    expect(projected).toMatchObject({ tripped: true, metric: "r2ClassA", value: 300_000, threshold: 1_000_000, reason: "r2ClassA projected at 102% of 1000000 by the end of its period" });
-    // Stored dimensions never trip, and unavailable values never trip.
-    expect(nextBreaker(closed, metricsAt({ vectorizeStoredDimensions: 150, r2ClassB: null }), at)).toEqual(closed);
+    const later = nextBreaker(open, { budget: budgetAt(1), spike: evaluateSpike(60_000, DEV_BUCKET), overageUsd: {} }, new Date("2026-10-21T22:07:00.000Z"));
+    expect(later).toEqual({ ...open, metrics: ["budget", "r2ClassA"] } as Breaker);
+    expect(nextBreaker(later, { budget: budgetAt(0), spike: calm, overageUsd: {} }, new Date("2026-11-01T22:07:00.000Z"))).toEqual(later);
+    // A projection trip names $5 as its threshold.
+    expect(nextBreaker(closed, { budget: budgetAt(1, 5.0001), spike: calm, overageUsd: {} }, at)).toMatchObject({ tripped: true, metric: "budget", value: 5.0001, threshold: 5, reason: "budget: $5.0001 projected by the end of the UTC month (trips over $5)" });
+    // Missing data trips nothing.
+    expect(nextBreaker(closed, { budget: evaluateBudget({}), spike: evaluateSpike(null, DEV_BUCKET), overageUsd: {} }, at)).toEqual(closed);
   });
 
-  test("CG5, CG17: a real check over a threshold opens the breaker and survives a new month; a reset closes it; the next check reopens it", async () => {
-    const { runner, storage, clock } = guard({ inApp: { neuronsToday: async () => 9_000, vectorize: async () => null } });
-    const first = await runner.check({ dryRun: false }) as { breaker: Breaker; status: string };
-    expect(first.status).toBe("tripped");
-    expect(first.breaker).toMatchObject({ tripped: true, metric: "workersAiNeurons", value: 9_000, threshold: 8_000, trippedAt: TICK.toISOString() });
-    expect(storage.writes).toBe(1);
-    clock.now = new Date("2026-11-01T22:07:00.000Z");
-    const calm = guard({ inApp: { neuronsToday: async () => 10, vectorize: async () => null } });
-    calm.storage.values.set("state", storage.values.get("state"));
-    calm.clock.now = clock.now;
-    expect((await calm.runner.check({ dryRun: false }) as { breaker: Breaker }).breaker).toMatchObject({ tripped: true, metric: "workersAiNeurons" });
+  test("CG24: a dry run of the Example reports the dollars, each metric ok, the spike ok and the breaker untouched; storage or stored dimensions alone never trip", async () => {
+    const at = new Date("2026-10-21T02:04:00Z");
+    const inApp = { neuronsToday: async () => 3, vectorize: async () => ({ storedDimensions: 10_177_536, queriedDimensions: 10_433_536 }) };
+    const example = { classB: 269_830, recentA: 33_676, recentB: 218_882, spike: 976, storageBytes: 13_900_000_000 };
+    type Check = { status: string; wouldTrip: boolean; budget: BudgetEvaluation; metrics: Record<CostMetricKey, MetricEvaluation>; r2ClassASpike: { status: string }; breaker: Breaker };
+    const dry = async (classA: number, others: Partial<typeof example> = example, app: typeof inApp = inApp) => {
+      const { runner, storage } = guard({ now: () => at, inApp: app }, () => usage({ ...others, classA }));
+      const result = await runner.check({ dryRun: true }) as Check;
+      expect(storage.writes).toBe(0);
+      return result;
+    };
+    const october = await dry(2_062_716);
+    expect(october.budget).toEqual({ limitUsd: 5, overageUsd: 4.8408, projectedOverageUsd: 5.077, percent: 96.81, projectedPercent: 101.54, status: "tripped", missing: [] });
+    expect(october).toMatchObject({ status: "tripped", wouldTrip: true, r2ClassASpike: { status: "ok" }, breaker: { tripped: false } });
+    expect(Object.values(october.metrics).map((metric) => metric.status)).toEqual(Array(6).fill("ok"));
+    const burst = await dry(1_230_000);
+    expect(burst.budget).toMatchObject({ projectedOverageUsd: 1.3298, status: "ok" });
+    expect(burst).toMatchObject({ status: "ok", wouldTrip: false });
+    // Storage alone at 13.9 GB, or stored dimensions alone at 102 %, trips nothing.
+    const quiet = { neuronsToday: async () => 0, vectorize: async () => ({ storedDimensions: 0, queriedDimensions: 0 }) };
+    expect((await dry(0, { storageBytes: 13_900_000_000 }, quiet)).budget).toMatchObject({ overageUsd: 0.0585, status: "ok" });
+    const stored = { neuronsToday: async () => 0, vectorize: async () => ({ storedDimensions: 10_200_000, queriedDimensions: 0 }) };
+    expect((await dry(0, {}, stored)).budget).toMatchObject({ overageUsd: 0.0001, status: "ok" });
+  });
 
+  test("CG26: a budget trip refuses optional spend and leaves the publication running; a spike also pauses it; the breaker records dollars", async () => {
+    const { CostGuard, PipelineState } = await import("../src/index");
+    const run = async (account: () => Response) => {
+      globalThis.fetch = (async () => account()) as unknown as typeof fetch;
+      const guardObject = new CostGuard({ storage: new MapStorage() } as never, { PUBLICATION_ENVIRONMENT: "development", COST_GUARD: "enforce", CF_ANALYTICS_TOKEN: TOKEN, CF_ACCOUNT_ID: ACCOUNT } as never);
+      const checked = await (await guardObject.fetch(new Request("https://cost-guard.internal/check", { method: "POST" }))).json() as { breaker: Breaker };
+      const stub = { fetch: (input: string | Request, init?: RequestInit) => guardObject.fetch(new Request(input, init)) };
+      const env = { PUBLICATION_ENVIRONMENT: "development", COST_GUARD: "enforce", COST_GUARD_STATE: { idFromName: (n: string) => n, get: () => stub } };
+      const values = new Map<string, unknown>();
+      let alarm: number | null = null;
+      const storage = {
+        get: async (key: string) => values.get(key), put: async (key: string, value: unknown) => { values.set(key, value); },
+        delete: async (key: string) => values.delete(key), getAlarm: async () => alarm, setAlarm: async (time: number) => { alarm = time; },
+      };
+      const state = new PipelineState({ storage } as never, env as never);
+      const response = await state.fetch(new Request("https://pipeline.internal/run", { method: "POST" }));
+      // The alarm consumes `requested-at` as soon as it starts a publication; a paused alarm returns first.
+      values.set("requested-at", TICK.toISOString());
+      await state.alarm().catch(() => undefined);
+      return { breaker: checked.breaker, decision: await costGuardDecisionFor(env as never), status: response.status, alarmRan: !values.has("requested-at") };
+    };
+    const budget = await run(OVER_BUDGET);
+    expect(budget.breaker).toMatchObject({ tripped: true, metric: "budget", value: 4.5, threshold: 4, metrics: ["budget"], overageUsd: { r2ClassA: 4.5 } });
+    expect(budget.decision).toEqual({ refuse: true, pausePublication: false });
+    expect(budget).toMatchObject({ status: 202, alarmRan: true });
+    const spike = await run(() => usage({ classA: 60_000, spike: 60_000 }));
+    expect(spike.breaker).toMatchObject({ tripped: true, metric: "r2ClassA", value: 60_000, threshold: 50_000, bucket: DEV_BUCKET, metrics: ["r2ClassA"] });
+    expect(spike.decision).toEqual({ refuse: true, pausePublication: true });
+    expect(spike).toMatchObject({ status: 503, alarmRan: false });
+    const projected = await run(() => usage({ classA: 1_000_000, recentA: 7_000_000 }));
+    expect(projected.breaker).toMatchObject({ tripped: true, metric: "budget", threshold: 5 });
+  });
+
+  test("CG28: a GraphQL failure leaves R2 and the spike unavailable; the budget sums the in-app metrics, lists the R2 keys in missing and trips nothing", async () => {
+    const { runner } = guard({ inApp: { neuronsToday: async () => 20_000, vectorize: async () => ({ storedDimensions: 10_000_000, queriedDimensions: 150_000_000 }) } }, () => new Response("upstream error", { status: 500 }));
+    const result = await runner.check({ dryRun: false }) as { ok: boolean; budget: BudgetEvaluation; r2ClassASpike: { status: string }; breaker: Breaker };
+    expect(result.ok).toBe(false);
+    expect(result.r2ClassASpike.status).toBe("unavailable");
+    expect(result.budget.missing).toEqual(["r2ClassA", "r2ClassB", "r2StorageBytes"]);
+    // $1 of queried dimensions and $0.11 of neurons; the in-app numbers still count.
+    expect(result.budget.overageUsd).toBe(1.11);
+    expect(result.breaker).toEqual({ tripped: false });
+    // Positive control: the same in-app numbers with $4.50 of readable Class A trip.
+    const { runner: readable } = guard({ inApp: { neuronsToday: async () => 0, vectorize: async () => null } }, OVER_BUDGET);
+    expect(((await readable.check({ dryRun: false })) as { breaker: Breaker }).breaker).toMatchObject({ tripped: true });
+  });
+
+  test("CG17: a budget still over $4 after a reset reopens on the next check; CG29: the same, and a new month restarts the dollars and the breaker stays open until reset", async () => {
+    let account = OVER_BUDGET;
+    const { runner, clock } = guard({ inApp: NO_IN_APP }, () => account());
+    expect((await runner.check({ dryRun: false }) as { breaker: Breaker }).breaker).toMatchObject({ tripped: true, metric: "budget", trippedAt: TICK.toISOString() });
     clock.now = new Date("2026-10-21T01:00:00.000Z");
     expect(await runner.reset()).toEqual({ ok: true, breaker: { tripped: false }, lastResetAt: "2026-10-21T01:00:00.000Z" });
-    expect((await runner.health()).breaker).toEqual({ tripped: false });
-    expect((await runner.health()).lastResetAt).toBe("2026-10-21T01:00:00.000Z");
+    expect(await runner.health()).toMatchObject({ breaker: { tripped: false }, lastResetAt: "2026-10-21T01:00:00.000Z" });
     clock.now = new Date("2026-10-21T22:07:00.000Z");
-    expect((await runner.check({ dryRun: false }) as { breaker: Breaker }).breaker).toMatchObject({ tripped: true, trippedAt: "2026-10-21T22:07:00.000Z" });
+    const reopened = await runner.check({ dryRun: false }) as { breaker: Breaker };
+    expect(reopened.breaker).toMatchObject({ tripped: true, trippedAt: "2026-10-21T22:07:00.000Z" });
+    // November 1: the account's month to date restarts, so the budget is $0, and the breaker stays open.
+    account = CALM;
+    clock.now = new Date("2026-11-01T22:07:00.000Z");
+    const november = await runner.check({ dryRun: false }) as { budget: BudgetEvaluation; breaker: Breaker };
+    expect(november.budget).toMatchObject({ overageUsd: 0, status: "ok" });
+    expect(november.breaker).toMatchObject({ tripped: true, trippedAt: "2026-10-21T22:07:00.000Z" });
+    expect((await runner.health()).status).toBe("tripped");
+    // After a reset a stored spike or budget trip still reads `tripped`, until a check finds it calm.
+    const spiked = guard({ inApp: NO_IN_APP }, () => usage({ spike: 60_000 }));
+    expect(await spiked.runner.check({ dryRun: true })).toMatchObject({ status: "tripped", budget: { status: "ok" }, wouldTrip: true });
+    await spiked.runner.check({ dryRun: false });
+    await spiked.runner.reset();
+    expect(await spiked.runner.health()).toMatchObject({ status: "tripped", budget: { status: "ok" }, breaker: { tripped: false } });
+    // A reset now holds: the next check finds nothing to trip.
+    await runner.reset();
+    expect((await runner.check({ dryRun: false }) as { breaker: Breaker }).breaker).toEqual({ tripped: false });
+    expect((await runner.health()).status).toBe("ok");
+  });
+
+  test("CG40: a state stored before the budget slice keeps its breaker until a reset, and /health hides its old metric shape until the next check", async () => {
+    const legacyBreaker = { tripped: true, reason: "r2StorageBytes at 154.78% of 10000000000 (trips at 80%)", metric: "r2StorageBytes", value: 15_478_000_000, threshold: 8_000_000_000, trippedAt: "2026-11-02T22:07:00.000Z", metrics: ["r2StorageBytes"] };
+    const { runner, storage } = guard({ flag: "enforce", inApp: NO_IN_APP }, CALM);
+    storage.values.set("state", { checkedAt: "2026-11-02T22:07:00.000Z", metrics: { r2StorageBytes: { value: 15_478_000_000, allowance: 10_000_000_000, percent: 154.78, status: "tripped" } }, r2ClassASpike: null, breaker: legacyBreaker, lastResetAt: null, lastError: null });
+    const legacyHealth = await runner.health();
+    expect(legacyHealth).toMatchObject({ status: "tripped", budget: null, breaker: legacyBreaker });
+    expect(legacyHealth.metrics).toEqual({});
+    expect(await runner.decision()).toEqual({ refuse: true, pausePublication: false });
+    const check = await runner.check({ dryRun: false }) as { breaker: Breaker; budget: BudgetEvaluation };
+    expect(check.budget.status).toBe("ok");
+    expect(check.breaker).toEqual(legacyBreaker as Breaker);
+    await runner.reset();
+    expect(await runner.health()).toMatchObject({ status: "ok", breaker: { tripped: false } });
+    // With the breaker closed, an unmigrated state reads as pending, not as its old status.
+    const closed = guard();
+    closed.storage.values.set("state", { checkedAt: "2026-11-02T22:07:00.000Z", metrics: { r2ClassA: { percent: 1, status: "ok" } }, r2ClassASpike: null, breaker: { tripped: false }, lastResetAt: null, lastError: null });
+    const closedHealth = await closed.runner.health();
+    expect(closedHealth).toMatchObject({ status: "pending", budget: null });
+    expect(closedHealth.metrics).toEqual({});
+    // A later spike is added to the old breaker's keys.
+    const spiked = guard({ inApp: NO_IN_APP }, () => usage({ spike: 60_000 }));
+    spiked.storage.values.set("state", { checkedAt: "2026-11-02T22:07:00.000Z", metrics: {}, r2ClassASpike: null, breaker: legacyBreaker, lastResetAt: null, lastError: null });
+    expect((await spiked.runner.check({ dryRun: false }) as { breaker: Breaker }).breaker).toEqual({ ...legacyBreaker, metrics: ["r2StorageBytes", "r2ClassA"] } as Breaker);
   });
 
   test("CG6: the reset route needs the bearer token; without it the breaker stays open", async () => {
@@ -407,9 +539,9 @@ describe("Spec 026 cost guard", () => {
   });
 
   test("CG7, CG8: enforce refuses while open; monitor never refuses; only an r2ClassA trip pauses the publication", () => {
-    const open = (metrics: CostMetricKey[]): Breaker => ({ tripped: true, reason: "r", metric: metrics[0]!, value: 1, threshold: 1, trippedAt: TICK.toISOString(), metrics });
-    expect(costGuardDecision("enforce", open(["vectorizeQueriedDimensions"]))).toEqual({ refuse: true, pausePublication: false });
-    expect(costGuardDecision("enforce", open(["workersAiNeurons", "r2ClassA"]))).toEqual({ refuse: true, pausePublication: true });
+    const open = (metrics: ("budget" | "r2ClassA")[]): Breaker => ({ tripped: true, reason: "r", metric: metrics[0]!, value: 1, threshold: 1, trippedAt: TICK.toISOString(), metrics });
+    expect(costGuardDecision("enforce", open(["budget"]))).toEqual({ refuse: true, pausePublication: false });
+    expect(costGuardDecision("enforce", open(["budget", "r2ClassA"]))).toEqual({ refuse: true, pausePublication: true });
     expect(costGuardDecision("monitor", open(["r2ClassA"]))).toEqual({ refuse: false, pausePublication: false });
     expect(costGuardDecision("enforce", { tripped: false })).toEqual({ refuse: false, pausePublication: false });
     expect(costGuardDecision("invalid", open(["r2ClassA"]))).toEqual({ refuse: false, pausePublication: false });
@@ -622,7 +754,7 @@ describe("Spec 026 cost guard", () => {
       r2ClassA: [15_007, "ok", "account", "graphql"],
       r2ClassB: [170_000, "ok", "account", "graphql"],
       r2StorageBytes: [1_501_200_000, "ok", "account", "graphql"],
-      vectorizeStoredDimensions: [9_998_336, "warn", "worker", "in-app"],
+      vectorizeStoredDimensions: [9_998_336, "ok", "worker", "in-app"],
       vectorizeQueriedDimensions: [10_244_096, "ok", "worker", "in-app"],
       workersAiNeurons: [169, "ok", "worker", "in-app"],
     });
@@ -631,11 +763,10 @@ describe("Spec 026 cost guard", () => {
     expect([partial.metrics.workersAiNeurons.status, partial.metrics.vectorizeStoredDimensions.status, partial.metrics.vectorizeQueriedDimensions.status]).toEqual(["unavailable", "unavailable", "unavailable"]);
   });
 
-  test("CG10: a dry run returns the evaluation and writes nothing, also when a metric trips", async () => {
-    const { runner, storage } = guard({ inApp: { neuronsToday: async () => 9_500, vectorize: async () => null } });
-    const result = await runner.check({ dryRun: true }) as { dryRun: boolean; status: string; wouldTrip: boolean; metrics: Record<string, MetricEvaluation> };
-    expect(result).toMatchObject({ dryRun: true, status: "tripped", wouldTrip: true });
-    expect(result.metrics.workersAiNeurons!.status).toBe("tripped");
+  test("CG10: a dry run returns the evaluation and writes nothing, also when the budget trips", async () => {
+    const { runner, storage } = guard({ inApp: NO_IN_APP }, OVER_BUDGET);
+    const result = await runner.check({ dryRun: true }) as { dryRun: boolean; status: string; wouldTrip: boolean; budget: BudgetEvaluation };
+    expect(result).toMatchObject({ dryRun: true, status: "tripped", wouldTrip: true, budget: { status: "tripped" } });
     expect(storage.writes).toBe(0);
     expect((await runner.health()).breaker).toEqual({ tripped: false });
     expect((await runner.health()).status).toBe("pending");
@@ -645,26 +776,30 @@ describe("Spec 026 cost guard", () => {
     expect((await runner.health()).breaker).toMatchObject({ tripped: true });
   });
 
-  test("CG11: /health costGuard has the same keys for pending, ok, warn, tripped and unconfigured", async () => {
-    const keys = ["breaker", "checkedAt", "lastError", "lastResetAt", "metrics", "mode", "r2ClassASpike", "reason", "status"];
+  test("CG11: /health costGuard has the same keys for pending, ok, warn, tripped and unconfigured; CG27: with the budget and no per-metric percent or warn", async () => {
+    const keys = ["breaker", "budget", "checkedAt", "lastError", "lastResetAt", "metrics", "mode", "r2ClassASpike", "reason", "status"];
     const pending = guard();
     const before = await pending.runner.health();
     expect(Object.keys(before).sort()).toEqual(keys);
-    expect(before).toMatchObject({ mode: "monitor", status: "pending", reason: null, checkedAt: null, metrics: {}, r2ClassASpike: null, breaker: { tripped: false }, lastResetAt: null, lastError: null });
+    expect(before).toMatchObject({ mode: "monitor", status: "pending", reason: null, checkedAt: null, budget: null, metrics: {}, r2ClassASpike: null, breaker: { tripped: false }, lastResetAt: null, lastError: null });
 
     const ok = guard({ inApp: { neuronsToday: async () => 10, vectorize: async () => ({ storedDimensions: 1_000, queriedDimensions: 2_000 }) } });
     await ok.runner.check({ dryRun: false });
     const okHealth = await ok.runner.health();
     expect(okHealth).toMatchObject({ status: "ok", checkedAt: TICK.toISOString() });
+    expect(Object.keys(okHealth.budget!).sort()).toEqual(["limitUsd", "missing", "overageUsd", "percent", "projectedOverageUsd", "projectedPercent", "status"]);
     expect(Object.keys(okHealth.metrics).sort()).toEqual(["r2ClassA", "r2ClassB", "r2StorageBytes", "vectorizeQueriedDimensions", "vectorizeStoredDimensions", "workersAiNeurons"]);
-    expect(Object.keys(okHealth.metrics.r2ClassA!).sort()).toEqual(["allowance", "overageUsd", "percent", "period", "projectedOverageUsd", "projectedPercent", "rateDays", "scope", "source", "status", "value"]);
+    expect(Object.keys(okHealth.metrics.r2ClassA!).sort()).toEqual(["included", "overageUsd", "period", "projectedOverageUsd", "rateDays", "scope", "source", "status", "value"]);
     expect(okHealth.r2ClassASpike).toEqual({ last24h: 976, threshold: 50_000, bucket: DEV_BUCKET, status: "ok" });
 
-    const warn = guard();
+    // $3.15 of Class A this month: warn, with the metric itself still ok.
+    const warn = guard({ inApp: NO_IN_APP }, () => usage({ classA: 1_700_000 }));
     await warn.runner.check({ dryRun: false });
-    expect((await warn.runner.health()).status).toBe("warn");
+    const warnHealth = await warn.runner.health();
+    expect(warnHealth).toMatchObject({ status: "warn", budget: { status: "warn" }, breaker: { tripped: false } });
+    expect(warnHealth.metrics.r2ClassA!.status).toBe("ok");
 
-    const tripped = guard({ inApp: { neuronsToday: async () => 9_000, vectorize: async () => null } });
+    const tripped = guard({ inApp: NO_IN_APP }, OVER_BUDGET);
     await tripped.runner.check({ dryRun: false });
     expect((await tripped.runner.health()).status).toBe("tripped");
 
@@ -771,6 +906,14 @@ describe("Spec 026 cost guard", () => {
     const { runner, network, storage } = guard({ inApp: { neuronsToday: async () => { neurons += 1; return 1; }, vectorize: async () => { vectors += 1; return null; } } });
     await runner.check({ dryRun: false });
     expect([network.calls.length, neurons, vectors, storage.writes]).toEqual([1, 1, 1, 1]);
+  });
+
+  test("CG32: with the budget, a real check is still one GraphQL request and one storage write; the guard has no R2 dependency", async () => {
+    const { runner, network, storage } = guard({ inApp: NO_IN_APP }, OVER_BUDGET);
+    const result = await runner.check({ dryRun: false }) as { budget: BudgetEvaluation };
+    expect(result.budget.status).toBe("tripped");
+    expect([network.calls.length, storage.writes]).toEqual([1, 1]);
+    expect(Object.keys(guard().runner["deps"] as object)).not.toContain("bucket");
   });
 });
 

@@ -1,17 +1,17 @@
 # Spec 026: Account-wide cost guard and circuit breaker
 
-Status: Partially implemented: CG1–CG20 implemented (#105, 2026-10-20; owner decisions 2026-10-20; no web change); rollout step 1 (Dev monitor: `COST_GUARD=monitor`, `COST_GUARD_STATE`, migration `v5`, `CF_ACCOUNT_ID`) in the Dev monitor enable PR, 2026-10-21; CG19 waits for the first successful check; Prod `monitor` set in the Prod config (owner decision 2026-11-04, [Amendment 2026-11-04](#amendment-2026-11-04-prod-monitor-before-dev-enforce); CG38; live since `v0.3.9`, 2026-11-05; the CG39 dry check passed the same day); amended 2026-10-21 (owner decisions: a $5-a-month dollar budget; its open decisions resolved the same day: 7-day projection, own-bucket spike, UTC month, provisional spike threshold, warn on projection); CG21 and CG35 implemented (owner decision 2026-10-23: the per-metric projection uses the 7-day rate now, before the budget; dollars per metric in `/health`; no spike); CG23, CG25, CG30, CG31 and CG36 implemented (owner decision 2026-10-23: the own-bucket 24-hour Class A spike before the budget; the monthly Class A trip of Behavior 6 stays until the budget slice); CG22, CG24, CG26–CG29, CG32–CG34, CG37 not implemented
+Status: Partially implemented: CG1–CG20 implemented (#105, 2026-10-20; owner decisions 2026-10-20; no web change); rollout step 1 (Dev monitor: `COST_GUARD=monitor`, `COST_GUARD_STATE`, migration `v5`, `CF_ACCOUNT_ID`) in the Dev monitor enable PR, 2026-10-21; CG19 waits for the first successful check; Prod `monitor` set in the Prod config (owner decision 2026-11-04, [Amendment 2026-11-04](#amendment-2026-11-04-prod-monitor-before-dev-enforce); CG38; live since `v0.3.9`, 2026-11-05; the CG39 dry check passed the same day); amended 2026-10-21 (owner decisions: a $5-a-month dollar budget; its open decisions resolved the same day: 7-day projection, own-bucket spike, UTC month, provisional spike threshold, warn on projection); CG21 and CG35 implemented (owner decision 2026-10-23: the per-metric projection uses the 7-day rate now, before the budget; dollars per metric in `/health`; no spike); CG23, CG25, CG30, CG31 and CG36 implemented (owner decision 2026-10-23: the own-bucket 24-hour Class A spike before the budget; the monthly Class A trip of Behavior 6 stays until the budget slice); the budget slice (2026-11-05) implements CG22, CG24, CG26–CG29, CG32, CG34 and CG40 under `monitor`; CG19, CG33 and CG37 wait for deployed checks, and `enforce` stays an owner decision
 Date: 2026-10-20
 Traceability: enforced
 Builds on: Spec 008 (R2 operations), Spec 010, 021 (a paused publication shows as a stall), Spec 014 (digest neuron ledger), Spec 016 (embedding ledger, query gate), Spec 018 (daily publication)
 
 ## Intent
 
-The owner learns that the account is heading past a Cloudflare free
-allowance from the Worker's `/health`, a day after it starts, not from
-a billing email weeks later. When a metric is clearly past its threshold,
-the optional spend (digest, embeddings, semantic queries) stops by itself
-until the owner resets it; lexical search and the Feed keep working.
+The owner learns that the account is heading past the approved overage budget
+from the Worker's `/health`, a day after it starts, not from a billing email
+weeks later. When the dollars are clearly past the budget's thresholds, the
+optional spend (digest, embeddings, semantic queries) stops by itself until
+the owner resets it; lexical search and the Feed keep working.
 
 Today every guard is per feature: the query gate's daily caps
 (`packages/semantic-vectorize/src/query-gate.ts`), the embedding job's daily
@@ -70,18 +70,13 @@ Cloudflare offers no hard spending cap; its budget alerts only send email
 (the account has $0.01, $5 and $10 alerts). The stops are this guard and
 the Dev AI Gateway limit of $2 per 30 days.
 
-Until the implementing slice lands, Behavior 1–14 below describe what runs;
-the items they replace are marked "(amended)". The slice folds this section
-into them, regenerates the tables and removes the `[pending]` tags.
+The budget slice (2026-11-05) folded this amendment's behavior into the section
+"Behavior" below, keeping the labels 3a, 5a, 6a, 6b, 7a, 9a and 13a. This
+section keeps the Example, the reasoning and the decisions.
 
-The spike slice (2026-10-23, owner decision: catch an incident like
-10-02..13 within a day) already runs 3a's 24-hour own-bucket selection, 6b,
-the spike half of 7a (the breaker records `bucket`) and `r2ClassASpike` of
-13a, next to the old per-metric rules. Until the budget slice, `r2ClassA`
-in the breaker's `metrics` can therefore come from either the spike or the
-monthly Class A trip of Behavior 6; either pauses the publication under
-`enforce` (Behavior 9). With both tripping on a closed breaker, the breaker
-names the spike. No mode changes: Dev stays `monitor`, Prod unset.
+The spike slice (2026-10-23, owner decision: catch an incident like 10-02..13
+within a day) ran next to the old per-metric rules until the budget slice
+removed them.
 
 ### Example (dollars, real October, 2026-10-21 02:04 UTC)
 
@@ -168,90 +163,6 @@ trips on its own. Storage alone would trip the budget at 10 + 4 / 0.015 ≈
    7-day and 24-hour reads ride the existing GraphQL request as aliased
    selections, and the bucket follows from `PUBLICATION_ENVIRONMENT`.
 
-### Behavior (amended)
-
-These replace Behavior 5, 6 and 13, the trip condition of Behavior 7 and the
-publication trigger of Behavior 9.
-
-- 3a. The one GraphQL request adds two aliased `r2OperationsAdaptiveGroups`
-  selections: the account's operations by `actionType` over the 7 complete
-  UTC days before today (`datetime_geq` 00:00 UTC seven days before today,
-  `datetime_lt` 00:00 UTC today; summed, not split by day; for the rate,
-  Behavior 5a; implemented by CG35), and the last 24 hours with
-  `bucketName` the guard's own bucket: `oss-knowledge-base-dev` when
-  `PUBLICATION_ENVIRONMENT` is `development`, `oss-knowledge-base-prod` when
-  it is `production` (the `OSS_KB_BUCKET` binding's `bucket_name` in each
-  wrangler file). `r2OperationsAdaptiveGroups` and `r2StorageAdaptiveGroups`
-  both accept the `bucketName` dimension (verified 2026-10-21), and the two
-  new selections span at most 7 days, within the account's 32-day limit.
-  Month-to-date operations and storage stay account-wide.
-- 5a. Dollars per metric: `overageUsd = max(0, value − included) × price`
-  (table above; stored dimensions at $0.05 per 100 million). Projected
-  month-end value:
-  - a counter (R2 Class A and B, queried dimensions): `value + rate ×
-    remainingDays`, where `remainingDays` is the time from now to the end
-    of the UTC month in days and `rate` is the counter's sum over the 7
-    complete UTC days before today divided by 7 (owner, Decision 9). The
-    window may reach into the previous month; it never includes today.
-    When the source holds fewer than 7 complete days, the rate is the sum
-    over the complete days it holds divided by their number; with none, the
-    projection is `value`. R2 always has 7 (the GraphQL dataset keeps more
-    than a month). The query gate's ledger holds one count a month today;
-    the implementing slice adds a count per UTC day kept for 8 days, so
-    queried dimensions start with no history and gain a day a day. Their
-    rate counts index queries only: the stored vectors enter the formula
-    once a month;
-  - a gauge (storage, stored dimensions) projects as its current value;
-  - neurons project today's overage, at `value / elapsedDay` from a quarter
-    of the day (before that, today's value), times the days of the month.
-  `projectedOverageUsd` prices the projected value. Storage is billed in
-  GB-month, the average over the month; the guard approximates it by the
-  newest reading (Behavior 3), an upper bound while storage grows and a
-  lower bound after a deletion such as Spec 029's retention. Neurons now
-  are only today's overage, a lower bound for the month. Every metric has a
-  projection from the first check of the month.
-- 6a. Budget: `overageUsd` and `projectedOverageUsd` are the sums over the
-  metrics that could be read (an unavailable one counts $0 and is listed in
-  `missing`); `percent` and `projectedPercent` are those over $5 × 100,
-  floored to 0.01 for display. Budget status: `tripped` when `percent ≥ 80`
-  or `projectedPercent > 100`; else `warn` when `percent ≥ 60` or
-  `projectedPercent ≥ 60` (Decision 13: a projection warns, it never trips
-  below 100 %); else `ok`. `warn` shows only in `/health` and the UI's
-  existing stall surfaces; it opens nothing.
-- 6b. Class A spike: `tripped` when the guard's own bucket (Behavior 3a)
-  has 50,000 or more Class A over the last 24 hours, whatever the dollars;
-  `unavailable` when the request failed. Another bucket, including the
-  other environment's, never trips it. Normal: under 1,000 a day on Dev,
-  a few hundred on Prod (Example); a backfill adds at most about 300; the
-  incident ran at 196,000. The 50,000 is provisional (Decision 12, CG37).
-- 7a. The breaker opens on a budget trip with `metric: "budget"`, `value` the
-  dollars that tripped (overage now, or the projection), `threshold` $4 or
-  $5, and `overageUsd` per metric at that moment; on a spike trip with
-  `metric: "r2ClassA"`, `value` the 24-hour count, `threshold` 50,000 and
-  `bucket`. `metrics` holds `budget`, `r2ClassA`, or both. Everything else
-  in Behavior 7 and 8 stays: a later check adds a newly tripped key; only a
-  reset closes it; a reset while still over reopens on the next check. A
-  new month starts the dollar sums from zero but does not close the
-  breaker.
-- 9a. What a trip pauses is unchanged: any trip makes the digest, the
-  embedding job and the query gate refuse (Behavior 9); the publication and
-  the review ingestion pause only when `metrics` includes `r2ClassA`, now the
-  spike of the guard's own bucket, so an incident pauses only the
-  environment that wrote it. A budget trip does not pause the publication:
-  its Class A is bounded by the tested invariant, and R2 reads from Pages
-  (`/api/*`) are not paused by any trip (the Feed keeps working). A budget
-  driven by Class B or storage therefore stops only the optional spend;
-  `overageUsd` per metric shows the owner where to act.
-- 13a. `/health` `costGuard`: `{mode, status, reason, checkedAt, budget
-  {limitUsd, overageUsd, projectedOverageUsd, percent, projectedPercent,
-  status, missing[]}, r2ClassASpike {last24h, threshold, bucket, status},
-  metrics, breaker, lastResetAt, lastError}`. `metrics[key]` is `{value,
-  included, overageUsd, projectedOverageUsd, rateDays, period, scope,
-  source, status (ok|unavailable)}`, where `rateDays` is the number of
-  complete days the rate used (0–7; null for gauges and neurons). `status`
-  is `tripped` if the breaker is open, else `unconfigured`, else `pending`,
-  else the budget status.
-
 ### Billing period
 
 The guard sums from 00:00 UTC on the 1st to the end of the UTC calendar
@@ -309,21 +220,19 @@ Resolutions of the amendment's open decisions, approved by the owner on
 
 ### Open owner decisions
 
-1. **October is already spent.** With the real counts, October's overage is
-   $4.84 (96.81 %) on 2026-10-21, almost all the 10-02..13 incident's R2
-   Class A, so the budget is `tripped` by money already spent, whatever the
-   projection rule (Example). Under `monitor` nothing pauses, but a real
-   check opens the breaker, and an open breaker stays open across November
-   1 until a reset (Behavior 7a). Options: reset the breaker on November 1
-   before Dev `enforce`; or enable `enforce` on Dev only from November 1
-   (the implementing slice is not yet built, so it may land after then).
+1. **October is already spent.** Closed by the calendar: the slice landed after
+   October, and a new month restarts the sums. The Prod dry check of 2026-11-05
+   read $0.0871 of R2 storage and $0.0005 of stored dimensions, a budget of
+   $0.0876 and `ok`. A breaker opened by the old per-metric rules stays open
+   until a reset (Behavior 8, CG40), so the owner resets it once on each
+   environment after reading `budget`, before any `enforce`.
 
 ### Rollout
 
-Unchanged steps (Rollout below). The implementing slice ships under the
-current `COST_GUARD=monitor` on Dev (no new binding, secret, variable or
-migration); its dry check (CG33) comes before Dev `enforce`. The runbook's
-cost-guard section is updated in that slice.
+Unchanged steps (Rollout below). The budget slice ships under `COST_GUARD=monitor`
+(no new binding, secret, variable or migration): Dev from its merge, Prod from
+the next tag. Its dry check (CG33) and the spike measurement (CG37) come before
+Dev `enforce`.
 
 ## Amendment 2026-11-04: Prod monitor before Dev enforce
 
@@ -338,7 +247,8 @@ Why `enforce` waits: the code still trips each metric at 80 %. Dev `/health`,
 account-wide, so Prod's first real check opens its breaker on storage, as
 Dev's is open. Under `monitor` that only records; under `enforce` the digest,
 the embeddings and the semantic queries would refuse over $0.08. The budget
-(CG22, CG24, CG26–CG29, CG34) removes that trip.
+(CG22, CG24, CG26–CG29, CG34) removes that trip; Prod gets it with the first tag
+after the budget slice.
 
 Expected on Prod after the tag: `costGuard.mode` `monitor`, `status`
 `tripped`, `breaker.metrics` with `r2StorageBytes`, and `components` entry
@@ -353,6 +263,9 @@ deploys. Rollback: unset `COST_GUARD` (a new Prod tag); the secret and the
 object stay.
 
 ## Example
+
+The first rules (2026-10-20), kept as a record: percentages and per-metric
+statuses were replaced by the dollar budget (Example above, under the amendment).
 
 Dev `/health`, 2026-10-20 03:08 UTC (real): last publication `r2 {classA: 794,
 classB: 8590}`; `digest.today.estimatedNeurons` 0; `searchEmbedding.today
@@ -432,11 +345,23 @@ closed.
    request reads R2 operations from the first instant of the UTC month to
    now (31 days at most by construction), the same operations over the 7
    complete UTC days before today (an aliased selection for the rate of
-   Behavior 5; CG35), the guard's own bucket's operations over the last 24
+   Behavior 5a; CG35), the guard's own bucket's operations over the last 24
    hours (an aliased selection filtered by `bucketName`, Behavior 3a and 6b;
    CG23, CG25), and R2 storage over the last two
    days (newest row per bucket, `payloadSize + metadataSize`, summed). The
    token is sent only in the `Authorization` header.
+- 3a. The one GraphQL request adds two aliased `r2OperationsAdaptiveGroups`
+  selections: the account's operations by `actionType` over the 7 complete
+  UTC days before today (`datetime_geq` 00:00 UTC seven days before today,
+  `datetime_lt` 00:00 UTC today; summed, not split by day; for the rate,
+  Behavior 5a; implemented by CG35), and the last 24 hours with
+  `bucketName` the guard's own bucket: `oss-knowledge-base-dev` when
+  `PUBLICATION_ENVIRONMENT` is `development`, `oss-knowledge-base-prod` when
+  it is `production` (the `OSS_KB_BUCKET` binding's `bucket_name` in each
+  wrangler file). `r2OperationsAdaptiveGroups` and `r2StorageAdaptiveGroups`
+  both accept the `bucketName` dimension (verified 2026-10-21), and the two
+  new selections span at most 7 days, within the account's 32-day limit.
+  Month-to-date operations and storage stay account-wide.
 4. In-app estimates: neurons today = digest `today.estimatedNeurons` +
    embedding `today.estimatedNeurons` + query gate `today.neurons` (each 0
    when its object is not bound; the metric is unavailable without the `AI`
@@ -445,35 +370,58 @@ closed.
    off, and for a ledger of another UTC day; Spec 027 B31, SRE62). Vectorize (only with `SEARCH_VECTORS`): stored =
    `vectorCount × dimensions`; queried = (month-to-date gate index queries +
    `vectorCount`) × `dimensions`.
-5. (amended: 5a) Per metric: `percent = value / allowance × 100`. A month
-   counter (R2 operations, queried dimensions) has `projectedPercent` = its
-   projected month-end value of Behavior 5a (`value + rate ×
-   remainingDays`, the rate over the 7 complete UTC days before today;
-   owner decision 2026-10-23, CG35) over the allowance, from the 1st of the
-   month; `rateDays` says how many days the rate used (R2: 7; queried
-   dimensions: 0 until the gate's per-day read lands, gardening G101, so
-   they project as month to date). Neurons have `projectedPercent =
-   percent / elapsed`, where `elapsed` is the fraction of the UTC day that
-   has passed, but only once `elapsed ≥ 0.25`; before that, and for gauges
-   (storage, stored dimensions), it is null. Each metric also carries
-   `overageUsd` and `projectedOverageUsd` (Behavior 5a, CG21); they inform
-   and trip nothing until the budget (CG22) lands.
-   Displayed percents are floored to 0.01; comparisons use the exact values.
-6. (amended: 6a, 6b) Status per metric: `tripped` when `percent ≥ 80` or `projectedPercent >
-   100`; else `warn` when `percent ≥ 60`; else `ok`; `unavailable` when the
-   value could not be read. Vectorize stored dimensions never trip (its
-   overage is $0.05 per 100 million dimensions; the Example shows it at
-   99.98 % today): at or above 60 % it is `warn`.
-7. (trip condition amended: 7a) Breaker: closed `{tripped:false}`. A real check (not a dry run) that finds
-   a tripped metric while closed opens it with `{tripped:true, reason,
-   metric, value, threshold, trippedAt, metrics}` from the metric with the
-   highest percent; `threshold` is the value at which it tripped (80 % of
-   the allowance, or the allowance for a projection). While open, a later
-   check adds newly tripped metrics to `metrics` and changes nothing else. It
-   opens in `monitor` too, so `/health` shows what `enforce` would do.
+- 5a. Dollars per metric: `overageUsd = max(0, value − included) × price`
+  (table above; stored dimensions at $0.05 per 100 million). Projected
+  month-end value:
+  - a counter (R2 Class A and B, queried dimensions): `value + rate ×
+    remainingDays`, where `remainingDays` is the time from now to the end
+    of the UTC month in days and `rate` is the counter's sum over the 7
+    complete UTC days before today divided by 7 (owner, Decision 9). The
+    window may reach into the previous month; it never includes today.
+    When the source holds fewer than 7 complete days, the rate is the sum
+    over the complete days it holds divided by their number; with none, the
+    projection is `value`. R2 always has 7 (the GraphQL dataset keeps more
+    than a month). The guard reads only the query gate's month total today,
+    so queried dimensions have `rateDays` 0 and project as month to date
+    (gardening G101);
+  - a gauge (storage, stored dimensions) projects as its current value;
+  - neurons project today's overage, at `value / elapsedDay` from a quarter
+    of the day (before that, today's value), times the days of the month.
+  `projectedOverageUsd` prices the projected value. Storage is billed in
+  GB-month, the average over the month; the guard approximates it by the
+  newest reading (Behavior 3), an upper bound while storage grows and a
+  lower bound after a deletion such as Spec 029's retention. Neurons now
+  are only today's overage, a lower bound for the month. Every metric has a
+  projection from the first check of the month.
+- 6a. Budget: `overageUsd` and `projectedOverageUsd` are the sums over the
+  metrics that could be read (an unavailable one counts $0 and is listed in
+  `missing`); `percent` and `projectedPercent` are those over $5 × 100,
+  floored to 0.01 for display. The status compares the dollars floored to
+  0.0001, the values `/health` shows. Budget status: `tripped` when `percent ≥ 80`
+  or `projectedPercent > 100`; else `warn` when `percent ≥ 60` or
+  `projectedPercent ≥ 60` (Decision 13: a projection warns, it never trips
+  below 100 %); else `ok`. `warn` shows only in `/health` and the UI's
+  existing stall surfaces; it opens nothing.
+- 6b. Class A spike: `tripped` when the guard's own bucket (Behavior 3a)
+  has 50,000 or more Class A over the last 24 hours, whatever the dollars;
+  `unavailable` when the request failed. Another bucket, including the
+  other environment's, never trips it. Normal: under 1,000 a day on Dev,
+  a few hundred on Prod (Example); a backfill adds at most about 300; the
+  incident ran at 196,000. The 50,000 is provisional (Decision 12, CG37).
+- 7a. Breaker: closed `{tripped:false}`. A real check (not a dry run) that finds
+  a trip while closed opens it with `{tripped:true, reason, metric, value,
+  threshold, trippedAt, metrics}`. On a budget trip: `metric: "budget"`, `value`
+  the dollars that tripped (overage now, or the projection), `threshold` $4 or
+  $5, and `overageUsd` per metric at that moment. On a spike trip: `metric:
+  "r2ClassA"`, `value` the 24-hour count, `threshold` 50,000 and `bucket`. With
+  both on a closed breaker, it names the spike and also records `overageUsd`.
+  `metrics` holds `budget`, `r2ClassA`, or both, in the order they tripped. A
+  later check adds a newly tripped key and changes nothing else. A new month
+  starts the dollar sums from zero but does not close the breaker. It opens in
+  `monitor` too, so `/health` shows what `enforce` would do.
 8. The breaker closes only on `POST /cost-guard/reset` with the bearer
    token; never by a check, a new month, or a deploy. The reset is recorded
-   (`lastResetAt`). A reset while a metric is still over its threshold is
+   (`lastResetAt`). A reset while the budget or the spike is still over its threshold is
    reopened by the next check.
 9. While `enforce` and the breaker is open:
    - the digest refuses `POST /digest/run` (dry run too) with 503
@@ -484,14 +432,23 @@ closed.
    - the query gate answers `{status:"over-budget", retryAfterMs:3600000}`
      without touching its ledger, the model or the index, so `/api/search`
      answers lexically (Spec 016's over-budget path);
-   - (trigger amended: 9a) the publication, the GitHub review ingestion and the Feed keep running
+   - the publication, the GitHub review ingestion and the Feed keep running
      under their own limits, **unless `metrics` includes `r2ClassA`**: then
      `POST /run` answers 503 `{ok:false, skipped:"cost-guard"}`, the
      publication alarm runs nothing, and the tick skips the review ingestion.
      The stall shows on the page through Specs 010/021. Reason: the only
-     Class A incident came from the publication's writes; a Class A trip at
-     800,000 means something writes far beyond the ≈ 24,000 a month the
-     tested invariant allows, and pausing every R2 writer bounds it.
+     Class A incident came from the publication's writes; a spike means
+     something writes far beyond the tested invariant, and pausing every R2
+     writer of that environment bounds it.
+- 9a. What a trip pauses is unchanged: any trip makes the digest, the
+  embedding job and the query gate refuse (Behavior 9); the publication and
+  the review ingestion pause only when `metrics` includes `r2ClassA`, now the
+  spike of the guard's own bucket, so an incident pauses only the
+  environment that wrote it. A budget trip does not pause the publication:
+  its Class A is bounded by the tested invariant, and R2 reads from Pages
+  (`/api/*`) are not paused by any trip (the Feed keeps working). A budget
+  driven by Class B or storage therefore stops only the optional spend;
+  `overageUsd` per metric shows the owner where to act.
 10. If the guard object cannot be read, features proceed (fail open): the
     per-feature caps still bound each one, and the guard must not become a
     single point of failure for search.
@@ -501,51 +458,37 @@ closed.
     the R2 metrics `unavailable`, records `lastError {message, at}`
     (sanitized; the next successful real check sets it back to null), keeps the in-app metrics, and never opens the breaker on
     missing data. Each real check is one Durable Object write.
-13. (amended: 13a) `/health` `costGuard` (only while `COST_GUARD` is set):
-    `{mode, status, reason, checkedAt, metrics, r2ClassASpike, breaker,
-    lastResetAt, lastError}`, where `r2ClassASpike` is Behavior 13a's
-    `{last24h, threshold, bucket, status}` of the last real check (null
-    before one; CG23). `status` is `tripped` if the breaker is open, else
-    `unconfigured` if a requirement is missing, else `pending` before the
-    first check, else `tripped` if the spike trips, else the worst metric
-    status (`warn` or `ok`; `unavailable` counts as ok). `metrics[key]` is `{value, allowance, percent,
-    projectedPercent, overageUsd, projectedOverageUsd, rateDays, period,
-    scope, source, status}`.
+- 13a. `/health` `costGuard`: `{mode, status, reason, checkedAt, budget
+  {limitUsd, overageUsd, projectedOverageUsd, percent, projectedPercent,
+  status, missing[]}, r2ClassASpike {last24h, threshold, bucket, status},
+  metrics, breaker, lastResetAt, lastError}`. `metrics[key]` is `{value,
+  included, overageUsd, projectedOverageUsd, rateDays, period, scope,
+  source, status (ok|unavailable)}`, where `rateDays` is the number of
+  complete days the rate used (0–7; null for gauges and neurons). `status`
+  is `tripped` if the breaker is open, else `unconfigured`, else `pending`,
+  else `tripped` if the spike trips, else the budget status. A state stored
+  before the budget slice has no `budget`: `budget` is null, `metrics` is empty
+  and the status follows the same order, reading `pending` while the breaker is
+  closed (CG40).
 14. No log line, `/health` field, stored state or response contains the
     token. Every error text passes the existing sanitizer.
 
 ## Test plan
 
-Generated from `apps/data-publisher-worker/test/cost-guard.cases.ts` by
+What one metric reports. Generated from `apps/data-publisher-worker/test/cost-guard.cases.ts` by
 `bun run docs:test-plan`; the unit tests run exactly these rows.
 
 <!-- test-plan:start apps/data-publisher-worker/test/cost-guard.cases.ts -->
-| id | case | metric | value | recent | days | now | percent | projectedPercent | status |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| CG2 | R2 Class A just under warn, month end | r2ClassA | 599999 | 140000 | 7 | 2026-10-31T22:07:00Z | 59.99 | 60.15 | ok |
-| CG2 | R2 Class A at 60 %: warn | r2ClassA | 600000 | 140000 | 7 | 2026-10-31T22:07:00Z | 60 | 60.15 | warn |
-| CG2 | R2 Class A just under 80 % | r2ClassA | 799999 | 140000 | 7 | 2026-10-31T22:07:00Z | 79.99 | 80.15 | warn |
-| CG2 | R2 Class A at 80 %: trip | r2ClassA | 800000 | 140000 | 7 | 2026-10-31T22:07:00Z | 80 | 80.15 | tripped |
-| CG35 | real October (Example): the 7-day rate projects 211 %, not month to date's 318 % | r2ClassA | 2062716 | 33676 | 7 | 2026-10-21T02:04:00Z | 206.27 | 211.52 | tripped |
-| CG35 | a past burst of 700,000 with a quiet week: warns, no longer projected over | r2ClassA | 700000 | 33676 | 7 | 2026-10-21T22:07:00Z | 70 | 74.84 | warn |
-| CG35 | projected exactly 100 %: not over | r2ClassA | 280000 | 210000 | 7 | 2026-10-08T00:00:00Z | 28 | 100 | ok |
-| CG35 | projected just over 100 % (shown floored) | r2ClassA | 280001 | 210000 | 7 | 2026-10-08T00:00:00Z | 28 | 100 | tripped |
-| CG35 | November 1 00:30: October's last 7 days project from the 1st | r2ClassA | 100 | 1400000 | 7 | 2026-11-01T00:30:00Z | 0.01 | 599.59 | tripped |
-| CG35 | February has 28 days: 14 remain | r2ClassA | 400000 | 280000 | 7 | 2026-02-15T00:00:00Z | 40 | 96 | ok |
-| CG2 | R2 Class B at 60 % | r2ClassB | 6000000 | 1400000 | 7 | 2026-10-31T22:07:00Z | 60 | 60.15 | warn |
-| CG2 | R2 storage just under 80 %: a gauge has no projection | r2StorageBytes | 7999999999 | — | — | 2026-10-20T22:07:00Z | 79.99 | — | warn |
-| CG2 | R2 storage at 8 GB: trip | r2StorageBytes | 8000000000 | — | — | 2026-10-20T22:07:00Z | 80 | — | tripped |
-| CG2 | Vectorize stored dimensions today (Example): warn, never trips | vectorizeStoredDimensions | 9998336 | — | — | 2026-10-20T22:07:00Z | 99.98 | — | warn |
-| CG2 | Vectorize stored dimensions under 60 % | vectorizeStoredDimensions | 5999999 | — | — | 2026-10-20T22:07:00Z | 59.99 | — | ok |
-| CG35 | queried dimensions (Example), no complete day of history: projects as month to date | vectorizeQueriedDimensions | 10244096 | 0 | 0 | 2026-10-20T22:07:00Z | 20.48 | 20.48 | ok |
-| CG35 | queried dimensions with 3 complete days: the rate uses 3 | vectorizeQueriedDimensions | 15000000 | 3000000 | 3 | 2026-10-21T22:07:00Z | 30 | 50.15 | ok |
-| CG2 | neurons today just under warn at the Dev tick | workersAiNeurons | 5999 | — | — | 2026-10-20T22:07:00Z | 59.99 | 65.09 | ok |
-| CG2 | neurons today at 60 % | workersAiNeurons | 6000 | — | — | 2026-10-20T22:07:00Z | 60 | 65.1 | warn |
-| CG2 | neurons today just under 80 % | workersAiNeurons | 7999 | — | — | 2026-10-20T22:07:00Z | 79.99 | 86.8 | warn |
-| CG2 | neurons today at 80 %: trip | workersAiNeurons | 8000 | — | — | 2026-10-20T22:07:00Z | 80 | 86.81 | tripped |
-| CG2 | neurons one second before a quarter of the day: no projection | workersAiNeurons | 5000 | — | — | 2026-10-20T05:59:59Z | 50 | — | ok |
-| CG2 | neurons at a quarter of the day: projected 200 % trips | workersAiNeurons | 5000 | — | — | 2026-10-20T06:00:00Z | 50 | 200 | tripped |
-| CG2 | a value that could not be read | r2ClassA | — | — | — | 2026-10-20T22:07:00Z | — | — | unavailable |
+| id | case | metric | value | recent | days | now | status | rateDays |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| CG2 | R2 storage 15.81 GB (Prod, 2026-11-05): past its allowance, still ok | r2StorageBytes | 15809369665 | — | — | 2026-11-05T00:55:00Z | ok | — |
+| CG2 | Vectorize stored dimensions at 110.86 % (Prod, 2026-11-05): ok | vectorizeStoredDimensions | 11086848 | — | — | 2026-11-05T00:55:00Z | ok | — |
+| CG2 | R2 Class A past its allowance (real October): ok, the budget judges it | r2ClassA | 2062716 | 33676 | 7 | 2026-10-21T02:04:00Z | ok | 7 |
+| CG2 | R2 Class B: a month counter with 7 days of history | r2ClassB | 269830 | 218882 | 7 | 2026-10-21T02:04:00Z | ok | 7 |
+| CG2 | queried dimensions with no complete day of history | vectorizeQueriedDimensions | 11105280 | 0 | 0 | 2026-11-05T00:55:00Z | ok | 0 |
+| CG2 | queried dimensions with 3 complete days | vectorizeQueriedDimensions | 15000000 | 3000000 | 3 | 2026-10-21T22:07:00Z | ok | 3 |
+| CG2 | neurons past the day's allowance: ok | workersAiNeurons | 20000 | — | — | 2026-10-21T22:07:00Z | ok | — |
+| CG2 | a value that could not be read | r2ClassA | — | — | — | 2026-10-20T22:07:00Z | unavailable | — |
 <!-- test-plan:end -->
 
 ### Amendment 2026-10-21
@@ -592,15 +535,16 @@ The own-bucket R2 Class A spike over the last 24 hours (CG23), generated from
 | CG23 | the bucket read failed: no spike trip on missing data | — | unavailable | — |
 <!-- test-plan:end -->
 
-Pending: the budget and its warn on projection (CG22, CG34; one row also
+The budget and its warn on projection (CG22, CG34; one row also
 trips the spike), generated from
 `apps/data-publisher-worker/test/cost-guard-budget.cases.ts`:
 
-<!-- test-plan:start apps/data-publisher-worker/test/cost-guard-budget.cases.ts [pending] -->
+<!-- test-plan:start apps/data-publisher-worker/test/cost-guard-budget.cases.ts -->
 | id | case | overageUsd | projectedOverageUsd | classA24h | percent | projectedPercent | status | trips |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | CG22 | just under warn | 2.9999 | 2.9999 | 976 | 59.99 | 59.99 | ok | — |
 | CG22 | $3 spent: warn | 3 | 3 | 976 | 60 | 60 | warn | — |
+| CG22 | $3 spent with a lower projection: the money alone warns | 3 | 2.9999 | 976 | 60 | 59.99 | warn | — |
 | CG22 | just under $4 | 3.9999 | 4.9 | 976 | 79.99 | 98 | warn | — |
 | CG22 | $4 spent: trip | 4 | 4.9 | 976 | 80 | 98 | tripped | budget |
 | CG22 | projected exactly $5: not over, warns | 1 | 5 | 976 | 20 | 100 | warn | — |
@@ -614,27 +558,22 @@ trips the spike), generated from
 | CG22 | budget and spike together (the spike alone is CG23, test/cost-guard-spike.cases.ts) | 4 | 4.9 | 60000 | 80 | 98 | tripped | budget, r2ClassA |
 <!-- test-plan:end -->
 
-The CG35 slice (2026-10-23) replaced the quarter-of-the-month projection
-rows of the first table with 7-day-rate rows. The budget slice replaces
-the CG2 rows for storage and stored dimensions, which then no longer trip
-or warn.
-
 ## Acceptance
 
 Each item: precondition → action → observable result → evidence.
 
 ### Behavior
 - CG1: given `COST_GUARD` unset, blank, `off`, `monitor`, `enforce` or `on`, resolving it gives off, off, off, monitor, enforce, invalid; while off a publisher tick makes only the publication call, `/health` has no `costGuard` key, and `POST /cost-guard/check` and `/cost-guard/reset` answer 403 → worker test.
-- CG2: given the threshold rows, `evaluateMetric` gives the percent, projected percent and status of each row (60 % warn, 80 % trip, projection over 100 % trips, a month counter projected by its 7-day rate (CG35), neurons only from a quarter of the day, gauges never projected, stored dimensions never trip) → case rows.
+- CG2: given the CG2 rows, `evaluateMetric` reports a metric `ok` at any level and `unavailable` when it could not be read, with no `percent`, and `rateDays` for a month counter (null for gauges, neurons and an unread value) → case rows.
 - CG3: given the recorded-shape GraphQL fixture, parsing gives Class A, Class B (free operations excluded, unknown action types counted as Class A and listed) and storage as the newest row per bucket summed → fixture test.
 - CG4: the request is one POST to `https://api.cloudflare.com/client/v4/graphql` with `Authorization: Bearer <token>`, the account tag, the month start and now; no test calls the network → fixture test.
-- CG5: given a closed breaker and a check with a tripped metric, the breaker opens with `reason, metric, value, threshold, trippedAt, metrics`; a later check adds newly tripped metrics and keeps the rest; a check with no tripped metric leaves it open → breaker test.
+- CG5: given a closed breaker and a budget trip, the breaker opens with `reason, metric, value, threshold, overageUsd, trippedAt, metrics`; a later check adds a newly tripped key and keeps the rest; a check with nothing tripped leaves it open; missing data trips nothing → breaker test.
 - CG6: given an open breaker, `POST /cost-guard/reset` with the token closes it and records `lastResetAt`; without the token it answers 401 and the breaker stays open → route test.
 - CG7: given `enforce` and an open breaker, the digest's request and alarm, the embedding job's request (not `reset=1`) and alarm, and the query gate refuse as Behavior 9 says, each with no model, index or bucket call; given `monitor` and the same breaker, each runs → feature tests with positive controls.
-- CG8: given `enforce` and an open breaker whose `metrics` include `r2ClassA`, `POST /run` answers 503 and the publication alarm runs nothing, and the tick skips the review ingestion; with only `vectorizeQueriedDimensions` in `metrics`, the publication runs → route and alarm tests.
+- CG8: given `enforce` and an open breaker whose `metrics` include `r2ClassA`, `POST /run` answers 503 and the publication alarm runs nothing, and the tick skips the review ingestion; with only `budget` in `metrics`, the publication runs → route and alarm tests.
 - CG9: given in-app ledgers (digest 120, embedding 46, gate 3 neurons today; index 9,764 vectors of 1,024 dimensions; 240 index queries this month), the check reports 169 neurons, 9,998,336 stored and 10,244,096 queried dimensions; without the `AI` binding the neuron metric is unavailable, without `SEARCH_VECTORS` both Vectorize metrics are → check test.
-- CG10: `POST /cost-guard/check?dryRun=1` returns the evaluation and writes nothing, also when a metric is tripped → route test.
-- CG11: `/health` `costGuard` has the shape of Behavior 13 for `pending`, `ok`, `warn`, `tripped` and `unconfigured` → health test.
+- CG10: `POST /cost-guard/check?dryRun=1` returns the evaluation and writes nothing, also when the budget trips → route test.
+- CG11: `/health` `costGuard` has the shape of Behavior 13a for `pending`, `ok`, `warn`, `tripped` and `unconfigured` → health test.
 
 CG12 (a page notice from `GET /api/cost-guard`) is withdrawn: the owner
 removed the web part on 2026-10-20 (Simplification review, Delete).
@@ -644,7 +583,7 @@ removed the web part on 2026-10-20 (Simplification review, Delete).
 - CG14: given a GraphQL HTTP 500, a body with `errors[]`, or a malformed body, the R2 metrics are `unavailable`, `lastError` is set, in-app metrics are kept and the breaker stays closed; a later successful check clears `lastError` → check test.
 - CG15: given the guard object throwing or answering 500 under `enforce`, the digest, embedding and query gate proceed (fail open) → feature test.
 - CG16: given a token value, no console output, stored state, `/health` body or check response of a successful or failing check contains it → log test.
-- CG17: given a metric over its threshold after a reset, the next real check opens the breaker again; a new month does not close it → breaker test.
+- CG17: given a budget over its threshold after a reset, the next real check opens the breaker again; a new month does not close it → breaker test.
 
 ### Budget
 - CG18: [measure] a real check is one GraphQL request (well under 300 per 5 min), three Durable Object status reads, one `describe()`, one gate month read and one Durable Object write; no R2 operation; measured by `bun test test/cost-guard.test.ts -t CG18` (in `apps/data-publisher-worker`), which counts the calls.
@@ -657,20 +596,21 @@ removed the web part on 2026-10-20 (Simplification review, Delete).
 
 #### Behavior
 - CG21: given the CG21 rows, `metricOverage` gives each metric's overage now and projected month-end overage in dollars (gauges as themselves, neurons by today's rate times the days of the month, an unread value as null), and `/health` `costGuard.metrics[key]` carries them as `overageUsd` and `projectedOverageUsd` → case rows (the CG11 health test checks the keys).
-- CG22: [pending] given the CG22 rows, `evaluateBudget` gives percent and projected percent of $5 and the status (60 % warn, 80 % trip, projected over 100 % trips; the real October trips on money spent) → case rows.
+- CG22: given the CG22 rows, `evaluateBudget` gives percent and projected percent of $5 and the status (60 % warn, 80 % trip, projected over 100 % trips; the real October trips on money spent) → case rows.
 - CG23: given the CG23 rows, a 24-hour Class A count of 50,000 or more on the guard's own bucket trips `r2ClassA` whatever the dollars, and a missing count trips nothing → case rows.
-- CG24: [pending] given the Example's inputs (13.9 GB stored, 10,177,536 stored dimensions, Class A 2,062,716 month to date and 33,676 over 10-14..20, 976 in 24 h on the Dev bucket, at 2026-10-21T02:04Z), a dry run reports `budget` $4.8408 now and $5.0770 projected, status `tripped` (`budget`), each metric `ok`, the spike `ok`, and the breaker untouched; with Class A 1,230,000 instead it reports $1.3117 projected and `ok`; storage alone at 13.9 GB or stored dimensions at 102 % never trips → check test.
+- CG24: given the Example's inputs (13.9 GB stored, 10,177,536 stored dimensions, Class A 2,062,716 month to date and 33,676 over 10-14..20, 976 in 24 h on the Dev bucket, at 2026-10-21T02:04Z), a dry run reports `budget` $4.8408 now and $5.0770 projected, status `tripped` (`budget`), each metric `ok`, the spike `ok`, and the breaker untouched; with Class A 1,230,000 instead it reports $1.3298 projected (10.91 days remain at 02:04 UTC; the CG22 row's $1.3117 is the same burst at 22:07 UTC) and `ok`; storage alone at 13.9 GB or stored dimensions at 102 % never trips → check test.
 - CG25: the request stays one POST and adds two `r2OperationsAdaptiveGroups` selections: the account's 7 complete UTC days before today (summed, Behavior 3a; read since CG35), and the last 24 hours filtered by `bucketName` the guard's own bucket; given a fixture with a third bucket's 100,000 Class A in the last 24 hours, those count in the account's dollars and not in the spike → fixture test.
-- CG26: [pending] given `enforce` and a breaker opened by `budget` only, the digest, embedding job and query gate refuse and `POST /run` and the publication alarm run; opened by `r2ClassA` (the spike), the publication also pauses; the breaker records `metric`, `value`, `threshold` ($4, $5 or 50,000) and `overageUsd` per metric → breaker and route tests.
-- CG27: [pending] `/health` `costGuard` has the shape of Behavior 13a for `pending`, `ok`, `warn`, `tripped` and `unconfigured`, with no per-metric `percent` or `warn` → health test.
+- CG26: given `enforce` and a breaker opened by `budget` only, the digest, embedding job and query gate refuse and `POST /run` and the publication alarm run; opened by `r2ClassA` (the spike), the publication also pauses; the breaker records `metric`, `value`, `threshold` ($4, $5 or 50,000) and `overageUsd` per metric → breaker and route tests.
+- CG27: `/health` `costGuard` has the shape of Behavior 13a for `pending`, `ok`, `warn`, `tripped` and `unconfigured`, with no per-metric `percent` or `warn` → health test.
 
-- CG34: [pending] given the CG34 rows, a projected month-end overage at 60 % of the budget or more makes the budget `warn` (in `/health` only) while the money spent is under 60 %, and never trips below a projection of 100 % (Decision 13) → case rows.
-- CG35: given the CG35 rows, a counter projects month to date plus its average over the 7 complete UTC days before today times the remaining days, across a month boundary and from the 1st; with fewer than 7 complete days it uses the days it has, and with none it projects as month to date (Decision 9). The per-metric `projectedPercent` and the dollars use the same projection (real October: 211.52 %, not month to date's 318 %), and the one GraphQL request reads the account's R2 operations over those 7 days (`datetime_geq` the 7th day before today, `datetime_lt` today) → case rows and fixture test.
+- CG34: given the CG34 rows, a projected month-end overage at 60 % of the budget or more makes the budget `warn` (in `/health` only) while the money spent is under 60 %, and never trips below a projection of 100 % (Decision 13) → case rows.
+- CG35: given the CG35 rows, a counter projects month to date plus its average over the 7 complete UTC days before today times the remaining days, across a month boundary and from the 1st; with fewer than 7 complete days it uses the days it has, and with none it projects as month to date (Decision 9). The dollars use this projection, and the one GraphQL request reads the account's R2 operations over those 7 days (`datetime_geq` the 7th day before today, `datetime_lt` today) → case rows and fixture test.
 - CG36: given a GraphQL fixture where `oss-knowledge-base-prod` wrote 195,600 Class A in the last 24 hours and `oss-knowledge-base-dev` 976, the Dev guard (`PUBLICATION_ENVIRONMENT=development`) requests only its own bucket, its spike stays `ok` and its publication runs, while the same fixture trips the Prod guard's spike; both count the 196,576 in the account's dollars (Decision 10) → fixture and route tests.
 #### Failure and retry
-- CG28: [pending] given a GraphQL failure, the R2 metrics and the spike are `unavailable`, the budget sums the in-app metrics only, lists the R2 keys in `missing`, and nothing trips on missing data → check test.
-- CG29: [pending] given a budget still at $4 or more after a reset, the next real check opens the breaker again; on the 1st of the next month the sums restart from $0 and the breaker stays open until reset → breaker test.
+- CG28: given a GraphQL failure, the R2 metrics and the spike are `unavailable`, the budget sums the in-app metrics only, lists the R2 keys in `missing`, and nothing trips on missing data → check test.
+- CG29: given a budget still at $4 or more after a reset, the next real check opens the breaker again; on the 1st of the next month the sums restart from $0 and the breaker stays open until reset → breaker test.
 - CG30: given a check at 00:30 UTC on November 1, the dollars cover 30 minutes of November, the rate covers October 25–31, and the spike covers the last 24 hours across the month boundary → fixture test.
+- CG40: given a state stored before the budget slice (old metric fields, a breaker opened on `r2StorageBytes`), `/health` shows `budget: null`, empty `metrics` and the open breaker; `enforce` refuses and the publication runs; a calm check leaves the breaker as it is, a spike adds `r2ClassA`, and a reset closes it; with a closed breaker the status is `pending` until the next check → check test.
 - CG31: given an unknown R2 action type on an OSS KB bucket, it counts as Class A in both the dollars and the spike and is listed in `unclassifiedActions` → fixture test.
 
 #### Budget

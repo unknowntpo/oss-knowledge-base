@@ -80,7 +80,7 @@ function devEnv(overrides: Record<string, unknown> = {}) {
     DIGEST_RUN: jsonObject({ enabled: true, running: false, lastRun: { ok: true, completedAt: recent } }),
     DIGEST_ENABLED: "true",
     COST_GUARD: "monitor",
-    COST_GUARD_STATE: jsonObject({ mode: "monitor", status: "tripped", reason: null, checkedAt: recent, metrics: { r2ClassA: { percent: 207.81, status: "tripped" } } }),
+    COST_GUARD_STATE: jsonObject({ mode: "monitor", status: "tripped", reason: null, checkedAt: recent, budget: { overageUsd: 4.84, projectedOverageUsd: 5.07, status: "tripped" }, breaker: { tripped: true, reason: "budget: $4.84 spent this UTC month (trips at $4)" } }),
     IDENTITY_LINKS: "corroborated@1",
     KIP_PAGES: "authors@1",
     SRE_AGENT: "live",

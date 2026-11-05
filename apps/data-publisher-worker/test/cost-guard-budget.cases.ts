@@ -1,8 +1,6 @@
 /**
  * Spec 026 amendment 2026-10-21 (dollar budget), CG22 and CG34: the budget's status from the
- * summed overage, with the R2 Class A spike rule (CG23, implemented in
- * test/cost-guard-spike.cases.ts) as an input. Planned slice: no test runs these rows yet (the
- * spec's marker is `[pending]`); the implementing slice adds `test.each(testPlanRows)`.
+ * summed overage, with the R2 Class A spike rule (CG23, test/cost-guard-spike.cases.ts) as an input.
  *
  * Budget $5 a month. `percent` = overageUsd / 5 × 100, `projectedPercent` likewise, floored to
  * 0.01 for display; comparisons use exact values. Trips: `budget` when percent ≥ 80 or
@@ -14,6 +12,7 @@
 export const testPlanRows = [
   { id: "CG22", case: "just under warn", overageUsd: 2.9999, projectedOverageUsd: 2.9999, classA24h: 976, percent: 59.99, projectedPercent: 59.99, status: "ok", trips: null },
   { id: "CG22", case: "$3 spent: warn", overageUsd: 3, projectedOverageUsd: 3, classA24h: 976, percent: 60, projectedPercent: 60, status: "warn", trips: null },
+  { id: "CG22", case: "$3 spent with a lower projection: the money alone warns", overageUsd: 3, projectedOverageUsd: 2.9999, classA24h: 976, percent: 60, projectedPercent: 59.99, status: "warn", trips: null },
   { id: "CG22", case: "just under $4", overageUsd: 3.9999, projectedOverageUsd: 4.9, classA24h: 976, percent: 79.99, projectedPercent: 98, status: "warn", trips: null },
   { id: "CG22", case: "$4 spent: trip", overageUsd: 4, projectedOverageUsd: 4.9, classA24h: 976, percent: 80, projectedPercent: 98, status: "tripped", trips: "budget" },
   { id: "CG22", case: "projected exactly $5: not over, warns", overageUsd: 1, projectedOverageUsd: 5, classA24h: 976, percent: 20, projectedPercent: 100, status: "warn", trips: null },
