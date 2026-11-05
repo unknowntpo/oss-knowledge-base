@@ -148,7 +148,9 @@ describe("Spec 026 cost guard", () => {
     const calm = evaluateSpike(976, PROD_BUCKET);
     // With the budget also tripped, the breaker names the spike (the trip that pauses the publication) and lists both.
     const both = nextBreaker({ tripped: false }, { budget: budgetAt(4.5), spike, overageUsd: OVERAGE }, TICK);
-    expect(both).toMatchObject({ tripped: true, metric: "r2ClassA", value: 195_600, threshold: 50_000, bucket: PROD_BUCKET, metrics: ["budget", "r2ClassA"] });
+    expect(both).toMatchObject({ tripped: true, metric: "r2ClassA", value: 195_600, threshold: 50_000, bucket: PROD_BUCKET, metrics: ["budget", "r2ClassA"], overageUsd: OVERAGE });
+    // A spike alone records no dollars.
+    expect(nextBreaker({ tripped: false }, { budget: budgetAt(0), spike, overageUsd: {} }, TICK)).not.toHaveProperty("overageUsd");
     // An open breaker gains r2ClassA from a later spike and keeps the rest.
     const budget = nextBreaker({ tripped: false }, { budget: budgetAt(4.5), spike: calm, overageUsd: OVERAGE }, TICK);
     expect(budget).toMatchObject({ tripped: true, metric: "budget", metrics: ["budget"] });
@@ -481,6 +483,12 @@ describe("Spec 026 cost guard", () => {
     expect(november.budget).toMatchObject({ overageUsd: 0, status: "ok" });
     expect(november.breaker).toMatchObject({ tripped: true, trippedAt: "2026-10-21T22:07:00.000Z" });
     expect((await runner.health()).status).toBe("tripped");
+    // After a reset a stored spike or budget trip still reads `tripped`, until a check finds it calm.
+    const spiked = guard({ inApp: NO_IN_APP }, () => usage({ spike: 60_000 }));
+    expect(await spiked.runner.check({ dryRun: true })).toMatchObject({ status: "tripped", budget: { status: "ok" }, wouldTrip: true });
+    await spiked.runner.check({ dryRun: false });
+    await spiked.runner.reset();
+    expect(await spiked.runner.health()).toMatchObject({ status: "tripped", budget: { status: "ok" }, breaker: { tripped: false } });
     // A reset now holds: the next check finds nothing to trip.
     await runner.reset();
     expect((await runner.check({ dryRun: false }) as { breaker: Breaker }).breaker).toEqual({ tripped: false });
@@ -491,7 +499,9 @@ describe("Spec 026 cost guard", () => {
     const legacyBreaker = { tripped: true, reason: "r2StorageBytes at 154.78% of 10000000000 (trips at 80%)", metric: "r2StorageBytes", value: 15_478_000_000, threshold: 8_000_000_000, trippedAt: "2026-11-02T22:07:00.000Z", metrics: ["r2StorageBytes"] };
     const { runner, storage } = guard({ flag: "enforce", inApp: NO_IN_APP }, CALM);
     storage.values.set("state", { checkedAt: "2026-11-02T22:07:00.000Z", metrics: { r2StorageBytes: { value: 15_478_000_000, allowance: 10_000_000_000, percent: 154.78, status: "tripped" } }, r2ClassASpike: null, breaker: legacyBreaker, lastResetAt: null, lastError: null });
-    expect(await runner.health()).toMatchObject({ status: "tripped", budget: null, metrics: {}, breaker: legacyBreaker });
+    const legacyHealth = await runner.health();
+    expect(legacyHealth).toMatchObject({ status: "tripped", budget: null, breaker: legacyBreaker });
+    expect(legacyHealth.metrics).toEqual({});
     expect(await runner.decision()).toEqual({ refuse: true, pausePublication: false });
     const check = await runner.check({ dryRun: false }) as { breaker: Breaker; budget: BudgetEvaluation };
     expect(check.budget.status).toBe("ok");
@@ -501,7 +511,9 @@ describe("Spec 026 cost guard", () => {
     // With the breaker closed, an unmigrated state reads as pending, not as its old status.
     const closed = guard();
     closed.storage.values.set("state", { checkedAt: "2026-11-02T22:07:00.000Z", metrics: { r2ClassA: { percent: 1, status: "ok" } }, r2ClassASpike: null, breaker: { tripped: false }, lastResetAt: null, lastError: null });
-    expect(await closed.runner.health()).toMatchObject({ status: "pending", budget: null, metrics: {} });
+    const closedHealth = await closed.runner.health();
+    expect(closedHealth).toMatchObject({ status: "pending", budget: null });
+    expect(closedHealth.metrics).toEqual({});
     // A later spike is added to the old breaker's keys.
     const spiked = guard({ inApp: NO_IN_APP }, () => usage({ spike: 60_000 }));
     spiked.storage.values.set("state", { checkedAt: "2026-11-02T22:07:00.000Z", metrics: {}, r2ClassASpike: null, breaker: legacyBreaker, lastResetAt: null, lastError: null });

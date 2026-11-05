@@ -12,6 +12,7 @@
 export const testPlanRows = [
   { id: "CG22", case: "just under warn", overageUsd: 2.9999, projectedOverageUsd: 2.9999, classA24h: 976, percent: 59.99, projectedPercent: 59.99, status: "ok", trips: null },
   { id: "CG22", case: "$3 spent: warn", overageUsd: 3, projectedOverageUsd: 3, classA24h: 976, percent: 60, projectedPercent: 60, status: "warn", trips: null },
+  { id: "CG22", case: "$3 spent with a lower projection: the money alone warns", overageUsd: 3, projectedOverageUsd: 2.9999, classA24h: 976, percent: 60, projectedPercent: 59.99, status: "warn", trips: null },
   { id: "CG22", case: "just under $4", overageUsd: 3.9999, projectedOverageUsd: 4.9, classA24h: 976, percent: 79.99, projectedPercent: 98, status: "warn", trips: null },
   { id: "CG22", case: "$4 spent: trip", overageUsd: 4, projectedOverageUsd: 4.9, classA24h: 976, percent: 80, projectedPercent: 98, status: "tripped", trips: "budget" },
   { id: "CG22", case: "projected exactly $5: not over, warns", overageUsd: 1, projectedOverageUsd: 5, classA24h: 976, percent: 20, projectedPercent: 100, status: "warn", trips: null },

@@ -544,6 +544,7 @@ trips the spike), generated from
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | CG22 | just under warn | 2.9999 | 2.9999 | 976 | 59.99 | 59.99 | ok | — |
 | CG22 | $3 spent: warn | 3 | 3 | 976 | 60 | 60 | warn | — |
+| CG22 | $3 spent with a lower projection: the money alone warns | 3 | 2.9999 | 976 | 60 | 59.99 | warn | — |
 | CG22 | just under $4 | 3.9999 | 4.9 | 976 | 79.99 | 98 | warn | — |
 | CG22 | $4 spent: trip | 4 | 4.9 | 976 | 80 | 98 | tripped | budget |
 | CG22 | projected exactly $5: not over, warns | 1 | 5 | 976 | 20 | 100 | warn | — |
