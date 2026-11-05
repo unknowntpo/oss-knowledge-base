@@ -236,6 +236,26 @@ Evidence on Prod:
 Prod Pages still serves no person-level data: `PEOPLE_PROFILES` and
 `PEOPLE_KIPS` stay unset (Spec 019 decision 8 needs the terms check first).
 
+## v0.3.9: cost guard in monitor on Prod
+
+| Tag | Commit | Tagged (UTC) | Run | What Prod gains |
+| --- | --- | --- | --- | --- |
+| `v0.3.9` | `a0023cd` | 2026-11-05 00:50 | [41944279497](https://github.com/unknowntpo/oss-knowledge-base/actions/runs/41944279497) | `COST_GUARD=monitor`, `CF_ACCOUNT_ID`, `COST_GUARD_STATE` and migration `v5` (Spec 026 Amendment 2026-11-04, #190). The tag deploy now stops if the Worker lacks `CF_ANALYTICS_TOKEN` |
+
+Evidence on Prod, 2026-11-05:
+
+- `/health` shows `costGuard.mode: monitor`, `status: pending` until the first
+  scheduled check.
+- `POST /cost-guard/check?dryRun=1` answered 200 with `ok: true` and no
+  `lastError` (CG39), so the token can read the GraphQL Analytics API.
+- The dry run reports `wouldTrip: true`: `r2StorageBytes` is 158.09 % of its
+  allowance, $0.0871 a month. `vectorizeStoredDimensions` is at `warn`
+  (110.86 %, $0.0005). R2 Class A is 1.28 % and its 24-hour spike check is `ok`.
+
+The 22:37 UTC tick will open the breaker on R2 storage. Under `monitor` this
+refuses nothing, so do not reset it. `enforce` waits for the dollar budget
+(CG22).
+
 ## Release command
 
 After the selected commit is merged and green on `main` (for the first Prod

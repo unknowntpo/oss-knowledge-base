@@ -392,7 +392,7 @@ about 28 thousand and 6.0 million. Act when:
 Account-wide cost monitoring and a circuit breaker
 ([spec](../specs/026-cost-guard/spec.md)). Dev: `monitor` since the Dev
 monitor enable PR (2026-10-21). Prod: `monitor` in the Prod config from the
-first Prod tag after `v0.3.8` (section "Enable `monitor` on Prod"). The check rides
+`v0.3.9` (section "Enable `monitor` on Prod"). The check rides
 the publisher tick once a day, reads R2 operations and storage for the whole
 account over the GraphQL Analytics API, and adds Vectorize and Workers AI
 estimates from this Worker's own ledgers. It writes one Durable Object key

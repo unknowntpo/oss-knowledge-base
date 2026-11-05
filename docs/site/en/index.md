@@ -27,10 +27,10 @@ Jargon used throughout: **R2** is Cloudflare's object storage (billed per reques
 
 ## Status at a glance {#status}
 
-As of 2026-10-27 (sources: [docs/feature-map.md](docs/feature-map.md#environments), [docs/operations/release.md](docs/operations/release.md)):
+As of 2026-11-05 (sources: [docs/feature-map.md](docs/feature-map.md#environments), [docs/operations/release.md](docs/operations/release.md)):
 
-- **On Prod and Dev:** daily publication from GitHub, Jira and dev@; lexical search `bm25-reference@3`; path URLs; per-component status in `/health`; thread list and detail; the data-freshness indicator; Workers Logs. Prod runs release `v0.3.3` (2026-10-28).
-- **Dev only:** the weekly topic digest, semantic hybrid search, contributor profiles and review ingestion, the KIP author pages, the cost guard, retention (dry run), the observability signals and rules, and the [SRE agent](sre-agent.html). Each sits behind its own flag and is off on Prod.
+- **On Prod and Dev:** daily publication from GitHub, Jira and dev@; lexical search `bm25-reference@3`; path URLs; per-component status in `/health`; thread list and detail; the data-freshness indicator; Workers Logs; the weekly topic digest; semantic hybrid search; review ingestion; the project trend; the cost guard in `monitor`. Prod runs release `v0.3.9` (2026-11-05).
+- **Dev only:** contributor profiles, the KIP author pages, retention (dry run), the observability signals and rules, and the [SRE agent](sre-agent.html). Each sits behind its own flag and is off on Prod.
 - **Next for Prod:** the digest goes to Prod only after its quality gate passes on a human-labelled week ([digest](digest.html#gate)).
 
 > Numbers on these pages come from the repository at the commit in the footer, or from the public `/health` endpoint at a stated time. Each one links to where it comes from.
