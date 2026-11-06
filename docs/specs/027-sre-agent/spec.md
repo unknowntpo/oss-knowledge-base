@@ -1,6 +1,6 @@
 # Spec 027: Read-only SRE triage agent
 
-Status: Partially implemented (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; [Amendment (1)](#amendment-1-triggered-diagnosis-2026-10-22) 2026-10-22: the agent diagnoses only after a deterministic rule fires; [Amendment (2)](#amendment-2-a-worker-job-on-the-ai-sdk-2026-10-22) 2026-10-22: an `sre-agent` job on the data publisher Worker, AI SDK with Workers AI, invariant playbooks; A2-1–A2-5 decided by owner 2026-10-22; [Dev fault-injection drill](#dev-fault-injection-drill-2026-10-22) added 2026-10-22; A2-9 slice 1 (the `packages/sre-agent` library core, L1/L2 tests) implemented; A2-9 slice 2 (the `sre-agent` cron job wired into the data publisher Worker, `/health.sreAgent`, the Spec 026 neuron term) implemented with `SRE_AGENT=off` on Dev and Prod; the drill (SRE67–SRE75, the `job.failures` playbook) implemented and Dev `SRE_AGENT=live` on Qwen3 30B without the `dry` week (owner decisions 2026-10-25), Prod `off`; see [Slice 1 notes](#slice-1-notes-2026-10-22), [Slice 2 notes](#slice-2-notes-2026-10-23) and [Drill slice notes](#drill-slice-notes-2026-10-25); the L3 eval (SRE59, SRE60) run three times 2026-10-25, with the owner's 4,096-token output cap and compact-JSON quote match from the second and third: the third run's scoreboard chooses Qwen3 30B (A2-1; 2 of 24 diagnoses pass), see [Eval notes](#eval-notes-2026-10-25); the evidence check also accepts JSON-pair quotes (SRE78, owner decision 2026-10-26, [JSON-pair quote match](#owner-decision-2026-10-26-json-pair-quote-match)); JSON evidence is cited by path, not copied text (SRE85–SRE89, owner decision 2026-10-26, [Path citation](#owner-decision-2026-10-26-cite-json-evidence-by-path); SRE79 withdrawn); Cloudflare Agent tracing on Dev (SRE80–SRE84, owner decision 2026-10-26, [Agent tracing on Dev](#agent-tracing-on-dev-owner-decision-2026-10-26)); the daily caps are Worker vars, Dev 10 diagnoses and 3,000 neurons a day, Prod unchanged (SRE90–SRE93, owner decision 2026-10-26, [Dev diagnosis quota](#dev-diagnosis-quota-owner-decision-2026-10-26)); the prompt and the output schema define each verdict (SRE94, SRE95, owner decision 2026-10-26, [Verdict definition](#verdict-definition-owner-decision-2026-10-26)); with no drill active the drill pointer holds an idle record instead of being deleted, so no tick reads a missing key (SRE98, owner-delegated decision 2026-10-26, [Idle drill pointer](#idle-drill-pointer-2026-10-26)); the system prompt opens with the system context and follows ASD-STE100 rules (SRE99, SRE100, owner decision 2026-10-27, [System prompt in STE](#system-prompt-in-ste-owner-decision-2026-10-27)); the local L3 eval also runs on Anthropic or an OpenAI-compatible gateway, keys from the environment, priced and capped in USD (SRE101–SRE103 implemented; SRE104 measured 2026-10-29: Sonnet 5.5 18/21, Haiku 5.5 27/35, the gap to Qwen3 30B is model capacity except `dev-stall-2026-10-02`, whose fixture contradicts `job.missed.md`; owner decision 2026-10-28, [Eval providers](#eval-providers-owner-decision-2026-10-28)))
+Status: Partially implemented (owner decisions 2026-10-20: own agent in TypeScript on pi, MacBook first, OpenRouter models; [Amendment (1)](#amendment-1-triggered-diagnosis-2026-10-22) 2026-10-22: the agent diagnoses only after a deterministic rule fires; [Amendment (2)](#amendment-2-a-worker-job-on-the-ai-sdk-2026-10-22) 2026-10-22: an `sre-agent` job on the data publisher Worker, AI SDK with Workers AI, invariant playbooks; A2-1–A2-5 decided by owner 2026-10-22; [Dev fault-injection drill](#dev-fault-injection-drill-2026-10-22) added 2026-10-22; A2-9 slice 1 (the `packages/sre-agent` library core, L1/L2 tests) implemented; A2-9 slice 2 (the `sre-agent` cron job wired into the data publisher Worker, `/health.sreAgent`, the Spec 026 neuron term) implemented with `SRE_AGENT=off` on Dev and Prod; the drill (SRE67–SRE75, the `job.failures` playbook) implemented and Dev `SRE_AGENT=live` on Qwen3 30B without the `dry` week (owner decisions 2026-10-25), Prod `off`; see [Slice 1 notes](#slice-1-notes-2026-10-22), [Slice 2 notes](#slice-2-notes-2026-10-23) and [Drill slice notes](#drill-slice-notes-2026-10-25); the L3 eval (SRE59, SRE60) run three times 2026-10-25, with the owner's 4,096-token output cap and compact-JSON quote match from the second and third: the third run's scoreboard chooses Qwen3 30B (A2-1; 2 of 24 diagnoses pass), see [Eval notes](#eval-notes-2026-10-25); the evidence check also accepts JSON-pair quotes (SRE78, owner decision 2026-10-26, [JSON-pair quote match](#owner-decision-2026-10-26-json-pair-quote-match)); JSON evidence is cited by path, not copied text (SRE85–SRE89, owner decision 2026-10-26, [Path citation](#owner-decision-2026-10-26-cite-json-evidence-by-path); SRE79 withdrawn); Cloudflare Agent tracing on Dev (SRE80–SRE84, owner decision 2026-10-26, [Agent tracing on Dev](#agent-tracing-on-dev-owner-decision-2026-10-26)); the daily caps are Worker vars, Dev 10 diagnoses and 3,000 neurons a day, Prod unchanged (SRE90–SRE93, owner decision 2026-10-26, [Dev diagnosis quota](#dev-diagnosis-quota-owner-decision-2026-10-26)); the prompt and the output schema define each verdict (SRE94, SRE95, owner decision 2026-10-26, [Verdict definition](#verdict-definition-owner-decision-2026-10-26)); with no drill active the drill pointer holds an idle record instead of being deleted, so no tick reads a missing key (SRE98, owner-delegated decision 2026-10-26, [Idle drill pointer](#idle-drill-pointer-2026-10-26)); the system prompt opens with the system context and follows ASD-STE100 rules (SRE99, SRE100, owner decision 2026-10-27, [System prompt in STE](#system-prompt-in-ste-owner-decision-2026-10-27)); the local L3 eval also runs on Anthropic or an OpenAI-compatible gateway, keys from the environment, priced and capped in USD (SRE101–SRE103 implemented; SRE104 measured 2026-10-29: Sonnet 5.5 18/21, Haiku 5.5 27/35, the gap to Qwen3 30B is model capacity except `dev-stall-2026-10-02`, whose fixture contradicts `job.missed.md`; owner decision 2026-10-28, [Eval providers](#eval-providers-owner-decision-2026-10-28)); `/health` gives the publication's registered alarm as `alarmAt`, so `job.missed.md` tells a stale alarm (`alarm-stuck`) from a cron that never fired (SRE105–SRE108 implemented, owner decision 2026-11-06, [Stale alarm on `/health`](#stale-alarm-on-health-owner-decision-2026-11-06)))
 Date: 2026-10-20 (amended 2026-10-22)
 Traceability: enforced
 Builds on: Spec 008 (R2 operations), Spec 010, 011, 018, 021 (freshness and stalls), Spec 014 (digest), Spec 019 amendment (7) (identity-links, kip-pages jobs), Spec 020 (feature map), Spec 026 and its dollar-budget amendment (cost guard), Spec 028 (observability signals, PR #108, not merged), Spec 029 (R2 retention)
@@ -733,7 +733,8 @@ it differs from the text above:
 - **Playbook cause ids (B35).** `docs/runbooks/sre/job.missed.md` gains a
   `Cause id` column. Eval row 1 expects `alarm-stuck`, while the playbook's
   worked example expects `unknown` with cause 5 as suspect; the L3 slice
-  reconciles them.
+  reconciles them. (Reconciled 2026-11-06 by SRE105–SRE108: both expect
+  `alarm-stuck` from `alarmAt`.)
 - **Neurons (B31).** A call's input tokens are estimated before the call at
   3 characters a token; a failed call keeps its reservation (it has no usage
   to settle with); an unlisted model is charged at the highest listed rates.
@@ -1540,7 +1541,45 @@ and the production caps do not.
   `alarm-stuck` only for `running: true` or a past `followUp.at`, and the
   fixture has `running: false` and no `followUp`, so the playbook leads to
   `unknown`. This is the open eval row 1 and playbook conflict (B35 notes);
-  reconciling them is a follow-up, not part of SRE104.
+  reconciling them is a follow-up, not part of SRE104. (Done 2026-11-06:
+  [Stale alarm on `/health`](#stale-alarm-on-health-owner-decision-2026-11-06).)
+
+### Stale alarm on `/health` (owner decision 2026-11-06)
+
+The 2026-10-29 eval (SRE104) showed that no model passes
+`dev-stall-2026-10-02`, and that the fixture, not the model, is wrong. The
+fixture gives `scheduled` as a string, "(overdue)". The real `/health`
+gives `scheduled` as a boolean from `runPending(false, alarm, now)`, which
+is `false` once an alarm is 30 minutes or more past its time
+(`STALE_ALARM_MS`: the runtime gave up on it). So a stale alarm looks like
+cause 1 (`cron-not-fired`: `running: false`, `scheduled: false`,
+`followUp: null`), and `job.missed.md` cannot tell the two apart. The owner
+chose to make the stale alarm visible instead of a rule that only the
+fixture can meet.
+
+- **`alarmAt` (SRE105).** The publication's `/health` gains `alarmAt`: the
+  time of the alarm registered on the Durable Object, as an ISO 8601
+  string, or `null` when none is registered. `scheduled` keeps its meaning.
+  Only the publication changes; the digest and the embedding runner keep
+  their fields.
+- **Bundle (SRE106).** The publication's bundle holds `alarmAt` with the
+  other job state (`JOB_HEALTH_FIELDS`).
+- **Playbook (SRE107).** In `docs/runbooks/sre/job.missed.md`, cause 2
+  `alarm-stuck` also has the sign `running: false` with an `alarmAt` 30
+  minutes or more before the bundle's time; cause 1 `cron-not-fired` needs
+  `alarmAt: null`. The worked example (eval case 1) expects `alarm-stuck`
+  from that sign.
+- **Fixture (SRE108).** `dev-stall-2026-10-02` gives `scheduled: false` and
+  `alarmAt` 2026-09-30T02:07:00.000Z (the next hourly alarm, left
+  registered; reconstructed), and its required evidence is
+  `lastRun.completedAt` and `alarmAt`. A Haiku 5.5 eval (`--runs 5`, at
+  most $0.15) measures the change.
+- **Result (2026-11-06, $0.033).** [Haiku 5.5](eval/scoreboard-2026-11-06.md)
+  passes `dev-stall-2026-10-02` 5 of 5 (0 of 5 on
+  [2026-10-29](eval/scoreboard-2026-10-29b.md)), every run answering
+  `alarm-stuck`, and 33 of 35 runs in all (27 of 35 before). The two
+  failures are `kip-pages-two-failures` runs that quote text not in the
+  bundle (fabrication).
 
 ## Dev fault-injection drill (2026-10-22)
 
@@ -2135,7 +2174,7 @@ B28, two controls with no model call):
 <!-- test-plan:start packages/sre-agent/test/eval.cases.ts -->
 | id | type | scenario | source | trigger | bundle | cause | evidence | runbook |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| SRE60 | 1 missed | dev-stall-2026-10-02 | reconstructed | dev publication: job.missed + publication.freshness | lastRun.completedAt 2026-09-30T01:07Z, now 2026-10-02T02:00Z, running false, scheduled alarm overdue; no publication point after 01:07Z | alarm-stuck | lastRun.completedAt; scheduled | cloudflare-data-publisher.md#health-and-manual-run |
+| SRE60 | 1 missed | dev-stall-2026-10-02 | reconstructed | dev publication: job.missed + publication.freshness | lastRun.completedAt 2026-09-30T01:07Z, now 2026-10-02T02:00Z, running false, scheduled false, alarmAt 2026-09-30T02:07Z (stale); no publication point after 01:07Z | alarm-stuck | lastRun.completedAt; alarmAt | cloudflare-data-publisher.md#health-and-manual-run |
 | SRE60 | 2 repeated failures | kip-pages-two-failures | constructed | dev kip-pages: job.failures | kipPages.lastRun ok false, status failed, error "jira 503" on two consecutive runs; Q-window: other jobs ok | upstream-unavailable | kipPages.lastRun.error; Q-window | none (reports a runbook gap) |
 | SRE60 | 3 cost/R2 | r2-class-a-spike-2026-10-13 | real | dev publication: r2.classAInvariant | lastRun.r2.classA 8190, copiedObjectCount 35, reusedObjectCount 8150 (hourly run, 2026-10-13) | conditional-put-on-existing | lastRun.r2.classA; copiedObjectCount | cloudflare-data-publisher.md#r2-operations-and-cost |
 | SRE60 | 3 cost/R2 | dev-cost-guard-trip-2026-10-21 | real | dev costGuard tripped (Spec 026, monitor) | costGuard.breaker r2ClassA 2064777 vs threshold 800000, trippedAt 2026-10-21T22:07:14.115Z; lastRun classA 1092 = copiedObjectCount 1089 + 3 | month-to-date-past-incident | costGuard.breaker.value; lastRun.r2.classA | cloudflare-data-publisher.md#r2-operations-and-cost |
@@ -2303,6 +2342,13 @@ by Amendment (1); SRE34 replaced it.
 - SRE102: (owner decision 2026-10-28) a paid model needs a USD price, listed or from `--usd-per-mtok`, else the eval refuses it; with a price, a diagnosis whose next call's reservation (prompt estimate plus 4,096 output tokens) would pass `--max-usd-per-diagnosis` fails with reason `budget`, and the 1,500-neuron ledger does not stop it first; a run's `costUsd` is input tokens × input price plus output tokens × output price; the cost meter refuses to start a diagnosis when spent plus the worst diagnosis would pass the budget; the scoreboard's cost is the sum of the runs' `costUsd`, and neurons × $0.011 per 1,000 for a run without one → L1 test with case rows.
 - SRE103: (owner decision 2026-10-28) with `--provider anthropic` every model call carries the provider option `anthropic.effort` set to `--effort` (default `low`) and keeps the other provider options; a Workers AI call carries none → L1 test with case rows.
 - SRE104: [measure] `bun run --cwd packages/sre-agent eval -- --provider anthropic --model claude-sonnet-5-5 --runs 3` and the same with `--model claude-haiku-5-5 --runs 5` spend at most $0.80 together; the scoreboard is committed under `docs/specs/027-sre-agent/eval/` and compared with [scoreboard-2026-10-27](eval/scoreboard-2026-10-27.md).
+
+### Stale alarm on `/health`: Behavior
+
+- SRE105: (owner decision 2026-11-06) the publication object's `GET /status` (served as `/health`) has `alarmAt`: the registered alarm's time as an ISO 8601 string, or `null` with no alarm; with an alarm 30 minutes or more in the past, `scheduled` is `false` and `alarmAt` is that time → L1 test.
+- SRE106: (owner decision 2026-11-06) a publication firing's bundle holds `alarmAt` from `/health` → L1 test.
+- SRE107: (owner decision 2026-11-06) `docs/runbooks/sre/job.missed.md` cause 2 `alarm-stuck` names `alarmAt` with `running: false` as a sign; cause 1 `cron-not-fired` names `alarmAt: null`; the worked example expects `alarm-stuck`; the bundled playbook equals the file (`check:playbooks`) → L1 test.
+- SRE108: (owner decision 2026-11-06) the `dev-stall-2026-10-02` fixture has `scheduled: false` and `alarmAt` 2026-09-30T02:07:00.000Z, and requires `lastRun.completedAt` and `alarmAt`; its golden answer passes every grader → L2 test. [measure] a Haiku 5.5 eval with `--runs 5` spends at most $0.15; its scoreboard is committed under `docs/specs/027-sre-agent/eval/`.
 
 ### Dev fault-injection drill: Behavior
 - SRE67: with `SRE_DRILL=on` on `development`, `POST /sre-agent/drill` with the manual token and `{job: "kip-pages", kind: "throw"}` answers 201 `{drillId, job, kind, runs: 2, armedAt, expiresAt}` and writes the drill record and the pointer under `internal/sre/v1/dev/drills/`; it answers 401 without the token, 400 for another job or kind, 409 while a drill is armed or fired-but-ungraded, 404 with `SRE_DRILL` unset, and 409 for a kind whose rule's playbook does not list the expected cause; `DELETE` writes the idle pointer (SRE98) and marks the record `cancelled` → worker test with the `sre-drill-worker.cases.ts` rows.

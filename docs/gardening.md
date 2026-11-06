@@ -1194,7 +1194,7 @@ the two `viewer/` items below.
 - **Layer:** component test, then code.
 - **Source:** Spec 019 amendment (7) slice C, 2026-10-21.
 
-### G99. SRE agent core: AI SDK types need `skipLibCheck`; CI log tail and eval cause ids are open
+### G99. SRE agent core: AI SDK types need `skipLibCheck`; CI log tail is open
 - **Where:** `packages/sre-agent/tsconfig.json` (`skipLibCheck: true`),
   `packages/sre-agent/src/firings.ts` (`readCiRelease`),
   `packages/sre-agent/test/eval.cases.ts` row 1 and
@@ -1204,17 +1204,17 @@ the two `viewer/` items below.
   library checks (its own files are still checked strictly). `ci.release`
   reads the failed job's name but not its last 60 log lines (B29): whether
   the public API serves job logs without a token is unverified. Eval row 1
-  expects cause `alarm-stuck`; the playbook's worked example expects
-  `unknown` with `deploy-broke-job` as suspect. Fingerprints recorded during
+  and the playbook's worked example disagreed on the cause; Spec 027
+  SRE105–SRE108 (2026-11-06) made both expect `alarm-stuck` from `/health`
+  `alarmAt`. Fingerprints recorded during
   the Dev `dry` week carry into `live` (verifier F2), so a firing that began
   in `dry` is not diagnosed live until it fires again with a new `runId` or
   `since`.
 - **Fix:** drop `skipLibCheck` when an `ai` release type-checks under
   `exactOptionalPropertyTypes`; verify the logs endpoint unauthenticated in
-  the wiring slice and fetch the tail or remove it from B29; make eval row 1
-  and the playbook agree in the L3 slice (eval row 2 still expects "a runbook
-  gap" for `job.failures`; since 2026-10-25 the playbook cites
-  `cloudflare-data-publisher.md#upstream-failures-job-runs`). The
+  the wiring slice and fetch the tail or remove it from B29 (eval row 2
+  still expects "a runbook gap" for `job.failures`; since 2026-10-25 the
+  playbook cites `cloudflare-data-publisher.md#upstream-failures-job-runs`). The
   fingerprint carry-over does not apply to Dev: the owner skipped the `dry`
   week (2026-10-25), Dev never ran `dry`, and `state.json` had no
   fingerprints when `live` started.

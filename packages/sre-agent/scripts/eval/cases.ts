@@ -58,11 +58,13 @@ export const EVAL_CASES: readonly EvalCase[] = [
   {
     scenario: "dev-stall-2026-10-02",
     env: "dev",
-    note: "reconstructed: Spec 027 Example (2) bundle (Specs 010, 011 Evidence, commit a303636); scheduled is the overdue alarm left registered",
+    note: "reconstructed: Spec 027 Example (2) bundle (Specs 010, 011 Evidence, commit a303636); alarmAt is the next hourly alarm, left registered and stale, so scheduled is false as /health gives it (SRE105, SRE108)",
     health: {
       ok: true,
       running: false,
-      scheduled: "2026-09-30T02:07:00Z (overdue, reconstructed)",
+      scheduled: false,
+      alarmAt: "2026-09-30T02:07:00.000Z",
+      followUp: null,
       lastRun: { ok: true, completedAt: "2026-09-30T01:07:00Z" },
       costGuard: null,
       signals: {
@@ -79,7 +81,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
       cause: "alarm-stuck",
       evidence: [
         { name: "lastRun.completedAt", pattern: /2026-09-30T01:07/u },
-        { name: "scheduled", pattern: /overdue/u },
+        { name: "alarmAt", pattern: /2026-09-30T02:07/u },
       ],
       runbook: "cloudflare-data-publisher.md#health-and-manual-run",
     },
@@ -87,10 +89,10 @@ export const EVAL_CASES: readonly EvalCase[] = [
       verdict: "explained", cause: "alarm-stuck", confidence: "medium",
       evidence: [
         { label: "publication /health fields", quote: "\"completedAt\": \"2026-09-30T01:07:00Z\"" },
-        { label: "publication /health fields", quote: "\"scheduled\": \"2026-09-30T02:07:00Z (overdue, reconstructed)\"" },
+        { label: "publication /health fields", quote: "\"alarmAt\": \"2026-09-30T02:07:00.000Z\"" },
       ],
       runbook: "cloudflare-data-publisher.md#health-and-manual-run",
-      ownerAction: "A manual run answers 409 while the alarm is registered; read Workers Logs for exceededMemory.",
+      ownerAction: "Publish manually (POST /run), which replaces the stale alarm; read Workers Logs for exceededMemory.",
     },
   },
   {

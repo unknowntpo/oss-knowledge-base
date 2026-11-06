@@ -1,0 +1,1842 @@
+{
+  "date": "2026-11-06",
+  "command": "bun run --cwd packages/sre-agent eval -- --provider anthropic --model claude-haiku-5-5 --runs 5 --budget-usd 0.15 --max-usd-per-diagnosis 0.01 --effort low",
+  "stub": false,
+  "scoreboard": {
+    "budgetUsd": 0.15,
+    "models": [
+      {
+        "modelId": "claude-haiku-5-5",
+        "runs": 35,
+        "diagnoses": 25,
+        "passed": 33,
+        "passRate": 0.9428571428571428,
+        "causeCorrect": 25,
+        "evidenceOk": 23,
+        "anchorOk": 25,
+        "fabricated": 2,
+        "fabricationRate": 0.08,
+        "failures": {},
+        "noCallRuns": 10,
+        "noCallPassed": 10,
+        "neurons": 10691.569830000002,
+        "neuronsPerDiagnosis": 427.66279320000007,
+        "latencyMsMean": 5757.6,
+        "latencyMsP50": 5770,
+        "costUsd": 0.0328125,
+        "byCase": {
+          "dev-stall-2026-10-02": {
+            "runs": 5,
+            "passed": 5,
+            "causes": {
+              "alarm-stuck": 5
+            }
+          },
+          "kip-pages-two-failures": {
+            "runs": 5,
+            "passed": 3,
+            "causes": {
+              "upstream-unavailable": 5
+            }
+          },
+          "r2-class-a-spike-2026-10-13": {
+            "runs": 5,
+            "passed": 5,
+            "causes": {
+              "conditional-put-on-existing": 5
+            }
+          },
+          "dev-cost-guard-trip-2026-10-21": {
+            "runs": 5,
+            "passed": 5,
+            "causes": {
+              "month-to-date-past-incident": 5
+            }
+          },
+          "tag-ci-failure-v0.3.0": {
+            "runs": 5,
+            "passed": 5,
+            "causes": {
+              "non-hermetic-test": 5
+            }
+          },
+          "healthy-day-2026-10-20": {
+            "runs": 5,
+            "passed": 5,
+            "causes": {
+              "(no call)": 5
+            }
+          },
+          "digest-en-zh-cache-pollution": {
+            "runs": 5,
+            "passed": 5,
+            "causes": {
+              "(no call)": 5
+            }
+          }
+        }
+      }
+    ],
+    "neurons": 10691.569830000002,
+    "costUsd": 0.0328125
+  },
+  "winner": "claude-haiku-5-5",
+  "runs": [
+    {
+      "scenario": "dev-stall-2026-10-02",
+      "modelId": "claude-haiku-5-5",
+      "run": 1,
+      "firings": 2,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "alarm-stuck",
+      "runbook": "cloudflare-data-publisher.md#follow-up-runs-spec-018",
+      "evidence": [
+        {
+          "id": "E4",
+          "path": "running"
+        },
+        {
+          "id": "E4",
+          "path": "scheduled"
+        },
+        {
+          "id": "E4",
+          "path": "followUp"
+        },
+        {
+          "id": "E4",
+          "path": "alarmAt"
+        },
+        {
+          "id": "E4",
+          "path": "lastRun.completedAt"
+        },
+        {
+          "id": "E1",
+          "path": "since"
+        },
+        {
+          "id": "E1",
+          "path": "value"
+        },
+        {
+          "id": "E5",
+          "quote": "no publication point after 2026-09-30T01:07Z"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 11407,
+      "outputTokens": 1214,
+      "neurons": 552.835146,
+      "neuronsReported": null,
+      "costUsd": 0.0017477,
+      "latencyMs": 8472,
+      "finalText": "{\"cause\":\"alarm-stuck\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E4\",\"path\":\"running\"},{\"id\":\"E4\",\"path\":\"scheduled\"},{\"id\":\"E4\",\"path\":\"followUp\"},{\"id\":\"E4\",\"path\":\"alarmAt\"},{\"id\":\"E4\",\"path\":\"lastRun.completedAt\"},{\"id\":\"E1\",\"path\":\"since\"},{\"id\":\"E1\",\"path\":\"value\"},{\"id\":\"E5\",\"quote\":\"no publication point after 2026-09-30T01:07Z\"}],\"runbook\":\"cloudflare-data-publisher.md#follow-up-runs-spec-018\",\"ownerAction\":\"Publish manually with POST /run, which replaces the stale alarm at 2026-09-30T02:07:00.000Z, then poll /health until running is false. Missing evidence that would confirm why the alarm died: the publication run records after 2026-09-30T01:07Z (ok, error, durationMs) and Workers Logs for any exceededMemory or other failure. Check the Dev runs after the manual publish for a repeat failure.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "dev-stall-2026-10-02",
+      "modelId": "claude-haiku-5-5",
+      "run": 2,
+      "firings": 2,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "alarm-stuck",
+      "runbook": "cloudflare-data-publisher.md#follow-up-runs-spec-018",
+      "evidence": [
+        {
+          "id": "E4",
+          "path": "running"
+        },
+        {
+          "id": "E4",
+          "path": "scheduled"
+        },
+        {
+          "id": "E4",
+          "path": "alarmAt"
+        },
+        {
+          "id": "E4",
+          "path": "lastRun.completedAt"
+        },
+        {
+          "id": "E1",
+          "path": "since"
+        },
+        {
+          "id": "E1",
+          "path": "value"
+        },
+        {
+          "id": "E5",
+          "quote": "no publication point after 2026-09-30T01:07Z"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 11407,
+      "outputTokens": 1099,
+      "neurons": 529.282571,
+      "neuronsReported": null,
+      "costUsd": 0.0016902,
+      "latencyMs": 6032,
+      "finalText": "{\"cause\":\"alarm-stuck\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E4\",\"path\":\"running\"},{\"id\":\"E4\",\"path\":\"scheduled\"},{\"id\":\"E4\",\"path\":\"alarmAt\"},{\"id\":\"E4\",\"path\":\"lastRun.completedAt\"},{\"id\":\"E1\",\"path\":\"since\"},{\"id\":\"E1\",\"path\":\"value\"},{\"id\":\"E5\",\"quote\":\"no publication point after 2026-09-30T01:07Z\"}],\"runbook\":\"cloudflare-data-publisher.md#follow-up-runs-spec-018\",\"ownerAction\":\"Publish manually with POST /run, which replaces the stale alarm (alarmAt 2026-09-30T02:07:00.000Z, scheduled false), then poll /health until running is false. Also check the publication run records after 2026-09-30T01:07Z (ok, error, durationMs) and Workers Logs for an exceededMemory outcome, which would show why the alarm died; these are not in the bundle.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "dev-stall-2026-10-02",
+      "modelId": "claude-haiku-5-5",
+      "run": 3,
+      "firings": 2,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "alarm-stuck",
+      "runbook": "cloudflare-data-publisher.md#follow-up-runs-spec-018",
+      "evidence": [
+        {
+          "id": "E4",
+          "path": "running"
+        },
+        {
+          "id": "E4",
+          "path": "scheduled"
+        },
+        {
+          "id": "E4",
+          "path": "followUp"
+        },
+        {
+          "id": "E4",
+          "path": "alarmAt"
+        },
+        {
+          "id": "E4",
+          "path": "lastRun.completedAt"
+        },
+        {
+          "id": "E1",
+          "path": "since"
+        },
+        {
+          "id": "E1",
+          "path": "value"
+        },
+        {
+          "id": "E5",
+          "quote": "no publication point after 2026-09-30T01:07Z"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 11407,
+      "outputTokens": 1190,
+      "neurons": 547.919826,
+      "neuronsReported": null,
+      "costUsd": 0.0017357,
+      "latencyMs": 5712,
+      "finalText": "{\"cause\":\"alarm-stuck\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E4\",\"path\":\"running\"},{\"id\":\"E4\",\"path\":\"scheduled\"},{\"id\":\"E4\",\"path\":\"followUp\"},{\"id\":\"E4\",\"path\":\"alarmAt\"},{\"id\":\"E4\",\"path\":\"lastRun.completedAt\"},{\"id\":\"E1\",\"path\":\"since\"},{\"id\":\"E1\",\"path\":\"value\"},{\"id\":\"E5\",\"quote\":\"no publication point after 2026-09-30T01:07Z\"}],\"runbook\":\"cloudflare-data-publisher.md#follow-up-runs-spec-018\",\"ownerAction\":\"Publish manually with POST /run on the affected environment, which replaces the stale alarm registered at 2026-09-30T02:07:00.000Z, then confirm /health shows running false and a new lastRun.completedAt. Also check the publication run records after 2026-09-30T01:07Z for an ok, error or durationMs outcome, and Workers Logs for the cause of the alarm failure (for example exceededMemory); the bundle does not contain these, so the cause of the alarm dying remains unconfirmed.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "dev-stall-2026-10-02",
+      "modelId": "claude-haiku-5-5",
+      "run": 4,
+      "firings": 2,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "alarm-stuck",
+      "runbook": "cloudflare-data-publisher.md#follow-up-runs-spec-018",
+      "evidence": [
+        {
+          "id": "E4",
+          "path": "running"
+        },
+        {
+          "id": "E4",
+          "path": "scheduled"
+        },
+        {
+          "id": "E4",
+          "path": "alarmAt"
+        },
+        {
+          "id": "E4",
+          "path": "lastRun.completedAt"
+        },
+        {
+          "id": "E5",
+          "quote": "no publication point after 2026-09-30T01:07Z"
+        },
+        {
+          "id": "E1",
+          "path": "since"
+        },
+        {
+          "id": "E1",
+          "path": "value"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 11407,
+      "outputTokens": 1359,
+      "neurons": 582.531871,
+      "neuronsReported": null,
+      "costUsd": 0.0018202000000000001,
+      "latencyMs": 6514,
+      "finalText": "{\"cause\":\"alarm-stuck\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E4\",\"path\":\"running\"},{\"id\":\"E4\",\"path\":\"scheduled\"},{\"id\":\"E4\",\"path\":\"alarmAt\"},{\"id\":\"E4\",\"path\":\"lastRun.completedAt\"},{\"id\":\"E5\",\"quote\":\"no publication point after 2026-09-30T01:07Z\"},{\"id\":\"E1\",\"path\":\"since\"},{\"id\":\"E1\",\"path\":\"value\"}],\"runbook\":\"cloudflare-data-publisher.md#follow-up-runs-spec-018\",\"ownerAction\":\"Publish manually with POST /run, which replaces the stale alarm registered for 2026-09-30T02:07:00.000Z, then poll /health until running is false. Then check the publication run records after 2026-09-30T01:07Z for ok, error and durationMs, and Workers Logs for the reason the alarm died (for example exceededMemory). Those records are not in the bundle, so the cause rests on the stale alarm alone.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "dev-stall-2026-10-02",
+      "modelId": "claude-haiku-5-5",
+      "run": 5,
+      "firings": 2,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "alarm-stuck",
+      "runbook": "cloudflare-data-publisher.md#follow-up-runs-spec-018",
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "since"
+        },
+        {
+          "id": "E1",
+          "path": "value"
+        },
+        {
+          "id": "E4",
+          "path": "running"
+        },
+        {
+          "id": "E4",
+          "path": "scheduled"
+        },
+        {
+          "id": "E4",
+          "path": "alarmAt"
+        },
+        {
+          "id": "E4",
+          "path": "lastRun.completedAt"
+        },
+        {
+          "id": "E5",
+          "quote": "no publication point after 2026-09-30T01:07Z"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 11407,
+      "outputTokens": 969,
+      "neurons": 502.657921,
+      "neuronsReported": null,
+      "costUsd": 0.0016252,
+      "latencyMs": 4501,
+      "finalText": "{\"cause\":\"alarm-stuck\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E1\",\"path\":\"since\"},{\"id\":\"E1\",\"path\":\"value\"},{\"id\":\"E4\",\"path\":\"running\"},{\"id\":\"E4\",\"path\":\"scheduled\"},{\"id\":\"E4\",\"path\":\"alarmAt\"},{\"id\":\"E4\",\"path\":\"lastRun.completedAt\"},{\"id\":\"E5\",\"quote\":\"no publication point after 2026-09-30T01:07Z\"}],\"runbook\":\"cloudflare-data-publisher.md#follow-up-runs-spec-018\",\"ownerAction\":\"Publish manually with POST /run, which replaces the stale alarm registered for 2026-09-30T02:07Z, then poll /health until running is false. Afterwards check the publication run records after 2026-09-30T01:07Z for the ok, error and durationMs fields and Workers Logs for the cause the alarm died, since the bundle does not record why it stopped.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "kip-pages-two-failures",
+      "modelId": "claude-haiku-5-5",
+      "run": 1,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "upstream-unavailable",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E3",
+          "path": "kipPages.lastRun.error"
+        },
+        {
+          "id": "E3",
+          "path": "kipPages.lastRun.durationMs"
+        },
+        {
+          "id": "E5",
+          "path": "[0].error"
+        },
+        {
+          "id": "E5",
+          "path": "[1].error"
+        },
+        {
+          "id": "E6",
+          "path": "[0].status"
+        },
+        {
+          "id": "E6",
+          "path": "[3].status"
+        },
+        {
+          "id": "E1",
+          "path": "value"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 6622,
+      "outputTokens": 925,
+      "neurons": 366.040121,
+      "neuronsReported": null,
+      "costUsd": 0.0011247,
+      "latencyMs": 4967,
+      "finalText": "{\"cause\":\"upstream-unavailable\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E3\",\"path\":\"kipPages.lastRun.error\"},{\"id\":\"E3\",\"path\":\"kipPages.lastRun.durationMs\"},{\"id\":\"E5\",\"path\":\"[0].error\"},{\"id\":\"E5\",\"path\":\"[1].error\"},{\"id\":\"E6\",\"path\":\"[0].status\"},{\"id\":\"E6\",\"path\":\"[3].status\"},{\"id\":\"E1\",\"path\":\"value\"}],\"runbook\":null,\"ownerAction\":\"No runbook link exists for upstream-unavailable, so this is a runbook gap and runbook is null. Confirm Jira availability and check the next kip-pages run (after 2026-10-23T03:43Z) for ok: true. No operator action is needed on the Worker, costGuard or R2 unless the next run fails with a different error. Add a runbook section for upstream-unavailable to docs/runbooks/sre/ and replace this provisional playbook.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "kip-pages-two-failures",
+      "modelId": "claude-haiku-5-5",
+      "run": 2,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "upstream-unavailable",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E3",
+          "path": "kipPages.lastRun.error"
+        },
+        {
+          "id": "E3",
+          "path": "kipPages.lastRun.durationMs"
+        },
+        {
+          "id": "E3",
+          "path": "kipPages.lastRun.requests"
+        },
+        {
+          "id": "E6",
+          "path": "[0].status"
+        },
+        {
+          "id": "E6",
+          "path": "[1].status"
+        },
+        {
+          "id": "E6",
+          "path": "[3].status"
+        },
+        {
+          "id": "E7",
+          "quote": "A job's consecutive runs ended `ok: false`."
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 6622,
+      "outputTokens": 779,
+      "neurons": 336.138591,
+      "neuronsReported": null,
+      "costUsd": 0.0010517,
+      "latencyMs": 4147,
+      "finalText": "{\"cause\":\"upstream-unavailable\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E3\",\"path\":\"kipPages.lastRun.error\"},{\"id\":\"E3\",\"path\":\"kipPages.lastRun.durationMs\"},{\"id\":\"E3\",\"path\":\"kipPages.lastRun.requests\"},{\"id\":\"E6\",\"path\":\"[0].status\"},{\"id\":\"E6\",\"path\":\"[1].status\"},{\"id\":\"E6\",\"path\":\"[3].status\"},{\"id\":\"E7\",\"quote\":\"A job's consecutive runs ended `ok: false`.\"}],\"runbook\":null,\"ownerAction\":\"Runbook gap: no runbook link exists for cause upstream-unavailable in docs/runbooks/sre/, so runbook is null. Confirm Jira availability (jira 503 on the last two consecutive runs, 2026-10-21 and 2026-10-22). No data fix is needed while the upstream recovers; the next scheduled run should show whether the failure clears. Add a runbook section for upstream 5xx and rate-limit failures.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "kip-pages-two-failures",
+      "modelId": "claude-haiku-5-5",
+      "run": 3,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "upstream-unavailable",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "status"
+        },
+        {
+          "id": "E2",
+          "path": "costGuard.mode"
+        },
+        {
+          "id": "E3",
+          "path": "kipPages.lastRun.error"
+        },
+        {
+          "id": "E3",
+          "path": "kipPages.lastRun.requests"
+        },
+        {
+          "id": "E3",
+          "path": "kipPages.lastRun.durationMs"
+        },
+        {
+          "id": "E4",
+          "path": "[0].error"
+        },
+        {
+          "id": "E6",
+          "path": "[0].status"
+        },
+        {
+          "id": "E6",
+          "path": "[1].status"
+        },
+        {
+          "id": "E6",
+          "path": "[3].status"
+        }
+      ],
+      "evidenceFailures": [
+        "path-not-in-item:E2"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 6622,
+      "outputTokens": 780,
+      "neurons": 336.343396,
+      "neuronsReported": null,
+      "costUsd": 0.0010522,
+      "latencyMs": 3695,
+      "finalText": "{\"cause\":\"upstream-unavailable\",\"verdict\":\"explained\",\"confidence\":\"high\",\"evidence\":[{\"id\":\"E1\",\"path\":\"status\"},{\"id\":\"E2\",\"path\":\"costGuard.mode\"},{\"id\":\"E3\",\"path\":\"kipPages.lastRun.error\"},{\"id\":\"E3\",\"path\":\"kipPages.lastRun.requests\"},{\"id\":\"E3\",\"path\":\"kipPages.lastRun.durationMs\"},{\"id\":\"E4\",\"path\":\"[0].error\"},{\"id\":\"E6\",\"path\":\"[0].status\"},{\"id\":\"E6\",\"path\":\"[1].status\"},{\"id\":\"E6\",\"path\":\"[3].status\"}],\"runbook\":null,\"ownerAction\":\"No runbook link exists for upstream-unavailable, so this is a runbook gap: add a runbook section for upstream 5xx and rate-limit failures in docs/runbooks/sre/. Meanwhile, confirm Jira is healthy and re-run kip-pages once it recovers; the 2026-10-21 and 2026-10-22 runs both failed with jira 503, and lastGoodAt is 2026-10-20.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "kip-pages-two-failures",
+      "modelId": "claude-haiku-5-5",
+      "run": 4,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "upstream-unavailable",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E3",
+          "path": "kipPages.lastRun.error"
+        },
+        {
+          "id": "E3",
+          "path": "kipPages.lastRun.requests"
+        },
+        {
+          "id": "E3",
+          "path": "kipPages.lastRun.durationMs"
+        },
+        {
+          "id": "E6",
+          "path": "[0].status"
+        },
+        {
+          "id": "E6",
+          "path": "[1].status"
+        },
+        {
+          "id": "E6",
+          "path": "[3].status"
+        },
+        {
+          "id": "E1",
+          "path": "status"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 6622,
+      "outputTokens": 965,
+      "neurons": 374.23232099999996,
+      "neuronsReported": null,
+      "costUsd": 0.0011447,
+      "latencyMs": 4653,
+      "finalText": "{\"cause\":\"upstream-unavailable\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E3\",\"path\":\"kipPages.lastRun.error\"},{\"id\":\"E3\",\"path\":\"kipPages.lastRun.requests\"},{\"id\":\"E3\",\"path\":\"kipPages.lastRun.durationMs\"},{\"id\":\"E6\",\"path\":\"[0].status\"},{\"id\":\"E6\",\"path\":\"[1].status\"},{\"id\":\"E6\",\"path\":\"[3].status\"},{\"id\":\"E1\",\"path\":\"status\"}],\"runbook\":null,\"ownerAction\":\"Runbook gap: the upstream-unavailable cause has no runbook link in the job.failures playbook, so add one to docs/runbooks/sre/. Confirm Jira availability (the error is 'jira 503', and the run made only 2 requests before failing). Then re-run kip-pages once Jira recovers, and check that /health kipPages.lastRun.ok becomes true. Last good run was 2026-10-20T03:43:00.000Z.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "kip-pages-two-failures",
+      "modelId": "claude-haiku-5-5",
+      "run": 5,
+      "firings": 1,
+      "called": true,
+      "verdict": "unverified",
+      "reason": null,
+      "cause": "upstream-unavailable",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "value"
+        },
+        {
+          "id": "E2",
+          "path": "costGuard.mode"
+        },
+        {
+          "id": "E2",
+          "path": "costGuard.breaker.tripped"
+        },
+        {
+          "id": "E3",
+          "path": "kipPages.lastRun.error"
+        },
+        {
+          "id": "E3",
+          "path": "kipPages.lastRun.requests"
+        },
+        {
+          "id": "E3",
+          "path": "kipPages.lastRun.durationMs"
+        },
+        {
+          "id": "E6",
+          "path": "[0].status"
+        },
+        {
+          "id": "E6",
+          "path": "[1].status"
+        },
+        {
+          "id": "E6",
+          "path": "[3].status"
+        },
+        {
+          "id": "E7",
+          "quote": "An upstream (GitHub or Jira) answered 5xx or a rate limit"
+        }
+      ],
+      "evidenceFailures": [
+        "path-not-in-item:E2",
+        "path-not-in-item:E2"
+      ],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 6622,
+      "outputTokens": 1125,
+      "neurons": 407.001121,
+      "neuronsReported": null,
+      "costUsd": 0.0012247,
+      "latencyMs": 5587,
+      "finalText": "{\"cause\":\"upstream-unavailable\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E1\",\"path\":\"value\"},{\"id\":\"E2\",\"path\":\"costGuard.mode\"},{\"id\":\"E2\",\"path\":\"costGuard.breaker.tripped\"},{\"id\":\"E3\",\"path\":\"kipPages.lastRun.error\"},{\"id\":\"E3\",\"path\":\"kipPages.lastRun.requests\"},{\"id\":\"E3\",\"path\":\"kipPages.lastRun.durationMs\"},{\"id\":\"E6\",\"path\":\"[0].status\"},{\"id\":\"E6\",\"path\":\"[1].status\"},{\"id\":\"E6\",\"path\":\"[3].status\"},{\"id\":\"E7\",\"quote\":\"An upstream (GitHub or Jira) answered 5xx or a rate limit\"}],\"runbook\":null,\"ownerAction\":\"Jira answered 503 on the last two kip-pages runs (2026-10-21 and 2026-10-22), each ending early after 2 requests, while publication, identity-links and retention stayed ok. No runbook covers this cause, so this is a runbook gap: add an upstream-unavailable section to docs/runbooks/sre/. Next step: confirm Jira has recovered, then let the next kip-pages run or trigger one manually and check that lastGoodAt advances from 2026-10-20. The playbook is marked provisional, so confidence is medium.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": false,
+        "anchor": true,
+        "fabricated": true,
+        "missing": [],
+        "pass": false
+      }
+    },
+    {
+      "scenario": "r2-class-a-spike-2026-10-13",
+      "modelId": "claude-haiku-5-5",
+      "run": 1,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "conditional-put-on-existing",
+      "runbook": "cloudflare-data-publisher.md#r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "value"
+        },
+        {
+          "id": "E3",
+          "path": "lastRun.copiedObjectCount"
+        },
+        {
+          "id": "E3",
+          "path": "lastRun.reusedObjectCount"
+        },
+        {
+          "id": "E3",
+          "path": "lastRun.r2.classA"
+        },
+        {
+          "id": "E5",
+          "path": "[0].r2ClassA"
+        },
+        {
+          "id": "E5",
+          "path": "[1].r2ClassA"
+        },
+        {
+          "id": "E5",
+          "path": "[2].r2ClassA"
+        },
+        {
+          "id": "E7",
+          "quote": "A conditional put whose precondition fails (`if-none-match: *` on an existing"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 7393,
+      "outputTokens": 1313,
+      "neurons": 466.065489,
+      "neuronsReported": null,
+      "costUsd": 0.0013958000000000002,
+      "latencyMs": 5770,
+      "finalText": "{\"cause\":\"conditional-put-on-existing\",\"verdict\":\"explained\",\"confidence\":\"high\",\"evidence\":[{\"id\":\"E1\",\"path\":\"value\"},{\"id\":\"E3\",\"path\":\"lastRun.copiedObjectCount\"},{\"id\":\"E3\",\"path\":\"lastRun.reusedObjectCount\"},{\"id\":\"E3\",\"path\":\"lastRun.r2.classA\"},{\"id\":\"E5\",\"path\":\"[0].r2ClassA\"},{\"id\":\"E5\",\"path\":\"[1].r2ClassA\"},{\"id\":\"E5\",\"path\":\"[2].r2ClassA\"},{\"id\":\"E7\",\"quote\":\"A conditional put whose precondition fails (`if-none-match: *` on an existing\"}],\"runbook\":\"cloudflare-data-publisher.md#r2-operations-and-cost\",\"ownerAction\":\"Stop the writes that hit existing keys. Puts with if-none-match on objects already in R2 are billed as Class A each time. Confirm the cause by reading lastRun.r2.conditionalMisses and lastRun.r2.putRetries from /health, which this bundle does not include. Then check that the next run's classA is near copiedObjectCount + 3, and check the Class A cost against the month's included 1 million.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "r2-class-a-spike-2026-10-13",
+      "modelId": "claude-haiku-5-5",
+      "run": 2,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "conditional-put-on-existing",
+      "runbook": "cloudflare-data-publisher.md#r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "value"
+        },
+        {
+          "id": "E3",
+          "path": "lastRun.copiedObjectCount"
+        },
+        {
+          "id": "E3",
+          "path": "lastRun.reusedObjectCount"
+        },
+        {
+          "id": "E3",
+          "path": "lastRun.r2.classA"
+        },
+        {
+          "id": "E4",
+          "path": "[0].r2ClassA"
+        },
+        {
+          "id": "E5",
+          "path": "[1].r2ClassA"
+        },
+        {
+          "id": "E6",
+          "quote": "Conditional puts on objects that already exist still bill a Class A each"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 7393,
+      "outputTokens": 1473,
+      "neurons": 498.834289,
+      "neuronsReported": null,
+      "costUsd": 0.0014758000000000002,
+      "latencyMs": 7623,
+      "finalText": "{\"cause\":\"conditional-put-on-existing\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E1\",\"path\":\"value\"},{\"id\":\"E3\",\"path\":\"lastRun.copiedObjectCount\"},{\"id\":\"E3\",\"path\":\"lastRun.reusedObjectCount\"},{\"id\":\"E3\",\"path\":\"lastRun.r2.classA\"},{\"id\":\"E4\",\"path\":\"[0].r2ClassA\"},{\"id\":\"E5\",\"path\":\"[1].r2ClassA\"},{\"id\":\"E6\",\"quote\":\"Conditional puts on objects that already exist still bill a Class A each\"}],\"runbook\":\"cloudflare-data-publisher.md#r2-operations-and-cost\",\"ownerAction\":\"The run's r2.classA (8190) matches copiedObjectCount + reusedObjectCount (35 + 8150 = 8185) and sits far above copiedObjectCount + 3 (38). The same 8190 appears on the last three runs in Q-history. Confidence is medium because the bundle lacks lastRun.r2.conditionalMisses and putRetries (this 2026-10-13 record predates the Spec 028 D11 counters), so the conditional-put mechanism is inferred rather than counted. Next: pull the run's conditionalMisses and putRetries from the raw record or logs, find the code path that issues if-none-match puts on keys already written, and make it skip existing keys. Also review the month's Class A total against the included 1 million.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "r2-class-a-spike-2026-10-13",
+      "modelId": "claude-haiku-5-5",
+      "run": 3,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "conditional-put-on-existing",
+      "runbook": "cloudflare-data-publisher.md#r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "value"
+        },
+        {
+          "id": "E3",
+          "path": "lastRun.r2.classA"
+        },
+        {
+          "id": "E3",
+          "path": "lastRun.copiedObjectCount"
+        },
+        {
+          "id": "E3",
+          "path": "lastRun.reusedObjectCount"
+        },
+        {
+          "id": "E5",
+          "path": "[0].r2ClassA"
+        },
+        {
+          "id": "E5",
+          "path": "[1].r2ClassA"
+        },
+        {
+          "id": "E5",
+          "path": "[2].r2ClassA"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 7393,
+      "outputTokens": 1035,
+      "neurons": 409.1296990000001,
+      "neuronsReported": null,
+      "costUsd": 0.0012568000000000002,
+      "latencyMs": 5087,
+      "finalText": "{\"cause\":\"conditional-put-on-existing\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E1\",\"path\":\"value\"},{\"id\":\"E3\",\"path\":\"lastRun.r2.classA\"},{\"id\":\"E3\",\"path\":\"lastRun.copiedObjectCount\"},{\"id\":\"E3\",\"path\":\"lastRun.reusedObjectCount\"},{\"id\":\"E5\",\"path\":\"[0].r2ClassA\"},{\"id\":\"E5\",\"path\":\"[1].r2ClassA\"},{\"id\":\"E5\",\"path\":\"[2].r2ClassA\"}],\"runbook\":\"cloudflare-data-publisher.md#r2-operations-and-cost\",\"ownerAction\":\"Find out why the publication issues conditional puts for objects that already exist. Its R2 Class A count (8,190) is about copiedObjectCount 35 plus reusedObjectCount 8,150, not copiedObjectCount + 3 (38), and it repeats on the last three runs. The bundle has no lastRun.r2.conditionalMisses or putRetries fields, so confirm the cause by checking those counters on the next run's /health record and the 'r2 <op> retry' log lines. Then fix the writer that re-puts existing keys.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "r2-class-a-spike-2026-10-13",
+      "modelId": "claude-haiku-5-5",
+      "run": 4,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "conditional-put-on-existing",
+      "runbook": "cloudflare-data-publisher.md#r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "value"
+        },
+        {
+          "id": "E3",
+          "path": "lastRun.r2.classA"
+        },
+        {
+          "id": "E3",
+          "path": "lastRun.copiedObjectCount"
+        },
+        {
+          "id": "E3",
+          "path": "lastRun.reusedObjectCount"
+        },
+        {
+          "id": "E5",
+          "path": "[0].r2ClassA"
+        },
+        {
+          "id": "E5",
+          "path": "[1].r2ClassA"
+        },
+        {
+          "id": "E5",
+          "path": "[2].r2ClassA"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 7393,
+      "outputTokens": 1295,
+      "neurons": 462.378999,
+      "neuronsReported": null,
+      "costUsd": 0.0013868,
+      "latencyMs": 6312,
+      "finalText": "{\"cause\":\"conditional-put-on-existing\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E1\",\"path\":\"value\"},{\"id\":\"E3\",\"path\":\"lastRun.r2.classA\"},{\"id\":\"E3\",\"path\":\"lastRun.copiedObjectCount\"},{\"id\":\"E3\",\"path\":\"lastRun.reusedObjectCount\"},{\"id\":\"E5\",\"path\":\"[0].r2ClassA\"},{\"id\":\"E5\",\"path\":\"[1].r2ClassA\"},{\"id\":\"E5\",\"path\":\"[2].r2ClassA\"}],\"runbook\":\"cloudflare-data-publisher.md#r2-operations-and-cost\",\"ownerAction\":\"Confirm the cause by checking whether the 2026-10-13 run's lastRun.r2 records conditionalMisses (absent from this bundle; the record shows only classA, copiedObjectCount and reusedObjectCount). Classа 8190 is about copiedObjectCount 35 plus reusedObjectCount 8150, so existing objects are being conditionally put on every run, as in the 2026-10-13 incident. Find which writer re-puts existing keys with if-none-match and stop it, then check that classA returns to about copiedObjectCount + 3. The same value of 8190 appears on the three hourly runs in Q-history, so the excess has recurred, not been a one-off.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "r2-class-a-spike-2026-10-13",
+      "modelId": "claude-haiku-5-5",
+      "run": 5,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "conditional-put-on-existing",
+      "runbook": "cloudflare-data-publisher.md#r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "value"
+        },
+        {
+          "id": "E3",
+          "path": "lastRun.copiedObjectCount"
+        },
+        {
+          "id": "E3",
+          "path": "lastRun.reusedObjectCount"
+        },
+        {
+          "id": "E3",
+          "path": "lastRun.r2.classA"
+        },
+        {
+          "id": "E5",
+          "path": "[0].r2ClassA"
+        },
+        {
+          "id": "E5",
+          "path": "[1].r2ClassA"
+        },
+        {
+          "id": "E5",
+          "path": "[2].r2ClassA"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 7393,
+      "outputTokens": 1180,
+      "neurons": 438.826424,
+      "neuronsReported": null,
+      "costUsd": 0.0013293000000000003,
+      "latencyMs": 5853,
+      "finalText": "{\"cause\":\"conditional-put-on-existing\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E1\",\"path\":\"value\"},{\"id\":\"E3\",\"path\":\"lastRun.copiedObjectCount\"},{\"id\":\"E3\",\"path\":\"lastRun.reusedObjectCount\"},{\"id\":\"E3\",\"path\":\"lastRun.r2.classA\"},{\"id\":\"E5\",\"path\":\"[0].r2ClassA\"},{\"id\":\"E5\",\"path\":\"[1].r2ClassA\"},{\"id\":\"E5\",\"path\":\"[2].r2ClassA\"}],\"runbook\":\"cloudflare-data-publisher.md#r2-operations-and-cost\",\"ownerAction\":\"Stop the repeated conditional puts on keys that already exist, which are the cause of this run's 8,190 Class A (copiedObjectCount 35 + reusedObjectCount 8,150 ≈ 8,190, far above copiedObjectCount + 3 = 38). Confirm by reading lastRun.r2.conditionalMisses and lastRun.r2.putRetries for publication-2026-10-13T11-07-00-000Z, which are absent from this bundle; the same pattern appears in the 10:07 and 09:07 runs, but reusedObjectCount for those runs is not in the bundle. Then check the cost guard and the Class A total for the month.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "dev-cost-guard-trip-2026-10-21",
+      "modelId": "claude-haiku-5-5",
+      "run": 1,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "month-to-date-past-incident",
+      "runbook": "cloudflare-data-publisher.md#r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "value"
+        },
+        {
+          "id": "E1",
+          "path": "threshold"
+        },
+        {
+          "id": "E4",
+          "path": "[0].r2ClassA"
+        },
+        {
+          "id": "E4",
+          "path": "[0].copiedObjectCount"
+        },
+        {
+          "id": "E5",
+          "quote": "The month-to-date metric still holds an earlier incident; current runs are normal"
+        },
+        {
+          "id": "E2",
+          "path": "mode"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 7691,
+      "outputTokens": 1321,
+      "neurons": 475.650993,
+      "neuronsReported": null,
+      "costUsd": 0.0014295999999999998,
+      "latencyMs": 6814,
+      "finalText": "{\"cause\":\"month-to-date-past-incident\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E1\",\"path\":\"value\"},{\"id\":\"E1\",\"path\":\"threshold\"},{\"id\":\"E4\",\"path\":\"[0].r2ClassA\"},{\"id\":\"E4\",\"path\":\"[0].copiedObjectCount\"},{\"id\":\"E5\",\"quote\":\"The month-to-date metric still holds an earlier incident; current runs are normal\"},{\"id\":\"E2\",\"path\":\"mode\"}],\"runbook\":\"cloudflare-data-publisher.md#r2-operations-and-cost\",\"ownerAction\":\"No current spike: the latest publication sent r2ClassA 1092 = copiedObjectCount 1089 + 3, and the digest sent 4. The breaker value 2064777 is far above the threshold 800000 because the month-to-date total still holds an earlier incident, which this bundle does not show. Confirm that incident from Q-window or Q-history for earlier days of the month, and check that the threshold is right (the reason text says 'of 1000000' while threshold is 800000). Then reset the breaker by hand, per the reset-the-breaker runbook section, or keep working with COST_GUARD=monitor, which is already the mode. The playbook has no runbook gap for this cause, but the reset steps are in cloudflare-data-publisher.md#reset-the-breaker.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "dev-cost-guard-trip-2026-10-21",
+      "modelId": "claude-haiku-5-5",
+      "run": 2,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "month-to-date-past-incident",
+      "runbook": "cloudflare-data-publisher.md#r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "value",
+          "quote": null
+        },
+        {
+          "id": "E1",
+          "path": "threshold",
+          "quote": null
+        },
+        {
+          "id": "E4",
+          "path": "[0].r2ClassA",
+          "quote": null
+        },
+        {
+          "id": "E4",
+          "path": "[0].copiedObjectCount",
+          "quote": null
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 7691,
+      "outputTokens": 1256,
+      "neurons": 462.338668,
+      "neuronsReported": null,
+      "costUsd": 0.0013970999999999999,
+      "latencyMs": 6415,
+      "finalText": "{\"cause\":\"month-to-date-past-incident\",\"verdict\":\"explained\",\"confidence\":\"high\",\"evidence\":[{\"id\":\"E1\",\"path\":\"value\",\"quote\":null},{\"id\":\"E1\",\"path\":\"threshold\",\"quote\":null},{\"id\":\"E4\",\"path\":\"[0].r2ClassA\",\"quote\":null},{\"id\":\"E4\",\"path\":\"[0].copiedObjectCount\",\"quote\":null}],\"runbook\":\"cloudflare-data-publisher.md#r2-operations-and-cost\",\"ownerAction\":\"No current spike: the publication run at 22:07:13Z sent r2ClassA 1092 = copiedObjectCount 1089 + 3, and the digest run at 22:49Z sent 4. The breaker value (2064777) is the month-to-date total from an earlier incident, so the breaker is stale. Confirm the earlier incident's cause is fixed and check that a recent run's classA equals copiedObjectCount + 3 + putRetries + conditionalMisses. Then either reset the breaker by hand (POST /cost-guard/reset) or keep COST_GUARD=monitor until the month renews. Do not reset while a current spike could still be running.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "dev-cost-guard-trip-2026-10-21",
+      "modelId": "claude-haiku-5-5",
+      "run": 3,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "month-to-date-past-incident",
+      "runbook": "cloudflare-data-publisher.md#r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E2",
+          "path": "breaker.value"
+        },
+        {
+          "id": "E2",
+          "path": "breaker.threshold"
+        },
+        {
+          "id": "E4",
+          "path": "[0].r2ClassA"
+        },
+        {
+          "id": "E4",
+          "path": "[0].copiedObjectCount"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 7691,
+      "outputTokens": 1362,
+      "neurons": 484.047998,
+      "neuronsReported": null,
+      "costUsd": 0.0014501,
+      "latencyMs": 6794,
+      "finalText": "{\"cause\":\"month-to-date-past-incident\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E2\",\"path\":\"breaker.value\"},{\"id\":\"E2\",\"path\":\"breaker.threshold\"},{\"id\":\"E4\",\"path\":\"[0].r2ClassA\"},{\"id\":\"E4\",\"path\":\"[0].copiedObjectCount\"}],\"runbook\":\"cloudflare-data-publisher.md#r2-operations-and-cost\",\"ownerAction\":\"Do not reset the breaker yet. Confirm the earlier incident in the month-to-date R2 Class A total, since the bundle shows the breaker value (2,064,777) far above the 800,000 threshold but does not show that incident directly. Check that the latest publication and digest runs stay at classA = copiedObjectCount + 3 (the 22:07 publication shows 1,092 against 1,089 + 3, and the 22:49 digest shows 4). Once confirmed, reset the breaker by hand (POST /cost-guard/reset), or set COST_GUARD=monitor to keep working until the month renews. Note that the next check reopens the breaker if the budget is still over its threshold. The cause rests on the playbook's distinguishing evidence, so the owner should confirm the earlier incident from Q-history or the month's daily runs.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "dev-cost-guard-trip-2026-10-21",
+      "modelId": "claude-haiku-5-5",
+      "run": 4,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "month-to-date-past-incident",
+      "runbook": "cloudflare-data-publisher.md#r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E2",
+          "path": "breaker.value"
+        },
+        {
+          "id": "E2",
+          "path": "breaker.threshold"
+        },
+        {
+          "id": "E2",
+          "path": "mode"
+        },
+        {
+          "id": "E4",
+          "path": "[0].r2ClassA"
+        },
+        {
+          "id": "E4",
+          "path": "[0].copiedObjectCount"
+        },
+        {
+          "id": "E6",
+          "quote": "`classA` = `copiedObjectCount + 3 + putRetries + conditionalMisses`"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 7691,
+      "outputTokens": 1457,
+      "neurons": 503.504473,
+      "neuronsReported": null,
+      "costUsd": 0.0014976,
+      "latencyMs": 7116,
+      "finalText": "{\"cause\":\"month-to-date-past-incident\",\"verdict\":\"explained\",\"confidence\":\"high\",\"evidence\":[{\"id\":\"E2\",\"path\":\"breaker.value\"},{\"id\":\"E2\",\"path\":\"breaker.threshold\"},{\"id\":\"E2\",\"path\":\"mode\"},{\"id\":\"E4\",\"path\":\"[0].r2ClassA\"},{\"id\":\"E4\",\"path\":\"[0].copiedObjectCount\"},{\"id\":\"E6\",\"quote\":\"`classA` = `copiedObjectCount + 3 + putRetries + conditionalMisses`\"}],\"runbook\":\"cloudflare-data-publisher.md#r2-operations-and-cost\",\"ownerAction\":\"The breaker's month-to-date R2 Class A value (2,064,777) is far above its 800,000 threshold, but the latest publication run is normal: r2ClassA 1092 equals copiedObjectCount 1089 plus 3, and the digest run shows 4. Do not treat this as a live spike. Confirm the earlier incident that filled the month-to-date total, then compare lastRun.r2.classA with copiedObjectCount + 3 + putRetries + conditionalMisses on the next run. The breaker stays open until someone resets it by hand (POST /cost-guard/reset), and the next check reopens it if the budget is still over. Alternatively, keep working until the month renews by setting COST_GUARD=monitor, as the runbook suggests. The current mode is already monitor, so the trip does not stop digest or embedding.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "dev-cost-guard-trip-2026-10-21",
+      "modelId": "claude-haiku-5-5",
+      "run": 5,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "month-to-date-past-incident",
+      "runbook": "cloudflare-data-publisher.md#r2-operations-and-cost",
+      "evidence": [
+        {
+          "id": "E2",
+          "path": "breaker.value"
+        },
+        {
+          "id": "E2",
+          "path": "breaker.threshold"
+        },
+        {
+          "id": "E4",
+          "path": "[0].r2ClassA"
+        },
+        {
+          "id": "E4",
+          "path": "[0].copiedObjectCount"
+        },
+        {
+          "id": "E5",
+          "quote": "The month-to-date metric still holds an earlier incident; current runs are normal"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 7691,
+      "outputTokens": 1404,
+      "neurons": 492.649808,
+      "neuronsReported": null,
+      "costUsd": 0.0014711,
+      "latencyMs": 7261,
+      "finalText": "{\"cause\":\"month-to-date-past-incident\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E2\",\"path\":\"breaker.value\"},{\"id\":\"E2\",\"path\":\"breaker.threshold\"},{\"id\":\"E4\",\"path\":\"[0].r2ClassA\"},{\"id\":\"E4\",\"path\":\"[0].copiedObjectCount\"},{\"id\":\"E5\",\"quote\":\"The month-to-date metric still holds an earlier incident; current runs are normal\"}],\"runbook\":\"cloudflare-data-publisher.md#r2-operations-and-cost\",\"ownerAction\":\"Confirm the earlier month-to-date Class A incident from the month's runs, since the bundle only shows the latest runs. The latest publication run is normal (r2ClassA 1092 = copiedObjectCount 1089 + 3), so no current spike is running. Mode is already monitor. Then reset the breaker by hand per the cloudflare-data-publisher.md#reset-the-breaker section, or keep monitor mode until the month renews. The playbook has no separate runbook link for this cause beyond the R2 section, so note that the reset section is the next step to read.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "tag-ci-failure-v0.3.0",
+      "modelId": "claude-haiku-5-5",
+      "run": 1,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "non-hermetic-test",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "conclusion"
+        },
+        {
+          "id": "E2",
+          "quote": "Unit tests"
+        },
+        {
+          "id": "E2",
+          "quote": "const production = repositoryProduction(); // the newest local v* tag"
+        },
+        {
+          "id": "E2",
+          "quote": "(fail) B27: in this repository, a stale but valid-looking Runs on fails the default page naming the spec, the value and the evidence"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 5350,
+      "outputTokens": 648,
+      "neurons": 275.3874400000001,
+      "neuronsReported": null,
+      "costUsd": 0.000859,
+      "latencyMs": 5909,
+      "finalText": "{\"cause\":\"non-hermetic-test\",\"verdict\":\"explained\",\"confidence\":\"high\",\"evidence\":[{\"id\":\"E1\",\"path\":\"conclusion\"},{\"id\":\"E2\",\"quote\":\"Unit tests\"},{\"id\":\"E2\",\"quote\":\"const production = repositoryProduction(); // the newest local v* tag\"},{\"id\":\"E2\",\"quote\":\"(fail) B27: in this repository, a stale but valid-looking Runs on fails the default page naming the spec, the value and the evidence\"}],\"runbook\":null,\"ownerAction\":\"Make the test in scripts/test/feature-map-site.test.ts hermetic: stop reading the newest local v* tag via repositoryProduction() and pin the production version as a fixture or input, then re-run CI on v0.3.0. The playbook for cause non-hermetic-test has no runbook link, so this is a runbook gap; add a runbook entry under docs/runbooks/sre/ for ci.release.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "tag-ci-failure-v0.3.0",
+      "modelId": "claude-haiku-5-5",
+      "run": 2,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "non-hermetic-test",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "conclusion"
+        },
+        {
+          "id": "E1",
+          "path": "headBranch"
+        },
+        {
+          "id": "E2",
+          "quote": "Unit tests"
+        },
+        {
+          "id": "E2",
+          "quote": "(fail) B27: in this repository, a stale but valid-looking Runs on fails the default page naming the spec, the value and the evidence"
+        },
+        {
+          "id": "E2",
+          "quote": "const production = repositoryProduction(); // the newest local v* tag"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 5350,
+      "outputTokens": 676,
+      "neurons": 281.12198,
+      "neuronsReported": null,
+      "costUsd": 0.000873,
+      "latencyMs": 4214,
+      "finalText": "{\"cause\":\"non-hermetic-test\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E1\",\"path\":\"conclusion\"},{\"id\":\"E1\",\"path\":\"headBranch\"},{\"id\":\"E2\",\"quote\":\"Unit tests\"},{\"id\":\"E2\",\"quote\":\"(fail) B27: in this repository, a stale but valid-looking Runs on fails the default page naming the spec, the value and the evidence\"},{\"id\":\"E2\",\"quote\":\"const production = repositoryProduction(); // the newest local v* tag\"}],\"runbook\":null,\"ownerAction\":\"The cause id non-hermetic-test has no runbook link in the ci.release playbook, so this is a runbook gap. Fix the test B27 in scripts/test/feature-map-site.test.ts so it does not read the newest local v* git tag (use a fixed fixture or an injected production tag), then rerun CI for v0.3.0. Add a runbook section in docs/runbooks/sre/ for non-hermetic test failures. Medium confidence because the log tail shows only one failing test and the full log was not in the bundle.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "tag-ci-failure-v0.3.0",
+      "modelId": "claude-haiku-5-5",
+      "run": 3,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "non-hermetic-test",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "conclusion"
+        },
+        {
+          "id": "E2",
+          "quote": "failed job: Unit tests"
+        },
+        {
+          "id": "E2",
+          "quote": "the newest local v* tag"
+        },
+        {
+          "id": "E3",
+          "quote": "Eval fixture (Spec 027 SRE59): a provisional cause list until this rule's playbook lands in docs/runbooks/sre/."
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 5350,
+      "outputTokens": 750,
+      "neurons": 296.27755,
+      "neuronsReported": null,
+      "costUsd": 0.00091,
+      "latencyMs": 4713,
+      "finalText": "{\"cause\":\"non-hermetic-test\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E1\",\"path\":\"conclusion\"},{\"id\":\"E2\",\"quote\":\"failed job: Unit tests\"},{\"id\":\"E2\",\"quote\":\"the newest local v* tag\"},{\"id\":\"E3\",\"quote\":\"Eval fixture (Spec 027 SRE59): a provisional cause list until this rule's playbook lands in docs/runbooks/sre/.\"}],\"runbook\":null,\"ownerAction\":\"The failing 'Unit tests' test (feature-map-site.test.ts, B27) reads the newest local v* tag, so the release tag build differs from main. Make the test hermetic by pinning the production version from a fixed fixture or an explicit input instead of the local git tag, then re-run CI for v0.3.0. No runbook covers this cause, so this is a runbook gap: add a section to docs/runbooks/sre/ for non-hermetic-test failures and link it from the ci.release playbook. The E3 playbook is marked as an eval fixture, so confirm it against the real playbook before relying on it.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "tag-ci-failure-v0.3.0",
+      "modelId": "claude-haiku-5-5",
+      "run": 4,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "non-hermetic-test",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "conclusion"
+        },
+        {
+          "id": "E2",
+          "quote": "failed job: Unit tests"
+        },
+        {
+          "id": "E2",
+          "quote": "const production = repositoryProduction(); // the newest local v* tag"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 5350,
+      "outputTokens": 802,
+      "neurons": 306.92741,
+      "neuronsReported": null,
+      "costUsd": 0.000936,
+      "latencyMs": 5014,
+      "finalText": "{\"cause\":\"non-hermetic-test\",\"verdict\":\"explained\",\"confidence\":\"high\",\"evidence\":[{\"id\":\"E1\",\"path\":\"conclusion\"},{\"id\":\"E2\",\"quote\":\"failed job: Unit tests\"},{\"id\":\"E2\",\"quote\":\"const production = repositoryProduction(); // the newest local v* tag\"}],\"runbook\":null,\"ownerAction\":\"No runbook exists for non-hermetic-test (runbook gap, so runbook is null). Make the failing test hermetic: have feature-map-site.test.ts (B27) use a fixed fixture tag instead of the newest local v* git tag, then re-run CI for v0.3.0. No rollback is indicated because the log shows an environment dependency, not a code regression. Also add a runbook section under docs/runbooks/sre/ for this cause.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "tag-ci-failure-v0.3.0",
+      "modelId": "claude-haiku-5-5",
+      "run": 5,
+      "firings": 1,
+      "called": true,
+      "verdict": "explained",
+      "reason": null,
+      "cause": "non-hermetic-test",
+      "runbook": null,
+      "evidence": [
+        {
+          "id": "E1",
+          "path": "conclusion"
+        },
+        {
+          "id": "E2",
+          "quote": "failed job: Unit tests"
+        },
+        {
+          "id": "E2",
+          "quote": "const production = repositoryProduction(); // the newest local v* tag"
+        },
+        {
+          "id": "E2",
+          "quote": "(fail) B27: in this repository, a stale but valid-looking Runs on fails the default page naming the spec, the value and the evidence"
+        }
+      ],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 1,
+      "modelCalls": 1,
+      "inputTokens": 5350,
+      "outputTokens": 785,
+      "neurons": 303.4457249999999,
+      "neuronsReported": null,
+      "costUsd": 0.0009275,
+      "latencyMs": 4765,
+      "finalText": "{\"cause\":\"non-hermetic-test\",\"verdict\":\"explained\",\"confidence\":\"medium\",\"evidence\":[{\"id\":\"E1\",\"path\":\"conclusion\"},{\"id\":\"E2\",\"quote\":\"failed job: Unit tests\"},{\"id\":\"E2\",\"quote\":\"const production = repositoryProduction(); // the newest local v* tag\"},{\"id\":\"E2\",\"quote\":\"(fail) B27: in this repository, a stale but valid-looking Runs on fails the default page naming the spec, the value and the evidence\"}],\"runbook\":null,\"ownerAction\":\"No runbook exists for the non-hermetic-test cause (runbook gap; the playbook's Runbook column is 'none'). Make the Unit tests test scripts/test/feature-map-site.test.ts (B27) independent of local git tags, for example by injecting the production tag, then re-run CI for the v0.3.0 tag. The log tail is truncated, so confirm the failing assertion in the full Unit tests log before closing.\"}",
+      "finishReason": "stop",
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "missing": [],
+        "pass": true
+      }
+    },
+    {
+      "scenario": "healthy-day-2026-10-20",
+      "modelId": "claude-haiku-5-5",
+      "run": 1,
+      "firings": 0,
+      "called": false,
+      "verdict": null,
+      "reason": null,
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 0,
+      "modelCalls": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "neurons": 0,
+      "neuronsReported": 0,
+      "latencyMs": 0,
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "pass": true,
+        "missing": []
+      }
+    },
+    {
+      "scenario": "healthy-day-2026-10-20",
+      "modelId": "claude-haiku-5-5",
+      "run": 2,
+      "firings": 0,
+      "called": false,
+      "verdict": null,
+      "reason": null,
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 0,
+      "modelCalls": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "neurons": 0,
+      "neuronsReported": 0,
+      "latencyMs": 0,
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "pass": true,
+        "missing": []
+      }
+    },
+    {
+      "scenario": "healthy-day-2026-10-20",
+      "modelId": "claude-haiku-5-5",
+      "run": 3,
+      "firings": 0,
+      "called": false,
+      "verdict": null,
+      "reason": null,
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 0,
+      "modelCalls": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "neurons": 0,
+      "neuronsReported": 0,
+      "latencyMs": 0,
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "pass": true,
+        "missing": []
+      }
+    },
+    {
+      "scenario": "healthy-day-2026-10-20",
+      "modelId": "claude-haiku-5-5",
+      "run": 4,
+      "firings": 0,
+      "called": false,
+      "verdict": null,
+      "reason": null,
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 0,
+      "modelCalls": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "neurons": 0,
+      "neuronsReported": 0,
+      "latencyMs": 0,
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "pass": true,
+        "missing": []
+      }
+    },
+    {
+      "scenario": "healthy-day-2026-10-20",
+      "modelId": "claude-haiku-5-5",
+      "run": 5,
+      "firings": 0,
+      "called": false,
+      "verdict": null,
+      "reason": null,
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 0,
+      "modelCalls": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "neurons": 0,
+      "neuronsReported": 0,
+      "latencyMs": 0,
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "pass": true,
+        "missing": []
+      }
+    },
+    {
+      "scenario": "digest-en-zh-cache-pollution",
+      "modelId": "claude-haiku-5-5",
+      "run": 1,
+      "firings": 0,
+      "called": false,
+      "verdict": null,
+      "reason": null,
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 0,
+      "modelCalls": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "neurons": 0,
+      "neuronsReported": 0,
+      "latencyMs": 0,
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "pass": true,
+        "missing": []
+      }
+    },
+    {
+      "scenario": "digest-en-zh-cache-pollution",
+      "modelId": "claude-haiku-5-5",
+      "run": 2,
+      "firings": 0,
+      "called": false,
+      "verdict": null,
+      "reason": null,
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 0,
+      "modelCalls": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "neurons": 0,
+      "neuronsReported": 0,
+      "latencyMs": 0,
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "pass": true,
+        "missing": []
+      }
+    },
+    {
+      "scenario": "digest-en-zh-cache-pollution",
+      "modelId": "claude-haiku-5-5",
+      "run": 3,
+      "firings": 0,
+      "called": false,
+      "verdict": null,
+      "reason": null,
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 0,
+      "modelCalls": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "neurons": 0,
+      "neuronsReported": 0,
+      "latencyMs": 0,
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "pass": true,
+        "missing": []
+      }
+    },
+    {
+      "scenario": "digest-en-zh-cache-pollution",
+      "modelId": "claude-haiku-5-5",
+      "run": 4,
+      "firings": 0,
+      "called": false,
+      "verdict": null,
+      "reason": null,
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 0,
+      "modelCalls": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "neurons": 0,
+      "neuronsReported": 0,
+      "latencyMs": 0,
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "pass": true,
+        "missing": []
+      }
+    },
+    {
+      "scenario": "digest-en-zh-cache-pollution",
+      "modelId": "claude-haiku-5-5",
+      "run": 5,
+      "firings": 0,
+      "called": false,
+      "verdict": null,
+      "reason": null,
+      "cause": null,
+      "runbook": null,
+      "evidence": [],
+      "evidenceFailures": [],
+      "tools": [],
+      "steps": 0,
+      "modelCalls": 0,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "neurons": 0,
+      "neuronsReported": 0,
+      "latencyMs": 0,
+      "grade": {
+        "cause": true,
+        "evidence": true,
+        "anchor": true,
+        "fabricated": false,
+        "pass": true,
+        "missing": []
+      }
+    }
+  ]
+}

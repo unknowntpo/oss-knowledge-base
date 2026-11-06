@@ -114,7 +114,7 @@ and minutes :03–:18 (transient deploy API errors).
 ```sh
 W=https://oss-knowledge-base-data-prod.unknowntpo.workers.dev
 P=https://oss-knowledge-base.pages.dev
-curl -sS $W/health | jq '{environment, running, scheduled, followUp, lastRun: (.lastRun | {ok, completedAt, feedReleaseId, pollTruncated, copiedObjectCount, r2, search}), sources: (.sources | map_values({ok, lastSuccessAt, failureKind})), digest: .digest.enabled, embedding: .searchEmbedding.enabled, gate: .searchQuery.enabled, reviews: has("githubReviews")}'
+curl -sS $W/health | jq '{environment, running, scheduled, alarmAt, followUp, lastRun: (.lastRun | {ok, completedAt, feedReleaseId, pollTruncated, copiedObjectCount, r2, search}), sources: (.sources | map_values({ok, lastSuccessAt, failureKind})), digest: .digest.enabled, embedding: .searchEmbedding.enabled, gate: .searchQuery.enabled, reviews: has("githubReviews")}'
 curl -sS $P/api/feed | jq '{schema, generatedAt, sources: (.sourceTypes | keys)}'
 curl -sS "$P/api/search?q=transaction&limit=3" | jq '.retrieval'
 bun run verify:health -- --target prod
@@ -176,6 +176,9 @@ Both the Cron and `POST /run` only schedule a run on the environment's Durable
 Object and return; the run itself executes in the object's alarm. The runtime
 never runs two alarms at once and retries an alarm that dies, so no lock has to
 expire before the next run. An alarm has a 15-minute wall-time limit.
+`/health` `alarmAt` is the time of the registered alarm, or `null`. An
+`alarmAt` 30 minutes or more in the past with `scheduled: false` is an alarm
+the runtime gave up on; `POST /run` replaces it.
 
 ### Publish now (manual run)
 

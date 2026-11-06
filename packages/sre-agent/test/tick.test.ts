@@ -929,7 +929,7 @@ function expectedFields(job: string, health: Health): unknown {
   const pick = (value: unknown, keys: readonly string[]) => Object.fromEntries(keys.filter((key) => (value as Record<string, unknown>)[key] !== undefined).map((key) => [key, (value as Record<string, unknown>)[key]]));
   const lastRun = health.lastRun as Record<string, unknown>;
   switch (job) {
-    case "publication": return { running: health.running, scheduled: health.scheduled, followUp: health.followUp, phase: health.phase, lastRun: pick(lastRun, ["ok", "runId", "completedAt", "copiedObjectCount", "reusedObjectCount", "r2", "pollTruncated"]), sources: health.sources };
+    case "publication": return { running: health.running, scheduled: health.scheduled, alarmAt: health.alarmAt, followUp: health.followUp, phase: health.phase, lastRun: pick(lastRun, ["ok", "runId", "completedAt", "copiedObjectCount", "reusedObjectCount", "r2", "pollTruncated"]), sources: health.sources };
     case "digest": return { digest: { lastRun: pick((health.digest as { lastRun: unknown }).lastRun, ["ok", "runId", "completedAt", "durationMs", "rejections"]) } };
     case "review-queue": return { reviewQueue: health.reviewQueue };
     case "embedding": return { searchEmbedding: pick(health.searchEmbedding, ["lastRun", "lastError", "today"]) };
@@ -965,5 +965,25 @@ describe("Spec 027 Amendment (2) L1 tick", () => {
 
   test.each(testPlanRows)("$id: $case", async (row) => {
     await scenarios[row.case]!();
+  });
+});
+
+describe("Spec 027 stale alarm on /health", () => {
+  const causeRow = (text: string, id: string) => text.split("\n").find((line) => line.includes(`| \`${id}\` |`)) ?? "";
+
+  test("SRE106: a publication firing's bundle holds alarmAt from /health", async () => {
+    const firing = rule("job.missed", "publication", "firing");
+    const health = { ...devHealth({ rules: [firing] }), scheduled: false, alarmAt: "2026-09-30T02:07:00.000Z" };
+    const bundle = await buildBundle({ env: "dev", job: "publication", firings: [{ env: "dev", job: "publication", ruleId: firing.id, since: firing.since!, runId: firing.runId!, entry: firing }], health, querySignals: sqlFake().querySignals, ci: { status: "ok" }, library: PLAYBOOK_LIBRARY, secrets: [] });
+    expect(bundle.items.filter((item) => item.source === "health" && item.text.includes("2026-09-30T02:07:00.000Z"))).not.toHaveLength(0);
+  });
+
+  test("SRE107: job.missed names alarmAt in the alarm-stuck and cron-not-fired signs, and its worked example expects alarm-stuck", () => {
+    const file = readFileSync(join(repo, "docs/runbooks/sre/job.missed.md"), "utf8");
+    expect(PLAYBOOK_LIBRARY.playbooks["job.missed"]).toBe(file);
+    expect(causeRow(file, "alarm-stuck")).toMatch(/`running: false`[^|]*`alarmAt`/u);
+    expect(causeRow(file, "cron-not-fired")).toContain("`alarmAt: null`");
+    const example = file.slice(file.indexOf("## Worked example"));
+    expect(example.split("\n").find((line) => line.startsWith("| `cause` |"))).toContain("`alarm-stuck`");
   });
 });

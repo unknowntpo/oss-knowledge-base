@@ -783,10 +783,12 @@ export class PipelineState implements DurableObject {
     if (request.method === "GET" && path === "/status") {
       const status = await this.ctx.storage.get<PipelineRunStatus>("status");
       const phase = await this.ctx.storage.get<PipelinePhaseMarker>("phase");
+      const alarmAt = await this.ctx.storage.getAlarm();
       return json(healthBody({
         environment: this.env.PUBLICATION_ENVIRONMENT,
         running: this.running,
-        scheduled: runPending(false, await this.ctx.storage.getAlarm(), Date.now()),
+        scheduled: runPending(false, alarmAt, Date.now()),
+        alarmAt,
         phase,
         status,
         followUp: await this.ctx.storage.get<FollowUpMarker>(FOLLOW_UP_KEY),
