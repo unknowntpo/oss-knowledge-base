@@ -82,6 +82,15 @@ describe("Spec 027 L2: eval fixtures and graders", () => {
     expect(anchor.grade.pass).toBe(false);
   });
 
+  test("SRE108: dev-stall-2026-10-02 shows the stale alarm as /health does: scheduled false, alarmAt set and required", async () => {
+    const value = caseOf("dev-stall-2026-10-02");
+    expect(value.health).toMatchObject({ running: false, scheduled: false, alarmAt: "2026-09-30T02:07:00.000Z", followUp: null });
+    expect(value.expected?.evidence.map((item) => item.name)).toEqual(["lastRun.completedAt", "alarmAt"]);
+    const result = await golden(value);
+    expect(result.grade.pass).toBe(true);
+    expect(result.cause).toBe("alarm-stuck");
+  });
+
   test("eval harness: a required evidence item must be quoted, not only a valid quote of something else", async () => {
     const value = caseOf("r2-class-a-spike-2026-10-13");
     const result = await golden(value, { dropEvidence: 1 });

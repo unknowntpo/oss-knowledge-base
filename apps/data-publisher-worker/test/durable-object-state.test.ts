@@ -91,6 +91,15 @@ describe("Durable Object pipeline state", () => {
     expect(recent.alarm).toBe(now - STALE_ALARM_MS + 60_000);
   });
 
+  test("SRE105: /status gives the registered alarm's time as alarmAt, and null with no alarm", async () => {
+    const now = Date.now();
+    const stale = now - STALE_ALARM_MS - 60_000;
+    expect(await health(new MemoryStorage(stale))).toMatchObject({ running: false, scheduled: false, alarmAt: new Date(stale).toISOString() });
+    const due = now + 60_000;
+    expect(await health(new MemoryStorage(due))).toMatchObject({ scheduled: true, alarmAt: new Date(due).toISOString() });
+    expect(await health(new MemoryStorage())).toMatchObject({ scheduled: false, alarmAt: null });
+  });
+
   test("M10: a rerun of a killed attempt's release whose sources changed is a destination conflict on a Search shard", async () => {
     // The 2026-10-06 12:07 Dev incident: the attempt that died had written this release's shards.
     const storage = new MemoryStorage();
@@ -245,6 +254,8 @@ describe("Durable Object pipeline state", () => {
 
 async function health(storage: MemoryStorage): Promise<{
   readonly running: boolean;
+  readonly scheduled: boolean;
+  readonly alarmAt: string | null;
   readonly phase: PipelinePhaseMarker | null;
   readonly lastRun: unknown;
 }> {

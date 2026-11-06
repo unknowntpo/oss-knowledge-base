@@ -1542,6 +1542,37 @@ and the production caps do not.
   `unknown`. This is the open eval row 1 and playbook conflict (B35 notes);
   reconciling them is a follow-up, not part of SRE104.
 
+### Stale alarm on `/health` (owner decision 2026-11-06)
+
+The 2026-10-29 eval (SRE104) showed that no model passes
+`dev-stall-2026-10-02`, and that the fixture, not the model, is wrong. The
+fixture gives `scheduled` as a string, "(overdue)". The real `/health`
+gives `scheduled` as a boolean from `runPending(false, alarm, now)`, which
+is `false` once an alarm is 30 minutes or more past its time
+(`STALE_ALARM_MS`: the runtime gave up on it). So a stale alarm looks like
+cause 1 (`cron-not-fired`: `running: false`, `scheduled: false`,
+`followUp: null`), and `job.missed.md` cannot tell the two apart. The owner
+chose to make the stale alarm visible instead of a rule that only the
+fixture can meet.
+
+- **`alarmAt` (SRE105).** The publication's `/health` gains `alarmAt`: the
+  time of the alarm registered on the Durable Object, as an ISO 8601
+  string, or `null` when none is registered. `scheduled` keeps its meaning.
+  Only the publication changes; the digest and the embedding runner keep
+  their fields.
+- **Bundle (SRE106).** The publication's bundle holds `alarmAt` with the
+  other job state (`JOB_HEALTH_FIELDS`).
+- **Playbook (SRE107).** In `docs/runbooks/sre/job.missed.md`, cause 2
+  `alarm-stuck` also has the sign `running: false` with an `alarmAt` 30
+  minutes or more before the bundle's time; cause 1 `cron-not-fired` needs
+  `alarmAt: null`. The worked example (eval case 1) expects `alarm-stuck`
+  from that sign.
+- **Fixture (SRE108).** `dev-stall-2026-10-02` gives `scheduled: false` and
+  `alarmAt` 2026-09-30T02:07:00.000Z (the next hourly alarm, left
+  registered; reconstructed), and its required evidence is
+  `lastRun.completedAt` and `alarmAt`. A Haiku 5.5 eval (`--runs 5`, at
+  most $0.15) measures the change.
+
 ## Dev fault-injection drill (2026-10-22)
 
 Owner intent (2026-10-22): a deterministic experiment where the owner
@@ -2303,6 +2334,13 @@ by Amendment (1); SRE34 replaced it.
 - SRE102: (owner decision 2026-10-28) a paid model needs a USD price, listed or from `--usd-per-mtok`, else the eval refuses it; with a price, a diagnosis whose next call's reservation (prompt estimate plus 4,096 output tokens) would pass `--max-usd-per-diagnosis` fails with reason `budget`, and the 1,500-neuron ledger does not stop it first; a run's `costUsd` is input tokens × input price plus output tokens × output price; the cost meter refuses to start a diagnosis when spent plus the worst diagnosis would pass the budget; the scoreboard's cost is the sum of the runs' `costUsd`, and neurons × $0.011 per 1,000 for a run without one → L1 test with case rows.
 - SRE103: (owner decision 2026-10-28) with `--provider anthropic` every model call carries the provider option `anthropic.effort` set to `--effort` (default `low`) and keeps the other provider options; a Workers AI call carries none → L1 test with case rows.
 - SRE104: [measure] `bun run --cwd packages/sre-agent eval -- --provider anthropic --model claude-sonnet-5-5 --runs 3` and the same with `--model claude-haiku-5-5 --runs 5` spend at most $0.80 together; the scoreboard is committed under `docs/specs/027-sre-agent/eval/` and compared with [scoreboard-2026-10-27](eval/scoreboard-2026-10-27.md).
+
+### Stale alarm on `/health`: Behavior
+
+- SRE105: (owner decision 2026-11-06) the publication object's `GET /status` (served as `/health`) has `alarmAt`: the registered alarm's time as an ISO 8601 string, or `null` with no alarm; with an alarm 30 minutes or more in the past, `scheduled` is `false` and `alarmAt` is that time → L1 test.
+- SRE106: (owner decision 2026-11-06) a publication firing's bundle holds `alarmAt` from `/health` → L1 test.
+- SRE107: (owner decision 2026-11-06) `docs/runbooks/sre/job.missed.md` cause 2 `alarm-stuck` names `alarmAt` with `running: false` as a sign; cause 1 `cron-not-fired` names `alarmAt: null`; the worked example expects `alarm-stuck`; the bundled playbook equals the file (`check:playbooks`) → L1 test.
+- SRE108: (owner decision 2026-11-06) the `dev-stall-2026-10-02` fixture has `scheduled: false` and `alarmAt` 2026-09-30T02:07:00.000Z, and requires `lastRun.completedAt` and `alarmAt`; its golden answer passes every grader → L2 test. [measure] a Haiku 5.5 eval with `--runs 5` spends at most $0.15; its scoreboard is committed under `docs/specs/027-sre-agent/eval/`.
 
 ### Dev fault-injection drill: Behavior
 - SRE67: with `SRE_DRILL=on` on `development`, `POST /sre-agent/drill` with the manual token and `{job: "kip-pages", kind: "throw"}` answers 201 `{drillId, job, kind, runs: 2, armedAt, expiresAt}` and writes the drill record and the pointer under `internal/sre/v1/dev/drills/`; it answers 401 without the token, 400 for another job or kind, 409 while a drill is armed or fired-but-ungraded, 404 with `SRE_DRILL` unset, and 409 for a kind whose rule's playbook does not list the expected cause; `DELETE` writes the idle pointer (SRE98) and marks the record `cancelled` → worker test with the `sre-drill-worker.cases.ts` rows.
