@@ -36,7 +36,7 @@ The harness builds this bundle before the first model call. Cite only from it.
 | --- | --- |
 | The rule entry: `job`, `status`, `value` (age), `since`, `runId`, last `completedAt` | `/health.signals.rules[]` |
 | The job's last N data points: start (`runId`), `status`, `durationMs` | WAE `osskb_signals_<env>`, filtered by `blob1 = job`, 8 days |
-| The job's current state | DO state (`lastRun`, `running`, `scheduled`, `followUp`, `phase` for the publication; `digest`, `searchEmbedding`) or `last-run.json` (`identityLinks`, `kipPages`, `retention`, `identityBackfill`) as `/health` serves it |
+| The job's current state | DO state (`lastRun`, `running`, `scheduled`, `alarmAt`, `followUp`, `phase` for the publication; `digest`, `searchEmbedding`) or `last-run.json` (`identityLinks`, `kipPages`, `retention`, `identityBackfill`) as `/health` serves it |
 | Cost guard | `/health` `costGuard {mode, status, breaker}`: a tripped breaker under `enforce` pauses the publication |
 | Deploys and CI around `since` | GitHub Actions runs on `main` and `v*` tags within ± 24 h of `since` (public API) |
 | Upstream health | `lastRun.sources[*] {ok, lastSuccessAt}` and the job's own `error`, if recorded |
@@ -55,8 +55,8 @@ no runbook.
 
 | # | Cause id | Cause | Distinguishing evidence | Runbook |
 | --- | --- | --- | --- | --- |
-| 1 | `cron-not-fired` | The cron did not fire, or the scheduled handler threw before recording a start | No data point and no state change after the last good run; `running: false`, `scheduled: false`, `followUp: null`; the cron entry or the job's flag missing from the deployed configuration | [Health and manual run](../cloudflare-data-publisher.md#health-and-manual-run) |
-| 2 | `alarm-stuck` | The run started but never completed: the Durable Object alarm is stuck, or a follow-up was lost | `running: true` or `phase` set with an old `startedAt`; or `scheduled: true` with a `followUp.at` in the past; a start without a matching finish in the data points | [Follow-up runs](../cloudflare-data-publisher.md#follow-up-runs-spec-018) |
+| 1 | `cron-not-fired` | The cron did not fire, or the scheduled handler threw before recording a start | No data point and no state change after the last good run; `running: false`, `scheduled: false`, `alarmAt: null`, `followUp: null`; the cron entry or the job's flag missing from the deployed configuration | [Health and manual run](../cloudflare-data-publisher.md#health-and-manual-run) |
+| 2 | `alarm-stuck` | The run started but never completed: the Durable Object alarm is stuck, or a follow-up was lost | `running: true` or `phase` set with an old `startedAt`; or `scheduled: true` with a `followUp.at` in the past; or `running: false` with an `alarmAt` 30 minutes or more before now (`scheduled` is then `false`: the runtime gave up on the alarm); a start without a matching finish in the data points | [Follow-up runs](../cloudflare-data-publisher.md#follow-up-runs-spec-018) |
 | 3 | `cost-guard-paused` | The cost guard paused the job (`enforce` mode) | `costGuard.mode: "enforce"`, `breaker.tripped: true`, `breaker.trippedAt` at or before `since`. Under `monitor` nothing is paused, so this cause does not apply | [Cost guard: read `/health`](../cloudflare-data-publisher.md#read-health), [Reset the breaker](../cloudflare-data-publisher.md#reset-the-breaker) |
 | 4 | `upstream-failure` | Upstream failure (GitHub or Jira rate limit or outage) made every run fail early | Runs exist but each ended `ok: false` with short `durationMs`; `sources.<key>.ok: false` and an old `lastSuccessAt`. This normally fires `job.failures` too | [Follow-up runs](../cloudflare-data-publisher.md#follow-up-runs-spec-018), [Failure and rollback](../cloudflare-data-publisher.md#failure-and-rollback) |
 | 5 | `deploy-broke-job` | A deploy broke the job | A deploy (CI `deploy-development` or `deploy-production`) between the last good run and `since`, and no good run after it | [Roll back](../cloudflare-data-publisher.md#roll-back) |
@@ -119,21 +119,24 @@ no runbook.
 **Fixture to build.** Rule entry `job.missed`, `job: publication`, `env: dev`,
 `since` 2026-09-30T01:07Z (the last good run; firing at the then boundary,
 or 27 h later under today's rule), `value` ≈ 49 h at the end; `lastRun` with
-`completedAt` 2026-09-30T01:07Z; no data points; `costGuard` absent; CI
-history with the PR #20, #21 and #23 merges and their Dev deploys. Only fields
-the specs state; anything else is marked unknown in the fixture.
+`completedAt` 2026-09-30T01:07Z; `running: false`, `scheduled: false` and
+`alarmAt` 2026-09-30T02:07:00.000Z (the next hourly alarm, left registered;
+reconstructed: `/health` had no `alarmAt` then, Spec 027 SRE105 added it);
+no data points; `costGuard` absent; CI history with the PR #20, #21 and #23
+merges and their Dev deploys. Only fields the specs state or the
+reconstruction names; anything else is marked unknown in the fixture.
 
 **Expected diagnosis.**
 
 | Field | Expected |
 | --- | --- |
-| `verdict` | `inconclusive` (the bundle has no run records in the window, so the evidence that would decide the cause is missing) |
-| `cause` | Cause 6 with cause 5 as the leading suspect: two deploys (PR #20, #21) landed within 43 min before the last good run and no good run followed for about 49 h; the bundle has no failed-run record to confirm it. (Spec 009's `exceededMemory` above 5,000 events is a plausible mechanism, but it is not in the bundle unless the fixture adds it.) |
-| `confidence` | `low` |
-| `evidence` | the rule entry's `since` and `value`; `lastRun.completedAt` 2026-09-30T01:07Z; the CI runs for PR #20 and #21 with their times |
-| `runbook` | [Roll back](../cloudflare-data-publisher.md#roll-back) for cause 5; [Health and manual run](../cloudflare-data-publisher.md#health-and-manual-run) for checking state |
-| missing evidence | the job's run records in the window (`ok`, `error`, `durationMs`), Workers Logs for an `exceededMemory` outcome, `running`/`scheduled`/`followUp` at the time |
-| `ownerAction` | "Check the Dev runs after 2026-09-30 01:07 UTC for a failure such as `exceededMemory`; if the deploys caused it, roll back or fix forward, then publish manually (`POST /run`)." Text for the owner only |
+| `verdict` | `explained` (cause 2 has its distinguishing evidence) |
+| `cause` | Cause 2 `alarm-stuck`: `running: false` and `alarmAt` 2026-09-30T02:07Z, about 48 h before the end of the window, so the runtime gave up on the next hourly alarm and nothing started after the 01:07 run. Causes 3 and 4 have no evidence; cause 5 (the PR #20 and #21 deploys before the last good run) is context, not the cause, because the order of causes stops at cause 2 |
+| `confidence` | `medium` (the alarm explains the stop, but no run record in the window says why the alarm died) |
+| `evidence` | `lastRun.completedAt` 2026-09-30T01:07Z; `alarmAt` 2026-09-30T02:07:00.000Z; `running: false`; the rule entry's `since` and `value` |
+| `runbook` | [Follow-up runs](../cloudflare-data-publisher.md#follow-up-runs-spec-018) for cause 2; [Health and manual run](../cloudflare-data-publisher.md#health-and-manual-run) for checking state and publishing manually |
+| missing evidence | why the alarm died: the job's run records in the window (`ok`, `error`, `durationMs`), Workers Logs for an `exceededMemory` outcome |
+| `ownerAction` | "Publish manually (`POST /run`), which replaces the stale alarm; then check the Dev runs after 2026-09-30 01:07 UTC for a failure such as `exceededMemory`." Text for the owner only |
 
 A diagnosis that names `exceededMemory` as the confirmed cause, or quotes a
 field the fixture does not contain, fails this case.

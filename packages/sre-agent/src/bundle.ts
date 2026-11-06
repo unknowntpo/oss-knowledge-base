@@ -39,7 +39,7 @@ export type SreJob = (typeof SRE_JOBS)[number];
 
 /** Spec 027 A2: the `/health` fields each job's bundle holds, and nothing else. */
 export const JOB_HEALTH_FIELDS: Readonly<Record<SreJob, Fields>> = {
-  publication: ["running", "scheduled", "followUp", "phase", ["lastRun", ["ok", "runId", "completedAt", "copiedObjectCount", "reusedObjectCount", "r2", "pollTruncated"]], "sources"],
+  publication: ["running", "scheduled", "alarmAt", "followUp", "phase", ["lastRun", ["ok", "runId", "completedAt", "copiedObjectCount", "reusedObjectCount", "r2", "pollTruncated"]], "sources"],
   digest: [["digest", [["lastRun", ["ok", "runId", "completedAt", "durationMs", "rejections"]]]]],
   "review-queue": ["reviewQueue"],
   embedding: [["searchEmbedding", ["lastRun", "lastError", "today"]]],

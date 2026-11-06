@@ -929,7 +929,7 @@ function expectedFields(job: string, health: Health): unknown {
   const pick = (value: unknown, keys: readonly string[]) => Object.fromEntries(keys.filter((key) => (value as Record<string, unknown>)[key] !== undefined).map((key) => [key, (value as Record<string, unknown>)[key]]));
   const lastRun = health.lastRun as Record<string, unknown>;
   switch (job) {
-    case "publication": return { running: health.running, scheduled: health.scheduled, followUp: health.followUp, phase: health.phase, lastRun: pick(lastRun, ["ok", "runId", "completedAt", "copiedObjectCount", "reusedObjectCount", "r2", "pollTruncated"]), sources: health.sources };
+    case "publication": return { running: health.running, scheduled: health.scheduled, alarmAt: health.alarmAt, followUp: health.followUp, phase: health.phase, lastRun: pick(lastRun, ["ok", "runId", "completedAt", "copiedObjectCount", "reusedObjectCount", "r2", "pollTruncated"]), sources: health.sources };
     case "digest": return { digest: { lastRun: pick((health.digest as { lastRun: unknown }).lastRun, ["ok", "runId", "completedAt", "durationMs", "rejections"]) } };
     case "review-queue": return { reviewQueue: health.reviewQueue };
     case "embedding": return { searchEmbedding: pick(health.searchEmbedding, ["lastRun", "lastError", "today"]) };
