@@ -17,7 +17,11 @@ two Worker secrets:
 
 - `GITHUB_SOURCE_TOKEN`: fine-grained GitHub token with read-only access to
   public repository metadata;
-- `MANUAL_TRIGGER_TOKEN`: random bearer token for `POST /run`.
+- `MANUAL_TRIGGER_TOKEN`: random bearer token for `POST /run`. The owner keeps the Dev
+  value in the macOS Keychain (service `osskb-dev-manual-trigger`, account
+  `oss-knowledge-base-data-dev`) and the Prod value in service
+  `osskb-prod-manual-trigger`, account `oss-knowledge-base-data-prod`. Read it into a
+  variable with `security find-generic-password -s <service> -a <account> -w`; never print it.
 
 Do not put either value in Wrangler configuration, Git, logs, or Pages.
 
@@ -819,7 +823,7 @@ minutes of a tick (00:30, 11:00 UTC):
    | `cause` | `upstream-unavailable` |
    | `evidence` | a quote containing `cwiki.apache.org answered 503` (the `kip-pages /health fields` item) and a quote of the `Q-window` item |
    | `runbook` | `cloudflare-data-publisher.md#upstream-failures-job-runs` |
-   | `neurons` | ≈ 62 typical (Qwen3 30B, eval scoreboard-2026-10-25c); a step reserves ≤ 184; never past the 1,500 daily cap |
+   | `neurons`, `costUsd` | On Anthropic (Dev since 2026-11-12): `neurons` 0 and `costUsd` ≈ $0.0013 (drill `throw-20261112T1247Z`: 10,200 input and 640 output tokens, $0.00134); never past the $0.10 daily cap. On Workers AI: `neurons` ≈ 62 typical (Qwen3 30B, eval scoreboard-2026-10-25c), never past the 1,500 daily cap |
 5. Read the grade:
 
    ```sh
