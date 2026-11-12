@@ -17,11 +17,7 @@ two Worker secrets:
 
 - `GITHUB_SOURCE_TOKEN`: fine-grained GitHub token with read-only access to
   public repository metadata;
-- `MANUAL_TRIGGER_TOKEN`: random bearer token for `POST /run`. The owner keeps the Dev
-  value in the macOS Keychain (service `osskb-dev-manual-trigger`, account
-  `oss-knowledge-base-data-dev`) and the Prod value in service
-  `osskb-prod-manual-trigger`, account `oss-knowledge-base-data-prod`. Read it into a
-  variable with `security find-generic-password -s <service> -a <account> -w`; never print it.
+- `MANUAL_TRIGGER_TOKEN`: random bearer token for `POST /run`.
 
 Do not put either value in Wrangler configuration, Git, logs, or Pages.
 
@@ -766,6 +762,15 @@ routes answer 404 and the job never reads a drill pointer. The drill targets
 `kip-pages` only and never touches the publication, the feed or search. The
 agent does not know it is a drill. Spec:
 [Dev fault-injection drill](../specs/027-sre-agent/spec.md#dev-fault-injection-drill-2026-10-22).
+
+Every step needs the Dev `MANUAL_TRIGGER_TOKEN`. The owner keeps it in the
+macOS Keychain (service `osskb-dev-manual-trigger`, account
+`oss-knowledge-base-data-dev`). Read it into the shell variable and never
+print it:
+
+```sh
+MANUAL_TRIGGER_TOKEN=$(security find-generic-password -s osskb-dev-manual-trigger -a oss-knowledge-base-data-dev -w)
+```
 
 `throw` (about 15 minutes, hands on). Do not start it between 03:30 and
 03:50 UTC (the 03:43 `kip-pages` cron would take a fault) or within 10
