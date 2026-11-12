@@ -987,3 +987,30 @@ describe("Spec 027 stale alarm on /health", () => {
     expect(example.split("\n").find((line) => line.startsWith("| `cause` |"))).toContain("`alarm-stuck`");
   });
 });
+
+describe("Spec 027 Dev model on Anthropic", () => {
+  const HAIKU = { input: 0.1, output: 0.5 };
+
+  test("SRE109: a USD price and a daily USD cap reserve in today.usd, record costUsd and leave today.neurons", async () => {
+    const store = memoryStore();
+    const run = await runTick(deps({ store, health: devHealth({ rules: [missed()] }), usdPrice: HAIKU, dailyUsdCap: 0.1 }));
+    const diagnosis = run.runRecord!.diagnoses[0]!;
+    expect(diagnosis.reason).not.toBe("budget");
+    expect(diagnosis.neurons).toBe(0);
+    expect(diagnosis.costUsd).toBeGreaterThan(0);
+    expect(diagnosis.costUsd).toBeCloseTo((diagnosis.inputTokens * HAIKU.input + diagnosis.outputTokens * HAIKU.output) / 1_000_000, 12);
+    expect(state(store).today.neurons).toBe(0);
+    expect(state(store).today.usd).toBeCloseTo(diagnosis.costUsd, 12);
+
+    const model = scripted(answer(VALID_OUTPUT));
+    const capped = await runTick(deps({ health: devHealth({ rules: [missed()] }), model, usdPrice: HAIKU, dailyUsdCap: 0.0001 }));
+    expect(capped.runRecord!.diagnoses[0]).toMatchObject({ verdict: "inconclusive", reason: "budget", neurons: 0 });
+    expect(model.doGenerateCalls).toHaveLength(0);
+
+    const neuronStore = memoryStore();
+    const neuronRun = await runTick(deps({ store: neuronStore, health: devHealth({ rules: [missed()] }) }));
+    expect(state(neuronStore).today.neurons).toBeGreaterThan(0);
+    expect(state(neuronStore).today.usd).toBe(0);
+    expect(neuronRun.runRecord!.diagnoses[0]!.costUsd).toBeCloseTo(neuronRun.runRecord!.diagnoses[0]!.neurons * 0.011 / 1000, 12);
+  });
+});

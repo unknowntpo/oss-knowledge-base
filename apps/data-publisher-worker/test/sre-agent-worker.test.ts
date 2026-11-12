@@ -8,7 +8,7 @@ import { MockLanguageModelV4 } from "ai/test";
 import { JOB_HEALTH_FIELDS, SRE_JOBS, type RunRecord } from "@oss-knowledge-base/sre-agent";
 import worker, { cronTarget, inAppSources, tickHealth } from "../src/index";
 import { SIGNAL_JOBS } from "../src/signals/profile";
-import { SRE_TICK_SPAN, sreAgentCaps, sreAgentModel, sreAgentTick, tickSpanAttributes, tracedGenerateText, type SreAgentEnv, type SreAgentTickResult } from "../src/sre-agent/run";
+import { SRE_TICK_SPAN, sreAgentCaps, sreAgentModel, sreAgentNeuronsToday, sreAgentSecrets, sreAgentTick, tickSpanAttributes, tracedGenerateText, type SreAgentEnv, type SreAgentTickResult } from "../src/sre-agent/run";
 import { testPlanRows } from "./sre-agent-worker.cases";
 import { recordedSpans } from "./support/cloudflare-workers";
 
@@ -199,7 +199,7 @@ const scenarios: Record<string, () => Promise<void>> = {
     // Owner decision 2026-10-25: Dev goes straight to live (A2-9 step 4); Prod stays off.
     expect(dev.vars?.SRE_AGENT).toBe("live");
     expect(dev.vars?.SRE_AGENT_CRON).toBe(SRE_CRONS);
-    expect(dev.vars?.SRE_AGENT_MODEL).toBe(MODEL);
+    expect(dev.vars?.SRE_AGENT_MODEL).toBe("claude-haiku-5-5"); // SRE112 (owner decision 2026-11-12)
     expect(dev.vars?.SRE_AGENT_GATEWAY).toBe("osskb-sre-dev");
     for (const cron of SRE_CRONS.split(";")) expect(dev.triggers?.crons).toContain(cron);
     expect(prod.vars?.SRE_AGENT).toBe("off");
@@ -511,5 +511,61 @@ describe("Spec 027 Amendment (2): the sre-agent job in the Worker", () => {
 
   test.each(testPlanRows)("$id: $case", async (row) => {
     await scenarios[row.case]!();
+  });
+});
+
+describe("Spec 027 Dev model on Anthropic", () => {
+  const HAIKU = "claude-haiku-5-5";
+  const KEY = "sk-ant-api03-fake0123456789abcdefghijklmnopqrstuv";
+  const anthropicReply = () => Response.json({
+    id: "msg_1", type: "message", role: "assistant", model: HAIKU, content: [{ type: "text", text: "ok" }],
+    stop_reason: "end_turn", stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 },
+  });
+
+  test("SRE110: SRE_AGENT_PROVIDER=anthropic builds the Haiku model from ANTHROPIC_API_KEY with effort low; no key or an unlisted model gives none", async () => {
+    const bodies: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      outbound.push(String(input instanceof Request ? input.url : input));
+      bodies.push(String(init?.body ?? ""));
+      return anthropicReply();
+    }) as typeof fetch;
+    const model = sreAgentModel({ SRE_AGENT_PROVIDER: "anthropic", ANTHROPIC_API_KEY: KEY, SRE_AGENT_MODEL: HAIKU });
+    expect(model?.modelId).toBe(HAIKU);
+    expect((await generateText({ model: model!, prompt: "ping" })).text).toBe("ok");
+    expect(outbound).toEqual(["https://api.anthropic.com/v1/messages"]);
+    expect(bodies[0]).toContain("\"effort\":\"low\"");
+    expect(sreAgentModel({ SRE_AGENT_PROVIDER: "anthropic", SRE_AGENT_MODEL: HAIKU })).toBeUndefined();
+    expect(sreAgentModel({ SRE_AGENT_PROVIDER: "anthropic", ANTHROPIC_API_KEY: KEY, SRE_AGENT_MODEL: "claude-unlisted" })).toBeUndefined();
+    // An unset or other provider keeps the Workers AI binding.
+    const ai = new FakeAi();
+    await generateText({ model: sreAgentModel({ AI: ai, SRE_AGENT_PROVIDER: "openai", ANTHROPIC_API_KEY: KEY, SRE_AGENT_MODEL: MODEL })!, prompt: "ping" });
+    expect(ai.calls[0]![0]).toBe(MODEL);
+    // A live tick with no key fails with a reason and makes no model call.
+    outbound = [];
+    const { env, bucket } = workerEnv({ SRE_AGENT: "live", OBSERVABILITY_SIGNALS: "on", SRE_AGENT_PROVIDER: "anthropic", SRE_AGENT_MODEL: HAIKU });
+    await scheduled(env, "30 0 * * *");
+    expect(outbound.filter((url) => url.includes("anthropic"))).toEqual([]);
+    expect(bucket.json(STATE_KEY).lastRun).toMatchObject({ status: "failed", reason: "SRE_AGENT=live needs a model" });
+    expect(sreAgentSecrets({ ANTHROPIC_API_KEY: KEY, GITHUB_SOURCE_TOKEN: SECRET })).toEqual(expect.arrayContaining([KEY, SECRET]));
+  });
+
+  test("SRE111: SRE_AGENT_DAILY_USD caps the day in USD, invalid values are $0.10, and /health.sreAgent.today has usd while the agent's neurons stay 0", async () => {
+    expect(sreAgentCaps({ SRE_AGENT_DAILY_USD: "0.25" }).dailyUsdCap).toBe(0.25);
+    for (const value of [undefined, "0", "-1", "abc", "1e9x", ""]) expect(sreAgentCaps({ SRE_AGENT_DAILY_USD: value }).dailyUsdCap).toBe(0.1);
+    const { env, bucket } = workerEnv({ SRE_AGENT: "live", OBSERVABILITY_SIGNALS: "on", SRE_AGENT_PROVIDER: "anthropic", SRE_AGENT_MODEL: HAIKU, ANTHROPIC_API_KEY: KEY });
+    const result = await liveTick(env);
+    expect(result?.runRecord).toMatchObject({ diagnosed: 1, modelCalls: 1, neurons: 0 });
+    const today = bucket.json(STATE_KEY).today as { neurons: number; usd: number };
+    expect(today.neurons).toBe(0);
+    expect(today.usd).toBeCloseTo((3000 * 0.1 + 200 * 0.5) / 1_000_000, 12);
+    expect(await sreAgentNeuronsToday(env as unknown as SreAgentEnv, new Date(NOW))).toBe(0);
+    expect(((await health(env)).sreAgent as { today: { usd: number } }).today.usd).toBeCloseTo(today.usd, 12);
+  });
+
+  test("SRE112: Dev runs the agent on Haiku 5.5 with a $0.10 daily cap; Prod sets none of the three", async () => {
+    const dev = await readConfig("wrangler.development.jsonc");
+    const prod = await readConfig("wrangler.production.jsonc");
+    expect(dev.vars).toMatchObject({ SRE_AGENT_PROVIDER: "anthropic", SRE_AGENT_MODEL: HAIKU, SRE_AGENT_DAILY_USD: "0.10" });
+    for (const name of ["SRE_AGENT_PROVIDER", "SRE_AGENT_MODEL", "SRE_AGENT_DAILY_USD"]) expect(prod.vars?.[name]).toBeUndefined();
   });
 });
