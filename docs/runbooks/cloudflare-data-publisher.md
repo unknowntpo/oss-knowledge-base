@@ -763,6 +763,15 @@ routes answer 404 and the job never reads a drill pointer. The drill targets
 agent does not know it is a drill. Spec:
 [Dev fault-injection drill](../specs/027-sre-agent/spec.md#dev-fault-injection-drill-2026-10-22).
 
+Every step needs the Dev `MANUAL_TRIGGER_TOKEN`. The owner keeps it in the
+macOS Keychain (service `osskb-dev-manual-trigger`, account
+`oss-knowledge-base-data-dev`). Read it into the shell variable and never
+print it:
+
+```sh
+MANUAL_TRIGGER_TOKEN=$(security find-generic-password -s osskb-dev-manual-trigger -a oss-knowledge-base-data-dev -w)
+```
+
 `throw` (about 15 minutes, hands on). Do not start it between 03:30 and
 03:50 UTC (the 03:43 `kip-pages` cron would take a fault) or within 10
 minutes of a tick (00:30, 11:00 UTC):
@@ -819,7 +828,7 @@ minutes of a tick (00:30, 11:00 UTC):
    | `cause` | `upstream-unavailable` |
    | `evidence` | a quote containing `cwiki.apache.org answered 503` (the `kip-pages /health fields` item) and a quote of the `Q-window` item |
    | `runbook` | `cloudflare-data-publisher.md#upstream-failures-job-runs` |
-   | `neurons` | ≈ 62 typical (Qwen3 30B, eval scoreboard-2026-10-25c); a step reserves ≤ 184; never past the 1,500 daily cap |
+   | `neurons`, `costUsd` | On Anthropic (Dev since 2026-11-12): `neurons` 0 and `costUsd` ≈ $0.0013 (drill `throw-20261112T1247Z`: 10,200 input and 640 output tokens, $0.00134); never past the $0.10 daily cap. On Workers AI: `neurons` ≈ 62 typical (Qwen3 30B, eval scoreboard-2026-10-25c), never past the 1,500 daily cap |
 5. Read the grade:
 
    ```sh
