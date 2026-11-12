@@ -1598,6 +1598,11 @@ and keeps the Workers AI path.
   `today.neurons` does not change, so Spec 026's neuron estimate (SRE62)
   counts no Workers AI use for the agent. A diagnosis records `costUsd` from
   its tokens and `neurons` 0. Without a price, the neuron path is unchanged.
+  A price holds only up to its `maxInputTokens` (Haiku 5.5: 100,000; a
+  longer prompt is billed at a higher tier the ledger does not know), so a
+  call whose prompt estimate passes it fails the diagnosis with reason
+  `budget` before the call (the 2026-11-12 verifier's finding). A
+  `state.json` from before SRE109 has no `today.usd` and loads it as 0.
 - **Provider (SRE110).** `SRE_AGENT_PROVIDER` selects the model backend:
   `workers-ai` (default, also unset or any other value) or `anthropic`.
   With `anthropic`, the Worker builds the model from the `ANTHROPIC_API_KEY`
@@ -2390,7 +2395,7 @@ by Amendment (1); SRE34 replaced it.
 
 ### Dev model on Anthropic: Behavior
 
-- SRE109: (owner decision 2026-11-12) with a USD price and a daily USD cap, each model call reserves the prompt estimate plus 4,096 output tokens at that price in `today.usd` before the call and settles to its usage; a call that would pass the cap fails the diagnosis with reason `budget`; `today.neurons` stays unchanged; the diagnosis has `costUsd` equal to its tokens at the price and `neurons` 0; without a price the neuron ledger is used as before → L1 test.
+- SRE109: (owner decision 2026-11-12) with a USD price and a daily USD cap, each model call reserves the prompt estimate plus 4,096 output tokens at that price in `today.usd` before the call and settles to its usage; a call that would pass the cap, or whose prompt estimate passes the price's `maxInputTokens` (Haiku 5.5: 100,000), fails the diagnosis with reason `budget` before the call; a same-day `state.json` without `today.usd` loads it as 0; `today.neurons` stays unchanged; the diagnosis has `costUsd` equal to its tokens at the price and `neurons` 0; without a price the neuron ledger is used as before → L1 test.
 - SRE110: (owner decision 2026-11-12) `SRE_AGENT_PROVIDER=anthropic` with `ANTHROPIC_API_KEY` and a listed `SRE_AGENT_MODEL` gives a model whose `modelId` is that id and whose calls carry `anthropic.effort` `low`; a missing key or an unlisted model gives no model and a `live` tick fails with a reason and no model call; an unset or other provider keeps the Workers AI model; `ANTHROPIC_API_KEY` is redacted from bundle items → L1 test.
 - SRE111: (owner decision 2026-11-12) `SRE_AGENT_DAILY_USD` `0.25` is a cap of $0.25; unset, `0`, `-1`, `abc` and `1e9x` are $0.10; `/health.sreAgent.today` has `usd`; the cost guard's agent neurons are 0 after an Anthropic diagnosis → L1 test.
 - SRE112: (owner decision 2026-11-12) `wrangler.development.jsonc` has `SRE_AGENT_PROVIDER` `anthropic`, `SRE_AGENT_MODEL` `claude-haiku-5-5` and `SRE_AGENT_DAILY_USD` `0.10`; `wrangler.production.jsonc` has none of the three → L1 test.

@@ -103,12 +103,14 @@ export const USD_PER_NEURON = 0.011 / 1000;
 export interface UsdPrice {
   readonly input: number;
   readonly output: number;
+  /** SRE109: the longest prompt the price holds for; a longer prompt estimate stops the diagnosis (`budget`). */
+  readonly maxInputTokens?: number;
 }
 
 /** SRE110: the Anthropic models the agent may run, with their prices (also the eval's table, SRE102). */
 export const USD_PER_MTOK: Readonly<Record<string, UsdPrice>> = {
   "claude-sonnet-5-5": { input: 2, output: 10 },
-  "claude-haiku-5-5": { input: 0.1, output: 0.5 },
+  "claude-haiku-5-5": { input: 0.1, output: 0.5, maxInputTokens: 100_000 },
   "claude-opus-5-5": { input: 4, output: 20 },
 };
 
@@ -118,8 +120,10 @@ export const usdFor = (price: UsdPrice, inputTokens: number, outputTokens: numbe
 export const DAILY_USD_CAP = 0.1;
 
 export class BudgetExceededError extends Error {
-  constructor(readonly reservation: number, readonly today: number, readonly cap = DAILY_NEURON_CAP, readonly unit: "neurons" | "usd" = "neurons") {
-    super(unit === "usd"
+  constructor(readonly reservation: number, readonly today: number, readonly cap = DAILY_NEURON_CAP, readonly unit: "neurons" | "usd" | "input-tokens" = "neurons") {
+    super(unit === "input-tokens"
+      ? `prompt estimate ${reservation} tokens would pass the price's ${cap}-token tier`
+      : unit === "usd"
       ? `USD reservation $${reservation.toFixed(4)} would pass $${cap} (today $${today.toFixed(4)})`
       : `neuron reservation ${reservation.toFixed(1)} would pass ${cap} (today ${today.toFixed(1)})`);
     this.name = "BudgetExceededError";
@@ -142,6 +146,12 @@ export class NeuronLedger {
   /** Today's total in the ledger's unit. */
   spent(): number {
     return this.price === undefined ? this.state.today.neurons : this.state.today.usd;
+  }
+
+  /** SRE109: a prompt estimate above the price's `maxInputTokens` would be billed at a higher tier the ledger does not know. */
+  admitPrompt(inputTokens: number): void {
+    const max = this.price?.maxInputTokens;
+    if (max !== undefined && inputTokens > max) throw new BudgetExceededError(inputTokens, this.spent(), max, "input-tokens");
   }
 
   async reserve(amount: number): Promise<void> {

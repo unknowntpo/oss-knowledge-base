@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import {
+  USD_PER_MTOK,
   BUNDLE_MAX_BYTES,
   BudgetExceededError,
   DAILY_NEURON_CAP,
@@ -1006,6 +1007,21 @@ describe("Spec 027 Dev model on Anthropic", () => {
     const capped = await runTick(deps({ health: devHealth({ rules: [missed()] }), model, usdPrice: HAIKU, dailyUsdCap: 0.0001 }));
     expect(capped.runRecord!.diagnoses[0]).toMatchObject({ verdict: "inconclusive", reason: "budget", neurons: 0 });
     expect(model.doGenerateCalls).toHaveLength(0);
+
+    // A prompt estimate above the price's tier stops the diagnosis before the call; Haiku's tier is 100K tokens.
+    expect(USD_PER_MTOK["claude-haiku-5-5"]!.maxInputTokens).toBe(100_000);
+    const longModel = scripted(answer(VALID_OUTPUT));
+    const long = await runTick(deps({ health: devHealth({ rules: [missed()] }), model: longModel, usdPrice: { ...HAIKU, maxInputTokens: 10 }, dailyUsdCap: 0.1 }));
+    expect(long.runRecord!.diagnoses[0]).toMatchObject({ verdict: "inconclusive", reason: "budget" });
+    expect(longModel.doGenerateCalls).toHaveLength(0);
+
+    // A same-day state.json from before SRE109 has no today.usd: it loads as 0, so the cap still trips.
+    const old = memoryStore({ [STATE]: JSON.stringify({ fingerprints: {}, today: { date: "2026-10-22", diagnoses: 0, neurons: 40 } }) });
+    const oldModel = scripted(answer(VALID_OUTPUT));
+    const oldRun = await runTick(deps({ store: old, health: devHealth({ rules: [missed()] }), model: oldModel, usdPrice: HAIKU, dailyUsdCap: 0.0001 }));
+    expect(oldRun.runRecord!.diagnoses[0]).toMatchObject({ reason: "budget" });
+    expect(oldModel.doGenerateCalls).toHaveLength(0);
+    expect(state(old).today).toMatchObject({ neurons: 40, usd: 0 });
 
     const neuronStore = memoryStore();
     const neuronRun = await runTick(deps({ store: neuronStore, health: devHealth({ rules: [missed()] }) }));

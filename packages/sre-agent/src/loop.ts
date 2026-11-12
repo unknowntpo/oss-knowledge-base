@@ -226,7 +226,9 @@ export async function diagnoseBundle(input: DiagnoseInput): Promise<Diagnosis> {
     middleware: {
       specificationVersion: "v4",
       wrapGenerate: async ({ doGenerate, params }) => {
-        const reservation = ledger.cost(modelId, estimateTokens(params.prompt), MAX_OUTPUT_TOKENS);
+        const estimate = estimateTokens(params.prompt);
+        ledger.admitPrompt(estimate);
+        const reservation = ledger.cost(modelId, estimate, MAX_OUTPUT_TOKENS);
         await ledger.reserve(reservation);
         modelCalls += 1;
         const result = await doGenerate();

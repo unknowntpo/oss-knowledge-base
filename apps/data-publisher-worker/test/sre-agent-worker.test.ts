@@ -552,9 +552,14 @@ describe("Spec 027 Dev model on Anthropic", () => {
   test("SRE111: SRE_AGENT_DAILY_USD caps the day in USD, invalid values are $0.10, and /health.sreAgent.today has usd while the agent's neurons stay 0", async () => {
     expect(sreAgentCaps({ SRE_AGENT_DAILY_USD: "0.25" }).dailyUsdCap).toBe(0.25);
     for (const value of [undefined, "0", "-1", "abc", "1e9x", ""]) expect(sreAgentCaps({ SRE_AGENT_DAILY_USD: value }).dailyUsdCap).toBe(0.1);
-    const { env, bucket } = workerEnv({ SRE_AGENT: "live", OBSERVABILITY_SIGNALS: "on", SRE_AGENT_PROVIDER: "anthropic", SRE_AGENT_MODEL: HAIKU, ANTHROPIC_API_KEY: KEY });
+    // SRE110: an Analytics SQL error that echoes the key reaches no stored object; the bundle holds "[redacted]".
+    const sql = { query: async () => { throw new Error(`upstream echoed ${KEY}`); } };
+    const { env, bucket } = workerEnv({ SRE_AGENT: "live", OBSERVABILITY_SIGNALS: "on", ANALYTICS_SQL: sql, SRE_AGENT_PROVIDER: "anthropic", SRE_AGENT_MODEL: HAIKU, ANTHROPIC_API_KEY: KEY });
     const result = await liveTick(env);
     expect(result?.runRecord).toMatchObject({ diagnosed: 1, modelCalls: 1, neurons: 0 });
+    const stored = [...bucket.objects.values()].join("\n");
+    expect(stored).not.toContain(KEY);
+    expect(stored).toContain("upstream echoed [redacted]");
     const today = bucket.json(STATE_KEY).today as { neurons: number; usd: number };
     expect(today.neurons).toBe(0);
     expect(today.usd).toBeCloseTo((3000 * 0.1 + 200 * 0.5) / 1_000_000, 12);

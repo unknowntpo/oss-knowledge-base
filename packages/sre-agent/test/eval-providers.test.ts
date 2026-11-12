@@ -47,7 +47,7 @@ const scenarios: Record<string, () => Promise<void>> = {
 
   "price required": async () => {
     expect(USD_PER_MTOK["claude-sonnet-5-5"]).toEqual({ input: 2, output: 10 });
-    expect(priceFor("claude-haiku-5-5")).toEqual({ input: 0.1, output: 0.5 });
+    expect(priceFor("claude-haiku-5-5")).toEqual({ input: 0.1, output: 0.5, maxInputTokens: 100_000 });
     expect(() => priceFor("qwen-max")).toThrow(/--usd-per-mtok/u);
     expect(priceFor("qwen-max", "1,4")).toEqual({ input: 1, output: 4 });
     expect(() => priceFor("qwen-max", "1")).toThrow(/--usd-per-mtok/u);
