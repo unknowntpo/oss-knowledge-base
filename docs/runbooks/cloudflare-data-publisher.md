@@ -705,7 +705,26 @@ cost guard). Dev raises two of them with Worker vars: `SRE_AGENT_MAX_DIAGNOSES`
 Prod sets neither and uses the defaults, 3 and 1,500. An invalid value
 (blank, `0`, negative, fractional, trailing text) falls back to that var's
 default ([Spec 027 Dev diagnosis quota](../specs/027-sre-agent/spec.md#dev-diagnosis-quota-owner-decision-2026-10-26)).
-Model calls go through AI Gateway `osskb-sre-dev` on Dev
+
+Since 2026-11-12 Dev runs the agent on Anthropic Haiku 5.5
+(`SRE_AGENT_PROVIDER` `anthropic`, `SRE_AGENT_MODEL` `claude-haiku-5-5`).
+The ledger then counts USD in `today.usd` against `SRE_AGENT_DAILY_USD`
+`0.10`, not neurons, so the agent adds 0 to the cost guard's neuron estimate.
+An unset or invalid cap is $0.10. Without the `ANTHROPIC_API_KEY` secret, a
+`live` tick fails with `SRE_AGENT=live needs a model` and calls no model
+([Spec 027 Dev model on Anthropic](../specs/027-sre-agent/spec.md#dev-model-on-anthropic-owner-decision-2026-11-12)).
+The owner sets the secret once, before the deploy:
+
+```sh
+cd apps/data-publisher-worker
+bunx wrangler secret put ANTHROPIC_API_KEY -c wrangler.development.jsonc
+```
+
+Check the day's spend with `curl -sS "$DEV/health" | jq '.sreAgent.today'`
+(`usd` ≤ 0.10). To go back to Workers AI, remove `SRE_AGENT_PROVIDER` and set
+`SRE_AGENT_MODEL` to a Workers AI id.
+
+Workers AI model calls go through AI Gateway `osskb-sre-dev` on Dev
 (`SRE_AGENT_GATEWAY`; logs on, rate limit 60 per hour): its logs show each
 call, and a 429 there means the gateway's rate limit, not Workers AI.
 

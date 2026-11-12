@@ -8,7 +8,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { MockLanguageModelV4 } from "ai/test";
 import { wrapLanguageModel, type LanguageModel } from "ai";
-import type { UsdPrice } from "./providers";
+import type { UsdPrice } from "../../src";
 import {
   BudgetExceededError,
   buildBundle,

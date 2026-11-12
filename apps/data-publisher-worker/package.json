@@ -17,6 +17,7 @@
     "measure:identity-backfill": "bun scripts/measure-identity-backfill.ts"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "4.0.79",
     "@ai-sdk/provider": "4.0.25",
     "@oss-knowledge-base/domain": "workspace:*",
     "@oss-knowledge-base/github-publisher": "workspace:*",

@@ -6,7 +6,7 @@ On Dev, a scheduled job reads the publisher's own health signals. When a rule fi
 
 1. **Detect (code).** Spec 028 rules judge `/health` fields and Workers Analytics Engine (WAE) data points. Each rule has the status `ok`, `warn`, `firing` or `unknown` ([Spec 028](docs/specs/028-observability-signals/spec.md)). A tripped cost guard and a failed release CI run are also firings. Without a firing, the job makes no model call.
 2. **Collect (code).** The `sre-agent` job builds one evidence bundle per job. Its items `E1`…`En` hold the rule entry, the job's `/health` fields, the results of fixed WAE queries (`Q-run`, `Q-history`, `Q-window`) and the playbook. Items are redacted, capped at 24 KB in total and marked untrusted in the prompt ([bundle.ts](packages/sre-agent/src/bundle.ts)).
-3. **Diagnose (model).** One AI SDK loop runs on Workers AI with Qwen3 30B (`@cf/qwen/qwen3-30b-a3b-fp8`). It has at most 12 steps of up to 4,096 output tokens. Its tools are read-only: `/health` sections, the fixed queries, the playbook and the runbook ([loop.ts](packages/sre-agent/src/loop.ts)).
+3. **Diagnose (model).** One AI SDK loop runs on Anthropic Haiku 5.5 (`claude-haiku-5-5`, effort `low`) on Dev since 2026-11-12, and on Workers AI with Qwen3 30B (`@cf/qwen/qwen3-30b-a3b-fp8`) before. It has at most 12 steps of up to 4,096 output tokens. Its tools are read-only: `/health` sections, the fixed queries, the playbook and the runbook ([loop.ts](packages/sre-agent/src/loop.ts)).
 4. **Check (code).** The evidence check accepts or rejects the answer ([below](#evidence)).
 5. **Store.** The run record, the full trajectory and the daily state go to R2 under `internal/sre/v1/<env>/`. `/health` field `sreAgent` shows the last run. The owner reads it; nothing is pushed.
 
@@ -37,7 +37,7 @@ A failed check changes the verdict to `unverified`. The rest of the answer is ke
 
 ## Budget {#budget}
 
-A ledger reserves neurons before every model call. The default caps are 3 diagnoses and 1,500 neurons per UTC day. Dev raises them to 10 diagnoses and 3,000 neurons while the agent is in development (`SRE_AGENT_MAX_DIAGNOSES`, `SRE_AGENT_DAILY_NEURONS`). An invalid value gives the default, never no cap. A worst-case Qwen3 30B diagnosis uses 576 neurons, so 3,000 neurons is about 5 diagnoses: $0.033 a day if every neuron were billed. With the digest, embedding and query caps, Dev's caps sum to 11,500 neurons. That is at most 1,500 above the 10,000 included each day ([Process & cost](process.html#budgets)).
+A ledger reserves neurons before every model call. The default caps are 3 diagnoses and 1,500 neurons per UTC day. Dev raises them to 10 diagnoses and 3,000 neurons while the agent is in development (`SRE_AGENT_MAX_DIAGNOSES`, `SRE_AGENT_DAILY_NEURONS`). An invalid value gives the default, never no cap. On Anthropic the ledger counts USD instead: Dev caps the day at $0.10 (`SRE_AGENT_DAILY_USD`), and a mean Haiku diagnosis costs about $0.0013. A worst-case Qwen3 30B diagnosis uses 576 neurons, so 3,000 neurons is about 5 diagnoses: $0.033 a day if every neuron were billed. With the digest, embedding and query caps, Dev's caps sum to 11,500 neurons. That is at most 1,500 above the 10,000 included each day ([Process & cost](process.html#budgets)).
 
 ## Fault-injection drill {#drill}
 

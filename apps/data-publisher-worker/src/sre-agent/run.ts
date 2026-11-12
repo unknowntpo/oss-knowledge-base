@@ -7,10 +7,11 @@
  */
 import * as ai from "ai";
 import * as workers from "cloudflare:workers";
+import { createAnthropic } from "@ai-sdk/anthropic";
 import { createAI } from "agents/models/ai-sdk";
 import { wrapAISDK } from "agents/observability/ai";
 import {
-  activeDrillSummary, DAILY_NEURON_CAP, gradeActiveDrill, MAX_DIAGNOSES_PER_DAY, loadState, parseFlag, recordFailedTick, runTick, sreKey, sreRunId, utcDate,
+  activeDrillSummary, DAILY_NEURON_CAP, DAILY_USD_CAP, gradeActiveDrill, MAX_DIAGNOSES_PER_DAY, loadState, parseFlag, recordFailedTick, runTick, sreKey, sreRunId, USD_PER_MTOK, utcDate, withEffort,
   type Env as SreEnv, type Health, type LastRun, type Mode, type TickDeps, type QuerySignals, type RawStore, type RunRecord, type SqlArgs,
 } from "@oss-knowledge-base/sre-agent";
 import { errorText, sanitizeErrorMessage } from "../search-embedding/sanitize";
@@ -25,14 +26,20 @@ export interface SreAgentEnv {
   readonly SRE_AGENT?: string;
   /** A2-3: the job's cron expressions, separated by `;` (Dev `30 0 * * *;0 11 * * *`). */
   readonly SRE_AGENT_CRON?: string;
-  /** B30: the Workers AI model id for `live` (A2-1, owner decision 2026-10-25: Qwen3 30B on Dev). */
+  /** SRE110: `anthropic`, or Workers AI when unset or any other value (owner decision 2026-11-12: Dev on Anthropic). */
+  readonly SRE_AGENT_PROVIDER?: string;
+  /** B30: the model id for `live`: a Workers AI id, or a `USD_PER_MTOK` id with `SRE_AGENT_PROVIDER=anthropic` (Dev `claude-haiku-5-5`). */
   readonly SRE_AGENT_MODEL?: string;
+  /** SRE110: the Anthropic API key (a Worker secret, Dev only). */
+  readonly ANTHROPIC_API_KEY?: string;
   /** G100: the AI Gateway id the agent's model calls go through (Dev `osskb-sre-dev`); unset uses the account default. */
   readonly SRE_AGENT_GATEWAY?: string;
   /** SRE91: diagnoses per UTC day, a positive integer (Dev `10`); unset or invalid is 3. */
   readonly SRE_AGENT_MAX_DIAGNOSES?: string;
   /** SRE91: neurons per UTC day, a positive integer (Dev `3000`); unset or invalid is 1,500. */
   readonly SRE_AGENT_DAILY_NEURONS?: string;
+  /** SRE111: USD per UTC day on Anthropic, a positive decimal (Dev `0.10`); unset or invalid is $0.10. */
+  readonly SRE_AGENT_DAILY_USD?: string;
   /** Spec 027 drill (B38): `on` only on Dev; see `drill.ts`. */
   readonly SRE_DRILL?: string;
   readonly AI?: unknown;
@@ -64,17 +71,41 @@ function positiveInteger(value: unknown, fallback: number): number {
   return Number.isSafeInteger(parsed) ? parsed : fallback;
 }
 
-/** SRE91 (owner decision 2026-10-26): the daily caps from the Worker vars; Prod sets neither, so 3 and 1,500. */
-export function sreAgentCaps(env: Pick<SreAgentEnv, "SRE_AGENT_MAX_DIAGNOSES" | "SRE_AGENT_DAILY_NEURONS">) {
+/** SRE111: a positive finite decimal (`0.10`, `2`), else the default: an invalid value never lifts the cap. */
+function positiveDecimal(value: unknown, fallback: number): number {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!/^[0-9]+(?:\.[0-9]+)?$/u.test(text)) return fallback;
+  const parsed = Number(text);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+/** SRE91 (owner decision 2026-10-26), SRE111: the daily caps from the Worker vars; Prod sets none, so 3, 1,500 and $0.10. */
+export function sreAgentCaps(env: Pick<SreAgentEnv, "SRE_AGENT_MAX_DIAGNOSES" | "SRE_AGENT_DAILY_NEURONS" | "SRE_AGENT_DAILY_USD">) {
   return {
     maxDiagnosesPerDay: positiveInteger(env.SRE_AGENT_MAX_DIAGNOSES, MAX_DIAGNOSES_PER_DAY),
     dailyNeuronCap: positiveInteger(env.SRE_AGENT_DAILY_NEURONS, DAILY_NEURON_CAP),
+    dailyUsdCap: positiveDecimal(env.SRE_AGENT_DAILY_USD, DAILY_USD_CAP),
   };
 }
 
-/** SRE57: the core takes a `LanguageModel`; the Worker builds it in one line from the `AI` binding. */
-export function sreAgentModel(env: Pick<SreAgentEnv, "AI" | "SRE_AGENT_MODEL" | "SRE_AGENT_GATEWAY">) {
+const anthropic = (env: Pick<SreAgentEnv, "SRE_AGENT_PROVIDER">) => (env.SRE_AGENT_PROVIDER?.trim() ?? "") === "anthropic";
+
+/** SRE109, SRE110: the listed USD price of the Anthropic model; undefined on Workers AI or for an unlisted model. */
+export function sreAgentUsdPrice(env: Pick<SreAgentEnv, "SRE_AGENT_PROVIDER" | "SRE_AGENT_MODEL">) {
+  return anthropic(env) ? USD_PER_MTOK[env.SRE_AGENT_MODEL?.trim() ?? ""] : undefined;
+}
+
+/**
+ * SRE57: the core takes a `LanguageModel`; the Worker builds it from the `AI` binding, or (SRE110) from
+ * `ANTHROPIC_API_KEY` for a listed Anthropic model, with effort `low`. No key or an unlisted model gives none.
+ */
+export function sreAgentModel(env: Pick<SreAgentEnv, "AI" | "SRE_AGENT_MODEL" | "SRE_AGENT_GATEWAY" | "SRE_AGENT_PROVIDER" | "ANTHROPIC_API_KEY">) {
   const modelId = env.SRE_AGENT_MODEL?.trim() ?? "";
+  if (anthropic(env)) {
+    const apiKey = env.ANTHROPIC_API_KEY?.trim() ?? "";
+    if (apiKey === "" || sreAgentUsdPrice(env) === undefined) return undefined;
+    return withEffort(createAnthropic({ apiKey })(modelId), "low");
+  }
   if (env.AI === undefined || modelId === "") return undefined;
   // G100 (owner decision 2026-10-25): Dev routes the agent's calls through its own AI Gateway; unset keeps the account default.
   const gateway = env.SRE_AGENT_GATEWAY?.trim() ?? "";
@@ -133,9 +164,9 @@ function querySignals(env: SreAgentEnv, now: () => number): QuerySignals {
   };
 }
 
-/** B29: every secret of the Worker's environment, redacted by exact value from each bundle item. */
-const secretsOf = (env: SreAgentEnv) =>
-  [env.GITHUB_SOURCE_TOKEN, env.MANUAL_TRIGGER_TOKEN, env.CF_ANALYTICS_TOKEN].filter((value): value is string => typeof value === "string" && value !== "");
+/** B29, SRE110: every secret of the Worker's environment, redacted by exact value from each bundle item. */
+export const sreAgentSecrets = (env: Pick<SreAgentEnv, "GITHUB_SOURCE_TOKEN" | "MANUAL_TRIGGER_TOKEN" | "CF_ANALYTICS_TOKEN" | "ANTHROPIC_API_KEY">) =>
+  [env.GITHUB_SOURCE_TOKEN, env.MANUAL_TRIGGER_TOKEN, env.CF_ANALYTICS_TOKEN, env.ANTHROPIC_API_KEY].filter((value): value is string => typeof value === "string" && value !== "");
 
 /**
  * SRE81 (owner decision 2026-10-26): the agent's model calls go through Cloudflare Agent tracing.
@@ -237,6 +268,7 @@ async function tick(env: SreAgentEnv, deps: SreAgentTickDeps, mode: Exclude<Mode
   try {
     // Inside the try: a binding that fails as the model is built is a failed tick too (SRE47).
     const model = mode === "live" ? deps.model ?? sreAgentModel(env) : undefined;
+    const usdPrice = sreAgentUsdPrice(env);
     const tick = await runTick({
       generateText: deps.generateText ?? tracedGenerateText,
       env: sre,
@@ -248,8 +280,10 @@ async function tick(env: SreAgentEnv, deps: SreAgentTickDeps, mode: Exclude<Mode
       querySignals: querySignals(env, () => deps.now.getTime()),
       ...(model === undefined ? {} : { model }),
       modelId: env.SRE_AGENT_MODEL?.trim() ?? "",
-      secrets: secretsOf(env),
+      secrets: sreAgentSecrets(env),
       ...caps,
+      // SRE109: on Anthropic the ledger counts today.usd against dailyUsdCap; Workers AI keeps neurons.
+      ...(usdPrice === undefined ? {} : { usdPrice }),
       ...(deps.onStep === undefined ? {} : { onStep: deps.onStep }),
       // B42: the drill grader, only while the drill is on; its failure never fails the tick.
       ...(drillEnabled(env) ? { afterRun: (input) => gradeDrill(store, input, deps.now, runId) } : {}),

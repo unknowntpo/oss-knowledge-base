@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import {
+  USD_PER_MTOK,
   BUNDLE_MAX_BYTES,
   BudgetExceededError,
   DAILY_NEURON_CAP,
@@ -234,7 +235,7 @@ const scenarios: Record<string, () => Promise<void>> = {
   async "neuron cap boundary"() {
     expect(DAILY_NEURON_CAP).toBe(1500);
     const writes: number[] = [];
-    const at = (neurons: number) => new NeuronLedger({ ...emptyState("2026-10-22"), today: { date: "2026-10-22", diagnoses: 0, neurons } }, async (value) => { writes.push(value.today.neurons); });
+    const at = (neurons: number) => new NeuronLedger({ ...emptyState("2026-10-22"), today: { date: "2026-10-22", diagnoses: 0, neurons, usd: 0 } }, async (value) => { writes.push(value.today.neurons); });
     const fits = at(1000);
     await fits.reserve(500);
     expect(fits.state.today.neurons).toBe(1500);
@@ -243,7 +244,7 @@ const scenarios: Record<string, () => Promise<void>> = {
     await expect(over.reserve(501)).rejects.toBeInstanceOf(BudgetExceededError);
     expect(over.state.today.neurons).toBe(1000);
     // Through a tick: a day already at the cap stops the diagnosis before any model call.
-    const full: SreState = { ...emptyState("2026-10-22"), today: { date: "2026-10-22", diagnoses: 0, neurons: 1499 } };
+    const full: SreState = { ...emptyState("2026-10-22"), today: { date: "2026-10-22", diagnoses: 0, neurons: 1499, usd: 0 } };
     const model = scripted(answer(VALID_OUTPUT));
     const run = await runTick(deps({ store: memoryStore({ [STATE]: JSON.stringify(full) }), model, health: devHealth({ rules: [missed()] }) }));
     expect(model.doGenerateCalls).toHaveLength(0);
@@ -261,13 +262,13 @@ const scenarios: Record<string, () => Promise<void>> = {
     expect(four.runRecord!.notDiagnosed).toEqual([{ fingerprint: "dev:retention:job.missed:2026-10-21T04:07:00.000Z", reason: "daily-cap" }]);
 
     // 1,499 neurons stops the diagnosis at the default cap (SRE41); a 3,000 cap lets it call the model.
-    const full: SreState = { ...emptyState("2026-10-22"), today: { date: "2026-10-22", diagnoses: 0, neurons: 1499 } };
+    const full: SreState = { ...emptyState("2026-10-22"), today: { date: "2026-10-22", diagnoses: 0, neurons: 1499, usd: 0 } };
     const model = scripted(answer(VALID_OUTPUT));
     const raised = await runTick(deps({ dailyNeuronCap: 3000, store: memoryStore({ [STATE]: JSON.stringify(full) }), model, health: devHealth({ rules: [missed()] }) }));
     expect(model.doGenerateCalls).toHaveLength(1);
     expect(raised.runRecord!.diagnoses[0]!.reason).not.toBe("budget");
 
-    const at = (neurons: number) => new NeuronLedger({ ...emptyState("2026-10-22"), today: { date: "2026-10-22", diagnoses: 0, neurons } }, async () => {}, 3000);
+    const at = (neurons: number) => new NeuronLedger({ ...emptyState("2026-10-22"), today: { date: "2026-10-22", diagnoses: 0, neurons, usd: 0 } }, async () => {}, 3000);
     const fits = at(2500);
     await fits.reserve(500);
     expect(fits.state.today.neurons).toBe(3000);
@@ -304,7 +305,7 @@ const scenarios: Record<string, () => Promise<void>> = {
   },
 
   async "new UTC day"() {
-    const yesterday: SreState = { ...emptyState("2026-10-21"), today: { date: "2026-10-21", diagnoses: 3, neurons: 1500 } };
+    const yesterday: SreState = { ...emptyState("2026-10-21"), today: { date: "2026-10-21", diagnoses: 3, neurons: 1500, usd: 0 } };
     const store = memoryStore({ [STATE]: JSON.stringify(yesterday) });
     const model = scripted(answer(VALID_OUTPUT));
     const run = await runTick(deps({ store, model, health: devHealth({ rules: [missed()] }) }));
@@ -985,5 +986,47 @@ describe("Spec 027 stale alarm on /health", () => {
     expect(causeRow(file, "cron-not-fired")).toContain("`alarmAt: null`");
     const example = file.slice(file.indexOf("## Worked example"));
     expect(example.split("\n").find((line) => line.startsWith("| `cause` |"))).toContain("`alarm-stuck`");
+  });
+});
+
+describe("Spec 027 Dev model on Anthropic", () => {
+  const HAIKU = { input: 0.1, output: 0.5 };
+
+  test("SRE109: a USD price and a daily USD cap reserve in today.usd, record costUsd and leave today.neurons", async () => {
+    const store = memoryStore();
+    const run = await runTick(deps({ store, health: devHealth({ rules: [missed()] }), usdPrice: HAIKU, dailyUsdCap: 0.1 }));
+    const diagnosis = run.runRecord!.diagnoses[0]!;
+    expect(diagnosis.reason).not.toBe("budget");
+    expect(diagnosis.neurons).toBe(0);
+    expect(diagnosis.costUsd).toBeGreaterThan(0);
+    expect(diagnosis.costUsd).toBeCloseTo((diagnosis.inputTokens * HAIKU.input + diagnosis.outputTokens * HAIKU.output) / 1_000_000, 12);
+    expect(state(store).today.neurons).toBe(0);
+    expect(state(store).today.usd).toBeCloseTo(diagnosis.costUsd, 12);
+
+    const model = scripted(answer(VALID_OUTPUT));
+    const capped = await runTick(deps({ health: devHealth({ rules: [missed()] }), model, usdPrice: HAIKU, dailyUsdCap: 0.0001 }));
+    expect(capped.runRecord!.diagnoses[0]).toMatchObject({ verdict: "inconclusive", reason: "budget", neurons: 0 });
+    expect(model.doGenerateCalls).toHaveLength(0);
+
+    // A prompt estimate above the price's tier stops the diagnosis before the call; Haiku's tier is 100K tokens.
+    expect(USD_PER_MTOK["claude-haiku-5-5"]!.maxInputTokens).toBe(100_000);
+    const longModel = scripted(answer(VALID_OUTPUT));
+    const long = await runTick(deps({ health: devHealth({ rules: [missed()] }), model: longModel, usdPrice: { ...HAIKU, maxInputTokens: 10 }, dailyUsdCap: 0.1 }));
+    expect(long.runRecord!.diagnoses[0]).toMatchObject({ verdict: "inconclusive", reason: "budget" });
+    expect(longModel.doGenerateCalls).toHaveLength(0);
+
+    // A same-day state.json from before SRE109 has no today.usd: it loads as 0, so the cap still trips.
+    const old = memoryStore({ [STATE]: JSON.stringify({ fingerprints: {}, today: { date: "2026-10-22", diagnoses: 0, neurons: 40 } }) });
+    const oldModel = scripted(answer(VALID_OUTPUT));
+    const oldRun = await runTick(deps({ store: old, health: devHealth({ rules: [missed()] }), model: oldModel, usdPrice: HAIKU, dailyUsdCap: 0.0001 }));
+    expect(oldRun.runRecord!.diagnoses[0]).toMatchObject({ reason: "budget" });
+    expect(oldModel.doGenerateCalls).toHaveLength(0);
+    expect(state(old).today).toMatchObject({ neurons: 40, usd: 0 });
+
+    const neuronStore = memoryStore();
+    const neuronRun = await runTick(deps({ store: neuronStore, health: devHealth({ rules: [missed()] }) }));
+    expect(state(neuronStore).today.neurons).toBeGreaterThan(0);
+    expect(state(neuronStore).today.usd).toBe(0);
+    expect(neuronRun.runRecord!.diagnoses[0]!.costUsd).toBeCloseTo(neuronRun.runRecord!.diagnoses[0]!.neurons * 0.011 / 1000, 12);
   });
 });

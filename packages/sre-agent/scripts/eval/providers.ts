@@ -6,27 +6,16 @@
  */
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { wrapLanguageModel, type LanguageModel } from "ai";
+import type { LanguageModel } from "ai";
+import { EFFORTS, USD_PER_MTOK, type Effort, type UsdPrice } from "../../src";
 
 type Model = Exclude<LanguageModel, string>;
 
 export const CANDIDATES = ["@cf/zai-org/glm-4.7-flash", "@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/qwen/qwen3-30b-a3b-fp8"] as const;
 export const PROVIDERS = ["workers-ai", "anthropic", "openai-compatible"] as const;
-export const EFFORTS = ["low", "medium", "high"] as const;
 export type Provider = (typeof PROVIDERS)[number];
-export type Effort = (typeof EFFORTS)[number];
 
-/** USD per million tokens (Anthropic pricing, 2026-10-06; Haiku 5.5 for prompts up to 100K tokens). */
-export interface UsdPrice {
-  readonly input: number;
-  readonly output: number;
-}
-
-export const USD_PER_MTOK: Readonly<Record<string, UsdPrice>> = {
-  "claude-sonnet-5-5": { input: 2, output: 10 },
-  "claude-haiku-5-5": { input: 0.1, output: 0.5 },
-  "claude-opus-5-5": { input: 4, output: 20 },
-};
+export { EFFORTS, USD_PER_MTOK, withEffort, type Effort, type UsdPrice } from "../../src";
 
 /** The listed price, or `--usd-per-mtok <in>,<out>`; a model with neither is refused. */
 export function priceFor(modelId: string, override?: string): UsdPrice {
@@ -113,16 +102,3 @@ export function paidModel(provider: Exclude<Provider, "workers-ai">, modelId: st
   return createOpenAICompatible({ name: "openai-compatible", baseURL, apiKey: required(env, "OPENAI_COMPATIBLE_API_KEY") })(modelId);
 }
 
-/** SRE103: every call carries `anthropic.effort`, so thinking fits the production 4,096-token output cap. */
-export function withEffort(model: Model, effort: Effort): Model {
-  return wrapLanguageModel({
-    model: model as Parameters<typeof wrapLanguageModel>[0]["model"],
-    middleware: {
-      specificationVersion: "v4",
-      transformParams: async ({ params }) => ({
-        ...params,
-        providerOptions: { ...params.providerOptions, anthropic: { ...params.providerOptions?.anthropic, effort } },
-      }),
-    },
-  });
-}

@@ -22,7 +22,7 @@ import { ENTRY_DEFINITION, OUTPUT_FIELD_RULES, checkEvidence, diagnosisOutputSch
 import { githubGet } from "./firings";
 import type { PlaybookLibrary } from "./playbook";
 import { SYSTEM_CONTEXT } from "./playbooks.generated";
-import { BudgetExceededError, MAX_OUTPUT_TOKENS, MAX_STEPS, neuronsFor, type NeuronLedger } from "./state";
+import { BudgetExceededError, MAX_OUTPUT_TOKENS, MAX_STEPS, USD_PER_NEURON, type NeuronLedger } from "./state";
 import type { Env, Health, QuerySignals, SqlArgs } from "./types";
 
 export const TOOL_TIMEOUT_MS = 20_000;
@@ -61,7 +61,10 @@ export interface Diagnosis {
   readonly toolCalls: number;
   readonly inputTokens: number;
   readonly outputTokens: number;
+  /** 0 when the ledger is priced in USD (SRE109). */
   readonly neurons: number;
+  /** Tokens at the USD price, or neurons × $0.011 per 1,000 on Workers AI. */
+  readonly costUsd: number;
   readonly trajectory: { readonly system: string; readonly prompt: string; readonly steps: TrajectoryStep[] };
 }
 
@@ -212,7 +215,7 @@ const hasUnknownTool = (step: StepResult<ToolSet> | undefined) =>
 
 export async function diagnoseBundle(input: DiagnoseInput): Promise<Diagnosis> {
   const { bundle, ledger, modelId } = input;
-  const before = ledger.state.today.neurons;
+  const before = ledger.spent();
   let modelCalls = 0;
   let inputTokens = 0;
   let outputTokens = 0;
@@ -223,14 +226,16 @@ export async function diagnoseBundle(input: DiagnoseInput): Promise<Diagnosis> {
     middleware: {
       specificationVersion: "v4",
       wrapGenerate: async ({ doGenerate, params }) => {
-        const reservation = neuronsFor(modelId, estimateTokens(params.prompt), MAX_OUTPUT_TOKENS);
+        const estimate = estimateTokens(params.prompt);
+        ledger.admitPrompt(estimate);
+        const reservation = ledger.cost(modelId, estimate, MAX_OUTPUT_TOKENS);
         await ledger.reserve(reservation);
         modelCalls += 1;
         const result = await doGenerate();
         const used = { input: result.usage.inputTokens.total ?? 0, output: result.usage.outputTokens.total ?? 0 };
         inputTokens += used.input;
         outputTokens += used.output;
-        ledger.settle(reservation, neuronsFor(modelId, used.input, used.output));
+        ledger.settle(reservation, ledger.cost(modelId, used.input, used.output));
         return result;
       },
     },
@@ -271,6 +276,7 @@ export async function diagnoseBundle(input: DiagnoseInput): Promise<Diagnosis> {
       : "model-error";
   }
   const evidenceCheck = output === null ? null : checkEvidence(output, bundle);
+  const spent = ledger.spent() - before;
   return {
     verdict: output === null ? "inconclusive" : evidenceCheck!.ok ? output.verdict : "unverified",
     reason,
@@ -281,7 +287,8 @@ export async function diagnoseBundle(input: DiagnoseInput): Promise<Diagnosis> {
     toolCalls: steps.reduce((total, step) => total + step.toolCalls.length, 0),
     inputTokens,
     outputTokens,
-    neurons: ledger.state.today.neurons - before,
+    neurons: ledger.price === undefined ? spent : 0,
+    costUsd: ledger.price === undefined ? spent * USD_PER_NEURON : spent,
     trajectory: { system: SYSTEM_PROMPT, prompt, steps },
   };
 }
