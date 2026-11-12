@@ -11,12 +11,10 @@ import { CI_JOB, collectFirings, parseFlag, readCiRelease } from "./firings";
 import { diagnoseBundle, renderPrompt, SYSTEM_PROMPT, type Diagnosis } from "./loop";
 import type { PlaybookLibrary } from "./playbook";
 import { PLAYBOOK_LIBRARY } from "./playbooks.generated";
-import { DAILY_NEURON_CAP, MAX_DIAGNOSES_PER_DAY, NeuronLedger, fingerprint, loadState, planDiagnoses, utcDate, type NotDiagnosedReason, type SreState } from "./state";
+import { DAILY_NEURON_CAP, DAILY_USD_CAP, MAX_DIAGNOSES_PER_DAY, NeuronLedger, fingerprint, loadState, planDiagnoses, utcDate, type NotDiagnosedReason, type SreState, type UsdPrice } from "./state";
 import { scopedStore, sreKey } from "./store";
 import type { CiRelease, Env, Firing, Health, Mode, QuerySignals, RawStore } from "./types";
 
-/** Workers AI price above the free allocation: $0.011 per 1,000 neurons (A2-6). */
-export const USD_PER_NEURON = 0.011 / 1000;
 
 export interface TickDeps {
   readonly env: Env;
@@ -42,6 +40,10 @@ export interface TickDeps {
   readonly maxDiagnosesPerDay?: number;
   /** SRE90: neurons per UTC day (B31); `DAILY_NEURON_CAP` (1,500) when absent. The Worker validates it. */
   readonly dailyNeuronCap?: number;
+  /** SRE109: the model's USD price; with it the ledger counts `today.usd` against `dailyUsdCap` instead of neurons. */
+  readonly usdPrice?: UsdPrice;
+  /** SRE111: USD per UTC day; `DAILY_USD_CAP` ($0.10) when absent. Used only with `usdPrice`. */
+  readonly dailyUsdCap?: number;
   /** Called as each step of B26 starts (0–7); a throw ends the tick like any other error (SRE47). */
   readonly onStep?: (step: number) => void;
   /**
@@ -118,7 +120,7 @@ export interface TickResult {
 function dryRun(bundle: Bundle): Diagnosis {
   return {
     verdict: "dry-run", reason: null, output: null, evidenceCheck: null, modelCalls: 0, steps: 0, toolCalls: 0,
-    inputTokens: 0, outputTokens: 0, neurons: 0, trajectory: { system: SYSTEM_PROMPT, prompt: renderPrompt(bundle), steps: [] },
+    inputTokens: 0, outputTokens: 0, neurons: 0, costUsd: 0, trajectory: { system: SYSTEM_PROMPT, prompt: renderPrompt(bundle), steps: [] },
   };
 }
 
@@ -138,7 +140,9 @@ export async function runTick(deps: TickDeps): Promise<TickResult> {
   const stateKey = sreKey(env, "state.json");
   const state: SreState = loadState(await store.get(stateKey), date);
   const persist = (value: SreState) => store.put(stateKey, JSON.stringify(value));
-  const ledger = new NeuronLedger(state, persist, deps.dailyNeuronCap ?? DAILY_NEURON_CAP);
+  const ledger = deps.usdPrice === undefined
+    ? new NeuronLedger(state, persist, deps.dailyNeuronCap ?? DAILY_NEURON_CAP)
+    : new NeuronLedger(state, persist, deps.dailyUsdCap ?? DAILY_USD_CAP, deps.usdPrice);
   const secrets = deps.secrets ?? [];
   const library = deps.library ?? PLAYBOOK_LIBRARY;
 
@@ -246,7 +250,7 @@ function record(env: Env, firings: readonly Firing[], bundle: Bundle, diagnosis:
     inputTokens: diagnosis.inputTokens,
     outputTokens: diagnosis.outputTokens,
     neurons: diagnosis.neurons,
-    costUsd: diagnosis.neurons * USD_PER_NEURON,
+    costUsd: diagnosis.costUsd,
     at,
     trajectoryKey,
   };

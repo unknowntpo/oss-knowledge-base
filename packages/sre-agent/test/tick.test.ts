@@ -234,7 +234,7 @@ const scenarios: Record<string, () => Promise<void>> = {
   async "neuron cap boundary"() {
     expect(DAILY_NEURON_CAP).toBe(1500);
     const writes: number[] = [];
-    const at = (neurons: number) => new NeuronLedger({ ...emptyState("2026-10-22"), today: { date: "2026-10-22", diagnoses: 0, neurons } }, async (value) => { writes.push(value.today.neurons); });
+    const at = (neurons: number) => new NeuronLedger({ ...emptyState("2026-10-22"), today: { date: "2026-10-22", diagnoses: 0, neurons, usd: 0 } }, async (value) => { writes.push(value.today.neurons); });
     const fits = at(1000);
     await fits.reserve(500);
     expect(fits.state.today.neurons).toBe(1500);
@@ -243,7 +243,7 @@ const scenarios: Record<string, () => Promise<void>> = {
     await expect(over.reserve(501)).rejects.toBeInstanceOf(BudgetExceededError);
     expect(over.state.today.neurons).toBe(1000);
     // Through a tick: a day already at the cap stops the diagnosis before any model call.
-    const full: SreState = { ...emptyState("2026-10-22"), today: { date: "2026-10-22", diagnoses: 0, neurons: 1499 } };
+    const full: SreState = { ...emptyState("2026-10-22"), today: { date: "2026-10-22", diagnoses: 0, neurons: 1499, usd: 0 } };
     const model = scripted(answer(VALID_OUTPUT));
     const run = await runTick(deps({ store: memoryStore({ [STATE]: JSON.stringify(full) }), model, health: devHealth({ rules: [missed()] }) }));
     expect(model.doGenerateCalls).toHaveLength(0);
@@ -261,13 +261,13 @@ const scenarios: Record<string, () => Promise<void>> = {
     expect(four.runRecord!.notDiagnosed).toEqual([{ fingerprint: "dev:retention:job.missed:2026-10-21T04:07:00.000Z", reason: "daily-cap" }]);
 
     // 1,499 neurons stops the diagnosis at the default cap (SRE41); a 3,000 cap lets it call the model.
-    const full: SreState = { ...emptyState("2026-10-22"), today: { date: "2026-10-22", diagnoses: 0, neurons: 1499 } };
+    const full: SreState = { ...emptyState("2026-10-22"), today: { date: "2026-10-22", diagnoses: 0, neurons: 1499, usd: 0 } };
     const model = scripted(answer(VALID_OUTPUT));
     const raised = await runTick(deps({ dailyNeuronCap: 3000, store: memoryStore({ [STATE]: JSON.stringify(full) }), model, health: devHealth({ rules: [missed()] }) }));
     expect(model.doGenerateCalls).toHaveLength(1);
     expect(raised.runRecord!.diagnoses[0]!.reason).not.toBe("budget");
 
-    const at = (neurons: number) => new NeuronLedger({ ...emptyState("2026-10-22"), today: { date: "2026-10-22", diagnoses: 0, neurons } }, async () => {}, 3000);
+    const at = (neurons: number) => new NeuronLedger({ ...emptyState("2026-10-22"), today: { date: "2026-10-22", diagnoses: 0, neurons, usd: 0 } }, async () => {}, 3000);
     const fits = at(2500);
     await fits.reserve(500);
     expect(fits.state.today.neurons).toBe(3000);
@@ -304,7 +304,7 @@ const scenarios: Record<string, () => Promise<void>> = {
   },
 
   async "new UTC day"() {
-    const yesterday: SreState = { ...emptyState("2026-10-21"), today: { date: "2026-10-21", diagnoses: 3, neurons: 1500 } };
+    const yesterday: SreState = { ...emptyState("2026-10-21"), today: { date: "2026-10-21", diagnoses: 3, neurons: 1500, usd: 0 } };
     const store = memoryStore({ [STATE]: JSON.stringify(yesterday) });
     const model = scripted(answer(VALID_OUTPUT));
     const run = await runTick(deps({ store, model, health: devHealth({ rules: [missed()] }) }));

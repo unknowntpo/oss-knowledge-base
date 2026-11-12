@@ -6,7 +6,7 @@
 
 1. **偵測（程式）。** Spec 028 的規則判斷 `/health` 欄位與 Workers Analytics Engine（WAE）資料點。每條規則的狀態是 `ok`、`warn`、`firing` 或 `unknown`（[Spec 028](docs/specs/028-observability-signals/spec.md)）。成本守門員跳脫、release CI 失敗也算 firing。沒有 firing 時，job 不呼叫模型。
 2. **收集（程式）。** `sre-agent` job 為每個 job 建一個證據包。項目 `E1`…`En` 包含規則條目、該 job 的 `/health` 欄位、固定 WAE 查詢（`Q-run`、`Q-history`、`Q-window`）的結果，以及 playbook。項目會先遮蔽機密，總量上限 24 KB，並在 prompt 中標為不可信（[bundle.ts](packages/sre-agent/src/bundle.ts)）。
-3. **診斷（模型）。** 一個 AI SDK 迴圈在 Workers AI 上執行 Qwen3 30B（`@cf/qwen/qwen3-30b-a3b-fp8`）。最多 12 步，每步最多輸出 4,096 tokens。工具都是唯讀：`/health` 區段、固定查詢、playbook 與 runbook（[loop.ts](packages/sre-agent/src/loop.ts)）。
+3. **診斷（模型）。** 自 2026-11-12 起，Dev 的 AI SDK 迴圈在 Anthropic 上執行 Haiku 5.5（`claude-haiku-5-5`，effort `low`）；之前在 Workers AI 上執行 Qwen3 30B（`@cf/qwen/qwen3-30b-a3b-fp8`）。最多 12 步，每步最多輸出 4,096 tokens。工具都是唯讀：`/health` 區段、固定查詢、playbook 與 runbook（[loop.ts](packages/sre-agent/src/loop.ts)）。
 4. **檢查（程式）。** 證據檢查決定接受或拒絕答案（見[下方](#evidence)）。
 5. **儲存。** run 紀錄、完整軌跡與當日狀態寫入 R2 的 `internal/sre/v1/<env>/`。`/health` 的 `sreAgent` 欄位顯示上一次 run。負責人自己讀，不推播。
 
@@ -37,7 +37,7 @@
 
 ## 預算 {#budget}
 
-每次呼叫模型前，帳本先預留 neurons。預設上限是每個 UTC 日 3 次診斷、1,500 neurons。開發期間 Dev 提高到 10 次診斷、3,000 neurons（`SRE_AGENT_MAX_DIAGNOSES`、`SRE_AGENT_DAILY_NEURONS`）。無效的值會回到預設，絕不變成無上限。Qwen3 30B 最壞情況一次診斷用 576 neurons，所以 3,000 neurons 約 5 次診斷：若每個 neuron 都計費，每天 $0.033。加上週報、向量化與查詢的上限，Dev 的上限合計 11,500 neurons，最多超過每天內含的 10,000 達 1,500（[流程與成本](process.html#budgets)）。
+每次呼叫模型前，帳本先預留 neurons。預設上限是每個 UTC 日 3 次診斷、1,500 neurons。開發期間 Dev 提高到 10 次診斷、3,000 neurons（`SRE_AGENT_MAX_DIAGNOSES`、`SRE_AGENT_DAILY_NEURONS`）。無效的值會回到預設，絕不變成無上限。在 Anthropic 上帳本改記 USD：Dev 每天上限 $0.10（`SRE_AGENT_DAILY_USD`），Haiku 平均一次診斷約 $0.0013。Qwen3 30B 最壞情況一次診斷用 576 neurons，所以 3,000 neurons 約 5 次診斷：若每個 neuron 都計費，每天 $0.033。加上週報、向量化與查詢的上限，Dev 的上限合計 11,500 neurons，最多超過每天內含的 10,000 達 1,500（[流程與成本](process.html#budgets)）。
 
 ## 故障注入演練 {#drill}
 

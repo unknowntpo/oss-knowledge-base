@@ -461,13 +461,13 @@ const scenarios: Record<string, () => Promise<void>> = {
   },
 
   async "quota vars"() {
-    const defaults = { maxDiagnosesPerDay: 3, dailyNeuronCap: 1500 };
+    const defaults = { maxDiagnosesPerDay: 3, dailyNeuronCap: 1500, dailyUsdCap: 0.1 };
     expect(sreAgentCaps({})).toEqual(defaults);
-    expect(sreAgentCaps({ SRE_AGENT_MAX_DIAGNOSES: "10", SRE_AGENT_DAILY_NEURONS: "3000" })).toEqual({ maxDiagnosesPerDay: 10, dailyNeuronCap: 3000 });
-    expect(sreAgentCaps({ SRE_AGENT_MAX_DIAGNOSES: " 10 ", SRE_AGENT_DAILY_NEURONS: " 3000 " })).toEqual({ maxDiagnosesPerDay: 10, dailyNeuronCap: 3000 });
+    expect(sreAgentCaps({ SRE_AGENT_MAX_DIAGNOSES: "10", SRE_AGENT_DAILY_NEURONS: "3000" })).toEqual({ maxDiagnosesPerDay: 10, dailyNeuronCap: 3000, dailyUsdCap: 0.1 });
+    expect(sreAgentCaps({ SRE_AGENT_MAX_DIAGNOSES: " 10 ", SRE_AGENT_DAILY_NEURONS: " 3000 " })).toEqual({ maxDiagnosesPerDay: 10, dailyNeuronCap: 3000, dailyUsdCap: 0.1 });
     for (const invalid of ["", " ", "0", "-1", "2.5", "1e3", "0x10", "10abc", "abc", "NaN", "Infinity", "9007199254740993"]) {
-      expect(sreAgentCaps({ SRE_AGENT_MAX_DIAGNOSES: invalid, SRE_AGENT_DAILY_NEURONS: "3000" })).toEqual({ maxDiagnosesPerDay: 3, dailyNeuronCap: 3000 });
-      expect(sreAgentCaps({ SRE_AGENT_MAX_DIAGNOSES: "10", SRE_AGENT_DAILY_NEURONS: invalid })).toEqual({ maxDiagnosesPerDay: 10, dailyNeuronCap: 1500 });
+      expect(sreAgentCaps({ SRE_AGENT_MAX_DIAGNOSES: invalid, SRE_AGENT_DAILY_NEURONS: "3000" })).toEqual({ maxDiagnosesPerDay: 3, dailyNeuronCap: 3000, dailyUsdCap: 0.1 });
+      expect(sreAgentCaps({ SRE_AGENT_MAX_DIAGNOSES: "10", SRE_AGENT_DAILY_NEURONS: invalid })).toEqual({ maxDiagnosesPerDay: 10, dailyNeuronCap: 1500, dailyUsdCap: 0.1 });
     }
   },
 
