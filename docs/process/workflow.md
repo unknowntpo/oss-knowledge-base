@@ -86,8 +86,13 @@ were owner judgments (2026-10-16 and 2026-10-27) that no rule held until a
 review rejected a design. A Force with an ID and
 a source turns a taste into a rule that a reviewer and a test can check.
 
-- The AI drafts the Force list; the owner argues with it. The owner does not
-  start from a blank page.
+- Purpose: the owner and the AI align on the goal by discussing only the
+  Forces that matter most; the AI decides the rest (owner decision
+  2026-11-16).
+- The AI drafts the Force list and marks the few that need the owner. The
+  owner argues with those and does not start from a blank page. This differs
+  from the `pattern-language` skill's practice mode, where the user writes
+  Forces first.
 - Each spec has a `## Forces (約束)` table: ID (`FC1`, …), the Force in one
   sentence, its kind, its source (owner quote with date, measurement,
   incident, platform limit), and the Forces it conflicts with. Mark
@@ -105,7 +110,7 @@ a source turns a taste into a rule that a reviewer and a test can check.
   argued again in each spec.
 - Not gate-checked: `check:traceability` reads only `## Acceptance`, so `FC`
   IDs never count as acceptance IDs. The verifier checks the Force citations.
-- Specs accepted before 2026-11-16 have no Forces table and need none.
+- Specs whose PR opened before this rule merged need no Forces table.
 
 ## Simplification review (stage 2, before any design is accepted)
 
