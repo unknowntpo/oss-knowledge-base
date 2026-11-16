@@ -68,7 +68,7 @@ also blocks it).
 | --- | --- | --- | --- |
 | 1. Intent | Human | Spec: problem, user, observable outcome, non-goals | Outcome is observable |
 | 2. Assertions | Human; AI expands, human reviews the expansion | Numbered acceptance items in the spec | Every item names precondition, action, observable result, evidence |
-| 3. Decision | Human; AI lists alternatives | ADR when the choice crosses features | Alternatives, consequences, revisit trigger |
+| 3. Decision | Human; AI lists alternatives | ADR when the choice crosses features | Alternatives judged against the spec's Forces, consequences, revisit trigger |
 | 4. Slice | AI | Smallest end-to-end change; tests first | Each new test was seen failing before the fix |
 | 5. Gates | Machine; verifier with the verification kit | Local checks → CI → Dev → Prod | `bun run check:traceability` and CI green; deployed E2E green |
 | 6. Runtime | Machine; alerts to human | Health fields, freshness, run evidence | A violated assertion is visible without manual tailing |
@@ -76,13 +76,50 @@ also blocks it).
 When runtime behavior contradicts an assertion, change the spec first, then
 the code.
 
+## Forces (約束) (stage 2, before the simplification review)
+
+A Force (約束) is one pressure the design must answer: a hard limit, a quality
+the owner wants, an owner taste, or an assumption. The method is the
+`pattern-language` model: Context → Forces → Problem → Solution. Its main use
+here is taste. "No orange in charts" and "no colored accent stripe on a card"
+were owner judgments (2026-10-16 and 2026-10-27) that no rule held until a
+review rejected a design. A Force with an ID and
+a source turns a taste into a rule that a reviewer and a test can check.
+
+- Purpose: the owner and the AI align on the goal by discussing only the
+  Forces that matter most; the AI decides the rest (owner decision
+  2026-11-16).
+- The AI drafts the Force list and marks the few that need the owner. The
+  owner argues with those and does not start from a blank page. This differs
+  from the `pattern-language` skill's practice mode, where the user writes
+  Forces first.
+- Each spec has a `## Forces (約束)` table: ID (`FC1`, …), the Force in one
+  sentence, its kind, its source (owner quote with date, measurement,
+  incident, platform limit), and the Forces it conflicts with. Mark
+  hypotheses.
+- Keep conflicting Forces apart and name the conflict. Do not merge them into
+  one score that hides the tension.
+- State the Problem so a design can pass or fail against the Forces.
+- List the Solution Space: the null design and at least one materially
+  different alternative, each with the Forces it satisfies, trades, or
+  worsens. Name a Pattern only when the structure recurs.
+- Each Behavior rule cites the Force IDs it answers. Each Force is answered
+  by a rule, deferred as a Non-goal, or accepted as a cost.
+- A taste Force that recurs across specs moves to a stronger trust layer (a
+  design token, a lint rule, a test row) and to the repo's written rules. It is not
+  argued again in each spec.
+- Not gate-checked: `check:traceability` reads only `## Acceptance`, so `FC`
+  IDs never count as acceptance IDs. The verifier checks the Force citations.
+- Specs whose PR opened before this rule merged need no Forces table.
+
 ## Simplification review (stage 2, before any design is accepted)
 
 Apply these in order; a later step never compensates for skipping an earlier
 one. Adapted from Elon Musk's five-step engineering process.
 
 1. **Question every requirement.** Each field, component, and acceptance item
-   names who needs it and why. "The AI added it" is not an owner.
+   names who needs it and why, and the Force ID it answers. "The AI added it"
+   is not an owner; an item that answers no Force is a delete candidate.
 2. **Delete.** Remove every field, component, or step that cannot justify
    itself, including ones that already exist upstream (reuse a value already
    in the response instead of adding a new one). If nothing deleted ever has
